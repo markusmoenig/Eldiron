@@ -1,0 +1,564 @@
+{
+  "version": 1,
+  "id": "wall-corner",
+  "label": "Wall corner",
+  "rows": [
+    {
+      "id": "recipe",
+      "label": "Recipe",
+      "tiles": [
+        {
+          "id": "recipe-0",
+          "op": {
+            "type": "group",
+            "label": "Wall corner",
+            "document": {
+              "version": 1,
+              "id": "wall-corner-construction",
+              "label": "Wall corner construction",
+              "rows": [
+                {
+                  "id": "stone",
+                  "label": "Stone",
+                  "tiles": [
+                    {
+                      "id": "stone-0",
+                      "op": {
+                        "type": "material",
+                        "palette": 7,
+                        "roughness": 0.9,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "wall-x",
+                  "label": "Wall X",
+                  "tiles": [
+                    {
+                      "id": "wall-x-0",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          1,
+                          2.4,
+                          0.22
+                        ]
+                      }
+                    },
+                    {
+                      "id": "wall-x-1",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "stone"
+                      }
+                    },
+                    {
+                      "id": "wall-x-2",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.5,
+                          1.2,
+                          0.11
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "wall-z",
+                  "label": "Wall Z",
+                  "tiles": [
+                    {
+                      "id": "wall-z-0",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.22,
+                          2.4,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "wall-z-1",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "stone"
+                      }
+                    },
+                    {
+                      "id": "wall-z-2",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.11,
+                          1.2,
+                          0.5
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "footprint-contour",
+                  "label": "Footprint contour (X/Z)",
+                  "tiles": [
+                    {
+                      "id": "footprint-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0,
+                            0
+                          ],
+                          [
+                            1,
+                            0
+                          ],
+                          [
+                            1,
+                            0.22
+                          ],
+                          [
+                            0.22,
+                            0.22
+                          ],
+                          [
+                            0.22,
+                            1
+                          ],
+                          [
+                            0,
+                            1
+                          ]
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "assembly",
+                  "label": "Assembly",
+                  "tiles": [
+                    {
+                      "id": "assembly-0",
+                      "op": {
+                        "type": "assemble",
+                        "rows": [
+                          "wall-x",
+                          "wall-z"
+                        ]
+                      }
+                    },
+                    {
+                      "id": "placement-footprint",
+                      "op": {
+                        "type": "footprint",
+                        "row": "footprint-contour"
+                      }
+                    },
+                    {
+                      "id": "join-x",
+                      "op": {
+                        "type": "connector",
+                        "family": "wall",
+                        "translation": [
+                          1,
+                          0,
+                          0.11
+                        ],
+                        "rotation": [
+                          0,
+                          90,
+                          0
+                        ]
+                      }
+                    },
+                    {
+                      "id": "join-z",
+                      "op": {
+                        "type": "connector",
+                        "family": "wall",
+                        "translation": [
+                          0.11,
+                          0,
+                          1
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ]
+                      }
+                    },
+                    {
+                      "id": "roof-seat",
+                      "op": {
+                        "type": "connector",
+                        "family": "roof",
+                        "translation": [
+                          0.11,
+                          2.4,
+                          0.11
+                        ],
+                        "rotation": [
+                          -90,
+                          0,
+                          0
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "assembly",
+              "grip": null
+            },
+            "controls": [
+              {
+                "id": "width",
+                "label": "Width (m)",
+                "category": "Dimensions",
+                "help": "Changes source dimensions and keeps the corner aligned.",
+                "order": 0,
+                "value": 1,
+                "reference": 1,
+                "min": 0.5,
+                "max": 10.0,
+                "modifiers": [
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "wall-x-0",
+                      "parameter": "size0"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "wall-x-2",
+                      "parameter": "position0"
+                    },
+                    "factor": 0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "footprint-profile",
+                      "parameter": "point1:0"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "footprint-profile",
+                      "parameter": "point2:0"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "join-x",
+                      "parameter": "position0"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  }
+                ]
+              },
+              {
+                "id": "height",
+                "label": "Height (m)",
+                "category": "Dimensions",
+                "help": "Changes source dimensions and keeps the corner aligned.",
+                "order": 1,
+                "value": 2.4,
+                "reference": 2.4,
+                "min": 0.02,
+                "max": 10.0,
+                "modifiers": [
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "wall-x-0",
+                      "parameter": "size1"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "wall-z-0",
+                      "parameter": "size1"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "wall-x-2",
+                      "parameter": "position1"
+                    },
+                    "factor": 0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "wall-z-2",
+                      "parameter": "position1"
+                    },
+                    "factor": 0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "roof-seat",
+                      "parameter": "position1"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  }
+                ]
+              },
+              {
+                "id": "depth",
+                "label": "Depth (m)",
+                "category": "Dimensions",
+                "help": "Changes source dimensions and keeps the corner aligned.",
+                "order": 2,
+                "value": 1,
+                "reference": 1,
+                "min": 0.5,
+                "max": 10.0,
+                "modifiers": [
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "wall-z-0",
+                      "parameter": "size2"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "wall-z-2",
+                      "parameter": "position2"
+                    },
+                    "factor": 0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "footprint-profile",
+                      "parameter": "point4:1"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "footprint-profile",
+                      "parameter": "point5:1"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "join-z",
+                      "parameter": "position2"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  }
+                ]
+              },
+              {
+                "id": "thickness",
+                "label": "Thickness (m)",
+                "category": "Construction",
+                "help": "Changes recipe inputs before constructing the mesh.",
+                "order": 0,
+                "value": 0.22,
+                "reference": 0.22,
+                "min": 0.02,
+                "max": 0.5,
+                "modifiers": [
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "wall-x-0",
+                      "parameter": "size2"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "wall-x-2",
+                      "parameter": "position2"
+                    },
+                    "factor": 0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "wall-z-0",
+                      "parameter": "size0"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "wall-z-2",
+                      "parameter": "position0"
+                    },
+                    "factor": 0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "footprint-profile",
+                      "parameter": "point2:1"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "footprint-profile",
+                      "parameter": "point3:0"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "footprint-profile",
+                      "parameter": "point3:1"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "footprint-profile",
+                      "parameter": "point4:0"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "join-x",
+                      "parameter": "position2"
+                    },
+                    "factor": 0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "join-z",
+                      "parameter": "position0"
+                    },
+                    "factor": 0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "roof-seat",
+                      "parameter": "position0"
+                    },
+                    "factor": 0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "roof-seat",
+                      "parameter": "position2"
+                    },
+                    "factor": 0.5,
+                    "offset": 0
+                  }
+                ]
+              },
+              {
+                "id": "stone",
+                "label": "Stone",
+                "category": "Materials",
+                "help": "Project palette color for these parts.",
+                "order": 0,
+                "value": 7,
+                "reference": 7,
+                "min": 0.0,
+                "max": 255.0,
+                "modifiers": [
+                  {
+                    "type": "palette",
+                    "parts": [
+                      "*"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "recipe",
+  "grip": null
+}

@@ -2358,6 +2358,43 @@ impl IsoPaintRenderer {
         }
     }
 
+    /// The same procedural artwork used by 3D billboards, cropped for the CPU
+    /// iso sprite renderer. Its foot anchor survives cropping.
+    pub fn terrain_stamp_sprite(stamp: &IsoPaintStamp) -> rusterix::isometric::paint::StampSprite {
+        let (source, anchor) = Self::iso_paint_native_stamp_raster(stamp);
+        let width = source.dim().width as usize;
+        let height = source.dim().height as usize;
+        let mut min = [width, height];
+        let mut max = [0, 0];
+        for y in 0..height {
+            for x in 0..width {
+                if source.pixels()[(y * width + x) * 4 + 3] > 0 {
+                    min = [min[0].min(x), min[1].min(y)];
+                    max = [max[0].max(x + 1), max[1].max(y + 1)];
+                }
+            }
+        }
+        if min[0] >= max[0] || min[1] >= max[1] {
+            return rusterix::isometric::paint::StampSprite {
+                texture: rusterix::Texture::new(vec![0; 4], 1, 1),
+                anchor: [0., 0.],
+            };
+        }
+        let mut rgba = Vec::with_capacity((max[0] - min[0]) * (max[1] - min[1]) * 4);
+        for y in min[1]..max[1] {
+            rgba.extend_from_slice(
+                &source.pixels()[(y * width + min[0]) * 4..(y * width + max[0]) * 4],
+            );
+        }
+        rusterix::isometric::paint::StampSprite {
+            texture: rusterix::Texture::new(rgba, max[0] - min[0], max[1] - min[1]),
+            anchor: [
+                anchor[0] as f32 - min[0] as f32,
+                anchor[1] as f32 - min[1] as f32,
+            ],
+        }
+    }
+
     fn iso_paint_native_stamp_raster(stamp: &IsoPaintStamp) -> (TheRGBABuffer, [i32; 2]) {
         let native_size = stamp.size.max(0.01);
         // These bounds cover the tallest native procedural stamp (tree) while remaining small

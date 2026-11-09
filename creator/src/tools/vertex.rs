@@ -933,8 +933,16 @@ impl Tool for VertexTool {
                         let bottom_right =
                             Vec2::new(click_pos.x.max(drag_pos.x), click_pos.y.max(drag_pos.y));
 
-                        let mut selection =
-                            server_ctx.geometry_in_rectangle(top_left, bottom_right, map);
+                        let mut selection = if map.camera == rusterix::MapCamera::TwoDIso {
+                            server_ctx.geometry_in_screen_rectangle(
+                                Vec2::new(dim.width as f32, dim.height as f32),
+                                self.click_pos,
+                                Vec2::new(coord.x as f32, coord.y as f32),
+                                map,
+                            )
+                        } else {
+                            server_ctx.geometry_in_rectangle(top_left, bottom_right, map)
+                        };
                         selection.1 = vec![];
                         selection.2 = vec![];
                         selection

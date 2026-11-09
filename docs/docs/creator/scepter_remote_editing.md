@@ -157,7 +157,7 @@ Surface selectors use the existing externally tagged editor representation:
 
 Other selectors include `Sector: {id, ceiling}`, `Linedef: {id, row}` (rows 1–4),
 `RectTile: {sector}`, `SectorTile: {sector, cell}`, `GeometryTile: {object, face,
-cell}`, `TerrainTile: {cell}`, `WallArea` and `WallSlot`. Use `surface.list` to
+cell}`, `TerrainTile: {cell}`. Use `surface.list` to
 inspect the stable target IDs. Applying creates a placement-owned composition
 and UV cache while retaining shared source materials. Editing that returned
 composition ID adjusts that surface; applying a copied stack elsewhere avoids
@@ -190,11 +190,9 @@ undo record:
 }
 ```
 
-`targets` can contain `sectors` (integer IDs), `geometry`, `walls`, `characters`
+`targets` can contain `sectors` (integer IDs), `geometry`, `characters`
 and `items` (UUID lists). Selection also accepts `vertices`, `linedefs`, `faces`,
-`geometry_vertices` (`[object UUID, vertex index]` pairs), `wall_spans`,
-`wall_opening` and `wall_surface`. Wall sub-selection belongs to one selected
-assembly; only one character or item can be the active entity. IDs are checked
+`geometry_vertices` (`[object UUID, vertex index]` pairs). Only one character or item can be the active entity. IDs are checked
 before changing selection. Select a tool separately through `tool.select` when
 running a contextual action such as `face.extrude`.
 
@@ -261,27 +259,13 @@ New geometry, wall and entity operations require a caller-generated UUID in
 | `map_copy` | same transform fields; returns fresh IDs for the copies |
 | `map_delete` | `region`, `targets` |
 | `geometry_create` | `region`, `id`, `name`, `shape` (`box`, `cylinder`, `floor`, `ceiling`), `min`, `max`; optional `material`, cylinder `segments` |
-| `wall_create` | `region`, `id`, `name`, `points`, `height`, `thickness`; optional `closed`, `material` |
-| `wall_update` | `region`, `id`; optional `name`, `height`, `thickness`, `material`, `nodes: [{id,position}]`, `spans: [{id,curve_offset?,curve_segments?}]` |
-| `opening_put` | `region`, `assembly`, `span`, `id`, `center`, `bottom`, `width`, `height`; optional `arched` |
-| `opening_delete` | `region`, `assembly`, `span`, `id` |
-| `room_create` | `region`, `id`, `name`, `min`, `max`, `thickness`; optional `floor`, `wall`, `ceiling`, `doors` |
 | `entity_place` | `region`, `id`, `kind` (`character`/`item`), `template`, `position`; optional `name`, instance TOML `data`, `active` |
 | `entity_update` | `region`, `id`, `kind`; optional `name`, `position`, character `orientation: [x,z]`, instance TOML `data`, `active` |
 
-A room creates a canonical wall assembly, 2D floor sector, 3D floor and optional
-ceiling. `doors` entries contain `wall` (0–3), `center` (distance along the wall),
-`width`, `height` and optional `bottom`. Walls run around min-X/min-Z → max-X/min-Z
-→ max-X/max-Z → min-X/max-Z. Openings belong to the actual wall graph, including
-arched openings; there is no second Scepter-only representation.
-
 Erasing part of a larger floor stores per-cell overrides and preserves the rest
 of the floor and other layers. Sector moves detach shared boundaries instead of
-dragging neighboring sectors. Copying preserves geometry effects, wall graphs,
-openings, surface compositions and instance configuration. Placement-owned
-composition IDs are copied; source materials remain shared. Wall transforms
-require uniform horizontal scale and unchanged vertical scale; use `wall_update`
-for height. Surfaces with per-cell overrides support whole-cell translations,
+dragging neighboring sectors. Copying preserves geometry effects, surface compositions and instance configuration. Placement-owned
+composition IDs are copied; source materials remain shared. Surfaces with per-cell overrides support whole-cell translations,
 quarter turns and unit horizontal scale. Sector floor-height edits reject shared
 vertices; detach/move the sector first when changing its level independently.
 
@@ -302,14 +286,14 @@ For example, create a room and a lit ruleset torch in one undo step:
   "params": {
     "operations": [
       {
-        "op": "room_create",
+        "op": "geometry_create",
         "params": {
           "region": { "name": "Harbor" },
-          "id": "<new wall UUID>",
-          "name": "Workshop",
-          "min": [4, 0, 4], "max": [10, 3, 9], "thickness": 0.25,
-          "floor": { "alias": "Street" }, "wall": { "alias": "Walls" },
-          "doors": [{ "wall": 0, "center": 3, "width": 1.2, "height": 2.2 }]
+          "id": "<new object UUID>",
+          "name": "Workshop wall",
+          "shape": "box",
+          "min": [4, 0, 4], "max": [10, 3, 4.25],
+          "material": { "alias": "Walls" }
         }
       },
       {
@@ -326,12 +310,12 @@ For example, create a room and a lit ruleset torch in one undo step:
 ```
 
 Use `dry_run: true` first when exploring a larger edit. Coordinates must be
-finite and within ±1,000,000; primitive extents are at most 4096, polygons/wall
-paths have at most 256 points, cylinders at most 128 segments, and instance TOML
-at most 64 KiB. Wall rebuild estimates are bounded to 25,000 bricks. A transaction
+finite and within ±1,000,000; primitive extents are at most 4096, polygons
+have at most 256 points, cylinders at most 128 segments, and instance TOML
+at most 64 KiB. A transaction
 allows 128 operations and a combined 4096 painted/erased cells.
 
-The native acceptance test exercises a room, composed road, doorway, ruleset
+The native acceptance test exercises geometry, a composed road, a ruleset
 character and active torch in copies of Hideout2D-MZ and 3D Starter, with 2D/3D
 previews, save/reopen and one-step undo/redo. Run it on a machine with a native GPU:
 
@@ -343,7 +327,7 @@ cargo test -p eldiron-creator --lib scepter_world_workflow_in_hideout_and_3d_sta
 
 The catalog reports `implemented` for every command. Planned commands return
 HTTP 501. MZ material and composition editing, atomic transactions and engine
-previews are implemented. Map selection/cameras, primitives, sectors, wall assemblies/openings, rooms,
+previews are implemented. Map selection/cameras, primitives, sectors,
 transforms and ruleset entity placement are implemented. Direct appearance/rig
 and arbitrary node-graph authoring remain follow-up work.
 

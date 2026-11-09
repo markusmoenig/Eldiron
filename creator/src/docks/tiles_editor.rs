@@ -291,7 +291,7 @@ impl Dock for TilesEditorDock {
                 if let TheValue::Id(tile_id) = value
                     && id.name == "Tile Picked"
                 {
-                    if project.procedural_materials.contains_key(tile_id) {
+                    if shared::isometric::tile_recipe(project, *tile_id).is_some() {
                         server_ctx.editing_ctx = PixelEditingContext::None;
                         ctx.ui.set_disabled("Tile Editor Dock RGBA Layout View");
                     } else if let Some(tile) = project.tiles.get(tile_id) {
@@ -1713,7 +1713,7 @@ impl TilesEditorDock {
             _ => None,
         };
         if let Some(id) = tile
-            && project.procedural_materials.contains_key(&id)
+            && shared::isometric::tile_recipe(project, id).is_some()
         {
             server_ctx.editing_ctx = PixelEditingContext::None;
             ctx.ui.set_disabled("Tile Editor Dock RGBA Layout View");

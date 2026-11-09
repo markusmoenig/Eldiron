@@ -1,0 +1,72 @@
+{
+  "@surface": {
+    "base color": 7,
+    "emission": 1
+  },
+  "palm-colors": {
+    "color0": 17,
+    "color1": 18,
+    "color2": 19,
+    "color3": 21
+  },
+  "palm-outline": {
+    "color": 1
+  },
+  "finger-0-colors": {
+    "color0": 18,
+    "color1": 19,
+    "color2": 20,
+    "color3": 21
+  },
+  "finger-0-outline": {
+    "color": 1
+  },
+  "finger-1-colors": {
+    "color0": 18,
+    "color1": 19,
+    "color2": 20,
+    "color3": 21
+  },
+  "finger-1-outline": {
+    "color": 1
+  },
+  "finger-2-colors": {
+    "color0": 18,
+    "color1": 19,
+    "color2": 20,
+    "color3": 21
+  },
+  "finger-2-outline": {
+    "color": 1
+  },
+  "finger-3-colors": {
+    "color0": 18,
+    "color1": 19,
+    "color2": 20,
+    "color3": 21
+  },
+  "finger-3-outline": {
+    "color": 1
+  },
+  "thumb-colors": {
+    "color0": 18,
+    "color1": 19,
+    "color2": 20,
+    "color3": 21
+  },
+  "thumb-outline": {
+    "color": 1
+  },
+  "cuff-colors": {
+    "color0": 16,
+    "color1": 17,
+    "color2": 18,
+    "color3": 19
+  },
+  "cuff-outline": {
+    "color": 1
+  },
+  "cuff-trim-color": {
+    "color": 21
+  }
+}

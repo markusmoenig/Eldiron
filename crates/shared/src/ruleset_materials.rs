@@ -175,7 +175,46 @@ pub fn baked_frames(project: &Project, name: &str) -> Result<Vec<Texture>, Strin
     if let Some(frames) = saved_frames(project, name, def.resolution) {
         return Ok(frames);
     }
-    animation_frames(&editable(project, name)?, &project.palette, def.resolution)
+    // Reopening an editable bundle compiles its dependency library. Cache above
+    // that operation, rather than only caching the final per-frame evaluator.
+    static CACHE: OnceLock<Mutex<HashMap<u64, Vec<Texture>>>> = OnceLock::new();
+    let key = rusterix::procedural_avatar::fingerprint(&(
+        def.id,
+        def.source,
+        def.palette,
+        def.output,
+        def.resolution,
+        project
+            .procedural_materials
+            .get(&crate::rulesets::material_asset_id(name)),
+        serde_json::to_string(&project.palette.colors).unwrap_or_default(),
+    ));
+    let cache = CACHE.get_or_init(Default::default);
+    if let Some(frames) = cache.lock().unwrap().get(&key) {
+        return Ok(frames.clone());
+    }
+    let frames = animation_frames(&editable(project, name)?, &project.palette, def.resolution)?;
+    let mut cache = cache.lock().unwrap();
+    if cache.len() >= 256 {
+        if let Some(key) = cache.keys().next().copied() {
+            cache.remove(&key);
+        }
+    }
+    cache.insert(key, frames.clone());
+    Ok(frames)
+}
+
+/// Read transport metadata without compiling the editable material library.
+pub fn animation_settings(bundle: &str) -> Option<denrim_materials::format::Animation> {
+    let data: serde_json::Value = serde_json::from_str(bundle).ok()?;
+    let selected = data.get("selected_material")?.as_str()?;
+    let recipe = data.pointer("/root/recipe")?.as_str()?;
+    denrim_materials::format::parse(recipe)
+        .ok()?
+        .materials
+        .into_iter()
+        .find(|m| m.id == selected)
+        .map(|m| m.animation)
 }
 
 pub fn icon_state_tiles(project: &Project) -> Result<HashMap<Uuid, Vec<Texture>>, String> {

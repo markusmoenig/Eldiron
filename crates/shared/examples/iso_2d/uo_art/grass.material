@@ -1,0 +1,59 @@
+# Fine blades and dry flecks use stable world-cell identities. Broad colour
+# variation stays quiet, rather than covering the ground in coarse noise curls.
+project 1
+result from material "surface"
+material "surface" called "Art Study / Grass"
+  mode pbr
+  tiling raw
+  default roughness to 0.96
+  row "patches" called "Broad Meadow Variation"
+    use "Perlin Noise" id "patches"
+      set "globalScale" to 8
+  row "blade-tone" called "Individual Blade Tones"
+    use "Cell Data" id "blade-tone"
+      set "scope" to 1
+  row "blade-shape" called "Fine Grass Blade Shape"
+    use "Rounded Rectangle" id "blade"
+      set "halfSize" to 0.12 0.36
+      set "radius" to 0.08
+  row "blade" called "Blade Profile and Variation"
+    use "Distance Profile" id "blade-profile"
+      input from row "blade-shape" distance
+      set "width" to 0.07
+      set "profile" to 1
+    use "Multiply" id "blade-variation"
+      set "localValue" from row "blade-tone" random.xxx mapped 0.55 to 1
+  row "blades" called "Nonrepeating Meadow Blades"
+    use "Grid" id "blade-field"
+      input from row "blade" xyz
+      set "cells" to 24 20
+      set "continuous" to 1
+      set "rowOffset" to 0.37
+      set "gap" to 0.02 0.02
+      set "jitter" to 0.42 0.42
+      set "randomRotation" to 75
+      set "probability" to 0.83
+      set "seed" to 731
+  row "grain" called "Fine Soil Between Blades"
+    use "White Noise" id "grain"
+      set "cells" to 92 92
+      set "seed" to 53
+    use "Multiply" id "grain-strength"
+      set "localValue" to 0.16 0.16 0.16
+    use "Add" id "soil-tone"
+      set "localValue" from row "patches" xxx mapped 0.29 to 0.44
+    use "Add" id "fine-blades"
+      set "localValue" from row "blades" xxx mapped 0 to 0.21
+  row "color" called "Palette Surface"
+    use "Color Ramp" id "colors"
+      input from row "grain" xxx
+      set "position0" to 0.1
+      set "color0" to 0.019382 0.028426 0.004025 1
+      set "position1" to 0.35
+      set "color1" to 0.045186 0.063010 0.010960 1
+      set "position2" to 0.65
+      set "color2" to 0.088656 0.116971 0.024158 1
+      set "position3" to 0.9
+      set "color3" to 0.155926 0.191202 0.049707 1
+      set "interpolation" to 1
+  output base color from row "color" xyz

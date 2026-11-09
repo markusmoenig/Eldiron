@@ -142,32 +142,6 @@ fn gizmo_axis_for_map(map: &Map, axis_id: u32) -> Option<Vec3<f32>> {
             .block_prop_instances
             .iter()
             .find(|instance| instance.id == *selected_id)?;
-        if let Some(rusterix::BlockPropHostAttachment::WallSpan {
-            assembly_id,
-            span_id,
-            along,
-            height,
-            side,
-            ..
-        }) = instance.host_attachment.as_ref()
-        {
-            let assembly = map.wall_assembly(*assembly_id)?;
-            let length = assembly.span_length(*span_id)?;
-            let epsilon = (length * 0.01).clamp(0.005, 0.05);
-            let before =
-                assembly.span_point(*span_id, Vec2::new((along - epsilon).max(0.0), *height))?;
-            let after =
-                assembly.span_point(*span_id, Vec2::new((along + epsilon).min(length), *height))?;
-            let tangent =
-                Vec3::new(after.x - before.x, 0.0, after.z - before.z).try_normalized()?;
-            let outward =
-                Vec3::new(-tangent.z, 0.0, tangent.x) * if *side < 0.0 { -1.0 } else { 1.0 };
-            return Some(match column {
-                0 => tangent,
-                1 => Vec3::unit_y(),
-                _ => outward,
-            });
-        }
         return Vec3::new(
             instance.world_transform[column][0],
             instance.world_transform[column][1],
@@ -3527,7 +3501,6 @@ impl Tool for GeometryTool {
                 }
                 if moving_prefab_instances {
                     let subdivisions = map.subdivisions;
-                    let mut moved_hosted_ids = Vec::new();
                     for (selected_id, start_transform) in &drag.start_instance_transforms {
                         if let Some(instance) = map
                             .block_prop_instances
@@ -3543,18 +3516,7 @@ impl Tool for GeometryTool {
                                     subdivisions,
                                 )
                             };
-                            if instance.host_attachment.is_some() {
-                                moved_hosted_ids.push(*selected_id);
-                            }
                         }
-                    }
-                    let mut refreshed_host = false;
-                    for instance_id in moved_hosted_ids {
-                        refreshed_host |=
-                            map.refresh_wall_host_from_instance_transform(instance_id);
-                    }
-                    if refreshed_host {
-                        map.sync_wall_hosted_block_props();
                     }
                     sync_block_prop_surface_items(map);
                     if let Some(anchor) = next_axis_anchor {
@@ -3805,9 +3767,7 @@ impl Tool for GeometryTool {
             }
             MapKey(key) => {
                 let step = ServerContext::edit_grid_step(map.subdivisions);
-                if !map.selected_block_prop_instances.is_empty()
-                    && matches!(key, 'r' | 'R' | 'f' | 'F' | 'd' | 'D' | 'a' | 'A')
-                {
+                if !map.selected_block_prop_instances.is_empty() && matches!(key, 'r' | 'R') {
                     let old_map = map.clone();
                     let selected = map.selected_block_prop_instances.clone();
                     let mut changed = false;
@@ -3816,45 +3776,6 @@ impl Tool for GeometryTool {
                             let turns = if key == 'R' { -1 } else { 1 };
                             for instance_id in selected {
                                 changed |= map.rotate_block_prop_placement(instance_id, turns);
-                            }
-                        }
-                        'f' => {
-                            for instance_id in selected {
-                                changed |= map.flip_wall_hosted_block_prop(instance_id);
-                            }
-                        }
-                        'd' => {
-                            for instance_id in selected {
-                                changed |= map.detach_block_prop(instance_id);
-                            }
-                        }
-                        'a' => {
-                            if let Some(GeoId::GeometryObject(object_id)) = server_ctx.geo_hit {
-                                let normal =
-                                    server_ctx.hover_surface_normal.unwrap_or(Vec3::unit_z());
-                                for instance_id in selected {
-                                    let offset = map
-                                        .block_prop_instances
-                                        .iter()
-                                        .find(|instance| instance.id == instance_id)
-                                        .and_then(|instance| {
-                                            RUSTERIX
-                                                .read()
-                                                .ok()?
-                                                .assets
-                                                .block_props
-                                                .get(&instance.asset_id)
-                                                .map(|asset| asset.placement.surface_offset)
-                                        })
-                                        .unwrap_or(0.0);
-                                    changed |= map.attach_block_prop_to_wall_surface(
-                                        instance_id,
-                                        object_id,
-                                        server_ctx.geo_hit_pos,
-                                        normal,
-                                        offset,
-                                    );
-                                }
                             }
                         }
                         _ => {}

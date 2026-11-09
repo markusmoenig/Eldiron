@@ -33,7 +33,7 @@ impl Action for OrbitCamera {
     }
 
     fn accel(&self) -> Option<TheAccelerator> {
-        Some(TheAccelerator::new(TheAcceleratorKey::CTRLCMD, '3'))
+        Some(TheAccelerator::new(TheAcceleratorKey::CTRLCMD, '4'))
     }
 
     fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
@@ -49,10 +49,10 @@ impl Action for OrbitCamera {
         server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
         server_ctx.editing_surface = None;
-        ui.set_widget_value("Editor View Switch", ctx, TheValue::Int(1));
+        ui.set_widget_value("Editor View Switch", ctx, TheValue::Int(2));
         ctx.ui.send(TheEvent::IndexChanged(
             TheId::named("Editor View Switch"),
-            1,
+            2,
         ));
         None
     }

@@ -5,7 +5,9 @@ sidebar_position: 1
 
 You can configure **Eldiron** by selecting the **Game -> Settings** item in the **project tree**.
 
-The settings navigation includes [Tile and Appearance Settings](#tile-and-appearance-settings)
+The settings navigation includes [2D Isometric Lighting](#2d-isometric-lighting),
+[Simulation Configuration](#simulation-configuration), and
+[Tile and Appearance Settings](#tile-and-appearance-settings)
 for world materials, transparent map tiles, and independent 2D/3D character and
 item pixelization.
 
@@ -388,14 +390,17 @@ fog_density = 0.0
 # Shadow toggle.
 shadow_enabled = true
 
-# Shadow strength (default 0.8).
-shadow_strength = 0.8
+# Shadow strength (engine default 0.9).
+shadow_strength = 0.9
 
 # Shadow-map resolution.
 shadow_resolution = 1024
 
 # Shadow depth bias.
 shadow_bias = 0.0015
+
+# GPU 2D iso point-light source radius in world units; 0 gives sharp shadows.
+point_shadow_softness = 0.075
 
 # Fade mode for alpha/visibility transitions: "ordered_dither" or "uniform".
 fade_mode = "ordered_dither"
@@ -434,21 +439,27 @@ firstp_blur_far = 8.0
 
 ### **Option Descriptions**
 
-All `[render]` options apply **only to the 3D renderer** (they do not affect the 2D tile/sprite renderer).
+Sun colour/direction/intensity, ambient colour/strength, and shadow enable/strength
+also drive live **2D iso** lighting. `point_shadow_softness` controls GPU iso local
+light shadows. Raster 3D controls such as `shadow_resolution`, `shadow_bias`, MSAA,
+avatar highlights and the surface lighting-model selector remain specific to
+that renderer. See [2D Isometric Lighting](#2d-isometric-lighting) below for the
+settings used by the iso scene.
 
 - **`sky_color`** — Static sky RGB used when sky simulation is off.
 - **`sun_color`** — Static sun RGB tint used when sun simulation is off.
-- **`sun_intensity`** — Multiplier for sun brightness. Increase for harsher lighting; reduce for softer daylight.
+- **`sun_intensity`** — Multiplier for sun brightness. Increase for harsher lighting; reduce for dimmer daylight.
 - **`sun_direction`** — Sun vector `[x, y, z]` (points from light to scene). Adjust to change time-of-day lighting angle.
 - **`sun_enabled`** — Toggles the directional sun light. Set `false` for indoor or emissive-only scenes.
 - **`ambient_color`** — Uniform ambient RGB independent of sky. Use to fill shadows with a specific hue.
 - **`ambient_strength`** — Scalar (0–1) for ambient_color energy. Higher values lighten occluded areas.
 - **`fog_color`** — Fog RGB tint applied with distance-based fog.
 - **`fog_density`** — Strength of exponential-squared fog. `0` disables; higher values increase haze with distance.
-- **`shadow_enabled`** — Enables or disables sun shadow-map rendering.
-- **`shadow_strength`** — Shadow contribution amount (0–1). Lower values make shadows softer/fainter.
-- **`shadow_resolution`** — Shadow-map size in pixels. Higher values sharpen shadows but increase GPU cost.
-- **`shadow_bias`** — Depth bias used to reduce shadow acne/peter-panning.
+- **`shadow_enabled`** — Enables or disables sun shadows in Raster 3D and sun/local-light shadows in GPU 2D iso.
+- **`shadow_strength`** — Shadow contribution amount (0–1). Lower values make shadows fainter; this does not widen their edges.
+- **`point_shadow_softness`** — GPU 2D iso point-light source radius, in world units. Default `0.075`; supported range `0`–`1`. Larger values widen shadow penumbras, especially when a blocker is close to the light and far from the receiving surface. `0` selects sharp point lights. This affects shadow filtering and the local light's smooth range falloff, while material pixels remain crisp. It does not change the sun's colour, direction or shadows.
+- **`shadow_resolution`** — Raster 3D shadow-map size in pixels. Higher values sharpen shadows but increase GPU cost.
+- **`shadow_bias`** — Raster 3D depth bias used to reduce shadow acne/peter-panning.
 - **`fade_mode`** — Visibility fade style for hidden/fading geometry (`ordered_dither` or `uniform`).
 - **`lighting_model`** — Surface lighting model (`lambert`, `cook_torrance`, `pbr`).
 - **`style`** — Renderer material style. The current 3D renderer follows the material-aware Nomad-style path; older optional style presets are kept as compatibility values where present.
@@ -460,6 +471,73 @@ All `[render]` options apply **only to the 3D renderer** (they do not affect the
 - **`msaa_samples`** — Raster 3D multisampling level (`0` = off, `4` = on) for edge anti-aliasing.
 - **`firstp_blur_near`** — Distance where first-person texture blur transition starts.
 - **`firstp_blur_far`** — Distance where first-person texture blur transition is fully applied.
+
+---
+
+### 2D Isometric Lighting
+
+Open **Game → Settings** in the project tree. These settings are stored in the
+project's TOML configuration, and are used by the editor preview and the game.
+Change preview time on the editor's time bar to inspect morning, noon, dusk and
+night. Play mode follows server/game time.
+
+| Setting | Section | Default / effect |
+| --- | --- | --- |
+| `point_shadow_softness` | `[render]` | `0.075`: soft GPU point-light shadows. `0` gives sharp shadows; larger values soften their edges more. |
+| `ambient_color` | `[render]` | Ambient fill colour, independent of sky colour. |
+| `ambient_strength` | `[render]` | Engine default `0.24`. Daytime ambient baseline when a night override is supplied. |
+| `night_ambient_strength` | `[simulation]` | Optional; omitted by default. Set `0.12` for the darker night used by the procedural demo. |
+| `sun_enabled` / `sun_intensity` | `[render]` | Enable the sun / scale its brightness. Local lights work independently. |
+| `morning_sun_color`, `midday_sun_color`, `evening_sun_color`, `night_sun_color` | `[simulation]` | Time-dependent sun colours; active when simulation is enabled. |
+| `shadow_enabled` / `shadow_strength` | `[render]` | Enable cast shadows / control their darkness. Strength changes contrast; softness changes edge width. |
+
+For example, these settings retain the normal daytime ambient level, lower it
+at night and use the default soft lantern shadows:
+
+```toml
+[render]
+sun_enabled = true
+sun_intensity = 1.0
+ambient_strength = 0.24
+shadow_enabled = true
+shadow_strength = 0.9
+point_shadow_softness = 0.075
+
+[simulation]
+enabled = true
+night_ambient_strength = 0.12
+morning_sun_color = "#FFCC99"
+midday_sun_color = "#FFFFF2"
+evening_sun_color = "#FFB380"
+night_sun_color = "#1A1A26"
+sunrise_time = 6.0
+sunset_time = 18.0
+color_transition_duration_hours = 0.5
+```
+
+Merge these keys into the project's existing sections rather than adding a
+second `[render]` or `[simulation]` table.
+
+GPU iso lighting uses the simulation's current sun colour and direction on MZ
+meshes and shared terrain. It does not bake a morning or evening tint into their
+materials. Sky colour and ambient colour are separate: changing
+`night_sky_color` does not automatically recolour the ground's ambient fill.
+Surface orientation and the sun's angle also affect how much directional light
+it receives; the night sun colour is not a replacement for ambient illumination.
+
+A local lantern's colour, intensity, range and flicker belong to that light.
+`point_shadow_softness` controls the project's GPU iso point-shadow filtering;
+it does not change those local light colours. The Wayfarer's Rest example uses
+door/table light strengths `1.65`/`1.35`, ranges `4.5`/`3.6`, and flicker `0.08`.
+Lower intensity if a pool of light looks harsh or washed out; increase softness
+if the frame casts an overly sharp pattern. Keep real openings in the fixture so
+light can reach the ground.
+
+Ordinary bitmap sprites retain their **Preserve original artwork** behaviour.
+Sprites set to **World lighting tint** can receive live light with their flat
+normal. See [Isometric Sprite Tilesets](../building_maps/isometric_sprite_tilesets.mdx)
+and the [MZ iso lighting guide](../building_maps/materialz/reference.md#lighting-an-isometric-scene)
+for material, geometry and bitmap differences.
 
 ---
 
@@ -544,6 +622,9 @@ Simulation configuration options are located in the `[simulation]` section.
 # Enable procedural daylight simulation (overrides static sky_color, sun_color, sun_direction)
 enabled = true
 
+# Optional night ambient override. Omit to keep [render] ambient_strength all day.
+# night_ambient_strength = 0.12
+
 # Sky color at night (dark)
 night_sky_color = "#050510"
 
@@ -580,9 +661,12 @@ color_transition_duration_hours = 0.5
 
 ### **Option Descriptions**
 
-These simulation values drive the **3D** AND **2D** procedural sky/sun lighting.
+These simulation values supply time-of-day sun colour and direction to 3D and
+2D rendering, including **2D iso**. Sky colours apply where a sky is rendered;
+the iso map does not gain a 3D sky background. Ambient fill has its own settings.
 
 - **`enabled`** — Turns procedural daylight on. When `true`, it overrides static `sky_color`, `sun_color`, and `sun_direction` from `[render]`.
+- **`night_ambient_strength`** — Optional ambient strength for deep night. Omitted by default, which keeps the static `[render] ambient_strength` throughout the day. When supplied, it fades from the day baseline after sunset and back before sunrise using `color_transition_duration_hours`. Repeated preview-time updates do not accumulate darkening. It leaves local lights and daylight colours unchanged.
 - **`night_sky_color`** — Sky tint used from sunset to sunrise.
 - **`morning_sky_color`** — Sky tint blended in during the sunrise transition.
 - **`midday_sky_color`** — Sky tint applied around noon for clear daylight.
@@ -591,6 +675,24 @@ These simulation values drive the **3D** AND **2D** procedural sky/sun lighting.
 - **`morning_sun_color`** — Sun tint during sunrise; often warmer/orange.
 - **`midday_sun_color`** — Sun tint at noon; typically neutral/white.
 - **`evening_sun_color`** — Sun tint during sunset; typically warm.
-- **`sunrise_time`** — 24-hour decimal time when sunrise starts (e.g., `6.5` = 06:30). Drives interpolation from night → morning.
-- **`sunset_time`** — 24-hour decimal time when sunset starts (e.g., `18.5` = 18:30). Drives interpolation from midday → evening → night.
+- **`sunrise_time`** — 24-hour decimal time when the sun reaches the horizon (e.g., `6.5` = 06:30). The night → morning blend starts one transition duration earlier; morning → midday ends one duration later.
+- **`sunset_time`** — 24-hour decimal time when the sun reaches the evening horizon (e.g., `18.5` = 18:30). Midday → evening starts one transition duration earlier; evening → night ends one duration later.
 - **`color_transition_duration_hours`** — Duration of each day/night color blend window in in-game hours. Example: `0.5` = 30 minutes, `0.25` = 15 minutes.
+
+### Checking the day/night transition
+
+With sunrise `6.0`, sunset `18.0` and a `0.5`-hour transition:
+
+| Preview time | Sun colour blend | Ambient with a night override |
+| --- | --- | --- |
+| Before 05:30 | Night | Night level |
+| 05:30–06:00 | Night → morning | Night → day level |
+| 06:00–06:30 | Morning → midday | Day level |
+| 06:30–17:30 | Midday | Day level |
+| 17:30–18:00 | Midday → evening | Day level |
+| 18:00–18:30 | Evening → night | Day → night level |
+| After 18:30 | Night | Night level |
+
+Set `enabled = false` to inspect the static `[render] sun_color` and
+`sun_direction` instead. An optional night ambient override is used only while
+simulation is enabled.

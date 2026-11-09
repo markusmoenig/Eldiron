@@ -38,17 +38,11 @@ Templates and placed instances have independent graphs. Template startup runs fi
 
 **Set Tile** uses a visual tile picker and is available in both configuration and behavior graphs. Tile-tag events can trigger changes during play, such as changing a character's tile when entering a chair tile.
 
-## Shared Construction Patterns
-
-The **Wall Tool** handles creation and selection, while **Construction Nodes** describe wall and surface settings. Shared branches can be assigned to multiple walls or surfaces, and **Pattern Reference** nodes reuse pattern branches.
-
-Pattern graphs combine geometry and material operations, including subdivision, inset, colors, tiles, **Value/Voronoi Noise**, and **Gradient** mapping. This gives walls, floors, and ceilings an editable foundation for more varied construction patterns.
-
-Floors and ceilings are independent surfaces. You can create them inside enclosed wall areas, including bulk creation across a layout, and hide ceilings in the editor while leaving them visible in the game.
-
 ## Updated Starters And Gameplay
 
-**Hideout 2D**, **3D Starter**, **Gate**, **Cellar**, and **Stonefall Dungeon** use nodes. Cellar joins the starter list with editable prefabs, lighting, and particle effects. Stonefall's dungeon walls use native Wall Tool geometry.
+**Hideout 2D**, **3D Starter**, **Gate**, **Cellar**, and **Stonefall Dungeon** use nodes. Cellar joins the starter list with editable prefabs, lighting, and particle effects. Stonefall's dungeon uses editable geometry objects.
+
+The Cellar example has since been retired: its geometry depended on the removed Wall tool.
 
 The new **firstp_mouse** camera supports automatic mouse look over the viewport, including looking up and down. First-person views hide the player's own avatar while preserving its lights.
 

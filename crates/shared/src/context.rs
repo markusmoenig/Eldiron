@@ -129,6 +129,29 @@ pub enum EditorViewMode {
 }
 
 impl EditorViewMode {
+    /// Camera toolbar order. Keep `to_index`/`from_index` stable for saved view caches.
+    pub fn toolbar_index(&self, camera: MapCamera) -> i32 {
+        match self {
+            Self::D2 => {
+                if camera == MapCamera::TwoDIso {
+                    1
+                } else {
+                    0
+                }
+            }
+            Self::Orbit => 2,
+            Self::Iso => 3,
+            Self::FirstP => 4,
+        }
+    }
+    pub fn from_toolbar_index(index: i32) -> Self {
+        match index {
+            2 => Self::Orbit,
+            3 => Self::Iso,
+            4 => Self::FirstP,
+            _ => Self::D2,
+        }
+    }
     pub fn to_index(&self) -> i32 {
         match self {
             EditorViewMode::D2 => 0,
@@ -507,6 +530,8 @@ pub struct ServerContext {
 
     /// The current 3d hover position
     pub hover_cursor_3d: Option<Vec3<f32>>,
+    /// World-space terrain brush radius for the 3D cursor overlay.
+    pub terrain_brush_radius: f32,
     /// Current 3D Paint hover position in render-buffer screen coordinates.
     pub iso_paint_hover_screen: Option<Vec2<i32>>,
     /// Live projected quadrilateral while authoring a surface-anchored 3D Paint selection.
@@ -746,6 +771,7 @@ impl ServerContext {
             hover: (None, None, None),
             hover_cursor: None,
             hover_cursor_3d: None,
+            terrain_brush_radius: 2.,
             iso_paint_hover_screen: None,
             iso_paint_selection_rect: None,
             hover_ray_origin_3d: None,
@@ -955,6 +981,33 @@ impl ServerContext {
     }
 
     /// Convert local screen position to a map grid position
+    fn iso_ground_at_pixel(
+        map: &Map,
+        projection: rusterix::isometric::Projection,
+        pixel: Vec2<f32>,
+    ) -> Vec2<f32> {
+        if map
+            .properties
+            .get_float_default("iso_edit_height", 0.)
+            .abs()
+            < 0.001
+        {
+            if let Some(t) = rusterix::chunkbuilder::terrain_surface::TerrainSurface::cached(map) {
+                let base = projection.ground(pixel);
+                if let Some(p) = t.raycast(
+                    Vec3::new(base.x, 0., base.y),
+                    Vec3::new(-1.2247449, 1., 1.2247449),
+                    t.max_height,
+                ) {
+                    return Vec2::new(p.x, p.z);
+                }
+            }
+        }
+        projection
+            .at_height(map.properties.get_float_default("iso_edit_height", 0.))
+            .ground(pixel)
+    }
+
     pub fn local_to_map_grid(
         &self,
         screen_size: Vec2<f32>,
@@ -962,8 +1015,19 @@ impl ServerContext {
         map: &Map,
         subdivisions: f32,
     ) -> Vec2<f32> {
-        let grid_space_pos = coord - screen_size / 2.0 - Vec2::new(map.offset.x, -map.offset.y);
-        let snapped = grid_space_pos / map.grid_size;
+        let origin = screen_size / 2.0 + Vec2::new(map.offset.x, -map.offset.y);
+        let snapped = if map.camera == rusterix::MapCamera::TwoDIso {
+            Self::iso_ground_at_pixel(
+                map,
+                rusterix::isometric::Projection {
+                    origin,
+                    unit: map.grid_size,
+                },
+                coord,
+            )
+        } else {
+            (coord - origin) / map.grid_size
+        };
         let rounded = snapped.map(|x| x.round());
 
         if subdivisions > 1.0 {
@@ -1018,24 +1082,44 @@ impl ServerContext {
         map: &Map,
         subdivisions: f32,
     ) -> Vec2<f32> {
-        let grid_space_pos = coord - screen_size / 2.0 - Vec2::new(map.offset.x, -map.offset.y);
-        let grid_cell = (grid_space_pos / map.grid_size).map(|x| x.floor());
-
-        if subdivisions > 1.0 {
-            let sub_cell_size = map.grid_size / subdivisions;
-            let sub_index = grid_space_pos
-                .map(|x| x.rem_euclid(map.grid_size) / sub_cell_size)
-                .map(|x| x.floor());
-            grid_cell + sub_index / subdivisions
+        let origin = screen_size / 2.0 + Vec2::new(map.offset.x, -map.offset.y);
+        let point = if map.camera == rusterix::MapCamera::TwoDIso {
+            Self::iso_ground_at_pixel(
+                map,
+                rusterix::isometric::Projection {
+                    origin,
+                    unit: map.grid_size,
+                },
+                coord,
+            )
         } else {
-            grid_cell
-        }
+            (coord - origin) / map.grid_size
+        };
+        let subdivisions = subdivisions.max(1.);
+        (point * subdivisions).map(|v| v.floor()) / subdivisions
     }
 
     /// Convert a map grid position to a local screen position
     pub fn map_grid_to_local(screen_size: Vec2<f32>, grid_pos: Vec2<f32>, map: &Map) -> Vec2<f32> {
-        let grid_space_pos = grid_pos * map.grid_size;
-        grid_space_pos + Vec2::new(map.offset.x, -map.offset.y) + screen_size / 2.0
+        let origin = screen_size / 2.0 + Vec2::new(map.offset.x, -map.offset.y);
+        if map.camera == rusterix::MapCamera::TwoDIso {
+            rusterix::isometric::Projection {
+                origin,
+                unit: map.grid_size,
+            }
+            .screen(grid_pos, {
+                let h = map.properties.get_float_default("iso_edit_height", 0.);
+                if h.abs() < 0.001 {
+                    rusterix::chunkbuilder::terrain_surface::TerrainSurface::cached(map)
+                        .and_then(|t| t.height_at(grid_pos))
+                        .unwrap_or(h)
+                } else {
+                    h
+                }
+            })
+        } else {
+            grid_pos * map.grid_size + origin
+        }
     }
 
     /// Centers the map at the given grid position.
@@ -1045,7 +1129,15 @@ impl ServerContext {
         grid_pos: Vec2<f32>,
         map: &mut Map,
     ) {
-        let pixel_pos = grid_pos * map.grid_size;
+        let pixel_pos = if map.camera == rusterix::MapCamera::TwoDIso {
+            rusterix::isometric::Projection {
+                origin: Vec2::zero(),
+                unit: map.grid_size,
+            }
+            .screen(grid_pos, 0.)
+        } else {
+            grid_pos * map.grid_size
+        };
         map.offset.x = -(pixel_pos.x);
         map.offset.y = pixel_pos.y;
     }
@@ -1071,6 +1163,53 @@ impl ServerContext {
         self.geometry_at_filtered(screen_size, screen_pos, map, Some(tool))
     }
 
+    fn iso_editing_geometry(map: &Map) -> Option<(FxHashSet<u32>, FxHashSet<u32>)> {
+        if map.camera != rusterix::MapCamera::TwoDIso {
+            return None;
+        }
+        let h = map.properties.get_float_default("iso_edit_height", 0.);
+        let mut lines: FxHashSet<_> = map
+            .sectors
+            .iter()
+            .filter(|s| (s.properties.get_float_default("floor_height", 0.) - h).abs() < 0.001)
+            .flat_map(|s| s.linedefs.iter().copied())
+            .collect();
+        if h.abs() < 0.001 {
+            lines.extend(
+                map.linedefs
+                    .iter()
+                    .filter(|l| l.sector_ids.is_empty())
+                    .map(|l| l.id),
+            );
+        }
+        let mut vertices: FxHashSet<_> = map
+            .linedefs
+            .iter()
+            .filter(|l| lines.contains(&l.id))
+            .flat_map(|l| [l.start_vertex, l.end_vertex])
+            .collect();
+        if h.abs() < 0.001 {
+            let used: FxHashSet<_> = map
+                .linedefs
+                .iter()
+                .flat_map(|l| [l.start_vertex, l.end_vertex])
+                .collect();
+            vertices.extend(
+                map.vertices
+                    .iter()
+                    .filter(|v| !used.contains(&v.id))
+                    .map(|v| v.id),
+            );
+        }
+        vertices.extend(
+            map.vertices
+                .iter()
+                .filter(|v| v.properties.get_bool_default("terrain_control", false))
+                .map(|v| v.id),
+        );
+        Some((vertices, lines))
+    }
+
     fn geometry_at_filtered(
         &self,
         screen_size: Vec2<f32>,
@@ -1086,11 +1225,21 @@ impl ServerContext {
         };
         let mut selection: (Option<u32>, Option<u32>, Option<u32>) = (None, None, None);
         let hover_threshold = 6.0;
+        let level = Self::iso_editing_geometry(map);
 
         if pick_vertices {
             // Check the vertices
             for vertex in &map.vertices {
-                if vertex.intersects_vertical_slice(self.editing_slice, self.editing_slice_height) {
+                if level
+                    .as_ref()
+                    .is_some_and(|(vertices, _)| !vertices.contains(&vertex.id))
+                {
+                    continue;
+                }
+                if vertex.properties.get_bool_default("terrain_control", false)
+                    || vertex
+                        .intersects_vertical_slice(self.editing_slice, self.editing_slice_height)
+                {
                     if let Some(vertex_pos) = map.get_vertex(vertex.id) {
                         let vertex_pos = Self::map_grid_to_local(screen_size, vertex_pos, map);
                         if (screen_pos - vertex_pos).magnitude() <= hover_threshold {
@@ -1118,6 +1267,12 @@ impl ServerContext {
 
             // Check the lines
             for linedef in &map.linedefs {
+                if level
+                    .as_ref()
+                    .is_some_and(|(_, lines)| !lines.contains(&linedef.id))
+                {
+                    continue;
+                }
                 if rect_linedefs.contains(&linedef.id) {
                     continue;
                 }
@@ -1183,6 +1338,14 @@ impl ServerContext {
             .sectors
             .iter()
             .filter(|sector| {
+                if map.camera == rusterix::MapCamera::TwoDIso
+                    && (sector.properties.get_float_default("floor_height", 0.)
+                        - map.properties.get_float_default("iso_edit_height", 0.))
+                    .abs()
+                        > 0.001
+                {
+                    return false;
+                }
                 !(self.no_rect_geo_on_map
                     && sector.properties.contains("rect")
                     && sector.name.is_empty())
@@ -1216,6 +1379,38 @@ impl ServerContext {
         }
 
         selection
+    }
+
+    /// Screen-space box selection follows the displayed projection.
+    pub fn geometry_in_screen_rectangle(
+        &self,
+        size: Vec2<f32>,
+        a: Vec2<f32>,
+        b: Vec2<f32>,
+        map: &Map,
+    ) -> (Vec<u32>, Vec<u32>, Vec<u32>) {
+        let mut projected = Map::default();
+        projected.vertices = map.vertices.clone();
+        projected.linedefs = map.linedefs.clone();
+        projected.sectors = map.sectors.clone();
+        if let Some((vertices, lines)) = Self::iso_editing_geometry(map) {
+            projected.vertices.retain(|v| vertices.contains(&v.id));
+            projected.linedefs.retain(|l| lines.contains(&l.id));
+            let h = map.properties.get_float_default("iso_edit_height", 0.);
+            projected
+                .sectors
+                .retain(|s| (s.properties.get_float_default("floor_height", 0.) - h).abs() < 0.001);
+        }
+        for vertex in &mut projected.vertices {
+            let point = Self::map_grid_to_local(size, Vec2::new(vertex.x, vertex.y), map);
+            vertex.x = point.x;
+            vertex.y = point.y;
+        }
+        self.geometry_in_rectangle(
+            Vec2::new(a.x.min(b.x), a.y.min(b.y)),
+            Vec2::new(a.x.max(b.x), a.y.max(b.y)),
+            &projected,
+        )
     }
 
     /// Returns all geometry within the given rectangle.
@@ -1419,6 +1614,70 @@ impl ServerContext {
 mod tests {
     use super::{ProjectContext, ServerContext};
     use theframework::prelude::{Uuid, Vec2};
+
+    #[test]
+    fn isometric_editor_paints_and_picks_the_shared_smooth_surface() {
+        use rusterix::{Map, MapCamera, Value};
+        let mut map = Map::default();
+        map.camera = MapCamera::TwoDIso;
+        map.grid_size = 48.;
+        map.properties.set("terrain_enabled", Value::Bool(true));
+        map.properties.set("terrain_subdivisions", Value::Int(4));
+        map.properties.set("terrain_edge_falloff", Value::Float(0.));
+        map.add_vertex_at(-6., -6.);
+        map.add_vertex_at(6., 6.);
+        let peak = map.add_vertex_at(0.5, 0.5);
+        let vertex = map.find_vertex_mut(peak).unwrap();
+        vertex.z = 1.2;
+        vertex.properties.set("terrain_control", Value::Bool(true));
+        vertex.properties.set("smoothness", Value::Float(1.));
+        let size = Vec2::new(900., 600.);
+        let context = ServerContext::default();
+        for point in [
+            Vec2::new(0.5, 0.5),
+            Vec2::new(0.5, -1.5),
+            Vec2::new(0.5, 2.5),
+        ] {
+            let screen = ServerContext::map_grid_to_local(size, point, &map);
+            assert!(
+                (context.local_to_map_grid(size, screen, &map, 4.) - point).magnitude() < 0.0001
+            );
+            assert_eq!(
+                context.local_to_map_cell(size, screen, &map, 1.),
+                point.map(f32::floor)
+            );
+        }
+    }
+
+    #[test]
+    fn isometric_grid_picking_and_centering_follow_the_editor_camera() {
+        let mut map = rusterix::Map::default();
+        map.camera = rusterix::MapCamera::TwoDIso;
+        map.grid_size = 48.;
+        map.offset = Vec2::new(23., -11.);
+        let size = Vec2::new(900., 600.);
+        let mut context = ServerContext::default();
+        for point in [
+            Vec2::new(1.25, -2.75),
+            Vec2::new(-3.5, 4.25),
+            Vec2::new(0., 0.),
+        ] {
+            let screen = ServerContext::map_grid_to_local(size, point, &map);
+            assert!(
+                (context.local_to_map_grid(size, screen, &map, 4.) - point).magnitude() < 0.0001
+            );
+            assert_eq!(
+                context.local_to_map_cell(size, screen, &map, 1.),
+                point.map(|v| v.floor())
+            );
+        }
+        let center = Vec2::new(5.5, 2.5);
+        context.center_map_at_grid_pos(size, center, &mut map);
+        assert!(
+            (ServerContext::map_grid_to_local(size, center, &map) - size * 0.5).magnitude()
+                < 0.0001
+        );
+    }
 
     #[test]
     fn geometry_picking_preserves_live_rectangle_membership_and_named_sectors() {

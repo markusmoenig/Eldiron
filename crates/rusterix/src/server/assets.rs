@@ -91,12 +91,17 @@ pub struct Assets {
     pub textures: FxHashMap<String, Texture>,
     /// Resolved ruleset MZ PBR maps shared by sprites and native meshes.
     pub ruleset_materials: FxHashMap<String, Texture>,
+    /// Content keys for prepared project material maps; independent of camera mode.
+    pub procedural_material_keys: FxHashMap<String, u64>,
     /// Baked surface animation, in seconds; shared by 2D and 3D appearances.
     pub material_animations: FxHashMap<String, (Vec<Texture>, f32)>,
     pub item_models: FxHashMap<String, String>,
     pub item_wearables: FxHashMap<String, Option<crate::procedural_avatar::Wearable>>,
 
     pub tile_list: Vec<Tile>,
+    pub tiles_revision: u64,
+    /// Derived world-anchored terrain paint; persistent sources live on regions.
+    pub terrain_paint: FxHashMap<Uuid, Arc<crate::isometric::paint::TerrainPaint>>,
     pub tile_indices: FxHashMap<Uuid, u16>,
 
     pub screens: FxHashMap<String, Map>,
@@ -355,10 +360,13 @@ impl Assets {
             block_props: IndexMap::default(),
             textures: FxHashMap::default(),
             ruleset_materials: FxHashMap::default(),
+            procedural_material_keys: FxHashMap::default(),
             material_animations: FxHashMap::default(),
             item_models: FxHashMap::default(),
             item_wearables: FxHashMap::default(),
             tile_list: vec![],
+            tiles_revision: 0,
+            terrain_paint: FxHashMap::default(),
             tile_indices: FxHashMap::default(),
             materials: FxHashMap::default(),
             screens: FxHashMap::default(),
@@ -452,6 +460,7 @@ impl Assets {
 
     /// Set the tiles and atlas from a list of RGBA tiles.
     pub fn set_tiles(&mut self, tiles: IndexMap<Uuid, Tile>) {
+        self.tiles_revision = self.tiles_revision.wrapping_add(1);
         /*
         let mut tiles: FxHashMap<Uuid, Tile> = FxHashMap::default();
 
@@ -494,6 +503,25 @@ impl Assets {
 
     pub fn set_block_props(&mut self, block_props: IndexMap<Uuid, BlockPropAsset>) {
         self.block_props = block_props;
+    }
+
+    /// Install changed tiles while preserving stable lookup indices and all
+    /// engine-owned palette/synthetic entries.
+    pub fn sync_tile_textures(&mut self, updates: IndexMap<Uuid, Tile>) {
+        if updates.is_empty() {
+            return;
+        }
+        self.tiles_revision = self.tiles_revision.wrapping_add(1);
+        for (id, tile) in updates {
+            if let Some(&index) = self.tile_indices.get(&id) {
+                self.tile_list[index as usize] = tile.clone();
+            } else {
+                self.tile_indices.insert(id, self.tile_list.len() as u16);
+                self.tile_list.push(tile.clone());
+            }
+            self.tiles.insert(id, tile);
+        }
+        crate::server::data::rebuild_tile_alias_lookup(&self.tiles);
     }
 
     pub fn object_material_meta(properties: &ValueContainer) -> Option<TileMaterialMeta> {
@@ -559,6 +587,16 @@ impl Assets {
     {
         let maps = maps.into_iter().collect::<Vec<_>>();
         for map in &maps {
+            if let Some(PixelSource::Color(color)) =
+                map.properties.get_source("default_terrain_tile")
+            {
+                let id = PixelSource::color_tile_uuid(color);
+                tiles.entry(id).or_insert_with(|| {
+                    let mut tile = Tile::from_texture(Texture::from_color(color.to_u8_array()));
+                    tile.id = id;
+                    tile
+                });
+            }
             for object in &map.geometry_objects {
                 for face in &object.faces {
                     for source in face.tile.iter().chain(face.tiles.values()) {

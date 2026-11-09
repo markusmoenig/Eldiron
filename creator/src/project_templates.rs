@@ -5,13 +5,19 @@ use rusterix::{GeometryObject, MapCamera, PixelSource, Value};
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum ProjectDimension {
     TwoD,
+    TwoDIso,
     ThreeD,
 }
 
 /// Complete the common project defaults without loading a saved project archive.
 pub(crate) fn populate(project: &mut Project, dimension: ProjectDimension) {
     let is_3d = matches!(dimension, ProjectDimension::ThreeD);
-    let camera = if is_3d { "iso" } else { "2d" };
+    let is_iso = matches!(dimension, ProjectDimension::TwoDIso);
+    let camera = match dimension {
+        ProjectDimension::ThreeD => "iso",
+        ProjectDimension::TwoDIso => "2d_iso",
+        ProjectDimension::TwoD => "2d",
+    };
     project.time.hours = 12;
     let mut config: toml_edit::DocumentMut = project.config.parse().expect("valid bundled config");
     config["game"]["start_region"] = toml_edit::value("Region");
@@ -19,6 +25,10 @@ pub(crate) fn populate(project: &mut Project, dimension: ProjectDimension) {
     config["game"]["play_screen"] = toml_edit::value("Game");
     if is_3d {
         config["game"]["collision_mode"] = toml_edit::value("mesh");
+    }
+    if is_iso {
+        config["game"]["auto_walk_2d"] = toml_edit::value(true);
+        config["game"]["persistent_2d_intents"] = toml_edit::value(true);
     }
     project.config = config.to_string();
 
@@ -37,6 +47,8 @@ pub(crate) fn populate(project: &mut Project, dimension: ProjectDimension) {
     region.map.geometry_objects.clear();
     region.map.camera = if is_3d {
         MapCamera::ThreeDIso
+    } else if is_iso {
+        MapCamera::TwoDIso
     } else {
         MapCamera::TwoD
     };
@@ -63,7 +75,10 @@ pub(crate) fn populate(project: &mut Project, dimension: ProjectDimension) {
             for x in -4..4 {
                 let id = rectangle(&mut region.map, x as f32, y as f32, 1.0, 1.0);
                 let cell = region.map.find_sector_mut(id).unwrap();
-                cell.layer = Some(1);
+                cell.layer = Some(if is_iso { 0 } else { 1 });
+                if is_iso {
+                    cell.properties.set("iso_walkable", Value::Bool(true));
+                }
                 cell.properties.set("rect", Value::Bool(true));
                 let source = if (-1..=0).contains(&y) {
                     &street
@@ -121,6 +136,13 @@ pub(crate) fn populate(project: &mut Project, dimension: ProjectDimension) {
         )),
     );
     project.screens.insert(screen.id, screen);
+    if is_iso {
+        let errors = shared::isometric::synchronize(project);
+        debug_assert!(
+            errors.is_empty(),
+            "Bundled iso starter materials: {errors:?}"
+        );
+    }
 }
 
 fn rectangle(map: &mut Map, x: f32, y: f32, width: f32, height: f32) -> u32 {

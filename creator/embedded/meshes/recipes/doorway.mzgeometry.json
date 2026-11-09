@@ -1,0 +1,582 @@
+{
+  "version": 1,
+  "id": "doorway",
+  "label": "Doorway",
+  "rows": [
+    {
+      "id": "recipe",
+      "label": "Recipe",
+      "tiles": [
+        {
+          "id": "recipe-0",
+          "op": {
+            "type": "group",
+            "label": "Doorway",
+            "document": {
+              "version": 1,
+              "id": "doorway-construction",
+              "label": "Doorway construction",
+              "rows": [
+                {
+                  "id": "surface",
+                  "label": "Surface",
+                  "tiles": [
+                    {
+                      "id": "surface-0",
+                      "op": {
+                        "type": "material",
+                        "palette": 19,
+                        "roughness": 0.9,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "jamb-contour",
+                  "label": "Jamb footprint (X/Z)",
+                  "tiles": [
+                    {
+                      "id": "jamb-outline",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.1,
+                            -0.12
+                          ],
+                          [
+                            0.1,
+                            -0.12
+                          ],
+                          [
+                            0.1,
+                            0.12
+                          ],
+                          [
+                            -0.1,
+                            0.12
+                          ]
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "jambs",
+                  "label": "Repeated jambs",
+                  "tiles": [
+                    {
+                      "id": "jamb-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.2,
+                          2.4,
+                          0.24
+                        ]
+                      }
+                    },
+                    {
+                      "id": "jamb-mat",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "surface"
+                      }
+                    },
+                    {
+                      "id": "jamb-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          1.2,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "jamb-footprint",
+                      "op": {
+                        "type": "footprint",
+                        "row": "jamb-contour"
+                      }
+                    },
+                    {
+                      "id": "jamb-x",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.6,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "jamb-repeat",
+                      "op": {
+                        "type": "repeat",
+                        "count": 2,
+                        "translation": [
+                          1.2,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "lintel",
+                  "label": "Overhead lintel",
+                  "tiles": [
+                    {
+                      "id": "lintel-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          1.4,
+                          0.2,
+                          0.24
+                        ]
+                      }
+                    },
+                    {
+                      "id": "lintel-mat",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "surface"
+                      }
+                    },
+                    {
+                      "id": "lintel-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          2.3,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "assembly",
+                  "label": "Doorway",
+                  "tiles": [
+                    {
+                      "id": "assembly-0",
+                      "op": {
+                        "type": "assemble",
+                        "rows": [
+                          "jambs",
+                          "lintel"
+                        ]
+                      }
+                    },
+                    {
+                      "id": "join-start",
+                      "op": {
+                        "type": "connector",
+                        "family": "wall",
+                        "translation": [
+                          -0.7,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          -90,
+                          0
+                        ]
+                      }
+                    },
+                    {
+                      "id": "join-end",
+                      "op": {
+                        "type": "connector",
+                        "family": "wall",
+                        "translation": [
+                          0.7,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          90,
+                          0
+                        ]
+                      }
+                    },
+                    {
+                      "id": "roof-seat",
+                      "op": {
+                        "type": "connector",
+                        "family": "roof",
+                        "translation": [
+                          0,
+                          2.4,
+                          0
+                        ],
+                        "rotation": [
+                          -90,
+                          0,
+                          0
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "assembly",
+              "grip": null
+            },
+            "controls": [
+              {
+                "id": "width",
+                "label": "Doorway width (m)",
+                "category": "Dimensions",
+                "help": "",
+                "order": 0,
+                "value": 1.4,
+                "reference": 1.4,
+                "min": 1,
+                "max": 5,
+                "modifiers": [
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "lintel-box",
+                      "parameter": "size0"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "join-start",
+                      "parameter": "position0"
+                    },
+                    "factor": -0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "join-end",
+                      "parameter": "position0"
+                    },
+                    "factor": 0.5,
+                    "offset": 0
+                  }
+                ]
+              },
+              {
+                "id": "height",
+                "label": "Height (m)",
+                "category": "Dimensions",
+                "help": "",
+                "order": 1,
+                "value": 2.4,
+                "reference": 2.4,
+                "min": 1.8,
+                "max": 4,
+                "modifiers": [
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "jamb-box",
+                      "parameter": "size1"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "jamb-place",
+                      "parameter": "position1"
+                    },
+                    "factor": 0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "roof-seat",
+                      "parameter": "position1"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  }
+                ]
+              },
+              {
+                "id": "thickness",
+                "label": "Jamb thickness (m)",
+                "category": "Dimensions",
+                "help": "",
+                "order": 2,
+                "value": 0.2,
+                "reference": 0.2,
+                "min": 0.08,
+                "max": 0.4,
+                "modifiers": [
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "jamb-box",
+                      "parameter": "size0"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "lintel-box",
+                      "parameter": "size1"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "jamb-outline",
+                      "parameter": "point0:0"
+                    },
+                    "factor": -0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "jamb-outline",
+                      "parameter": "point1:0"
+                    },
+                    "factor": 0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "jamb-outline",
+                      "parameter": "point2:0"
+                    },
+                    "factor": 0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "jamb-outline",
+                      "parameter": "point3:0"
+                    },
+                    "factor": -0.5,
+                    "offset": 0
+                  }
+                ]
+              },
+              {
+                "id": "depth",
+                "label": "Depth (m)",
+                "category": "Dimensions",
+                "help": "",
+                "order": 3,
+                "value": 0.24,
+                "reference": 0.24,
+                "min": 0.1,
+                "max": 1,
+                "modifiers": [
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "jamb-box",
+                      "parameter": "size2"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "lintel-box",
+                      "parameter": "size2"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "jamb-outline",
+                      "parameter": "point0:1"
+                    },
+                    "factor": -0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "jamb-outline",
+                      "parameter": "point1:1"
+                    },
+                    "factor": -0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "jamb-outline",
+                      "parameter": "point2:1"
+                    },
+                    "factor": 0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "jamb-outline",
+                      "parameter": "point3:1"
+                    },
+                    "factor": 0.5,
+                    "offset": 0
+                  }
+                ]
+              },
+              {
+                "id": "left_x",
+                "label": "Left jamb X",
+                "category": "Dimensions",
+                "help": "Calculated in this recipe.",
+                "order": 4,
+                "value": -0.6,
+                "reference": -0.6,
+                "min": -3,
+                "max": 0,
+                "modifiers": [
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "jamb-x",
+                      "parameter": "position0"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  }
+                ],
+                "expression": "-(width - thickness) / 2"
+              },
+              {
+                "id": "spacing",
+                "label": "Jamb spacing (m)",
+                "category": "Dimensions",
+                "help": "Calculated in this recipe.",
+                "order": 5,
+                "value": 1.2,
+                "reference": 1.2,
+                "min": 0.1,
+                "max": 5,
+                "modifiers": [
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "jamb-repeat",
+                      "parameter": "step0"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  }
+                ],
+                "expression": "width - thickness"
+              },
+              {
+                "id": "header_y",
+                "label": "Lintel Y",
+                "category": "Dimensions",
+                "help": "Calculated in this recipe.",
+                "order": 6,
+                "value": 2.3,
+                "reference": 2.3,
+                "min": 1,
+                "max": 4,
+                "modifiers": [
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "lintel-place",
+                      "parameter": "position1"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  }
+                ],
+                "expression": "height - thickness / 2"
+              },
+              {
+                "id": "color",
+                "label": "Stone / wood color",
+                "category": "Dimensions",
+                "help": "",
+                "order": 7,
+                "value": 19,
+                "reference": 19,
+                "min": 0,
+                "max": 255,
+                "modifiers": [
+                  {
+                    "type": "palette",
+                    "parts": [
+                      "*"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "recipe",
+  "grip": null
+}

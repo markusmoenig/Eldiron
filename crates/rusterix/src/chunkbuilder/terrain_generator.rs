@@ -28,6 +28,8 @@ pub struct TerrainConfig {
     pub max_influence_distance: f32,
     /// Smoothness factor: lower values = sharper peaks, higher values = smoother transitions
     pub smoothness: f32,
+    /// Width of the world boundary fade; zero preserves authored peak heights.
+    pub edge_falloff: f32,
 }
 
 impl Default for TerrainConfig {
@@ -36,8 +38,46 @@ impl Default for TerrainConfig {
             subdivisions: 1,              // 1 quad per world tile
             idw_power: 3.0,               // Increased from 2.0 for steeper, more cone-like falloff
             max_influence_distance: 50.0, // Large enough to avoid hard edges between chunks
-            smoothness: 1.0,              // Default smoothness
+            smoothness: 1.0,
+            edge_falloff: 10.0, // Default smoothness
         }
+    }
+}
+
+impl TerrainConfig {
+    pub fn for_map(map: &Map) -> Self {
+        let mut result = Self::default();
+        result.subdivisions = map
+            .properties
+            .get_int_default("terrain_subdivisions", 1)
+            .clamp(1, 8) as u32;
+        result.edge_falloff = map
+            .properties
+            .get_float_default("terrain_edge_falloff", 10.)
+            .max(0.);
+        result
+    }
+}
+
+#[derive(Clone)]
+pub struct TerrainSampler {
+    sculpt: super::terrain_sculpt::TerrainSculpt,
+    config: TerrainConfig,
+    controls: Vec<(Vec2<f32>, f32, f32)>,
+    ridges: Vec<(u32, f32, f32, f32, f32)>,
+    lines: Vec<(Vec2<f32>, Vec2<f32>, f32, f32, f32, f32, f32)>,
+    ridge_map: Option<std::sync::Arc<Map>>,
+    bounds: BBox,
+}
+impl TerrainSampler {
+    pub fn sample(&self, p: Vec2<f32>) -> f32 {
+        let g = TerrainGenerator::new(self.config.clone());
+        let base = g.interpolate_height_at(p, &self.controls, &self.bounds);
+        let ridge = self
+            .ridge_map
+            .as_ref()
+            .map_or(0., |map| g.calculate_ridge_height_at(p, &self.ridges, map));
+        (g.apply_linedef_smoothing(p, base + ridge, &self.lines) + self.sculpt.sample(p)).max(0.)
     }
 }
 
@@ -60,111 +100,21 @@ impl TerrainGenerator {
     /// This is useful for getting terrain height at arbitrary points (e.g., for tile outlines)
     /// Uses the exact same interpolation logic as the main terrain generation
     pub fn sample_height_at(map: &Map, point: Vec2<f32>, config: &TerrainConfig) -> f32 {
-        // Collect all control points from the map (same as collect_control_points)
-        let mut control_points = Vec::new();
-        for vertex in &map.vertices {
-            let is_terrain_control = vertex.properties.get_bool_default("terrain_control", false);
-            if !is_terrain_control {
-                continue;
-            }
-            let pos = vertex.as_vec2();
-            let height = vertex.z;
-            let smoothness = vertex
-                .properties
-                .get_float_default("smoothness", config.smoothness);
-            control_points.push((pos, height, smoothness));
+        Self::new(config.clone()).sampler(map).sample(point)
+    }
+
+    /// Prepare the existing terrain rules once for renderers and navigation.
+    pub fn sampler(&self, map: &Map) -> TerrainSampler {
+        let ridges = self.collect_ridge_sectors(map);
+        TerrainSampler {
+            sculpt: super::terrain_sculpt::TerrainSculpt::from_map(map),
+            config: self.config.clone(),
+            controls: self.collect_control_points(map),
+            lines: self.collect_terrain_linedefs(map),
+            ridge_map: (!ridges.is_empty()).then(|| std::sync::Arc::new(map.clone())),
+            ridges,
+            bounds: map.geometry_bbox(),
         }
-
-        // Get map bounding box for edge falloff (same as generate())
-        let map_bbox = if let Some(bounds) = map.bounding_box() {
-            BBox {
-                min: Vec2::new(bounds.x, -bounds.w),
-                max: Vec2::new(bounds.z, -bounds.y),
-            }
-        } else {
-            BBox {
-                min: Vec2::new(-100.0, -100.0),
-                max: Vec2::new(100.0, 100.0),
-            }
-        };
-
-        // Collect ridge sectors (same as generate())
-        let mut ridge_sectors = Vec::new();
-        for sector in &map.sectors {
-            let terrain_mode = sector.properties.get_int_default("terrain_mode", 0);
-            if terrain_mode != 2 {
-                continue;
-            }
-
-            let height = sector.properties.get_float_default("ridge_height", 1.0);
-            let plateau_width = sector
-                .properties
-                .get_float_default("ridge_plateau_width", 0.0);
-            let falloff_distance = sector
-                .properties
-                .get_float_default("ridge_falloff_distance", 5.0);
-            let falloff_steepness = sector
-                .properties
-                .get_float_default("ridge_falloff_steepness", 2.0);
-
-            ridge_sectors.push((
-                sector.id,
-                height,
-                plateau_width,
-                falloff_distance,
-                falloff_steepness,
-            ));
-        }
-
-        // Collect terrain linedefs (same as generate())
-        let mut terrain_linedefs = Vec::new();
-        for linedef in &map.linedefs {
-            let terrain_smooth = linedef.properties.get_bool_default("terrain_smooth", false);
-            if !terrain_smooth {
-                continue;
-            }
-
-            let Some(start_vert) = map.vertices.iter().find(|v| v.id == linedef.start_vertex)
-            else {
-                continue;
-            };
-            let Some(end_vert) = map.vertices.iter().find(|v| v.id == linedef.end_vertex) else {
-                continue;
-            };
-
-            let start_pos = Vec2::new(start_vert.x, start_vert.y);
-            let end_pos = Vec2::new(end_vert.x, end_vert.y);
-
-            // Use vertex Z coordinates for height (interpolated along the linedef)
-            let start_height = start_vert.z;
-            let end_height = end_vert.z;
-
-            let width = linedef.properties.get_float_default("terrain_width", 2.0);
-            let falloff_distance = linedef
-                .properties
-                .get_float_default("terrain_falloff_distance", 3.0);
-            let falloff_steepness = linedef
-                .properties
-                .get_float_default("terrain_falloff_steepness", 2.0);
-
-            terrain_linedefs.push((
-                start_pos,
-                end_pos,
-                start_height,
-                end_height,
-                width,
-                falloff_distance,
-                falloff_steepness,
-            ));
-        }
-
-        // Create a temporary generator instance to use interpolate_height_at, calculate_ridge_height_at, and apply_linedef_smoothing
-        let generator = TerrainGenerator::new(config.clone());
-        let base_height = generator.interpolate_height_at(point, &control_points, &map_bbox);
-        let ridge_height = generator.calculate_ridge_height_at(point, &ridge_sectors, map);
-        let smoothed_height =
-            generator.apply_linedef_smoothing(point, base_height + ridge_height, &terrain_linedefs);
-        smoothed_height
     }
 
     /// Calculate terrain normal at a point by sampling neighboring heights
@@ -276,20 +226,8 @@ impl TerrainGenerator {
         // 4. Generate grid mesh
         let grid = self.generate_grid(&chunk.bbox);
 
-        // 5. Get map bounding box for edge falloff
-        // Note: In 2D editor, -Y is up, so we need to flip Y coordinates
-        let map_bbox = if let Some(bounds) = map.bounding_box() {
-            BBox {
-                min: Vec2::new(bounds.x, -bounds.w), // Flip Y: max becomes min
-                max: Vec2::new(bounds.z, -bounds.y), // Flip Y: min becomes max
-            }
-        } else {
-            // Fallback: use a large default map if no geometry exists
-            BBox {
-                min: Vec2::new(-100.0, -100.0),
-                max: Vec2::new(100.0, 100.0),
-            }
-        };
+        // Shared world X/Z bounds, matching the point sampler in every camera.
+        let map_bbox = map.geometry_bbox();
 
         // 6. Interpolate heights at grid points with map edge falloff, ridge, and linedef smoothing
         let heights = self.interpolate_heights(
@@ -631,6 +569,7 @@ impl TerrainGenerator {
         map: &Map,
         bbox: &BBox,
     ) -> Vec<f32> {
+        let sculpt = super::terrain_sculpt::TerrainSculpt::from_map(map);
         grid.iter()
             .map(|&grid_point| {
                 let base_height = self.interpolate_height_at(grid_point, control_points, bbox);
@@ -640,7 +579,7 @@ impl TerrainGenerator {
                     base_height + ridge_height,
                     terrain_linedefs,
                 );
-                smoothed_height
+                (smoothed_height + sculpt.sample(grid_point)).max(0.)
             })
             .collect()
     }
@@ -866,7 +805,10 @@ impl TerrainGenerator {
             .min(dist_from_top);
 
         // Define falloff distance (distance from map edge where falloff starts)
-        let falloff_distance = 10.0; // Adjust this to control how far from edge the falloff extends
+        let falloff_distance = self.config.edge_falloff;
+        if falloff_distance <= 0. {
+            return 1.;
+        }
 
         if min_edge_dist <= 0.0 {
             0.0 // At or beyond map edge

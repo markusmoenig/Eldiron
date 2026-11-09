@@ -9,9 +9,16 @@ pub fn sync_procedural_avatar_assets(
     use rusterix::procedural_avatar::{Appearance, fingerprint};
     use std::sync::Arc;
     use theframework::prelude::Uuid;
+    let trace_start = std::time::Instant::now();
+    let trace = |label| {
+        if std::env::var_os("ELDIRON_PROFILE_STARTUP").is_some() {
+            eprintln!("Avatar {label}: {:.2?}", trace_start.elapsed());
+        }
+    };
     assets.palette = project.palette.clone();
     let old_materials = std::mem::take(&mut assets.ruleset_materials);
     let old_animations = std::mem::take(&mut assets.material_animations);
+    let old_keys = std::mem::take(&mut assets.procedural_material_keys);
     for def in crate::ruleset_materials::definitions(&project.config) {
         let uri = format!("ruleset:material/{}", def.id);
         match crate::ruleset_materials::baked_frames(project, def.id) {
@@ -20,15 +27,8 @@ pub fn sync_procedural_avatar_assets(
                 let duration = project
                     .procedural_materials
                     .get(&crate::rulesets::material_asset_id(def.id))
-                    .and_then(|b| rusterix::ruleset_material::EditableAsset::reopen(b).ok())
-                    .and_then(|a| {
-                        a.root
-                            .project
-                            .materials
-                            .into_iter()
-                            .find(|m| m.id == a.selected_material)
-                    })
-                    .map_or(frames.len() as f32 * 0.25, |m| m.animation.duration);
+                    .and_then(|b| crate::ruleset_materials::animation_settings(b))
+                    .map_or(frames.len() as f32 * 0.25, |a| a.duration);
                 let animated = (frames, duration);
                 assets
                     .material_animations
@@ -91,15 +91,36 @@ pub fn sync_procedural_avatar_assets(
         if id.as_u128() >> 64 != 0x4d5a49434f4e4544 && !worn {
             continue;
         }
-        if let Ok(a) = rusterix::ruleset_material::EditableAsset::reopen(bundle) {
-            let animation = a
-                .root
-                .project
-                .materials
-                .iter()
-                .find(|m| m.id == a.selected_material)
-                .map(|m| m.animation.clone())
-                .unwrap_or_default();
+        let key = id.to_string();
+        let signature = fingerprint(&(
+            bundle,
+            worn,
+            serde_json::to_string(&project.palette.colors).unwrap_or_default(),
+            project.tiles.get(id).map(|t| {
+                (
+                    &t.baked_material_data,
+                    t.textures
+                        .iter()
+                        .map(|f| (&f.data, &f.data_ext, f.width, f.height))
+                        .collect::<Vec<_>>(),
+                )
+            }),
+        ));
+        if old_keys.get(&key) == Some(&signature) {
+            if let (Some(texture), Some(animation)) =
+                (old_materials.get(&key), old_animations.get(&key))
+            {
+                assets
+                    .ruleset_materials
+                    .insert(key.clone(), texture.clone());
+                assets
+                    .material_animations
+                    .insert(key.clone(), animation.clone());
+                assets.procedural_material_keys.insert(key, signature);
+                continue;
+            }
+        }
+        if let Some(animation) = crate::ruleset_materials::animation_settings(bundle) {
             let size = if worn { 64 } else { 32 };
             // Existing project bakes are authoritative. Do not rebake every worn
             // material each time an entity or map changes.
@@ -123,6 +144,8 @@ pub fn sync_procedural_avatar_assets(
                 })
                 .map(Ok)
                 .unwrap_or_else(|| {
+                    let a = rusterix::ruleset_material::EditableAsset::reopen(bundle)
+                        .map_err(|e| e.to_string())?;
                     (0..animation.frames.max(1))
                         .map(|frame| {
                             crate::ruleset_materials::bake_at_time(
@@ -135,6 +158,7 @@ pub fn sync_procedural_avatar_assets(
                         .collect::<Result<Vec<_>, _>>()
                 });
             if let Ok(frames) = frames {
+                assets.procedural_material_keys.insert(key, signature);
                 assets
                     .ruleset_materials
                     .insert(id.to_string(), frames[0].clone());
@@ -144,6 +168,7 @@ pub fn sync_procedural_avatar_assets(
             }
         }
     }
+    trace("materials");
     let previous = std::mem::take(&mut assets.procedural_avatars);
     let selection = crate::rulesets::selected_ruleset_config(&project.config);
     let mut sources = Vec::new();
@@ -190,6 +215,7 @@ pub fn sync_procedural_avatar_assets(
             .map_or(&[][..], |asset| asset.equipment);
         sources.push((id.to_string(), source.as_str(), equipment));
     }
+    trace("source list");
     let palette = serde_json::to_string(&project.palette.colors).unwrap_or_default();
     // Ruleset/palette changes invalidate baked sprites and material tiles too.
     let resources = assets
@@ -224,6 +250,7 @@ pub fn sync_procedural_avatar_assets(
         })
         .collect::<std::collections::BTreeMap<_, _>>();
     let resource_key = fingerprint(&(resources, material_maps, animation_maps, wardrobe));
+    trace("resource fingerprint");
     for (id, source, equipment) in sources {
         let resolved = denrim_materials::geometry::Document::parse(source)
             .map_err(|e| e.to_string())
@@ -267,6 +294,7 @@ pub fn sync_procedural_avatar_assets(
         }
         assets.procedural_avatars.insert(id, asset);
     }
+    trace("appearances");
 }
 
 #[cfg(test)]
@@ -1042,6 +1070,24 @@ pub fn start_server(
     project: &mut Project,
     debug: bool,
 ) -> Result<(), String> {
+    let old_iso_signatures = project
+        .isometric_bakes
+        .values()
+        .map(|b| b.signature)
+        .collect::<Vec<_>>();
+    let iso_errors = crate::isometric::synchronize(project);
+    if !iso_errors.is_empty() {
+        return Err(iso_errors.join("; "));
+    }
+    if old_iso_signatures
+        != project
+            .isometric_bakes
+            .values()
+            .map(|b| b.signature)
+            .collect::<Vec<_>>()
+    {
+        rusterix.refresh_tile_textures(project.tiles.clone(), false);
+    }
     let rules_source = project.rules_source()?;
     for error in crate::geometry_recipe::synchronize(project).1 {
         eprintln!("MZ geometry recipe: {error}");
@@ -1223,6 +1269,10 @@ pub fn sync_display_templates(assets: &mut rusterix::Assets, project: &Project, 
 
 /// Setup the client
 pub fn setup_client(rusterix: &mut Rusterix, project: &mut Project) -> Vec<Command> {
+    rusterix.assets.terrain_paint.clear();
+    for region in &mut project.regions {
+        crate::iso_paint_terrain::sync(&mut rusterix.assets, region.map.id, &mut region.iso_paint);
+    }
     rusterix.assets.config = project.config.clone();
     rusterix.assets.world_source = project.world_source.clone();
     rusterix.assets.rules = project.rules_source().unwrap_or_else(|err| {

@@ -2054,6 +2054,158 @@ mod ruleset_progression_tests {
     }
 
     #[test]
+    fn isometric_grid_pathfinding_uses_diagonals_without_cutting_corners() {
+        let instance = RegionInstance::new(9920);
+        let mut ctx = directional_intent_test_ctx(PlayerCamera::D2IsoGrid, false);
+        let start = Vec2::new(5.5, 5.5);
+        let target = Vec2::new(7.5, 7.5);
+        assert_eq!(
+            instance
+                .compute_grid_goto_step_in_ctx(&ctx, start, target, true, 0.22)
+                .unwrap()
+                .0,
+            Vec2::new(6.5, 6.5)
+        );
+        ctx.mapmini.blocked_tiles.insert(Vec2::new(6, 5));
+        let next = instance
+            .compute_grid_goto_step_in_ctx(&ctx, start, target, true, 0.22)
+            .unwrap()
+            .0;
+        assert_eq!(next, Vec2::new(5.5, 6.5));
+    }
+
+    #[test]
+    fn isometric_grid_paths_use_recipe_polygon_solids_and_open_notches() {
+        let instance = RegionInstance::new(9921);
+        let mut ctx = directional_intent_test_ctx(PlayerCamera::D2IsoGrid, false);
+        let mut map = Map::default();
+        let tile = Uuid::new_v4();
+        let v = [
+            [6., 5.],
+            [7., 5.],
+            [7., 5.2],
+            [6.2, 5.2],
+            [6.2, 6.],
+            [6., 6.],
+        ]
+        .map(|p| {
+            let id = map.find_free_vertex_id().unwrap();
+            map.vertices.push(crate::Vertex::new(id, p[0], p[1]));
+            id
+        });
+        for i in 0..v.len() {
+            map.create_linedef_manual(v[i], v[(i + 1) % v.len()]);
+        }
+        let id = map.close_polygon_manual().unwrap();
+        let sector = map.find_sector_mut(id).unwrap();
+        sector.layer = Some(1);
+        sector
+            .properties
+            .set("source", Value::Source(crate::PixelSource::TileId(tile)));
+        sector
+            .properties
+            .set("iso_follow_mesh_bounds", Value::Bool(true));
+        ctx.mapmini = map.as_mini(&[tile].into_iter().collect());
+        assert!(ctx.mapmini.blocked_tiles.is_empty());
+        assert!(ctx.mapmini.is_walkable_position(Vec2::new(6.5, 5.5), 0.22));
+        assert!(!ctx.mapmini.is_walkable_position(Vec2::new(6.1, 5.5), 0.01));
+        let mut pos = Vec2::new(5.5, 5.5);
+        let goal = Vec2::new(6.5, 5.5);
+        for _ in 0..12 {
+            if (pos - goal).magnitude() < 0.01 {
+                break;
+            }
+            let next = instance
+                .compute_grid_goto_step_in_ctx(&ctx, pos, goal, true, 0.22)
+                .expect("Open notch must be reachable")
+                .0;
+            let (end, blocked) = ctx.mapmini.move_distance(pos, next - pos, 0.22);
+            assert!(!blocked);
+            assert!((end - next).magnitude() < 0.01);
+            pos = next;
+        }
+        assert!(
+            (pos - goal).magnitude() < 0.01,
+            "Grid path must reach concave notch"
+        );
+    }
+
+    #[test]
+    fn isometric_grid_keys_step_eight_directions_and_stop_on_release() {
+        let instance = RegionInstance::new(9919);
+        let mut player = Entity::new();
+        player.set_attribute("player", Value::Bool(true));
+        player.set_attribute(
+            "player_camera",
+            Value::PlayerCamera(PlayerCamera::D2IsoGrid),
+        );
+        let start = Vec2::new(5.5, 5.5);
+        for (action, step) in [
+            (EntityAction::Forward, Vec2::new(1., 0.)),
+            (EntityAction::Backward, Vec2::new(-1., 0.)),
+            (EntityAction::Left, Vec2::new(0., -1.)),
+            (EntityAction::Right, Vec2::new(0., 1.)),
+            (EntityAction::ForwardLeft, Vec2::new(1., -1.)),
+            (EntityAction::ForwardRight, Vec2::new(1., 1.)),
+            (EntityAction::BackwardLeft, Vec2::new(-1., -1.)),
+            (EntityAction::BackwardRight, Vec2::new(-1., 1.)),
+        ] {
+            player.set_pos_xz(start);
+            RegionInstance::update_grid_input_state(&mut player, &action);
+            assert!(instance.queue_grid_action_from_desired(&mut player, &PlayerCamera::D2IsoGrid));
+            let EntityAction::StepTo(target, _, facing, _, _) = &player.action else {
+                panic!("Expected grid step")
+            };
+            assert_eq!(*target, start + step);
+            assert!((*facing - step.normalized()).magnitude() < 0.0001);
+            RegionInstance::update_grid_input_state(&mut player, &EntityAction::Off);
+            assert!(
+                !instance.queue_grid_action_from_desired(&mut player, &PlayerCamera::D2IsoGrid)
+            );
+            assert_eq!(player.action, EntityAction::Off);
+        }
+    }
+
+    #[test]
+    fn isometric_teleport_clears_old_step_and_sets_destination_height() {
+        let mut ctx = directional_intent_test_ctx(PlayerCamera::D2IsoGrid, false);
+        ctx.map.camera = crate::MapCamera::TwoDIso;
+        ctx.map.possible_polygon.clear();
+        let v =
+            [[8., 3.], [10., 3.], [10., 5.], [8., 5.]].map(|p| ctx.map.add_vertex_at(p[0], p[1]));
+        for i in 0..4 {
+            ctx.map.create_linedef_manual(v[i], v[(i + 1) % 4]);
+        }
+        let id = ctx.map.close_polygon_manual().unwrap();
+        let top = ctx.map.find_sector_mut(id).unwrap();
+        top.properties.set("iso_walkable", Value::Bool(true));
+        top.properties.set("floor_height", Value::Float(2.));
+        ctx.mapmini = ctx.map.as_mini(&Default::default());
+        let player = &mut ctx.map.entities[0];
+        let player_id = player.id;
+        player.action = EntityAction::StepTo(
+            Vec2::new(2.5, 1.5),
+            1.,
+            Vec2::unit_x(),
+            Vec2::new(1.5, 1.5),
+            Vec2::unit_x(),
+        );
+        RegionInstance::update_grid_input_state(player, &EntityAction::Forward);
+        player.set_attribute("__grid_goto_target", Value::Str("2.5,1.5".into()));
+        RegionInstance::teleport_position_in_ctx(&mut ctx, player_id, Vec2::new(8.5, 4.5));
+        let player = &ctx.map.entities[0];
+        assert_eq!(player.position, Vec3::new(8.5, 2., 4.5));
+        assert_eq!(player.action, EntityAction::Off);
+        assert_eq!(
+            RegionInstance::grid_desired_action(player),
+            EntityAction::Off
+        );
+        assert!(RegionInstance::parse_vec2_attr(player, "__grid_goto_target").is_none());
+        RegionInstance::teleport_position_in_ctx(&mut ctx, player_id, Vec2::new(0.5, 0.5));
+        assert_eq!(ctx.map.entities[0].position.y, 0.);
+    }
+
+    #[test]
     fn first_person_grid_movement_release_stops_repeating() {
         let instance = RegionInstance::new(9918);
         let mut player = Entity::new();
@@ -4627,11 +4779,14 @@ fn map_spawn_height(map: &Map, pos: Vec2<f32>, preferred_y: Option<f32>) -> f32 
             return h;
         }
     }
-    let config = crate::chunkbuilder::terrain_generator::TerrainConfig::default();
+    let config = crate::chunkbuilder::terrain_generator::TerrainConfig::for_map(map);
     crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(map, pos, &config)
 }
 
 fn ctx_spawn_height(ctx: &RegionCtx, pos: Vec2<f32>, preferred_y: Option<f32>) -> f32 {
+    if !ctx.mapmini.elevation.is_empty() {
+        return ctx.mapmini.elevation.height_at(pos);
+    }
     if ctx.collision_world.has_collision_data() {
         let reference_y = preferred_y.unwrap_or(0.0);
         if let Some(height) = ctx
@@ -5250,7 +5405,7 @@ impl RegionInstance {
     fn is_grid_camera(player_camera: &PlayerCamera) -> bool {
         matches!(
             player_camera,
-            PlayerCamera::D2Grid | PlayerCamera::D3FirstPGrid
+            PlayerCamera::D2Grid | PlayerCamera::D2IsoGrid | PlayerCamera::D3FirstPGrid
         )
     }
 
@@ -5266,7 +5421,13 @@ impl RegionInstance {
                 | PlayerCamera::D3FirstPMouse
                 | PlayerCamera::D3FirstPGrid,
             )) => true,
-            Some(Value::PlayerCamera(PlayerCamera::D2 | PlayerCamera::D2Grid)) | None => {
+            Some(Value::PlayerCamera(
+                PlayerCamera::D2
+                | PlayerCamera::D2Iso
+                | PlayerCamera::D2IsoGrid
+                | PlayerCamera::D2Grid,
+            ))
+            | None => {
                 get_config_bool_default(ctx, "game", "persistent_intents", false)
                     || get_config_bool_default(ctx, "game", "click_intents_2d", false)
                     || get_config_bool_default(ctx, "game", "persistent_2d_intents", false)
@@ -5300,7 +5461,12 @@ impl RegionInstance {
 
         matches!(
             entity.attributes.get("player_camera"),
-            Some(Value::PlayerCamera(PlayerCamera::D2 | PlayerCamera::D2Grid)) | None
+            Some(Value::PlayerCamera(
+                PlayerCamera::D2
+                    | PlayerCamera::D2Iso
+                    | PlayerCamera::D2IsoGrid
+                    | PlayerCamera::D2Grid
+            )) | None
         )
     }
 
@@ -7568,7 +7734,15 @@ impl RegionInstance {
         facing: Vec2<f32>,
         speed: f32,
     ) {
-        let facing = Self::snapped_cardinal_direction(facing);
+        let facing = if matches!(
+            entity.attributes.get("player_camera"),
+            Some(Value::PlayerCamera(PlayerCamera::D2IsoGrid))
+        ) && facing.magnitude_squared() > 0.0001
+        {
+            facing.normalized()
+        } else {
+            Self::snapped_cardinal_direction(facing)
+        };
         let start = entity.get_pos_xz();
         let target = Self::snapped_grid_center(target);
         entity.set_orientation(facing);
@@ -7653,6 +7827,19 @@ impl RegionInstance {
             return false;
         }
 
+        if player_camera.is_isometric_2d() {
+            if let Some(step) = crate::isometric::grid_step(&desired) {
+                self.queue_step_to_with_speed(
+                    entity,
+                    entity.get_pos_xz() + step,
+                    step.normalized(),
+                    Self::grid_hold_speed(entity),
+                );
+                return true;
+            }
+            entity.action = EntityAction::Off;
+            return false;
+        }
         match desired {
             EntityAction::Forward => {
                 if Self::is_first_person_camera(player_camera) {
@@ -7794,6 +7981,8 @@ impl RegionInstance {
         ctx: &RegionCtx,
         position: Vec2<f32>,
         target: Vec2<f32>,
+        diagonals: bool,
+        radius: f32,
     ) -> Option<(Vec2<f32>, Vec2<f32>, Vec2<f32>)> {
         let position_cell = position.map(|value| value.floor());
         let target_cell = target.map(|value| value.floor());
@@ -7823,17 +8012,57 @@ impl RegionInstance {
                 Vec2::new(1, 0),
                 Vec2::new(0, -1),
                 Vec2::new(0, 1),
+                Vec2::new(-1, -1),
+                Vec2::new(1, -1),
+                Vec2::new(-1, 1),
+                Vec2::new(1, 1),
             ]
             .iter()
+            .take(if diagonals { 8 } else { 4 })
             .map(|d| *pos + *d)
             .filter(|p| {
                 p.x >= min_bound.x && p.x <= max_bound.x && p.y >= min_bound.y && p.y <= max_bound.y
             })
             .filter(|p| !blocked.contains(p))
-            .map(|p| (p, 1))
+            .filter(|p| {
+                if !ctx.mapmini.has_precise_footprints() {
+                    return true;
+                }
+                let from = pos.map(|v| v as f32) + anchor;
+                let to = p.map(|v| v as f32) + anchor;
+                let (end, blocked) = ctx.mapmini.move_distance(from, to - from, radius);
+                ctx.mapmini.is_walkable_position(to, radius)
+                    && !blocked
+                    && (end - to).magnitude_squared() < 1e-4
+            })
+            .filter(|p| {
+                ctx.mapmini.elevation.can_reach(
+                    pos.map(|v| v as f32) + anchor,
+                    p.map(|v| v as f32) + anchor,
+                    radius,
+                )
+            })
+            .filter(|p| {
+                let d = *p - *pos;
+                d.x == 0
+                    || d.y == 0
+                    || (!blocked.contains(&(*pos + Vec2::new(d.x, 0)))
+                        && !blocked.contains(&(*pos + Vec2::new(0, d.y))))
+            })
+            .map(|p| {
+                let d = p - *pos;
+                (p, if d.x != 0 && d.y != 0 { 14 } else { 10 })
+            })
             .collect::<Vec<_>>()
         };
-        let heuristic = |a: &Vec2<i32>| (to_tile - *a).map(|x| x.abs()).sum();
+        let heuristic = |a: &Vec2<i32>| {
+            let d = (to_tile - *a).map(|v| v.abs());
+            if diagonals {
+                10 * d.x.max(d.y) + 4 * d.x.min(d.y)
+            } else {
+                10 * (d.x + d.y)
+            }
+        };
         let next_tile =
             astar(&from_tile, successors, heuristic, |p| *p == to_tile).and_then(|(path, _)| {
                 if path.len() >= 2 { Some(path[1]) } else { None }
@@ -7849,8 +8078,30 @@ impl RegionInstance {
             return None;
         }
 
-        let facing = Self::snapped_cardinal_direction(step);
+        let facing = if diagonals {
+            step.normalized()
+        } else {
+            Self::snapped_cardinal_direction(step)
+        };
         Some((next, facing, target_pos))
+    }
+
+    fn teleport_position_in_ctx(ctx: &mut RegionCtx, entity_id: u32, position: Vec2<f32>) {
+        let height =
+            (!ctx.mapmini.elevation.is_empty()).then(|| ctx.mapmini.elevation.height_at(position));
+        if let Some(entity) = ctx.map.entities.iter_mut().find(|e| e.id == entity_id) {
+            // An old StepTo contains its previous start/target. It must not run
+            // after a teleport and snap the entity back across the map.
+            entity.action = EntityAction::Off;
+            Self::update_grid_input_state(entity, &EntityAction::Off);
+            Self::clear_grid_blocked_action(entity);
+            entity.set_attribute("__grid_goto_target", Value::Str(String::new()));
+            entity.set_pos_xz(position);
+            if let Some(y) = height {
+                entity.position.y = y;
+            }
+            ctx.check_player_for_section_change_id(entity_id);
+        }
     }
 
     fn rotate_towards_cardinal(entity: &mut Entity, target: Vec2<f32>, step_deg: f32) -> bool {
@@ -8048,8 +8299,26 @@ impl RegionInstance {
                 let (end_position, geometry_blocked) =
                     ctx.mapmini
                         .move_distance(position, new_position - position, radius);
-                entity.set_pos_xz(end_position);
-                geometry_blocked
+                if !ctx.mapmini.elevation.is_empty() {
+                    let (end, height_blocked) = ctx.mapmini.elevation.move_distance(
+                        Vec3::new(position.x, entity.position.y, position.y),
+                        end_position - position,
+                        radius.max(0.),
+                        entity.attributes.get_float_default(
+                            "max_step_height",
+                            crate::isometric::elevation::STEP_UP,
+                        ),
+                        entity.attributes.get_float_default(
+                            "max_drop_height",
+                            crate::isometric::elevation::STEP_DOWN,
+                        ),
+                    );
+                    entity.position = end;
+                    geometry_blocked || height_blocked
+                } else {
+                    entity.set_pos_xz(end_position);
+                    geometry_blocked
+                }
             }
             CollisionMode::Mesh => {
                 if ctx.collision_world.has_collision_data() {
@@ -8091,7 +8360,9 @@ impl RegionInstance {
         };
 
         let final_pos = entity.get_pos_xz();
-        let base_y = if self.collision_mode == CollisionMode::Mesh
+        let base_y = if !ctx.mapmini.elevation.is_empty() {
+            Some(ctx.mapmini.elevation.height_at(final_pos))
+        } else if self.collision_mode == CollisionMode::Mesh
             && ctx.collision_world.has_collision_data()
         {
             let max_step_height = entity
@@ -8113,7 +8384,7 @@ impl RegionInstance {
                     )
                 })
         } else {
-            let config = crate::chunkbuilder::terrain_generator::TerrainConfig::default();
+            let config = crate::chunkbuilder::terrain_generator::TerrainConfig::for_map(&ctx.map);
             Some(
                 crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(
                     &ctx.map, final_pos, &config,
@@ -10131,7 +10402,10 @@ impl RegionInstance {
                                 if !matches!(
                                     snapshot.attributes.get("player_camera"),
                                     Some(Value::PlayerCamera(
-                                        PlayerCamera::D2 | PlayerCamera::D2Grid
+                                        PlayerCamera::D2
+                                            | PlayerCamera::D2Iso
+                                            | PlayerCamera::D2IsoGrid
+                                            | PlayerCamera::D2Grid
                                     ))
                                 ) {
                                     return;
@@ -10180,12 +10454,21 @@ impl RegionInstance {
                                 }
                                 if matches!(
                                     snapshot.attributes.get("player_camera"),
-                                    Some(Value::PlayerCamera(PlayerCamera::D2Grid))
+                                    Some(Value::PlayerCamera(
+                                        PlayerCamera::D2Grid | PlayerCamera::D2IsoGrid
+                                    ))
                                 ) {
                                     let step = self.compute_grid_goto_step_in_ctx(
                                         ctx,
                                         snapshot.get_pos_xz(),
                                         position,
+                                        matches!(
+                                            snapshot.attributes.get("player_camera"),
+                                            Some(Value::PlayerCamera(PlayerCamera::D2IsoGrid))
+                                        ),
+                                        (snapshot.attributes.get_float_default("radius", 0.5)
+                                            - 0.01)
+                                            .max(0.),
                                     );
                                     let Some(entity) = get_entity_mut(&mut ctx.map, entity_id)
                                     else {
@@ -10699,13 +10982,7 @@ impl RegionInstance {
                             let center = ctx.map.named_area_center(&dest_sector_name);
 
                             if let Some(center) = center {
-                                if let Some(entity) =
-                                    ctx.map.entities.iter_mut().find(|e| e.id == entity_id)
-                                {
-                                    let id = entity.id;
-                                    entity.set_pos_xz(center);
-                                    ctx.check_player_for_section_change_id(id);
-                                }
+                                Self::teleport_position_in_ctx(ctx, entity_id, center);
                             }
                         });
                     } else {
@@ -10730,13 +11007,7 @@ impl RegionInstance {
                 }
                 TeleportEntityPos(entity_id, position) => {
                     with_regionctx(self.id, |ctx: &mut RegionCtx| {
-                        if let Some(entity) =
-                            ctx.map.entities.iter_mut().find(|e| e.id == entity_id)
-                        {
-                            let id = entity.id;
-                            entity.set_pos_xz(position.clone());
-                            ctx.check_player_for_section_change_id(id);
-                        }
+                        Self::teleport_position_in_ctx(ctx, entity_id, position);
                     });
                 }
                 TransferEntity(_region_id, entity, _dest_region_name, dest_sector_name) => {
@@ -10860,7 +11131,13 @@ impl RegionInstance {
             }
 
             let action_start_pos = entity.get_pos_xz();
-            match &entity.action.clone() {
+            let visual_action = if matches!(entity.attributes.get("player_camera"), Some(Value::PlayerCamera(camera)) if camera.is_isometric_2d())
+            {
+                crate::isometric::movement(&entity.action)
+            } else {
+                entity.action.clone()
+            };
+            match &visual_action {
                 EntityAction::Forward => {
                     if entity.is_player() {
                         if !Self::should_use_directional_player_intent(entity, click_intents_2d) {
@@ -11506,7 +11783,15 @@ impl RegionInstance {
                             let (p, arrived) = ctx
                                 .mapmini
                                 .move_towards(position, *coord, speed, radius, 1.0);
-                            (p, entity.position.y, arrived)
+                            (
+                                p,
+                                if ctx.mapmini.elevation.is_empty() {
+                                    entity.position.y
+                                } else {
+                                    ctx.mapmini.elevation.height_at(p)
+                                },
+                                arrived,
+                            )
                         };
 
                         let mut resolved_position = new_position;
@@ -11785,8 +12070,16 @@ impl RegionInstance {
                 }
                 EntityAction::GotoGrid(coord, speed) => {
                     with_regionctx(self.id, |ctx| {
-                        let step =
-                            self.compute_grid_goto_step_in_ctx(ctx, entity.get_pos_xz(), *coord);
+                        let step = self.compute_grid_goto_step_in_ctx(
+                            ctx,
+                            entity.get_pos_xz(),
+                            *coord,
+                            matches!(
+                                entity.attributes.get("player_camera"),
+                                Some(Value::PlayerCamera(PlayerCamera::D2IsoGrid))
+                            ),
+                            (entity.attributes.get_float_default("radius", 0.5) - 0.01).max(0.),
+                        );
                         entity.set_attribute("__grid_goto_speed", Value::Float(*speed));
                         if let Some((next, facing, target)) = step {
                             let start = entity.get_pos_xz();
@@ -11946,6 +12239,9 @@ impl RegionInstance {
 
                             if blocked {
                                 entity.set_pos_xz(curr_start);
+                                if !ctx.mapmini.elevation.is_empty() {
+                                    entity.position.y = ctx.mapmini.elevation.height_at(curr_start);
+                                }
                                 entity.set_orientation(curr_facing);
                                 if dynamic_collision {
                                     if let Some(target) =
@@ -12024,7 +12320,9 @@ impl RegionInstance {
                                 entity.action = EntityAction::Off;
                             }
 
-                            if remaining_speed <= 0.0001 || !continue_grid_chain {
+                            // A fractional remainder smaller than the collision
+                            // progress tolerance is not a blocked next step.
+                            if remaining_speed <= 0.001 || !continue_grid_chain {
                                 break;
                             }
 
@@ -12187,7 +12485,8 @@ impl RegionInstance {
                                     * *speed
                                     * Self::autonomous_action_dt(ctx, entity);
                                 let terrain_cfg =
-                                    crate::chunkbuilder::terrain_generator::TerrainConfig::default(
+                                    crate::chunkbuilder::terrain_generator::TerrainConfig::for_map(
+                                        &ctx.map,
                                     );
                                 let terrain_y =
                                     crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(
@@ -12335,7 +12634,7 @@ impl RegionInstance {
                                 };
                                 let terrain_floor = {
                                     let config =
-                                        crate::chunkbuilder::terrain_generator::TerrainConfig::default();
+                                        crate::chunkbuilder::terrain_generator::TerrainConfig::for_map(&ctx.map);
                                     crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(
                                         &ctx.map,
                                         resolved_position,
@@ -12343,8 +12642,11 @@ impl RegionInstance {
                                     )
                                 };
 
-                                let base_y =
-                                    sector_floor.or(collision_floor).or(Some(terrain_floor));
+                                let base_y = if !ctx.mapmini.elevation.is_empty() {
+                                    Some(ctx.mapmini.elevation.height_at(resolved_position))
+                                } else {
+                                    sector_floor.or(collision_floor).or(Some(terrain_floor))
+                                };
                                 if let Some(y) = base_y {
                                     entity.position.y = y;
                                 }
@@ -12472,7 +12774,8 @@ impl RegionInstance {
                                     * *speed
                                     * Self::autonomous_action_dt(ctx, entity);
                                 let terrain_cfg =
-                                    crate::chunkbuilder::terrain_generator::TerrainConfig::default(
+                                    crate::chunkbuilder::terrain_generator::TerrainConfig::for_map(
+                                        &ctx.map,
                                     );
                                 let terrain_y =
                                     crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(
@@ -12632,7 +12935,7 @@ impl RegionInstance {
                                 };
                                 let terrain_floor = {
                                     let config =
-                                        crate::chunkbuilder::terrain_generator::TerrainConfig::default();
+                                        crate::chunkbuilder::terrain_generator::TerrainConfig::for_map(&ctx.map);
                                     crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(
                                         &ctx.map,
                                         resolved_position,
@@ -12640,8 +12943,11 @@ impl RegionInstance {
                                     )
                                 };
 
-                                let base_y =
-                                    sector_floor.or(collision_floor).or(Some(terrain_floor));
+                                let base_y = if !ctx.mapmini.elevation.is_empty() {
+                                    Some(ctx.mapmini.elevation.height_at(resolved_position))
+                                } else {
+                                    sector_floor.or(collision_floor).or(Some(terrain_floor))
+                                };
                                 if let Some(y) = base_y {
                                     entity.position.y = y;
                                 }
@@ -12859,7 +13165,9 @@ impl RegionInstance {
             // Keep avatar animation state in sync with actual movement this update.
             let distance = (entity.get_pos_xz() - action_start_pos).magnitude();
             let moved = distance * distance > 1e-6;
-            if sim_dt > 0.00001 { entity.set_attribute("avatar_move_speed",Value::Float(distance / sim_dt)); }
+            if sim_dt > 0.00001 {
+                entity.set_attribute("avatar_move_speed", Value::Float(distance / sim_dt));
+            }
             sync_avatar_animation(entity, moved);
         }
 
@@ -13311,7 +13619,22 @@ impl RegionInstance {
 
                 // Register player
                 if ctx.entity_player_classes.contains(&class_name) {
+                    let iso_2d = ctx.map.camera == crate::MapCamera::TwoDIso;
                     if let Some(entity) = get_entity_mut(&mut ctx.map, ctx.curr_entity_id) {
+                        if iso_2d {
+                            let camera = match entity.attributes.get("player_camera") {
+                                None | Some(Value::PlayerCamera(PlayerCamera::D2)) => {
+                                    Some(PlayerCamera::D2Iso)
+                                }
+                                Some(Value::PlayerCamera(PlayerCamera::D2Grid)) => {
+                                    Some(PlayerCamera::D2IsoGrid)
+                                }
+                                _ => None,
+                            };
+                            if let Some(camera) = camera {
+                                entity.set_attribute("player_camera", Value::PlayerCamera(camera));
+                            }
+                        }
                         if !matches!(
                             entity.attributes.get("player_camera"),
                             Some(Value::PlayerCamera(_))
@@ -14109,6 +14432,8 @@ fn set_player_camera(camera: String, vm: &VirtualMachine) {
     with_regionctx(get_region_id(vm).unwrap(), |ctx: &mut RegionCtx| {
         let player_camera = match camera.as_str() {
             "2d_grid" => PlayerCamera::D2Grid,
+            "2d_iso" => PlayerCamera::D2Iso,
+            "2d_iso_grid" => PlayerCamera::D2IsoGrid,
             "iso" => PlayerCamera::D3Iso,
             "iso_grid" => PlayerCamera::D2Grid,
             "firstp" => PlayerCamera::D3FirstP,

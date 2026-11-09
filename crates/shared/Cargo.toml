@@ -14,6 +14,10 @@ readme = "README.md"
 name = "mz_selection_recipe"
 required-features = ["graphics"]
 
+[[example]]
+name = "mz_iso_project"
+required-features = ["graphics"]
+
 [dependencies]
 denrim-materials = { path = "../materialz", features = ["integration"] }
 theframework.workspace = true

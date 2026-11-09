@@ -49,6 +49,7 @@ impl D3ChunkBuilder {
         if map.vertices.is_empty()
             && map.geometry_objects.is_empty()
             && map.block_prop_instances.is_empty()
+            && !map.properties.get_bool_default("terrain_enabled", false)
         {
             return world;
         }
@@ -2895,7 +2896,7 @@ impl ChunkBuilder for D3ChunkBuilder {
     }
 }
 
-fn add_terrain_collision(
+pub(crate) fn add_terrain_collision(
     map: &Map,
     assets: &Assets,
     chunk_origin: Vec2<i32>,
@@ -2926,7 +2927,7 @@ fn add_terrain_collision(
         }
     });
 
-    let mut config = TerrainConfig::default();
+    let mut config = TerrainConfig::for_map(map);
     let mut chunk_ridge_subdiv = config.subdivisions.max(1);
     let mut chunk_exclusion_subdiv = config.subdivisions.max(1);
     for sector in &map.sectors {
@@ -5846,7 +5847,7 @@ fn generate_sector_roofs(map: &Map, assets: &Assets, chunk: &Chunk, vmchunk: &mu
 }
 
 // --- Terrain Generation ---
-fn generate_terrain(
+pub(crate) fn generate_terrain(
     map: &Map,
     assets: &Assets,
     chunk: &mut Chunk,
@@ -5891,7 +5892,7 @@ fn generate_terrain(
     });
 
     // Create terrain generator config (can be upsampled per-ridge via `ridge_subdiv`).
-    let mut config = TerrainConfig::default();
+    let mut config = TerrainConfig::for_map(map);
     let mut chunk_ridge_subdiv = config.subdivisions.max(1);
     let mut chunk_exclusion_subdiv = config.subdivisions.max(1);
     for sector in &map.sectors {
@@ -6023,6 +6024,10 @@ fn generate_terrain(
     if let Some(meshes) = generated_meshes.as_ref() {
         // Process each mesh (one per tile)
         for (_mesh_idx, (tile_id, vertices, indices, uvs)) in meshes.iter().enumerate() {
+            let world_pages = assets
+                .tile_index(tile_id)
+                .and_then(|i| assets.tile_list.get(i as usize))
+                .is_some_and(|t| t.uv_pages.is_some());
             // Convert vertices from Vec3<f32> to [f32; 4] (homogeneous coordinates)
             let vertices_4d: Vec<[f32; 4]> =
                 vertices.iter().map(|v| [v.x, v.y, v.z, 1.0]).collect();
@@ -6347,7 +6352,11 @@ fn generate_terrain(
                         if let Some((preset, ps)) = blend_map.get(&(tile_x, tile_z)) {
                             if let Some(tile2) = ps.tile_from_tile_list(assets) {
                                 let map_v = |v: f32| {
-                                    if has_manual_override { v } else { 1.0 - v }
+                                    if has_manual_override || world_pages {
+                                        v
+                                    } else {
+                                        1.0 - v
+                                    }
                                 };
                                 // Build blend weights for each vertex
                                 let weights_4 = preset.weights();
@@ -6410,7 +6419,11 @@ fn generate_terrain(
 
                 // No blend override - add as regular poly
                 let map_v = |v: f32| {
-                    if has_manual_override { v } else { 1.0 - v }
+                    if has_manual_override || world_pages {
+                        v
+                    } else {
+                        1.0 - v
+                    }
                 };
                 for &triangle in &triangles {
                     let i0 = triangle.0;

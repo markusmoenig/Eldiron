@@ -3,6 +3,8 @@ title: "Procedural Materials"
 sidebar_position: 1.5
 ---
 
+For illustrated, step-by-step learning, start with the [MaterialZ tutorials](./materialz/start-here). They cover materials, meshes, published controls, footprints and connector-based assembly. This page remains the detailed material workflow reference.
+
 Eldiron includes the MaterialZ (MZ) row editor for procedural textures. A material
 is an editable recipe, its project-palette bindings and its baked render data.
 Use the same sources for 2D map tiles, 3D floors and walls, and screen artwork.
@@ -47,6 +49,132 @@ Choose authored colors through the **project palette**, including Color tiles,
 ramps and emission colors. See [Palette Tool](../creator/tools/palette) for
 switching palettes without replacing recipe references.
 
+## Create and reuse mesh recipes
+
+In **Procedural Materials → Meshes**, choose **New mesh** or **New… → Browse
+recipes…**. Search the library or filter building parts, nature, props and
+primitives. The browser includes box, wall segment, wall corner, roof slope,
+repeated posts, rock, tree, barrel and crate recipes. **Project** lists your own recipes for
+creating independent copies. Preview a recipe, adjust its published dimensions
+and palette colors, enter a name and choose **Create mesh**.
+
+Every result remains an editable MZ recipe. Select its Group to adjust published
+controls, or open the Group to change the construction rows. Selecting a mesh in
+the Tilepicker keeps the map ready for placement; **Edit mesh** opens the full
+editor. In 2D Iso, the same recipe produces the tile preview and map rendering;
+recipe edits refresh those outputs through the existing MZ pipeline.
+
+To make your own controls, select a Group and choose **Asset… → Publish
+controls…**. Add or reorder controls, set their labels, sections, help, values,
+neutral/default values and ranges, then choose a behavior. Width, height and
+depth change one dimension independently. Scale, offset and palette controls
+can apply to the whole group or a named part. The live preview shows the result.
+**Save controls** applies one undoable source edit; Cancel discards the draft.
+Publishing from inside a Group edits its interface. At the document root, with
+no Group selected, saving wraps the construction in an editable Group.
+
+Custom weighted or rig-aware mappings remain intact. **Asset… → Advanced
+controls (TOML)…** supports editing these mappings and multiple part targets.
+Choose **Recipe parameter** to drive construction inputs before the mesh is
+built. Click **Recipe input** to search the named construction fields, then set
+**Multiply by** and **Then add**:
+`input = published value × multiplier + offset`. The **Binding** menu adds or
+selects additional inputs for the same control. For a grounded wall height,
+bind the source Box height with multiplier 1 and its Transform Y position with
+multiplier 0.5. **Remove binding** removes only the selected input mapping.
+
+Box dimensions, contour coordinates, extrusion thickness, transform values,
+loft rings/segments, surface offset and roughness/metallic are supported numeric
+inputs. Nested groups expose their published controls; groups without controls
+can expose their construction inputs. Targets use operation identities, so
+renaming a row does not disconnect a binding. Missing inputs, conflicting
+bindings and invalid resulting geometry prevent saving and display an error.
+
+A control's optional **Formula** calculates its value from other controls in the
+same Group. **Insert control reference…** searches by label and inserts a stable
+`[control-id]` reference; simple IDs such as `count` can also be typed directly.
+Choose **Input / calculated value** for an input or readout without a direct mesh
+binding. Formula controls can also use **Recipe parameter** to drive construction.
+They appear as calculated, read-only values when using the recipe. Edit the formula
+in **Publish controls**, or clear it to make the value editable again.
+
+Expressions support `+`, `-`, `*`, `/`, parentheses, `sin_deg`, `cos_deg`, `tan_deg`,
+`sqrt`, `abs`, `min`, `max`, `clamp`, `floor`, `ceil` and `round`. Dependencies can
+refer forwards or chain through other calculated controls. Unknown references,
+cycles, division by zero and results outside the declared range prevent saving.
+References stay local to their Group; containing groups can bind its editable
+published inputs. Calculations run before construction, including in iso previews,
+map tiles, exported recipes and runtime geometry. Source formulas remain editable.
+
+The **Gable roof** browser recipe calculates `half_run = span / 2`,
+`length = half_run / cos_deg(slope)` and `rise = half_run * tan_deg(slope)`.
+Its nested panel recipes calculate the mitered ridge cut from pitch and thickness,
+so both faces meet while changing pitch. The **Fence** recipe calculates
+`length = count * spacing` and uses it for two continuous rails; Repeat creates
+only the posts. Both parts are used in the iso published-controls playground.
+
+For static MZ parts in 2D Iso, **Follow recipe shape** in the compact placement
+sidebar uses the recipe's footprint for collision and walkable support. It applies
+to selected independent placements and subsequent painting. Edits, rotation,
+dragging, undo and save/reopen preserve the placement anchor. Existing recipes
+without a footprint keep the mesh-bounds fallback. Disable the setting to freeze
+a footprint for manual map editing; shared map vertices/edges remain untouched.
+
+To author a shape entirely in MZ:
+
+1. Add a **Contour** row before the final mesh row. Its two coordinates are **X/Z**
+   for a footprint. Use the normal contour editor to draw a simple closed polygon
+   of 3–64 vertices, including concave shapes.
+2. Add **Footprint** from **Sources → Geometry** after the final mesh or Assemble
+   operation, and choose that row with **Contour (X/Z)**. This annotates the mesh
+   without adding visible geometry.
+3. In **Publish controls**, bind the same controls to mesh construction and contour
+   coordinates. The bundled **Wall corner** does this for width, depth and thickness.
+   **Tree** binds **Trunk width/depth** to both its loft and eight-sided footprint,
+   allowing the player to walk beneath its canopy while the trunk stays solid.
+
+Footprints can contain several solid regions, each with its own holes. On a
+**Footprint** node, choose the outer contour with **Contour (X/Z)**, then use
+**Add hole** to select enclosed cutouts. Each hole selector can change or remove
+that cutout. Enable **Add region** on another Footprint node to append a separate
+solid region; leave it off to replace the incoming footprint. For example:
+
+```json
+{"type":"footprint","row":"outer","holes":["opening"],"append":true}
+```
+
+**Repeat** copies a seed mesh's complete footprint, preserving the gaps between
+posts. **Assemble** combines the footprints of its input rows. Regions form a
+union; holes subtract from their own region. Islands inside holes can be another
+region. Hole contours must be strictly inside their outer contour and cannot
+touch, overlap or contain other holes in that region. Up to 128 regions, 256 rings
+and 4096 points are supported, with 3–64 points per ring. Animated footprints are
+not supported. Whole-group controls and transforms move all rings together; bind
+contour coordinates explicitly for individual-part deformation.
+
+The browser includes **Doorway** (separate jamb footprints beneath a lintel),
+**Repeated posts** (copied footprints) and **Ring walkway** (a top-anchored raised
+surface with an empty center). Their published controls update geometry and
+footprints together. The iso playground places examples from these same recipes.
+For the ring, **Top height** sets its walkable surface elevation; thickness extends
+below that plane. Movement, grid navigation and walkable support preserve holes
+and gaps. Invalid recipes retain the last good artwork and collision. Save/load,
+undo, rotation, dragging and copy/paste retain the compound layout and anchor.
+
+The **Repeat** operation is available in MZ **Sources → Geometry**. Place it after
+a static mesh and material assignment. Count creates 1–128 real copies; spacing
+and rotation specify the step per copy. Copies retain source materials and UVs,
+and existing copies keep their identities when count changes. The vertex budget
+still applies. The **Repeated posts** browser recipe exposes count and spacing;
+wall parts expose actual thickness, and **Roof slope** exposes the panel slope
+in degrees. These are ordinary MZ operations and bindings, with no asset actions.
+
+Existing scaling controls retain their behavior. Opening a Group edits its
+authored construction defaults; parameter bindings override those defaults on
+an evaluation copy. Edit the published control to change the resulting asset.
+Recipes, bindings and repeat settings survive save/load, export and undo/redo;
+2D Iso and 3D use the same evaluator.
+
 ## Minimap preview
 
 The material preview occupies the **minimap**, below the sidebar. Its icon buttons
@@ -69,6 +197,37 @@ Continuous coordinates on a top-down surface follow world X/Z. Other surfaces
 use their surface projection, so a wall's axes need not match a floor's. Use
 consistent scale and orientation on adjoining surfaces when their patterns must
 join.
+
+Material swatches and the material editor stay flat in **2D Iso**: a material is
+independent of camera projection. Map tiles and mesh outputs keep their iso
+previews. Continuous MZ ground outputs retain their source's coordinate-addressed
+pages, so the pattern varies across the world instead of repeating one diamond.
+Moving or extending their placements updates the required bake coverage.
+
+Unit MZ terrain parts with a complete horizontal top at local Y=0 and standard
+ground UVs can use the same continuous material on their walkable tops. Their
+side sprites remain part of the mesh bake; custom UV layouts are preserved.
+Continuous texturing does not smooth the part's geometry: stacked blocks still
+have stepped heights.
+
+Smooth hills use the shared terrain surface instead. A terrain control vertex
+sets height and influence radius; the same terrain rules serve the map cameras.
+In **2D Iso**, ground materials and composition masks follow that surface using
+world X/Z coordinates. A winding **Auto road** can therefore continue up and down
+a hill without separate sloped tile recipes or repeated material resets. Walk
+height, editor picking and the rendered iso triangles agree. MZ stairs and
+building parts keep their authored geometry and heights.
+
+To shape a hill directly, use the **Terrain** brush's **Raise**, **Lower** and
+**Smooth** modes. Radius and strength control its circular falloff, and one
+stroke is one undo step. Sculpting changes the shared height surface while
+leaving MZ recipes and painted path masks intact.
+
+For precise control points, select a ground MZ material, add or select a vertex, and open
+**Edit Vertex**. Enable **Terrain control**, set **Y** and **Influence radius**,
+then apply. The first control enables terrain for the map. Paint and compose
+ground with the Rect tool at edit height zero; the cursor follows the terrain.
+Use an explicit raised edit height for construction floors.
 
 The current renderer **bakes textures and surface pages**. Continuous variation
 does not mean evaluating a material graph for every pixel at game runtime. Large
@@ -99,6 +258,13 @@ Use **Save copy to Tilepicker** to turn the current composition into a reusable
 tile. Paint that copy elsewhere instead of rebuilding the same road composition.
 Auto road derives its connections from adjacent compatible placements; the other
 shape presets retain their authored orientation.
+
+These controls also work in **2D Iso**. Shapes are evaluated on the ground's
+X/Z plane, then projected into the isometric view. Curved corners, soft edges,
+uneven edges and Auto road use the same controls and world-coordinate pages as
+the other cameras. Picking an isometric MZ output as an input uses its underlying
+material recipe, so editing that source updates the composition. While a map
+composition is open, picking another tile keeps the composition open.
 
 ## Images and animation
 

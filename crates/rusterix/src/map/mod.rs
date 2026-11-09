@@ -15,7 +15,6 @@ pub mod tile;
 pub mod tilesource;
 pub mod topology;
 pub mod vertex;
-pub mod wall;
 
 use crate::{
     BBox, FaceEmission, FaceParticleEmission, GeometryObject, MapMini, PixelSource, Surface, Value,
@@ -31,7 +30,6 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use vek::{Vec2, Vec3, Vec4};
 use vertex::*;
-use wall::{WallAreaSurfacePreview, WallAssembly, WallBrickPreview, WallOpeningPreview};
 
 use crate::{Entity, Item, Light};
 use block_prop::{BlockPropInstance, BlockPropSurfacePlacement};
@@ -41,6 +39,7 @@ pub enum MapCamera {
     TwoD,
     ThreeDIso,
     ThreeDFirstPerson,
+    TwoDIso,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -121,7 +120,7 @@ pub enum MapToolType {
     Game,
     MiniMap,
     World,
-    Wall,
+    Terrain,
 }
 
 // Map vectors are public and can be reordered or edited without an invalidation call.
@@ -209,10 +208,6 @@ pub struct Map {
     #[serde(default)]
     pub face_particle_emissions: FxHashMap<Uuid, FaceParticleEmission>,
 
-    /// Editable source graphs for connected procedural walls.
-    #[serde(default)]
-    pub wall_assemblies: Vec<WallAssembly>,
-
     /// Linked instances of reusable Blocks & Props assets. Source geometry is
     /// resolved through the owning project's asset catalog.
     #[serde(default)]
@@ -241,24 +236,6 @@ pub struct Map {
     pub selected_sectors: Vec<u32>,
     #[serde(default)]
     pub selected_geometry_objects: Vec<Uuid>,
-    #[serde(skip)]
-    pub selected_wall_assembly: Option<Uuid>,
-    #[serde(skip)]
-    pub selected_wall_nodes: Vec<Uuid>,
-    #[serde(skip)]
-    pub selected_wall_spans: Vec<Uuid>,
-    #[serde(skip)]
-    pub selected_wall_opening: Option<Uuid>,
-    #[serde(skip)]
-    pub selected_wall_surface: Option<Uuid>,
-    #[serde(skip)]
-    pub hovered_wall_span: Option<(Uuid, Uuid)>,
-    #[serde(skip)]
-    pub wall_brick_preview: Option<WallBrickPreview>,
-    #[serde(skip)]
-    pub wall_opening_preview: Option<WallOpeningPreview>,
-    #[serde(skip)]
-    pub wall_surface_preview: Option<WallAreaSurfacePreview>,
     /// Editor selection of linked Block / Prop instances. Kept separate from
     /// resolved Geometry Object IDs so instance operations remain stable when
     /// an asset source changes.
@@ -355,6 +332,62 @@ mod tests {
         assert!(
             map.find_sectors_with_vertex_indices(&[10, 20, 30, 60])
                 .is_empty()
+        );
+    }
+
+    #[test]
+    fn sanitize_preserves_disconnected_footprints_and_holes_but_rejects_broken_rings() {
+        use denrim_materials::geometry::footprint::{Region, Shape};
+        let mut map = Map::default();
+        for (i, (x, z)) in [
+            (0., 0.),
+            (4., 0.),
+            (4., 4.),
+            (0., 4.),
+            (1., 1.),
+            (1., 2.),
+            (2., 2.),
+            (2., 1.),
+            (6., 0.),
+            (7., 0.),
+            (7., 1.),
+            (6., 1.),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            map.vertices.push(Vertex::new(i as u32, x, z));
+        }
+        for start in [0u32, 4, 8] {
+            for i in 0..4 {
+                map.linedefs
+                    .push(Linedef::new(start + i, start + i, start + (i + 1) % 4));
+            }
+        }
+        let mut sector = Sector::new(42, (0..12).collect());
+        sector.footprint_topology = Some(Shape {
+            regions: vec![
+                Region {
+                    outer: vec![0, 1, 2, 3],
+                    holes: vec![vec![4, 5, 6, 7]],
+                },
+                Region {
+                    outer: vec![8, 9, 10, 11],
+                    holes: vec![],
+                },
+            ],
+        });
+        map.sectors.push(sector);
+        map.sanitize();
+        assert_eq!(map.sectors.len(), 1);
+        assert!(map.sectors[0].is_inside(&map, Vec2::new(0.5, 0.5)));
+        assert!(!map.sectors[0].is_inside(&map, Vec2::new(1.5, 1.5)));
+        assert!(map.sectors[0].is_inside(&map, Vec2::new(6.5, 0.5)));
+        map.find_linedef_mut(11).unwrap().end_vertex = 0;
+        map.sanitize();
+        assert!(
+            map.sectors.is_empty(),
+            "a disconnected ring must still close onto itself"
         );
     }
 
@@ -696,7 +729,6 @@ impl Map {
             geometry_objects: vec![],
             face_emissions: FxHashMap::default(),
             face_particle_emissions: FxHashMap::default(),
-            wall_assemblies: vec![],
             block_prop_instances: vec![],
             block_prop_surface_placements: vec![],
 
@@ -710,15 +742,6 @@ impl Map {
             selected_linedefs: vec![],
             selected_sectors: vec![],
             selected_geometry_objects: vec![],
-            selected_wall_assembly: None,
-            selected_wall_nodes: vec![],
-            selected_wall_spans: vec![],
-            selected_wall_opening: None,
-            selected_wall_surface: None,
-            hovered_wall_span: None,
-            wall_brick_preview: None,
-            wall_opening_preview: None,
-            wall_surface_preview: None,
             selected_block_prop_instances: vec![],
             selected_geometry_vertices: vec![],
             selected_geometry_faces: vec![],
@@ -751,15 +774,6 @@ impl Map {
         self.selected_linedefs = vec![];
         self.selected_sectors = vec![];
         self.selected_geometry_objects = vec![];
-        self.selected_wall_assembly = None;
-        self.selected_wall_nodes = vec![];
-        self.selected_wall_spans = vec![];
-        self.selected_wall_opening = None;
-        self.selected_wall_surface = None;
-        self.hovered_wall_span = None;
-        self.wall_brick_preview = None;
-        self.wall_opening_preview = None;
-        self.wall_surface_preview = None;
         self.selected_block_prop_instances = vec![];
         self.selected_geometry_vertices = vec![];
         self.selected_geometry_faces = vec![];
@@ -1180,6 +1194,7 @@ impl Map {
         let mut occluded_sectors: Vec<(BBox, f32)> = vec![];
 
         let mut blocked_tiles = FxHashSet::default();
+        let mut blocked_polygons = Vec::new();
         let mut unnamed_blocking_layer_sectors = FxHashSet::default();
 
         // Build endpoint candidates once, only if blocking rectangles need seam
@@ -1188,6 +1203,12 @@ impl Map {
 
         for sector in self.sectors.iter() {
             let mut add_it = false;
+            let precise_footprint = sector
+                .properties
+                .get_bool_default("iso_follow_mesh_bounds", false)
+                || sector
+                    .properties
+                    .get_bool_default("iso_precise_footprint", false);
 
             // We collect occluded sectors
             let occlusion = sector.properties.get_float_default("occlusion", 1.0);
@@ -1210,8 +1231,10 @@ impl Map {
                             if sector.name.is_empty() {
                                 unnamed_blocking_layer_sectors.insert(sector.id);
                             }
-                            if let Some(center) = sector.center(self) {
-                                blocked_tiles.insert(center.map(|c| (c.floor()) as i32));
+                            if !precise_footprint {
+                                if let Some(center) = sector.center(self) {
+                                    blocked_tiles.insert(center.map(|c| (c.floor()) as i32));
+                                }
                             }
                         }
                     }
@@ -1228,6 +1251,11 @@ impl Map {
             }
 
             if add_it {
+                if precise_footprint {
+                    if let Some(shape) = sector.footprint_shape(self) {
+                        blocked_polygons.push((sector.bounding_box(self), shape));
+                    }
+                }
                 for linedef_id in sector.linedefs.iter() {
                     if let Some(linedef) = self.find_linedef(*linedef_id) {
                         let is_internal_unnamed_blocking_seam = linedef.sector_ids.len() > 1
@@ -1325,11 +1353,13 @@ impl Map {
 
         let mut mini = MapMini::new(self.offset, self.grid_size, linedefs, occluded_sectors);
         mini.blocked_tiles = blocked_tiles;
+        mini.blocked_polygons = blocked_polygons;
+        mini.elevation = crate::isometric::elevation::ElevationMap::from_map(self);
         mini
     }
 
     /// Generate a bounding box for all vertices in the map
-    pub fn bbox(&self) -> BBox {
+    pub fn geometry_bbox(&self) -> BBox {
         let mut bbox: Option<BBox> = None;
 
         for vertex in &self.vertices {
@@ -1355,6 +1385,18 @@ impl Map {
         }
 
         bbox.unwrap_or_else(|| BBox::new(Vec2::new(-1.0, -1.0), Vec2::new(1.0, 1.0)))
+    }
+
+    /// Render/streaming bounds also include terrain sculpted beyond the geometry.
+    pub fn bbox(&self) -> BBox {
+        let mut bbox = self.geometry_bbox();
+        if let Some(sculpt) = crate::chunkbuilder::terrain_sculpt::TerrainSculpt::bounds(self) {
+            if self.vertices.is_empty() && self.geometry_objects.is_empty() {
+                return sculpt;
+            }
+            bbox.expand_bbox(sculpt);
+        }
+        bbox
     }
 
     /// Generate bounds including linked Blocks & Props resolved through the
@@ -2403,8 +2445,45 @@ impl Map {
                 continue;
             }
 
-            // Check if the sector forms a closed loop
-            if let Some(first_linedef) = self.find_linedef(sector.linedefs[0]) {
+            // Compound MZ footprints contain separate outer and hole rings.
+            // The final edge of one region must not close onto the first region.
+            if sector.footprint_topology.is_some() {
+                let valid = sector.footprint_rings().is_some_and(|shape| {
+                    if shape.limits().is_err() {
+                        return false;
+                    }
+                    let referenced: FxHashSet<u32> = shape.points().copied().collect();
+                    if referenced.len() != sector.linedefs.len() {
+                        return false;
+                    }
+                    shape.regions.iter().all(|region| {
+                        std::iter::once(&region.outer)
+                            .chain(region.holes.iter())
+                            .all(|ring| {
+                                ring.len() >= 3
+                                    && ring
+                                        .iter()
+                                        .zip(ring.iter().cycle().skip(1))
+                                        .take(ring.len())
+                                        .all(|(a, b)| {
+                                            self.find_linedef(*a)
+                                                .zip(self.find_linedef(*b))
+                                                .is_some_and(|(a, b)| {
+                                                    a.end_vertex == b.start_vertex
+                                                })
+                                        })
+                            })
+                    })
+                });
+                if !valid {
+                    println!(
+                        "Sanitizing: sector {} has invalid footprint rings",
+                        sector.id
+                    );
+                    invalid_sectors.insert(sector.id);
+                    continue;
+                }
+            } else if let Some(first_linedef) = self.find_linedef(sector.linedefs[0]) {
                 if let Some(last_linedef) =
                     self.find_linedef(sector.linedefs[sector.linedefs.len() - 1])
                 {
@@ -2555,10 +2634,12 @@ impl Map {
         for linedef in &mut self.linedefs {
             linedef.sector_ids = associations.remove(&linedef.id).unwrap_or_default();
         }
-
-        // Wall meshes are derived from their persistent connected source graphs. Rebuilding here
-        // keeps loaded, pasted, and migrated maps from retaining stale structural previews.
-        self.rebuild_wall_geometry();
+        // Deleting a parent freezes its children before a new placement can
+        // reuse the numeric sector ID and accidentally inherit those links.
+        let live_sectors: FxHashMap<_, _> = self.sectors.iter().map(|s| (s.id, s.id)).collect();
+        for sector in &mut self.sectors {
+            Self::remap_iso_connection(sector, &live_sectors);
+        }
     }
 
     /// Alias for sanitize() to maintain backward compatibility.
@@ -2631,12 +2712,33 @@ impl Map {
     }
 
     /// Copy selected geometry into a new map
+    /// Clipboard links refer only to parts copied with them. External parents
+    /// detach, preventing pasted parts from jumping back to the original room.
+    fn remap_iso_connection(sector: &mut Sector, ids: &FxHashMap<u32, u32>) {
+        if let Some(parent) = sector.properties.get_int("iso_snap_target") {
+            if let Some(id) = ids.get(&(parent as u32)) {
+                sector
+                    .properties
+                    .set("iso_snap_target", Value::Int(*id as i32));
+            } else {
+                for key in [
+                    "iso_snap_target",
+                    "iso_snap_local",
+                    "iso_snap_remote",
+                    "iso_snap_yaw_delta",
+                ] {
+                    sector.properties.remove(key);
+                }
+            }
+        }
+    }
+
     pub fn copy_selected(&mut self, cut: bool) -> Map {
         let mut clipboard = Map::new();
 
         let mut old_to_new_vertex: FxHashMap<u32, u32> = FxHashMap::default();
         let mut old_to_new_linedef: FxHashMap<u32, u32> = FxHashMap::default();
-        // let mut old_to_new_sector: FxHashMap<u32, u32> = FxHashMap::default();
+        let mut old_to_new_sector: FxHashMap<u32, u32> = FxHashMap::default();
 
         let mut vertex_ids: FxHashSet<u32> = FxHashSet::default();
         let mut linedef_ids: FxHashSet<u32> = self.selected_linedefs.iter().copied().collect();
@@ -2771,10 +2873,21 @@ impl Map {
                             }
                         }
 
+                        if let Some(anchor) = new_s.properties.get_vec2("iso_anchor") {
+                            new_s.properties.set(
+                                "iso_anchor",
+                                Value::Vec2([anchor[0] - offset.x, anchor[1] - offset.y]),
+                            );
+                        }
+                        old_to_new_sector.insert(s.id, new_id);
                         clipboard.sectors.push(new_s);
                     }
                 }
             }
+        }
+
+        for sector in &mut clipboard.sectors {
+            Self::remap_iso_connection(sector, &old_to_new_sector);
         }
 
         // Delete source geometry if cutting
@@ -2800,6 +2913,9 @@ impl Map {
         let mut linedef_map = FxHashMap::default();
         let mut pasted_sector_ids: Vec<u32> = Vec::new();
         let mut pasted_geometry_object_ids: Vec<Uuid> = Vec::new();
+
+        let mut sector_map = FxHashMap::default();
+        let first_sector = self.sectors.len();
 
         self.clear_selection();
 
@@ -2870,10 +2986,21 @@ impl Map {
                     }
                 }
 
+                if let Some(anchor) = new_s.properties.get_vec2("iso_anchor") {
+                    new_s.properties.set(
+                        "iso_anchor",
+                        Value::Vec2([anchor[0] + position.x, anchor[1] + position.y]),
+                    );
+                }
+                sector_map.insert(s.id, new_id);
                 self.sectors.push(new_s);
                 self.selected_sectors.push(new_id);
                 pasted_sector_ids.push(new_id);
             }
+        }
+
+        for sector in &mut self.sectors[first_sector..] {
+            Self::remap_iso_connection(sector, &sector_map);
         }
 
         // Pasted sectors need matching surfaces so 3D chunk building can render them.
@@ -2891,7 +3018,7 @@ impl Map {
         }
     }
 
-    /// Creates an editable-geometry clone, including connected wall source graphs.
+    /// Creates an editable-geometry clone.
     pub fn geometry_clone(&self) -> Map {
         Map {
             geometry_lookup: GeometryLookup::default(),
@@ -2914,7 +3041,6 @@ impl Map {
             geometry_objects: self.geometry_objects.clone(),
             face_emissions: self.face_emissions.clone(),
             face_particle_emissions: self.face_particle_emissions.clone(),
-            wall_assemblies: self.wall_assemblies.clone(),
             block_prop_instances: self.block_prop_instances.clone(),
             block_prop_surface_placements: self.block_prop_surface_placements.clone(),
 
@@ -2928,15 +3054,6 @@ impl Map {
             selected_linedefs: vec![],
             selected_sectors: vec![],
             selected_geometry_objects: vec![],
-            selected_wall_assembly: None,
-            selected_wall_nodes: vec![],
-            selected_wall_spans: vec![],
-            selected_wall_opening: None,
-            selected_wall_surface: None,
-            hovered_wall_span: None,
-            wall_brick_preview: None,
-            wall_opening_preview: None,
-            wall_surface_preview: None,
             selected_block_prop_instances: vec![],
             selected_geometry_vertices: vec![],
             selected_geometry_faces: vec![],

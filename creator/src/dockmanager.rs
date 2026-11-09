@@ -95,7 +95,7 @@ impl DockManager {
         docks.insert("Palette".into(), dock);
 
         let dock: Box<dyn Dock> = Box::new(crate::docks::iso_paint::IsoPaintDock::new());
-        docks.insert("3D Paint".into(), dock);
+        docks.insert("Paint".into(), dock);
 
         let dock: Box<dyn Dock> = Box::new(crate::docks::authoring::AuthoringDock::new());
         docks.insert("Authoring".into(), dock);
@@ -111,11 +111,6 @@ impl DockManager {
         docks.insert(
             "Rules".into(),
             Box::new(crate::docks::rules_editor::RulesEditor::new()) as Box<dyn Dock>,
-        );
-
-        docks.insert(
-            "Construction".into(),
-            Box::new(crate::docks::construction::ConstructionDock::new()) as Box<dyn Dock>,
         );
 
         let dock: Box<dyn Dock> = Box::new(crate::docks::data::DataDock::new());
@@ -434,7 +429,8 @@ impl DockManager {
                 .get_widget("Editor View Switch")
                 .and_then(|widget| widget.as_group_button())
             {
-                group.set_index(EditorViewMode::Orbit.to_index());
+                group
+                    .set_index(EditorViewMode::Orbit.toolbar_index(rusterix::MapCamera::ThreeDIso));
             }
             crate::utils::editor_scene_full_rebuild(project, server_ctx);
             let initial_tool = project
@@ -641,7 +637,13 @@ impl DockManager {
                 .get_widget("Editor View Switch")
                 .and_then(|widget| widget.as_group_button())
             {
-                group.set_index(view_mode.to_index());
+                group.set_index(
+                    view_mode.toolbar_index(
+                        project
+                            .get_map(server_ctx)
+                            .map_or(rusterix::MapCamera::TwoD, |m| m.camera),
+                    ),
+                );
             }
             crate::utils::editor_scene_full_rebuild(project, server_ctx);
             // Prefab editing reuses the regular geometry and paint tools. Their

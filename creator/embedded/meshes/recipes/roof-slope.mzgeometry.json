@@ -1,0 +1,253 @@
+{
+  "version": 1,
+  "id": "roof-slope",
+  "label": "Roof slope",
+  "rows": [
+    {
+      "id": "recipe",
+      "label": "Recipe",
+      "tiles": [
+        {
+          "id": "recipe-0",
+          "op": {
+            "type": "group",
+            "label": "Roof slope",
+            "document": {
+              "version": 1,
+              "id": "roof-slope-construction",
+              "label": "Roof slope construction",
+              "rows": [
+                {
+                  "id": "roof",
+                  "label": "Roof",
+                  "tiles": [
+                    {
+                      "id": "roof-0",
+                      "op": {
+                        "type": "material",
+                        "palette": 18,
+                        "roughness": 0.9,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "slope",
+                  "label": "Slope",
+                  "tiles": [
+                    {
+                      "id": "slope-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0,
+                            0
+                          ],
+                          [
+                            1,
+                            0
+                          ],
+                          [
+                            1,
+                            0.12
+                          ],
+                          [
+                            0,
+                            0.12
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "slope-extrude",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 1
+                      }
+                    },
+                    {
+                      "id": "slope-1",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "roof"
+                      }
+                    },
+                    {
+                      "id": "slope-2",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          30
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "assembly",
+                  "label": "Assembly",
+                  "tiles": [
+                    {
+                      "id": "assembly-0",
+                      "op": {
+                        "type": "assemble",
+                        "rows": [
+                          "slope"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "assembly",
+              "grip": null
+            },
+            "controls": [
+              {
+                "id": "length",
+                "label": "Panel length (m)",
+                "category": "Construction",
+                "help": "Changes recipe inputs before constructing the mesh.",
+                "order": 0,
+                "value": 1,
+                "reference": 1,
+                "min": 0.2,
+                "max": 10,
+                "modifiers": [
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "slope-profile",
+                      "parameter": "point1:0"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "slope-profile",
+                      "parameter": "point2:0"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  }
+                ]
+              },
+              {
+                "id": "depth",
+                "label": "Depth (m)",
+                "category": "Construction",
+                "help": "Changes recipe inputs before constructing the mesh.",
+                "order": 0,
+                "value": 1,
+                "reference": 1,
+                "min": 0.2,
+                "max": 10,
+                "modifiers": [
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "slope-extrude",
+                      "parameter": "depth"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  }
+                ]
+              },
+              {
+                "id": "thickness",
+                "label": "Thickness (m)",
+                "category": "Construction",
+                "help": "Changes recipe inputs before constructing the mesh.",
+                "order": 0,
+                "value": 0.12,
+                "reference": 0.12,
+                "min": 0.02,
+                "max": 0.5,
+                "modifiers": [
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "slope-profile",
+                      "parameter": "point2:1"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "slope-profile",
+                      "parameter": "point3:1"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  }
+                ]
+              },
+              {
+                "id": "slope",
+                "label": "Slope (degrees)",
+                "category": "Construction",
+                "help": "Changes recipe inputs before constructing the mesh.",
+                "order": 0,
+                "value": 30,
+                "reference": 30,
+                "min": 0,
+                "max": 75,
+                "modifiers": [
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "slope-2",
+                      "parameter": "rotation2"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  }
+                ]
+              },
+              {
+                "id": "roof-color",
+                "label": "Roof color",
+                "category": "Materials",
+                "help": "Project palette color for these parts.",
+                "order": 0,
+                "value": 18,
+                "reference": 18,
+                "min": 0.0,
+                "max": 255.0,
+                "modifiers": [
+                  {
+                    "type": "palette",
+                    "parts": [
+                      "*"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "recipe",
+  "grip": null
+}

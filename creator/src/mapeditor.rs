@@ -17,21 +17,9 @@ pub(crate) fn geometry_selection_status_text(
 
     if !map.selected_block_prop_instances.is_empty() {
         let count = map.selected_block_prop_instances.len();
-        let mounted = map.selected_block_prop_instances.iter().any(|selected_id| {
-            map.block_prop_instances
-                .iter()
-                .find(|instance| instance.id == *selected_id)
-                .is_some_and(|instance| instance.host_attachment.is_some())
-        });
-        return Some(if mounted {
-            format!(
-                "{count} Prefab instance(s) · Move gizmo adjusts wall position/height/offset · R rotate · F flip · D detach · hover wall + A attach · Delete removes"
-            )
-        } else {
-            format!(
-                "{count} Prefab instance(s) · Move gizmo · R rotate · hover wall + A attach · Delete removes"
-            )
-        });
+        return Some(format!(
+            "{count} Prefab instance(s) · Move gizmo · R rotate · Delete removes"
+        ));
     }
 
     if !map.selected_geometry_surface_points.is_empty()
@@ -510,6 +498,7 @@ impl MapEditor {
             fl!("tooltip_camera_2d"),
             "square".to_string(),
         );
+        view_mode_gb.add_text_status_icon(String::new(), fl!("tooltip_camera_2d_iso"), "camera_2d_iso".into());
         view_mode_gb.add_text_status_icon(
             "".to_string(),
             fl!("tooltip_camera_iso"),
@@ -520,7 +509,7 @@ impl MapEditor {
             fl!("tooltip_camera_firstp"),
             "camera".to_string(),
         );
-        view_mode_gb.set_item_width(26);
+        view_mode_gb.set_item_width(38);
         vlayout.add_widget(Box::new(view_mode_gb));
 
         let mut spacer = TheIconView::new(TheId::empty());
@@ -935,13 +924,12 @@ impl MapEditor {
             TheEvent::IndexChanged(id, index) => {
                 if id.name == "Map Editor Camera" {
                     if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                        if *index == 0 {
-                            region.map.camera = MapCamera::TwoD;
-                        } else if *index == 1 {
-                            region.map.camera = MapCamera::ThreeDIso;
-                        } else if *index == 2 {
-                            region.map.camera = MapCamera::ThreeDFirstPerson;
-                        }
+                        region.map.camera = match index {
+                            0 => MapCamera::TwoD,
+                            1 => MapCamera::TwoDIso,
+                            2 => MapCamera::ThreeDIso,
+                            _ => MapCamera::ThreeDFirstPerson,
+                        };
                     }
                 }
             }

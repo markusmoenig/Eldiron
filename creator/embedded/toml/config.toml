@@ -97,6 +97,9 @@ shadow_resolution = 1024
 # Shadow depth bias.
 shadow_bias = 0.0015
 
+# 2D iso point-light shadow source radius in world units (0 = sharp).
+point_shadow_softness = 0.075
+
 # Fade mode for alpha/visibility transitions: "ordered_dither" or "uniform".
 fade_mode = "ordered_dither"
 
@@ -179,6 +182,9 @@ edge_soften = 0.0
 [simulation]
 # Enable procedural daylight simulation (overrides static sky_color, sun_color, sun_direction)
 enabled = true
+
+# Optional night ambient floor. Omit to keep the render ambient strength all day.
+# night_ambient_strength = 0.12
 
 # Sky color at night (dark)
 night_sky_color = "#050510"

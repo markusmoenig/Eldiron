@@ -686,6 +686,8 @@ pub struct SceneHandler {
     tile_emitters_2d: FxHashMap<u32, ParticleEmitter>,
     tile_emitters_3d: FxHashMap<u32, ParticleEmitter>,
     geometry_emitters_2d: FxHashMap<u32, ParticleEmitter>,
+    iso_emitters: FxHashMap<u64, ParticleEmitter>,
+    iso_particle_time: Option<Instant>,
     geometry_emitters_3d: FxHashMap<u32, ParticleEmitter>,
     ruleset_fx_first_seen: FxHashMap<u32, usize>,
 
@@ -1602,7 +1604,6 @@ impl SceneHandler {
                 parameter_overrides: Default::default(),
                 runtime_state: Default::default(),
                 overrides: Default::default(),
-                host_attachment: None,
             };
             crate::resolve_block_prop_effects(&[preview], &assets.block_props)
         } else {
@@ -2344,7 +2345,7 @@ impl SceneHandler {
                         crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(
                             map,
                             center,
-                            &crate::chunkbuilder::terrain_generator::TerrainConfig::default(),
+                            &crate::chunkbuilder::terrain_generator::TerrainConfig::for_map(map),
                         )
                     });
 
@@ -2830,6 +2831,8 @@ impl SceneHandler {
             tile_emitters_2d: FxHashMap::default(),
             tile_emitters_3d: FxHashMap::default(),
             geometry_emitters_2d: FxHashMap::default(),
+            iso_emitters: FxHashMap::default(),
+            iso_particle_time: None,
             geometry_emitters_3d: FxHashMap::default(),
             ruleset_fx_first_seen: FxHashMap::default(),
             frame_counter: 0,
@@ -4113,6 +4116,170 @@ impl SceneHandler {
         }
     }
 
+    /// Portable MZ attachments use the same simulator in map preview and play.
+    /// Iso keeps their full XYZ positions; flattening them into 2D loses rising flames.
+    pub fn isometric_particles(
+        &mut self,
+        map: &Map,
+        assets: &Assets,
+        frame: usize,
+    ) -> Vec<scenevm::isometric::Particle> {
+        let now = Instant::now();
+        let dt = self
+            .iso_particle_time
+            .replace(now)
+            .map_or(1. / 30., |last| (now - last).as_secs_f32().min(0.1));
+        let mut sources = Vec::new();
+        for sector in &map.sectors {
+            let Some(tile) = sector
+                .properties
+                .get_default_source()
+                .and_then(|s| s.render_tile_id(assets))
+                .and_then(|id| assets.tiles.get(&id))
+            else {
+                continue;
+            };
+            let Some(layout) = &tile.isometric else {
+                continue;
+            };
+            let yaw = sector
+                .properties
+                .get_float_default("iso_yaw", 0.)
+                .to_radians();
+            let view = layout.frame(
+                Vec2::new(yaw.sin(), yaw.cos()),
+                false,
+                frame as f32 * assets.animation_tick_seconds(),
+            );
+            let Some(surface) = layout.surfaces.get(view) else {
+                continue;
+            };
+            let Some(center) = sector.center(map) else {
+                continue;
+            };
+            let pos = sector
+                .properties
+                .get_vec2("iso_anchor_offset")
+                .map(|o| center + Vec2::from(o))
+                .or_else(|| sector.properties.get_vec2("iso_anchor").map(Vec2::from))
+                .unwrap_or(center);
+            let mut height = sector.properties.get_float_default("floor_height", 0.);
+            if height.abs() < 0.001 && !sector.properties.get_bool_default("iso_walkable", false) {
+                height = crate::chunkbuilder::terrain_surface::TerrainSurface::cached(map)
+                    .and_then(|t| t.height_at(pos))
+                    .unwrap_or(height);
+            }
+            for (i, effect) in surface.effects.iter().enumerate() {
+                let key = crate::procedural_avatar::fingerprint(&(map.id, sector.id, i));
+                sources.push((
+                    key,
+                    effect.clone(),
+                    Vec3::new(pos.x, height, pos.y) + Vec3::from(effect.position),
+                ));
+            }
+        }
+        let mut active = FxHashSet::default();
+        let mut particles = Vec::new();
+        for (key, effect, origin) in sources {
+            active.insert(key);
+            let settings = crate::procedural_avatar::effects::emitter(
+                &effect,
+                &assets.palette,
+                origin,
+                Vec3::unit_y(),
+                1.,
+            );
+            let emitter = self.iso_emitters.entry(key).or_insert_with(|| {
+                let mut e = settings.clone();
+                for _ in 0..6 {
+                    e.update(1. / 60.);
+                }
+                e
+            });
+            emitter.sync_settings_from(&settings);
+            emitter.origin = origin;
+            emitter.direction = Vec3::unit_y();
+            emitter.update(dt);
+            if effect.light > 0. {
+                let color = emitter.color_ramp.unwrap()[0];
+                self.vm.execute(Atom::AddLight {
+                    id: GeoId::Unknown(key as u32 ^ 0xB1860000),
+                    light: Light::new_pointlight(origin)
+                        .with_color(Vec3::new(
+                            color[0] as f32 / 255.,
+                            color[1] as f32 / 255.,
+                            color[2] as f32 / 255.,
+                        ))
+                        .with_intensity(effect.light)
+                        .with_end_distance(effect.range)
+                        .with_flicker(0.25),
+                });
+            }
+            let budget =
+                scenevm::vm::MAX_DYNAMIC_PARTICLE_BILLBOARDS.saturating_sub(particles.len());
+            particles.extend(emitter.particles.iter().take(budget).map(|p| {
+                scenevm::isometric::Particle {
+                    position_radius: [p.pos.x, p.pos.y, p.pos.z, p.radius * 1.7],
+                    color: [
+                        (p.color[0] as f32 / 255.).powf(2.2),
+                        (p.color[1] as f32 / 255.).powf(2.2),
+                        (p.color[2] as f32 / 255.).powf(2.2),
+                        p.color[3] as f32 / 255.,
+                    ],
+                }
+            }));
+        }
+        self.iso_emitters.retain(|k, _| active.contains(k));
+        particles.sort_by(|a, b| {
+            (a.position_radius[2] - a.position_radius[0] + a.position_radius[1] * 0.8164966)
+                .total_cmp(
+                    &(b.position_radius[2] - b.position_radius[0]
+                        + b.position_radius[1] * 0.8164966),
+                )
+        });
+        particles
+    }
+
+    /// The editor and game use the same MZ rig, outfit and animation clock for iso sprites.
+    pub fn isometric_avatars(
+        &mut self,
+        map: &Map,
+        assets: &Assets,
+        frame: usize,
+    ) -> std::collections::HashMap<usize, crate::isometric::AvatarSprite> {
+        self.procedural_avatars
+            .tick(frame, assets.animation_tick_seconds());
+        let mut result = std::collections::HashMap::new();
+        for (index, original) in map.entities.iter().enumerate() {
+            let display;
+            let entity = if self.preview_character_setup {
+                display = crate::server::data::character_for_display(original, assets);
+                &display
+            } else {
+                original
+            };
+            if !entity.attributes.get_bool_default("visible", false) {
+                continue;
+            }
+            let explicit = match entity.attributes.get("source") {
+                Some(Value::Source(source)) => source
+                    .render_tile_id(assets)
+                    .and_then(|id| assets.tile_index(&id))
+                    .and_then(|i| assets.tile_list.get(i as usize))
+                    .is_some_and(|t| t.isometric.is_some()),
+                _ => false,
+            };
+            if explicit {
+                continue;
+            }
+            let id = Self::entity_render_geo_id(entity, index);
+            if let Some(sprite) = self.procedural_avatars.isometric_sprite(entity, assets, id) {
+                result.insert(index, sprite);
+            }
+        }
+        result
+    }
+
     fn add_billboard_selection_frame(
         &mut self,
         id: GeoId,
@@ -4263,7 +4430,7 @@ impl SceneHandler {
                         .unwrap_or(0.0);
                     if ground_y == 0.0 {
                         let config =
-                            crate::chunkbuilder::terrain_generator::TerrainConfig::default();
+                            crate::chunkbuilder::terrain_generator::TerrainConfig::for_map(map);
                         ground_y =
                         crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(
                             map, pos_xz, &config,
@@ -4430,7 +4597,7 @@ impl SceneHandler {
                     .unwrap_or(0.0)
             };
             if !support_surface_attached && ground_y == 0.0 {
-                let config = crate::chunkbuilder::terrain_generator::TerrainConfig::default();
+                let config = crate::chunkbuilder::terrain_generator::TerrainConfig::for_map(map);
                 ground_y =
                     crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(
                         map, pos_xz, &config,

@@ -772,7 +772,15 @@ impl EntityTool {
                 - Vec2::new(map.offset.x, -map.offset.y);
 
             PlacementSample {
-                pos: grid_space_pos / map.grid_size,
+                pos: if map.camera == rusterix::MapCamera::TwoDIso {
+                    rusterix::isometric::Projection::editor(
+                        map,
+                        Vec2::new(dim.width as f32, dim.height as f32),
+                    )
+                    .ground(Vec2::new(coord.x as f32, coord.y as f32))
+                } else {
+                    grid_space_pos / map.grid_size
+                },
                 reference_y: None,
                 floor_y: None,
                 support_surface: None,

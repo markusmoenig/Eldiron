@@ -92,7 +92,13 @@ fn append_mask_row(
     Ok(())
 }
 
-fn shape_code_with_distance(layer: &CompositionLayer, distance: Option<String>) -> String {
+fn shape_code_with_distance(
+    layer: &CompositionLayer,
+    distance: Option<(String, String)>,
+) -> String {
+    let (setup, distance) = distance
+        .map(|(setup, value)| (setup, Some(value)))
+        .unwrap_or_default();
     let a = layer.angle.to_radians();
     let d = match layer.shape {
         CompositionShape::AutoRoad => {
@@ -154,7 +160,7 @@ fn shape_code_with_distance(layer: &CompositionLayer, distance: Option<String>) 
         )
     };
     format!(
-        "let p = fract(uv) - vec2(0.5)\n{noise}let d = {d} + wobble\nlet m = {mask}\nimage = vec4(vec3(m), 1)"
+        "let p = fract(uv) - vec2(0.5)\n{setup}{noise}let d = {d} + wobble\nlet m = {mask}\nimage = vec4(vec3(m), 1)"
     )
 }
 
@@ -600,6 +606,14 @@ impl Builder<'_> {
             .map_err(|e| e.to_string())?;
             asset.validate().map_err(|e| e.to_string())?;
             asset
+        } else if let Some(shared::isometric::TileRecipe::Material(recipe)) =
+            shared::isometric::tile_recipe(self.project, id)
+        {
+            // Projected MZ output sprites are presentation caches. Compose the
+            // underlying material so masks stay in world UV, with live source
+            // edits, rather than treating the diamond as a rectangular image.
+            EditableMaterialAsset::reopen(&self.project.procedural_materials[&recipe])
+                .map_err(|e| e.to_string())?
         } else if let Some(stored) = self.project.procedural_materials.get(&id) {
             EditableMaterialAsset::reopen(stored).map_err(|e| e.to_string())?
         } else {
@@ -721,6 +735,9 @@ pub(super) fn input_key(project: &Project) -> u64 {
     for (id, tile) in &project.tiles {
         text.push_str(&id.to_string());
         text.push_str(&tile.alias);
+        if let Some(id) = tile.isometric.as_ref().and_then(|l| l.top_material) {
+            text.push_str(&id.to_string());
+        }
     }
     let images: HashSet<_> = project
         .material_compositions
@@ -737,7 +754,7 @@ pub(super) fn input_key(project: &Project) -> u64 {
     }
     text.push_str(&serde_json::to_string(&project.map_material_bindings).unwrap_or_default());
     // Hash authored geometry once. Calculating page layouts here would rebuild
-    // wall assembly meshes for every material on every editor update.
+    // complex meshes for every material on every editor update.
     if requires_world_coordinates(project) {
         for map in project
             .regions
@@ -753,7 +770,6 @@ pub(super) fn input_key(project: &Project) -> u64 {
                     &map.sectors,
                     &map.surfaces,
                     &map.geometry_objects,
-                    &map.wall_assemblies,
                     &map.properties,
                 ))
                 .unwrap_or_default(),
@@ -892,10 +908,6 @@ impl ProceduralMaterialEditor {
                 }
                 CompositionSurface::Linedef { id, row } => format!("Wall #{id} · row {row}"),
                 CompositionSurface::GeometryFace { face, .. } => format!("Face {}", face + 1),
-                CompositionSurface::WallArea { .. } => "Wall surface".into(),
-                CompositionSurface::WallSlot { slot, .. } => {
-                    format!("Wall material slot {}", slot + 1)
-                }
             };
             let mut text = TheText::new(TheId::named("Composition Surface"));
             text.set_text(label);
@@ -2235,6 +2247,97 @@ mod tests {
                 .abs()
                 < 0.0001
         );
+    }
+
+    #[test]
+    fn iso_shape_controls_compose_the_mz_source_instead_of_its_diamond_cache() {
+        use shared::material_composition::{CompositionSurface, MapMaterialBinding};
+        let mut p = Project::default();
+        let grass = source(&mut p, [0.05, 0.25, 0.08], 0.9);
+        let earth = source(&mut p, [0.3, 0.12, 0.05], 0.8);
+        let mut projected =
+            rusterix::Tile::from_texture(rusterix::Texture::from_color([255, 0, 255, 255]));
+        projected.alias = "Iso grass output".into();
+        let output = projected.id;
+        p.tiles.insert(output, projected);
+        p.isometric_bakes.insert(
+            output,
+            shared::isometric::Bake {
+                recipe: grass,
+                ground: true,
+                yaw: 0.,
+                directions: 1,
+                motion: None,
+                frames: 1,
+                signature: 0,
+            },
+        );
+        p.regions[0].map = Map::default();
+        p.regions[0].map.camera = rusterix::MapCamera::TwoDIso;
+        add_floor(&mut p.regions[0].map, 1, output, [0., 0.], [1., 1.]);
+        let binding = MapMaterialBinding {
+            map: p.regions[0].map.id,
+            surface: CompositionSurface::RectTile { sector: 1 },
+        };
+        let mut server = ServerContext::default();
+        server.pc = ProjectContext::Region(p.regions[0].id);
+        server.curr_region = p.regions[0].id;
+        server.curr_map_tool_type = MapToolType::Rect;
+        server.rect_compose_mode = true;
+        server.rect_composition_target = Some(binding.clone());
+        server.curr_tile_id = Some(earth);
+        server.curr_tile_source = Some(rusterix::TileSource::SingleTile(earth));
+        let (mut ui, mut ctx) = super::super::tests::workspace_ui(1200, 950);
+        let mut host = ProceduralMaterialEditor::default();
+        host.open_map_composition(binding, &mut ui, &mut ctx, &mut p, &mut server);
+        let id = host.tile.unwrap();
+        host.composition_view(&mut ui, &mut ctx, &p);
+        server.curr_tile_id = Some(output);
+        host.handle_event(
+            &TheEvent::Custom(TheId::named("Tile Picked"), TheValue::Id(output)),
+            &mut ui,
+            &mut ctx,
+            &mut p,
+            &mut server,
+        );
+        assert_eq!(
+            host.tile,
+            Some(id),
+            "Picking an iso source must keep the map composition open"
+        );
+        host.handle_event(
+            &TheEvent::IndexChanged(TheId::named(shape_picker::PICKER), 7),
+            &mut ui,
+            &mut ctx,
+            &mut p,
+            &mut server,
+        );
+        for (name, value) in [(FEATHER, 0.22), (WOBBLE, 0.15)] {
+            host.handle_event(
+                &TheEvent::ValueChanged(TheId::named(name), TheValue::Float(value)),
+                &mut ui,
+                &mut ctx,
+                &mut p,
+                &mut server,
+            );
+        }
+        assert_eq!(
+            p.material_compositions[&id].layers[0].shape,
+            CompositionShape::Corner
+        );
+        assert_eq!(p.material_compositions[&id].layers[0].wobble, 0.15);
+        assert_eq!(p.material_compositions[&id].layers[0].feather, 0.22);
+        let bundle = bundle(id, &p, None).unwrap();
+        assert!(
+            !bundle.contains("raster-rgba8"),
+            "The iso diamond cache must not become a flat image source"
+        );
+        let before = sample(&p, id, [0.05, 0.05], Channel::BaseColor);
+        // Replacing the cached sprite cannot affect source-based composition.
+        p.tiles.get_mut(&output).unwrap().textures[0].data.fill(0);
+        assert_eq!(before, sample(&p, id, [0.05, 0.05], Channel::BaseColor));
+        default_value(&mut p, grass, "base color", vec![0.01, 0.01, 0.01]);
+        assert_ne!(before, sample(&p, id, [0.05, 0.05], Channel::BaseColor));
     }
     pub(super) fn add_floor(map: &mut Map, id: u32, source: Uuid, min: [f32; 2], max: [f32; 2]) {
         let vertices = [

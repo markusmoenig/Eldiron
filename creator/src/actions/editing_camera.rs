@@ -36,8 +36,10 @@ impl Action for EditingCamera {
         Some(TheAccelerator::new(TheAcceleratorKey::CTRLCMD, '2'))
     }
 
-    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        (server_ctx.editor_view_mode != EditorViewMode::D2 || server_ctx.editing_surface.is_some())
+    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
+        (server_ctx.editor_view_mode != EditorViewMode::D2
+            || map.camera == rusterix::MapCamera::TwoDIso
+            || server_ctx.editing_surface.is_some())
             && server_ctx.get_map_context() == MapContext::Region
     }
 

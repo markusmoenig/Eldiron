@@ -200,7 +200,7 @@ impl Editor {
                             .ok_or("Select a region")?
                     };
                     let map = &self.project.regions[index].map;
-                    json!({"map":map.id,"sectors":map.sectors,"linedefs":map.linedefs,"geometry_objects":map.geometry_objects,"lights":map.lights,"wall_assemblies":map.wall_assemblies,
+                    json!({"map":map.id,"sectors":map.sectors,"linedefs":map.linedefs,"geometry_objects":map.geometry_objects,"lights":map.lights,
                     "bindings":self.project.map_material_bindings.iter().filter(|(_,b)|b.map==map.id).map(|(id,b)|json!({"material":id,"surface":b.surface})).collect::<Vec<_>>()})
                 }
                 Command::Transaction(c) => self.scepter_transaction(job.clone(), c, ui, ctx)?,
@@ -287,34 +287,7 @@ impl Editor {
                     ui,
                     ctx,
                 )?,
-                Command::GeometryCreateRoom(c) => {
-                    let [x, z, w, d] = c.rect;
-                    if w <= 0 || d <= 0 {
-                        return Err("Room extents must be positive".into());
-                    }
-                    self.scepter_transaction(
-                        job.clone(),
-                        Transaction {
-                            operations: vec![EditOperation::RoomCreate(
-                                eldiron_scepter::RoomCreate {
-                                    region: c.region,
-                                    id: Uuid::new_v4().to_string(),
-                                    name: c.name,
-                                    min: [x as f32, 0., z as f32],
-                                    max: [x as f32 + w as f32, c.height, z as f32 + d as f32],
-                                    thickness: 0.25,
-                                    floor: c.floor_tile,
-                                    wall: c.wall_tile,
-                                    ceiling: None,
-                                    doors: vec![],
-                                },
-                            )],
-                            dry_run: false,
-                        },
-                        ui,
-                        ctx,
-                    )?
-                }
+
                 Command::ProjectUndo | Command::ProjectRedo => {
                     let undo = matches!(request.command, Command::ProjectUndo);
                     let mut manager = UNDOMANAGER.write().unwrap();
@@ -680,18 +653,13 @@ pub(super) fn stage(
                     next.map_material_bindings.insert(id, binding);
                     json!({"material":id,"source":material})
                 }
-                EditOperation::WallUpdate(_)
-                | EditOperation::SectorUpdate(_)
+                EditOperation::SectorUpdate(_)
                 | EditOperation::SectorCreate(_)
                 | EditOperation::EraseCells(_)
                 | EditOperation::MapTransform(_)
                 | EditOperation::MapCopy(_)
                 | EditOperation::MapDelete(_)
                 | EditOperation::GeometryCreate(_)
-                | EditOperation::WallCreate(_)
-                | EditOperation::RoomCreate(_)
-                | EditOperation::OpeningPut(_)
-                | EditOperation::OpeningDelete(_)
                 | EditOperation::EntityPlace(_)
                 | EditOperation::EntityUpdate(_) => {
                     super::scepter_map::apply(&mut next, operation)?

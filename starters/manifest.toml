@@ -16,17 +16,17 @@ project_path = "starters/projects/Gate.eldiron"
 preview = "starters/images/gate-preview.png"
 
 [[starter]]
-id = "cellar"
-title = "Cellar"
-dimension = "3D"
-description = "A 3D cellar featuring editable prefabs, lighting, and particle effects."
-project_path = "starters/projects/Cellar.eldiron"
-preview = "starters/images/cellar-preview.png"
-
-[[starter]]
 id = "stonefall-dungeon"
 title = "Stonefall Dungeon"
 dimension = "3D"
 description = "A first-person dungeon with combat, spells, inventory, and multiple character classes."
 project_path = "starters/projects/StonefallDungeon.eldiron"
 preview = "starters/images/stonefall-dungeon-preview.png"
+
+[[starter]]
+id = "kenney-iso-dungeon"
+title = "Kenney Isometric Dungeon"
+dimension = "2D Iso"
+description = "A bitmap 2D iso dungeon with directional walls, transparent openings, props, and an eight-direction animated character. Original CC0 artwork by Kenney; no procedural mesh recipes required."
+project_path = "starters/projects/KenneyIsoDungeon.eldiron"
+preview = "starters/images/kenney-iso-dungeon-preview.png"

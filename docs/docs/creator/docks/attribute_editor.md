@@ -3,8 +3,13 @@ title: "Attribute Editor"
 sidebar_position: 1
 ---
 
-![Attribute Editor](attributes.png)
+![Character configuration in the current Entity Nodes editor.](/img/creator/entity-nodes.png)
 
-The attribute editor is active when the *Attributes* item is selected for **Characters** and **Items**, where allows you to edit the [Attributes](/docs/characters_items/attributes) of characters and items.
+Select **Entity Nodes** under a character or item in the project tree to edit its
+initial configuration and [Attributes](/docs/characters_items/attributes).
+Character setup, equipment, and attribute values are edited in the graph; see
+[Entity Nodes](/docs/characters_items/entity_nodes).
 
-It is also used for various settings, like the [Game](/docs/configuration/game) settings.
+Project, region, screen, and widget settings use TOML editors. Open
+**Game / Settings** for the [Game](/docs/configuration/game) settings, including
+the tile and character appearance controls in the settings navigation.

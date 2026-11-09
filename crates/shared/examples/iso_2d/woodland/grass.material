@@ -1,0 +1,24 @@
+# Broad, quiet moss/grass clusters. Palette bindings live in the editable bundle.
+project 1
+result from material "surface"
+material "surface" called "Woodland / Moss and Grass"
+  mode pbr
+  tiling raw
+  default roughness to 0.95
+  row "patches" called "Broad Grass Clusters"
+    use "Perlin Noise" id "patches"
+      set "globalScale" to 8
+      set "localScale" to 1.2 1.2
+  row "color" called "Muted Grass Ramp"
+    use "Color Ramp" id "colors"
+      input from row "patches" xxx
+      set "position0" to 0.08
+      set "color0" to 0.01 0.02 0.01 1
+      set "position1" to 0.39
+      set "color1" to 0.02 0.03 0.02 1
+      set "position2" to 0.69
+      set "color2" to 0.03 0.04 0.02 1
+      set "position3" to 0.91
+      set "color3" to 0.04 0.04 0.02 1
+      set "interpolation" to 0
+  output base color from row "color" xyz

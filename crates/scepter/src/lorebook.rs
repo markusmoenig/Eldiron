@@ -107,7 +107,7 @@ impl ScepterLorebook {
             ),
             (
                 "editor.select",
-                "Select explicit map target IDs. Requires request_id, session and revision. params: {region?,targets,vertices?,linedefs?,faces?,geometry_vertices?,wall_spans?,wall_opening?,wall_surface?}.",
+                "Select explicit map target IDs. Requires request_id, session and revision. params: {region?,targets,vertices?,linedefs?,faces?,geometry_vertices?}.",
             ),
             (
                 "editor.focus",
@@ -173,7 +173,7 @@ impl ScepterLorebook {
                 "project.transaction" => vec![
                     ScepterParamMeta::new(
                         "operations",
-                        "1–128 typed {op,params} operations. Ops: material_put, composition_put/copy, surface_apply, paint_cells/rect, erase_cells, sector_create/update, geometry_create, wall_create/update, opening_put/delete, room_create, entity_place/update, map_copy/transform/delete. Map targets: sectors(integer IDs), geometry/walls/characters/items(UUIDs). 3D uses X/Y/Z, 2D X/Z; rotation_y is degrees.",
+                        "1–128 typed {op,params} operations. Ops: material_put, composition_put/copy, surface_apply, paint_cells/rect, erase_cells, sector_create/update, geometry_create, entity_place/update, map_copy/transform/delete. Map targets: sectors(integer IDs), geometry/characters/items(UUIDs). 3D uses X/Y/Z, 2D X/Z; rotation_y is degrees.",
                         true,
                         "array",
                     ),
@@ -209,7 +209,7 @@ impl ScepterLorebook {
                     ),
                     ScepterParamMeta::new(
                         "faces",
-                        "[object UUID, face index] pairs; also supports geometry_vertices, wall_spans/opening/surface and vertices/linedefs",
+                        "[object UUID, face index] pairs; also supports geometry_vertices and vertices/linedefs",
                         false,
                         "array",
                     ),
@@ -221,7 +221,12 @@ impl ScepterLorebook {
                         true,
                         "[number,number,number]",
                     ),
-                    ScepterParamMeta::new("view", "2d, iso, orbit or firstp", false, "string"),
+                    ScepterParamMeta::new(
+                        "view",
+                        "2d, 2d_iso, iso, orbit or firstp",
+                        false,
+                        "string",
+                    ),
                     ScepterParamMeta::new("region", "Region reference", false, "object"),
                     ScepterParamMeta::new(
                         "position",
@@ -851,12 +856,6 @@ pub fn built_in_commands() -> Vec<ScepterCommandMeta> {
                 "validate": true
             }
         })]),
-        ScepterCommandMeta::new(
-            "geometry.create_room",
-            "Create a high-level 3D room primitive with optional floor and wall tiles.",
-        )
-        .capabilities(vec![RegionWrite, TileRead])
-        .previewable()
-        .undoable(),
+
     ]
 }

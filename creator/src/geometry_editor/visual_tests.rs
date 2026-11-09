@@ -258,7 +258,7 @@ fn human_tools_navigate_to_shared_resources_and_keep_pose_phase() {
     pages.add_canvas(workspace(TheCanvas::new()));
     pages.set_index(crate::procedural_material::SIDEBAR_PAGE);
     ui.canvas.set_layout(pages);
-    host.update(&p, &mut ui, &mut ctx);
+    host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
     host.scene_event(
         &TheEvent::IndexChanged(TheId::named("MZ Geometry Tool"), 1),
         &mut p,
@@ -266,7 +266,7 @@ fn human_tools_navigate_to_shared_resources_and_keep_pose_phase() {
         &mut ctx,
     )
     .unwrap();
-    host.update(&p, &mut ui, &mut ctx);
+    host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
     assert_eq!(host.group_path, ["body-op-0"]);
     host.playback.phase = 0.37;
     host.scene_event(
@@ -276,7 +276,7 @@ fn human_tools_navigate_to_shared_resources_and_keep_pose_phase() {
         &mut ctx,
     )
     .unwrap();
-    host.update(&p, &mut ui, &mut ctx);
+    host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
     assert!(host.group_path.is_empty());
     assert!(!host.playback.playing);
     assert_eq!(host.playback.phase, 0.37);
@@ -292,7 +292,7 @@ fn human_tools_navigate_to_shared_resources_and_keep_pose_phase() {
         &mut ctx,
     )
     .unwrap();
-    host.update(&p, &mut ui, &mut ctx);
+    host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
     host.inspector.joint = scene::armature(host.document.as_ref().unwrap())
         .unwrap()
         .1

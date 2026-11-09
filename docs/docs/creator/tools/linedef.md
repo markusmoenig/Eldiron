@@ -31,7 +31,7 @@ In 3D views, the same tool becomes the edge/surface-line editing tool for direct
 
 Use **L** to follow a quad strip. Use **C** to follow a boundary: selecting one edge of a door, window, arch, or irregular opening selects its complete closed contour.
 
-For a fitted insert in ordinary geometry, select one rim edge and press **C**. **Create Fitted Geometry** derives the opposite contour through the connected reveal faces and creates a separate capped Geometry Object without changing the source. Wall Tool openings can instead be selected and fitted directly without editable rim edges.
+For a fitted insert in ordinary geometry, select one rim edge and press **C**. **Create Fitted Geometry** derives the opposite contour through the connected reveal faces and creates a separate capped Geometry Object without changing the source.
 
 When edge or vertex edits create a concave or non-planar face, Eldiron automatically resolves the affected face into triangles so the mesh remains valid.
 

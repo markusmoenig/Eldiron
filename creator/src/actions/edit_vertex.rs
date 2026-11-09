@@ -76,6 +76,23 @@ impl EditVertex {
         ));
         nodeui.add_item(TheNodeUIItem::CloseTree);
 
+        nodeui.add_item(TheNodeUIItem::OpenTree("Terrain".into()));
+        nodeui.add_item(TheNodeUIItem::Checkbox(
+            "actionTerrainControl".into(),
+            "Terrain control".into(),
+            "Shape the shared smooth terrain with this vertex. Y is the hill height.".into(),
+            false,
+        ));
+        nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+            "actionTerrainRadius".into(),
+            "Influence radius".into(),
+            "Outer radius of the smooth hill, in world units".into(),
+            4.,
+            0.25..=128.,
+            false,
+        ));
+        nodeui.add_item(TheNodeUIItem::CloseTree);
+
         nodeui
     }
 
@@ -192,6 +209,14 @@ impl Action for EditVertex {
         if let Some(vertex_id) = map.selected_vertices.first()
             && let Some(vertex) = map.find_vertex(*vertex_id)
         {
+            self.nodeui.set_bool_value(
+                "actionTerrainControl",
+                vertex.properties.get_bool_default("terrain_control", false),
+            );
+            self.nodeui.set_f32_value(
+                "actionTerrainRadius",
+                vertex.properties.get_float_default("smoothness", 1.) * 4.,
+            );
             self.nodeui
                 .set_text_value("actionVertexName", vertex.name.clone());
             self.nodeui.set_f32_value(
@@ -283,6 +308,15 @@ impl Action for EditVertex {
         let x = self.nodeui.get_f32_value("actionVertexX").unwrap_or(0.0);
         let y = self.nodeui.get_f32_value("actionVertexY").unwrap_or(0.0);
         let z = self.nodeui.get_f32_value("actionVertexZ").unwrap_or(0.0);
+        let terrain = self
+            .nodeui
+            .get_bool_value("actionTerrainControl")
+            .unwrap_or(false);
+        let radius = self
+            .nodeui
+            .get_f32_value("actionTerrainRadius")
+            .unwrap_or(4.)
+            .clamp(0.25, 128.);
 
         if !map.selected_geometry_vertices.is_empty() {
             let world = Vec3::new(x, y, z);
@@ -290,6 +324,18 @@ impl Action for EditVertex {
         } else if let Some(vertex_id) = map.selected_vertices.first()
             && let Some(vertex) = map.find_vertex_mut(*vertex_id)
         {
+            if vertex.properties.get_bool_default("terrain_control", false) != terrain {
+                vertex
+                    .properties
+                    .set("terrain_control", Value::Bool(terrain));
+                changed = true;
+            }
+            if terrain && vertex.properties.get_float_default("smoothness", 1.) != radius / 4. {
+                vertex
+                    .properties
+                    .set("smoothness", Value::Float(radius / 4.));
+                changed = true;
+            }
             let existing_tile_size = vertex.properties.get_float_default("source_size", 1.0);
             if existing_tile_size != tile_size {
                 vertex
@@ -332,6 +378,26 @@ impl Action for EditVertex {
         }
 
         if changed {
+            if terrain && map.selected_geometry_vertices.is_empty() {
+                if !map.properties.get_bool_default("terrain_enabled", false) {
+                    map.properties.set("terrain_enabled", Value::Bool(true));
+                    if !map.properties.contains("terrain_edge_falloff") {
+                        map.properties.set("terrain_edge_falloff", Value::Float(0.));
+                    }
+                    if !map.properties.contains("terrain_subdivisions") {
+                        map.properties.set("terrain_subdivisions", Value::Int(4));
+                    }
+                }
+                if !map.properties.contains("default_terrain_tile") {
+                    if let Some(id) = server_ctx.curr_tile_id {
+                        map.properties.set(
+                            "default_terrain_tile",
+                            Value::Source(PixelSource::TileId(id)),
+                        );
+                    }
+                }
+            }
+            map.changed = map.changed.wrapping_add(1);
             Some(ProjectUndoAtom::MapEdit(
                 server_ctx.pc,
                 Box::new(prev),
@@ -379,6 +445,52 @@ impl Action for EditVertex {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn vertex_action_authors_shared_smooth_terrain_with_height_radius_and_undo_snapshot() {
+        let mut map = Map::default();
+        map.camera = rusterix::MapCamera::TwoDIso;
+        map.vertices = vec![
+            rusterix::Vertex::new(0, -8., -8.),
+            rusterix::Vertex::new(1, 8., 8.),
+            rusterix::Vertex::new(2, 0.5, 0.5),
+        ];
+        map.selected_vertices = vec![2];
+        let mut action = EditVertex::new();
+        action.load_params(&map);
+        action.nodeui.set_bool_value("actionTerrainControl", true);
+        action.nodeui.set_f32_value("actionVertexY", 1.5);
+        action.nodeui.set_f32_value("actionTerrainRadius", 6.);
+        let mut server = ServerContext::default();
+        let material = Uuid::new_v4();
+        server.curr_tile_id = Some(material);
+        let undo = action
+            .apply(
+                &mut map,
+                &mut TheUI::new(),
+                &mut TheContext::new(64, 64, 1.),
+                &mut server,
+            )
+            .unwrap();
+        let ProjectUndoAtom::MapEdit(_, before, after) = undo else {
+            panic!("Expected a normal map edit");
+        };
+        assert!(!before.properties.get_bool_default("terrain_enabled", false));
+        assert!(after.properties.get_bool_default("terrain_enabled", false));
+        assert_eq!(
+            map.find_vertex(2)
+                .unwrap()
+                .properties
+                .get_float_default("smoothness", 0.),
+            1.5
+        );
+        assert_eq!(
+            map.properties.get_source("default_terrain_tile"),
+            Some(&PixelSource::TileId(material))
+        );
+        let terrain =
+            rusterix::chunkbuilder::terrain_surface::TerrainSurface::from_map(&map).unwrap();
+        assert!((terrain.height_at(Vec2::new(0.5, 0.5)).unwrap() - 1.5).abs() < 0.0001);
+    }
 
     #[test]
     fn edit_vertex_is_applicable_to_single_geometry_vertex_in_3d() {

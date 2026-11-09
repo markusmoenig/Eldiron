@@ -90,6 +90,8 @@ fn player_camera_from_str(camera: &str) -> Option<PlayerCamera> {
     match camera.trim().to_ascii_lowercase().as_str() {
         "2d" => Some(PlayerCamera::D2),
         "2d_grid" => Some(PlayerCamera::D2Grid),
+        "2d_iso" => Some(PlayerCamera::D2Iso),
+        "2d_iso_grid" => Some(PlayerCamera::D2IsoGrid),
         "iso" => Some(PlayerCamera::D3Iso),
         "iso_grid" => Some(PlayerCamera::D2Grid),
         "firstp" => Some(PlayerCamera::D3FirstP),
@@ -529,6 +531,15 @@ fn hex_to_rgb_f32(hex: &str) -> [f32; 3] {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn isometric_player_camera_modes_are_distinct() {
+        assert_eq!(player_camera_from_str("2d_iso"), Some(PlayerCamera::D2Iso));
+        assert_eq!(
+            player_camera_from_str("2d_iso_grid"),
+            Some(PlayerCamera::D2IsoGrid)
+        );
+    }
 
     #[test]
     fn facing_labels_map_to_authoring_orientation() {

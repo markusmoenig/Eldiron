@@ -1,0 +1,429 @@
+{
+  "version": 1,
+  "id": "repeated-posts",
+  "label": "Repeated posts",
+  "rows": [
+    {
+      "id": "recipe",
+      "label": "Recipe",
+      "tiles": [
+        {
+          "id": "recipe-0",
+          "op": {
+            "type": "group",
+            "label": "Repeated posts",
+            "document": {
+              "version": 1,
+              "id": "repeated-posts-construction",
+              "label": "Post construction",
+              "rows": [
+                {
+                  "id": "surface",
+                  "label": "Surface",
+                  "tiles": [
+                    {
+                      "id": "surface-0",
+                      "op": {
+                        "type": "material",
+                        "palette": 19,
+                        "roughness": 0.9,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "footprint-contour",
+                  "label": "Post footprint (X/Z)",
+                  "tiles": [
+                    {
+                      "id": "footprint-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.05,
+                            -0.06
+                          ],
+                          [
+                            0.05,
+                            -0.06
+                          ],
+                          [
+                            0.05,
+                            0.06
+                          ],
+                          [
+                            -0.05,
+                            0.06
+                          ]
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "solid",
+                  "label": "Post",
+                  "tiles": [
+                    {
+                      "id": "solid-0",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.1,
+                          1,
+                          0.12
+                        ]
+                      }
+                    },
+                    {
+                      "id": "solid-1",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "surface"
+                      }
+                    },
+                    {
+                      "id": "solid-2",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.5,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "post-footprint",
+                      "op": {
+                        "type": "footprint",
+                        "row": "footprint-contour"
+                      }
+                    },
+                    {
+                      "id": "posts-repeat",
+                      "op": {
+                        "type": "repeat",
+                        "count": 5,
+                        "translation": [
+                          0.35,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "assembly",
+                  "label": "Assembly",
+                  "tiles": [
+                    {
+                      "id": "assembly-0",
+                      "op": {
+                        "type": "assemble",
+                        "rows": [
+                          "solid"
+                        ]
+                      }
+                    },
+                    {
+                      "id": "join-start",
+                      "op": {
+                        "type": "connector",
+                        "family": "fence",
+                        "translation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          -90,
+                          0
+                        ]
+                      }
+                    },
+                    {
+                      "id": "join-end",
+                      "op": {
+                        "type": "connector",
+                        "family": "fence",
+                        "translation": [
+                          1.4,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          90,
+                          0
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "assembly",
+              "grip": null
+            },
+            "controls": [
+              {
+                "id": "count",
+                "label": "Post count",
+                "category": "Construction",
+                "help": "Changes recipe inputs before constructing the mesh.",
+                "order": 0,
+                "value": 5,
+                "reference": 5,
+                "min": 1,
+                "max": 64,
+                "modifiers": [
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "posts-repeat",
+                      "parameter": "count"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  }
+                ]
+              },
+              {
+                "id": "spacing",
+                "label": "Spacing (m)",
+                "category": "Construction",
+                "help": "Changes recipe inputs before constructing the mesh.",
+                "order": 0,
+                "value": 0.35,
+                "reference": 0.35,
+                "min": 0.12,
+                "max": 2,
+                "modifiers": [
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "posts-repeat",
+                      "parameter": "step0"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  }
+                ]
+              },
+              {
+                "id": "height",
+                "label": "Post height (m)",
+                "category": "Construction",
+                "help": "Changes recipe inputs before constructing the mesh.",
+                "order": 0,
+                "value": 1,
+                "reference": 1,
+                "min": 0.2,
+                "max": 4,
+                "modifiers": [
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "solid-0",
+                      "parameter": "size1"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "solid-2",
+                      "parameter": "position1"
+                    },
+                    "factor": 0.5,
+                    "offset": 0
+                  }
+                ]
+              },
+              {
+                "id": "width",
+                "label": "Post width (m)",
+                "category": "Construction",
+                "help": "Changes recipe inputs before constructing the mesh.",
+                "order": 0,
+                "value": 0.1,
+                "reference": 0.1,
+                "min": 0.02,
+                "max": 0.12,
+                "modifiers": [
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "solid-0",
+                      "parameter": "size0"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "footprint-profile",
+                      "parameter": "point0:0"
+                    },
+                    "factor": -0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "footprint-profile",
+                      "parameter": "point1:0"
+                    },
+                    "factor": 0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "footprint-profile",
+                      "parameter": "point2:0"
+                    },
+                    "factor": 0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "footprint-profile",
+                      "parameter": "point3:0"
+                    },
+                    "factor": -0.5,
+                    "offset": 0
+                  }
+                ]
+              },
+              {
+                "id": "depth",
+                "label": "Post depth (m)",
+                "category": "Dimensions",
+                "help": "",
+                "order": 0,
+                "value": 0.12,
+                "reference": 0.12,
+                "min": 0.02,
+                "max": 0.5,
+                "modifiers": [
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "solid-0",
+                      "parameter": "size2"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "footprint-profile",
+                      "parameter": "point0:1"
+                    },
+                    "factor": -0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "footprint-profile",
+                      "parameter": "point1:1"
+                    },
+                    "factor": -0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "footprint-profile",
+                      "parameter": "point2:1"
+                    },
+                    "factor": 0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "footprint-profile",
+                      "parameter": "point3:1"
+                    },
+                    "factor": 0.5,
+                    "offset": 0
+                  }
+                ]
+              },
+              {
+                "id": "wood",
+                "label": "Wood",
+                "category": "Materials",
+                "help": "Changes recipe inputs before constructing the mesh.",
+                "order": 0,
+                "value": 19,
+                "reference": 19,
+                "min": 0,
+                "max": 255,
+                "modifiers": [
+                  {
+                    "type": "palette",
+                    "parts": [
+                      "*"
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "length",
+                "label": "Connector span (m)",
+                "category": "Construction",
+                "help": "Distance between end connectors, derived from repeated posts.",
+                "order": 6,
+                "value": 1.4,
+                "reference": 0,
+                "min": 0,
+                "max": 1000,
+                "expression": "(count - 1) * spacing",
+                "modifiers": [
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "join-end",
+                      "parameter": "position0"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "recipe",
+  "grip": null
+}

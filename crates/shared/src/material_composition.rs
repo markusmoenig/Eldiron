@@ -144,14 +144,4 @@ pub enum CompositionSurface {
         object: Uuid,
         face: usize,
     },
-    WallArea {
-        assembly: Uuid,
-        surface: Uuid,
-    },
-    WallSlot {
-        assembly: Uuid,
-        span: Option<Uuid>,
-        opening: Option<Uuid>,
-        slot: i32,
-    },
 }

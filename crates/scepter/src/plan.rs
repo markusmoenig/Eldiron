@@ -75,7 +75,6 @@ mod tests {
             "action.run_script",
             "tool.list",
             "tool.select",
-            "geometry.create_room",
         ] {
             assert!(
                 lorebook.describe_command(command).is_some(),
@@ -163,12 +162,6 @@ mod request_tests {
                 .unwrap()
                 .implemented
         );
-        assert!(
-            catalog
-                .describe_command("geometry.create_room")
-                .unwrap()
-                .implemented
-        );
     }
 }
 
@@ -176,6 +169,25 @@ mod request_tests {
 mod world_protocol_tests {
     use crate::*;
     use serde_json::json;
+    #[test]
+    fn retired_structural_commands_and_targets_are_rejected() {
+        for op in [
+            "wall_create",
+            "wall_update",
+            "opening_put",
+            "opening_delete",
+            "room_create",
+        ] {
+            assert!(serde_json::from_value::<EditOperation>(json!({"op":op,"params":{}})).is_err());
+        }
+        assert!(serde_json::from_value::<MapTargets>(json!({"walls":[]})).is_err());
+        assert!(
+            serde_json::from_value::<ScepterCommand>(
+                json!({"command":"geometry.create_room","params":{}})
+            )
+            .is_err()
+        );
+    }
     #[test]
     fn map_collaboration_requests_are_discoverable_and_roundtrip() {
         let catalog = ScepterLorebook::built_in();
@@ -186,7 +198,6 @@ mod world_protocol_tests {
             "project.changes",
             "entity.templates",
             "region.entities",
-            "geometry.create_room",
             "region.place_item",
         ] {
             assert!(
@@ -195,12 +206,12 @@ mod world_protocol_tests {
             );
         }
         for command in [
-            json!({"command":"editor.select","params":{"targets":{"walls":["wall"]},"wall_spans":["span"],"faces":[],"geometry_vertices":[]}}),
+            json!({"command":"editor.select","params":{"targets":{"geometry":["object"]},"faces":[],"geometry_vertices":[]}}),
             json!({"command":"editor.focus","params":{"view":"2d","center":[1,0,2],"scale":0.45}}),
             json!({"command":"project.changes","params":{"after":7,"limit":64}}),
             json!({"command":"project.transaction","params":{"operations":[
-                {"op":"room_create","params":{"region":{"name":"Harbor"},"id":"wall","name":"Workshop","min":[0,0,0],"max":[6,3,5],"thickness":0.25,"doors":[{"wall":0,"center":3,"width":1.2,"height":2.2}]}},
-                {"op":"map_copy","params":{"region":{"name":"Harbor"},"targets":{"walls":["wall"]},"translation":[10,0,0]}},
+                {"op":"geometry_create","params":{"region":{"name":"Harbor"},"id":"object","name":"Workshop wall","shape":"box","min":[0,0,0],"max":[6,3,0.25]}},
+                {"op":"map_copy","params":{"region":{"name":"Harbor"},"targets":{"geometry":["object"]},"translation":[10,0,0]}},
                 {"op":"entity_place","params":{"region":{"name":"Harbor"},"id":"torch","kind":"item","template":"Torch","position":[1,0,1],"active":true}}
             ]}}),
             json!({"command":"region.render_preview","params":{"region":{"name":"Harbor"},"editor_view":true,"zoom":0.45,"camera":{"center":[0,0,0],"azimuth":45,"elevation":55,"fov":60,"pitch":0}}}),

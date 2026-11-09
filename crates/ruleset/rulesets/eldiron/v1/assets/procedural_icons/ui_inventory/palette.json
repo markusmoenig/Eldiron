@@ -1,0 +1,60 @@
+{
+  "@surface": {
+    "base color": 7,
+    "emission": 1
+  },
+  "handle-colors": {
+    "color0": 17,
+    "color1": 18,
+    "color2": 19,
+    "color3": 21
+  },
+  "handle-outline": {
+    "color": 1
+  },
+  "body-colors": {
+    "color0": 16,
+    "color1": 17,
+    "color2": 18,
+    "color3": 20
+  },
+  "body-outline": {
+    "color": 1
+  },
+  "panel-colors": {
+    "color0": 17,
+    "color1": 18,
+    "color2": 19,
+    "color3": 21
+  },
+  "panel-outline": {
+    "color": 1
+  },
+  "flap-colors": {
+    "color0": 17,
+    "color1": 18,
+    "color2": 19,
+    "color3": 21
+  },
+  "flap-outline": {
+    "color": 1
+  },
+  "strap-color": {
+    "color": 18
+  },
+  "strap-outline": {
+    "color": 1
+  },
+  "clasp-colors": {
+    "color0": 19,
+    "color1": 24,
+    "color2": 24,
+    "color3": 22
+  },
+  "clasp-outline": {
+    "color": 1
+  },
+  "stitches-color": {
+    "color": 22
+  }
+}

@@ -3,6 +3,7 @@ use rustc_hash::FxHashMap;
 use toml::Table;
 
 pub struct ClientAction {
+    isometric: bool,
     class_name: String,
     input_map: FxHashMap<String, ClientCommandBinding>,
     forward_down: bool,
@@ -23,6 +24,7 @@ impl Default for ClientAction {
 impl ClientAction {
     pub fn new() -> Self {
         Self {
+            isometric: false,
             class_name: String::new(),
             input_map: FxHashMap::default(),
             forward_down: false,
@@ -33,6 +35,11 @@ impl ClientAction {
             strafe_right_down: false,
             last_cardinal_action: EntityAction::Off,
         }
+    }
+
+    /// Init
+    pub fn set_isometric(&mut self, enabled: bool) {
+        self.isometric = enabled;
     }
 
     /// Init
@@ -242,6 +249,17 @@ impl ClientAction {
     }
 
     fn current_movement_action(&self) -> EntityAction {
+        if self.isometric {
+            let vertical = self.forward_down as i32 - self.backward_down as i32;
+            let horizontal = self.right_down as i32 - self.left_down as i32;
+            match (vertical, horizontal) {
+                (1, -1) => return EntityAction::ForwardLeft,
+                (1, 1) => return EntityAction::ForwardRight,
+                (-1, -1) => return EntityAction::BackwardLeft,
+                (-1, 1) => return EntityAction::BackwardRight,
+                _ => {}
+            }
+        }
         if self.last_cardinal_action != EntityAction::Off {
             self.last_cardinal_action.clone()
         } else {
@@ -257,6 +275,28 @@ impl ClientAction {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn isometric_keys_combine_and_release_to_remaining_direction() {
+        let mut action = ClientAction::new();
+        action.set_isometric(true);
+        assert_eq!(
+            press(&mut action, EntityAction::Forward),
+            EntityAction::Forward
+        );
+        assert_eq!(
+            press(&mut action, EntityAction::Right),
+            EntityAction::ForwardRight
+        );
+        assert_eq!(
+            release(&mut action, EntityAction::Right),
+            EntityAction::Forward
+        );
+        assert_eq!(
+            release(&mut action, EntityAction::Forward),
+            EntityAction::Off
+        );
+    }
 
     fn press(action: &mut ClientAction, entity_action: EntityAction) -> EntityAction {
         action.handle_key_down(ClientCommandBinding::Control(entity_action))

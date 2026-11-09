@@ -57,11 +57,11 @@ impl Editor {
             .find(|r| r.id == self.server_ctx.curr_region);
         json!({"session":self.scepter_session(),"region":region.map(|r|json!({"id":r.id,"name":r.name,"map":r.map.id})),
             "project_context":format!("{:?}",self.server_ctx.pc),"map_context":format!("{:?}",self.server_ctx.get_map_context()),
-            "view":match self.server_ctx.editor_view_mode{EditorViewMode::D2=>"2d",EditorViewMode::Iso=>"iso",EditorViewMode::Orbit=>"orbit",EditorViewMode::FirstP=>"firstp"},
+            "view":match self.server_ctx.editor_view_mode{EditorViewMode::D2=>if self.project.get_map(&self.server_ctx).is_some_and(|m|m.camera==rusterix::MapCamera::TwoDIso){"2d_iso"}else{"2d"},EditorViewMode::Iso=>"iso",EditorViewMode::Orbit=>"orbit",EditorViewMode::FirstP=>"firstp"},
             "tool":{"command":tools.current_game_tool_command_id(),"editor_mode":tools.editor_mode,"editor_index":tools.curr_editor_tool},
             "selected_tile":self.server_ctx.curr_tile_id,"viewport":viewport,"camera_parameters":{"iso_scale":cameras.iso_camera.scale,"iso_azimuth":cameras.iso_camera.azimuth_deg,"iso_elevation":cameras.iso_camera.elevation_deg,"orbit_distance":cameras.orbit_camera.distance},
             "camera":region.map(|r|json!({"position":r.editing_position_3d.into_array(),"center":r.editing_look_at_3d.into_array(),"offset":r.map.offset.into_array(),"grid_size":r.map.grid_size})),
-            "selection":map.map(|m|json!({"vertices":m.selected_vertices,"linedefs":m.selected_linedefs,"sectors":m.selected_sectors,"geometry":m.selected_geometry_objects,"faces":m.selected_geometry_faces,"geometry_vertices":m.selected_geometry_vertices,"wall":m.selected_wall_assembly,"wall_spans":m.selected_wall_spans,"wall_opening":m.selected_wall_opening,"wall_surface":m.selected_wall_surface,"entity":m.selected_entity_item})),
+            "selection":map.map(|m|json!({"vertices":m.selected_vertices,"linedefs":m.selected_linedefs,"sectors":m.selected_sectors,"geometry":m.selected_geometry_objects,"faces":m.selected_geometry_faces,"geometry_vertices":m.selected_geometry_vertices,"entity":m.selected_entity_item})),
             "cursor":map.map(|m|json!({"grid":m.curr_grid_pos.map(|p|p.into_array()),"world":m.curr_grid_pos_3d.map(|p|p.into_array())}))})
     }
     pub(super) fn scepter_observe(&mut self, force: bool, ui: &mut TheUI) {
@@ -206,8 +206,8 @@ impl Editor {
     ) -> Result<Json, String> {
         let i = self.scepter_context_region(c.region.as_ref())?;
         super::scepter_map::validate_targets(&self.project, i, &c.targets)?;
-        if c.targets.walls.len() > 1 || c.targets.characters.len() + c.targets.items.len() > 1 {
-            return Err("Select one wall assembly or entity at a time".into());
+        if c.targets.characters.len() + c.targets.items.len() > 1 {
+            return Err("Select one entity at a time".into());
         }
         let map = &self.project.regions[i].map;
         if c.vertices.iter().any(|id| map.find_vertex(*id).is_none())
@@ -245,44 +245,6 @@ impl Editor {
                 Ok((id, *index))
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let mut spans = c
-            .wall_spans
-            .iter()
-            .map(|s| parse_id(s))
-            .collect::<Result<Vec<_>, _>>()?;
-        let opening = c.wall_opening.as_ref().map(|s| parse_id(s)).transpose()?;
-        let surface = c.wall_surface.as_ref().map(|s| parse_id(s)).transpose()?;
-        if !spans.is_empty() || opening.is_some() || surface.is_some() {
-            let wall_id = c
-                .targets
-                .walls
-                .first()
-                .ok_or("Wall detail selection requires a wall target")?;
-            let wall = map
-                .wall_assembly(parse_id(wall_id)?)
-                .ok_or("Wall not found")?;
-            if spans.iter().any(|id| wall.span(*id).is_none()) {
-                return Err("Selected wall span does not exist".into());
-            }
-            if let Some(opening) = opening {
-                let span = wall
-                    .spans
-                    .iter()
-                    .find(|s| s.openings.iter().any(|o| o.id == opening))
-                    .ok_or("Selected opening does not exist")?;
-                if !spans.is_empty() && !spans.contains(&span.id) {
-                    return Err("Opening is outside the selected span".into());
-                }
-                spans = vec![span.id];
-            }
-            if surface.is_some_and(|id| wall.area_surface(id).is_none()) {
-                return Err("Wall area surface not found".into());
-            }
-            if opening.is_some() && surface.is_some() {
-                return Err("Select an opening or an area surface separately".into());
-            }
-        }
-        // Validate everything before switching the user's view/selection.
         self.scepter_activate_region(i, ui, ctx);
         let map = &mut self.project.regions[i].map;
         map.clear_selection();
@@ -297,15 +259,11 @@ impl Editor {
             .collect::<Result<_, _>>()?;
         map.selected_geometry_faces = faces;
         map.selected_geometry_vertices = vertices;
-        map.selected_wall_spans = spans;
-        map.selected_wall_opening = opening;
-        map.selected_wall_surface = surface;
         map.geometry_selection_mode = if map.selected_geometry_faces.is_empty() {
             0
         } else {
             2
         };
-        map.selected_wall_assembly = c.targets.walls.first().map(|s| parse_id(s)).transpose()?;
         map.selected_entity_item = c
             .targets
             .characters
@@ -352,22 +310,31 @@ impl Editor {
         let pos = c.position.map(super::scepter_map::point).transpose()?;
         let view = match c.view.as_deref() {
             None => self.server_ctx.editor_view_mode,
-            Some("2d") => EditorViewMode::D2,
+            Some("2d") | Some("2d_iso") => EditorViewMode::D2,
             Some("iso") => EditorViewMode::Iso,
             Some("orbit") => EditorViewMode::Orbit,
             Some("firstp") | Some("3d") => EditorViewMode::FirstP,
-            _ => return Err("view must be 2d, iso, orbit or firstp".into()),
+            _ => return Err("view must be 2d, 2d_iso, iso, orbit or firstp".into()),
         };
         if c.scale
             .is_some_and(|s| !s.is_finite() || !(0.1..=1024.).contains(&s))
         {
             return Err("Camera scale must be 0.1..1024".into());
         }
+        let camera = if c.view.as_deref() == Some("2d_iso")
+            || (c.view.is_none()
+                && self.project.regions[i].map.camera == rusterix::MapCamera::TwoDIso)
+        {
+            rusterix::MapCamera::TwoDIso
+        } else {
+            rusterix::MapCamera::TwoD
+        };
+        let view_index = view.toolbar_index(camera);
         self.scepter_activate_region(i, ui, ctx);
         // Switch synchronously before setting the requested anchor; the normal
         // lifecycle restores saved cameras, which must not overwrite this focus.
         TOOLLIST.write().unwrap().handle_event(
-            &TheEvent::IndexChanged(TheId::named("Editor View Switch"), view.to_index() as usize),
+            &TheEvent::IndexChanged(TheId::named("Editor View Switch"), view_index as usize),
             ui,
             ctx,
             &mut self.project,
@@ -384,9 +351,10 @@ impl Editor {
             if let Some(scale) = c.scale {
                 region.map.grid_size = scale;
             }
-            region.map.offset = Vec2::new(
-                -center.x * region.map.grid_size,
-                center.z * region.map.grid_size,
+            self.server_ctx.center_map_at_grid_pos(
+                Vec2::zero(),
+                Vec2::new(center.x, center.z),
+                &mut region.map,
             );
         } else {
             use rusterix::D3Camera;
@@ -397,7 +365,7 @@ impl Editor {
             }
             cameras.move_action = None;
         }
-        ui.set_widget_value("Editor View Switch", ctx, TheValue::Int(view.to_index()));
+        ui.set_widget_value("Editor View Switch", ctx, TheValue::Int(view_index));
         if view == EditorViewMode::D2 {
             self.server_ctx.store_edit_view_2d_for_map(
                 region.map.id,

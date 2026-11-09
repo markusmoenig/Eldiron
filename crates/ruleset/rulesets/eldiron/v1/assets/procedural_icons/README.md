@@ -1,9 +1,16 @@
-# Official item icons
+# Official item and UI icons
 
 Every official item has an independent, editable MZ PBR recipe at 32×32 pixels.
 There are 41 items and 42 states, including the unlit torch. Construction uses
 ordinary shape, color ramp, border, transform and alpha-compositing tiles.
 There are no embedded images, custom shaders or item-specific runtime generators.
+
+The library also includes seven flat navigation/intent icons: `ui_preferences`
+(brass cog), `ui_equipment` (breastplate), `ui_inventory` (backpack),
+`ui_spellbook` (open book), `ui_actions` (command scroll), `look` (eye), and `use`
+(glove). These follow the same editable 32px, palette-bound MZ workflow and take
+precedence over the bundled PNGs in runtime command buttons. Edit their material
+tiles in the Tile Picker. They retain their flat UI projection in every camera.
 
 Each `palette.json` maps tile IDs and color parameter names to **project palette
 indices**. These bindings are authoritative; RGB values in editor/export caches

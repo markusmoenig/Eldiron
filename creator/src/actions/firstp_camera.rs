@@ -33,7 +33,7 @@ impl Action for FirstPCamera {
     }
 
     fn accel(&self) -> Option<TheAccelerator> {
-        Some(TheAccelerator::new(TheAcceleratorKey::CTRLCMD, '5'))
+        Some(TheAccelerator::new(TheAcceleratorKey::CTRLCMD, '6'))
     }
 
     fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
@@ -49,10 +49,10 @@ impl Action for FirstPCamera {
         server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
         server_ctx.editing_surface = None;
-        ui.set_widget_value("Editor View Switch", ctx, TheValue::Int(3));
+        ui.set_widget_value("Editor View Switch", ctx, TheValue::Int(4));
         ctx.ui.send(TheEvent::IndexChanged(
             TheId::named("Editor View Switch"),
-            3,
+            4,
         ));
         None
     }

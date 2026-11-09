@@ -4,13 +4,17 @@ use crate::{Error, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
 pub mod authoring;
+pub mod connectors;
 pub mod effects;
+pub mod expressions;
+pub mod footprint;
 pub mod group;
 mod loft;
 mod mesh;
+pub mod parameters;
 pub mod rig;
 pub use loft::Section;
-pub use mesh::{Mesh, Part, Texture, Vertex};
+pub use mesh::{Mesh, Part, Texture, Vertex, validate_contour};
 pub const SWORD_EXAMPLE: &str = include_str!("../../examples/geometry/sword.mzgeometry.json");
 pub const PITCHED_ROOF_RECIPE: &str =
     include_str!("../../examples/geometry/pitched-roof.mzgeometry.json");
@@ -90,6 +94,20 @@ pub enum Operation {
         origin: [f32; 2],
         span: [f32; 2],
     },
+    /// Attach an editable X/Z Contour row as the static mesh placement footprint.
+    Footprint {
+        row: String,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        holes: Vec<String>,
+        #[serde(default, skip_serializing_if = "is_false")]
+        append: bool,
+    },
+    /// Invisible static placement socket. Local +Z is the outward direction.
+    Connector {
+        family: String,
+        translation: [f32; 3],
+        rotation: [f32; 3],
+    },
     Group {
         label: String,
         document: Box<Document>,
@@ -157,6 +175,12 @@ pub enum Operation {
         rotation: [f32; 3],
         scale: [f32; 3],
     },
+    /// Repeat static geometry with a fixed translation/rotation step per copy.
+    Repeat {
+        count: u32,
+        translation: [f32; 3],
+        rotation: [f32; 3],
+    },
     Reference {
         row: String,
     },
@@ -186,6 +210,8 @@ impl Operation {
             Self::Profiles { .. } => "Body Profiles",
             Self::Texture { .. } => "Texture",
             Self::Group { .. } => "Group",
+            Self::Footprint { .. } => "Footprint",
+            Self::Connector { .. } => "Connector",
             Self::Asset { .. } => "Geometry Asset",
             Self::Loft { .. } => "Loft",
             Self::Joint { .. } => "Joint",
@@ -200,6 +226,7 @@ impl Operation {
             Self::SurfaceOffset { .. } => "Surface Offset",
             Self::Revolve { .. } => "Revolve",
             Self::Transform { .. } => "Transform",
+            Self::Repeat { .. } => "Repeat",
             Self::Reference { .. } => "Row",
             Self::Assemble { .. } => "Assemble",
             Self::AssignMaterial { .. } => "Material",
@@ -210,6 +237,9 @@ impl Operation {
     pub fn references(&self) -> Vec<&str> {
         match self {
             Self::FitTo { target, .. } => vec![target],
+            Self::Footprint { row, holes, .. } => std::iter::once(row.as_str())
+                .chain(holes.iter().map(String::as_str))
+                .collect(),
             Self::Profiles { rig, .. } => vec![rig],
             Self::Loft { material, skin, .. } => material
                 .iter()
@@ -222,7 +252,9 @@ impl Operation {
             Self::Attach { rig, grip, .. } => std::iter::once(rig.as_str())
                 .chain(grip.iter().map(String::as_str))
                 .collect(),
-            Self::Reference { row } | Self::AssignMaterial { row } => vec![row],
+            Self::Reference { row } | Self::AssignMaterial { row } => {
+                vec![row]
+            }
             Self::Assemble { rows } => rows.iter().map(String::as_str).collect(),
             _ => vec![],
         }
@@ -282,6 +314,9 @@ pub struct Evaluation {
     pub grip: Option<Frame>,
 }
 
+fn is_false(v: &bool) -> bool {
+    !*v
+}
 fn attachment_enabled() -> bool {
     true
 }
@@ -406,7 +441,10 @@ impl Document {
                         &tile.op,
                         value,
                         &values,
-                        if matches!(tile.op, Operation::ParticleEffect { .. }) {
+                        if matches!(
+                            tile.op,
+                            Operation::ParticleEffect { .. } | Operation::Connector { .. }
+                        ) {
                             &tile.id
                         } else {
                             &row.id
@@ -427,7 +465,8 @@ impl Document {
                         // ulps above one, especially on rigid worn accessories.
                         finite(&vertex.normal, 1.00001)?;
                     }
-                    *retained_vertices += mesh.vertex_count();
+                    *retained_vertices += mesh.vertex_count()
+                        + mesh.footprint.as_ref().map_or(0, |s| s.points().count());
                     if *retained_vertices > 1_000_000 {
                         return Err(fail("Geometry intermediates exceed 1000000 vertices"));
                     }
@@ -453,6 +492,10 @@ impl Document {
         };
         if mesh.parts.is_empty() && mesh.rig.is_none() {
             return Err(fail("Geometry output is empty"));
+        }
+        connectors::validate(&mesh.connectors)?;
+        if let Some(shape) = &mesh.footprint {
+            footprint::validate(&shape.map(|p| [p[0], p[2]]))?;
         }
         Ok(Evaluation {
             mesh: mesh.clone(),
@@ -585,6 +628,65 @@ fn evaluate_tile(
                 .ok_or_else(|| fail("Profiles need a skeleton"))?;
             Value::Mesh(authoring::profiles(owner, rig, parts)?)
         }
+        Operation::Footprint { row, holes, append } => {
+            if holes.len() > 32 {
+                return Err(fail(
+                    "One footprint region supports at most 32 hole contours",
+                ));
+            }
+            let contour = |id: &String| -> Result<Vec<[f32; 3]>> {
+                let Value::Contour(points) = reference(id)? else {
+                    return Err(fail("Footprint requires X/Z Contour rows"));
+                };
+                Ok(points.into_iter().map(|p| [p[0], 0., p[1]]).collect())
+            };
+            let shape = footprint::Shape {
+                regions: vec![footprint::Region {
+                    outer: contour(row)?,
+                    holes: holes
+                        .iter()
+                        .map(|h| contour(h))
+                        .collect::<Result<Vec<_>>>()?,
+                }],
+            };
+            footprint::validate(&shape.map(|p| [p[0], p[2]]))?;
+            let mut mesh = mesh_input(input)?;
+            if mesh.rig.is_some() {
+                return Err(fail(
+                    "Footprint describes a static mesh; add it before rigging",
+                ));
+            }
+            if *append {
+                footprint::merge(&mut mesh.footprint, Some(shape))?;
+            } else {
+                mesh.footprint = Some(shape);
+            }
+            Value::Mesh(mesh)
+        }
+        Operation::Connector {
+            family,
+            translation,
+            rotation,
+        } => {
+            finite(translation, 1000.)?;
+            finite(rotation, 3600.)?;
+            let mut mesh = mesh_input(input)?;
+            if mesh.rig.is_some() {
+                return Err(fail(
+                    "Connectors describe static placement; add them before rigging",
+                ));
+            }
+            let connector = connectors::Connector {
+                id: owner.into(),
+                family: family.clone(),
+                position: *translation,
+                direction: mesh::rotate([0., 0., 1.], *rotation),
+            };
+            connector.validate()?;
+            mesh.connectors.push(connector);
+            connectors::validate(&mesh.connectors)?;
+            Value::Mesh(mesh)
+        }
         Operation::SelectParts { parts } => {
             let mut mesh = mesh_input(input)?;
             if parts.is_empty()
@@ -595,6 +697,10 @@ fn evaluate_tile(
                     .any(|id| !mesh.parts.iter().any(|p| &p.id == id))
             {
                 return Err(fail("Select Parts needs unique existing mesh parts"));
+            }
+            if mesh.parts.len() != parts.len() {
+                mesh.footprint = None;
+                mesh.connectors.clear();
             }
             mesh.parts.retain(|p| parts.contains(&p.id));
             mesh.attachments.clear();
@@ -663,10 +769,12 @@ fn evaluate_tile(
         Operation::Group {
             document, controls, ..
         } => {
-            let evaluation = document.evaluate_at(depth + 1, retained_vertices, inputs)?;
+            let controls = expressions::resolve(controls)?;
+            let bound = parameters::bind_resolved(document, &controls)?;
+            let evaluation = bound.evaluate_at(depth + 1, retained_vertices, inputs)?;
             let mut mesh = evaluation.mesh;
             mesh.grip = evaluation.grip;
-            group::apply(&mut mesh, controls)?;
+            group::apply_resolved(&mut mesh, &controls)?;
             Value::Mesh(mesh)
         }
         Operation::Loft {
@@ -826,6 +934,55 @@ fn evaluate_tile(
             Value::Mesh(m)
         }
         Operation::Reference { row } => reference(row)?,
+        Operation::Repeat {
+            count,
+            translation,
+            rotation,
+        } => {
+            finite(translation, 1000.)?;
+            finite(rotation, 3600.)?;
+            let base = mesh_input(input)?;
+            if !(1..=128).contains(count)
+                || base
+                    .vertex_count()
+                    .checked_mul(*count as usize)
+                    .is_none_or(|n| n > 200_000)
+            {
+                return Err(fail(
+                    "Repeat requires 1–128 copies within the 200000 vertex budget",
+                ));
+            }
+            if base.rig.is_some()
+                || !base.attachments.is_empty()
+                || !base.effects.is_empty()
+                || base.grip.is_some()
+            {
+                return Err(fail(
+                    "Repeat accepts static mesh parts; repeat before rigging or attachments",
+                ));
+            }
+            let mut mesh = Mesh::default();
+            for i in 0..*count {
+                let mut copy = base.clone();
+                copy.transform(
+                    translation.map(|v| v * i as f32),
+                    rotation.map(|v| v * i as f32),
+                    [1.; 3],
+                );
+                for p in &mut copy.parts {
+                    p.id = format!("{owner}/{i}/{}", p.id);
+                    p.label = format!("{} {}", p.label, i + 1);
+                }
+                for connector in &mut copy.connectors {
+                    connector.id = format!("{owner}/{i}/{}", connector.id);
+                }
+                mesh.connectors.append(&mut copy.connectors);
+                connectors::validate(&mesh.connectors)?;
+                footprint::merge(&mut mesh.footprint, copy.footprint.take())?;
+                mesh.parts.extend(copy.parts);
+            }
+            Value::Mesh(mesh)
+        }
         Operation::Assemble { rows: inputs } => {
             if inputs.is_empty() || inputs.len() > 64 {
                 return Err(fail("Assemble needs 1–64 mesh rows"));
@@ -836,6 +993,12 @@ fn evaluate_tile(
                     return Err(fail("Assemble accepts mesh rows only"));
                 };
                 m.align_rigs(&mut other)?;
+                for connector in &mut other.connectors {
+                    connector.id = format!("{id}/{}", connector.id);
+                }
+                m.connectors.append(&mut other.connectors);
+                connectors::validate(&m.connectors)?;
+                footprint::merge(&mut m.footprint, other.footprint.take())?;
                 m.attachments.append(&mut other.attachments);
                 m.effects.append(&mut other.effects);
                 m.parts.append(&mut other.parts);

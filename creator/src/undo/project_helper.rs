@@ -814,6 +814,11 @@ pub fn gen_tilemap_tree_node(tilemap: &Tilemap) -> TheTreeNode {
 
     node.add_widget(Box::new(item));
 
+    if let Some([width,height])=tilemap.frame_size {
+        for (label,value) in [(fl!("tileset_frame_width"),width),(fl!("tileset_frame_height"),height)] {
+            let mut item=TheTreeItem::new(TheId::empty());item.set_text(label);item.add_value_column(200,TheValue::Int(value));node.add_widget(Box::new(item));
+        }
+    }else {
     let mut item = TheTreeItem::new(TheId::named_with_reference(
         "Tilemap Item Code Edit",
         tilemap.id,
@@ -828,6 +833,7 @@ pub fn gen_tilemap_tree_node(tilemap: &Tilemap) -> TheTreeNode {
     item.add_widget_column(200, Box::new(edit));
 
     node.add_widget(Box::new(item));
+    }
 
     node
 }
@@ -1160,7 +1166,7 @@ pub fn set_project_context(
     let active_dock = crate::editor::DOCKMANAGER.read().unwrap().dock.clone();
     if active_dock == "Prefabs" {
         crate::docks::prefab_nodes::sync_node_list(ui, ctx);
-    } else if active_dock != "Construction" {
+    } else {
         crate::docks::nodes::sync_node_list(ui, ctx, pc);
     }
     update_project_export_context_menu(ui, pc, project);

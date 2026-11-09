@@ -64,7 +64,7 @@ impl Action for IsoCamera {
     }
 
     fn accel(&self) -> Option<TheAccelerator> {
-        Some(TheAccelerator::new(TheAcceleratorKey::CTRLCMD, '4'))
+        Some(TheAccelerator::new(TheAcceleratorKey::CTRLCMD, '5'))
     }
 
     fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
@@ -107,10 +107,10 @@ impl Action for IsoCamera {
             .set_parameter_f32("scale", scale);
 
         server_ctx.editing_surface = None;
-        ui.set_widget_value("Editor View Switch", ctx, TheValue::Int(2));
+        ui.set_widget_value("Editor View Switch", ctx, TheValue::Int(3));
         ctx.ui.send(TheEvent::IndexChanged(
             TheId::named("Editor View Switch"),
-            2,
+            3,
         ));
 
         None

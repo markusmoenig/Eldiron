@@ -3188,7 +3188,7 @@ impl IsoPaintDock {
             "moss" => fl!("iso_paint_brush_moss"),
             "crack" => fl!("iso_paint_brush_crack"),
             "grass" => "Grass".to_string(),
-            "rubble" => "Rubble".to_string(),
+            "rubble" => "Rocks / Rubble".to_string(),
             "leaves" => "Leaves".to_string(),
             "flowers" => "Flowers".to_string(),
             "vines" => "Vines".to_string(),
@@ -3952,6 +3952,17 @@ impl Dock for IsoPaintDock {
         server_ctx: &mut ServerContext,
     ) -> bool {
         match event {
+            TheEvent::Custom(id, _) if id.name == "3D Paint Refresh" => {
+                if let Some(paint) = self.paint_layer(project, server_ctx) {
+                    for (slot, index) in paint.active_palette_indices.iter().enumerate() {
+                        if slot < self.brush_color_slots[self.selected_brush].len() {
+                            self.brush_color_slots[self.selected_brush][slot] = *index;
+                        }
+                    }
+                }
+                self.sync_inspector(ui, ctx, project);
+                return true;
+            }
             TheEvent::IndexChanged(id, index)
                 if self.is_ui_event(&id.name, ISO_PAINT_OPERATION_GROUP) =>
             {

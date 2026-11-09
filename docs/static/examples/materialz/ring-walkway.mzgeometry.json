@@ -1,0 +1,780 @@
+{
+  "version": 1,
+  "id": "ring-walkway",
+  "label": "Ring walkway",
+  "rows": [
+    {
+      "id": "recipe",
+      "label": "Recipe",
+      "tiles": [
+        {
+          "id": "recipe-0",
+          "op": {
+            "type": "group",
+            "label": "Ring walkway",
+            "document": {
+              "version": 1,
+              "id": "ring-walkway-construction",
+              "label": "Ring walkway construction",
+              "rows": [
+                {
+                  "id": "surface",
+                  "label": "Surface",
+                  "tiles": [
+                    {
+                      "id": "surface-0",
+                      "op": {
+                        "type": "material",
+                        "palette": 19,
+                        "roughness": 0.9,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "outer",
+                  "label": "Outer footprint (X/Z)",
+                  "tiles": [
+                    {
+                      "id": "outer-outline",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -1.5,
+                            -1.5
+                          ],
+                          [
+                            1.5,
+                            -1.5
+                          ],
+                          [
+                            1.5,
+                            1.5
+                          ],
+                          [
+                            -1.5,
+                            1.5
+                          ]
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "opening",
+                  "label": "Opening footprint (X/Z)",
+                  "tiles": [
+                    {
+                      "id": "opening-outline",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.75,
+                            -0.75
+                          ],
+                          [
+                            0.75,
+                            -0.75
+                          ],
+                          [
+                            0.75,
+                            0.75
+                          ],
+                          [
+                            -0.75,
+                            0.75
+                          ]
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "north",
+                  "label": "North rim",
+                  "tiles": [
+                    {
+                      "id": "north-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          3,
+                          0.25,
+                          0.75
+                        ]
+                      }
+                    },
+                    {
+                      "id": "north-mat",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "surface"
+                      }
+                    },
+                    {
+                      "id": "north-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          -0.125,
+                          -1.125
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "south",
+                  "label": "South rim",
+                  "tiles": [
+                    {
+                      "id": "south-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          3,
+                          0.25,
+                          0.75
+                        ]
+                      }
+                    },
+                    {
+                      "id": "south-mat",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "surface"
+                      }
+                    },
+                    {
+                      "id": "south-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          -0.125,
+                          1.125
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "west",
+                  "label": "West rim",
+                  "tiles": [
+                    {
+                      "id": "west-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.75,
+                          0.25,
+                          1.5
+                        ]
+                      }
+                    },
+                    {
+                      "id": "west-mat",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "surface"
+                      }
+                    },
+                    {
+                      "id": "west-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -1.125,
+                          -0.125,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "east",
+                  "label": "East rim",
+                  "tiles": [
+                    {
+                      "id": "east-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.75,
+                          0.25,
+                          1.5
+                        ]
+                      }
+                    },
+                    {
+                      "id": "east-mat",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "surface"
+                      }
+                    },
+                    {
+                      "id": "east-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          1.125,
+                          -0.125,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "assembly",
+                  "label": "Ring walkway",
+                  "tiles": [
+                    {
+                      "id": "assembly-0",
+                      "op": {
+                        "type": "assemble",
+                        "rows": [
+                          "north",
+                          "south",
+                          "west",
+                          "east"
+                        ]
+                      }
+                    },
+                    {
+                      "id": "ring-footprint",
+                      "op": {
+                        "type": "footprint",
+                        "row": "outer",
+                        "holes": [
+                          "opening"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "assembly",
+              "grip": null
+            },
+            "controls": [
+              {
+                "id": "width",
+                "label": "Width (m)",
+                "category": "Dimensions",
+                "help": "",
+                "order": 0,
+                "value": 3,
+                "reference": 3,
+                "min": 2,
+                "max": 6,
+                "modifiers": [
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "north-box",
+                      "parameter": "size0"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "south-box",
+                      "parameter": "size0"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "outer-outline",
+                      "parameter": "point0:0"
+                    },
+                    "factor": -0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "outer-outline",
+                      "parameter": "point1:0"
+                    },
+                    "factor": 0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "outer-outline",
+                      "parameter": "point2:0"
+                    },
+                    "factor": 0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "outer-outline",
+                      "parameter": "point3:0"
+                    },
+                    "factor": -0.5,
+                    "offset": 0
+                  }
+                ]
+              },
+              {
+                "id": "depth",
+                "label": "Depth (m)",
+                "category": "Dimensions",
+                "help": "",
+                "order": 1,
+                "value": 3,
+                "reference": 3,
+                "min": 2,
+                "max": 6,
+                "modifiers": [
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "outer-outline",
+                      "parameter": "point0:1"
+                    },
+                    "factor": -0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "outer-outline",
+                      "parameter": "point1:1"
+                    },
+                    "factor": -0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "outer-outline",
+                      "parameter": "point2:1"
+                    },
+                    "factor": 0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "outer-outline",
+                      "parameter": "point3:1"
+                    },
+                    "factor": 0.5,
+                    "offset": 0
+                  }
+                ]
+              },
+              {
+                "id": "opening_width",
+                "label": "Opening width (m)",
+                "category": "Dimensions",
+                "help": "",
+                "order": 2,
+                "value": 1.5,
+                "reference": 1.5,
+                "min": 0.5,
+                "max": 4,
+                "modifiers": [
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "opening-outline",
+                      "parameter": "point0:0"
+                    },
+                    "factor": -0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "opening-outline",
+                      "parameter": "point1:0"
+                    },
+                    "factor": 0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "opening-outline",
+                      "parameter": "point2:0"
+                    },
+                    "factor": 0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "opening-outline",
+                      "parameter": "point3:0"
+                    },
+                    "factor": -0.5,
+                    "offset": 0
+                  }
+                ]
+              },
+              {
+                "id": "opening_depth",
+                "label": "Opening depth (m)",
+                "category": "Dimensions",
+                "help": "",
+                "order": 3,
+                "value": 1.5,
+                "reference": 1.5,
+                "min": 0.5,
+                "max": 4,
+                "modifiers": [
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "west-box",
+                      "parameter": "size2"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "east-box",
+                      "parameter": "size2"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "opening-outline",
+                      "parameter": "point0:1"
+                    },
+                    "factor": -0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "opening-outline",
+                      "parameter": "point1:1"
+                    },
+                    "factor": -0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "opening-outline",
+                      "parameter": "point2:1"
+                    },
+                    "factor": 0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "opening-outline",
+                      "parameter": "point3:1"
+                    },
+                    "factor": 0.5,
+                    "offset": 0
+                  }
+                ]
+              },
+              {
+                "id": "thickness",
+                "label": "Thickness (m)",
+                "category": "Dimensions",
+                "help": "",
+                "order": 4,
+                "value": 0.25,
+                "reference": 0.25,
+                "min": 0.05,
+                "max": 0.35,
+                "modifiers": [
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "north-box",
+                      "parameter": "size1"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "north-place",
+                      "parameter": "position1"
+                    },
+                    "factor": -0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "south-box",
+                      "parameter": "size1"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "south-place",
+                      "parameter": "position1"
+                    },
+                    "factor": -0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "west-box",
+                      "parameter": "size1"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "west-place",
+                      "parameter": "position1"
+                    },
+                    "factor": -0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "east-box",
+                      "parameter": "size1"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "east-place",
+                      "parameter": "position1"
+                    },
+                    "factor": -0.5,
+                    "offset": 0
+                  }
+                ]
+              },
+              {
+                "id": "border_x",
+                "label": "Side rim width",
+                "category": "Dimensions",
+                "help": "Calculated in this recipe.",
+                "order": 5,
+                "value": 0.75,
+                "reference": 0.75,
+                "min": 0.05,
+                "max": 3,
+                "modifiers": [
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "west-box",
+                      "parameter": "size0"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "east-box",
+                      "parameter": "size0"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  }
+                ],
+                "expression": "(width - opening_width) / 2"
+              },
+              {
+                "id": "border_z",
+                "label": "End rim depth",
+                "category": "Dimensions",
+                "help": "Calculated in this recipe.",
+                "order": 6,
+                "value": 0.75,
+                "reference": 0.75,
+                "min": 0.05,
+                "max": 3,
+                "modifiers": [
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "north-box",
+                      "parameter": "size2"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "south-box",
+                      "parameter": "size2"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  }
+                ],
+                "expression": "(depth - opening_depth) / 2"
+              },
+              {
+                "id": "side_x",
+                "label": "Side X",
+                "category": "Dimensions",
+                "help": "Calculated in this recipe.",
+                "order": 7,
+                "value": 1.125,
+                "reference": 1.125,
+                "min": 0.25,
+                "max": 3,
+                "modifiers": [
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "west-place",
+                      "parameter": "position0"
+                    },
+                    "factor": -1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "east-place",
+                      "parameter": "position0"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  }
+                ],
+                "expression": "(width + opening_width) / 4"
+              },
+              {
+                "id": "side_z",
+                "label": "End Z",
+                "category": "Dimensions",
+                "help": "Calculated in this recipe.",
+                "order": 8,
+                "value": 1.125,
+                "reference": 1.125,
+                "min": 0.25,
+                "max": 3,
+                "modifiers": [
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "north-place",
+                      "parameter": "position2"
+                    },
+                    "factor": -1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "south-place",
+                      "parameter": "position2"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  }
+                ],
+                "expression": "(depth + opening_depth) / 4"
+              },
+              {
+                "id": "color",
+                "label": "Stone color",
+                "category": "Dimensions",
+                "help": "",
+                "order": 9,
+                "value": 7,
+                "reference": 7,
+                "min": 0,
+                "max": 255,
+                "modifiers": [
+                  {
+                    "type": "palette",
+                    "parts": [
+                      "*"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "recipe",
+  "grip": null
+}

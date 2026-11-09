@@ -34,6 +34,7 @@ pub struct TheRGBAView {
     zoom: f32,
 
     grid: Option<i32>,
+    grid_height: Option<i32>,
     grid_color: RGBA,
     dont_show_grid: bool,
     selected: FxHashSet<(i32, i32)>,
@@ -83,6 +84,9 @@ pub struct TheRGBAView {
 }
 
 impl TheRGBAView {
+    fn cell_height(&self) -> i32 {
+        self.grid_height.or(self.grid).unwrap_or(1).max(1)
+    }
     /// Calculate the centered offset for the X axis when the buffer is smaller than the view
     #[inline]
     fn centered_offset_x(&self) -> f32 {
@@ -208,6 +212,7 @@ impl TheWidget for TheRGBAView {
             zoom: 1.0,
 
             grid: None,
+            grid_height: None,
             grid_color: [200, 200, 200, 255],
             dont_show_grid: false,
             selected: FxHashSet::default(),
@@ -467,10 +472,10 @@ impl TheWidget for TheRGBAView {
                             && source_y < self.buffer.dim().height
                         {
                             let grid_x = source_x / grid;
-                            let grid_y = source_y / grid;
+                            let grid_y = source_y / self.cell_height();
 
                             if grid_x * grid < self.buffer.dim().width
-                                && grid_y * grid < self.buffer.dim().height
+                                && grid_y * self.cell_height() < self.buffer.dim().height
                                 && Some((grid_x, grid_y)) != self.hover
                             {
                                 self.hover = Some((grid_x, grid_y));
@@ -727,10 +732,11 @@ impl TheWidget for TheRGBAView {
                             // Calculate which screen pixel within the zoomed grid cell we're drawing
                             // This ensures grid lines are always 1 screen pixel wide regardless of zoom
                             let grid_size_pixels = grid as f32 * self.zoom;
+                            let grid_height_pixels = self.cell_height() as f32 * self.zoom;
 
                             // Find position within the current grid cell (in screen pixels)
                             let pos_x = (target_x as f32 - offset_x) % grid_size_pixels;
-                            let pos_y = (target_y as f32 - offset_y) % grid_size_pixels;
+                            let pos_y = (target_y as f32 - offset_y) % grid_height_pixels;
 
                             // Draw 1-pixel grid line at the start of each cell
                             // Handle negative modulo for offsets
@@ -740,7 +746,7 @@ impl TheWidget for TheRGBAView {
                                 pos_x
                             };
                             let pos_y = if pos_y < 0.0 {
-                                pos_y + grid_size_pixels
+                                pos_y + grid_height_pixels
                             } else {
                                 pos_y
                             };
@@ -767,13 +773,15 @@ impl TheWidget for TheRGBAView {
                     if let Some(grid) = self.grid {
                         // Drop Preview
                         if self.mode == TheRGBAViewMode::TileEditor
-                            && self.drop == Some((src_x / grid, src_y / grid))
+                            && self.drop == Some((src_x / grid, src_y / self.cell_height()))
                         {
                             target.pixels_mut()[target_index..target_index + 4]
                                 .copy_from_slice(&WHITE);
                             copy = false;
                         } else if self.icon_mode
-                            && !self.selected.contains(&(src_x / grid, src_y / grid))
+                            && !self
+                                .selected
+                                .contains(&(src_x / grid, src_y / self.cell_height()))
                         {
                             let s = self.buffer.pixels();
                             let c = &[
@@ -788,7 +796,9 @@ impl TheWidget for TheRGBAView {
                         // Selected
                         if !self.icon_mode
                             && self.mode == TheRGBAViewMode::TilePicker
-                            && self.selected.contains(&(src_x / grid, src_y / grid))
+                            && self
+                                .selected
+                                .contains(&(src_x / grid, src_y / self.cell_height()))
                         {
                             let s = self.buffer.pixels();
                             let c = &[
@@ -807,7 +817,9 @@ impl TheWidget for TheRGBAView {
                         } else
                         // Used
                         if !self.icon_mode
-                            && self.used.contains(&(src_x / grid, src_y / grid))
+                            && self
+                                .used
+                                .contains(&(src_x / grid, src_y / self.cell_height()))
                         {
                             let s = self.buffer.pixels();
                             let c = &[
@@ -824,7 +836,7 @@ impl TheWidget for TheRGBAView {
                         // Hover
                         else if !self.icon_mode {
                             if let Some(hover_color) = self.hover_color {
-                                if self.hover == Some((src_x / grid, src_y / grid)) {
+                                if self.hover == Some((src_x / grid, src_y / self.cell_height())) {
                                     let s = self.buffer.pixels();
                                     let c = &[
                                         s[src_index],
@@ -896,23 +908,25 @@ impl TheWidget for TheRGBAView {
                     {
                         if let Some(grid) = self.grid {
                             let cell_x = src_x / grid;
-                            let cell_y = src_y / grid;
+                            let cell_y = src_y / self.cell_height();
                             if self.selected.contains(&(cell_x, cell_y)) {
                                 let grid_size_pixels = grid as f32 * self.zoom;
+                                let grid_height_pixels = self.cell_height() as f32 * self.zoom;
                                 if grid_size_pixels >= 1.0 {
                                     let mut pos_x = (target_x as f32 - offset_x) % grid_size_pixels;
-                                    let mut pos_y = (target_y as f32 - offset_y) % grid_size_pixels;
+                                    let mut pos_y =
+                                        (target_y as f32 - offset_y) % grid_height_pixels;
                                     if pos_x < 0.0 {
                                         pos_x += grid_size_pixels;
                                     }
                                     if pos_y < 0.0 {
-                                        pos_y += grid_size_pixels;
+                                        pos_y += grid_height_pixels;
                                     }
 
                                     let near_left = pos_x < 1.0;
                                     let near_top = pos_y < 1.0;
                                     let near_right = pos_x >= grid_size_pixels - 1.0;
-                                    let near_bottom = pos_y >= grid_size_pixels - 1.0;
+                                    let near_bottom = pos_y >= grid_height_pixels - 1.0;
 
                                     let left_selected =
                                         self.selected.contains(&(cell_x - 1, cell_y));
@@ -942,28 +956,30 @@ impl TheWidget for TheRGBAView {
                         for (anchor, color) in &self.anchor_points {
                             if let Some(grid) = self.grid {
                                 let cell_x = src_x / grid;
-                                let cell_y = src_y / grid;
+                                let cell_y = src_y / self.cell_height();
                                 if cell_x == anchor.x && cell_y == anchor.y {
                                     let grid_size_pixels = grid as f32 * self.zoom;
+                                    let grid_height_pixels = self.cell_height() as f32 * self.zoom;
                                     if grid_size_pixels >= 1.0 {
                                         let mut pos_x =
                                             (target_x as f32 - offset_x) % grid_size_pixels;
                                         let mut pos_y =
-                                            (target_y as f32 - offset_y) % grid_size_pixels;
+                                            (target_y as f32 - offset_y) % grid_height_pixels;
                                         if pos_x < 0.0 {
                                             pos_x += grid_size_pixels;
                                         }
                                         if pos_y < 0.0 {
-                                            pos_y += grid_size_pixels;
+                                            pos_y += grid_height_pixels;
                                         }
 
                                         let near_left = pos_x < 1.0;
                                         let near_top = pos_y < 1.0;
                                         let near_right = pos_x >= grid_size_pixels - 1.0;
-                                        let near_bottom = pos_y >= grid_size_pixels - 1.0;
+                                        let near_bottom = pos_y >= grid_height_pixels - 1.0;
 
                                         let center_x = (pos_x - grid_size_pixels * 0.5).abs() < 1.0;
-                                        let center_y = (pos_y - grid_size_pixels * 0.5).abs() < 1.0;
+                                        let center_y =
+                                            (pos_y - grid_height_pixels * 0.5).abs() < 1.0;
 
                                         if near_left
                                             || near_top
@@ -1027,6 +1043,7 @@ pub trait TheRGBAViewTrait: TheWidget {
     fn set_scroll_offset(&mut self, offset: Vec2<i32>);
     fn grid(&self) -> Option<i32>;
     fn set_grid(&mut self, grid: Option<i32>);
+    fn set_grid_dimensions(&mut self, grid: Vec2<i32>);
     fn set_grid_color(&mut self, color: RGBA);
     fn set_dont_show_grid(&mut self, dont_show_grid: bool);
     fn set_selection_color(&mut self, color: RGBA);
@@ -1076,10 +1093,10 @@ impl TheRGBAViewTrait for TheRGBAView {
                 && source_y < self.buffer.dim().height
             {
                 let grid_x = source_x / grid;
-                let grid_y = source_y / grid;
+                let grid_y = source_y / self.cell_height();
 
                 if grid_x * grid < self.buffer.dim().width
-                    && grid_y * grid < self.buffer.dim().height
+                    && grid_y * self.cell_height() < self.buffer.dim().height
                 {
                     return Some((grid_x, grid_y));
                 }
@@ -1098,7 +1115,7 @@ impl TheRGBAViewTrait for TheRGBAView {
                 && source_y < self.buffer.dim().height as f32
             {
                 let grid_x = source_x / grid as f32;
-                let grid_y = source_y / grid as f32;
+                let grid_y = source_y / self.cell_height() as f32;
 
                 return Some((grid_x, grid_y));
             }
@@ -1152,7 +1169,13 @@ impl TheRGBAViewTrait for TheRGBAView {
         self.grid
     }
     fn set_grid(&mut self, grid: Option<i32>) {
-        self.grid = grid;
+        self.grid = grid.map(|v| v.max(1));
+        self.grid_height = None;
+    }
+    fn set_grid_dimensions(&mut self, grid: Vec2<i32>) {
+        self.grid = Some(grid.x.max(1));
+        self.grid_height = Some(grid.y.max(1));
+        self.is_dirty = true;
     }
     fn set_grid_color(&mut self, color: RGBA) {
         self.grid_color = color;
@@ -1218,9 +1241,9 @@ impl TheRGBAViewTrait for TheRGBAView {
             for s in sorted {
                 sequence.regions.push(TheRGBARegion::new(
                     (s.0 * grid) as usize,
-                    (s.1 * grid) as usize,
+                    (s.1 * self.cell_height()) as usize,
                     grid as usize,
-                    grid as usize,
+                    self.cell_height() as usize,
                 ))
             }
         }
@@ -1279,5 +1302,17 @@ impl TheRGBAViewTrait for TheRGBAView {
     fn set_anchor_points(&mut self, points: Vec<(Vec2<i32>, RGBA)>) {
         self.anchor_points = points;
         self.is_dirty = true;
+    }
+}
+
+#[cfg(test)]
+mod rectangular_grid_tests {
+    use super::*;
+    #[test]
+    fn rectangular_frames_share_hit_testing_and_sequence_coordinates() {
+        let mut ctx=TheContext::new(12,24,1.);let mut view=TheRGBAView::new(TheId::empty());view.set_buffer(TheRGBABuffer::new(TheDim::sized(12,24)));view.set_dim(TheDim::sized(12,24),&mut ctx);view.set_zoom(1.);view.set_grid_dimensions(Vec2::new(3,6));
+        assert_eq!(view.get_grid_location(Vec2::new(4,7)),Some((1,1)));view.set_selection([(1,1),(2,1)].into_iter().collect());
+        let regions=view.selection_as_sequence().regions;assert_eq!(regions[0],TheRGBARegion::new(3,6,3,6));assert_eq!(regions[1],TheRGBARegion::new(6,6,3,6));
+        view.set_grid(Some(3));assert_eq!(view.get_grid_location(Vec2::new(4,7)),Some((1,2)));
     }
 }

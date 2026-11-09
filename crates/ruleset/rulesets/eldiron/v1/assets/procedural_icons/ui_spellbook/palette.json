@@ -1,0 +1,60 @@
+{
+  "@surface": {
+    "base color": 7,
+    "emission": 1
+  },
+  "binding-colors": {
+    "color0": 18,
+    "color1": 19,
+    "color2": 21,
+    "color3": 22
+  },
+  "binding-outline": {
+    "color": 1
+  },
+  "left-page-colors": {
+    "color0": 6,
+    "color1": 7,
+    "color2": 8,
+    "color3": 9
+  },
+  "left-page-outline": {
+    "color": 1
+  },
+  "right-page-colors": {
+    "color0": 7,
+    "color1": 8,
+    "color2": 9,
+    "color3": 9
+  },
+  "right-page-outline": {
+    "color": 1
+  },
+  "spine-colors": {
+    "color0": 17,
+    "color1": 18,
+    "color2": 19,
+    "color3": 21
+  },
+  "spine-outline": {
+    "color": 1
+  },
+  "writing-color": {
+    "color": 18
+  },
+  "rune-colors": {
+    "color0": 40,
+    "color1": 42,
+    "color2": 44,
+    "color3": 45
+  },
+  "bookmark-colors": {
+    "color0": 14,
+    "color1": 15,
+    "color2": 16,
+    "color3": 19
+  },
+  "bookmark-outline": {
+    "color": 1
+  }
+}

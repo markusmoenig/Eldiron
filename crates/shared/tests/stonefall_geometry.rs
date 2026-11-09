@@ -6,10 +6,10 @@ use std::time::Instant;
 fn stonefall_authored_geometry_survives_loading_and_saving() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let bytes = std::fs::read(root.join("test_projects/StonefallDungeon.eldiron")).unwrap();
-    assert_eq!(
-        bytes,
-        std::fs::read(root.join("starters/projects/StonefallDungeon.eldiron")).unwrap()
-    );
+    let starter = decode_project(
+        &std::fs::read(root.join("starters/projects/StonefallDungeon.eldiron")).unwrap(),
+    )
+    .unwrap();
     let start = Instant::now();
     let project = decode_project(&bytes).expect("Stonefall loads through the real project decoder");
     eprintln!("Stonefall decode: {:?}", start.elapsed());
@@ -25,7 +25,10 @@ fn stonefall_authored_geometry_survives_loading_and_saving() {
         "start_region must resolve through the runtime region names"
     );
     let map = &project.regions[0].map;
-    assert!(map.wall_assemblies.is_empty());
+    assert!(
+        map.geometry_objects == starter.regions[0].map.geometry_objects,
+        "both palette variants retain the authored dungeon geometry"
+    );
     assert!(map.geometry_objects.len() < 350);
     assert!(
         map.geometry_objects
@@ -79,11 +82,6 @@ fn stonefall_authored_geometry_survives_loading_and_saving() {
     assert!(
         (floor_area - 593.0).abs() < 0.01,
         "walkable area: {floor_area}"
-    );
-    assert!(
-        map.block_prop_instances
-            .iter()
-            .all(|i| i.host_attachment.is_none())
     );
     assert!((min_floor + 0.4).abs() < 1e-5);
     assert!((max_floor - 0.6).abs() < 1e-5);

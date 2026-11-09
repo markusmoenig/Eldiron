@@ -160,7 +160,7 @@ pub struct RegionRenderPreview {
     /// Engine animation tick, using the project's normal tick cadence.
     #[serde(default)]
     pub animation_frame: Option<u32>,
-    /// Engine camera: 2d, iso, or 3d.
+    /// Engine camera: 2d, 2d_iso (sprite isometric), iso (3D), or 3d.
     #[serde(default)]
     pub view: Option<String>,
     #[serde(default)]
@@ -419,18 +419,6 @@ pub struct AttributesPatch {
     pub validate: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct GeometryCreateRoom {
-    pub region: RegionRef,
-    pub name: String,
-    pub rect: GridRect,
-    pub height: f32,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub wall_tile: Option<TileSelector>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub floor_tile: Option<TileSelector>,
-}
-
 /// Requests with edits must supply the context from project.describe and a unique ID.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ScepterRequest {
@@ -453,12 +441,7 @@ pub enum EditOperation {
     MapCopy(MapTransform),
     MapDelete(MapDelete),
     GeometryCreate(GeometryCreate),
-    WallCreate(WallCreate),
-    WallUpdate(WallUpdate),
     SectorUpdate(SectorUpdate),
-    OpeningPut(OpeningPut),
-    OpeningDelete(OpeningDelete),
-    RoomCreate(RoomCreate),
     EntityPlace(EntityPlace),
     EntityUpdate(EntityUpdate),
     MaterialPut {
@@ -601,8 +584,6 @@ pub enum ScepterCommand {
     AttributesGet(AttributesGet),
     #[serde(rename = "attributes.patch")]
     AttributesPatch(AttributesPatch),
-    #[serde(rename = "geometry.create_room")]
-    GeometryCreateRoom(GeometryCreateRoom),
 }
 
 impl ScepterCommand {
@@ -658,7 +639,6 @@ impl ScepterCommand {
             Self::ToolSelect(_) => "tool.select",
             Self::AttributesGet(_) => "attributes.get",
             Self::AttributesPatch(_) => "attributes.patch",
-            Self::GeometryCreateRoom(_) => "geometry.create_room",
         }
     }
 }
@@ -682,7 +662,6 @@ impl ScepterCommand {
                 | Self::RegionCreateSector(_)
                 | Self::RegionPlaceItem(_)
                 | Self::RegionPlaceCharacter(_)
-                | Self::GeometryCreateRoom(_)
         )
     }
 }
@@ -699,7 +678,6 @@ pub fn creator_implements(name: &str) -> bool {
             | "region.create_sector"
             | "region.place_item"
             | "region.place_character"
-            | "geometry.create_room"
             | "scepter.help"
             | "scepter.list_commands"
             | "scepter.describe_command"

@@ -1,0 +1,150 @@
+{
+  "version": 1,
+  "id": "iso-stone-step",
+  "label": "Iso Stone Step",
+  "rows": [
+    {
+      "id": "stone",
+      "label": "Stone",
+      "tiles": [
+        {
+          "id": "stone-0",
+          "op": {
+            "type": "material",
+            "palette": 7,
+            "roughness": 0.9,
+            "metallic": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "base",
+      "label": "Stone Base",
+      "tiles": [
+        {
+          "id": "base-0",
+          "op": {
+            "type": "box",
+            "size": [
+              1,
+              0.23,
+              1
+            ]
+          }
+        },
+        {
+          "id": "base-1",
+          "op": {
+            "type": "assign_material",
+            "row": "stone"
+          }
+        },
+        {
+          "id": "base-2",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0,
+              -0.135,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "cap",
+      "label": "Stone Tread",
+      "tiles": [
+        {
+          "id": "cap-0",
+          "op": {
+            "type": "box",
+            "size": [
+              1,
+              0.02,
+              1
+            ]
+          }
+        },
+        {
+          "id": "cap-1",
+          "op": {
+            "type": "assign_material",
+            "row": "stone"
+          }
+        },
+        {
+          "id": "cap-2",
+          "op": {
+            "type": "texture",
+            "source": "experiment:path",
+            "size": 64,
+            "axes": [
+              0,
+              2
+            ],
+            "origin": [
+              -0.5,
+              -0.5
+            ],
+            "span": [
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "cap-3",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0,
+              -0.01,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "block",
+      "label": "Stone Step",
+      "tiles": [
+        {
+          "id": "block-0",
+          "op": {
+            "type": "assemble",
+            "rows": [
+              "base",
+              "cap"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "block",
+  "grip": null
+}

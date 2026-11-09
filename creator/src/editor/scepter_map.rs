@@ -2,7 +2,7 @@
 use super::scepter_authoring::{parse_id, region_index};
 use super::*;
 use eldiron_scepter::*;
-use rusterix::{GeometryObject, GeometryObjectKind, PixelSource, WallAssembly, WallOpeningShape};
+use rusterix::{GeometryObject, GeometryObjectKind, PixelSource};
 use serde_json::{Value as Json, json};
 use shared::material_composition::{CompositionSurface, MapMaterialBinding};
 
@@ -72,7 +72,6 @@ fn fresh_id(project: &Project, id: &str) -> Result<Uuid, String> {
             r.characters.contains_key(&id)
                 || r.items.contains_key(&id)
                 || r.map.geometry_objects.iter().any(|o| o.id == id)
-                || r.map.wall_assemblies.iter().any(|w| w.id == id)
         })
     {
         return Err("Destination UUID is already in use".into());
@@ -194,215 +193,7 @@ fn geometry_create(project: &mut Project, c: &GeometryCreate) -> Result<Json, St
     project.regions[i].map.geometry_objects.push(object);
     Ok(json!({"geometry":id,"faces":faces}))
 }
-fn wall_budget(wall: &WallAssembly) -> Result<(), String> {
-    let mut bricks = 0_f32;
-    for span in &wall.spans {
-        let style = span.style_override.as_ref().unwrap_or(&wall.style);
-        let length = wall
-            .span_length(span.id)
-            .ok_or("Wall contains a degenerate span")?;
-        if length > 4096. || !(0.02..=16.).contains(&style.thickness) {
-            return Err("Wall span or thickness exceeds the supported bounds".into());
-        }
-        bricks += (length / style.brick_width.max(0.02)).ceil()
-            * (style.height / style.brick_height.max(0.02)).ceil();
-    }
-    if bricks > 25000. {
-        return Err("Wall exceeds 25000 masonry cells; split it into smaller assemblies".into());
-    }
-    Ok(())
-}
 
-fn wall_create(project: &mut Project, c: &WallCreate) -> Result<Json, String> {
-    name(&c.name)?;
-    let i = region_index(project, &c.region)?;
-    let id = fresh_id(project, &c.id)?;
-    if !(2..=256).contains(&c.points.len()) || c.closed && c.points.len() < 3 {
-        return Err("Walls require 2..256 points; closed walls require at least three".into());
-    }
-    if !(0.1..=256.).contains(&c.height) || !(0.02..=16.).contains(&c.thickness) {
-        return Err("Invalid wall height or thickness".into());
-    }
-    let mut wall = WallAssembly::new(&c.name);
-    wall.id = id;
-    wall.style.height = c.height;
-    wall.style.thickness = c.thickness;
-    wall.style.stone_source = source(project, &c.material)?;
-    let mut nodes = vec![];
-    for p in &c.points {
-        nodes.push(wall.add_node(point(*p)?));
-    }
-    let n = if c.closed {
-        nodes.len()
-    } else {
-        nodes.len() - 1
-    };
-    for k in 0..n {
-        wall.add_span(nodes[k], nodes[(k + 1) % nodes.len()])?;
-    }
-    wall_budget(&wall)?;
-    let spans = wall.spans.iter().map(|s| s.id).collect::<Vec<_>>();
-    let map = &mut project.regions[i].map;
-    map.wall_assemblies.push(wall);
-    map.rebuild_wall_geometry();
-    Ok(json!({"wall":id,"spans":spans}))
-}
-fn opening_put(project: &mut Project, c: &OpeningPut) -> Result<Json, String> {
-    let i = region_index(project, &c.region)?;
-    let id = parse_id(&c.id)?;
-    let assembly = parse_id(&c.assembly)?;
-    let span = parse_id(&c.span)?;
-    if ![c.center, c.bottom, c.width, c.height]
-        .iter()
-        .all(|v| v.is_finite())
-        || c.width <= 0.05
-        || c.height <= 0.05
-        || c.bottom < 0.
-    {
-        return Err("Invalid opening dimensions".into());
-    }
-    let map = &mut project.regions[i].map;
-    let wall = map
-        .wall_assembly_mut(assembly)
-        .ok_or("Wall assembly not found")?;
-    let length = wall.span_length(span).ok_or("Wall span not found")?;
-    let height = wall
-        .span(span)
-        .and_then(|s| s.style_override.as_ref())
-        .unwrap_or(&wall.style)
-        .height;
-    if c.center - c.width / 2. < 0.
-        || c.center + c.width / 2. > length
-        || c.bottom + c.height > height
-    {
-        return Err("Opening must fit completely within its wall span".into());
-    }
-    if wall
-        .spans
-        .iter()
-        .filter(|s| s.id != span)
-        .any(|s| s.openings.iter().any(|o| o.id == id))
-    {
-        return Err("Opening ID belongs to another span".into());
-    }
-    wall.remove_opening(span, id);
-    let created = wall.add_opening(
-        span,
-        Vec2::new(c.center - c.width / 2., c.bottom),
-        Vec2::new(c.center + c.width / 2., c.bottom + c.height),
-        if c.arched {
-            WallOpeningShape::Arch
-        } else {
-            WallOpeningShape::Rectangular
-        },
-    )?;
-    wall.opening_mut(span, created).unwrap().id = id;
-    map.rebuild_wall_geometry();
-    Ok(json!({"opening":id,"wall":assembly,"span":span}))
-}
-fn room_create(project: &mut Project, c: &RoomCreate) -> Result<Json, String> {
-    let (min, max) = bounds(c.min, c.max)?;
-    let height = max.y - min.y;
-    if c.thickness * 2. >= (max.x - min.x).min(max.z - min.z) {
-        return Err("Room wall thickness exceeds its size".into());
-    }
-    let wall = wall_create(
-        project,
-        &WallCreate {
-            region: c.region.clone(),
-            id: c.id.clone(),
-            name: c.name.clone(),
-            points: vec![
-                [min.x, min.y, min.z],
-                [max.x, min.y, min.z],
-                [max.x, min.y, max.z],
-                [min.x, min.y, max.z],
-            ],
-            closed: true,
-            height,
-            thickness: c.thickness,
-            material: c.wall.clone(),
-        },
-    )?;
-    let floor_id = Uuid::new_v4();
-    geometry_create(
-        project,
-        &GeometryCreate {
-            region: c.region.clone(),
-            id: floor_id.to_string(),
-            name: format!("{} Floor", c.name),
-            shape: "floor".into(),
-            min: [min.x, min.y - 0.05, min.z],
-            max: [max.x, min.y, max.z],
-            material: c.floor.clone(),
-            segments: None,
-        },
-    )?;
-    let i = region_index(project, &c.region)?;
-    let floor = source(project, &c.floor)?;
-    let sector = polygon(
-        &mut project.regions[i].map,
-        &[
-            [min.x, min.z],
-            [max.x, min.z],
-            [max.x, max.z],
-            [min.x, max.z],
-        ],
-        &c.name,
-        Some(1),
-    )?;
-    let s = project.regions[i].map.find_sector_mut(sector).unwrap();
-    s.properties.set("rect", Value::Bool(true));
-    if let Some(source) = floor {
-        s.properties.set("source", Value::Source(source));
-    }
-    let ceiling = if c.ceiling.is_some() {
-        let id = Uuid::new_v4();
-        geometry_create(
-            project,
-            &GeometryCreate {
-                region: c.region.clone(),
-                id: id.to_string(),
-                name: format!("{} Ceiling", c.name),
-                shape: "ceiling".into(),
-                min: [min.x, max.y, min.z],
-                max: [max.x, max.y + 0.05, max.z],
-                material: c.ceiling.clone(),
-                segments: None,
-            },
-        )?;
-        Some(id)
-    } else {
-        None
-    };
-    let mut doors = vec![];
-    if c.doors.len() > 64 {
-        return Err("Maximum 64 openings per room".into());
-    }
-    for door in &c.doors {
-        let span = wall["spans"]
-            .get(door.wall)
-            .and_then(Json::as_str)
-            .ok_or("Room door wall index must be 0..3")?;
-        doors.push(opening_put(
-            project,
-            &OpeningPut {
-                region: c.region.clone(),
-                assembly: c.id.clone(),
-                span: span.into(),
-                id: Uuid::new_v4().to_string(),
-                center: door.center,
-                bottom: door.bottom,
-                width: door.width,
-                height: door.height,
-                arched: false,
-            },
-        )?);
-    }
-    Ok(
-        json!({"wall":wall["wall"],"spans":wall["spans"],"floor":floor_id,"ceiling":ceiling,"sector":sector,"doors":doors}),
-    )
-}
 fn entity_place(project: &mut Project, c: &EntityPlace) -> Result<Json, String> {
     let i = region_index(project, &c.region)?;
     let id = fresh_id(project, &c.id)?;
@@ -567,12 +358,10 @@ fn entity_update(project: &mut Project, c: &EntityUpdate) -> Result<Json, String
     Ok(json!({"id":id,"kind":c.kind}))
 }
 pub(super) fn validate_targets(project: &Project, i: usize, t: &MapTargets) -> Result<(), String> {
-    if t.sectors.len() + t.geometry.len() + t.walls.len() + t.characters.len() + t.items.len()
-        > 4096
-    {
+    if t.sectors.len() + t.geometry.len() + t.characters.len() + t.items.len() > 4096 {
         return Err("Maximum 4096 map targets".into());
     }
-    for ids in [&t.geometry, &t.walls, &t.characters, &t.items] {
+    for ids in [&t.geometry, &t.characters, &t.items] {
         let mut seen = HashSet::new();
         for id in ids {
             if !seen.insert(parse_id(id)?) {
@@ -591,21 +380,17 @@ pub(super) fn validate_targets(project: &Project, i: usize, t: &MapTargets) -> R
     }
     for id in &t.geometry {
         let id = parse_id(id)?;
-        let o = r
+        let object = r
             .map
             .geometry_objects
             .iter()
             .find(|o| o.id == id)
             .ok_or("Geometry object not found")?;
-        if o.kind == GeometryObjectKind::Generated {
-            return Err("Edit generated wall geometry through its wall assembly".into());
+        if object.kind == GeometryObjectKind::Generated {
+            return Err("Edit generated geometry through its source recipe".into());
         }
     }
-    for id in &t.walls {
-        if r.map.wall_assembly(parse_id(id)?).is_none() {
-            return Err("Wall assembly not found".into());
-        }
-    }
+
     for id in &t.characters {
         if !r.characters.contains_key(&parse_id(id)?) {
             return Err("Character instance not found".into());
@@ -717,10 +502,7 @@ fn transform(project: &mut Project, c: &MapTransform, copy: bool) -> Result<Json
             "Transform scale must be 0.001..1024; rotation is degrees around world Y".into(),
         );
     }
-    if !c.targets.walls.is_empty() && ((c.scale[0] - c.scale[2]).abs() > 0.0001 || c.scale[1] != 1.)
-    {
-        return Err("Wall transforms require uniform horizontal scale and unchanged vertical scale; edit height through wall source settings".into());
-    }
+
     let mut result = MapTargets::default();
     let mut binding_copies = vec![];
     let bindings = project
@@ -915,114 +697,7 @@ fn transform(project: &mut Project, c: &MapTransform, copy: bool) -> Result<Json
                 .unwrap() = object;
         }
     }
-    for id in &c.targets.walls {
-        let id = parse_id(id)?;
-        let map = &mut project.regions[i].map;
-        let mut wall = map.wall_assembly(id).unwrap().clone();
-        for node in &mut wall.nodes {
-            node.position = transform_point(node.position, c, false);
-        }
-        for surface in &mut wall.area_surfaces {
-            for p in &mut surface.outline {
-                *p = transform_point(*p, c, false);
-            }
-        }
-        if c.scale[0] != 1. {
-            wall.style.thickness *= c.scale[0];
-            for s in &mut wall.spans {
-                s.curve_offset *= c.scale[0];
-                if let Some(style) = &mut s.style_override {
-                    style.thickness *= c.scale[0];
-                }
-                for o in &mut s.openings {
-                    o.center *= c.scale[0];
-                    o.width *= c.scale[0];
-                }
-            }
-        }
-        wall_budget(&wall)?;
-        if copy {
-            wall.id = Uuid::new_v4();
-            wall.name = format!("{} Copy", wall.name);
-            let mut nodes = std::collections::HashMap::new();
-            for n in &mut wall.nodes {
-                let old = n.id;
-                n.id = Uuid::new_v4();
-                nodes.insert(old, n.id);
-            }
-            let mut spans = std::collections::HashMap::new();
-            let mut openings = std::collections::HashMap::new();
-            let mut areas = std::collections::HashMap::new();
-            for span in &mut wall.spans {
-                let old = span.id;
-                span.id = Uuid::new_v4();
-                spans.insert(old, span.id);
-                span.start_node = nodes[&span.start_node];
-                span.end_node = nodes[&span.end_node];
-                for o in &mut span.openings {
-                    let old = o.id;
-                    o.id = Uuid::new_v4();
-                    openings.insert(old, o.id);
-                }
-            }
-            for area in &mut wall.area_surfaces {
-                let old = area.id;
-                area.id = Uuid::new_v4();
-                areas.insert(old, area.id);
-                for edge in &mut area.boundary {
-                    edge.span_id = *spans
-                        .get(&edge.span_id)
-                        .ok_or("Area references a missing wall span")?;
-                }
-            }
-            for binding in &bindings {
-                let target = match binding {
-                    CompositionSurface::WallArea { assembly, surface } if *assembly == id => {
-                        Some(CompositionSurface::WallArea {
-                            assembly: wall.id,
-                            surface: *areas
-                                .get(surface)
-                                .ok_or("Area material binding is invalid")?,
-                        })
-                    }
-                    CompositionSurface::WallSlot {
-                        assembly,
-                        span,
-                        opening,
-                        slot,
-                    } if *assembly == id => Some(CompositionSurface::WallSlot {
-                        assembly: wall.id,
-                        span: span
-                            .map(|s| {
-                                spans
-                                    .get(&s)
-                                    .copied()
-                                    .ok_or("Wall binding references a missing span")
-                            })
-                            .transpose()?,
-                        opening: opening
-                            .map(|o| {
-                                openings
-                                    .get(&o)
-                                    .copied()
-                                    .ok_or("Wall binding references a missing opening")
-                            })
-                            .transpose()?,
-                        slot: *slot,
-                    }),
-                    _ => None,
-                };
-                if let Some(target) = target {
-                    binding_copies.push((binding.clone(), target));
-                }
-            }
-            result.walls.push(wall.id.to_string());
-            map.wall_assemblies.push(wall);
-        } else {
-            result.walls.push(id.to_string());
-            *map.wall_assembly_mut(id).unwrap() = wall;
-        }
-    }
+
     for id in &c.targets.characters {
         let id = parse_id(id)?;
         let mut e = project.regions[i].characters[&id].clone();
@@ -1067,10 +742,6 @@ fn transform(project: &mut Project, c: &MapTransform, copy: bool) -> Result<Json
                 | CompositionSurface::GeometryTile { object, .. } => {
                     c.targets.geometry.iter().any(|s| parse_id(s) == Ok(object))
                 }
-                CompositionSurface::WallArea { assembly, .. }
-                | CompositionSurface::WallSlot { assembly, .. } => {
-                    c.targets.walls.iter().any(|s| parse_id(s) == Ok(assembly))
-                }
                 _ => false,
             })
             .map(|(id, _)| *id)
@@ -1107,7 +778,6 @@ fn transform(project: &mut Project, c: &MapTransform, copy: bool) -> Result<Json
         }
     }
     project.regions[i].map.update_surfaces();
-    project.regions[i].map.rebuild_wall_geometry();
     Ok(json!({"targets":result}))
 }
 fn copy_entity_graph(
@@ -1184,14 +854,7 @@ fn delete(project: &mut Project, c: &MapDelete) -> Result<Json, String> {
         map.face_emissions.remove(&id);
         map.face_particle_emissions.remove(&id);
     }
-    let walls = c
-        .targets
-        .walls
-        .iter()
-        .map(|id| parse_id(id))
-        .collect::<Result<HashSet<_>, _>>()?;
-    map.wall_assemblies.retain(|w| !walls.contains(&w.id));
-    map.rebuild_wall_geometry();
+
     map.clear_selection();
     for id in &c.targets.characters {
         let id = parse_id(id)?;
@@ -1227,8 +890,6 @@ fn delete(project: &mut Project, c: &MapDelete) -> Result<Json, String> {
             CompositionSurface::Sector { id, .. } => c.targets.sectors.contains(&id),
             CompositionSurface::GeometryFace { object, .. }
             | CompositionSurface::GeometryTile { object, .. } => objects.contains(&object),
-            CompositionSurface::WallArea { assembly, .. }
-            | CompositionSurface::WallSlot { assembly, .. } => walls.contains(&assembly),
             _ => false,
         })
         .map(|(id, _)| *id)
@@ -1238,70 +899,7 @@ fn delete(project: &mut Project, c: &MapDelete) -> Result<Json, String> {
     }
     Ok(json!({"deleted":c.targets}))
 }
-fn wall_update(project: &mut Project, c: &WallUpdate) -> Result<Json, String> {
-    let i = region_index(project, &c.region)?;
-    let id = parse_id(&c.id)?;
-    if let Some(n) = &c.name {
-        name(n)?;
-    }
-    if c.height.is_some_and(|h| !(0.1..=256.).contains(&h))
-        || c.thickness.is_some_and(|h| !(0.02..=16.).contains(&h))
-    {
-        return Err("Invalid wall dimensions".into());
-    }
-    if c.nodes.len() + c.spans.len() > 256 {
-        return Err("Maximum 256 wall-source edits".into());
-    }
-    let material = source(project, &c.material)?;
-    let map = &mut project.regions[i].map;
-    let wall = map.wall_assembly_mut(id).ok_or("Wall not found")?;
-    if let Some(n) = &c.name {
-        wall.name = n.clone();
-    }
-    if let Some(h) = c.height {
-        wall.style.height = h;
-    }
-    if let Some(t) = c.thickness {
-        wall.style.thickness = t;
-    }
-    if c.material.is_some() {
-        wall.style.stone_source = material;
-    }
-    for node in &c.nodes {
-        wall.set_node_position(parse_id(&node.id)?, point(node.position)?)?;
-    }
-    for update in &c.spans {
-        let span = wall
-            .span_mut(parse_id(&update.id)?)
-            .ok_or("Wall span not found")?;
-        if let Some(offset) = update.curve_offset {
-            if !offset.is_finite() || offset.abs() > 4096. {
-                return Err("Invalid wall curvature".into());
-            }
-            span.curve_offset = offset;
-        }
-        if let Some(segments) = update.curve_segments {
-            if !(1..=128).contains(&segments) {
-                return Err("Curve segments must be 1..128".into());
-            }
-            span.curve_segments = segments;
-        }
-    }
-    for span in &wall.spans {
-        let height = span.style_override.as_ref().unwrap_or(&wall.style).height;
-        let length = wall.span_length(span.id).ok_or("Wall became degenerate")?;
-        if span.openings.iter().any(|o| {
-            o.bottom + o.height > height
-                || o.center - o.width / 2. < 0.
-                || o.center + o.width / 2. > length
-        }) {
-            return Err("Wall edit would clip an existing opening".into());
-        }
-    }
-    wall_budget(wall)?;
-    map.rebuild_wall_geometry();
-    Ok(json!({"wall":id}))
-}
+
 fn sector_update(project: &mut Project, c: &SectorUpdate) -> Result<Json, String> {
     let i = region_index(project, &c.region)?;
     if let Some(n) = &c.name {
@@ -1419,25 +1017,9 @@ pub(super) fn erase_cells(project: &mut Project, c: &EraseCells) -> Result<Json,
 
 pub(super) fn apply(project: &mut Project, op: &EditOperation) -> Result<Json, String> {
     let (region, result) = match op {
-        EditOperation::WallUpdate(c) => (c.region.clone(), wall_update(project, c)?),
         EditOperation::SectorUpdate(c) => (c.region.clone(), sector_update(project, c)?),
         EditOperation::GeometryCreate(c) => (c.region.clone(), geometry_create(project, c)?),
-        EditOperation::WallCreate(c) => (c.region.clone(), wall_create(project, c)?),
-        EditOperation::RoomCreate(c) => (c.region.clone(), room_create(project, c)?),
-        EditOperation::OpeningPut(c) => (c.region.clone(), opening_put(project, c)?),
-        EditOperation::OpeningDelete(c) => {
-            let i = region_index(project, &c.region)?;
-            let map = &mut project.regions[i].map;
-            if !map
-                .wall_assembly_mut(parse_id(&c.assembly)?)
-                .ok_or("Wall not found")?
-                .remove_opening(parse_id(&c.span)?, parse_id(&c.id)?)
-            {
-                return Err("Opening not found".into());
-            }
-            map.rebuild_wall_geometry();
-            (c.region.clone(), json!({"opening":c.id,"deleted":true}))
-        }
+
         EditOperation::EntityPlace(c) => (c.region.clone(), entity_place(project, c)?),
         EditOperation::EntityUpdate(c) => (c.region.clone(), entity_update(project, c)?),
         EditOperation::MapTransform(c) => (c.region.clone(), transform(project, c, false)?),
@@ -1514,26 +1096,7 @@ mod tests {
         p.characters.insert(c.id, c);
         p
     }
-    pub(super) fn room(p: &Project, id: Uuid) -> RoomCreate {
-        RoomCreate {
-            region: RegionRef::id(p.regions[0].id.to_string()),
-            id: id.to_string(),
-            name: "Shared workshop".into(),
-            min: [0., 0., 0.],
-            max: [6., 3., 5.],
-            thickness: 0.25,
-            floor: None,
-            wall: None,
-            ceiling: None,
-            doors: vec![RoomDoor {
-                wall: 0,
-                center: 3.,
-                width: 1.2,
-                height: 2.2,
-                bottom: 0.,
-            }],
-        }
-    }
+
     fn run(p: &Project, operations: Vec<EditOperation>) -> Result<(Project, Vec<Json>), String> {
         stage(
             p,
@@ -1543,88 +1106,7 @@ mod tests {
             },
         )
     }
-    #[test]
-    fn scepter_room_instances_and_states_are_one_staged_edit() {
-        let p = fixture();
-        let original = serde_json::to_string(&p).unwrap();
-        let r = RegionRef::id(p.regions[0].id.to_string());
-        let wall = Uuid::new_v4();
-        let npc = Uuid::new_v4();
-        let torch = Uuid::new_v4();
-        let (next, results) = run(
-            &p,
-            vec![
-                EditOperation::RoomCreate(room(&p, wall)),
-                EditOperation::EntityPlace(EntityPlace {
-                    region: r.clone(),
-                    id: npc.to_string(),
-                    kind: "character".into(),
-                    template: "Guard".into(),
-                    position: [2., 0., 2.],
-                    name: Some("Workshop guard".into()),
-                    data: None,
-                    active: None,
-                }),
-                EditOperation::EntityPlace(EntityPlace {
-                    region: r.clone(),
-                    id: torch.to_string(),
-                    kind: "item".into(),
-                    template: "Torch".into(),
-                    position: [1., 0., 1.],
-                    name: None,
-                    data: None,
-                    active: Some(false),
-                }),
-            ],
-        )
-        .unwrap();
-        assert_eq!(serde_json::to_string(&p).unwrap(), original);
-        assert_eq!(results.len(), 3);
-        let map = &next.regions[0].map;
-        assert_eq!(map.wall_assemblies[0].spans.len(), 4);
-        assert_eq!(map.wall_assemblies[0].spans[0].openings.len(), 1);
-        assert!(
-            map.geometry_objects
-                .iter()
-                .any(|o| o.name == "Shared workshop Floor")
-        );
-        assert_eq!(
-            next.regions[0].characters[&npc].character_id,
-            *p.characters.keys().next().unwrap()
-        );
-        assert!(
-            next.regions[0].items[&torch]
-                .data
-                .contains("active = false")
-        );
-        assert_eq!(map.entities.len(), 1);
-        assert_eq!(map.items.len(), 1);
-        let owner = shared::entity_graph::instance_key(next.regions[0].id, "item", torch);
-        assert!(next.node_graphs.contains_key(&owner));
-        let (updated, _) = run(
-            &next,
-            vec![EditOperation::EntityUpdate(EntityUpdate {
-                region: r,
-                id: torch.to_string(),
-                kind: "item".into(),
-                position: Some([3., 0., 2.]),
-                orientation: None,
-                name: Some("Entry light".into()),
-                data: Some("[attributes]\nactive = true\n".into()),
-                active: Some(false),
-            })],
-        )
-        .unwrap();
-        assert!(
-            updated.regions[0].items[&torch]
-                .data
-                .contains("active = false")
-        );
-        assert_eq!(
-            updated.regions[0].items[&torch].position,
-            Vec3::new(3., 0., 2.)
-        );
-    }
+
     #[test]
     fn scepter_failed_placement_rolls_back_the_entire_room() {
         let p = fixture();
@@ -1634,7 +1116,16 @@ mod tests {
             run(
                 &p,
                 vec![
-                    EditOperation::RoomCreate(room(&p, Uuid::new_v4())),
+                    EditOperation::GeometryCreate(GeometryCreate {
+                        region: r.clone(),
+                        id: Uuid::new_v4().to_string(),
+                        name: "Fixture block".into(),
+                        shape: "box".into(),
+                        min: [0.; 3],
+                        max: [1.; 3],
+                        material: None,
+                        segments: None
+                    }),
                     EditOperation::EntityPlace(EntityPlace {
                         region: r,
                         id: Uuid::new_v4().to_string(),
@@ -1651,74 +1142,7 @@ mod tests {
         );
         assert_eq!(serde_json::to_string(&p).unwrap(), before);
     }
-    #[test]
-    fn scepter_copy_transform_delete_preserves_wall_graph_and_entity_setup() {
-        let p = fixture();
-        let r = RegionRef::id(p.regions[0].id.to_string());
-        let wall = Uuid::new_v4();
-        let item = Uuid::new_v4();
-        let (p, _) = run(
-            &p,
-            vec![
-                EditOperation::RoomCreate(room(&p, wall)),
-                EditOperation::EntityPlace(EntityPlace {
-                    region: r.clone(),
-                    id: item.to_string(),
-                    kind: "item".into(),
-                    template: "Torch".into(),
-                    position: [1., 0., 1.],
-                    name: None,
-                    data: None,
-                    active: Some(false),
-                }),
-            ],
-        )
-        .unwrap();
-        let old = p.regions[0].map.wall_assembly(wall).unwrap();
-        let old_span = old.spans[0].id;
-        let old_open = old.spans[0].openings[0].id;
-        let targets = MapTargets {
-            walls: vec![wall.to_string()],
-            items: vec![item.to_string()],
-            ..Default::default()
-        };
-        let (p, results) = run(
-            &p,
-            vec![EditOperation::MapCopy(MapTransform {
-                region: r.clone(),
-                targets,
-                translation: [10., 0., 0.],
-                pivot: [0.; 3],
-                rotation_y: 90.,
-                scale: [1.; 3],
-            })],
-        )
-        .unwrap();
-        let new_wall = parse_id(results[0]["targets"]["walls"][0].as_str().unwrap()).unwrap();
-        let w = p.regions[0].map.wall_assembly(new_wall).unwrap();
-        assert_ne!(w.spans[0].id, old_span);
-        assert_ne!(w.spans[0].openings[0].id, old_open);
-        assert_eq!(w.spans[0].openings.len(), 1);
-        let copy_id = parse_id(results[0]["targets"]["items"][0].as_str().unwrap()).unwrap();
-        assert_ne!(copy_id, item);
-        assert!(p.regions[0].items[&copy_id].data.contains("active = false"));
-        let (p, _) = run(
-            &p,
-            vec![EditOperation::MapDelete(MapDelete {
-                region: r,
-                targets: MapTargets {
-                    walls: vec![new_wall.to_string()],
-                    items: vec![copy_id.to_string()],
-                    ..Default::default()
-                },
-            })],
-        )
-        .unwrap();
-        assert!(p.regions[0].map.wall_assembly(wall).is_some());
-        assert!(p.regions[0].map.wall_assembly(new_wall).is_none());
-        assert!(p.regions[0].items.contains_key(&item));
-        assert!(!p.regions[0].items.contains_key(&copy_id));
-    }
+
     #[test]
     fn scepter_sector_move_does_not_drag_neighbours_and_partial_erase_keeps_floor() {
         let p = fixture();
@@ -1796,49 +1220,6 @@ mod tests {
                 .x,
             8.
         );
-    }
-    #[test]
-    fn scepter_opening_and_wall_edits_validate_before_publication() {
-        let p = fixture();
-        let r = RegionRef::id(p.regions[0].id.to_string());
-        let id = Uuid::new_v4();
-        let (p, results) = run(&p, vec![EditOperation::RoomCreate(room(&p, id))]).unwrap();
-        let span = results[0]["spans"][0].as_str().unwrap().to_string();
-        let original = serde_json::to_string(&p).unwrap();
-        assert!(
-            run(
-                &p,
-                vec![EditOperation::OpeningPut(OpeningPut {
-                    region: r.clone(),
-                    assembly: id.to_string(),
-                    span,
-                    id: Uuid::new_v4().to_string(),
-                    center: 0.,
-                    bottom: 0.,
-                    width: 2.,
-                    height: 2.,
-                    arched: true
-                })]
-            )
-            .is_err()
-        );
-        assert!(
-            run(
-                &p,
-                vec![EditOperation::WallUpdate(WallUpdate {
-                    region: r,
-                    id: id.to_string(),
-                    name: None,
-                    height: Some(1.),
-                    thickness: None,
-                    material: None,
-                    nodes: vec![],
-                    spans: vec![]
-                })]
-            )
-            .is_err()
-        );
-        assert_eq!(serde_json::to_string(&p).unwrap(), original);
     }
 }
 
@@ -1954,23 +1335,15 @@ mod acceptance {
                     material: Some(selector(grass)),
                     segments: None,
                 }),
-                EditOperation::RoomCreate(RoomCreate {
+                EditOperation::GeometryCreate(GeometryCreate {
                     region: reference.clone(),
                     id: wall.to_string(),
-                    name: "Scepter workshop".into(),
+                    name: "Workshop wall".into(),
+                    shape: "box".into(),
                     min: [x, 0., z],
-                    max: [x + 6., 3., z + 5.],
-                    thickness: 0.25,
-                    floor: Some(selector(road)),
-                    wall: Some(selector(walls)),
-                    ceiling: None,
-                    doors: vec![RoomDoor {
-                        wall: 0,
-                        center: 3.,
-                        width: 1.2,
-                        height: 2.2,
-                        bottom: 0.,
-                    }],
+                    max: [x + 6., 3., z + 0.25],
+                    material: Some(selector(walls)),
+                    segments: None,
                 }),
                 EditOperation::PaintRect(RegionPaintRect {
                     region: reference.clone(),
@@ -2035,12 +1408,9 @@ mod acceptance {
             assert!(
                 editor.project.regions[0]
                     .map
-                    .wall_assembly(wall)
-                    .unwrap()
-                    .spans[0]
-                    .openings
-                    .len()
-                    == 1
+                    .geometry_objects
+                    .iter()
+                    .any(|o| o.id == wall)
             );
             let saved = shared::project_io::encode_project(&editor.project).unwrap();
             let reopened = shared::project_io::decode_project(&saved).unwrap();
@@ -2064,7 +1434,7 @@ mod acceptance {
                 &mut editor,
                 ScepterCommand::EditorSelect(
                     serde_json::from_value(
-                        json!({"region":{"id":region_id},"targets":{"walls":[wall]}}),
+                        json!({"region":{"id":region_id},"targets":{"geometry":[wall]}}),
                     )
                     .unwrap(),
                 ),

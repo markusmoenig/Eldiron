@@ -1,0 +1,28 @@
+project 1
+result from material "surface"
+material "surface" called "Art Study / Cloth"
+  mode pbr
+  tiling raw
+  default roughness to 0.93
+  row "patches" called "Quiet World Variation"
+    use "Perlin Noise" id "patches"
+      set "globalScale" to 1.1
+  row "grain" called "Fine Grain"
+    use "White Noise" id "grain"
+      set "cells" to 96 96
+      set "seed" to 53
+    use "Multiply" id "weathering"
+      set "localValue" from row "patches" xxx mapped 0.6 to 1.2
+  row "color" called "Palette Surface"
+    use "Color Ramp" id "colors"
+      input from row "grain" xxx
+      set "position0" to 0.1
+      set "color0" to 0.005182 0.012983 0.040915 1
+      set "position1" to 0.35
+      set "color1" to 0.014444 0.034340 0.086500 1
+      set "position2" to 0.65
+      set "color2" to 0.031896 0.072272 0.152926 1
+      set "position3" to 0.9
+      set "color3" to 0.109462 0.212231 0.351533 1
+      set "interpolation" to 1
+  output base color from row "color" xyz

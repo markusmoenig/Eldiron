@@ -8,10 +8,10 @@ The same mechanism works in a region and inside the isolated Prefab editor. The
 construction belongs to the MZ document; the editor has one generic application
 action for all recipes.
 
-**Status: experimental.** The selection/Prefab bridge and rectangular roof recipe
-are implemented and have focused test and native-preview coverage. Further
-construction work is deferred while the sandbox prototype prioritizes 2D
-gameplay, rulesets and procedural tile artwork. This is not an automatic 2D-map
+For the current reusable part and 2D Iso workflow, see the [illustrated MaterialZ tutorials](./materialz/start-here). The selection bridge described below is a separate feature.
+
+**Selection bridge status: experimental.** The selection/Prefab bridge and rectangular roof recipe
+are implemented and have focused test and native-preview coverage. Reusable mesh recipe authoring, controls, footprints and iso connector placement are documented in the tutorials. This is not an automatic 2D-map
 to 3D conversion system.
 
 ## Apply a recipe
@@ -39,8 +39,18 @@ the recipe; direct mesh edits or output-only movements can be replaced by regene
 
 ## Author another recipe
 
-Import an `.mzgeometry.json` model through the MZ Geometry workspace's **Asset →
-Import model** command. Documents containing a `Geometry Input` named `selection`
+Start a reusable part through **Meshes → New mesh**, then open its Group to
+edit the construction rows. **Asset → Publish controls** provides visual
+publishing for recipe inputs, dimensions, scale/offset and palette colors.
+Use **Recipe parameter** to bind construction values and Repeat counts, with
+multiple bindings and optional multiply/add mappings per control. A control can
+also calculate its value with a **Formula**, referencing other controls through
+**Insert control reference…**. The **Gable roof** and **Fence** browser parts
+use formulas to keep the ridge joined and rail length tied to count and spacing. These are editable
+recipe documents, not separate asset actions. See [Procedural Materials](procedural_materials).
+
+You can also import an `.mzgeometry.json` model through the MZ Geometry
+workspace's **Asset → Import model** command. Documents containing a `Geometry Input` named `selection`
 appear in **Apply MZ Recipe**. All other construction and controls use ordinary
 MZ geometry rows and groups.
 

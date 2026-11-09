@@ -279,6 +279,7 @@ impl PixelSource {
     pub fn tile_ref_from_tile_list<'a>(&self, assets: &'a Assets) -> Option<&'a Tile> {
         let id = match self {
             TileId(id) | MaterialId(id) => *id,
+            Color(color) => Self::color_tile_uuid(color),
             Noise(noise) => noise.tile_id(),
             PaletteIndex(index) => Self::palette_tile_uuid(*index),
             _ => return None,
@@ -298,6 +299,7 @@ impl PixelSource {
 
     pub fn tile_from_tile_list(&self, assets: &Assets) -> Option<Tile> {
         match self {
+            Color(_) => self.tile_ref_from_tile_list(assets).cloned(),
             Noise(noise) => assets
                 .tiles
                 .get(&noise.tile_id())

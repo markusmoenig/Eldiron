@@ -1,0 +1,587 @@
+{
+  "version": 1,
+  "id": "crate",
+  "label": "Crate",
+  "rows": [
+    {
+      "id": "recipe",
+      "label": "Recipe",
+      "tiles": [
+        {
+          "id": "recipe-0",
+          "op": {
+            "type": "group",
+            "label": "Crate",
+            "document": {
+              "version": 1,
+              "id": "crate-construction",
+              "label": "Crate construction",
+              "rows": [
+                {
+                  "id": "wood",
+                  "label": "Wood",
+                  "tiles": [
+                    {
+                      "id": "wood-0",
+                      "op": {
+                        "type": "material",
+                        "palette": 19,
+                        "roughness": 0.9,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "frame",
+                  "label": "Frame",
+                  "tiles": [
+                    {
+                      "id": "frame-0",
+                      "op": {
+                        "type": "material",
+                        "palette": 21,
+                        "roughness": 0.9,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "body",
+                  "label": "Body",
+                  "tiles": [
+                    {
+                      "id": "body-0",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.76,
+                          0.76,
+                          0.76
+                        ]
+                      }
+                    },
+                    {
+                      "id": "body-1",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "wood"
+                      }
+                    },
+                    {
+                      "id": "body-2",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.4,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "front-left",
+                  "label": "Front Left",
+                  "tiles": [
+                    {
+                      "id": "front-left-0",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.12,
+                          0.8,
+                          0.12
+                        ]
+                      }
+                    },
+                    {
+                      "id": "front-left-1",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "frame"
+                      }
+                    },
+                    {
+                      "id": "front-left-2",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.34,
+                          0.4,
+                          -0.4
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "front-right",
+                  "label": "Front Right",
+                  "tiles": [
+                    {
+                      "id": "front-right-0",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.12,
+                          0.8,
+                          0.12
+                        ]
+                      }
+                    },
+                    {
+                      "id": "front-right-1",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "frame"
+                      }
+                    },
+                    {
+                      "id": "front-right-2",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.34,
+                          0.4,
+                          -0.4
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "back-left",
+                  "label": "Back Left",
+                  "tiles": [
+                    {
+                      "id": "back-left-0",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.12,
+                          0.8,
+                          0.12
+                        ]
+                      }
+                    },
+                    {
+                      "id": "back-left-1",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "frame"
+                      }
+                    },
+                    {
+                      "id": "back-left-2",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.34,
+                          0.4,
+                          0.4
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "back-right",
+                  "label": "Back Right",
+                  "tiles": [
+                    {
+                      "id": "back-right-0",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.12,
+                          0.8,
+                          0.12
+                        ]
+                      }
+                    },
+                    {
+                      "id": "back-right-1",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "frame"
+                      }
+                    },
+                    {
+                      "id": "back-right-2",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.34,
+                          0.4,
+                          0.4
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "front-bottom",
+                  "label": "Front Bottom",
+                  "tiles": [
+                    {
+                      "id": "front-bottom-0",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.8,
+                          0.12,
+                          0.12
+                        ]
+                      }
+                    },
+                    {
+                      "id": "front-bottom-1",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "frame"
+                      }
+                    },
+                    {
+                      "id": "front-bottom-2",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.06,
+                          -0.4
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "front-top",
+                  "label": "Front Top",
+                  "tiles": [
+                    {
+                      "id": "front-top-0",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.8,
+                          0.12,
+                          0.12
+                        ]
+                      }
+                    },
+                    {
+                      "id": "front-top-1",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "frame"
+                      }
+                    },
+                    {
+                      "id": "front-top-2",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.74,
+                          -0.4
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "back-bottom",
+                  "label": "Back Bottom",
+                  "tiles": [
+                    {
+                      "id": "back-bottom-0",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.8,
+                          0.12,
+                          0.12
+                        ]
+                      }
+                    },
+                    {
+                      "id": "back-bottom-1",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "frame"
+                      }
+                    },
+                    {
+                      "id": "back-bottom-2",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.06,
+                          0.4
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "back-top",
+                  "label": "Back Top",
+                  "tiles": [
+                    {
+                      "id": "back-top-0",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.8,
+                          0.12,
+                          0.12
+                        ]
+                      }
+                    },
+                    {
+                      "id": "back-top-1",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "frame"
+                      }
+                    },
+                    {
+                      "id": "back-top-2",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.74,
+                          0.4
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "assembly",
+                  "label": "Assembly",
+                  "tiles": [
+                    {
+                      "id": "assembly-0",
+                      "op": {
+                        "type": "assemble",
+                        "rows": [
+                          "body",
+                          "front-left",
+                          "front-right",
+                          "back-left",
+                          "back-right",
+                          "front-bottom",
+                          "front-top",
+                          "back-bottom",
+                          "back-top"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "assembly",
+              "grip": null
+            },
+            "controls": [
+              {
+                "id": "width",
+                "label": "Width (m)",
+                "category": "Dimensions",
+                "help": "Overall size; the base remains on the ground.",
+                "order": 0,
+                "value": 0.8,
+                "reference": 0.8,
+                "min": 0.02,
+                "max": 10.0,
+                "modifiers": [
+                  {
+                    "type": "fit_axis",
+                    "axis": 0
+                  }
+                ]
+              },
+              {
+                "id": "height",
+                "label": "Height (m)",
+                "category": "Dimensions",
+                "help": "Overall size; the base remains on the ground.",
+                "order": 1,
+                "value": 0.8,
+                "reference": 0.8,
+                "min": 0.02,
+                "max": 10.0,
+                "modifiers": [
+                  {
+                    "type": "fit_axis",
+                    "axis": 1
+                  }
+                ]
+              },
+              {
+                "id": "depth",
+                "label": "Depth (m)",
+                "category": "Dimensions",
+                "help": "Overall size; the base remains on the ground.",
+                "order": 2,
+                "value": 0.92,
+                "reference": 0.92,
+                "min": 0.02,
+                "max": 10.0,
+                "modifiers": [
+                  {
+                    "type": "fit_axis",
+                    "axis": 2
+                  }
+                ]
+              },
+              {
+                "id": "wood",
+                "label": "Wood",
+                "category": "Materials",
+                "help": "Project palette color for these parts.",
+                "order": 0,
+                "value": 19,
+                "reference": 19,
+                "min": 0.0,
+                "max": 255.0,
+                "modifiers": [
+                  {
+                    "type": "palette",
+                    "parts": [
+                      "body"
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "frame",
+                "label": "Frame",
+                "category": "Materials",
+                "help": "Project palette color for these parts.",
+                "order": 1,
+                "value": 21,
+                "reference": 21,
+                "min": 0.0,
+                "max": 255.0,
+                "modifiers": [
+                  {
+                    "type": "palette",
+                    "parts": [
+                      "front-left",
+                      "front-right",
+                      "back-left",
+                      "back-right",
+                      "front-bottom",
+                      "front-top",
+                      "back-bottom",
+                      "back-top"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "recipe",
+  "grip": null
+}

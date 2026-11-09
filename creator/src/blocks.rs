@@ -2511,7 +2511,7 @@ pub fn upgrade_all_bundled_prefabs(project: &mut Project) -> bool {
 }
 
 fn prefab_surface_hit_and_normal(
-    map: &Map,
+    _map: &Map,
     server_ctx: &ServerContext,
 ) -> Option<(Vec3<f32>, Option<Vec3<f32>>)> {
     let hit = server_ctx
@@ -2520,12 +2520,6 @@ fn prefab_surface_hit_and_normal(
         .or_else(|| server_ctx.geo_hit.map(|_| server_ctx.geo_hit_pos))
         .or_else(|| block_grid_plane_hit(server_ctx))?;
     let normal = server_ctx.hover_surface_normal;
-    if let Some(scenevm::GeoId::GeometryObject(object_id)) = server_ctx.geo_hit
-        && let Some((wall_hit, wall_normal)) =
-            map.wall_surface_frame_for_geometry_object(object_id, hit, normal)
-    {
-        return Some((wall_hit, Some(wall_normal)));
-    }
     Some((hit, normal))
 }
 

@@ -20,3 +20,13 @@ authors = ["Markus Moenig"]
 description = "A retro-style RPG game creator."
 repository = "https://github.com/markusmoenig/Eldiron"
 homepage = "https://eldiron.com"
+
+# Full incremental debug histories can retain hundreds of GB of object files
+# during repeated editor builds. Keep line-level debugging without that cache.
+[profile.dev]
+debug = 1
+incremental = false
+
+[profile.test]
+debug = 1
+incremental = false

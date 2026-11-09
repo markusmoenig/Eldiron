@@ -22,3 +22,8 @@ imported core documentation should retain their historical context; current
 workflow changes belong in the guides. Check user-facing control labels against
 Creator code, and distinguish implemented behavior from design concepts and
 unverified platform/performance claims.
+
+Current UI screenshots and the gray-interface screenshot audit are documented in
+[the native capture notes](static/img/creator/README.md). Regenerate them with the
+opt-in Creator capture and `scripts/update-guide-screenshots.py`; historical release
+screenshots remain with their dated posts.

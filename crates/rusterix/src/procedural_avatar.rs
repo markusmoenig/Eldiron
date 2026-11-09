@@ -71,7 +71,7 @@ pub struct Appearance {
     document: Document,
     equipment: Vec<(String, String, String)>,
     compiled: Mutex<FxHashMap<u64, Arc<Compiled>>>,
-    sprites: Mutex<FxHashMap<(u64, String, u32, i32, u64), Arc<Vec<u8>>>>,
+    sprites: Mutex<FxHashMap<(u64, String, u32, i32, u64, bool), crate::isometric::AvatarSprite>>,
     last_ready: Mutex<FxHashMap<(Uuid, u32), u64>>,
     preparing: Mutex<FxHashSet<((Uuid, u32), u64)>>,
 }
@@ -627,6 +627,47 @@ impl Appearance {
         surface_seconds: f32,
         joints: Option<&[denrim_materials::geometry::rig::Pose]>,
     ) -> Result<Arc<Vec<u8>>, String> {
+        self.sprite_camera(
+            entity,
+            assets,
+            animation,
+            seconds,
+            surface_seconds,
+            joints,
+            false,
+        )
+        .map(|f| f.pixels)
+    }
+    pub fn sprite_isometric(
+        &self,
+        entity: &Entity,
+        assets: &Assets,
+        animation: &str,
+        seconds: f32,
+        surface_seconds: f32,
+        joints: Option<&[denrim_materials::geometry::rig::Pose]>,
+    ) -> Result<Arc<Vec<u8>>, String> {
+        self.sprite_camera(
+            entity,
+            assets,
+            animation,
+            seconds,
+            surface_seconds,
+            joints,
+            true,
+        )
+        .map(|f| f.pixels)
+    }
+    fn sprite_camera(
+        &self,
+        entity: &Entity,
+        assets: &Assets,
+        animation: &str,
+        seconds: f32,
+        surface_seconds: f32,
+        joints: Option<&[denrim_materials::geometry::rig::Pose]>,
+        isometric: bool,
+    ) -> Result<crate::isometric::AvatarSprite, String> {
         let (c, mask) = self.compiled_for(entity, assets)?;
         let seconds = Self::animation_seconds(&c, entity, animation, seconds);
         let clip = Self::motion(&c, animation);
@@ -662,7 +703,14 @@ impl Appearance {
                     .collect::<Vec<_>>()
             }),
         ));
-        let key = (mask, animation.into(), frame, yaw.rem_euclid(8), textures);
+        let key = (
+            mask,
+            animation.into(),
+            frame,
+            yaw.rem_euclid(8),
+            textures,
+            isometric,
+        );
         if let Some(rgba) = self.sprites.lock().unwrap().get(&key) {
             return Ok(rgba.clone());
         }
@@ -677,13 +725,14 @@ impl Appearance {
             .posed_with_joints(Self::motion(&c, animation), sample, joints)
             .map_err(|e| e.to_string())?
             .mesh;
-        let pixels = Arc::new(raster_sprite_at(
+        let pixels = raster_sprite_frame(
             &mesh,
             &c,
             yaw as f32 * 45.,
             &assets.palette,
             surface_seconds,
-        ));
+            isometric,
+        );
         let mut cache = self.sprites.lock().unwrap();
         if cache.len() >= 512 {
             cache.clear();
@@ -952,22 +1001,42 @@ fn palette_color(palette: &ThePalette, index: u16) -> [u8; 4] {
 }
 #[cfg(test)]
 fn raster_sprite(mesh: &Mesh, c: &Compiled, yaw: f32, palette: &ThePalette) -> Vec<u8> {
-    raster_sprite_at(mesh, c, yaw, palette, 0.)
+    raster_sprite_at(mesh, c, yaw, palette, 0., false)
 }
+#[cfg(test)]
 fn raster_sprite_at(
     mesh: &Mesh,
     c: &Compiled,
     yaw: f32,
     palette: &ThePalette,
     seconds: f32,
+    isometric: bool,
 ) -> Vec<u8> {
-    let size = SPRITE_SIZE;
+    (*raster_sprite_frame(mesh, c, yaw, palette, seconds, isometric).pixels).clone()
+}
+fn raster_sprite_frame(
+    mesh: &Mesh,
+    c: &Compiled,
+    yaw: f32,
+    palette: &ThePalette,
+    seconds: f32,
+    isometric: bool,
+) -> crate::isometric::AvatarSprite {
+    let size = if isometric { 128 } else { SPRITE_SIZE };
     let mut rgba = vec![0; size * size * 4];
+    let mut surface = isometric.then(|| crate::isometric::surface::SurfaceFrame::new(size * size));
     let mut depth = vec![f32::NEG_INFINITY; size * size];
     let (s, co) = yaw.to_radians().sin_cos();
     let rotate = |p: [f32; 3]| [co * p[0] + s * p[2], p[1], -s * p[0] + co * p[2]];
     let project = |p: [f32; 3]| {
         let p = rotate(p);
+        if isometric {
+            return [
+                64. + (p[0] + p[2]) * 32.,
+                100. + (p[2] - p[0]) * 16. - (p[1] - c.floor) * 39.1918359,
+                (p[2] - p[0]) * 0.612372436 + p[1] * 0.5,
+            ];
+        }
         [
             size as f32 * (0.5 + p[0] / (2. * c.extent)),
             size as f32
@@ -1045,8 +1114,8 @@ fn raster_sprite_at(
                     }
                     let uv: [f32; 2] =
                         std::array::from_fn(|k| (0..3).map(|i| tri[i].uv[k] * w[i]).sum());
-                    let tx = (uv[0].rem_euclid(1.) * t.width as f32) as usize;
-                    let ty = (uv[1].rem_euclid(1.) * t.height as f32) as usize;
+                    let tx = ((uv[0].rem_euclid(1.) * t.width as f32) as usize).min(t.width - 1);
+                    let ty = ((uv[1].rem_euclid(1.) * t.height as f32) as usize).min(t.height - 1);
                     let off = (ty * t.width + tx) * 4;
                     if t.data[off + 3] < 128 {
                         continue;
@@ -1054,6 +1123,29 @@ fn raster_sprite_at(
                     let roughness = (packed[off] & 15) as f32 / 15.;
                     let metallic = (packed[off] >> 4) as f32 / 15.;
                     let emission = (packed[off + 1] >> 4) as f32 / 15.;
+                    if let Some(surface) = &mut surface {
+                        let normal = rotate(std::array::from_fn(|k| {
+                            (0..3).map(|i| tri[i].normal[k] * w[i]).sum()
+                        }));
+                        let height =
+                            (0..3).map(|i| tri[i].position[1] * w[i]).sum::<f32>() - c.floor;
+                        surface.set(
+                            at,
+                            Vec3::from(normal),
+                            height,
+                            roughness,
+                            metallic,
+                            emission,
+                        );
+                        rgba[at * 4..at * 4 + 4].copy_from_slice(&[
+                            t.data[off],
+                            t.data[off + 1],
+                            t.data[off + 2],
+                            255,
+                        ]);
+                        depth[at] = z;
+                        continue;
+                    }
                     let specular = n[2].max(0.).powf(4. + roughness * 28.)
                         * (1. - roughness)
                         * (0.06 + metallic * 0.3);
@@ -1082,7 +1174,10 @@ fn raster_sprite_at(
             }
         }
     }
-    rgba
+    crate::isometric::AvatarSprite {
+        pixels: Arc::new(rgba),
+        surface: surface.map(Arc::new),
+    }
 }
 
 struct Transition {
@@ -1459,6 +1554,26 @@ impl Runtime {
                 .map(|(_, a)| a)
         })
     }
+    pub fn isometric_sprite(
+        &mut self,
+        entity: &Entity,
+        assets: &Assets,
+        id: GeoId,
+    ) -> Option<crate::isometric::AvatarSprite> {
+        let asset = Self::resolve(entity, assets)?;
+        let sample = self.sample(id, entity, asset, assets, true).ok()?;
+        asset
+            .sprite_camera(
+                entity,
+                assets,
+                &sample.animation,
+                sample.time,
+                self.time,
+                (!sample.joints.is_empty()).then_some(sample.joints.as_slice()),
+                true,
+            )
+            .ok()
+    }
     #[cfg(feature = "graphics")]
     pub fn sprite(
         &mut self,
@@ -1572,6 +1687,30 @@ impl Runtime {
 mod tests {
     use super::*;
     use crate::{Item, Value};
+    #[test]
+    fn isometric_mz_character_uses_directional_walk_poses_without_outlines() {
+        let (assets, model, mut entity) = fixture();
+        entity.orientation = Vec2::new(0., 1.);
+        let first = model
+            .sprite_isometric(&entity, &assets, "walk", 0., 0., None)
+            .unwrap();
+        let next = model
+            .sprite_isometric(&entity, &assets, "walk", 0.25, 0., None)
+            .unwrap();
+        assert_eq!(first.len(), 128 * 128 * 4);
+        assert_ne!(first, next);
+        assert!(first.chunks_exact(4).any(|c| c[3] == 255));
+        assert!(first.chunks_exact(4).all(|c| c[3] == 0 || c[3] == 255));
+        entity.orientation = Vec2::new(1., 0.);
+        let right = model
+            .sprite_isometric(&entity, &assets, "walk", 0., 0., None)
+            .unwrap();
+        assert_ne!(first, right);
+        assert_eq!(
+            model.sprite(&entity, &assets, "walk", 0.).unwrap().len(),
+            SPRITE_SIZE * SPRITE_SIZE * 4
+        );
+    }
     #[test]
     fn looping_2d_pose_reuses_the_same_sprite_across_non_aligned_clip_cycles() {
         let (assets, original, mut entity) = fixture();

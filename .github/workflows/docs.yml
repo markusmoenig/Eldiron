@@ -67,7 +67,11 @@ jobs:
 
       - name: Build web client
         working-directory: clients/client
-        run: cargo run-wasm --release --package eldiron-client --bin eldiron-client --build-only
+        # cargo-run-wasm can return success after its child Cargo build fails.
+        # Compile explicitly first so the job fails at the actual Rust error.
+        run: |
+          cargo build --locked --release --target wasm32-unknown-unknown --target-dir ../../target/wasm-examples-target --package eldiron-client --bin eldiron-client
+          cargo run-wasm --release --package eldiron-client --bin eldiron-client --build-only
 
       - name: Stage web client and games
         run: npm run stage:web-games

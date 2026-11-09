@@ -39,6 +39,7 @@ pub struct Rusterix {
     pub orthographic_bake: OrthographicBakeController,
     orthographic_bake_work_pixels: Vec<u8>,
     orthographic_bake_overlay_pixels: Vec<u8>,
+    deferred_tile_textures: bool,
 }
 
 impl Default for Rusterix {
@@ -120,6 +121,7 @@ impl Rusterix {
             orthographic_bake: OrthographicBakeController::default(),
             orthographic_bake_work_pixels: Vec::new(),
             orthographic_bake_overlay_pixels: Vec::new(),
+            deferred_tile_textures: false,
         }
     }
 
@@ -386,7 +388,10 @@ impl Rusterix {
                             | PlayerCamera::D3FirstPGrid => {
                                 self.client.camera_d3 = Box::new(D3FirstPCamera::new());
                             }
-                            PlayerCamera::D2 | PlayerCamera::D2Grid => {}
+                            PlayerCamera::D2
+                            | PlayerCamera::D2Iso
+                            | PlayerCamera::D2IsoGrid
+                            | PlayerCamera::D2Grid => {}
                         }
                     }
                     break;
@@ -459,6 +464,9 @@ impl Rusterix {
 
     /// Build runtime 2D dynamic overlays (characters/items/lights) into SceneVM.
     pub fn build_dynamics_2d(&mut self, map: &Map, animation_frame: usize) {
+        if map.camera == crate::MapCamera::TwoDIso {
+            return;
+        }
         self.scene_handler.build_dynamics_2d(
             map,
             animation_frame,
@@ -474,6 +482,9 @@ impl Rusterix {
 
     /// Draw the client custom scene in 2D.
     pub fn draw_custom_d2(&mut self, map: &Map, pixels: &mut [u8], width: usize, height: usize) {
+        if map.camera != crate::MapCamera::TwoDIso {
+            self.flush_deferred_tile_textures(true);
+        }
         self.apply_runtime_render_state(map, true);
         self.client.draw_custom_d2(
             map,
@@ -487,6 +498,9 @@ impl Rusterix {
 
     /// Draw the client scene in 2D.
     pub fn draw_d2(&mut self, map: &Map, pixels: &mut [u8], width: usize, height: usize) {
+        if map.camera != crate::MapCamera::TwoDIso {
+            self.flush_deferred_tile_textures(true);
+        }
         self.apply_runtime_render_state(map, true);
         self.client.draw_d2(
             map,
@@ -512,6 +526,7 @@ impl Rusterix {
         height: usize,
         editor_neutral_background: bool,
     ) {
+        self.flush_deferred_tile_textures(true);
         // Baking uses authored sky/material state, while its dedicated path
         // pass deliberately excludes direct sun and point lights. The editor's
         // flat-lighting preview must not alter the persisted transport data.
@@ -771,6 +786,9 @@ impl Rusterix {
 
     /// Draw the client scene.
     pub fn draw_scene(&mut self, map: &Map, pixels: &mut [u8], width: usize, height: usize) {
+        if self.draw_mode == D3 || map.camera != crate::MapCamera::TwoDIso {
+            self.flush_deferred_tile_textures(true);
+        }
         match self.draw_mode {
             D2 => {
                 self.apply_runtime_render_state(map, true);
@@ -857,6 +875,7 @@ impl Rusterix {
         F: FnMut(&mut crate::client::widget::game::GameWidget, &mut SceneHandler) -> bool,
         G: FnMut(&mut crate::client::widget::game::GameWidget, &mut SceneHandler),
     {
+        self.flush_deferred_tile_textures(false);
         self.apply_runtime_render_state(map, false);
         self.scene_handler.apply_runtime_render_state_settings();
         self.scene_handler
@@ -957,6 +976,7 @@ impl Rusterix {
     /// Prepare the game scene in SceneVM for direct window presentation.
     /// This avoids CPU readback and lets a caller present with SceneVM's native window path.
     pub fn prepare_game_scene_for_present(&mut self, map: &Map, size: (u32, u32)) -> bool {
+        self.flush_deferred_tile_textures(false);
         self.apply_runtime_render_state(map, false);
         self.client
             .prepare_scenevm_direct(map, &self.assets, &mut self.scene_handler, size)
@@ -1112,6 +1132,27 @@ impl Rusterix {
         self.apply_tiles(all_tiles, editor, false);
     }
 
+    /// Native iso uses CPU textures directly. Delay the unused GPU atlas upload
+    /// until a GPU-backed camera or game view actually needs it.
+    pub fn refresh_tile_textures_cpu(&mut self, textures: IndexMap<Uuid, Tile>) {
+        let updates: IndexMap<_, _> = textures
+            .into_iter()
+            .filter(|(id, tile)| self.assets.tiles.get(id) != Some(tile))
+            .collect();
+        if updates.is_empty() {
+            return;
+        }
+        self.assets.sync_tile_textures(updates);
+        self.deferred_tile_textures = true;
+    }
+
+    fn flush_deferred_tile_textures(&mut self, editor: bool) {
+        if self.deferred_tile_textures {
+            self.scene_handler.build_atlas(&self.assets.tiles, editor);
+            self.deferred_tile_textures = false;
+        }
+    }
+
     fn tiles_with_palette(&self, textures: IndexMap<Uuid, Tile>) -> IndexMap<Uuid, Tile> {
         let mut all_tiles = textures;
         for (id, tile) in &self.assets.palette_tile_overrides {
@@ -1143,33 +1184,11 @@ impl Rusterix {
             }
         }
 
-        // Wall defaults use direct colors so their geometry is readable before the user assigns
-        // project palette entries or materials. Register these independently of map discovery;
-        // incremental wall creation may build geometry before a map-wide source scan occurs.
-        for rgba in [
-            [104_u8, 94, 80, 255],
-            [123, 108, 86, 255],
-            [83, 82, 78, 255],
-            [52, 49, 44, 255],
-        ] {
-            let color = TheColor::new(
-                rgba[0] as f32 / 255.0,
-                rgba[1] as f32 / 255.0,
-                rgba[2] as f32 / 255.0,
-                1.0,
-            );
-            let tile_id = PixelSource::color_tile_uuid(&color);
-            all_tiles.entry(tile_id).or_insert_with(|| {
-                let mut tile = Tile::from_texture(Texture::from_color(rgba));
-                tile.id = tile_id;
-                tile
-            });
-        }
-
         all_tiles
     }
 
     fn apply_tiles(&mut self, all_tiles: IndexMap<Uuid, Tile>, editor: bool, clear_scene: bool) {
+        self.deferred_tile_textures = false;
         self.scene_handler.build_atlas(&all_tiles, editor);
         self.scene_handler
             .sync_prefab_particle_sprites(&self.assets.block_props);
@@ -1328,6 +1347,35 @@ mod bake_overlay_tests {
                 }
             }
         }
+        let mut updated = renderer.assets.tiles[&id].clone();
+        updated.textures[0].fill([0, 0, 255, 255]);
+        renderer.refresh_tile_textures_cpu(IndexMap::from([(id, updated)]));
+        assert!(renderer.deferred_tile_textures);
+        assert_eq!(renderer.assets.tile_index(&id), index);
+        assert_eq!(
+            &renderer.assets.tile_list[index.unwrap() as usize].textures[0].data[..4],
+            &[0, 0, 255, 255]
+        );
+        let mut iso = Map::default();
+        iso.camera = crate::MapCamera::TwoDIso;
+        renderer.draw_d2(&iso, &mut pixels, 16, 8);
+        assert!(
+            renderer.deferred_tile_textures,
+            "CPU iso must not rebuild the GPU atlas"
+        );
+        renderer.flush_deferred_tile_textures(false);
+        assert!(!renderer.deferred_tile_textures);
+        let stats = renderer.scene_handler.vm.active_vm().debug_stats();
+        assert_eq!(stats.chunks, 1);
+        assert_eq!(stats.polys3d, 1);
+        renderer.scene_handler.vm.render_frame(&mut pixels, 16, 8);
+        assert!(
+            pixels
+                .chunks_exact(4)
+                .take(8)
+                .all(|p| p[2] > 200 && p[0] < 10),
+            "GPU cameras must receive the deferred pixels"
+        );
     }
 
     #[test]

@@ -14,21 +14,6 @@ const TILED_FACE_RENDER_NUDGE: f32 = 0.0015;
 pub struct GeometryObjectBuilder;
 
 impl GeometryObjectBuilder {
-    fn hidden_editor_wall_surface(map: &Map, object: &crate::GeometryObject) -> bool {
-        let kind = object
-            .properties
-            .get_str_default("wall_area_surface_kind", String::new());
-        match kind.as_str() {
-            "floor" => map
-                .properties
-                .get_bool_default("preview_hide_wall_floors", false),
-            "ceiling" => map
-                .properties
-                .get_bool_default("preview_hide_wall_ceilings", false),
-            _ => false,
-        }
-    }
-
     fn paint_surface_id(object_id: Uuid, face_id: Uuid) -> [u32; 4] {
         // A face UUID is persistent within its object. Mix in the object UUID so duplicated
         // objects do not accidentally share one paint surface.
@@ -1021,6 +1006,9 @@ impl ChunkBuilder for GeometryObjectBuilder {
         chunk: &mut Chunk,
         vmchunk: &mut scenevm::Chunk,
     ) {
+        // The active geometry editor shares landscape generation with the
+        // sector builder; sculpted hills are not a camera-specific overlay.
+        super::d3chunkbuilder::generate_terrain(map, assets, chunk, vmchunk, 0);
         let resolved_block_props =
             crate::resolve_block_prop_geometry(&map.block_prop_instances, &assets.block_props);
         for object in map
@@ -1028,9 +1016,6 @@ impl ChunkBuilder for GeometryObjectBuilder {
             .iter()
             .chain(resolved_block_props.geometry_objects.iter())
         {
-            if Self::hidden_editor_wall_surface(map, object) {
-                continue;
-            }
             let paint_object_id = Self::paint_source_object_id(object);
             // Build hidden objects too so scripts can later reveal 3D geometry
             // through the controlling area's `visible` attribute.
@@ -1176,9 +1161,6 @@ impl ChunkBuilder for GeometryObjectBuilder {
             .iter()
             .chain(resolved_block_props.geometry_objects.iter())
         {
-            if Self::hidden_editor_wall_surface(map, object) {
-                continue;
-            }
             if !object.solid {
                 continue;
             }
@@ -1265,6 +1247,14 @@ impl ChunkBuilder for GeometryObjectBuilder {
             }
         }
 
+        super::d3chunkbuilder::add_terrain_collision(
+            map,
+            assets,
+            chunk_origin,
+            chunk_size,
+            &chunk_bbox,
+            &mut collision,
+        );
         collision
     }
 
@@ -1276,32 +1266,6 @@ impl ChunkBuilder for GeometryObjectBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn preview_hides_only_the_requested_surface_kind() {
-        let mut map = Map::default();
-        let mut floor = crate::GeometryObject::new("Floor");
-        floor
-            .properties
-            .set("wall_area_surface_kind", crate::Value::Str("floor".into()));
-        let mut ceiling = crate::GeometryObject::new("Ceiling");
-        ceiling.properties.set(
-            "wall_area_surface_kind",
-            crate::Value::Str("ceiling".into()),
-        );
-        map.properties
-            .set("preview_hide_wall_ceilings", crate::Value::Bool(true));
-        assert!(!GeometryObjectBuilder::hidden_editor_wall_surface(
-            &map, &floor
-        ));
-        assert!(GeometryObjectBuilder::hidden_editor_wall_surface(
-            &map, &ceiling
-        ));
-        map.properties.remove("preview_hide_wall_ceilings");
-        assert!(!GeometryObjectBuilder::hidden_editor_wall_surface(
-            &map, &ceiling
-        ));
-    }
 
     fn shading_test_face(indices: Vec<usize>, smoothing_group: u32) -> crate::GeometryFace {
         crate::GeometryFace {

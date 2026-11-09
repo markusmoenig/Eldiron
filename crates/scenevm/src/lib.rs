@@ -10,6 +10,7 @@ pub mod chunk;
 pub mod core;
 pub mod dynamic;
 pub mod intodata;
+pub mod isometric;
 pub mod light;
 pub mod line3d;
 #[cfg(all(feature = "ui", not(target_arch = "wasm32")))]
@@ -576,12 +577,19 @@ pub fn set_render_debug_enabled(enabled: bool) {
     let _ = enabled;
 }
 
-#[cfg(all(feature = "gpu", not(target_arch = "wasm32")))]
+#[cfg(feature = "gpu")]
 pub(crate) fn render_debug_enabled() -> bool {
-    RENDER_DEBUG_OVERRIDE.load(std::sync::atomic::Ordering::Relaxed)
-        || std::env::var("ELDIRON_RENDER_DEBUG")
-            .map(|v| v != "0")
-            .unwrap_or(false)
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        RENDER_DEBUG_OVERRIDE.load(std::sync::atomic::Ordering::Relaxed)
+            || std::env::var("ELDIRON_RENDER_DEBUG")
+                .map(|v| v != "0")
+                .unwrap_or(false)
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        false
+    }
 }
 
 #[cfg(all(feature = "gpu", not(target_arch = "wasm32")))]
@@ -1121,6 +1129,7 @@ pub struct SceneVM {
     compositing_pipeline: Option<CompositingPipeline>,
     rgba_overlay_pipeline: Option<RgbaOverlayCompositingPipeline>,
     rgba_overlay: Option<RgbaOverlayState>,
+    isometric_pass: Option<isometric::Pass>,
 }
 
 /// Result of shader compilation with detailed diagnostics
@@ -1904,6 +1913,7 @@ impl SceneVM {
                 compositing_pipeline: None,
                 rgba_overlay_pipeline: None,
                 rgba_overlay: None,
+                isometric_pass: None,
             };
             this.refresh_layer_metadata();
             this
@@ -1967,6 +1977,7 @@ impl SceneVM {
                 compositing_pipeline: None,
                 rgba_overlay_pipeline: None,
                 rgba_overlay: None,
+                isometric_pass: None,
             };
             this.refresh_layer_metadata();
             this
@@ -2070,6 +2081,7 @@ impl SceneVM {
             compositing_pipeline: None,
             rgba_overlay_pipeline: None,
             rgba_overlay: None,
+            isometric_pass: None,
         };
         this.refresh_layer_metadata();
         this
@@ -2173,6 +2185,7 @@ impl SceneVM {
             compositing_pipeline: None,
             rgba_overlay_pipeline: None,
             rgba_overlay: None,
+            isometric_pass: None,
         };
         this.refresh_layer_metadata();
         this

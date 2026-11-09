@@ -55,6 +55,11 @@ impl EditCamera {
         );
         view_switch.add_text_status_icon(
             String::new(),
+            fl!("tooltip_camera_2d_iso"),
+            "camera_2d_iso".into(),
+        );
+        view_switch.add_text_status_icon(
+            String::new(),
             fl!("tooltip_camera_orbit"),
             "perspective".to_string(),
         );
@@ -68,8 +73,14 @@ impl EditCamera {
             fl!("tooltip_camera_firstp"),
             "camera".to_string(),
         );
-        view_switch.set_item_width(30);
-        view_switch.set_index(server_ctx.editor_view_mode.to_index());
+        view_switch.set_item_width(32);
+        view_switch.set_index(
+            server_ctx.editor_view_mode.toolbar_index(
+                _project
+                    .get_map(server_ctx)
+                    .map_or(rusterix::MapCamera::TwoD, |m| m.camera),
+            ),
+        );
         layout.add_widget(Box::new(view_switch));
 
         let mut fill = TheSlider::new(TheId::named("Editor Fill Light"));

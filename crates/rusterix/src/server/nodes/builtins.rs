@@ -679,6 +679,8 @@ impl NodeModule for PlayerCameraModule {
             "firstp",
             "firstp_grid",
             "firstp_mouse",
+            "2d_iso",
+            "2d_iso_grid",
         ]
         .get(selected as usize)
         .ok_or("Invalid camera selection")?;

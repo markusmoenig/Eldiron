@@ -1470,6 +1470,8 @@ impl<'a> HostHandler for RegionHost<'a> {
                     if let Some(camera) = args.get(0).and_then(|v| v.as_string()) {
                         let player_camera = match camera {
                             "2d_grid" => PlayerCamera::D2Grid,
+                            "2d_iso" => PlayerCamera::D2Iso,
+                            "2d_iso_grid" => PlayerCamera::D2IsoGrid,
                             "iso" => PlayerCamera::D3Iso,
                             "iso_grid" => PlayerCamera::D2Grid,
                             "firstp" => PlayerCamera::D3FirstP,

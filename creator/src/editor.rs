@@ -6,13 +6,13 @@ mod benchmark_stress;
 #[cfg(not(target_arch = "wasm32"))]
 mod scepter_authoring;
 #[cfg(not(target_arch = "wasm32"))]
-mod scepter_map;
-#[cfg(not(target_arch = "wasm32"))]
 mod scepter_context;
 #[cfg(not(target_arch = "wasm32"))]
-pub(crate) mod scepter_staging;
+mod scepter_map;
 #[cfg(not(target_arch = "wasm32"))]
 mod scepter_preview;
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) mod scepter_staging;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::scepter::{ScepterEvent, ScepterRegionRequest, ScepterService};
 #[cfg(all(
@@ -237,6 +237,14 @@ pub(crate) fn register_compact_navigation_icons(ctx: &mut TheContext) {
 }
 
 fn register_compact_navigation_icons_with_color(ctx: &mut TheContext, color: RGBA) {
+    // Two flat tile layers fill the icon and keep its visual center at (128,128).
+    ctx.ui.add_icon(
+        "camera_2d_iso".into(),
+        rasterize_svg_path_icon(
+            "M128 32L240 88L128 144L16 88ZM128 54L60 88L128 122L196 88ZM72 60L184 116L176 128L64 72ZM184 60L192 72L80 128L72 116ZM16 144L128 200L240 144V168L128 224L16 168Z",
+            18, 256., color,
+        ),
+    );
     for (name, path) in COMPACT_NAVIGATION_ICON_PATHS {
         ctx.ui.add_icon(
             name.to_string(),
@@ -310,6 +318,29 @@ pub static RUSTERIX: LazyLock<RwLock<Rusterix>> =
 #[cfg(test)]
 mod toolbar_icon_theme_tests {
     use super::*;
+    #[test]
+    #[ignore = "exports a local camera icon review image"]
+    fn iso_camera_toolbar_review() {
+        let mut ctx = TheContext::new(32, 20, 1.);
+        register_compact_navigation_icons_with_color(&mut ctx, [255, 255, 255, 255]);
+        let mut button = TheGroupButton::new(TheId::named("Iso camera"));
+        button.add_text_status_icon(String::new(), String::new(), "camera_2d_iso".into());
+        button.set_item_width(32);
+        button.set_dim(TheDim::sized(32, 20), &mut ctx);
+        let mut buffer = TheRGBABuffer::new(TheDim::sized(32, 20));
+        let mut style: Box<dyn TheStyle> = Box::new(TheClassicStyle::new());
+        button.draw(&mut buffer, &mut style, &mut ctx);
+        if let Some(root) = std::env::var_os("ELDIRON_ICON_REVIEW") {
+            let root = std::path::PathBuf::from(root);
+            std::fs::create_dir_all(&root).unwrap();
+            std::fs::write(
+                root.join("iso-camera-icon.png"),
+                buffer.scaled(256, 160).to_png().unwrap(),
+            )
+            .unwrap();
+        }
+    }
+
     #[test]
     fn framework_file_and_undo_icons_follow_theme_switches() {
         let mut ctx = TheContext::new(100, 100, 1.);
@@ -4631,6 +4662,24 @@ impl Editor {
         String::from_utf8(bytes).ok()
     }
 
+    fn default_material_bakes() -> Option<&'static Project> {
+        static DEFAULT_BAKES: std::sync::OnceLock<Option<Project>> = std::sync::OnceLock::new();
+        DEFAULT_BAKES
+            .get_or_init(|| {
+                crate::Embedded::get("materials/default-bakes.eldiron")
+                    .and_then(|bytes| shared::project_io::decode_project(bytes.data.as_ref()).ok())
+            })
+            .as_ref()
+    }
+
+    fn seed_default_material_bakes(project: &mut Project) {
+        if let Some(cache) = Self::default_material_bakes() {
+            if let Err(error) = shared::ruleset_materials::seed_bakes(project, cache) {
+                eprintln!("Default material cache: {error}");
+            }
+        }
+    }
+
     fn load_project_from_bytes(bytes: &[u8]) -> Result<Project, String> {
         let mut profile = crate::misc::FrameProfile::new();
         let mut loaded = shared::project_io::decode_project(bytes)?;
@@ -4638,6 +4687,7 @@ impl Editor {
         loaded.migrate_default_ruleset();
         loaded.migrate_button_commands();
         profile.lap("load_config");
+        Self::seed_default_material_bakes(&mut loaded);
         let _ = loaded.sync_ruleset_items();
         profile.lap("load_ruleset_items");
         loaded.palette.current_index = 0;
@@ -4700,16 +4750,8 @@ impl Editor {
         {
             project.authoring = source.to_string();
         }
-        static DEFAULT_BAKES: std::sync::OnceLock<Option<Project>> = std::sync::OnceLock::new();
-        let cache = DEFAULT_BAKES.get_or_init(|| {
-            crate::Embedded::get("materials/default-bakes.eldiron")
-                .and_then(|bytes| shared::project_io::decode_project(bytes.data.as_ref()).ok())
-        });
-        if let Some(cache) = cache {
-            if let Err(error) = shared::ruleset_materials::seed_bakes(&mut project, cache) {
-                eprintln!("Default material cache: {error}");
-            }
-        }
+        let cache = Self::default_material_bakes();
+        Self::seed_default_material_bakes(&mut project);
         let _ = project.sync_ruleset_items();
         if let Err(error) = crate::procedural_material::starters::install(&mut project) {
             eprintln!("Starter materials: {error}");
@@ -4750,8 +4792,8 @@ impl Editor {
         manifest
             .example
             .into_iter()
-            // Older deployed catalogs still advertise the retired downloadable starter.
-            .filter(|entry| entry.id != "starter-3d")
+            // Older deployed catalogs may still advertise retired examples.
+            .filter(|entry| !matches!(entry.id.as_str(), "starter-3d" | "cellar"))
             .map(|entry| ExampleProjectEntry {
                 id: Uuid::new_v4(),
                 preview: entry
@@ -4772,7 +4814,7 @@ impl Editor {
         Self::decode_png_tile(bytes)
     }
 
-    fn decode_png_tile(bytes: Vec<u8>) -> Option<TheRGBATile> {
+    pub(crate) fn decode_png_tile(bytes: Vec<u8>) -> Option<TheRGBATile> {
         let mut decoder = png::Decoder::new(std::io::Cursor::new(bytes));
         decoder.set_transformations(png::Transformations::normalize_to_color8());
         let mut reader = decoder.read_info().ok()?;
@@ -5027,7 +5069,7 @@ impl Editor {
         self.example_loader_rx = None;
         self.example_project_loader_rx = None;
         let mut dialog = TheCanvas::new();
-        dialog.limiter_mut().set_max_size(Vec2::new(360, 232));
+        dialog.limiter_mut().set_max_size(Vec2::new(360, 268));
         let mut choices = TheVLayout::new(TheId::named("Project Chooser"));
         choices.set_margin(Vec4::new(16, 16, 16, 16));
         choices.set_padding(8);
@@ -5038,6 +5080,7 @@ impl Editor {
         choices.add_widget(Box::new(intro));
         for (id, text) in [
             ("New Project 2D", fl!("project_new_2d")),
+            ("New Project 2D Iso", fl!("project_new_2d_iso")),
             ("New Project 3D", fl!("project_new_3d")),
             ("Browse Examples", fl!("project_browse_examples")),
             ("Chooser Open Project", fl!("project_open_existing")),
@@ -5444,14 +5487,16 @@ impl Editor {
             .get_region(&self.server_ctx.curr_region)
             .map(|region| match region.map.camera {
                 MapCamera::TwoD => 0,
-                MapCamera::ThreeDIso => 2,
-                MapCamera::ThreeDFirstPerson => 3,
+                MapCamera::TwoDIso => 1,
+                MapCamera::ThreeDIso => 3,
+                MapCamera::ThreeDFirstPerson => 4,
             })
             .unwrap_or(0);
-        self.server_ctx.editor_view_mode = EditorViewMode::from_index(restored_view_index);
+        self.server_ctx.editor_view_mode = EditorViewMode::from_toolbar_index(restored_view_index);
         let restored_camera_command_id = match restored_view_index {
-            2 => "camera.isometric",
-            3 => "camera.first_person",
+            1 => "camera.2d_iso",
+            3 => "camera.isometric",
+            4 => "camera.first_person",
             _ => "camera.editing",
         };
 
@@ -6318,7 +6363,7 @@ impl Editor {
                     "primary_2d_surface_source_key": "source",
                     "coordinate_system": "2D origin uses x right, negative y up, positive y down",
                     "ceiling_source": "screen/button selected-state legacy usage; not current 2D map authoring",
-                    "terrain": "deprecated in current form; defer Scepter terrain commands until the replacement terrain system exists",
+                    "terrain": "Use the shared Terrain brush to raise, lower or smooth terrain in the editor; dedicated Scepter sculpt commands are not exposed",
                 },
                 "vertices": vertices,
                 "linedefs": linedefs,
@@ -6802,7 +6847,7 @@ impl Editor {
                     "primary_2d_surface_source_key": "source",
                     "coordinate_system": "2D origin uses x right, negative y up, positive y down",
                     "ceiling_source": "screen/button selected-state legacy usage; not current 2D map authoring",
-                    "terrain": "deprecated in current form; defer Scepter terrain commands until the replacement terrain system exists",
+                    "terrain": "Use the shared Terrain brush to raise, lower or smooth terrain in the editor; dedicated Scepter sculpt commands are not exposed",
                 },
             },
         })
@@ -8018,7 +8063,7 @@ impl TheTrait for Editor {
         #[cfg(not(target_arch = "wasm32"))]
         {
             let (service, receiver) = ScepterService::start();
-            self.scepter_sender=service.sender();
+            self.scepter_sender = service.sender();
             self.scepter_receiver = Some(receiver);
             println!("{}", service.status_line());
         }
@@ -8659,7 +8704,7 @@ impl TheTrait for Editor {
             .update(ui, ctx, &mut self.project, &mut self.server_ctx);
         profile.lap("materials");
         #[cfg(not(target_arch = "wasm32"))]
-        self.scepter_observe(false,ui);
+        self.scepter_observe(false, ui);
 
         #[cfg(not(target_arch = "wasm32"))]
         let mut scepter_events = Vec::new();
@@ -8672,7 +8717,9 @@ impl TheTrait for Editor {
         #[cfg(not(target_arch = "wasm32"))]
         for event in scepter_events {
             match event {
-                ScepterEvent::PreparedEdit(edit) => {redraw |= self.scepter_finish_staged(edit,ui,ctx);}
+                ScepterEvent::PreparedEdit(edit) => {
+                    redraw |= self.scepter_finish_staged(edit, ui, ctx);
+                }
                 ScepterEvent::Execute { request, job } => {
                     if job.begin() {
                         let mutation = request.command.is_mutation();
@@ -9035,7 +9082,22 @@ impl TheTrait for Editor {
 
         profile.lap("tick");
         if redraw_update && !self.project.regions.is_empty() {
-            SCENEMANAGER.write().unwrap().tick_batch(8);
+            // Native iso draws authored terrain and sprites directly. Building
+            // hidden SceneVM 2D/3D chunks here blocks every paint commit.
+            // SceneManager updates are immediate; pending chunks remain available
+            // when the artist switches to a camera that uses them.
+            let sprite_iso = !self.server_ctx.game_mode
+                && self.server_ctx.editor_view_mode == EditorViewMode::D2
+                && self.server_ctx.editing_surface.is_none()
+                && self
+                    .project
+                    .get_map(&self.server_ctx)
+                    .is_some_and(|map| map.camera == MapCamera::TwoDIso);
+            if !sprite_iso {
+                SCENEMANAGER.write().unwrap().tick_batch(8);
+            } else {
+                self.server_ctx.background_progress = None;
+            }
 
             self.build_values.set(
                 "no_rect_geo",
@@ -9220,6 +9282,14 @@ impl TheTrait for Editor {
                 buffer.resize(dim.width, dim.height);
 
                 {
+                    if let Some(region) = self.project.get_region_mut(&self.server_ctx.curr_region)
+                    {
+                        shared::iso_paint_terrain::sync(
+                            &mut RUSTERIX.write().unwrap().assets,
+                            region.map.id,
+                            &mut region.iso_paint,
+                        );
+                    }
                     for paint in self.project.block_prop_paint.values_mut() {
                         paint.ensure_baked_paint_current();
                     }
@@ -10593,13 +10663,13 @@ impl TheTrait for Editor {
                         redraw = true;
                     } else if id.name == "GameInput" {
                         self.server_ctx.game_input_mode = state == TheWidgetState::Clicked;
-                    } else if matches!(id.name.as_str(), "New Project 2D" | "New Project 3D")
+                    } else if matches!(id.name.as_str(), "New Project 2D" | "New Project 2D Iso" | "New Project 3D")
                         && state == TheWidgetState::Clicked
                     {
-                        let dimension = if id.name == "New Project 3D" {
-                            crate::project_templates::ProjectDimension::ThreeD
-                        } else {
-                            crate::project_templates::ProjectDimension::TwoD
+                        let dimension = match id.name.as_str() {
+                            "New Project 3D" => crate::project_templates::ProjectDimension::ThreeD,
+                            "New Project 2D Iso" => crate::project_templates::ProjectDimension::TwoDIso,
+                            _ => crate::project_templates::ProjectDimension::TwoD,
                         };
                         ui.clear_dialog();
                         self.open_project_as_session(
@@ -11257,7 +11327,9 @@ impl TheTrait for Editor {
                 redraw = true;
             }
         }
-        redraw |= self.geometry_editor.update(&self.project, ui, ctx);
+        redraw |= self
+            .geometry_editor
+            .update(&self.project, ui, ctx, &self.server_ctx);
         profile.lap("geometry");
         let appearance_revision = self.current_procedural_appearance_revision();
         profile.lap("appearance_keys");
@@ -11512,6 +11584,9 @@ impl TheTrait for Editor {
 }
 
 #[cfg(test)]
+mod documentation_capture;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -11551,6 +11626,25 @@ mod tests {
         );
         editor.project.config = "[ruleset]\nsource='project'\n".into();
         assert_ne!(editor.current_procedural_appearance_revision(), original);
+    }
+
+    #[test]
+    fn integration_pass_existing_projects_reuse_embedded_material_bakes() {
+        let bytes = shared::project_io::encode_project(&Project::new()).unwrap();
+        let started = std::time::Instant::now();
+        let loaded = Editor::load_project_from_bytes(&bytes).unwrap();
+        eprintln!("Existing project load: {:.2?}", started.elapsed());
+        let cached = Editor::default_material_bakes().unwrap();
+        for def in shared::ruleset_materials::definitions(&loaded.config) {
+            let id = shared::rulesets::material_asset_id(def.id);
+            assert_eq!(
+                loaded.procedural_material_cache_keys.get(&id),
+                cached.procedural_material_cache_keys.get(&id),
+                "{} must reuse its saved bake when opening a project",
+                def.id
+            );
+            assert_eq!(loaded.tiles[&id].textures, cached.tiles[&id].textures);
+        }
     }
 
     #[test]
@@ -11749,7 +11843,7 @@ mod tests {
         if std::env::var("ELDIRON_BENCH_VIEW").is_ok_and(|v| v == "3d") {
             ctx.ui.send(TheEvent::IndexChanged(
                 TheId::named("Editor View Switch"),
-                2,
+                3,
             ));
         }
         ui.canvas.layout(1600, 1000, &mut ctx);
@@ -11820,6 +11914,77 @@ mod tests {
             "Creator load first_10_frames={:.2}ms",
             stage.elapsed().as_secs_f64() * 1000.
         );
+        if std::env::var_os("ELDIRON_BENCH_RECT_PAINT").is_some() {
+            let view_id = ui.get_render_view("PolyView").unwrap().id().clone();
+            let size = {
+                let dim = *ui.get_render_view("PolyView").unwrap().dim();
+                Vec2::new(dim.width as f32, dim.height as f32)
+            };
+            editor.server_ctx.rect_compose_mode = false;
+            for (i, alias) in [
+                "MZ Iso / grass",
+                "Woodland / Winding Earth Path",
+                "MZ Iso / tree",
+            ]
+            .iter()
+            .enumerate()
+            {
+                let Some(id) = editor
+                    .project
+                    .tiles
+                    .iter()
+                    .find(|(_, tile)| tile.alias == *alias)
+                    .map(|(id, _)| *id)
+                else {
+                    continue;
+                };
+                editor.server_ctx.curr_tile_id = Some(id);
+                editor.server_ctx.curr_tile_source = Some(rusterix::TileSource::SingleTile(id));
+                let map = &mut editor.project.regions[0].map;
+                let world = Vec2::new(12.5 - i as f32, 17.5);
+                editor.server_ctx.center_map_at_grid_pos(size, world, map);
+                let h = rusterix::chunkbuilder::terrain_surface::TerrainSurface::from_map(map)
+                    .and_then(|s| s.height_at(world))
+                    .unwrap_or(0.);
+                let pixel = rusterix::isometric::Projection::editor(map, size)
+                    .screen(world, h)
+                    .map(|v| v.round() as i32);
+                let undo_revision = UNDOMANAGER.read().unwrap().revision();
+                for (phase, event) in [
+                    (
+                        "hover",
+                        Some(TheEvent::RenderViewHoverChanged(view_id.clone(), pixel)),
+                    ),
+                    (
+                        "down",
+                        Some(TheEvent::RenderViewClicked(view_id.clone(), pixel)),
+                    ),
+                    ("up", Some(TheEvent::RenderViewUp(view_id.clone(), pixel))),
+                    ("settle1", None),
+                    ("settle2", None),
+                    ("settle3", None),
+                ] {
+                    if let Some(event) = event {
+                        ctx.ui.send(event);
+                    }
+                    editor.update_tracker = crate::misc::UpdateTracker::new();
+                    let start = std::time::Instant::now();
+                    ui.update(&mut ctx);
+                    editor.update_ui(&mut ui, &mut ctx);
+                    let update = start.elapsed();
+                    ui.draw(&mut frame, &mut ctx);
+                    eprintln!(
+                        "Rect placement {alias} {phase}: update={update:.2?} total={:.2?}",
+                        start.elapsed()
+                    );
+                }
+                assert!(
+                    UNDOMANAGER.read().unwrap().revision() > undo_revision,
+                    "{alias} benchmark must commit an actual placement"
+                );
+            }
+            return;
+        }
         if let Some((materials, keys, tiles, board, palette)) = initial_materials {
             assert_eq!(
                 editor.project.procedural_materials, materials,
@@ -12204,6 +12369,7 @@ mod tests {
         use crate::project_templates::ProjectDimension;
         for (dimension, camera, map_camera) in [
             (ProjectDimension::TwoD, PlayerCamera::D2, MapCamera::TwoD),
+            (ProjectDimension::TwoDIso, PlayerCamera::D2Iso, MapCamera::TwoDIso),
             (
                 ProjectDimension::ThreeD,
                 PlayerCamera::D3Iso,
@@ -12263,7 +12429,9 @@ mod tests {
                     let bounds = cell.bounding_box(&region.map);
                     assert_eq!(bounds.size(), Vec2::new(1.0, 1.0));
                     assert!(cell.properties.get_bool_default("rect", false));
-                    assert_eq!(cell.layer, Some(1));
+                    let iso = matches!(dimension, ProjectDimension::TwoDIso);
+                    assert_eq!(cell.layer, Some(if iso {0} else {1}));
+                    if iso {assert!(cell.properties.get_bool_default("iso_walkable",false));}
                     let Some(rusterix::PixelSource::TileId(id)) =
                         cell.properties.get_default_source()
                     else {
@@ -12272,6 +12440,9 @@ mod tests {
                     let tile = &project.tiles[id];
                     assert!(!tile.blocking);
                     assert!(matches!(tile.alias.as_str(), "Grass" | "Street"));
+                    if matches!(dimension, ProjectDimension::TwoDIso) {
+                        assert!(tile.isometric.as_ref().is_some_and(|s|s.ground));
+                    }
                 }
             }
             let screen = project.screens.values().next().unwrap();
@@ -12285,10 +12456,10 @@ mod tests {
             assert_eq!(data["ui"]["role"].as_str(), Some("game"));
             assert_eq!(
                 data["camera"]["type"].as_str(),
-                Some(if matches!(dimension, ProjectDimension::ThreeD) {
-                    "iso"
-                } else {
-                    "2d"
+                Some(match dimension {
+                    ProjectDimension::ThreeD => "iso",
+                    ProjectDimension::TwoDIso => "2d_iso",
+                    ProjectDimension::TwoD => "2d",
                 })
             );
         }
@@ -12300,6 +12471,7 @@ mod tests {
         use crate::project_templates::ProjectDimension;
         for (dimension, camera) in [
             (ProjectDimension::TwoD, PlayerCamera::D2),
+            (ProjectDimension::TwoDIso, PlayerCamera::D2Iso),
             (ProjectDimension::ThreeD, PlayerCamera::D3Iso),
         ] {
             let mut project = Editor::new_project(dimension);
@@ -12349,6 +12521,7 @@ mod tests {
         assert!(ui.get_list_layout(Editor::EXAMPLE_LIST_ID).is_none());
         for id in [
             "New Project 2D",
+            "New Project 2D Iso",
             "New Project 3D",
             "Browse Examples",
             "Chooser Open Project",
@@ -12372,7 +12545,7 @@ mod tests {
     }
 
     #[test]
-    fn examples_catalog_excludes_the_retired_3d_starter() {
+    fn examples_catalog_excludes_retired_starters() {
         let manifest: ExampleProjectManifest =
             toml::from_str(include_str!("../../starters/manifest.toml")).unwrap();
         assert_eq!(manifest.example.len(), 4);
@@ -12380,7 +12553,7 @@ mod tests {
             manifest
                 .example
                 .iter()
-                .all(|entry| entry.id != "starter-3d")
+                .all(|entry| !matches!(entry.id.as_str(), "starter-3d" | "cellar"))
         );
         // Keep the published schema compatible with existing Creator releases.
         let renamed =

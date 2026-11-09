@@ -14,6 +14,8 @@ pub fn parameters(
     controls: &[Control],
     selection: &rigging::Selection,
 ) -> (Vec<MaterialNumberView>, Vec<MaterialPropertyView>) {
+    let resolved = denrim_materials::geometry::expressions::resolve(controls).ok();
+    let controls = resolved.as_deref().unwrap_or(controls);
     let categories = categories(controls);
     let selected = selection.category.min(categories.len().saturating_sub(1));
     let mut n = vec![];
@@ -55,17 +57,42 @@ pub fn parameters(
                 vec![],
             ));
         } else {
-            n.push(number(&id, &c.label, c.value, c.min, c.max));
-            p.push(property(
+            n.push(number(
                 &id,
                 &c.label,
+                c.value,
+                if c.expression.is_some() {
+                    c.value
+                } else {
+                    c.min
+                },
+                if c.expression.is_some() {
+                    c.value
+                } else {
+                    c.max
+                },
+            ));
+            p.push(property(
+                &id,
+                &if c.expression.is_some() {
+                    format!("{} (calculated)", c.label)
+                } else {
+                    c.label.clone()
+                },
                 vec![id.clone()],
                 MaterialPropertyKind::Number,
                 vec![],
             ));
         }
         if let Some(property) = p.last_mut() {
-            property.tooltip = c.help.clone();
+            property.tooltip = if let Some(expression) = &c.expression {
+                format!(
+                    "{} Calculated: {expression}. Edit in Publish controls.",
+                    c.help
+                )
+            } else {
+                c.help.clone()
+            };
         }
     }
     n.push(number("group_reset", "Reset controls", 0., 0., 2.));
@@ -125,8 +152,9 @@ pub fn edit(
     if key == "group_reset" {
         let category = categories(controls).get(selection.category).cloned();
         for c in controls {
-            if value.round() == 2.
-                || (value.round() == 1. && category.as_ref() == Some(&c.category))
+            if c.expression.is_none()
+                && (value.round() == 2.
+                    || (value.round() == 1. && category.as_ref() == Some(&c.category)))
             {
                 c.value = c.reference;
             }
@@ -140,9 +168,12 @@ pub fn edit(
         .iter_mut()
         .find(|c| c.id == id)
         .ok_or("Missing group control")?;
+    if c.expression.is_some() {
+        return Err("This value is calculated. Edit its formula in Publish controls.".into());
+    }
     if !value.is_finite() || value < c.min || value > c.max {
         return Err("Value is outside this control's range".into());
     }
-    c.value = value;
+    c.value = if c.is_integer() { value.round() } else { value };
     Ok(())
 }

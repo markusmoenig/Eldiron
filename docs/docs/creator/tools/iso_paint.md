@@ -1,9 +1,9 @@
 ---
-title: "3D Paint Tool"
+title: "Paint Tool"
 sidebar_position: 12
 ---
 
-The **3D Paint Tool** (keyboard shortcut **`I`**) paints directly onto 3D region geometry.
+The **Paint Tool** (keyboard shortcut **`I`**) paints directly onto terrain in **2D Iso** and onto region geometry in 3D views.
 
 Use it when the 3D model provides the playable structure, collision, hit testing, and lighting, but you want a more organic hand-authored surface treatment in isometric, orbit, or first-person views.
 
@@ -22,11 +22,38 @@ It is intended for:
 - color-only touchups
 - material/finish overlays on existing geometry
 
-3D Paint works in every 3D camera: isometric, orbit, and first-person. It is not available in the 2D map view.
+Paint works in **2D Iso** and in every 3D camera: isometric, orbit, and first-person.
+
+## Terrain in 2D Iso
+
+Select **Paint** while the **2D Iso** camera is active. The camera stays in 2D Iso;
+the brush outline and pointer picking follow the visible terrain, including hills.
+Choose a brush, size, opacity and project palette colors, then click or drag.
+**Erase** reveals the original MZ ground. **Pick** samples a palette color from
+painted ground. **Select** defines an area in ground X/Z coordinates for clipped
+strokes or **Fill**; **Clear Sel.** removes that constraint.
+
+Paint stays anchored to world X/Z coordinates when you raise, lower or smooth the
+landscape with the Terrain tool. It appears in the editor and during play, beneath
+characters, trees and buildings. Undo/redo and saving/reopening preserve the layer.
+Use Rect Paint/Compose for MZ materials and connected paths alongside these strokes.
+
+For organic detail, choose **Grass**, **Flowers**, or **Rocks / Rubble** and set
+material mode to **Stamp**. Click for one stamp or drag to scatter a row. Density
+controls spacing; size and rotation jitter vary the generated artwork. These
+decorative stamps share the draw order of characters, trees and buildings.
+Their ground X/Z coordinates stay fixed while height follows the current terrain,
+including raise, lower and smooth edits. Erase targets the selected stamp kind
+and keeps working after panning or zooming. Selections constrain placement and
+erasure. Stamps support undo/redo, save/reopen and play.
+
+Other organic stamp presets use the same terrain placement. Painting the surfaces
+of upright MZ props remains a 3D workflow. Material finish and lighting responses
+described below apply to 3D rendering; 2D Iso displays the generated color art.
 
 ## Toolbar
 
-The 3D Paint toolbar contains:
+The Paint toolbar contains:
 
 - **Draw / Erase / Pick / Select**: paint, remove paint, sample settings, or drag a surface-aligned rectangular selection over visible 3D surfaces
 - **Fill**: fill the active selection with the current brush, including generated and organic patterns
@@ -35,7 +62,7 @@ The 3D Paint toolbar contains:
 - **Clear All**: remove the current region's 3D Paint layer with undo support
 - **No Clip / Surface**: continue across visible 3D surfaces or constrain the whole stroke to the surface where it started
 
-Choose **Select**, then drag over a wall, floor, or other surface to create a rectangular selection.
+In 3D, choose **Select**, then drag over a wall, floor, or other surface to create a rectangular selection.
 The selection follows that surface and snaps to the current grid. Drag inside an existing selection
 to move it. While a selection is active, **Draw** and **Erase** affect only the selected area, **Fill**
 applies the current brush throughout it, and **Clear Sel.** removes the selection without removing

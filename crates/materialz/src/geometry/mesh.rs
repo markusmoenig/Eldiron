@@ -23,10 +23,13 @@ pub struct Texture {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Mesh {
     pub parts: Vec<Part>,
+    pub connectors: Vec<connectors::Connector>,
     pub rig: Option<super::rig::Rig>,
     pub attachments: Vec<super::rig::Attachment>,
     pub grip: Option<Frame>,
     pub effects: Vec<effects::EffectAttachment>,
+    /// Authored placement contour in mesh coordinates; never rendered as triangles.
+    pub footprint: Option<footprint::Shape<[f32; 3]>>,
 }
 pub fn rotate(mut p: [f32; 3], angles: [f32; 3]) -> [f32; 3] {
     for (axis, a) in angles.into_iter().enumerate() {
@@ -51,6 +54,17 @@ impl Mesh {
             }
         }
         self.effects.extend(other.effects);
+        for connector in other.connectors {
+            if let Some(old) = self.connectors.iter_mut().find(|c| c.id == connector.id) {
+                *old = connector;
+            } else {
+                self.connectors.push(connector);
+            }
+        }
+        connectors::validate(&self.connectors)?;
+        if other.footprint.is_some() {
+            self.footprint = other.footprint;
+        }
         for attachment in other.attachments {
             if let Some(target) = self.attachments.iter_mut().find(|a| a.id == attachment.id) {
                 *target = attachment;
@@ -128,6 +142,21 @@ impl Mesh {
         (lo, hi)
     }
     pub fn transform(&mut self, t: [f32; 3], r: [f32; 3], s: [f32; 3]) {
+        for connector in &mut self.connectors {
+            connector.position = rotate(std::array::from_fn(|i| connector.position[i] * s[i]), r);
+            for i in 0..3 {
+                connector.position[i] += t[i];
+            }
+            let n = rotate(std::array::from_fn(|i| connector.direction[i] / s[i]), r);
+            let len = n.iter().map(|v| v * v).sum::<f32>().sqrt();
+            connector.direction = n.map(|v| v / len);
+        }
+        if let Some(points) = &mut self.footprint {
+            for p in points.points_mut() {
+                let rotated = rotate(std::array::from_fn(|i| p[i] * s[i]), r);
+                *p = std::array::from_fn(|i| rotated[i] + t[i]);
+            }
+        }
         for effect in &mut self.effects {
             let p = rotate(
                 std::array::from_fn(|i| effect.definition.position[i] * s[i]),

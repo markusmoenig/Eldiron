@@ -50,7 +50,6 @@ pub enum HudMode {
     Prefab,
     Vertex,
     Linedef,
-    Wall,
     Sector,
     Effects,
     Rect,
@@ -395,10 +394,8 @@ impl Hud {
         if server_ctx.editor_view_mode == EditorViewMode::D2 {
             return None;
         }
-        if matches!(
-            server_ctx.curr_map_tool_type,
-            MapToolType::Linedef | MapToolType::Wall
-        ) && let Some(start) = map.curr_grid_pos_3d
+        if matches!(server_ctx.curr_map_tool_type, MapToolType::Linedef)
+            && let Some(start) = map.curr_grid_pos_3d
             && let Some(end) = server_ctx.hover_cursor_3d
         {
             let length = (end - start).magnitude();
@@ -461,27 +458,16 @@ impl Hud {
         let action_material_slots =
             crate::actions::named_geometry_hud_material_slots_for_selection(map)
                 .or_else(|| crate::actions::prefab_hud_material_slots_for_selected_instances(map))
-                .or_else(|| {
-                    (self.mode == HudMode::Wall)
-                        .then(|| crate::actions::wall_hud_material_slots(map))
-                        .flatten()
-                })
                 .or_else(|| self.active_action_material_slots(map, ctx, server_ctx))
                 .or_else(|| self.active_palette_material_slots(map, ctx, server_ctx));
         let mut icons = 0;
 
-        if server_ctx.get_map_context() == MapContext::Region
-            || (self.mode == HudMode::Wall
-                && matches!(
-                    server_ctx.get_map_context(),
-                    MapContext::Item | MapContext::Character
-                ))
-        {
+        if server_ctx.get_map_context() == MapContext::Region {
             icons = if let Some(slots) = &action_material_slots {
                 slots.len() as i32
             } else if self.mode == HudMode::Vertex {
                 0
-            } else if self.mode == HudMode::Linedef || self.mode == HudMode::Wall {
+            } else if self.mode == HudMode::Linedef {
                 0
             } else {
                 1
@@ -691,31 +677,6 @@ impl Hud {
                 }
             }
 
-            if self.mode == HudMode::Wall && crate::actions::wall_hud_material_slot_locked(map, i) {
-                let badge = (
-                    rect.x as usize + rect.width as usize - 15,
-                    rect.y as usize + 2,
-                    13,
-                    13,
-                );
-                ctx.draw
-                    .rect(buffer.pixels_mut(), &badge, stride, &panel_color);
-                ctx.draw.text_rect(
-                    buffer.pixels_mut(),
-                    &badge,
-                    stride,
-                    "N",
-                    TheFontSettings {
-                        size: 10.0,
-                        ..Default::default()
-                    },
-                    &text_color,
-                    &bg_color,
-                    TheHorizontalAlign::Center,
-                    TheVerticalAlign::Center,
-                );
-            }
-
             if i == server_ctx.selected_hud_icon_index {
                 ctx.draw.rect_outline(
                     buffer.pixels_mut(),
@@ -732,8 +693,7 @@ impl Hud {
         // Show Subdivs
         if (map.camera == MapCamera::TwoD
             || server_ctx.get_map_context() == MapContext::Screen
-            || server_ctx.editor_view_mode != EditorViewMode::D2
-            || self.mode == HudMode::Wall)
+            || server_ctx.editor_view_mode != EditorViewMode::D2)
             && self.mode != HudMode::Terrain
             && self.mode != HudMode::Rect
         {
@@ -999,14 +959,6 @@ impl Hud {
 
         for (i, rect) in self.icon_rects.iter().enumerate() {
             if rect.contains(Vec2::new(x, y)) {
-                if self.mode == HudMode::Wall
-                    && crate::actions::wall_hud_material_slot_locked(map, i as i32)
-                {
-                    ctx.ui.send(TheEvent::SetStatusText(
-                        TheId::empty(),
-                        fl!("construction_material_graph_owned"),
-                    ));
-                }
                 self.selected_icon_index = i as i32;
                 server_ctx.selected_hud_icon_index = i as i32;
                 ctx.ui.send(TheEvent::Custom(

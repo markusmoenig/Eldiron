@@ -282,7 +282,7 @@ impl TheWidget for TheDropdownMenu {
         ctx: &mut TheContext,
     ) -> TheRGBABuffer {
         let len = self.options.len();
-        let width = 142;
+        let width = self.dim.width.max(142) as usize;
 
         #[allow(clippy::implicit_saturating_sub)]
         let height = 2 + len * 20 + (if len > 1 { len - 1 } else { 0 });

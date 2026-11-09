@@ -774,10 +774,19 @@ pub fn editor_scene_full_rebuild(project: &Project, server_ctx: &ServerContext) 
 }
 
 /// Install procedural bake results without clearing or rebuilding the visible map.
-pub fn editor_scene_refresh_material_textures(project: &Project) {
+pub fn editor_scene_refresh_material_textures(project: &Project, server_ctx: &ServerContext) {
     let (tiles, indices) = {
         let mut rusterix = RUSTERIX.write().unwrap();
-        rusterix.refresh_tile_textures(project.tiles.clone(), true);
+        if server_ctx.editor_view_mode == EditorViewMode::D2
+            && server_ctx.editing_surface.is_none()
+            && project
+                .get_map(server_ctx)
+                .is_some_and(|map| map.camera == MapCamera::TwoDIso)
+        {
+            rusterix.refresh_tile_textures_cpu(project.tiles.clone());
+        } else {
+            rusterix.refresh_tile_textures(project.tiles.clone(), true);
+        }
         (
             rusterix.assets.tile_list.clone(),
             rusterix.assets.tile_indices.clone(),

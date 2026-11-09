@@ -1,0 +1,317 @@
+{
+  "version": 1,
+  "id": "barrel",
+  "label": "Barrel",
+  "rows": [
+    {
+      "id": "recipe",
+      "label": "Recipe",
+      "tiles": [
+        {
+          "id": "recipe-0",
+          "op": {
+            "type": "group",
+            "label": "Barrel",
+            "document": {
+              "version": 1,
+              "id": "barrel-construction",
+              "label": "Barrel construction",
+              "rows": [
+                {
+                  "id": "wood",
+                  "label": "Wood",
+                  "tiles": [
+                    {
+                      "id": "wood-0",
+                      "op": {
+                        "type": "material",
+                        "palette": 19,
+                        "roughness": 0.9,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "iron",
+                  "label": "Iron",
+                  "tiles": [
+                    {
+                      "id": "iron-0",
+                      "op": {
+                        "type": "material",
+                        "palette": 4,
+                        "roughness": 0.9,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "body",
+                  "label": "Body",
+                  "tiles": [
+                    {
+                      "id": "body-0",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "radius": [
+                              0.34,
+                              0.34
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.12,
+                              0
+                            ],
+                            "radius": [
+                              0.39,
+                              0.39
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.5,
+                              0
+                            ],
+                            "radius": [
+                              0.43,
+                              0.43
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.9,
+                              0
+                            ],
+                            "radius": [
+                              0.38,
+                              0.38
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              1,
+                              0
+                            ],
+                            "radius": [
+                              0.34,
+                              0.34
+                            ]
+                          }
+                        ],
+                        "segments": 12,
+                        "material": "wood"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "lower-hoop",
+                  "label": "Lower Hoop",
+                  "tiles": [
+                    {
+                      "id": "lower-hoop-0",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              0.15,
+                              0
+                            ],
+                            "radius": [
+                              0.405,
+                              0.405
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.22,
+                              0
+                            ],
+                            "radius": [
+                              0.405,
+                              0.405
+                            ]
+                          }
+                        ],
+                        "segments": 12,
+                        "material": "iron"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "upper-hoop",
+                  "label": "Upper Hoop",
+                  "tiles": [
+                    {
+                      "id": "upper-hoop-0",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              0.82,
+                              0
+                            ],
+                            "radius": [
+                              0.41,
+                              0.41
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.8899999999999999,
+                              0
+                            ],
+                            "radius": [
+                              0.41,
+                              0.41
+                            ]
+                          }
+                        ],
+                        "segments": 12,
+                        "material": "iron"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "assembly",
+                  "label": "Assembly",
+                  "tiles": [
+                    {
+                      "id": "assembly-0",
+                      "op": {
+                        "type": "assemble",
+                        "rows": [
+                          "body",
+                          "lower-hoop",
+                          "upper-hoop"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "assembly",
+              "grip": null
+            },
+            "controls": [
+              {
+                "id": "width",
+                "label": "Width (m)",
+                "category": "Dimensions",
+                "help": "Overall size; the base remains on the ground.",
+                "order": 0,
+                "value": 0.86,
+                "reference": 0.86,
+                "min": 0.02,
+                "max": 10.0,
+                "modifiers": [
+                  {
+                    "type": "fit_axis",
+                    "axis": 0
+                  }
+                ]
+              },
+              {
+                "id": "height",
+                "label": "Height (m)",
+                "category": "Dimensions",
+                "help": "Overall size; the base remains on the ground.",
+                "order": 1,
+                "value": 1,
+                "reference": 1,
+                "min": 0.02,
+                "max": 10.0,
+                "modifiers": [
+                  {
+                    "type": "fit_axis",
+                    "axis": 1
+                  }
+                ]
+              },
+              {
+                "id": "depth",
+                "label": "Depth (m)",
+                "category": "Dimensions",
+                "help": "Overall size; the base remains on the ground.",
+                "order": 2,
+                "value": 0.86,
+                "reference": 0.86,
+                "min": 0.02,
+                "max": 10.0,
+                "modifiers": [
+                  {
+                    "type": "fit_axis",
+                    "axis": 2
+                  }
+                ]
+              },
+              {
+                "id": "wood",
+                "label": "Wood",
+                "category": "Materials",
+                "help": "Project palette color for these parts.",
+                "order": 0,
+                "value": 19,
+                "reference": 19,
+                "min": 0.0,
+                "max": 255.0,
+                "modifiers": [
+                  {
+                    "type": "palette",
+                    "parts": [
+                      "body"
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "hoops",
+                "label": "Hoops",
+                "category": "Materials",
+                "help": "Project palette color for these parts.",
+                "order": 1,
+                "value": 4,
+                "reference": 4,
+                "min": 0.0,
+                "max": 255.0,
+                "modifiers": [
+                  {
+                    "type": "palette",
+                    "parts": [
+                      "lower-hoop",
+                      "upper-hoop"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "recipe",
+  "grip": null
+}

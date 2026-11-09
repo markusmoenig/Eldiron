@@ -1,17 +1,19 @@
+pub mod iso_bitmap;
 pub mod appearance_assets;
 pub mod asset;
 pub mod character;
-pub mod construction_graph;
 pub mod context;
 pub mod entity_graph;
 pub mod equipment;
-pub mod graph_authoring;
 pub mod geometry_recipe;
+pub mod graph_authoring;
 pub mod interaction;
 pub mod iso_paint;
 pub mod iso_paint_brush;
 #[cfg(feature = "graphics")]
 pub mod iso_paint_render;
+pub mod iso_paint_terrain;
+pub mod isometric;
 pub mod item;
 pub mod legacy_tiles;
 pub mod material_composition;
@@ -37,7 +39,6 @@ pub mod prelude {
 
     pub use crate::asset::*;
     pub use crate::character::Character;
-    pub use crate::construction_graph::ConstructionPatternAsset;
     pub use crate::context::*;
     pub use crate::interaction::*;
     pub use crate::iso_paint::*;

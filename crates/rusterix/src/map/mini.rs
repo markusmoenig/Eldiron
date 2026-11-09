@@ -6,6 +6,7 @@ use vek::Vec2;
 /// A miniature version of the Map used for client side lighting calculations during the rasterization process and server side collision detection etc.
 #[derive(Clone)]
 pub struct MapMini {
+    pub elevation: crate::isometric::elevation::ElevationMap,
     pub offset: Vec2<f32>,
     pub grid_size: f32,
 
@@ -18,6 +19,9 @@ pub struct MapMini {
     occluded_sectors: Vec<(BBox, f32)>,
 
     pub blocked_tiles: FxHashSet<Vec2<i32>>,
+    /// Precise recipe-driven solids; these do not occupy whole grid cells.
+    pub(crate) blocked_polygons:
+        Vec<(BBox, denrim_materials::geometry::footprint::Shape<[f32; 2]>)>,
 }
 
 impl Default for MapMini {
@@ -29,6 +33,20 @@ impl Default for MapMini {
 impl MapMini {
     fn tile_center(cell: Vec2<i32>, tile_size: f32) -> Vec2<f32> {
         (cell.map(|i| i as f32) + Vec2::broadcast(0.5)) * tile_size
+    }
+
+    fn clamp_elevation(&self, from: Vec2<f32>, to: Vec2<f32>, radius: f32) -> Vec2<f32> {
+        if self.elevation.is_empty() {
+            return to;
+        }
+        let (p, _) = self.elevation.move_distance(
+            vek::Vec3::new(from.x, self.elevation.height_at(from), from.y),
+            to - from,
+            radius,
+            crate::isometric::elevation::STEP_UP,
+            crate::isometric::elevation::STEP_DOWN,
+        );
+        Vec2::new(p.x, p.z)
     }
 
     fn clamp_move_against_blocked_tiles(
@@ -73,6 +91,9 @@ impl MapMini {
 
         let from_center = Self::tile_center(from_tile, tile_size);
         let to_center = Self::tile_center(to_tile, tile_size);
+        if !self.elevation.can_reach(from_center, to_center, radius) {
+            return false;
+        }
 
         if !self.is_walkable_position(to_center, radius) {
             return false;
@@ -85,12 +106,14 @@ impl MapMini {
 
     pub fn empty() -> Self {
         Self {
+            elevation: Default::default(),
             offset: Vec2::zero(),
             grid_size: 0.0,
             linedefs: vec![],
             dynamic_linedefs: vec![],
             occluded_sectors: vec![],
             blocked_tiles: FxHashSet::default(),
+            blocked_polygons: Vec::new(),
         }
     }
 
@@ -101,12 +124,14 @@ impl MapMini {
         occluded_sectors: Vec<(BBox, f32)>,
     ) -> Self {
         Self {
+            elevation: Default::default(),
             offset,
             grid_size,
             linedefs,
             dynamic_linedefs: vec![],
             occluded_sectors,
             blocked_tiles: FxHashSet::default(),
+            blocked_polygons: Vec::new(),
         }
     }
 
@@ -321,10 +346,23 @@ impl MapMini {
         (current_pos, blocked)
     }
 
+    pub fn has_precise_footprints(&self) -> bool {
+        !self.blocked_polygons.is_empty()
+    }
+    fn inside_blocked_polygon(&self, p: Vec2<f32>) -> bool {
+        self.blocked_polygons.iter().any(|(bounds, points)| {
+            if p.x < bounds.min.x || p.x > bounds.max.x || p.y < bounds.min.y || p.y > bounds.max.y
+            {
+                return false;
+            }
+            denrim_materials::geometry::footprint::contains(points, [p.x, p.y])
+        })
+    }
+
     /// Returns true if the given position is free for a circle with `radius`.
     pub fn is_walkable_position(&self, position: Vec2<f32>, radius: f32) -> bool {
         let tile = position.map(|c| c.floor() as i32);
-        if self.blocked_tiles.contains(&tile) {
+        if self.blocked_tiles.contains(&tile) || self.inside_blocked_polygon(position) {
             return false;
         }
 
@@ -533,6 +571,9 @@ impl MapMini {
             return (from, false);
         }
 
+        let padding = (to_tile - from_tile).map(|v| v.abs()).sum().clamp(8, 64);
+        let min = from_tile.map2(to_tile, i32::min) - padding;
+        let max = from_tile.map2(to_tile, i32::max) + padding;
         // A* neighbors: 4-directional
         let successors = |pos: &Vec2<i32>| {
             let directions = [
@@ -554,6 +595,10 @@ impl MapMini {
             directions
                 .iter()
                 .map(|d| *pos + *d)
+                .filter(|p| {
+                    self.elevation.is_empty()
+                        || (p.x >= min.x && p.x <= max.x && p.y >= min.y && p.y <= max.y)
+                })
                 .filter(|p| self.can_step_between_tile_centers(*pos, *p, radius, tile_size))
                 .map(|p| (p, 1))
                 .collect::<Vec<_>>()
@@ -577,12 +622,16 @@ impl MapMini {
 
             // If within reach
             if to_vector.magnitude() <= max_distance {
-                return (target_pos, next_is_goal);
+                let resolved = self.clamp_elevation(from, target_pos, radius);
+                return (
+                    resolved,
+                    next_is_goal && (resolved - target_pos).magnitude_squared() < 1e-4,
+                );
             }
 
             let move_vector = to_vector.normalized() * max_distance;
             let (new_pos, _) = self.move_distance(from, move_vector, radius);
-            (new_pos, false)
+            (self.clamp_elevation(from, new_pos, radius), false)
         } else {
             // No path found; return unchanged
             (from, false)
@@ -609,6 +658,9 @@ impl MapMini {
 
         let start_cell = (from / tile_size).floor().as_::<i32>();
         let goal_cell = (target / tile_size).floor().as_::<i32>();
+        let padding = (goal_cell - start_cell).map(|v| v.abs()).sum().clamp(8, 64);
+        let min = start_cell.map2(goal_cell, i32::min) - padding;
+        let max = start_cell.map2(goal_cell, i32::max) + padding;
 
         if blocked.contains(&goal_cell) {
             return (from, false);
@@ -636,6 +688,10 @@ impl MapMini {
             directions
                 .iter()
                 .map(|d| *pos + *d)
+                .filter(|p| {
+                    self.elevation.is_empty()
+                        || (p.x >= min.x && p.x <= max.x && p.y >= min.y && p.y <= max.y)
+                })
                 .filter(|p| self.can_step_between_tile_centers(*pos, *p, agent_radius, tile_size))
                 .map(|p| (p, 1)) // uniform cost
                 .collect::<Vec<_>>()
@@ -668,7 +724,11 @@ impl MapMini {
                 let move_vec = to_vec.normalized() * max_step;
                 let (new_pos, _) = self.move_distance(from, move_vec, agent_radius);
 
-                (new_pos, arrived_now)
+                let resolved = self.clamp_elevation(from, new_pos, agent_radius);
+                (
+                    resolved,
+                    arrived_now && (resolved - target).magnitude() <= dest_radius + max_step,
+                )
             }
             None => (from, false), // no path
         }

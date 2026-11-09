@@ -62,9 +62,10 @@ pub fn resolve_dependencies(project: &Project, document: &Document) -> Result<Do
                     **document = visit(project, &dependency, stack, depth + 1)?;
                     stack.pop();
                 }
-                Operation::Group { document, .. } | Operation::Input { preview: document, .. } => {
-                    **document = visit(project, document, stack, depth + 1)?
-                }
+                Operation::Group { document, .. }
+                | Operation::Input {
+                    preview: document, ..
+                } => **document = visit(project, document, stack, depth + 1)?,
                 _ => {}
             }
         }

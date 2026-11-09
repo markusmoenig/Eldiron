@@ -755,6 +755,7 @@ impl ClientDrawDebugTiming {
 }
 
 pub struct Client {
+    isometric_ground: crate::isometric::GroundCache,
     /// Creator chrome only; runtime render settings remain project-owned.
     pub editor_canvas_colors: Option<[RGBA; 3]>,
     pub use_editor_canvas: bool,
@@ -1372,6 +1373,7 @@ impl Client {
     pub fn active_game_widget_camera_mode(&self) -> Option<PlayerCamera> {
         let mut found_iso = false;
         let mut found_d2 = false;
+        let mut found_iso_2d = None;
         for widget in self.game_widgets.values() {
             match widget.camera {
                 PlayerCamera::D3FirstP
@@ -1381,10 +1383,15 @@ impl Client {
                 }
                 PlayerCamera::D3Iso => found_iso = true,
                 PlayerCamera::D2 | PlayerCamera::D2Grid => found_d2 = true,
+                PlayerCamera::D2Iso | PlayerCamera::D2IsoGrid => {
+                    found_iso_2d = Some(widget.camera.clone())
+                }
             }
         }
         if found_iso {
             Some(PlayerCamera::D3Iso)
+        } else if found_iso_2d.is_some() {
+            found_iso_2d
         } else if found_d2 {
             Some(PlayerCamera::D2)
         } else {
@@ -1446,6 +1453,8 @@ impl Client {
         match camera.to_ascii_lowercase().as_str() {
             "2d" => Some(PlayerCamera::D2),
             "2d_grid" => Some(PlayerCamera::D2Grid),
+            "2d_iso" => Some(PlayerCamera::D2Iso),
+            "2d_iso_grid" => Some(PlayerCamera::D2IsoGrid),
             "iso" => Some(PlayerCamera::D3Iso),
             "iso_grid" => Some(PlayerCamera::D2Grid),
             "firstp" => Some(PlayerCamera::D3FirstP),
@@ -1456,7 +1465,10 @@ impl Client {
     }
 
     fn is_2d_camera(camera: &PlayerCamera) -> bool {
-        matches!(camera, PlayerCamera::D2 | PlayerCamera::D2Grid)
+        matches!(
+            camera,
+            PlayerCamera::D2 | PlayerCamera::D2Iso | PlayerCamera::D2IsoGrid | PlayerCamera::D2Grid
+        )
     }
 
     fn set_game_widget_camera_mode(&mut self, target: Option<&str>, camera: PlayerCamera) {
@@ -1472,6 +1484,7 @@ impl Client {
 
     pub fn new() -> Self {
         Self {
+            isometric_ground: Default::default(),
             editor_canvas_colors: None,
             use_editor_canvas: false,
             curr_map_id: Uuid::default(),
@@ -1766,6 +1779,12 @@ impl Client {
         draw_sectors: bool,
     ) {
         self.update_active_player_camera(map);
+        if map.camera == crate::MapCamera::TwoDIso {
+            self.curr_map_id = map.id;
+            // The native iso canvas doesn't consume the legacy scene's collision
+            // map. GameWidget owns its own navigation data for play.
+            return;
+        }
         self.curr_map_id = map.id;
         self.scene_d2 = self.builder_d2.build(map, assets, screen_size, values);
         self.builder_d2.build_entities_items(
@@ -1791,6 +1810,9 @@ impl Client {
         draw_sectors: bool,
     ) {
         self.update_active_player_camera(map);
+        if map.camera == crate::MapCamera::TwoDIso {
+            return;
+        }
         self.builder_d2.build_entities_items(
             map,
             assets,
@@ -1925,6 +1947,10 @@ impl Client {
         assets: &Assets,
         scene_handler: &mut SceneHandler,
     ) {
+        if map.camera == crate::MapCamera::TwoDIso {
+            self.draw_d2(map, pixels, width, height, assets, scene_handler);
+            return;
+        }
         self.scene_d2.animation_frame = self.animation_frame;
         let screen_size = Vec2::new(width as f32, height as f32);
         let translation_matrix = Mat3::<f32>::translation_2d(Vec2::new(
@@ -2044,9 +2070,42 @@ impl Client {
         pixels: &mut [u8],
         width: usize,
         height: usize,
-        _assets: &Assets,
+        assets: &Assets,
         scene_handler: &mut SceneHandler,
     ) {
+        if map.camera == crate::MapCamera::TwoDIso {
+            scene_handler.apply_runtime_render_state_settings();
+            scene_handler.settings.apply_hour(self.server_time.to_f32());
+            scene_handler.build_dynamics_2d(map, self.animation_frame, assets, &Default::default());
+            let particles = scene_handler.isometric_particles(map, assets, self.animation_frame);
+            let lighting = crate::isometric::lighting::Lighting::new(
+                &scene_handler.settings,
+                scene_handler.vm.vm.lights.values(),
+                self.animation_frame,
+            );
+            let mut buffer = TheRGBABuffer::new(TheDim::sized(width as i32, height as i32));
+            let avatars = scene_handler.isometric_avatars(map, assets, self.animation_frame);
+            if let Err(error) = crate::isometric::draw_scene_gpu_cached(
+                map,
+                assets,
+                &mut buffer,
+                crate::isometric::Projection::editor(map, Vec2::new(width as f32, height as f32)),
+                self.animation_frame as f32 * assets.animation_tick_seconds(),
+                Some(crate::isometric::EditorGuides {
+                    grid: self.builder_d2.draw_grid,
+                    hover: self.builder_d2.hover_cursor,
+                }),
+                &avatars,
+                Some(&mut self.isometric_ground),
+                &lighting,
+                &mut scene_handler.vm,
+                &particles,
+            ) {
+                eprintln!("{error}");
+            }
+            pixels.copy_from_slice(buffer.pixels());
+            return;
+        }
         pub fn map_grid_to_local(
             screen_size: Vec2<f32>,
             grid_pos: Vec2<f32>,
@@ -3487,7 +3546,6 @@ impl Client {
                 if Self::is_2d_camera(&widget.camera) {
                     let width = widget.buffer.dim().width as usize;
                     let height = widget.buffer.dim().height as usize;
-                    let pixels = widget.buffer.pixels_mut();
                     let overlay_scale = widget.upscale.max(1.0);
                     let tile_size = (widget.grid_size * overlay_scale).round() as isize;
 
@@ -3500,13 +3558,11 @@ impl Client {
                             category,
                             say_fallback_color,
                         );
-                        let sx =
-                            ((grid_pos.x - widget.top_left.x) * widget.grid_size * overlay_scale)
-                                .round() as isize;
-                        let sy =
-                            ((grid_pos.y - widget.top_left.y) * widget.grid_size * overlay_scale)
-                                .round() as isize;
+                        let screen_pos = widget.ground_to_screen(*grid_pos) * overlay_scale;
+                        let sx = screen_pos.x.round() as isize;
+                        let sy = screen_pos.y.round() as isize;
 
+                        let pixels = widget.buffer.pixels_mut();
                         let tuple = (
                             sx - *text_size as isize / 2 - 5,
                             sy - self.messages_font_size as isize - tile_size,
@@ -4212,6 +4268,11 @@ impl Client {
         let Some(widget) = self.game_widgets.values_mut().next() else {
             return false;
         };
+
+        // Isometric 2D uses the native sprite compositor and the normal widget buffer.
+        if widget.camera.is_isometric_2d() {
+            return false;
+        }
 
         // The direct SceneVM path renders only the game widget into the GPU scene.
         // Keep the widget's logical buffer size identical to the classic client path;
@@ -6319,7 +6380,15 @@ impl Client {
     }
 
     fn is_immediate_2d_intent_camera(camera: Option<PlayerCamera>, click_intents_2d: bool) -> bool {
-        matches!(camera, Some(PlayerCamera::D2 | PlayerCamera::D2Grid)) && !click_intents_2d
+        matches!(
+            camera,
+            Some(
+                PlayerCamera::D2
+                    | PlayerCamera::D2Iso
+                    | PlayerCamera::D2IsoGrid
+                    | PlayerCamera::D2Grid
+            )
+        ) && !click_intents_2d
     }
 
     fn is_immediate_2d_intent_mode(
@@ -6473,8 +6542,9 @@ impl Client {
             if Self::is_2d_camera(&widget.camera) {
                 let dx = p.x as f32 - widget.rect.x;
                 let dy = p.y as f32 - widget.rect.y;
-                let gx = widget.top_left.x + dx / widget.grid_size;
-                let gy = widget.top_left.y + dy / widget.grid_size;
+                let ground = widget.screen_to_ground(Vec2::new(dx, dy));
+                let gx = ground.x;
+                let gy = ground.y;
                 return Some(Vec2::new(gx, gy));
             }
 
@@ -6774,8 +6844,9 @@ impl Client {
                 let dy = p.y as f32 - widget.rect.y;
 
                 if Self::is_2d_camera(&widget.camera) {
-                    let gx = widget.top_left.x + dx / widget.grid_size;
-                    let gy = widget.top_left.y + dy / widget.grid_size;
+                    let ground = widget.screen_to_ground(Vec2::new(dx, dy));
+                    let gx = ground.x;
+                    let gy = ground.y;
                     let tile_pos = Self::quantize_2d_tile_pos(Vec2::new(gx, gy));
 
                     if let Some(entity) = map.entities.iter().find(|entity| {
@@ -7670,8 +7741,9 @@ impl Client {
                         let dx = p.x as f32 - widget.rect.x;
                         let dy = p.y as f32 - widget.rect.y;
 
-                        let gx = widget.top_left.x + dx / widget.grid_size;
-                        let gy = widget.top_left.y + dy / widget.grid_size;
+                        let ground = widget.screen_to_ground(Vec2::new(dx, dy));
+                        let gx = ground.x;
+                        let gy = ground.y;
 
                         let pos = Vec2::new(gx, gy);
                         let tile_pos = Self::quantize_2d_tile_pos(pos);
@@ -8221,6 +8293,11 @@ impl Client {
         // ---
 
         let is_key_down = event == "key_down";
+        self.client_action.lock().unwrap().set_isometric(
+            self.active_player_camera
+                .as_ref()
+                .is_some_and(PlayerCamera::is_isometric_2d),
+        );
         let mut action = self.client_action.lock().unwrap().user_event(event, value);
 
         if is_key_down {

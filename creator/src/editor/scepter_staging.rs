@@ -144,9 +144,6 @@ fn preserve_view(live: &Project, staged: &mut Project, selection_changed: bool) 
                         .any(|o| o.id == *id && o.faces.get(*f).is_some())
                 })
                 .collect();
-            b.selected_wall_assembly = a
-                .selected_wall_assembly
-                .filter(|id| b.wall_assembly(*id).is_some());
             b.selected_geometry_vertices = a
                 .selected_geometry_vertices
                 .iter()
@@ -157,29 +154,6 @@ fn preserve_view(live: &Project, staged: &mut Project, selection_changed: bool) 
                         .any(|o| o.id == *id && o.vertices.get(*v).is_some())
                 })
                 .collect();
-            if let Some(wall) = b.selected_wall_assembly.and_then(|id| b.wall_assembly(id)) {
-                let spans = a
-                    .selected_wall_spans
-                    .iter()
-                    .copied()
-                    .filter(|id| wall.span(*id).is_some())
-                    .collect();
-                let opening = a.selected_wall_opening.filter(|id| {
-                    wall.spans
-                        .iter()
-                        .any(|span| span.openings.iter().any(|o| o.id == *id))
-                });
-                let surface = a
-                    .selected_wall_surface
-                    .filter(|id| wall.area_surface(*id).is_some());
-                b.selected_wall_spans = spans;
-                b.selected_wall_opening = opening;
-                b.selected_wall_surface = surface;
-            } else {
-                b.selected_wall_spans.clear();
-                b.selected_wall_opening = None;
-                b.selected_wall_surface = None;
-            }
             b.selected_entity_item = a
                 .selected_entity_item
                 .filter(|id| region.characters.contains_key(id) || region.items.contains_key(id));

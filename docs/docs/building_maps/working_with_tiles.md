@@ -9,16 +9,18 @@ Tiles are reusable visual sources for Eldiron maps. They can be imported bitmaps
 animated images, or editable [procedural materials](procedural_materials). New
 projects include procedural world materials; importing a tileset is optional.
 
-You can add more tilesets to your project by clicking the **+** button in the bottom of the project tree and select **Add Tileset**.
+Choose **Add → Add Tiles…** in the project tree to load PNG artwork, then choose
+**Select in Tileset Editor** to select frames manually. **Import Tileset…** loads
+a saved Eldiron tileset instead.
 
-![Tileset](/img/screenshots/tilesets.png)
+![Current tileset editor showing a source sheet and the Single Tiles, Animation, and Add Selected controls.](/img/creator/tileset-editor.png)
 
 Tilesets are PNG images with grid based tiles of pixel art. After importing a tile set and applying the correct **Grid Size** you can select individual or multiple tiles (click and drag horizontally or vertically to select) and add them to the tile picker.
 
 Before adding the tile(s) make sure you selected the role as needed (to be able to filter and sort tiles correctly) and you can select one of two import modes:
 
-- **Single**. Add the selected tiles as individual tiles.
-- **Anim**. Add the selected tiles as one animated tile.
+- **Single Tiles**. Add the selected tiles as individual tiles.
+- **Animation**. Add the selected tiles as one animated tile.
 
 In the tile picker you can further edit tile sources and assign them to geometry. The dock toolbar contains **Copy Tile ID** for copying the selected source UUID, plus **Apply Tile** and **Clear Tile** for assigning or removing tile sources on map geometry and action material slots.
 

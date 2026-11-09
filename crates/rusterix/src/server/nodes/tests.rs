@@ -501,7 +501,6 @@ fn shipped_fixtures_carry_no_eldrin() {
     for (label, path) in [
         ("Hideout2D", "test_projects/Hideout2D.eldiron"),
         ("Gate", "test_projects/Gate.eldiron"),
-        ("Cellar", "test_projects/Cellar.eldiron"),
     ] {
         let Some(json) = read_project_json(path) else {
             continue;
@@ -547,49 +546,6 @@ fn gate_characters_are_converted_and_their_graphs_compile() {
         Registry::shared()
             .compile(document)
             .unwrap_or_else(|error| panic!("Gate character '{name}': {error}"));
-    }
-}
-
-#[test]
-fn cellar_player_graph_preserves_camera_and_respawn() {
-    let Some(project) = read_project_json("test_projects/Cellar.eldiron") else {
-        return;
-    };
-    let player = project["characters"]
-        .as_object()
-        .unwrap()
-        .values()
-        .next()
-        .unwrap();
-    let key = format!("behavior/character/{}", player["id"].as_str().unwrap());
-    let graph = &project["node_graphs"][key];
-    Registry::shared()
-        .compile(graph)
-        .expect("Cellar player graph must compile");
-    let nodes = graph["nodes"].as_array().unwrap();
-    assert!(
-        nodes
-            .iter()
-            .any(|node| node["definition"] == "respawn_character")
-    );
-    assert!(nodes.iter().any(|node| node["definition"] == "drop_items"));
-    let camera = nodes
-        .iter()
-        .find(|node| node["definition"] == "player_camera")
-        .unwrap();
-    let setting = camera["rows"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|row| row["key"] == "camera")
-        .unwrap();
-    assert_eq!(setting["value"]["Choice"]["selected"], json!(2));
-    for (key, graph) in project["node_graphs"].as_object().unwrap() {
-        if key.starts_with("behavior/item/") {
-            Registry::shared()
-                .compile(graph)
-                .unwrap_or_else(|error| panic!("Cellar item graph {key}: {error}"));
-        }
     }
 }
 

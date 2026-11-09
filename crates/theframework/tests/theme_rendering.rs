@@ -37,10 +37,11 @@ const MIGRATED_MENUS_AND_BUTTONS_HASH: u64 = 0x7723f439f70460ed;
 const MIGRATED_CONTEXT_MENU_HASH: u64 = 0x178ee60a508da471;
 const MIGRATED_SLIDER_STATES_HASH: u64 = 0xcdb3cc6e3f06f7a8;
 const MIGRATED_TIME_SLIDER_STATES_HASH: u64 = 0xd6e3da09a3b8d64b;
+// Approved after correcting straight-alpha composition of the node buffers.
 #[cfg(not(target_os = "linux"))]
-const MIGRATED_NODE_CANVAS_HASH: u64 = 0x26165750ca03396f;
+const MIGRATED_NODE_CANVAS_HASH: u64 = 0x3c4789badd02fc43;
 #[cfg(target_os = "linux")]
-const MIGRATED_NODE_CANVAS_HASH: u64 = 0xfa7a01ae4d6781fd;
+const MIGRATED_NODE_CANVAS_HASH: u64 = 0x3d2b369292d524c5;
 
 #[test]
 fn black_blue_theme_gallery_matches_snapshot() {

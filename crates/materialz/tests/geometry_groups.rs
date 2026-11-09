@@ -266,3 +266,43 @@ fn sword_handle_control_updates_the_equipment_grip() {
             .position,
     );
 }
+
+#[test]
+fn independent_dimension_controls_preserve_other_axes_and_legacy_uniform_fit() {
+    use group::{Control, Modifier};
+    let doc = Document::load(r#"{"version":1,"id":"box","label":"Box","rows":[{"id":"box","label":"Box","tiles":[{"id":"box-0","op":{"type":"box","size":[1,2,3]}}]}],"output":"box"}"#).unwrap();
+    let original = doc.evaluate().unwrap().mesh;
+    for axis in 0..3 {
+        let mut mesh = original.clone();
+        let (lo, _) = mesh.bounds();
+        let control = Control {
+            expression: None,
+            id: "dimension".into(),
+            label: "Size".into(),
+            category: "Dimensions".into(),
+            help: String::new(),
+            order: 0,
+            value: (axis + 1) as f32 * 2.,
+            reference: (axis + 1) as f32,
+            min: 0.01,
+            max: 100.,
+            modifiers: vec![Modifier::FitAxis { axis }],
+        };
+        group::apply(&mut mesh, &[control.clone()]).unwrap();
+        let (next_lo, hi) = mesh.bounds();
+        near(next_lo, lo);
+        let expected = std::array::from_fn(|k| (k + 1) as f32 * if k == axis { 2. } else { 1. });
+        near(std::array::from_fn(|k| hi[k] - next_lo[k]), expected);
+        let mut uniform = original.clone();
+        group::apply(
+            &mut uniform,
+            &[Control {
+                modifiers: vec![Modifier::FitSize { axis }],
+                ..control
+            }],
+        )
+        .unwrap();
+        let (lo, hi) = uniform.bounds();
+        near(std::array::from_fn(|k| hi[k] - lo[k]), [2., 4., 6.]);
+    }
+}

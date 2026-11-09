@@ -159,6 +159,8 @@ impl TheLayout for TheListLayout {
 
             if let Some(scroll_bar) = self.vertical_scrollbar.as_vertical_scrollbar() {
                 scroll_bar.set_total_height(total_height);
+                // Filtering can shrink the list below its previous scroll position.
+                scroll_bar.scroll_by(0);
                 self.vertical_scrollbar_visible = scroll_bar.needs_scrollbar();
             }
 

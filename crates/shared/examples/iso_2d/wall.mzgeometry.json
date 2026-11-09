@@ -1,0 +1,165 @@
+{
+  "version": 1,
+  "id": "iso-wall",
+  "label": "Iso Wall",
+  "rows": [
+    {
+      "id": "stone",
+      "label": "Stone",
+      "tiles": [
+        {
+          "id": "stone-0",
+          "op": {
+            "type": "material",
+            "palette": 7,
+            "roughness": 0.9,
+            "metallic": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "cap",
+      "label": "Cap",
+      "tiles": [
+        {
+          "id": "cap-0",
+          "op": {
+            "type": "material",
+            "palette": 6,
+            "roughness": 0.9,
+            "metallic": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "masonry",
+      "label": "Masonry",
+      "tiles": [
+        {
+          "id": "masonry-0",
+          "op": {
+            "type": "box",
+            "size": [
+              1,
+              2.4,
+              0.22
+            ]
+          }
+        },
+        {
+          "id": "masonry-1",
+          "op": {
+            "type": "assign_material",
+            "row": "stone"
+          }
+        },
+        {
+          "id": "masonry-2",
+          "op": {
+            "type": "texture",
+            "source": "experiment:wall",
+            "size": 64,
+            "axes": [
+              0,
+              1
+            ],
+            "origin": [
+              -0.5,
+              -1.2
+            ],
+            "span": [
+              1,
+              1.12
+            ]
+          }
+        },
+        {
+          "id": "masonry-3",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0,
+              1.2,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "coping",
+      "label": "Coping",
+      "tiles": [
+        {
+          "id": "coping-0",
+          "op": {
+            "type": "box",
+            "size": [
+              1.04,
+              0.15,
+              0.3
+            ]
+          }
+        },
+        {
+          "id": "coping-1",
+          "op": {
+            "type": "assign_material",
+            "row": "cap"
+          }
+        },
+        {
+          "id": "coping-2",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0,
+              2.475,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "wall",
+      "label": "Wall",
+      "tiles": [
+        {
+          "id": "wall-0",
+          "op": {
+            "type": "assemble",
+            "rows": [
+              "masonry",
+              "coping"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "wall",
+  "grip": null
+}

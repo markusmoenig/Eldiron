@@ -1,0 +1,99 @@
+{
+  "@surface": {
+    "base color": 7,
+    "emission": 1
+  },
+  "gear-colors": {
+    "color0": 18,
+    "color1": 19,
+    "color2": 21,
+    "color3": 22
+  },
+  "gear-outline": {
+    "color": 1
+  },
+  "tooth-0-colors": {
+    "color0": 18,
+    "color1": 19,
+    "color2": 21,
+    "color3": 22
+  },
+  "tooth-0-outline": {
+    "color": 1
+  },
+  "tooth-1-colors": {
+    "color0": 18,
+    "color1": 19,
+    "color2": 21,
+    "color3": 22
+  },
+  "tooth-1-outline": {
+    "color": 1
+  },
+  "tooth-2-colors": {
+    "color0": 18,
+    "color1": 19,
+    "color2": 21,
+    "color3": 22
+  },
+  "tooth-2-outline": {
+    "color": 1
+  },
+  "tooth-3-colors": {
+    "color0": 18,
+    "color1": 19,
+    "color2": 21,
+    "color3": 22
+  },
+  "tooth-3-outline": {
+    "color": 1
+  },
+  "tooth-4-colors": {
+    "color0": 18,
+    "color1": 19,
+    "color2": 21,
+    "color3": 22
+  },
+  "tooth-4-outline": {
+    "color": 1
+  },
+  "tooth-5-colors": {
+    "color0": 18,
+    "color1": 19,
+    "color2": 21,
+    "color3": 22
+  },
+  "tooth-5-outline": {
+    "color": 1
+  },
+  "tooth-6-colors": {
+    "color0": 18,
+    "color1": 19,
+    "color2": 21,
+    "color3": 22
+  },
+  "tooth-6-outline": {
+    "color": 1
+  },
+  "tooth-7-colors": {
+    "color0": 18,
+    "color1": 19,
+    "color2": 21,
+    "color3": 22
+  },
+  "tooth-7-outline": {
+    "color": 1
+  },
+  "inset-color": {
+    "color": 3
+  },
+  "inset-outline": {
+    "color": 1
+  },
+  "hub-colors": {
+    "color0": 18,
+    "color1": 19,
+    "color2": 21,
+    "color3": 22
+  }
+}

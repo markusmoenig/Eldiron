@@ -3,7 +3,6 @@ pub mod blocks;
 pub mod code;
 pub mod code_undo;
 pub mod console;
-pub mod construction;
 pub mod data;
 pub mod data_editor;
 pub mod data_undo;

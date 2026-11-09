@@ -7,10 +7,26 @@ sidebar_position: 3
 
 The *Rect* tool in action.
 
-![Rect Tool](rect_tool.png)
+![Current Rect tool with Paint and Compose modes, the Hideout map, and the Tile Picker.](/img/creator/rect-tool.png)
 
 In **Paint** mode, drawing over an existing tile replaces its source. Hold
 *Shift* while drawing to erase, and hold *Cmd/Ctrl* to draw straight lines.
+
+## Starting an Isometric Project
+
+Choose **New 2D Iso Project** in the New Project dialog. It creates editable
+grass and street cells, a player with **2d_iso** movement, and a responsive
+screen using the same camera. The editor opens with the isometric grid.
+
+## Ordinary Isometric PNG Tilesets
+
+Use **Add → Add Tiles…** to create tiles from a sprite sheet or separate PNGs.
+Choose **2D** or **2D Iso**, then **Select in Tileset Editor** or **Add All as
+Collection**. In the editor, choose frames, **Single Tiles** or **Animation**,
+and **Add Selected**. Iso ground-cell height is width / 2; tall image frames
+keep their own dimensions. **Import Tileset…** loads saved Eldiron assets. Directional views, padded image
+anchors, original artwork lighting and the playable Kenney starter are covered
+in [Adding Isometric Tiles from Images](isometric_sprite_tilesets).
 
 ## Procedural Tiles and Layered Materials
 
@@ -25,11 +41,52 @@ uneven boundary. Save a copy to the picker to paint the same composition again.
 These are layers within a material composition, not an extra stack of map sectors.
 See [Procedural Materials](procedural_materials).
 
+## Smooth Terrain in 2D Iso
+
+Use the **Terrain** tool (the hill icon) to sculpt
+directly on the map. Choose **Raise**, **Lower** or **Smooth** in its compact
+panel, then drag or hold the pointer on the ground. **Shift** temporarily lowers;
+**[ / ]** change the brush radius. The panel's minus/plus buttons adjust radius
+and strength. Each stroke creates one undo step; **Esc** cancels the active
+stroke. Lower stops at ground height zero.
+
+The circular brush follows the visible surface in top-down, 2D Iso and 3D views.
+Sculpting updates the shared terrain, keeping painted MZ paths and materials in
+place as the ground changes. Existing control vertices remain available for
+precise adjustments.
+
+For a control vertex, select a ground MZ material, then use the Vertex tool to add a control point
+(*Shift-click*) or select an existing one. In **Edit Vertex**, enable **Terrain
+control**, set **Y** to the desired height and **Influence radius** to its reach,
+then apply. Enabling the first control turns on the shared terrain system.
+
+At edit height zero, the iso grid, picking and Rect painting follow the hill.
+Paint a path and use **Compose** with **Auto road**, **Soft edge** and **Wobble**
+to connect it over the slope. The MZ material stays in world coordinates while
+the ground bends, and characters walk on the same surface that is rendered.
+Stairs, walls and upper floors remain MZ mesh parts with their own heights.
+
+For freehand detail, select **Paint** (**I**) while using the **2D Iso** camera.
+The camera stays in 2D Iso. Choose a brush, palette colors, size and opacity,
+then click or drag on the ground. The brush outline follows the hills. Paint is
+anchored to ground X/Z coordinates: raising, lowering or smoothing the terrain
+bends the painted detail with it. Undo, redo, save and reopening preserve it;
+the same paint appears when playing. Erase removes paint to reveal the MZ ground.
+Rect Paint/Compose remains available for MZ materials and connected paths.
+
+This terrain pass supports brush strokes, palette picking from painted ground,
+and selecting an area to clip or fill. To scatter organic detail, choose **Grass**,
+**Flowers**, or **Rocks / Rubble** with **Stamp** mode. Click or drag to place;
+density and jitter control the scatter. Stamps follow the terrain when sculpting,
+stay fixed in ground coordinates, and share the normal character/prop draw order.
+Erase removes the selected stamp kind, including after panning and zooming.
+Painting surfaces on upright MZ props still uses the 3D workflow.
+
 ## Blocking Tiles
 
 One important difference between 2D and 3D maps is how to create blocking areas, i.e. areas or tiles characters cannot enter. In 3D these are defined by the height of the surrounding 3D geometry, like a wall. But we do not have 3D heights in 2D maps, making it necessary to define exactly which tile is blocking and which is not.
 
-![Editing Tile Metadata](editing_tile.png)
+![Current Edit Tile Meta action with blocking, alias, gameplay tag, and material settings.](/img/creator/tile-metadata.png)
 
 We can do this with the [Edit Tile Meta](/docs/creator/actions/#edit-tile-meta) action, select **Yes / No** for the *Blocking* state (default is not blocking). Dont forget to click **Apply** if you do not have the **Automatic** mode turned on.
 
@@ -45,7 +102,9 @@ Named sectors (i.e. sectors which have a name), can be used in many different wa
 - The ```goto``` command uses pathfinding to walk an NPC character to the given destination sector.
 - When a character enters or leaves a sector, an **entered** or **left** event is send to the character with the name of the sector (allowing the character to take specific action).
 
-For example the *"Garden"* sector shown in the above screenshots (the white outlines) is used to randomly walk an **Orc** who is looking for the player. And if he killed the player and is outside the garden walks back to the garden via ```goto```, once back there he receives an **arrived** event and can resume his normal routine.
+For example, a named *"Garden"* sector can define an Orc's patrol area. Its
+Behavior Nodes can walk inside that area and return with ```goto``` after
+chasing the player. The **arrived** event can resume the patrol.
 
 ## Moving a Decorated Sector
 

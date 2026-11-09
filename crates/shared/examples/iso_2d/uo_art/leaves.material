@@ -1,0 +1,44 @@
+project 1
+result from material "surface"
+material "surface" called "Art Study / Leaves"
+  mode pbr
+  tiling raw
+  default roughness to 0.93
+  row "variation" called "Leaf Variation"
+    use "Cell Data" id "variation"
+      set "scope" to 1
+  row "leaf-shape" called "Small Oval Leaf"
+    use "Circle" id "leaf"
+      set "radius" to 0.39
+    use "Transform" id "leaf-shape-transform"
+      set "localScale" to 0.65 1
+  row "leaf-height" called "Natural Leaf Colour Variation"
+    use "Value" id "leaf-tone"
+      set "localValue" from row "variation" random.xxx mapped 0.3 to 0.95
+  row "grain" called "Scattered Leaves"
+    use "Value" id "masked-leaf"
+      input from row "leaf-shape" xyz
+      set "localValue" from row "leaf-height" xxx
+    use "Scatter" id "leaf-scatter"
+      set "cells" to 19 19
+      set "size" to 1.5 1.4
+      set "amount" to 3
+      set "variation" to 0.45
+      set "rotation" to 180
+      set "probability" to 0.91
+      set "blend" to 2
+      set "seed" to 158
+  row "color" called "Palette Surface"
+    use "Color Ramp" id "colors"
+      input from row "grain" xxx
+      set "position0" to 0.1
+      set "color0" to 0.006049 0.009721 0.001214 1
+      set "position1" to 0.35
+      set "color1" to 0.019382 0.028426 0.004025 1
+      set "position2" to 0.65
+      set "color2" to 0.088656 0.116971 0.024158 1
+      set "position3" to 0.9
+      set "color3" to 0.250158 0.296138 0.095307 1
+      set "interpolation" to 1
+  output opacity from row "grain" w
+  output base color from row "color" xyz

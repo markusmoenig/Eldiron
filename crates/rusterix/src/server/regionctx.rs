@@ -841,7 +841,12 @@ impl RegionCtx {
 
         let is_2d = matches!(
             entity.attributes.get("player_camera"),
-            Some(Value::PlayerCamera(PlayerCamera::D2 | PlayerCamera::D2Grid)) | None
+            Some(Value::PlayerCamera(
+                PlayerCamera::D2
+                    | PlayerCamera::D2Iso
+                    | PlayerCamera::D2IsoGrid
+                    | PlayerCamera::D2Grid
+            )) | None
         );
         let (show_in_2d, show_in_3d) = self.sector_show_flags(sector);
         if (is_2d && !show_in_2d) || (!is_2d && !show_in_3d) {
@@ -957,7 +962,12 @@ impl RegionCtx {
 
         let is_2d = matches!(
             entity.attributes.get("player_camera"),
-            Some(Value::PlayerCamera(PlayerCamera::D2 | PlayerCamera::D2Grid)) | None
+            Some(Value::PlayerCamera(
+                PlayerCamera::D2
+                    | PlayerCamera::D2Iso
+                    | PlayerCamera::D2IsoGrid
+                    | PlayerCamera::D2Grid
+            )) | None
         );
 
         let msg = RegionMessage::Message(

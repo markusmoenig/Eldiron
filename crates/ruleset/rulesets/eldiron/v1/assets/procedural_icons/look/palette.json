@@ -1,0 +1,30 @@
+{
+  "@surface": {
+    "base color": 7,
+    "emission": 1
+  },
+  "eye-colors": {
+    "color0": 6,
+    "color1": 7,
+    "color2": 8,
+    "color3": 9
+  },
+  "eye-outline": {
+    "color": 1
+  },
+  "iris-colors": {
+    "color0": 39,
+    "color1": 41,
+    "color2": 43,
+    "color3": 45
+  },
+  "iris-outline": {
+    "color": 1
+  },
+  "pupil-color": {
+    "color": 1
+  },
+  "glint-color": {
+    "color": 9
+  }
+}

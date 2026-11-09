@@ -20,6 +20,8 @@ mod geometry_editor;
 pub mod hud;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod i18n;
+mod iso_editor;
+mod tileset_creation;
 mod item_appearance;
 pub mod mapeditor;
 pub mod material_editor;
@@ -82,7 +84,7 @@ pub mod prelude {
     pub use crate::tools::iso_paint::IsoPaintTool;
     pub use crate::tools::linedef::LinedefTool;
     pub use crate::tools::sector::SectorTool;
-    pub use crate::tools::wall::WallTool;
+    pub use crate::tools::terrain::TerrainTool;
     // pub use crate::tools::tileset::TilesetTool;
     pub use crate::tools::vertex::VertexTool;
 

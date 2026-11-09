@@ -20,6 +20,7 @@ pub fn sync_workspace(ui: &mut TheUI, ctx: &mut TheContext) -> bool {
         .get_stack_layout("Sidebar Page Stack")
         .is_some_and(|s| s.index() == crate::procedural_material::SIDEBAR_PAGE);
     let geometry = page && ui.get_stack_layout(STACK).is_some_and(|s| s.index() == 1);
+    let material = page && ui.get_stack_layout(STACK).is_some_and(|s| s.index() == 0);
     let mut changed = false;
     if let Some(s) = ui.get_stack_layout(MAIN_STACK) {
         if s.index() != usize::from(geometry) {
@@ -37,7 +38,7 @@ pub fn sync_workspace(ui: &mut TheUI, ctx: &mut TheContext) -> bool {
         }
     }
     if let Some(s) = ui.get_stack_layout(crate::procedural_material::PREVIEW_STACK) {
-        let index = usize::from(page && !geometry);
+        let index = usize::from(material);
         if s.index() != index {
             s.set_index(index);
             changed = true;
@@ -119,7 +120,13 @@ pub(super) fn viewport_canvas() -> TheCanvas {
     mode.limiter_mut().set_max_width(160);
     header.add_widget(Box::new(mode));
     let mut camera = TheDropdownMenu::new(TheId::named("MZ Geometry Camera"));
-    for text in ["Orbit view", "Front view", "Side view", "Contour view"] {
+    for text in [
+        "Orbit view",
+        "Front view",
+        "Side view",
+        "Contour view",
+        "Isometric tile",
+    ] {
         camera.add_option(text.into());
     }
     camera.limiter_mut().set_max_width(130);
@@ -133,6 +140,12 @@ pub(super) fn viewport_canvas() -> TheCanvas {
     );
     target.set_item_width(28);
     header.add_widget(Box::new(target));
+    header.add_widget(button(
+        "MZ Edit Texture Material",
+        "Edit material",
+        "mz-color",
+        "Edit the selected Texture operation's material",
+    ));
     let mut rig = TheGroupButton::new(TheId::named("MZ Rig Overlay"));
     rig.add_text_status_icon(
         String::new(),
@@ -273,9 +286,15 @@ pub(super) fn sync_camera_options(editor: &mut GeometryEditor, ui: &mut TheUI) {
             for label in ["Orbit view", "Front view", "Side view"] {
                 menu.add_option(label.into());
             }
-            if available {
-                menu.add_option("Contour view".into());
-            }
+            menu.add_option(
+                if available {
+                    "Contour view"
+                } else {
+                    "Contour view (select a profile)"
+                }
+                .into(),
+            );
+            menu.add_option("Isometric tile".into());
             if !available && editor.camera == 3 {
                 editor.camera = 0;
             }
@@ -320,6 +339,10 @@ pub(super) fn sync_controls(editor: &GeometryEditor, ui: &mut TheUI, ctx: &mut T
         .and_then(scene::profiles)
         .is_some_and(|(_, _, parts)| editor.inspector.part < parts.len());
     for (name, enabled) in [
+        (
+            "MZ Edit Texture Material",
+            editor.selected_texture().is_some(),
+        ),
         (
             "MZ Use Ruleset Humanoid",
             has_rig

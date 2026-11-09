@@ -92,7 +92,11 @@ fn tile_override(properties: &ValueContainer, cell: [i32; 2]) -> Option<PixelSou
     }
     None
 }
-pub(crate) fn set_tile_override(properties: &mut ValueContainer, cell: [i32; 2], source: PixelSource) {
+pub(crate) fn set_tile_override(
+    properties: &mut ValueContainer,
+    cell: [i32; 2],
+    source: PixelSource,
+) {
     let key = (cell[0], cell[1]);
     if let Some(Value::TileOverrides(tiles)) = properties.get_mut("tiles")
         && tiles.contains_key(&key)
@@ -130,38 +134,7 @@ pub(crate) fn selection(map: &Map, server: &ServerContext) -> Option<MapMaterial
             .cloned();
     }
     let slot = server.selected_hud_icon_index;
-    let surface = if let Some(assembly) = map
-        .selected_wall_assembly
-        .filter(|_| server.curr_map_tool_type == MapToolType::Wall)
-    {
-        if crate::actions::wall_hud_material_slot_locked(map, slot) {
-            return None;
-        }
-        if let Some(surface) = map.selected_wall_surface {
-            if slot != 0 {
-                return None;
-            }
-            CompositionSurface::WallArea { assembly, surface }
-        } else {
-            if !(0..=5).contains(&slot) || slot != 5 && map.selected_wall_spans.len() != 1 {
-                return None;
-            }
-            CompositionSurface::WallSlot {
-                assembly,
-                span: if slot == 5 {
-                    None
-                } else {
-                    map.selected_wall_spans.first().copied()
-                },
-                opening: if slot == 4 {
-                    map.selected_wall_opening
-                } else {
-                    None
-                },
-                slot,
-            }
-        }
-    } else if !map.selected_geometry_faces.is_empty() {
+    let surface = if !map.selected_geometry_faces.is_empty() {
         if map.selected_geometry_faces.len() != 1 {
             return None;
         }
@@ -206,29 +179,7 @@ pub(crate) fn selection(map: &Map, server: &ServerContext) -> Option<MapMaterial
         surface,
     })
 }
-fn wall_selection(map: &mut Map, binding: &MapMaterialBinding) {
-    map.selected_wall_assembly = None;
-    map.selected_wall_surface = None;
-    map.selected_wall_spans.clear();
-    map.selected_wall_opening = None;
-    match binding.surface {
-        CompositionSurface::WallArea { assembly, surface } => {
-            map.selected_wall_assembly = Some(assembly);
-            map.selected_wall_surface = Some(surface);
-        }
-        CompositionSurface::WallSlot {
-            assembly,
-            span,
-            opening,
-            ..
-        } => {
-            map.selected_wall_assembly = Some(assembly);
-            map.selected_wall_spans = span.into_iter().collect();
-            map.selected_wall_opening = opening;
-        }
-        _ => {}
-    }
-}
+
 pub(crate) fn source(map: &Map, binding: &MapMaterialBinding) -> Option<PixelSource> {
     if binding.map != map.id {
         return None;
@@ -277,18 +228,6 @@ pub(crate) fn source(map: &Map, binding: &MapMaterialBinding) -> Option<PixelSou
             face.tile
                 .clone()
                 .or_else(|| face.tiles.values().next().cloned())
-        }
-        CompositionSurface::WallArea { .. } | CompositionSurface::WallSlot { .. } => {
-            let mut scoped = map.clone();
-            wall_selection(&mut scoped, binding);
-            let slot = match binding.surface {
-                CompositionSurface::WallSlot { slot, .. } => slot as usize,
-                _ => 0,
-            };
-            crate::actions::wall_hud_material_slots(&scoped)?
-                .get(slot)?
-                .source
-                .clone()
         }
     }
 }
@@ -352,60 +291,6 @@ pub(crate) fn set_source(map: &mut Map, binding: &MapMaterialBinding, id: Uuid) 
             };
             face.tile = Some(source);
             face.tiles.clear();
-        }
-        CompositionSurface::WallArea { .. } | CompositionSurface::WallSlot { .. } => {
-            let previous = (
-                map.selected_wall_assembly,
-                map.selected_wall_surface,
-                map.selected_wall_spans.clone(),
-                map.selected_wall_opening,
-            );
-            wall_selection(map, binding);
-            let slot = match binding.surface {
-                CompositionSurface::WallSlot { slot, .. } => slot,
-                _ => 0,
-            };
-            let mut server = ServerContext::default();
-            server.curr_map_tool_type = MapToolType::Wall;
-            let changed = if slot == 0
-                && map.selected_wall_surface.is_none()
-                && !crate::actions::wall_hud_material_slot_locked(map, slot)
-            {
-                // Composing the primary stone must preserve the independent
-                // variation slots (ordinary painting replaces them).
-                let changed = map
-                    .selected_wall_assembly
-                    .zip(map.selected_wall_spans.first().copied())
-                    .and_then(|(assembly, span)| {
-                        let assembly = map.wall_assembly_mut(assembly)?;
-                        let inherited = assembly.style.clone();
-                        let span = assembly.span_mut(span)?;
-                        let style = span.style_override.get_or_insert(inherited);
-                        style.stone_source = Some(source.clone());
-                        Some(())
-                    })
-                    .is_some();
-                if changed {
-                    map.rebuild_wall_geometry();
-                }
-                changed
-            } else {
-                crate::actions::apply_wall_hud_material_to_selection(
-                    map,
-                    &server,
-                    slot,
-                    Some(source),
-                )
-            };
-            (
-                map.selected_wall_assembly,
-                map.selected_wall_surface,
-                map.selected_wall_spans,
-                map.selected_wall_opening,
-            ) = previous;
-            if !changed {
-                return false;
-            }
         }
     }
     map.update_surfaces();
@@ -936,37 +821,7 @@ mod tests {
                 .is_none()
         );
     }
-    #[test]
-    fn wall_composition_changes_only_the_selected_span_slot() {
-        let (mut p, mut server, grass, road) = fixture();
-        let map = p.get_map_mut(&server).unwrap();
-        let mut wall = rusterix::WallAssembly::new("Wall");
-        wall.style.stone_source = Some(PixelSource::TileId(grass));
-        wall.style.stone_variants = vec![PixelSource::TileId(road)];
-        let a = wall.add_node(Vec3::new(0., 0., 0.));
-        let b = wall.add_node(Vec3::new(2., 0., 0.));
-        let c = wall.add_node(Vec3::new(4., 0., 0.));
-        let first = wall.add_span(a, b).unwrap();
-        let second = wall.add_span(b, c).unwrap();
-        let assembly = wall.id;
-        map.wall_assemblies.push(wall);
-        map.selected_wall_assembly = Some(assembly);
-        map.selected_wall_spans = vec![first];
-        server.curr_map_tool_type = MapToolType::Wall;
-        let binding = selection(map, &server).unwrap();
-        let id = Uuid::new_v4();
-        assert!(set_source(map, &binding, id));
-        let wall = map.wall_assembly(assembly).unwrap();
-        let style = wall.span(first).unwrap().style_override.as_ref().unwrap();
-        assert_eq!(style.stone_source, Some(PixelSource::TileId(id)));
-        assert_eq!(style.stone_variants, vec![PixelSource::TileId(road)]);
-        assert!(wall.span(second).unwrap().style_override.is_none());
-        map.selected_wall_spans = vec![second];
-        let binding = selection(map, &server).unwrap();
-        assert_eq!(source(map, &binding), Some(PixelSource::TileId(grass)));
-        map.wall_assembly_mut(assembly).unwrap().pattern_id = Some(Uuid::new_v4());
-        assert!(selection(map, &server).is_none());
-    }
+
     #[test]
     fn rect_geometry_tile_composition_preserves_face_and_neighbour_cells() {
         let (mut p, mut server, grass, road) = fixture();

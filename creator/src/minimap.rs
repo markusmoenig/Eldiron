@@ -34,6 +34,7 @@ fn minimap_context_key(server_ctx: &ServerContext) -> u64 {
 }
 
 fn hash_minimap_map_state(map: &Map, hasher: &mut DefaultHasher) {
+    std::mem::discriminant(&map.camera).hash(hasher);
     map.changed.hash(hasher);
     map.geometry_objects.len().hash(hasher);
     map.selected_linedefs.hash(hasher);
@@ -53,6 +54,184 @@ pub fn minimap_bbox_for_map(map: &Map) -> Option<Vec4<f32>> {
     size.x = size.x.max(1.0);
     size.y = size.y.max(1.0);
     Some(Vec4::new(min.x, min.y, size.x, size.y))
+}
+
+fn isometric_minimap_bbox(map: &Map, assets: &rusterix::Assets, size: Vec2<f32>) -> Vec4<f32> {
+    let projection = rusterix::isometric::Projection {
+        origin: Vec2::zero(),
+        unit: 1.,
+    };
+    let terrain = rusterix::chunkbuilder::terrain_surface::TerrainSurface::cached(map);
+    let world = terrain.as_ref().map_or_else(|| map.bbox(), |t| t.bounds);
+    let corners = [
+        world.min,
+        Vec2::new(world.max.x, world.min.y),
+        world.max,
+        Vec2::new(world.min.x, world.max.y),
+    ];
+    let mut min = Vec2::broadcast(f32::INFINITY);
+    let mut max = Vec2::broadcast(f32::NEG_INFINITY);
+    let mut include = |p: Vec2<f32>| {
+        min = min.map2(p, f32::min);
+        max = max.map2(p, f32::max);
+    };
+    for corner in corners {
+        include(projection.screen(corner, 0.));
+    }
+    if let Some(terrain) = &terrain {
+        for corner in corners {
+            include(projection.screen(corner, terrain.max_height));
+        }
+    }
+    // Upright sprites extend above their footprints. Include their actual canvas
+    // and foot anchor so tall walls/trees fit without stretching the diamonds.
+    for sector in &map.sectors {
+        let Some(tile) = sector
+            .properties
+            .get_default_source()
+            .and_then(|s| s.render_tile_id(assets))
+            .and_then(|id| assets.tiles.get(&id))
+        else {
+            continue;
+        };
+        let Some(layout) = &tile.isometric else {
+            continue;
+        };
+        let Some(center) = sector.center(map) else {
+            continue;
+        };
+        let position = sector
+            .properties
+            .get_vec2("iso_anchor_offset")
+            .map(|v| center + Vec2::from(v))
+            .or_else(|| sector.properties.get_vec2("iso_anchor").map(Vec2::from))
+            .unwrap_or(center);
+        let foot = projection.screen(position, {
+            let h = sector.properties.get_float_default("floor_height", 0.);
+            if h.abs() < 0.001 && !sector.properties.get_bool_default("iso_walkable", false) {
+                terrain
+                    .as_ref()
+                    .and_then(|t| t.height_at(position))
+                    .unwrap_or(h)
+            } else {
+                h
+            }
+        });
+        let scale = layout.pixels_per_unit.max(0.001).recip();
+        let at = foot - Vec2::new(layout.anchor[0] as f32, layout.anchor[1] as f32) * scale;
+        let frames = if layout.frames.is_empty() {
+            &tile.textures
+        } else {
+            &layout.frames
+        };
+        for image in frames {
+            include(at);
+            include(at + Vec2::new(image.width as f32, image.height as f32) * scale);
+        }
+    }
+    let extent = (max - min).map(|v| v.max(1.));
+    let margin = 0.5;
+    bbox_with_render_aspect(
+        Vec4::new(
+            min.x - margin,
+            min.y - margin,
+            extent.x + margin * 2.,
+            extent.y + margin * 2.,
+        ),
+        size,
+    )
+}
+
+fn isometric_minimap_projection(
+    size: Vec2<f32>,
+    bbox: Vec4<f32>,
+) -> rusterix::isometric::Projection {
+    let unit = (size.x / bbox.z).min(size.y / bbox.w);
+    rusterix::isometric::Projection {
+        origin: size * 0.5 - Vec2::new(bbox.x + bbox.z * 0.5, bbox.y + bbox.w * 0.5) * unit,
+        unit,
+    }
+}
+
+pub fn minimap_pixel_to_world(
+    pixel: Vec2<f32>,
+    size: Vec2<f32>,
+    bbox: Vec4<f32>,
+    camera: MapCamera,
+) -> Vec2<f32> {
+    if camera == MapCamera::TwoDIso {
+        isometric_minimap_projection(size, bbox).ground(pixel)
+    } else {
+        Vec2::new(bbox.x, bbox.y) + pixel / size * Vec2::new(bbox.z, bbox.w)
+    }
+}
+
+pub fn minimap_pixel_to_world_on_map(
+    pixel: Vec2<f32>,
+    size: Vec2<f32>,
+    bbox: Vec4<f32>,
+    map: &Map,
+) -> Vec2<f32> {
+    if map.camera == MapCamera::TwoDIso {
+        let p = rusterix::isometric::elevation::ElevationMap::from_map(map)
+            .pick(isometric_minimap_projection(size, bbox), pixel);
+        Vec2::new(p.x, p.z)
+    } else {
+        minimap_pixel_to_world(pixel, size, bbox, map.camera)
+    }
+}
+
+fn minimap_world_to_pixel_on_map(
+    world: Vec2<f32>,
+    size: Vec2<f32>,
+    bbox: Vec4<f32>,
+    map: &Map,
+) -> Vec2<f32> {
+    if map.camera == MapCamera::TwoDIso {
+        isometric_minimap_projection(size, bbox).screen(
+            world,
+            rusterix::isometric::elevation::ElevationMap::from_map(map).height_at(world),
+        )
+    } else {
+        minimap_world_to_pixel(world, size, bbox, map.camera)
+    }
+}
+
+fn minimap_world_to_pixel(
+    world: Vec2<f32>,
+    size: Vec2<f32>,
+    bbox: Vec4<f32>,
+    camera: MapCamera,
+) -> Vec2<f32> {
+    if camera == MapCamera::TwoDIso {
+        isometric_minimap_projection(size, bbox).screen(world, 0.)
+    } else {
+        world_to_minimap_pixel(world, size, bbox)
+    }
+}
+
+fn editor_view_center(map: &Map) -> Vec2<f32> {
+    if map.camera == MapCamera::TwoDIso {
+        rusterix::isometric::Projection::editor(map, Vec2::zero()).ground(Vec2::zero())
+    } else {
+        Vec2::new(-map.offset.x / map.grid_size, map.offset.y / map.grid_size)
+    }
+}
+
+fn draw_isometric_minimap(
+    map: &Map,
+    assets: &rusterix::Assets,
+    buffer: &mut TheRGBABuffer,
+    bbox: Vec4<f32>,
+) {
+    let mut base = map.clone();
+    base.entities.clear();
+    base.items.clear();
+    let projection = isometric_minimap_projection(
+        Vec2::new(buffer.dim().width as f32, buffer.dim().height as f32),
+        bbox,
+    );
+    rusterix::isometric::draw(&base, assets, buffer, projection, 0.);
 }
 
 fn draw_geometry_minimap(map: &Map, buffer: &mut TheRGBABuffer, bbox: Vec4<f32>) {
@@ -338,7 +517,7 @@ pub fn draw_camera_marker(
 ) {
     let camera_pos = if server_ctx.editor_view_mode == EditorViewMode::D2 || region.is_none() {
         // In 2D (region/screen/profile), marker follows the current map view center.
-        Vec2::new(-map.offset.x / map.grid_size, map.offset.y / map.grid_size)
+        editor_view_center(map)
     } else if let Some(region) = region {
         // In 3D region mode, marker follows the active 3D editing anchor.
         Vec2::new(region.editing_position_3d.x, region.editing_position_3d.z)
@@ -349,10 +528,11 @@ pub fn draw_camera_marker(
     let dim = *buffer.dim();
     let bbox = *MINIMAPBOX.read().unwrap();
 
-    let pos = world_to_minimap_pixel(
+    let pos = minimap_world_to_pixel_on_map(
         camera_pos,
         Vec2::new(dim.width as f32, dim.height as f32),
         bbox,
+        map,
     );
 
     let w = 4;
@@ -366,10 +546,11 @@ pub fn draw_camera_marker(
     {
         let look_at_pos = Vec2::new(region.editing_look_at_3d.x, region.editing_look_at_3d.z);
 
-        let pos = world_to_minimap_pixel(
+        let pos = minimap_world_to_pixel_on_map(
             look_at_pos,
             Vec2::new(dim.width as f32, dim.height as f32),
             bbox,
+            map,
         );
 
         buffer.draw_rect_outline(
@@ -488,6 +669,14 @@ pub fn draw_minimap(
         let mut hasher = DefaultHasher::default();
         cache_key.hash(&mut hasher);
         hash_minimap_map_state(map, &mut hasher);
+        if map.camera == MapCamera::TwoDIso {
+            RUSTERIX
+                .read()
+                .unwrap()
+                .assets
+                .tiles_revision
+                .hash(&mut hasher);
+        }
         cache_key = hasher.finish();
     }
 
@@ -530,6 +719,15 @@ pub fn draw_minimap(
             return;
         };
 
+        let bbox = if map.camera == MapCamera::TwoDIso {
+            isometric_minimap_bbox(
+                map,
+                &RUSTERIX.read().unwrap().assets,
+                Vec2::new(width, height),
+            )
+        } else {
+            bbox
+        };
         *MINIMAPBOX.write().unwrap() = bbox;
 
         let scale_x = width / bbox.z;
@@ -560,7 +758,9 @@ pub fn draw_minimap(
         let use_scenevm_region =
             server_ctx.get_map_context() == MapContext::Region && !use_geometry_region;
 
-        if use_geometry_region {
+        if map.camera == MapCamera::TwoDIso {
+            draw_isometric_minimap(map, &rusterix.assets, buffer, bbox);
+        } else if use_geometry_region {
             buffer.fill(background);
             draw_geometry_minimap(map, buffer, bbox);
         } else if use_scenevm_region {
@@ -675,6 +875,151 @@ fn world_to_minimap_pixel(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn isometric_minimap_picks_smooth_terrain_at_camera_marker_height() {
+        let mut map = Map::new();
+        map.camera = MapCamera::TwoDIso;
+        map.properties
+            .set("terrain_enabled", rusterix::Value::Bool(true));
+        map.properties
+            .set("terrain_subdivisions", rusterix::Value::Int(4));
+        map.properties
+            .set("terrain_edge_falloff", rusterix::Value::Float(0.));
+        map.add_vertex_at(-6., -6.);
+        map.add_vertex_at(6., 6.);
+        let peak = map.add_vertex_at(0.5, 0.5);
+        let vertex = map.find_vertex_mut(peak).unwrap();
+        vertex.z = 1.2;
+        vertex
+            .properties
+            .set("terrain_control", rusterix::Value::Bool(true));
+        vertex
+            .properties
+            .set("smoothness", rusterix::Value::Float(1.));
+        let size = Vec2::new(260., 140.);
+        let bbox = isometric_minimap_bbox(&map, &rusterix::Assets::default(), size);
+        for point in [
+            Vec2::new(0.5, 0.5),
+            Vec2::new(0.5, -1.5),
+            Vec2::new(0.5, 2.5),
+        ] {
+            let pixel = minimap_world_to_pixel_on_map(point, size, bbox, &map);
+            assert!(pixel.x >= 0. && pixel.y >= 0. && pixel.x <= size.x && pixel.y <= size.y);
+            assert!(
+                (minimap_pixel_to_world_on_map(pixel, size, bbox, &map) - point).magnitude()
+                    < 0.0001
+            );
+        }
+    }
+
+    #[test]
+    fn isometric_minimap_keeps_axes_picking_and_camera_marker_aligned() {
+        let mut map = Map::new();
+        map.camera = MapCamera::TwoDIso;
+        map.grid_size = 40.;
+        for point in [[-3., -2.], [9., -2.], [9., 8.], [-3., 8.]] {
+            map.add_vertex_at(point[0], point[1]);
+        }
+        let size = Vec2::new(260., 140.);
+        let bbox = isometric_minimap_bbox(&map, &rusterix::Assets::default(), size);
+        for point in [Vec2::new(-2.5, 1.25), Vec2::new(6., 5.), Vec2::zero()] {
+            let pixel = minimap_world_to_pixel(point, size, bbox, map.camera);
+            assert!(
+                (minimap_pixel_to_world(pixel, size, bbox, map.camera) - point).magnitude()
+                    < 0.0001
+            );
+        }
+        let origin = minimap_world_to_pixel(Vec2::zero(), size, bbox, map.camera);
+        let x = minimap_world_to_pixel(Vec2::new(1., 0.), size, bbox, map.camera) - origin;
+        let z = minimap_world_to_pixel(Vec2::new(0., 1.), size, bbox, map.camera) - origin;
+        assert!(x.x > 0. && x.y < 0. && z.x > 0. && z.y > 0.);
+        assert!(
+            (x.x + x.y * 2.).abs() < 0.0001,
+            "diamonds must keep their 2:1 proportions"
+        );
+        let center = Vec2::new(6., 5.);
+        ServerContext::default().center_map_at_grid_pos(size, center, &mut map);
+        assert!((editor_view_center(&map) - center).magnitude() < 0.0001);
+        map.grid_size *= 0.5;
+        map.offset *= 0.5;
+        assert!((editor_view_center(&map) - center).magnitude() < 0.0001);
+    }
+
+    #[test]
+    fn isometric_minimap_fits_upright_sprite_canvases() {
+        let mut map = Map::new();
+        map.camera = MapCamera::TwoDIso;
+        let vertices =
+            [[0., 0.], [1., 0.], [1., 1.], [0., 1.]].map(|p| map.add_vertex_at(p[0], p[1]));
+        for i in 0..4 {
+            map.create_linedef_manual(vertices[i], vertices[(i + 1) % 4]);
+        }
+        let sector = map.close_polygon_manual().unwrap();
+        let mut tile = rusterix::Tile::from_texture(rusterix::Texture::new(
+            [100, 180, 80, 255].repeat(128 * 128),
+            128,
+            128,
+        ));
+        tile.isometric = Some(rusterix::isometric::SpriteLayout {
+            anchor: [64, 120],
+            pixels_per_unit: 32.,
+            directions: 1,
+            frames_per_direction: 1,
+            ..Default::default()
+        });
+        let id = tile.id;
+        map.find_sector_mut(sector).unwrap().properties.set(
+            "source",
+            rusterix::Value::Source(rusterix::PixelSource::TileId(id)),
+        );
+        let mut assets = rusterix::Assets::default();
+        assets.set_tiles([(id, tile)].into_iter().collect());
+        let size = Vec2::new(200., 100.);
+        let bbox = isometric_minimap_bbox(&map, &assets, size);
+        let projection = isometric_minimap_projection(size, bbox);
+        let foot = projection.screen(Vec2::new(0.5, 0.5), 0.);
+        let top = foot - Vec2::new(64., 120.) * (projection.unit / 32.);
+        let bottom = top + Vec2::broadcast(128.) * (projection.unit / 32.);
+        assert!(top.x >= 0. && top.y >= 0. && bottom.x <= size.x && bottom.y <= size.y);
+        let mut buffer = TheRGBABuffer::new(TheDim::sized(200, 100));
+        draw_isometric_minimap(&map, &assets, &mut buffer, bbox);
+        assert!(
+            buffer
+                .pixels()
+                .chunks_exact(4)
+                .any(|p| p == [100, 180, 80, 255])
+        );
+    }
+
+    #[test]
+    fn minimap_cache_invalidates_when_camera_projection_changes() {
+        let mut map = Map::new();
+        let mut flat = DefaultHasher::default();
+        hash_minimap_map_state(&map, &mut flat);
+        map.camera = MapCamera::TwoDIso;
+        let mut iso = DefaultHasher::default();
+        hash_minimap_map_state(&map, &mut iso);
+        assert_ne!(flat.finish(), iso.finish());
+    }
+
+    #[test]
+    #[ignore = "exports a minimap from the local generated MZ test project"]
+    fn isometric_minimap_native_room_review() {
+        let root =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../generated/mz-iso2d-native");
+        let project = shared::project_io::decode_project(
+            &std::fs::read(root.join("MZIso2D.eldiron")).unwrap(),
+        )
+        .unwrap();
+        let mut assets = rusterix::Assets::default();
+        assets.set_tiles(project.tiles.clone());
+        let map = &project.regions[0].map;
+        let mut buffer = TheRGBABuffer::new(TheDim::sized(320, 180));
+        let bbox = isometric_minimap_bbox(map, &assets, Vec2::new(320., 180.));
+        draw_isometric_minimap(map, &assets, &mut buffer, bbox);
+        std::fs::write(root.join("minimap.png"), buffer.to_png().unwrap()).unwrap();
+    }
 
     #[test]
     fn minimap_bbox_includes_geometry_objects_without_2d_vertices() {

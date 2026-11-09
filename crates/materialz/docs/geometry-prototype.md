@@ -1,6 +1,8 @@
 # Editable geometry rows in Eldiron
 
-For current Creator usage, see [Procedural Materials](../../../docs/docs/building_maps/procedural_materials.md),
+For the illustrated materials/mesh learning path, start with the
+[MaterialZ tutorials](../../../docs/docs/building_maps/materialz/start-here.md).
+For additional Creator usage, see [Procedural Materials](../../../docs/docs/building_maps/procedural_materials.md),
 [Appearance](../../../docs/docs/characters_items/appearance.md) and
 [Rigging](../../../docs/docs/characters_items/rigging.md). The dated concept and
 milestone notes below retain their implementation/validation history.
@@ -15,21 +17,142 @@ is unchanged. The official humanoid also runs in the 2D and 3D scene paths descr
 
 ## Trying the editor
 
-Open **Procedural materials → Geometry**. The **New…** menu offers an empty model
-with a skeleton and profile resource, or editable Human and Sword starting points.
-The asset menu reopens appearances saved in the project.
-Rename, Duplicate and Delete use the project undo history. Appearances do not
-occupy Tilepicker cells or alter the map.
+Open **Procedural materials → Meshes**. **New mesh** or **New… → Browse
+recipes…** opens the recipe browser. Search or filter building parts, nature,
+props and primitives; project recipes can also be copied. Preview and adjust
+published controls, name the mesh, then choose **Create mesh**. Bundled
+starting points include box, wall segment, wall corner, doorway, roof slope,
+gable roof, fence, repeated posts, ring walkway, rock, tree, barrel and crate. Each creates an independent, ordinary editable MZ document. No asset
+has its own Creator action or special evaluator. **New…** also retains Empty rig,
+Human and Sword for rigging and equipment work.
+
+Selecting a mesh in the Tilepicker keeps the map available for placement. Use
+**Edit mesh** to open the full editor. Rename, Duplicate and Delete use the
+project undo history.
 
 The MZ widget shows construction rows and their properties. The folder icon
 opens a selected group; Back returns to its parent. A breadcrumb shows the
-editing location. Published group controls provide quick proportion and palette
-edits; the underlying construction remains editable. Select a Group tile and
-choose **Asset… → Publish controls…** to edit its public controls as TOML.
-An empty group starts with width/height/depth scale controls and a palette control
-for its first material. Mapping part/joint IDs, ranges, categories and help text
-uses the existing generic group evaluator. Accept validates the complete model
-and records normal undo; Cancel leaves it unchanged.
+editing location. Published group controls provide quick dimension, proportion
+and palette edits; the underlying construction remains editable.
+
+Select a Group tile and choose **Asset… → Publish controls…** to open the visual
+publisher. Add, remove and reorder controls; edit labels, sections, help text,
+current values, neutral/default values and ranges. Choose independent width,
+height or depth, scale/offset along an axis, or palette color. Scale, offset and
+color can target the entire group or a named part. The preview updates as you
+edit. Inside a Group, publishing edits its existing interface. At the root, without a
+selected Group, it wraps the construction and suggests dimensions and colors. **Save controls** validates
+the complete recipe and records one undo step; Cancel leaves the source unchanged.
+
+Existing weighted, rig-aware and multi-modifier mappings are displayed as custom
+mappings and preserved when editing their metadata. **Asset… → Advanced controls
+(TOML)…** retains full access to these mappings, including multiple part targets.
+**Recipe parameter** publishes typed construction inputs. Each `parameter`
+modifier stores a target (group path, operation ID and input key), multiplier
+and offset. Multiple inputs can share one control, e.g. box height and half-height
+translation. Targets are whitelisted numeric fields, not arbitrary JSON pointers
+or scripts. Parameter bindings apply to a temporary child document before
+construction; existing FitAxis/Affine/Palette modifiers run afterwards. Duplicate
+targets within a group, missing operations, invalid values and invalid geometry
+fail evaluation without rewriting the source. Nested groups expose their published
+numeric controls as inputs; groups without controls expose their construction.
+
+Group controls optionally store an `expression` string alongside their existing
+bindings. Numeric arithmetic, parentheses, `[control-id]` references (or plain
+identifiers) and `sin_deg`, `cos_deg`, `tan_deg`, `sqrt`, `abs`, `min`, `max`,
+`clamp`, `floor`, `ceil`, `round` are supported. References are scoped to the
+current Group and resolved in dependency order on an evaluation copy, before
+parameter bindings and post-mesh modifiers. Cycles, missing references,
+non-finite values, invalid ranges and excessive expressions fail evaluation.
+Limits: 64 controls, 1024 bytes/256 expression nodes, 32 parser nesting levels.
+Expression controls are read-only at the published interface and cannot be
+rebound by an enclosing Group. Controls with no modifiers are valid inputs or
+calculated readouts. Omitted expressions preserve existing recipes unchanged.
+
+The visual publisher includes a Formula field and searchable reference insertion.
+Normal Group controls and the recipe browser display current calculated values
+without allowing edits; reset changes editable inputs only. Gable roof and Fence
+browser recipes demonstrate nested mitered roof panels and continuous rails,
+using only portable MZ operations, formulas and bindings.
+
+`Repeat` creates static mesh copies with fixed translation and rotation steps,
+1–128 copies within the existing vertex/intermediate budgets. It preserves UVs
+and material references, and uses deterministic copy/part IDs. It is available in
+Sources, the visual publisher and the recipe browser's Repeated posts example.
+The wall recipes bind box dimensions/position; the roof slope binds a profile,
+extrusion depth and rotation. No special wall, roof or fence evaluator is needed.
+
+`Footprint { row, holes = [], append = false }` attaches earlier Contour rows
+to a static mesh. Coordinates mean mesh X/Z and no renderable parts are added.
+`row` is the outer boundary; `holes` names its enclosed cutouts. With `append`,
+this region is added to the incoming footprint; otherwise it replaces it. The
+Sources inspector provides a contour selector, hole add/change/remove controls
+and an Add region checkbox, all saved in the portable recipe.
+
+`Mesh::footprint` contains a `footprint::Shape<[f32; 3]>`: a union of regions,
+each an outer ring minus its own holes. Repeat transforms/copies the complete
+shape; Assemble combines the shapes of its inputs. Transform, FitTo and
+whole-group FitAxis/FitSize/Affine affect every point. A partial Select Parts
+clears a whole-model annotation. Ring validation rejects self-intersections,
+degeneracy and holes that touch/cross their outer boundary or overlap/nest other
+holes. Separate regions can represent islands inside holes. Limits: 128 regions,
+256 rings, 4096 points in total, 3–64 points per ring, 32 hole references per
+Footprint operation. Footprint intermediates count toward the evaluation budget.
+Animated footprint deformation remains unsupported.
+
+The iso cache stores the compound shape per static sprite direction; legacy
+simple contours and mesh bounds remain fallback formats. Each placement stays
+one sector/one rendered instance. Its optional footprint topology stores indices
+into the sector's edge list, so normal copy/paste and ID remapping preserve
+regions/holes. Source updates rewire each ring independently and remove obsolete
+geometry while retaining sector identity and mesh anchor. Shared map geometry is
+preserved. Sector containment, triangulation, collision and walkable support all
+use the same compound shape, without bridges between disconnected components
+or a cap over a hole. Runtime point collision uses region union with per-region
+holes; boundary collision and grid navigation use the individual closed rings.
+
+The Wall corner and Tree examples retain their concave/trunk contours. Doorway,
+Repeated posts and Ring walkway demonstrate assembly/repetition and an enclosed
+opening, using the same published parameters for geometry and footprints.
+
+`Connector { family, translation, rotation }` appends an invisible placement socket
+at the operation's stable tile ID. Its local +Z axis is the outward direction;
+rotation is XYZ Euler degrees, matching Transform. Families are case-sensitive
+ASCII keys (1–64 characters: letters, digits, `_`, `-`, `.`, `/`). Position and
+rotation are whitelisted numeric parameters, so published controls and formulas
+bind directly to them. The visual Sources library exposes Connector; its Props
+edit position/rotation and its source text edits the family key.
+
+`Mesh::connectors` holds at most 256 validated IDs, family keys, positions and unit
+directions. Transform/FitTo and whole-group modifiers move sockets with geometry.
+Repeat and Assemble namespace copied connector identities deterministically.
+Partial Select Parts clears model-level connectors, as it does footprints.
+Connectors are static placement data, distinct from animated rig attachments.
+
+Iso baking caches connectors per static direction and bumps the mesh signature
+version when this cache format changes. The Rect mesh placement helper searches
+compatible opposing, unoccupied sockets within 0.8 world units, using only baked
+orientations. It stores a parent sector, local/remote connector IDs and relative
+yaw in placement properties. Snapping is part of the normal MapEdit stroke undo.
+The cache synchronization pass resolves this parent forest before regenerating
+footprints. Derived parameter edits, height changes and root rotations propagate
+to connected children; missing references or cycles freeze affected links.
+**Detach connection** removes the incoming link while retaining placement and
+footprint mode. Occupancy covers both endpoints of each saved link.
+
+This is a parent forest, not a cyclic constraint solver: a room can close visually,
+but its final seam is not an additional constraint. Resizing a closed room may
+require rejoining its end. Connectors do not deform building geometry over terrain,
+fit a roof to multiple walls, or attach animated actors. The operation remains
+portable MZ data; the placement host currently is the 2D Iso Rect workflow.
+
+The illustrated user guide starts at
+`docs/docs/building_maps/materialz/start-here.md`. Its native screenshots omit the
+AI header. Authored documentation captures are curated under
+`docs/static/img/materialz`; temporary reviews/projects stay under `generated/`.
+
+Independent finished-mesh dimensions still use `fit_axis`; existing `fit_size`
+controls keep their uniform scaling behavior for character proportions.
 
 **Asset… → Export model…** includes linked geometry snapshots and embedded MZ
 surface recipes in a standalone JSON document. **Import model…** adds a separate
@@ -70,7 +193,7 @@ The New menu replaces the former row of preset buttons.
 
 Selecting joint/profile modes on the human opens its Body group automatically.
 The base body uses **two tiles**: an arbitrary joint tree and a collection
-of bone-bound profiles, followed by the ruleset's surface assignments. It uses the same resources and tools as Empty model.
+of bone-bound profiles, followed by the ruleset's surface assignments. It uses the same resources and tools as Empty rig.
 Changing a rest joint reshapes the bound profiles; this also works for horizontal
 spines and limbs. Reparenting preserves a joint's world pose and rejects cycles.
 
@@ -138,7 +261,7 @@ angles, and `weapon-icons.png` contains the corresponding native 32px icons.
 The official ruleset now supplies `orc` and `skeleton` MZ appearances alongside
 `humanoid`. Race defaults resolve these names through the same runtime path;
 there are no creature-specific geometry operations. Open their project assets
-in **Procedural materials → Geometry** to edit proportions, profiles, joints,
+in **Procedural materials → Meshes** to edit proportions, profiles, joints,
 clips and attachments. Their standalone recipes live in the ruleset's
 `assets/geometry` folder. All three share the human equipment sockets and
 Idle, Walk and Attack clips, with the same materials in 2D and 3D.

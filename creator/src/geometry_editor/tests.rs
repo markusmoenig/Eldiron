@@ -367,16 +367,6 @@ pub(super) fn workspace_snapshot_selected(
         .as_group_button()
         .unwrap()
         .set_index(1);
-    ui.get_widget(ASSETS)
-        .unwrap()
-        .as_drop_down_menu()
-        .unwrap()
-        .clear_options();
-    ui.get_widget(ASSETS)
-        .unwrap()
-        .as_drop_down_menu()
-        .unwrap()
-        .add_option(doc.label.clone());
     ui.get_widget("MZ Geometry Name")
         .unwrap()
         .set_value(TheValue::Text(doc.label.clone()));
@@ -475,7 +465,10 @@ pub(super) fn workspace_snapshot_selected(
         "MZ Edit Group",
         "MZ Parent Group",
     ] {
-        let dim = ui.get_widget(id).unwrap().dim();
+        let Some(widget) = ui.get_widget(id) else {
+            continue;
+        };
+        let dim = widget.dim();
         assert!(
             dim.width > 0 && dim.x >= 0 && dim.x + dim.width <= 1400,
             "{id}: {dim:?}"
@@ -788,7 +781,10 @@ fn group_navigation_opens_details_and_returns_to_compact_body_controls() {
     ui.canvas.set_layout(pages);
     let mut host = GeometryEditor::default();
     host.handle_event(
-        &TheEvent::IndexChanged(TheId::named(MODE), 1),
+        &TheEvent::StateChanged(
+            TheId::named("MZ Edit Selected Mesh"),
+            TheWidgetState::Clicked,
+        ),
         &mut p,
         &mut ui,
         &mut ctx,
@@ -799,7 +795,7 @@ fn group_navigation_opens_details_and_returns_to_compact_body_controls() {
         &mut ui,
         &mut ctx,
     );
-    host.update(&p, &mut ui, &mut ctx);
+    host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
     assert_eq!(host.scene.tool, 1);
     assert_eq!(host.group_path, ["body-op-0"]);
     host.handle_event(
@@ -808,7 +804,7 @@ fn group_navigation_opens_details_and_returns_to_compact_body_controls() {
         &mut ui,
         &mut ctx,
     );
-    host.update(&p, &mut ui, &mut ctx);
+    host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
     assert!(host.group_path.is_empty());
     assert!(
         host.document
@@ -829,7 +825,7 @@ fn group_navigation_opens_details_and_returns_to_compact_body_controls() {
         &mut ui,
         &mut ctx,
     );
-    host.update(&p, &mut ui, &mut ctx);
+    host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
     assert_eq!(host.group_path, ["body-op-0"]);
     assert_eq!(host.document.as_ref().unwrap().label, "Body details");
     assert_eq!(host.camera, 0);
@@ -842,7 +838,7 @@ fn group_navigation_opens_details_and_returns_to_compact_body_controls() {
         &mut ui,
         &mut ctx,
     );
-    host.update(&p, &mut ui, &mut ctx);
+    host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
     assert!(host.group_path.is_empty());
     assert!(
         host.document
@@ -1150,4 +1146,318 @@ fn particle_effect_source_controls_palette_save_and_visual_attachment() {
     assert!(scene.handles(&doc, &e, &Default::default()).iter().any(
         |(handle, p, _)| matches!(handle,scene::Handle::Grip(id) if id==&tile) && p[1] == 0.64
     ));
+}
+
+#[test]
+fn footprint_source_and_contour_editing_work_through_normal_mz_commands() {
+    let mut d=Document::load(r#"{"version":1,"id":"footprint-ui","label":"Footprint UI","rows":[{"id":"shape-a","label":"Corner outline","tiles":[{"id":"outline-a","op":{"type":"contour","points":[[0,0],[1,0],[1,0.2],[0.2,0.2],[0.2,1],[0,1]]}}]},{"id":"shape-b","label":"Other outline","tiles":[{"id":"outline-b","op":{"type":"contour","points":[[0,0],[1,0],[1,1],[0,1]]}}]},{"id":"model","label":"Model","tiles":[{"id":"solid","op":{"type":"box","size":[1,1,1]}}]}],"output":"model"}"#).unwrap();
+    presentation::edit(
+        &mut d,
+        MaterialEditorCommand::AddSource {
+            source: "footprint".into(),
+            row: Some("model".into()),
+            after: Some("solid".into()),
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        d.evaluate().unwrap().mesh.footprint.unwrap().regions[0]
+            .outer
+            .len(),
+        4
+    );
+    let op = d.rows[2].tiles.last().unwrap().id.clone();
+    let evaluation = d.evaluate().unwrap();
+    let view = presentation::view(&d, &evaluation, &Project::default().palette);
+    assert!(view.sources.iter().any(|s| s.id == "footprint"));
+    let property = &view.rows[2].operations.last().unwrap().properties[0];
+    assert_eq!(property.choices, vec!["Corner outline", "Other outline"]);
+    presentation::edit(
+        &mut d,
+        MaterialEditorCommand::SetNumber {
+            operation: op.clone(),
+            parameter: "footprint_row".into(),
+            value: 0.,
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        d.evaluate().unwrap().mesh.footprint.unwrap().regions[0]
+            .outer
+            .len(),
+        6
+    );
+    let before = d.evaluate().unwrap().mesh.parts;
+    presentation::edit(
+        &mut d,
+        MaterialEditorCommand::SetNumber {
+            operation: "outline-a".into(),
+            parameter: "point1:0".into(),
+            value: 1.4,
+        },
+    )
+    .unwrap();
+    let e = d.evaluate().unwrap();
+    assert_eq!(e.mesh.parts, before);
+    assert_eq!(
+        e.mesh.footprint.as_ref().unwrap().regions[0].outer[1][0],
+        1.4
+    );
+    // Row links use the same input UI as other MZ sources, and survive export.
+    presentation::edit(
+        &mut d,
+        MaterialEditorCommand::SetInput {
+            target: MaterialInputTarget::RowLink {
+                connection: format!("{op}:0"),
+                row: "model".into(),
+            },
+            binding: MaterialInputBinding::Row(MaterialReferenceView {
+                row: "shape-b".into(),
+                components: "xyz".into(),
+                mapping: None,
+            }),
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        Document::load(&d.save().unwrap())
+            .unwrap()
+            .evaluate()
+            .unwrap()
+            .mesh
+            .footprint
+            .unwrap()
+            .regions[0]
+            .outer
+            .len(),
+        4
+    );
+}
+
+#[test]
+fn footprint_holes_and_added_regions_are_authored_with_normal_mz_controls() {
+    let root = Document::load(include_str!(
+        "../../embedded/meshes/recipes/ring-walkway.mzgeometry.json"
+    ))
+    .unwrap();
+    let Operation::Group { document, .. } = &root.rows[0].tiles[0].op else {
+        panic!()
+    };
+    let mut d = (**document).clone();
+    let Operation::Footprint { holes, .. } =
+        &mut d.rows.last_mut().unwrap().tiles.last_mut().unwrap().op
+    else {
+        panic!()
+    };
+    holes.clear();
+    let command = |parameter: &str, value| MaterialEditorCommand::SetNumber {
+        operation: "ring-footprint".into(),
+        parameter: parameter.into(),
+        value,
+    };
+    presentation::edit(&mut d, command("footprint_add_hole", 1.)).unwrap();
+    assert_eq!(
+        d.evaluate()
+            .unwrap()
+            .mesh
+            .footprint
+            .as_ref()
+            .unwrap()
+            .regions[0]
+            .holes
+            .len(),
+        1
+    );
+    let view = presentation::view(&d, &d.evaluate().unwrap(), &Project::default().palette);
+    let props = &view
+        .rows
+        .last()
+        .unwrap()
+        .operations
+        .last()
+        .unwrap()
+        .properties;
+    assert!(props.iter().any(|p| p.id == "footprint_hole:0"));
+    assert!(
+        props
+            .iter()
+            .any(|p| p.id == "footprint_append" && p.kind == MaterialPropertyKind::Boolean)
+    );
+    presentation::edit(&mut d, command("footprint_hole:0", 0.)).unwrap();
+    assert!(
+        d.evaluate().unwrap().mesh.footprint.unwrap().regions[0]
+            .holes
+            .is_empty()
+    );
+    presentation::edit(&mut d, command("footprint_add_hole", 1.)).unwrap();
+    let at = d.rows.len() - 1;
+    d.rows.insert(
+        at,
+        Row {
+            id: "island".into(),
+            label: "Island footprint".into(),
+            tiles: vec![Tile {
+                id: "island-outline".into(),
+                op: Operation::Contour {
+                    points: vec![[-0.2, -0.2], [0.2, -0.2], [0.2, 0.2], [-0.2, 0.2]],
+                },
+            }],
+        },
+    );
+    presentation::edit(
+        &mut d,
+        MaterialEditorCommand::AddSource {
+            source: "footprint".into(),
+            row: Some("assembly".into()),
+            after: Some("ring-footprint".into()),
+        },
+    )
+    .unwrap();
+    let operation = d.rows.last().unwrap().tiles.last().unwrap().id.clone();
+    presentation::edit(
+        &mut d,
+        MaterialEditorCommand::SetNumber {
+            operation,
+            parameter: "footprint_append".into(),
+            value: 1.,
+        },
+    )
+    .unwrap();
+    let shape = d
+        .evaluate()
+        .unwrap()
+        .mesh
+        .footprint
+        .unwrap()
+        .map(|p| [p[0], p[2]]);
+    assert_eq!(shape.regions.len(), 2);
+    assert!(denrim_materials::geometry::footprint::contains(
+        &shape,
+        [0., 0.]
+    ));
+    assert!(!denrim_materials::geometry::footprint::contains(
+        &shape,
+        [0.5, 0.5]
+    ));
+    assert_eq!(Document::load(&d.save().unwrap()).unwrap(), d);
+}
+
+#[test]
+fn connectors_are_authored_through_sources_properties_and_family_source() {
+    let mut doc = Document::load(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/embedded/meshes/recipes/wall-segment.mzgeometry.json"
+    )))
+    .unwrap();
+    let Operation::Group { document, .. } = &mut doc.rows[0].tiles[0].op else {
+        panic!()
+    };
+    let row = document.output.clone();
+    let after = document
+        .rows
+        .last()
+        .unwrap()
+        .tiles
+        .last()
+        .unwrap()
+        .id
+        .clone();
+    presentation::edit(
+        document,
+        MaterialEditorCommand::AddSource {
+            source: "connector".into(),
+            row: Some(row),
+            after: Some(after),
+        },
+    )
+    .unwrap();
+    let operation = document
+        .rows
+        .last()
+        .unwrap()
+        .tiles
+        .last()
+        .unwrap()
+        .id
+        .clone();
+    presentation::edit(
+        document,
+        MaterialEditorCommand::SetSource {
+            operation: operation.clone(),
+            code: "custom/wall".into(),
+        },
+    )
+    .unwrap();
+    presentation::edit(
+        document,
+        MaterialEditorCommand::SetNumber {
+            operation: operation.clone(),
+            parameter: "position0".into(),
+            value: 2.,
+        },
+    )
+    .unwrap();
+    let evaluation = document.evaluate().unwrap();
+    let view = presentation::view(document, &evaluation, &Project::default().palette);
+    let op = view
+        .rows
+        .iter()
+        .flat_map(|r| &r.operations)
+        .find(|o| o.id == operation)
+        .unwrap();
+    assert_eq!(op.source.as_ref().unwrap().code, "custom/wall");
+    assert!(
+        op.parameters
+            .iter()
+            .any(|p| p.id == "position0" && p.value == 2.)
+    );
+    assert!(view.sources.iter().any(|s| s.id == "connector"));
+    assert!(
+        denrim_materials::geometry::parameters::catalog(document)
+            .iter()
+            .any(|p| p.target.operation == operation && p.target.parameter == "position0")
+    );
+    assert_eq!(
+        evaluation.mesh.connectors.last().unwrap().family,
+        "custom/wall"
+    );
+}
+
+#[test]
+#[ignore = "writes native MZ documentation captures under ignored generated/"]
+fn materialz_documentation_mesh_captures() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap();
+    let out = root.join("generated/mz-docs");
+    std::fs::create_dir_all(&out).unwrap();
+    let doc = Document::load(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/embedded/meshes/recipes/wall-segment.mzgeometry.json"
+    )))
+    .unwrap();
+    let evaluation = doc.evaluate().unwrap();
+    let (mut ui, _) = viewport_tests::fixture(1400, 1000);
+    let image = presentation::thumbnail(
+        &Value::Mesh(evaluation.mesh),
+        &Project::default().palette,
+        ui.style.theme().as_ref(),
+    );
+    workspace_snapshot_selected(
+        &doc,
+        image.clone(),
+        &Default::default(),
+        "recipe-0",
+        out.join("mesh-controls.png").to_str().unwrap(),
+    );
+    let Operation::Group { document, .. } = &doc.rows[0].tiles[0].op else {
+        panic!()
+    };
+    workspace_snapshot_selected(
+        document,
+        image,
+        &Default::default(),
+        "join-end",
+        out.join("connector-editor.png").to_str().unwrap(),
+    );
 }

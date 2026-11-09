@@ -10,7 +10,7 @@ Design screens with the same map tools you already use:
 - **Linedef / Edge Tool** and **Sector / Face Tool**: carve areas, name sectors to turn them into widgets.
 - **Rect Tool**: add background decorations.
 
-![Screen Widgets](screens_widgets.png)
+![Current screen editor with widget outlines and TOML settings.](/img/creator/screen-editor.png)
 
 Each **sector** shows up as an item in the project tree; selecting it opens the widget editor where you can set the **role** and configure widget **attributes** (see [widgets](widgets)).
 

@@ -3,7 +3,7 @@ title: "Tile Picker"
 sidebar_position: 3
 ---
 
-![Tile Picker](/img/screenshots/dungeon3d_iso.png)
+![Current Tile Picker with Project and MZ Materials tabs, collections, and tile assignment controls.](/img/creator/tile-picker.png)
 
 The **Tile Picker** dock is the main asset browser and assignment dock for map work. It is used to:
 

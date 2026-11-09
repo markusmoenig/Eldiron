@@ -397,6 +397,9 @@ pub struct Tile {
     pub textures: Vec<Texture>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub uv_pages: Option<TileUvPages>,
+    /// Foot anchor and directional animation layout for baked 2D isometric art.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub isometric: Option<crate::isometric::SpriteLayout>,
     /// The module if the textures are shader generated
     pub module: Option<serde_json::Value>,
     /// For top down 2D scenarios
@@ -542,6 +545,7 @@ impl Tile {
             role: TileRole::ManMade,
             textures: vec![texture],
             uv_pages: None,
+            isometric: None,
             module: None,
             blocking: false,
             scale: 1.0,
@@ -661,6 +665,7 @@ impl Tile {
             role: self.role,
             textures: resized_textures,
             uv_pages: self.uv_pages.clone(),
+            isometric: self.isometric.clone(),
             module: self.module.clone(),
             blocking: self.blocking,
             scale: self.scale,

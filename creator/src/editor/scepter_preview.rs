@@ -7,6 +7,7 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 static ACTIVE: AtomicBool = AtomicBool::new(false);
+
 struct PreviewContext {
     runtime: Rusterix,
     bakes: crate::procedural_material::ScepterBakeCache,
@@ -49,8 +50,8 @@ pub(super) fn render(
         return Err("Invalid preview camera parameters".into());
     }
     let view = request.view.as_deref().unwrap_or("2d");
-    if !["2d", "iso", "3d"].contains(&view) {
-        return Err("view must be 2d, iso or 3d".into());
+    if !["2d", "2d_iso", "iso", "3d"].contains(&view) {
+        return Err("view must be 2d, 2d_iso, iso or 3d".into());
     }
     let mut context = CONTEXT.lock().unwrap_or_else(|e| {
         let mut guard = e.into_inner();
@@ -79,6 +80,10 @@ pub(super) fn render(
         return Err(geometry_errors.join("; "));
     }
     bakes.prepare(&mut project)?;
+    let iso_errors = shared::isometric::synchronize(&mut project);
+    if !iso_errors.is_empty() {
+        return Err(iso_errors.join("; "));
+    }
     shared::rusterix_utils::insert_content_into_maps(&mut project);
     let _ = shared::rusterix_utils::setup_client(runtime, &mut project);
     shared::rusterix_utils::sync_display_templates(&mut runtime.assets, &project, false);
@@ -142,18 +147,26 @@ pub(super) fn render(
     widget.rect.width = width as f32;
     widget.rect.height = height as f32;
     widget.buffer = TheRGBABuffer::new(TheDim::sized(width as i32, height as i32));
-    widget.grid_size = request
-        .zoom
-        .map(|z| z.clamp(0.1, 256.))
-        .unwrap_or((width as f32 / bounds[2]).min(height as f32 / bounds[3]));
-    widget.player_pos = Vec2::new(center.x, center.z);
-    widget.set_camera_mode(if view == "2d" {
-        PlayerCamera::D2
-    } else if view == "iso" {
-        PlayerCamera::D3Iso
-    } else {
-        PlayerCamera::D3FirstP
+    widget.grid_size = request.zoom.map(|z| z.clamp(0.1, 256.)).unwrap_or_else(|| {
+        if view == "2d_iso" || (view == "2d" && map.camera == rusterix::MapCamera::TwoDIso) {
+            (width as f32 / (bounds[2] + bounds[3]))
+                .min(height as f32 / ((bounds[2] + bounds[3]) * 0.5 + 4.))
+        } else {
+            (width as f32 / bounds[2]).min(height as f32 / bounds[3])
+        }
     });
+    widget.player_pos = Vec2::new(center.x, center.z);
+    widget.set_camera_mode(
+        if view == "2d_iso" || (view == "2d" && map.camera == rusterix::MapCamera::TwoDIso) {
+            PlayerCamera::D2Iso
+        } else if view == "2d" {
+            PlayerCamera::D2
+        } else if view == "iso" {
+            PlayerCamera::D3Iso
+        } else {
+            PlayerCamera::D3FirstP
+        },
+    );
     if view == "3d" {
         let mut camera = D3FirstPCamera::new();
         if let Some(c) = &request.camera {

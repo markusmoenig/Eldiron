@@ -524,10 +524,10 @@ impl BlockTool {
 
     fn make_surface_prop_instance(
         asset: &rusterix::BlockPropAsset,
-        map: &Map,
+        _map: &Map,
         hit: Vec3<f32>,
         normal: Option<Vec3<f32>>,
-        geo_id: Option<GeoId>,
+        _geo_id: Option<GeoId>,
         quarter_turns: i32,
         sizing: BlockSizing,
     ) -> Option<rusterix::BlockPropInstance> {
@@ -541,15 +541,6 @@ impl BlockTool {
             return Some(instance);
         }
 
-        let (hit, normal) = if mode == rusterix::BlockPropPlacementMode::Wall
-            && let Some(GeoId::GeometryObject(object_id)) = geo_id
-            && let Some((wall_hit, wall_normal)) =
-                map.wall_surface_frame_for_geometry_object(object_id, hit, normal)
-        {
-            (wall_hit, Some(wall_normal))
-        } else {
-            (hit, normal)
-        };
         let normal = normal?.try_normalized()?;
         if mode == rusterix::BlockPropPlacementMode::Wall && normal.y.abs() > 0.72 {
             return None;
@@ -601,39 +592,6 @@ impl BlockTool {
         instance.world_transform[3][2] = origin.z;
         apply_prefab_auto_sizing(asset, &mut instance, sizing);
 
-        if mode == rusterix::BlockPropPlacementMode::Wall
-            && let Some(GeoId::GeometryObject(object_id)) = geo_id
-            && let Some((assembly_id, span_id)) = map.wall_source_for_geometry_object(object_id)
-            && let Some(assembly) = map.wall_assembly(assembly_id)
-            && let Some(coordinates) = assembly.span_coordinates(span_id, hit)
-        {
-            let length = assembly.span_length(span_id)?;
-            let epsilon = (length * 0.01).clamp(0.005, 0.05);
-            let before = assembly.span_point(
-                span_id,
-                Vec2::new((coordinates.x - epsilon).max(0.0), coordinates.y),
-            )?;
-            let after = assembly.span_point(
-                span_id,
-                Vec2::new((coordinates.x + epsilon).min(length), coordinates.y),
-            )?;
-            let tangent =
-                Vec3::new(after.x - before.x, 0.0, after.z - before.z).try_normalized()?;
-            let canonical = Vec3::new(-tangent.z, 0.0, tangent.x).try_normalized()?;
-            instance.host_attachment = Some(rusterix::BlockPropHostAttachment::WallSpan {
-                assembly_id,
-                span_id,
-                along: coordinates.x,
-                height: coordinates.y,
-                side: if canonical.dot(normal) < 0.0 {
-                    -1.0
-                } else {
-                    1.0
-                },
-                offset: asset.placement.surface_offset,
-                rotation_quarters: quarter_turns.rem_euclid(4),
-            });
-        }
         Some(instance)
     }
 
@@ -963,7 +921,6 @@ impl BlockTool {
             map.block_prop_instances.extend(created_props);
             map.block_prop_surface_placements
                 .extend(created_surface_placements);
-            map.sync_wall_hosted_block_props();
         } else {
             map.selected_geometry_objects.clear();
         }

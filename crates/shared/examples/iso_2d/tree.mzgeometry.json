@@ -1,0 +1,388 @@
+{
+  "version": 1,
+  "id": "iso-tree",
+  "label": "Iso Tree",
+  "rows": [
+    {
+      "id": "bark",
+      "label": "Bark",
+      "tiles": [
+        {
+          "id": "bark-0",
+          "op": {
+            "type": "material",
+            "palette": 19,
+            "roughness": 0.9,
+            "metallic": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "leaves",
+      "label": "Leaves",
+      "tiles": [
+        {
+          "id": "leaves-0",
+          "op": {
+            "type": "material",
+            "palette": 36,
+            "roughness": 0.9,
+            "metallic": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "leaves-shadow",
+      "label": "Leaves Shadow",
+      "tiles": [
+        {
+          "id": "leaves-shadow-0",
+          "op": {
+            "type": "material",
+            "palette": 37,
+            "roughness": 0.9,
+            "metallic": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "leaves-light",
+      "label": "Leaves Light",
+      "tiles": [
+        {
+          "id": "leaves-light-0",
+          "op": {
+            "type": "material",
+            "palette": 35,
+            "roughness": 0.9,
+            "metallic": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "trunk",
+      "label": "Trunk",
+      "tiles": [
+        {
+          "id": "trunk-0",
+          "op": {
+            "type": "loft",
+            "sections": [
+              {
+                "center": [
+                  0,
+                  0,
+                  0
+                ],
+                "radius": [
+                  0.22,
+                  0.2
+                ]
+              },
+              {
+                "center": [
+                  0.03,
+                  0.5,
+                  0.01
+                ],
+                "radius": [
+                  0.16,
+                  0.15
+                ]
+              },
+              {
+                "center": [
+                  -0.08,
+                  1.45,
+                  0
+                ],
+                "radius": [
+                  0.12,
+                  0.11
+                ]
+              },
+              {
+                "center": [
+                  -0.01,
+                  2.35,
+                  0
+                ],
+                "radius": [
+                  0.04,
+                  0.04
+                ]
+              }
+            ],
+            "segments": 9,
+            "material": "bark"
+          }
+        }
+      ]
+    },
+    {
+      "id": "canopy-core",
+      "label": "Canopy Core",
+      "tiles": [
+        {
+          "id": "canopy-core-0",
+          "op": {
+            "type": "loft",
+            "sections": [
+              {
+                "center": [
+                  0,
+                  1.75,
+                  0
+                ],
+                "radius": [
+                  0.315,
+                  0.276
+                ]
+              },
+              {
+                "center": [
+                  -0.05,
+                  2.13,
+                  0
+                ],
+                "radius": [
+                  1.05,
+                  0.92
+                ]
+              },
+              {
+                "center": [
+                  0.07,
+                  2.58,
+                  0
+                ],
+                "radius": [
+                  0.987,
+                  0.8648
+                ]
+              },
+              {
+                "center": [
+                  0,
+                  3.02,
+                  0
+                ],
+                "radius": [
+                  0.189,
+                  0.1656
+                ]
+              }
+            ],
+            "segments": 12,
+            "material": "leaves"
+          }
+        }
+      ]
+    },
+    {
+      "id": "canopy-left",
+      "label": "Canopy Left",
+      "tiles": [
+        {
+          "id": "canopy-left-0",
+          "op": {
+            "type": "loft",
+            "sections": [
+              {
+                "center": [
+                  -0.62,
+                  1.4500000000000002,
+                  0.2
+                ],
+                "radius": [
+                  0.21,
+                  0.20400000000000001
+                ]
+              },
+              {
+                "center": [
+                  -0.67,
+                  1.83,
+                  0.2
+                ],
+                "radius": [
+                  0.7,
+                  0.68
+                ]
+              },
+              {
+                "center": [
+                  -0.55,
+                  2.2800000000000002,
+                  0.2
+                ],
+                "radius": [
+                  0.6579999999999999,
+                  0.6392
+                ]
+              },
+              {
+                "center": [
+                  -0.62,
+                  2.72,
+                  0.2
+                ],
+                "radius": [
+                  0.126,
+                  0.12240000000000001
+                ]
+              }
+            ],
+            "segments": 12,
+            "material": "leaves-shadow"
+          }
+        }
+      ]
+    },
+    {
+      "id": "canopy-right",
+      "label": "Canopy Right",
+      "tiles": [
+        {
+          "id": "canopy-right-0",
+          "op": {
+            "type": "loft",
+            "sections": [
+              {
+                "center": [
+                  0.65,
+                  1.5700000000000003,
+                  -0.1
+                ],
+                "radius": [
+                  0.222,
+                  0.21
+                ]
+              },
+              {
+                "center": [
+                  0.6,
+                  1.9500000000000002,
+                  -0.1
+                ],
+                "radius": [
+                  0.74,
+                  0.7
+                ]
+              },
+              {
+                "center": [
+                  0.72,
+                  2.4000000000000004,
+                  -0.1
+                ],
+                "radius": [
+                  0.6956,
+                  0.6579999999999999
+                ]
+              },
+              {
+                "center": [
+                  0.65,
+                  2.8400000000000003,
+                  -0.1
+                ],
+                "radius": [
+                  0.13319999999999999,
+                  0.126
+                ]
+              }
+            ],
+            "segments": 12,
+            "material": "leaves"
+          }
+        }
+      ]
+    },
+    {
+      "id": "canopy-top",
+      "label": "Canopy Top",
+      "tiles": [
+        {
+          "id": "canopy-top-0",
+          "op": {
+            "type": "loft",
+            "sections": [
+              {
+                "center": [
+                  -0.15,
+                  2.35,
+                  -0.1
+                ],
+                "radius": [
+                  0.21,
+                  0.186
+                ]
+              },
+              {
+                "center": [
+                  -0.2,
+                  2.73,
+                  -0.1
+                ],
+                "radius": [
+                  0.7,
+                  0.62
+                ]
+              },
+              {
+                "center": [
+                  -0.07999999999999999,
+                  3.18,
+                  -0.1
+                ],
+                "radius": [
+                  0.6579999999999999,
+                  0.5828
+                ]
+              },
+              {
+                "center": [
+                  -0.15,
+                  3.62,
+                  -0.1
+                ],
+                "radius": [
+                  0.126,
+                  0.11159999999999999
+                ]
+              }
+            ],
+            "segments": 12,
+            "material": "leaves-light"
+          }
+        }
+      ]
+    },
+    {
+      "id": "tree",
+      "label": "Tree",
+      "tiles": [
+        {
+          "id": "tree-0",
+          "op": {
+            "type": "assemble",
+            "rows": [
+              "trunk",
+              "canopy-core",
+              "canopy-left",
+              "canopy-right",
+              "canopy-top"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "tree",
+  "grip": null
+}

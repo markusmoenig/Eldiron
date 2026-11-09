@@ -282,7 +282,12 @@ impl TheWidget for TheGroupButton {
             if let Some(icon_name) = self.icon[index].clone() {
                 if let Some(icon) = ctx.ui.icon(&icon_name) {
                     let r = (
-                        ut.0 + x + 5,
+                        ut.0 + x
+                            + if self.text[index].is_empty() {
+                                self.item_width.saturating_sub(self.icon_size.x as usize) / 2
+                            } else {
+                                5
+                            },
                         ((ut.1 + (20 - self.icon_size.y as usize) / 2) as i32) as usize,
                         self.icon_size.x as usize,
                         self.icon_size.y as usize,

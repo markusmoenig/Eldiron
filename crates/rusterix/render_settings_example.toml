@@ -39,6 +39,8 @@ shadow_strength = 0.8
 shadow_resolution = 1024
 # Shadow depth bias.
 shadow_bias = 0.0015
+# Iso point-light source radius for soft shadows (world units, 0 = sharp).
+point_shadow_softness = 0.075
 # Fade mode for alpha/visibility transitions: "ordered_dither" or "uniform".
 fade_mode = "ordered_dither"
 # Avatar readability boost toggle (Raster 3D avatars/billboards).
@@ -83,6 +85,8 @@ shadow_lift = 0.02
 edge_soften = 0.0
 
 [simulation]
+# Optional night ambient override; daytime uses [render] ambient_strength.
+# night_ambient_strength = 0.12
 # Enable procedural daylight simulation.
 enabled = true
 # Night sky color.

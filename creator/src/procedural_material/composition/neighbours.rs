@@ -149,7 +149,7 @@ pub(super) fn distance(
     project: &Project,
     id: Uuid,
     layer: &CompositionLayer,
-) -> Result<Option<String>, String> {
+) -> Result<Option<(String, String)>, String> {
     if layer.shape != CompositionShape::AutoRoad {
         return Ok(None);
     }
@@ -203,64 +203,119 @@ pub(super) fn distance(
     }
     Ok(Some(field(&cells, layer.position / 2.)))
 }
-fn field(cells: &BTreeSet<[i32; 2]>, radius: f32) -> String {
+/// Lower maximal straight runs, then name bounded groups of distance terms.
+/// Long or winding roads must stay within the tile language's per-expression
+/// limit; a single nested min expression over the whole road exceeds it.
+fn field(cells: &BTreeSet<[i32; 2]>, radius: f32) -> (String, String) {
     let mut terms = Vec::new();
     for &[x, y] in cells {
         let center = [x as f32 + 0.5, y as f32 + 0.5];
-        // One segment per undirected edge; isolated cells retain rounded ends.
         let mut joined = false;
         for axis in 0..2 {
-            let mut neighbour = [x, y];
-            neighbour[axis] += 1;
-            if cells.contains(&neighbour) {
-                joined = true;
-                let mut min = center;
-                let mut max = center;
-                max[axis] += 1.;
-                // Distance to the axis-aligned segment gives rounded corners
-                // and exactly identical values on both sides of a shared edge.
-                min[1 - axis] = center[1 - axis];
-                terms.push(format!(
-                    "length(uv - clamp(uv, vec2({}, {}), vec2({}, {})))",
-                    min[0], min[1], max[0], max[1]
-                ));
+            let mut previous = [x, y];
+            previous[axis] -= 1;
+            let mut next = [x, y];
+            next[axis] += 1;
+            joined |= cells.contains(&previous) || cells.contains(&next);
+            if cells.contains(&previous) || !cells.contains(&next) {
+                continue;
             }
+            let mut end = next;
+            loop {
+                let mut n = end;
+                n[axis] += 1;
+                if !cells.contains(&n) {
+                    break;
+                }
+                end = n;
+            }
+            let max = [end[0] as f32 + 0.5, end[1] as f32 + 0.5];
+            terms.push(format!(
+                "length(uv - clamp(uv, vec2({}, {}), vec2({}, {})))",
+                center[0], center[1], max[0], max[1]
+            ));
         }
-        if !joined && !(cells.contains(&[x - 1, y]) || cells.contains(&[x, y - 1])) {
+        if !joined {
             terms.push(format!("length(uv - vec2({}, {}))", center[0], center[1]));
         }
     }
     if terms.is_empty() {
         terms.push("1000".into());
     }
-    while terms.len() > 1 {
+    fn minimum(mut terms: Vec<String>) -> String {
+        while terms.len() > 1 {
+            terms = terms
+                .chunks(2)
+                .map(|p| {
+                    if p.len() == 2 {
+                        format!("min({}, {})", p[0], p[1])
+                    } else {
+                        p[0].clone()
+                    }
+                })
+                .collect();
+        }
+        terms.pop().unwrap()
+    }
+    let mut setup = String::new();
+    let mut index = 0;
+    while terms.len() > 6 {
         terms = terms
-            .chunks(2)
+            .chunks(6)
             .map(|p| {
-                if p.len() == 2 {
-                    format!("min({}, {})", p[0], p[1])
-                } else {
-                    p[0].clone()
-                }
+                let name = format!("road_group_{index}");
+                index += 1;
+                setup.push_str(&format!("let {name} = {}\n", minimum(p.to_vec())));
+                name
             })
             .collect();
     }
-    format!("{radius} - ({})", terms[0])
+    (setup, format!("{radius} - ({})", minimum(terms)))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     #[test]
-    fn auto_roads_generate_one_edge_per_pair_and_stable_end_caps() {
+    fn auto_roads_merge_straight_runs_and_keep_stable_end_caps() {
         let cells = [[-1, 0], [0, 0], [0, 1], [1, 0]].into_iter().collect();
-        let code = field(&cells, 0.2);
-        assert_eq!(code.matches("clamp(").count(), 3);
+        let code = field(&cells, 0.2).1;
+        assert_eq!(code.matches("clamp(").count(), 2);
         assert!(code.contains("vec2(-0.5, 0.5)"));
         assert_eq!(
-            field(&[[0, 0]].into_iter().collect(), 0.2),
+            field(&[[0, 0]].into_iter().collect(), 0.2).1,
             "0.2 - (length(uv - vec2(0.5, 0.5)))"
         );
+    }
+    #[test]
+    fn long_winding_auto_roads_compile_and_keep_every_bend_connected() {
+        let (mut p, id) = fixture();
+        let map = &mut p.regions.last_mut().unwrap().map;
+        for i in 2..25 {
+            for (j, (x, y)) in [(i, i - 1), (i, i)].into_iter().enumerate() {
+                super::super::tests::add_floor(
+                    map,
+                    (i * 2 + j as i32 + 10) as u32,
+                    id,
+                    [x as f32, y as f32],
+                    [x as f32 + 1., y as f32 + 1.],
+                );
+            }
+        }
+        let bundle = super::super::bundle(id, &p, None).unwrap();
+        let asset = EditableMaterialAsset::reopen(&bundle).unwrap();
+        let program = asset.program(&InstanceRecord::new("long-road")).unwrap();
+        let eval = denrim_materials::cpu::Evaluator::new(&program);
+        for i in [2., 8., 16., 24.] {
+            let sample = eval
+                .sample(
+                    &asset.selected_material,
+                    denrim_materials::ir::Channel::BaseColor,
+                    [i + 0.5, i + 0.5],
+                )
+                .unwrap();
+            assert!(sample[0] > 0.9, "Disconnected bend at {i}: {sample:?}");
+        }
     }
     fn fixture() -> (Project, Uuid) {
         use shared::material_composition::{CompositionTiling, MapMaterialBinding};

@@ -1,0 +1,12 @@
+project 1
+result from material "surface"
+material "surface" called "Art Study / Lantern Glass"
+  mode pbr
+  tiling raw
+  default roughness to 0.35
+  default emission to 1 0.61 0.19
+  default emission strength to 1
+  row "color" called "Warm Glass"
+    use "Color" id "glass"
+      set "color" to 0.9301 0.7011 0.4020 1
+  output base color from row "color" xyz

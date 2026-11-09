@@ -54,6 +54,7 @@ pub enum ProjectUndoAtom {
     RemoveItem(usize, Item),
     RenameItem(Uuid, String, String),
     AddTilemap(Tilemap),
+    CreateTileSource(Box<Tilemap>,Option<shared::project::TileCollectionAsset>,Vec<rusterix::Tile>),
     RemoveTilemap(usize, Tilemap),
     RenameTilemap(Uuid, String, String),
     EditTilemapGridSize(Uuid, i32, i32),
@@ -150,7 +151,11 @@ impl ProjectUndoAtom {
         let preserved_dock = DOCKMANAGER.read().unwrap().dock.clone();
         set_project_context(ctx, ui, project, server_ctx, pc);
         if let Some(map) = project.get_map_mut(server_ctx) {
+            let revision = map.changed.max(restored_map.changed).wrapping_add(1);
             *map = restored_map.clone();
+            // Restoring a snapshot must invalidate caches even when a new edit
+            // subsequently reaches a revision used by the abandoned stroke.
+            map.changed = revision;
             map.clear_temp();
             if pc.is_region() {
                 map.update_surfaces();
@@ -301,9 +306,14 @@ impl ProjectUndoAtom {
     /// Descriptive text of the undo atom.
     pub fn to_string(&self) -> String {
         match self {
+            MapEdit(_, old, new)
+                if old.properties.get("terrain_sculpt") != new.properties.get("terrain_sculpt") =>
+            {
+                "Terrain Sculpt".to_string()
+            }
             MapEdit(_, _, _) => "Map Edit".to_string(),
             RegionEdit(_, _, _) => "Region Edit".to_string(),
-            RegionPaintEdit(_, _, _, _) => "3D Paint Edit".to_string(),
+            RegionPaintEdit(_, _, _, _) => "Paint Edit".to_string(),
             PrefabPaintEdit(_, _, _, _) => "Prefab Paint Edit".to_string(),
             PrefabAssetEdit(_, _, _) => "Prefab Effect Preset".to_string(),
             TilePickerEdit(_, _) => "Tile Picker Edit".to_string(),
@@ -335,6 +345,7 @@ impl ProjectUndoAtom {
             AddItem(character) => format!("Add Item: {}", character.name),
             RemoveItem(_, character) => format!("Remove Item: {}", character.name),
             RenameItem(_, old, new) => format!("Rename Item: {} -> {}", old, new),
+            CreateTileSource(_,_,_) => fl!("tileset_add"),
             AddTilemap(tilemap) => format!("Add Tilemap: {}", tilemap.name),
             RemoveTilemap(_, tilemap) => format!("Remove Tilemap: {}", tilemap.name),
             RenameTilemap(_, old, new) => format!("Rename Tilemap: {} -> {}", old, new),
@@ -435,7 +446,9 @@ impl ProjectUndoAtom {
                 ctx.ui.redraw_all = true;
             }
             ProceduralMaterialEdit(id, old, _) => {
-                if project.tiles.contains_key(id) {
+                if project.tiles.contains_key(id)
+                    || shared::isometric::is_material_source(project, *id)
+                {
                     project.procedural_materials.insert(*id, old.clone());
                     project.procedural_material_cache_keys.shift_remove(id);
                     ctx.ui.send(TheEvent::Custom(
@@ -742,6 +755,13 @@ impl ProjectUndoAtom {
                         }
                     }
                 }
+            }
+            CreateTileSource(source,collection,tiles) => {
+                ProjectUndoAtom::AddTilemap((**source).clone()).undo(project,ui,ctx,server_ctx);
+                project.tilemaps.retain(|s|s.id!=source.id);
+                if let Some(c)=collection {project.tile_collections.shift_remove(&c.id);}
+                for tile in tiles {project.tiles.shift_remove(&tile.id);}
+                ctx.ui.send(TheEvent::Custom(TheId::named("Update Tiles"),TheValue::Empty));
             }
             AddTilemap(tilemap) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
@@ -1152,7 +1172,9 @@ impl ProjectUndoAtom {
                 ctx.ui.redraw_all = true;
             }
             ProceduralMaterialEdit(id, _, new) => {
-                if project.tiles.contains_key(id) {
+                if project.tiles.contains_key(id)
+                    || shared::isometric::is_material_source(project, *id)
+                {
                     project.procedural_materials.insert(*id, new.clone());
                     project.procedural_material_cache_keys.shift_remove(id);
                     ctx.ui.send(TheEvent::Custom(
@@ -1521,6 +1543,13 @@ impl ProjectUndoAtom {
                         }
                     }
                 }
+            }
+            CreateTileSource(source,collection,tiles) => {
+                ProjectUndoAtom::AddTilemap((**source).clone()).redo(project,ui,ctx,server_ctx);
+                if project.get_tilemap(source.id).is_none(){project.add_tilemap((**source).clone());}
+                if let Some(c)=collection {project.add_tile_collection(c.clone());}
+                for tile in tiles {project.tiles.insert(tile.id,tile.clone());}
+                ctx.ui.send(TheEvent::Custom(TheId::named("Update Tiles"),TheValue::Empty));
             }
             AddTilemap(tilemap) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {

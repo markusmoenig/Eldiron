@@ -1,0 +1,280 @@
+{
+  "version": 1,
+  "id": "wall-segment",
+  "label": "Wall segment",
+  "rows": [
+    {
+      "id": "recipe",
+      "label": "Recipe",
+      "tiles": [
+        {
+          "id": "recipe-0",
+          "op": {
+            "type": "group",
+            "label": "Wall segment",
+            "document": {
+              "version": 1,
+              "id": "wall-segment-construction",
+              "label": "Wall segment construction",
+              "rows": [
+                {
+                  "id": "stone",
+                  "label": "Stone",
+                  "tiles": [
+                    {
+                      "id": "stone-0",
+                      "op": {
+                        "type": "material",
+                        "palette": 7,
+                        "roughness": 0.9,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "wall",
+                  "label": "Wall",
+                  "tiles": [
+                    {
+                      "id": "wall-0",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          1,
+                          2.4,
+                          0.22
+                        ]
+                      }
+                    },
+                    {
+                      "id": "wall-1",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "stone"
+                      }
+                    },
+                    {
+                      "id": "wall-2",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          1.2,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "assembly",
+                  "label": "Assembly",
+                  "tiles": [
+                    {
+                      "id": "assembly-0",
+                      "op": {
+                        "type": "assemble",
+                        "rows": [
+                          "wall"
+                        ]
+                      }
+                    },
+                    {
+                      "id": "join-start",
+                      "op": {
+                        "type": "connector",
+                        "family": "wall",
+                        "translation": [
+                          -0.5,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          -90,
+                          0
+                        ]
+                      }
+                    },
+                    {
+                      "id": "join-end",
+                      "op": {
+                        "type": "connector",
+                        "family": "wall",
+                        "translation": [
+                          0.5,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          90,
+                          0
+                        ]
+                      }
+                    },
+                    {
+                      "id": "roof-seat",
+                      "op": {
+                        "type": "connector",
+                        "family": "roof",
+                        "translation": [
+                          0,
+                          2.4,
+                          0
+                        ],
+                        "rotation": [
+                          -90,
+                          0,
+                          0
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "assembly",
+              "grip": null
+            },
+            "controls": [
+              {
+                "id": "width",
+                "label": "Width (m)",
+                "category": "Dimensions",
+                "help": "Changes the source box dimension; UVs and adjoining parts are constructed again.",
+                "order": 0,
+                "value": 1,
+                "reference": 1,
+                "min": 0.02,
+                "max": 10.0,
+                "modifiers": [
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "wall-0",
+                      "parameter": "size0"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "join-start",
+                      "parameter": "position0"
+                    },
+                    "factor": -0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "join-end",
+                      "parameter": "position0"
+                    },
+                    "factor": 0.5,
+                    "offset": 0
+                  }
+                ]
+              },
+              {
+                "id": "height",
+                "label": "Height (m)",
+                "category": "Dimensions",
+                "help": "Changes the source box dimension; UVs and adjoining parts are constructed again.",
+                "order": 1,
+                "value": 2.4,
+                "reference": 2.4,
+                "min": 0.02,
+                "max": 10.0,
+                "modifiers": [
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "wall-0",
+                      "parameter": "size1"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "wall-2",
+                      "parameter": "position1"
+                    },
+                    "factor": 0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "roof-seat",
+                      "parameter": "position1"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  }
+                ]
+              },
+              {
+                "id": "depth",
+                "label": "Thickness (m)",
+                "category": "Dimensions",
+                "help": "Changes the source box dimension; UVs and adjoining parts are constructed again.",
+                "order": 2,
+                "value": 0.22,
+                "reference": 0.22,
+                "min": 0.02,
+                "max": 10.0,
+                "modifiers": [
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "wall-0",
+                      "parameter": "size2"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  }
+                ]
+              },
+              {
+                "id": "stone",
+                "label": "Stone",
+                "category": "Materials",
+                "help": "Project palette color for these parts.",
+                "order": 0,
+                "value": 7,
+                "reference": 7,
+                "min": 0.0,
+                "max": 255.0,
+                "modifiers": [
+                  {
+                    "type": "palette",
+                    "parts": [
+                      "*"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "recipe",
+  "grip": null
+}

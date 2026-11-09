@@ -72,6 +72,13 @@ Switch to the top-down 2D editing view while remaining in the current region.
 
 Options: none.
 
+### 2D Isometric Camera
+
+*Shortcut: Ctrl/Cmd + 3*
+
+Switch to the fully rendered 2D isometric editing view. The camera toolbar order
+is 2D, 2D Isometric, 3D Orbit, 3D Iso, First Person (Ctrl/Cmd + 2 through + 6).
+
 ### Editing Slice
 
 Offsets the slice plane when in 2D editing without an active surface, letting you peek through layered geometry.
@@ -85,7 +92,7 @@ Options:
 
 ### First-Person Camera
 
-*Shortcut: Ctrl/Cmd + 5*
+*Shortcut: Ctrl/Cmd + 6*
 
 Jump into a first-person preview of the region. This also clears any active surface-edit overlay so the scene renders cleanly.
 
@@ -107,7 +114,7 @@ Options: none.
 
 ### Iso Camera
 
-*Shortcut: Ctrl/Cmd + 4*
+*Shortcut: Ctrl/Cmd + 5*
 
 Use the isometric editor camera for layout and readability checks.
 
@@ -128,7 +135,7 @@ Options:
 
 ### Orbit Camera
 
-*Shortcut: Ctrl/Cmd + 3*
+*Shortcut: Ctrl/Cmd + 4*
 
 Enable the orbitable 3D camera for inspecting and placing geometry in the region.
 
@@ -298,7 +305,7 @@ Options:
 
 ### Create Fitted Geometry
 
-Create independent fitted geometry for an existing opening, including rectangular, arched, concave, and irregular contours. For a Wall Tool opening, select the opening itself and run **Create Fitted Geometry**; the action reads the authored opening profile and wall thickness directly, so generated bricks do not need to form one editable contour. For ordinary geometry, use the 3D Edge Tool: select one opening rim edge and press **C** to select its closed contour. The action derives the opposite rim from the connected reveal faces.
+Create independent fitted geometry for an existing opening, including rectangular, arched, concave, and irregular contours. Use the 3D Edge Tool: select one opening rim edge and press **C** to select its closed contour. The action derives the opposite rim from the connected reveal faces.
 
 The action can produce one leaf or two center-split leaves, use a custom depth centered in the opening, and create either a solid panel or a barred gate. The generated leaves are ordinary editable Geometry Objects.
 

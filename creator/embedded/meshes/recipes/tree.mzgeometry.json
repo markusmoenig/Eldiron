@@ -1,0 +1,645 @@
+{
+  "version": 1,
+  "id": "tree",
+  "label": "Tree",
+  "rows": [
+    {
+      "id": "recipe",
+      "label": "Recipe",
+      "tiles": [
+        {
+          "id": "recipe-0",
+          "op": {
+            "type": "group",
+            "label": "Tree",
+            "document": {
+              "version": 1,
+              "id": "tree-construction",
+              "label": "Tree construction",
+              "rows": [
+                {
+                  "id": "bark",
+                  "label": "Bark",
+                  "tiles": [
+                    {
+                      "id": "bark-0",
+                      "op": {
+                        "type": "material",
+                        "palette": 19,
+                        "roughness": 0.9,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "leaves",
+                  "label": "Leaves",
+                  "tiles": [
+                    {
+                      "id": "leaves-0",
+                      "op": {
+                        "type": "material",
+                        "palette": 35,
+                        "roughness": 0.9,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "trunk",
+                  "label": "Trunk",
+                  "tiles": [
+                    {
+                      "id": "trunk-0",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "radius": [
+                              0.16,
+                              0.14
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.04,
+                              0.8,
+                              0
+                            ],
+                            "radius": [
+                              0.12,
+                              0.11
+                            ]
+                          },
+                          {
+                            "center": [
+                              -0.03,
+                              1.8,
+                              0.02
+                            ],
+                            "radius": [
+                              0.055,
+                              0.05
+                            ]
+                          }
+                        ],
+                        "segments": 8,
+                        "material": "bark"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "crown-a",
+                  "label": "Crown A",
+                  "tiles": [
+                    {
+                      "id": "crown-a-0",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              -0.3,
+                              1.2,
+                              0
+                            ],
+                            "radius": [
+                              0.312,
+                              0.312
+                            ]
+                          },
+                          {
+                            "center": [
+                              -0.27,
+                              1.45,
+                              0
+                            ],
+                            "radius": [
+                              0.48,
+                              0.432
+                            ]
+                          },
+                          {
+                            "center": [
+                              -0.3,
+                              1.95,
+                              0
+                            ],
+                            "radius": [
+                              0.04,
+                              0.04
+                            ]
+                          }
+                        ],
+                        "segments": 9,
+                        "material": "leaves"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "crown-b",
+                  "label": "Crown B",
+                  "tiles": [
+                    {
+                      "id": "crown-b-0",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0.28,
+                              1.5,
+                              0.1
+                            ],
+                            "radius": [
+                              0.35750000000000004,
+                              0.35750000000000004
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.31000000000000005,
+                              1.75,
+                              0.1
+                            ],
+                            "radius": [
+                              0.55,
+                              0.49500000000000005
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.28,
+                              2.25,
+                              0.1
+                            ],
+                            "radius": [
+                              0.04,
+                              0.04
+                            ]
+                          }
+                        ],
+                        "segments": 9,
+                        "material": "leaves"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "crown-c",
+                  "label": "Crown C",
+                  "tiles": [
+                    {
+                      "id": "crown-c-0",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              1.9,
+                              -0.1
+                            ],
+                            "radius": [
+                              0.3055,
+                              0.3055
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.03,
+                              2.15,
+                              -0.1
+                            ],
+                            "radius": [
+                              0.47,
+                              0.423
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              2.65,
+                              -0.1
+                            ],
+                            "radius": [
+                              0.04,
+                              0.04
+                            ]
+                          }
+                        ],
+                        "segments": 9,
+                        "material": "leaves"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "footprint-contour",
+                  "label": "Footprint contour (X/Z)",
+                  "tiles": [
+                    {
+                      "id": "footprint-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.16,
+                            0.0
+                          ],
+                          [
+                            0.11313708,
+                            0.09899495
+                          ],
+                          [
+                            0.0,
+                            0.14
+                          ],
+                          [
+                            -0.11313708,
+                            0.09899495
+                          ],
+                          [
+                            -0.16,
+                            0.0
+                          ],
+                          [
+                            -0.11313708,
+                            -0.09899495
+                          ],
+                          [
+                            -0.0,
+                            -0.14
+                          ],
+                          [
+                            0.11313708,
+                            -0.09899495
+                          ]
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "assembly",
+                  "label": "Assembly",
+                  "tiles": [
+                    {
+                      "id": "assembly-0",
+                      "op": {
+                        "type": "assemble",
+                        "rows": [
+                          "trunk",
+                          "crown-a",
+                          "crown-b",
+                          "crown-c"
+                        ]
+                      }
+                    },
+                    {
+                      "id": "placement-footprint",
+                      "op": {
+                        "type": "footprint",
+                        "row": "footprint-contour"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "assembly",
+              "grip": null
+            },
+            "controls": [
+              {
+                "id": "width",
+                "label": "Width (m)",
+                "category": "Dimensions",
+                "help": "Overall size; the base remains on the ground.",
+                "order": 0,
+                "value": 1.5,
+                "reference": 1.5,
+                "min": 0.02,
+                "max": 10.0,
+                "modifiers": [
+                  {
+                    "type": "fit_axis",
+                    "axis": 0
+                  }
+                ]
+              },
+              {
+                "id": "height",
+                "label": "Height (m)",
+                "category": "Dimensions",
+                "help": "Overall size; the base remains on the ground.",
+                "order": 1,
+                "value": 2.65,
+                "reference": 2.65,
+                "min": 0.02,
+                "max": 10.0,
+                "modifiers": [
+                  {
+                    "type": "fit_axis",
+                    "axis": 1
+                  }
+                ]
+              },
+              {
+                "id": "depth",
+                "label": "Depth (m)",
+                "category": "Dimensions",
+                "help": "Overall size; the base remains on the ground.",
+                "order": 2,
+                "value": 1.2,
+                "reference": 1.2,
+                "min": 0.02,
+                "max": 10.0,
+                "modifiers": [
+                  {
+                    "type": "fit_axis",
+                    "axis": 2
+                  }
+                ]
+              },
+              {
+                "id": "trunk-width",
+                "label": "Trunk width (m)",
+                "category": "Trunk",
+                "help": "Changes the trunk and its collision contour together; foliage stays unchanged.",
+                "order": 0,
+                "value": 0.32,
+                "reference": 0.32,
+                "min": 0.06,
+                "max": 0.8,
+                "modifiers": [
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "trunk-0",
+                      "parameter": "radius0:0"
+                    },
+                    "factor": 0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "trunk-0",
+                      "parameter": "radius1:0"
+                    },
+                    "factor": 0.375,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "trunk-0",
+                      "parameter": "radius2:0"
+                    },
+                    "factor": 0.171875,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "footprint-profile",
+                      "parameter": "point0:0"
+                    },
+                    "factor": 0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "footprint-profile",
+                      "parameter": "point1:0"
+                    },
+                    "factor": 0.35355339,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "footprint-profile",
+                      "parameter": "point2:0"
+                    },
+                    "factor": 0.0,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "footprint-profile",
+                      "parameter": "point3:0"
+                    },
+                    "factor": -0.35355339,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "footprint-profile",
+                      "parameter": "point4:0"
+                    },
+                    "factor": -0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "footprint-profile",
+                      "parameter": "point5:0"
+                    },
+                    "factor": -0.35355339,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "footprint-profile",
+                      "parameter": "point6:0"
+                    },
+                    "factor": -0.0,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "footprint-profile",
+                      "parameter": "point7:0"
+                    },
+                    "factor": 0.35355339,
+                    "offset": 0
+                  }
+                ]
+              },
+              {
+                "id": "trunk-depth",
+                "label": "Trunk depth (m)",
+                "category": "Trunk",
+                "help": "Changes the trunk and its collision contour together; foliage stays unchanged.",
+                "order": 1,
+                "value": 0.28,
+                "reference": 0.28,
+                "min": 0.06,
+                "max": 0.8,
+                "modifiers": [
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "trunk-0",
+                      "parameter": "radius0:1"
+                    },
+                    "factor": 0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "trunk-0",
+                      "parameter": "radius1:1"
+                    },
+                    "factor": 0.39285714285714285,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "trunk-0",
+                      "parameter": "radius2:1"
+                    },
+                    "factor": 0.17857142857142858,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "footprint-profile",
+                      "parameter": "point0:1"
+                    },
+                    "factor": 0.0,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "footprint-profile",
+                      "parameter": "point1:1"
+                    },
+                    "factor": 0.35355339,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "footprint-profile",
+                      "parameter": "point2:1"
+                    },
+                    "factor": 0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "footprint-profile",
+                      "parameter": "point3:1"
+                    },
+                    "factor": 0.35355339,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "footprint-profile",
+                      "parameter": "point4:1"
+                    },
+                    "factor": 0.0,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "footprint-profile",
+                      "parameter": "point5:1"
+                    },
+                    "factor": -0.35355339,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "footprint-profile",
+                      "parameter": "point6:1"
+                    },
+                    "factor": -0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "footprint-profile",
+                      "parameter": "point7:1"
+                    },
+                    "factor": -0.35355339,
+                    "offset": 0
+                  }
+                ]
+              },
+              {
+                "id": "bark",
+                "label": "Bark",
+                "category": "Materials",
+                "help": "Project palette color for these parts.",
+                "order": 0,
+                "value": 19,
+                "reference": 19,
+                "min": 0.0,
+                "max": 255.0,
+                "modifiers": [
+                  {
+                    "type": "palette",
+                    "parts": [
+                      "trunk"
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "leaves",
+                "label": "Leaves",
+                "category": "Materials",
+                "help": "Project palette color for these parts.",
+                "order": 1,
+                "value": 35,
+                "reference": 35,
+                "min": 0.0,
+                "max": 255.0,
+                "modifiers": [
+                  {
+                    "type": "palette",
+                    "parts": [
+                      "crown-a",
+                      "crown-b",
+                      "crown-c"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "recipe",
+  "grip": null
+}

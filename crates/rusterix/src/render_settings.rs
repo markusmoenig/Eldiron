@@ -181,6 +181,8 @@ pub struct RenderSettings {
     pub raster_shadow_resolution: f32,
     /// Raster 3D: depth bias to reduce acne/peter-panning.
     pub raster_shadow_bias: f32,
+    /// Iso point-light source radius in world units; zero retains sharp shadows.
+    pub point_shadow_softness: f32,
     /// Alpha fade mode used by raster path for geometry and billboards.
     pub fade_mode: FadeMode,
     /// Lighting model used by raster path.
@@ -242,6 +244,10 @@ pub struct RenderSettings {
 pub struct DaylightSimulation {
     /// Enable procedural daylight simulation
     pub enabled: bool,
+    /// Optional night ambient override; absent preserves the static ambient setting.
+    pub night_ambient_strength: Option<f32>,
+    /// Day baseline retained across repeated time updates.
+    pub day_ambient_strength: f32,
 
     /// Sky color at night
     pub night_sky_color: [f32; 3],
@@ -282,6 +288,8 @@ impl Default for DaylightSimulation {
     fn default() -> Self {
         Self {
             enabled: false,
+            night_ambient_strength: None,
+            day_ambient_strength: 0.24,
             night_sky_color: [0.02, 0.02, 0.05], // Very dark blue
             morning_sky_color: [1.0, 0.6, 0.4],  // Warm orange morning
             midday_sky_color: [0.529, 0.808, 0.922], // Clear blue
@@ -420,6 +428,7 @@ impl Default for RenderSettings {
             raster_shadow_strength: 0.9,
             raster_shadow_resolution: 2048.0,
             raster_shadow_bias: 0.0015,
+            point_shadow_softness: 0.075,
             fade_mode: FadeMode::OrderedDither,
             lighting_model: LightingModel::CookTorrance,
             render_style: RenderStyle::Nomad,
@@ -844,6 +853,19 @@ impl RenderSettings {
         let midday_to_evening_start = (sim.sunset_time - transition).max(morning_end);
         let evening_end = sim.sunset_time + transition;
 
+        if let Some(night) = sim.night_ambient_strength {
+            let night_weight = if hour >= morning_start && hour < sim.sunrise_time {
+                1. - (hour - morning_start) / transition.max(f32::EPSILON)
+            } else if hour >= sim.sunrise_time && hour < sim.sunset_time {
+                0.
+            } else if hour >= sim.sunset_time && hour < evening_end {
+                (hour - sim.sunset_time) / transition.max(f32::EPSILON)
+            } else {
+                1.
+            };
+            self.ambient_strength = lerp(sim.day_ambient_strength, night, night_weight);
+        }
+
         let (sky_color, sun_color) = if hour >= morning_start && hour < sim.sunrise_time {
             // Pre-sunrise: night -> morning
             let t = (hour - morning_start) / transition.max(f32::EPSILON);
@@ -1243,7 +1265,10 @@ impl RenderSettings {
             (SettingKey::SunEnabled, SettingValue::Bool(v)) => self.sun_enabled = v,
             (SettingKey::ShadowEnabled, SettingValue::Bool(v)) => self.raster_shadow_enabled = v,
             (SettingKey::AmbientColor, SettingValue::Vec3(v)) => self.ambient_color = v,
-            (SettingKey::AmbientStrength, SettingValue::Float(v)) => self.ambient_strength = v,
+            (SettingKey::AmbientStrength, SettingValue::Float(v)) => {
+                self.ambient_strength = v;
+                self.simulation.day_ambient_strength = v;
+            }
             (SettingKey::FogColor, SettingValue::Vec3(v)) => self.fog_color = v,
             (SettingKey::FogDensity, SettingValue::Float(v)) => self.fog_density = v,
             (SettingKey::AoSamples, SettingValue::Float(v)) => self.ao_samples = v,
@@ -1698,6 +1723,7 @@ impl RenderSettings {
             "shadow_bias",
             render.get_float_default("raster_shadow_bias", self.raster_shadow_bias),
         );
+        self.point_shadow_softness = render.get_float_default("point_shadow_softness", self.point_shadow_softness).clamp(0.,1.);
         self.fade_mode = render
             .get_str("fade_mode")
             .map(parse_fade_mode)
@@ -1771,6 +1797,8 @@ impl RenderSettings {
         sim: &ValueContainer,
     ) -> Result<(), Box<dyn std::error::Error>> {
         self.simulation.enabled = sim.get_bool_default("enabled", self.simulation.enabled);
+        self.simulation.day_ambient_strength = self.ambient_strength;
+        self.simulation.night_ambient_strength = sim.get_float("night_ambient_strength").map(|v| v.max(0.));
 
         if let Some(v) = sim.get_str("night_sky_color") {
             self.simulation.night_sky_color = parse_hex_color(v)?;
@@ -1991,6 +2019,29 @@ background_2d = "transparent"
         assert!(!settings.tile_background_black_2d);
         settings.read("").unwrap();
         assert!(!settings.tile_background_black_2d);
+    }
+
+    #[test]
+    fn point_shadow_softness_defaults_to_soft_and_can_be_disabled() {
+        let mut settings=RenderSettings::default();
+        assert_eq!(settings.point_shadow_softness,0.075);
+        settings.read("[render]\npoint_shadow_softness=0.12\n").unwrap();
+        assert!((settings.point_shadow_softness-0.12).abs()<0.00001);
+        settings.read("[render]\npoint_shadow_softness=-2.0\n").unwrap();
+        assert_eq!(settings.point_shadow_softness,0.);
+    }
+
+    #[test]
+    fn optional_night_ambient_preserves_day_and_does_not_accumulate() {
+        let mut settings=RenderSettings::default();
+        settings.read("[render]\nambient_strength = 0.24\n[simulation]\nenabled = true\nnight_ambient_strength = 0.12\n").unwrap();
+        for (hour,expected) in [(12.,0.24),(23.,0.12),(23.,0.12),(18.25,0.18),(5.75,0.18),(12.,0.24)] {
+            settings.apply_hour(hour);
+            assert!((settings.ambient_strength-expected).abs()<0.0001,"hour {hour}: {} vs {expected}",settings.ambient_strength);
+        }
+        settings.read("[render]\nambient_strength = 0.24\n[simulation]\nenabled = true\n").unwrap();
+        settings.apply_hour(23.);
+        assert_eq!(settings.ambient_strength,0.24,"existing projects retain their previous night ambient");
     }
 
     #[test]

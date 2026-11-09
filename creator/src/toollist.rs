@@ -14,7 +14,6 @@ use rusterix::PixelSource;
 use rusterix::Surface;
 use rusterix::TopologyBuilder;
 use rusterix::TopologyScene;
-use rusterix::WallOpeningShape;
 use rusterix::chunkbuilder::terrain_generator::{TerrainConfig, TerrainGenerator};
 use scenevm::GeoId;
 use std::time::Instant;
@@ -161,7 +160,8 @@ mod tests {
         assert!(ToolList::is_prefab_tool_command_id("tool.iso_paint"));
         assert!(ToolList::is_prefab_tool_command_id("tool.tile_picker"));
         assert!(ToolList::is_prefab_tool_command_id("tool.effects"));
-        assert!(ToolList::is_prefab_tool_command_id("tool.wall"));
+        assert!(!ToolList::is_prefab_tool_command_id("tool.wall"));
+        assert!(!ToolList::is_prefab_tool_command_id("tool.terrain"));
         assert!(!ToolList::is_prefab_tool_command_id("tool.entity"));
         assert!(!ToolList::is_prefab_tool_command_id("tool.game"));
     }
@@ -210,6 +210,17 @@ mod tests {
     fn creator_starts_with_the_sector_face_tool() {
         let tools = ToolList::new();
         assert_eq!(tools.current_game_tool_command_id(), Some("tool.sector"));
+    }
+
+    #[test]
+    fn terrain_brush_replaces_the_wall_tool_in_the_region_palette() {
+        let tools = ToolList::new();
+        assert!(tools.game_tool_is_available("tool.terrain"));
+        assert!(
+            tools
+                .get_game_tool_uuid_by_command_id("tool.wall")
+                .is_none()
+        );
     }
 
     #[test]
@@ -729,7 +740,7 @@ impl ToolList {
                 {
                     region.map.changed += 1;
                 }
-                return Self::link_new_wall_surfaces(undo_atom, project, server_ctx, ctx);
+                return undo_atom;
             }
         } else if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
             let undo_atom = self
@@ -738,124 +749,9 @@ impl ToolList {
             if undo_atom.is_some() {
                 map.changed += 1;
             }
-            return Self::link_new_wall_surfaces(undo_atom, project, server_ctx, ctx);
+            return undo_atom;
         }
         None
-    }
-
-    /// Commit surface geometry and its starter branches as one undoable project edit.
-    fn link_new_wall_surfaces(
-        atom: Option<ProjectUndoAtom>,
-        project: &mut Project,
-        server: &ServerContext,
-        ctx: &mut TheContext,
-    ) -> Option<ProjectUndoAtom> {
-        use rusterix::map::wall::{WallAreaSurface, WallAreaSurfaceKind};
-        use shared::construction_graph::{self, ConstructionPatternAsset};
-        if server.curr_map_tool_type != MapToolType::Wall {
-            return atom;
-        }
-        let Some(ProjectUndoAtom::MapEdit(_, previous, next)) = atom.as_ref() else {
-            return atom;
-        };
-        let existing: std::collections::HashSet<_> = previous
-            .wall_assemblies
-            .iter()
-            .flat_map(|assembly| assembly.area_surfaces.iter().map(|surface| surface.id))
-            .collect();
-        let created = next
-            .wall_assemblies
-            .iter()
-            .flat_map(|assembly| assembly.area_surfaces.iter())
-            .filter(|surface| !existing.contains(&surface.id))
-            .cloned()
-            .collect::<Vec<_>>();
-        if created.is_empty() {
-            return atom;
-        }
-        let mut before = project.clone();
-        *before.get_map_mut(server)? = (**previous).clone();
-        let mut groups: Vec<(WallAreaSurface, Uuid)> = Vec::new();
-        let mut assignments = Vec::new();
-        for surface in created {
-            let id = if let Some((_, id)) = groups.iter().find(|(other, _)| {
-                other.kind == surface.kind
-                    && other.elevation == surface.elevation
-                    && other.thickness == surface.thickness
-                    && other.source == surface.source
-                    && other.side_source == surface.side_source
-                    && other.clearance == surface.clearance
-                    && other.texture_scale == surface.texture_scale
-            }) {
-                *id
-            } else {
-                let label = if surface.kind == WallAreaSurfaceKind::Floor {
-                    fl!("construction_surface_floor_branch")
-                } else {
-                    fl!("construction_surface_ceiling_branch")
-                };
-                let name = format!("{} {}", label, project.construction_patterns.len() + 1);
-                let mut starter = surface.clone();
-                starter.source = None;
-                starter.side_source = None;
-                let asset = ConstructionPatternAsset::from_surface(name, &starter);
-                let id = asset.id;
-                project.construction_patterns.insert(id, asset);
-                groups.push((surface.clone(), id));
-                id
-            };
-            assignments.push((surface.id, id));
-        }
-        let projections = groups
-            .iter()
-            .filter_map(|(_, id)| {
-                construction_graph::compile_surface_with_patterns(
-                    &project.construction_patterns[id].graph,
-                    &project.construction_patterns,
-                )
-                .ok()
-                .map(|projection| (*id, projection))
-            })
-            .collect::<std::collections::HashMap<_, _>>();
-        let map = project.get_map_mut(server)?;
-        for assembly in &mut map.wall_assemblies {
-            for surface in &mut assembly.area_surfaces {
-                if let Some((_, id)) = assignments
-                    .iter()
-                    .find(|(surface_id, _)| *surface_id == surface.id)
-                {
-                    surface.pattern_id = Some(*id);
-                    if let Some(projection) = projections.get(id) {
-                        construction_graph::apply_to_surface(surface, projection);
-                    }
-                }
-            }
-        }
-        if let Some((surface_id, _)) = assignments.first() {
-            map.selected_wall_surface = Some(*surface_id);
-            map.selected_wall_assembly = map
-                .wall_assemblies
-                .iter()
-                .find(|assembly| {
-                    assembly
-                        .area_surfaces
-                        .iter()
-                        .any(|surface| surface.id == *surface_id)
-                })
-                .map(|assembly| assembly.id);
-        }
-        map.rebuild_wall_geometry();
-        crate::utils::editor_scene_full_rebuild(project, server);
-        ctx.ui.redraw_all = true;
-        ctx.ui.send(TheEvent::Custom(
-            TheId::named("Map Selection Changed"),
-            TheValue::Empty,
-        ));
-        Some(ProjectUndoAtom::ProjectEdit(
-            fl!("construction_surface_created"),
-            Box::new(before),
-            Box::new(project.clone()),
-        ))
     }
 
     fn geometry_selection_snapshot(map: &Map) -> GeometrySelectionSnapshot {
@@ -2070,7 +1966,7 @@ impl ToolList {
         list.register_game_tool("tool.linedef", LinedefTool::new());
         list.register_game_tool("tool.sector", SectorTool::new());
         list.register_game_tool("tool.geometry", GeometryTool::new());
-        list.register_game_tool("tool.wall", WallTool::new());
+        list.register_game_tool("tool.terrain", TerrainTool::new());
         list.register_game_tool("tool.iso_paint", IsoPaintTool::new());
         list.register_game_tool(
             "tool.tile_picker",
@@ -2371,7 +2267,6 @@ impl ToolList {
                 | "tool.vertex"
                 | "tool.linedef"
                 | "tool.sector"
-                | "tool.wall"
                 | "tool.iso_paint"
                 | "tool.tile_picker"
                 | "tool.effects"
@@ -2769,6 +2664,24 @@ impl ToolList {
             TheEvent::IndexChanged(id, index) => {
                 if id.name == "Editor View Switch" {
                     let prev_mode = server_ctx.editor_view_mode;
+                    let projection_center = project
+                        .get_map(server_ctx)
+                        .filter(|m| {
+                            prev_mode == EditorViewMode::D2
+                                && (*index == 0 || *index == 1)
+                                && (m.camera == MapCamera::TwoDIso) != (*index == 1)
+                        })
+                        .map(|m| {
+                            if m.camera == MapCamera::TwoDIso {
+                                rusterix::isometric::Projection {
+                                    origin: Vec2::new(m.offset.x, -m.offset.y),
+                                    unit: m.grid_size,
+                                }
+                                .ground(Vec2::zero())
+                            } else {
+                                Vec2::new(-m.offset.x, m.offset.y) / m.grid_size
+                            }
+                        });
                     let old = prev_mode.is_3d();
 
                     // Persist region camera anchors before switching.
@@ -2828,7 +2741,7 @@ impl ToolList {
                         }
                     }
 
-                    server_ctx.editor_view_mode = EditorViewMode::from_index(*index as i32);
+                    server_ctx.editor_view_mode = EditorViewMode::from_toolbar_index(*index as i32);
                     let new_mode = server_ctx.editor_view_mode;
                     let new = new_mode.is_3d();
                     self.box_select_armed = false;
@@ -2843,7 +2756,13 @@ impl ToolList {
 
                     if let Some(region) = project.get_region_ctx_mut(server_ctx) {
                         region.map.camera = match new_mode {
-                            EditorViewMode::D2 => MapCamera::TwoD,
+                            EditorViewMode::D2 => {
+                                if *index == 1 {
+                                    MapCamera::TwoDIso
+                                } else {
+                                    MapCamera::TwoD
+                                }
+                            }
                             EditorViewMode::Iso | EditorViewMode::Orbit => MapCamera::ThreeDIso,
                             EditorViewMode::FirstP => MapCamera::ThreeDFirstPerson,
                         };
@@ -2861,6 +2780,13 @@ impl ToolList {
                                 server_ctx.center_map_at_grid_pos(
                                     Vec2::zero(),
                                     Vec2::new(0.0, -1.0),
+                                    &mut region.map,
+                                );
+                            }
+                            if let Some(center) = projection_center {
+                                server_ctx.center_map_at_grid_pos(
+                                    Vec2::zero(),
+                                    center,
                                     &mut region.map,
                                 );
                             }
@@ -2988,6 +2914,31 @@ impl ToolList {
                         ctx.ui.redraw_all = true;
                         return true;
                     }
+                }
+                // Iso part orientation belongs to the active brush. Handle it
+                // before global comma/period grid-subdivision shortcuts.
+                if plain_key
+                    && polyview_focused
+                    && !text_input_focused
+                    && !server_ctx.game_input_mode
+                    && !server_ctx.text_game_mode
+                    && !server_ctx.game_mode
+                    && !self.editor_mode
+                    && self.current_game_tool_is("tool.rect")
+                    && project
+                        .get_map(server_ctx)
+                        .is_some_and(|map| map.camera == MapCamera::TwoDIso)
+                    && matches!(c, ',' | '.')
+                {
+                    let undo = self.current_tool_map_event(
+                        MapEvent::MapKey(*c),
+                        ui,
+                        ctx,
+                        project,
+                        server_ctx,
+                    );
+                    self.update_map_context(ui, ctx, project, server_ctx, undo);
+                    return true;
                 }
                 let shortcut_resolution = if plain_key
                     && polyview_focused
@@ -3714,6 +3665,7 @@ impl ToolList {
                         #[cfg(target_os = "macos")]
                         if server_ctx.editor_view_mode == EditorViewMode::Orbit
                             && !self.box_select_armed
+                            && server_ctx.curr_map_tool_type != MapToolType::Terrain
                             && server_ctx.geo_hit.is_none()
                         {
                             self.macos_primary_orbit_drag = Some(MacOsPrimaryOrbitDrag {
@@ -4806,6 +4758,33 @@ impl ToolList {
         {
             self.add_construction_grid_3d(&mut rusterix, map, server_ctx);
         }
+        if server_ctx.curr_map_tool_type == MapToolType::Terrain {
+            if let Some(map) = project.get_map(server_ctx)
+                && let Some(center) = server_ctx.hover_cursor_3d
+            {
+                let points = TerrainTool::outline(
+                    map,
+                    Vec2::new(center.x, center.z),
+                    server_ctx.terrain_brush_radius,
+                );
+                let tile = rusterix.scene_handler.selected;
+                let normal = rusterix.client.camera_d3.basis_vectors().0;
+                for (i, pair) in points.windows(2).enumerate() {
+                    rusterix.scene_handler.overlay_3d.add_line_3d(
+                        GeoId::Unknown(0x7E00_0000 + i as u32),
+                        tile,
+                        pair[0] + Vec3::new(0., 0.02, 0.),
+                        pair[1] + Vec3::new(0., 0.02, 0.),
+                        0.06,
+                        normal,
+                        100,
+                    );
+                }
+            }
+            rusterix.scene_handler.set_overlay();
+            rusterix.set_overlay_dirty();
+            return;
+        }
         // rusterix.scene_handler.vm.set_layer_activity_logging(true);
 
         // basis_vectors returns (forward, right, up)
@@ -5669,29 +5648,15 @@ impl ToolList {
                         .first()
                         .map(|id| (id.as_u128() as u32) & 0x0000_F000)
                         .unwrap_or(0);
-                    let local_axes = selected_instances.first().and_then(|instance| {
-                        let rusterix::BlockPropHostAttachment::WallSpan {
-                            assembly_id,
-                            span_id,
-                            along,
-                            height,
-                            side,
-                            ..
-                        } = instance.host_attachment.as_ref()?;
-                        let assembly = map.wall_assembly(*assembly_id)?;
-                        let length = assembly.span_length(*span_id)?;
-                        let epsilon = (length * 0.01).clamp(0.005, 0.05);
-                        let before = assembly
-                            .span_point(*span_id, Vec2::new((along - epsilon).max(0.0), *height))?;
-                        let after = assembly.span_point(
-                            *span_id,
-                            Vec2::new((along + epsilon).min(length), *height),
-                        )?;
-                        let tangent = Vec3::new(after.x - before.x, 0.0, after.z - before.z)
-                            .try_normalized()?;
-                        let outward = Vec3::new(-tangent.z, 0.0, tangent.x)
-                            * if *side < 0.0 { -1.0 } else { 1.0 };
-                        Some([tangent, Vec3::unit_y(), outward])
+                    let local_axes = selected_instances.first().map(|instance| {
+                        std::array::from_fn::<_, 3, _>(|i| {
+                            Vec3::new(
+                                instance.world_transform[i][0],
+                                instance.world_transform[i][1],
+                                instance.world_transform[i][2],
+                            )
+                            .normalized()
+                        })
                     });
                     let axes = if let Some(local_axes) = local_axes {
                         [
@@ -6645,15 +6610,13 @@ impl ToolList {
         rusterix.scene_handler.tool_overlay_3d.priority = 1;
 
         let (cam_forward, cam_right, cam_up) = rusterix.client.camera_d3.basis_vectors();
-        let view_right = cam_right;
-        let view_up = cam_up;
         let view_nudge = cam_forward * -0.002;
         let thickness = 0.15;
         let white = rusterix.scene_handler.white;
 
         if server_ctx.curr_map_tool_type == MapToolType::Rect {
             if let Some(terrain_id) = server_ctx.rect_terrain_id {
-                let config = TerrainConfig::default();
+                let config = TerrainConfig::for_map(map);
                 let corners = TerrainGenerator::tile_outline_world(map, terrain_id, &config);
                 let n = TerrainGenerator::tile_normal(map, terrain_id, &config);
                 for i in 0..4 {
@@ -6777,277 +6740,14 @@ impl ToolList {
                     }
                 }
             }
-        } else if matches!(
-            server_ctx.curr_map_tool_type,
-            MapToolType::Linedef | MapToolType::Wall
-        ) {
-            if server_ctx.curr_map_tool_type == MapToolType::Wall {
-                let mut node_index = 0u32;
-                for assembly in &map.wall_assemblies {
-                    for node in &assembly.nodes {
-                        let selected = map.selected_wall_assembly == Some(assembly.id)
-                            && map.selected_wall_nodes.contains(&node.id);
-                        let tile_id = if selected {
-                            rusterix.scene_handler.selected
-                        } else {
-                            rusterix.scene_handler.white
-                        };
-                        rusterix.scene_handler.overlay_3d.add_billboard_3d(
-                            GeoId::Unknown(0xE3C5_0000u32.wrapping_add(node_index)),
-                            tile_id,
-                            node.position + view_nudge,
-                            view_right,
-                            view_up,
-                            if selected { 0.24 } else { 0.18 },
-                            true,
-                        );
-                        node_index = node_index.wrapping_add(1);
-                    }
-                }
-            }
-            if server_ctx.curr_map_tool_type == MapToolType::Wall
-                && let Some((assembly_id, span_id)) = map.hovered_wall_span
-                && !map.selected_wall_spans.contains(&span_id)
-                && let Some(assembly) = map.wall_assembly(assembly_id)
-                && let Some(span) = assembly.span(span_id)
-                && let Some(start) = assembly.node(span.start_node).map(|node| node.position)
-                && let Some(end) = assembly.node(span.end_node).map(|node| node.position)
-            {
-                let height = span
-                    .style_override
-                    .as_ref()
-                    .unwrap_or(&assembly.style)
-                    .height;
-                let top = Vec3::unit_y() * height;
-                for (index, (a, b)) in [
-                    (start, end),
-                    (start + top, end + top),
-                    (start, start + top),
-                    (end, end + top),
-                ]
-                .into_iter()
-                .enumerate()
-                {
-                    rusterix.scene_handler.tool_overlay_3d.add_hardware_line_3d(
-                        GeoId::Unknown(0xE3C3_0000u32.wrapping_add(index as u32)),
-                        a + view_nudge + cam_forward * -0.013,
-                        b + view_nudge + cam_forward * -0.013,
-                        [88.0 / 255.0, 196.0 / 255.0, 221.0 / 255.0, 1.0],
-                        105,
-                    );
-                }
-            }
-            if server_ctx.curr_map_tool_type == MapToolType::Wall
-                && let Some(assembly_id) = map.selected_wall_assembly
-                && let Some(assembly) = map.wall_assembly(assembly_id)
-            {
-                let selected_color = [1.0, 204.0 / 255.0, 92.0 / 255.0, 1.0];
-                let mut overlay_index = 0u32;
-                for span_id in &map.selected_wall_spans {
-                    let Some(span) = assembly.span(*span_id) else {
-                        continue;
-                    };
-                    let Some(start) = assembly.node(span.start_node).map(|node| node.position)
-                    else {
-                        continue;
-                    };
-                    let Some(end) = assembly.node(span.end_node).map(|node| node.position) else {
-                        continue;
-                    };
-                    let height = span
-                        .style_override
-                        .as_ref()
-                        .unwrap_or(&assembly.style)
-                        .height;
-                    let top = Vec3::unit_y() * height;
-                    for (a, b) in [
-                        (start, end),
-                        (start + top, end + top),
-                        (start, start + top),
-                        (end, end + top),
-                    ] {
-                        rusterix.scene_handler.tool_overlay_3d.add_hardware_line_3d(
-                            GeoId::Unknown(0xE3C1_0000u32.wrapping_add(overlay_index)),
-                            a + view_nudge + cam_forward * -0.014,
-                            b + view_nudge + cam_forward * -0.014,
-                            selected_color,
-                            110,
-                        );
-                        overlay_index = overlay_index.wrapping_add(1);
-                    }
-                }
-                if let (Some(span_id), Some(opening_id)) = (
-                    map.selected_wall_spans.first().copied(),
-                    map.selected_wall_opening,
-                ) && let Some(opening) = assembly.opening(span_id, opening_id)
-                {
-                    let left = opening.center - opening.width * 0.5;
-                    let right = opening.center + opening.width * 0.5;
-                    let bottom = opening.bottom;
-                    let top = opening.bottom + opening.height;
-                    let local_outline = if opening.shape == WallOpeningShape::Arch {
-                        let radius_x = opening.width * 0.5;
-                        let radius_y = opening.effective_arch_radius();
-                        let spring = top - radius_y;
-                        let mut points = vec![
-                            Vec2::new(left, bottom),
-                            Vec2::new(right, bottom),
-                            Vec2::new(right, spring),
-                        ];
-                        for segment in 0..=24 {
-                            let angle = segment as f32 / 24.0 * std::f32::consts::PI;
-                            points.push(Vec2::new(
-                                opening.center + angle.cos() * radius_x,
-                                spring + angle.sin() * radius_y,
-                            ));
-                        }
-                        points
-                    } else {
-                        vec![
-                            Vec2::new(left, bottom),
-                            Vec2::new(right, bottom),
-                            Vec2::new(right, top),
-                            Vec2::new(left, top),
-                        ]
-                    };
-                    let world_outline = local_outline
-                        .iter()
-                        .filter_map(|point| assembly.span_point(span_id, *point))
-                        .collect::<Vec<_>>();
-                    if world_outline.len() == local_outline.len() {
-                        for index in 0..world_outline.len() {
-                            rusterix.scene_handler.tool_overlay_3d.add_hardware_line_3d(
-                                GeoId::Unknown(0xE3C6_0000u32.wrapping_add(index as u32)),
-                                world_outline[index] + view_nudge + cam_forward * -0.02,
-                                world_outline[(index + 1) % world_outline.len()]
-                                    + view_nudge
-                                    + cam_forward * -0.02,
-                                [1.0, 204.0 / 255.0, 92.0 / 255.0, 1.0],
-                                130,
-                            );
-                        }
-                    }
-                    let middle = bottom + opening.height * 0.5;
-                    let mut handles = vec![
-                        Vec2::new(left, middle),
-                        Vec2::new(right, middle),
-                        Vec2::new(opening.center, bottom),
-                        Vec2::new(opening.center, top),
-                    ];
-                    if opening.shape == WallOpeningShape::Arch {
-                        handles.push(Vec2::new(
-                            opening.center,
-                            top - opening.effective_arch_radius(),
-                        ));
-                    }
-                    let handle_tile = rusterix.scene_handler.selected;
-                    for (index, point) in handles.into_iter().enumerate() {
-                        if let Some(world) = assembly.span_point(span_id, point) {
-                            rusterix.scene_handler.overlay_3d.add_billboard_3d(
-                                GeoId::Unknown(0xE3C7_0000u32.wrapping_add(index as u32)),
-                                handle_tile,
-                                world + view_nudge + cam_forward * -0.022,
-                                view_right,
-                                view_up,
-                                0.16,
-                                true,
-                            );
-                        }
-                    }
-                }
-                if let Some(preview) = map.wall_opening_preview
-                    && preview.assembly_id == assembly_id
-                {
-                    let left = preview.start.x.min(preview.end.x);
-                    let right = preview.start.x.max(preview.end.x);
-                    let bottom = preview.start.y.min(preview.end.y);
-                    let top = preview.start.y.max(preview.end.y);
-                    let local_outline = if preview.shape == WallOpeningShape::Arch {
-                        let radius = ((right - left) * 0.5).min(top - bottom).max(0.001);
-                        let spring = top - radius;
-                        let center = (left + right) * 0.5;
-                        let mut points = vec![
-                            Vec2::new(left, bottom),
-                            Vec2::new(right, bottom),
-                            Vec2::new(right, spring),
-                        ];
-                        for segment in 0..=12 {
-                            let angle = segment as f32 / 12.0 * std::f32::consts::PI;
-                            points.push(Vec2::new(
-                                center + angle.cos() * radius,
-                                spring + angle.sin() * radius,
-                            ));
-                        }
-                        points
-                    } else {
-                        vec![
-                            Vec2::new(left, bottom),
-                            Vec2::new(right, bottom),
-                            Vec2::new(right, top),
-                            Vec2::new(left, top),
-                        ]
-                    };
-                    let world_outline = local_outline
-                        .iter()
-                        .filter_map(|point| assembly.span_point(preview.span_id, *point))
-                        .collect::<Vec<_>>();
-                    if world_outline.len() == local_outline.len() {
-                        for index in 0..world_outline.len() {
-                            rusterix.scene_handler.tool_overlay_3d.add_hardware_line_3d(
-                                GeoId::Unknown(0xE3C2_0000u32.wrapping_add(index as u32)),
-                                world_outline[index] + view_nudge + cam_forward * -0.018,
-                                world_outline[(index + 1) % world_outline.len()]
-                                    + view_nudge
-                                    + cam_forward * -0.018,
-                                [88.0 / 255.0, 220.0 / 255.0, 196.0 / 255.0, 1.0],
-                                120,
-                            );
-                        }
-                    }
-                }
-                if let Some(preview) = map.wall_brick_preview
-                    && preview.assembly_id == assembly_id
-                    && let Some((left, right, bottom, top)) =
-                        assembly.brick_rect(preview.span_id, preview.key)
-                {
-                    let local_outline = [
-                        Vec2::new(left, bottom),
-                        Vec2::new(right, bottom),
-                        Vec2::new(right, top),
-                        Vec2::new(left, top),
-                    ];
-                    let world_outline =
-                        local_outline.map(|point| assembly.span_point(preview.span_id, point));
-                    if world_outline.iter().all(Option::is_some) {
-                        let world_outline = world_outline.map(Option::unwrap);
-                        let color = if preview.remove {
-                            [1.0, 116.0 / 255.0, 92.0 / 255.0, 1.0]
-                        } else {
-                            [92.0 / 255.0, 220.0 / 255.0, 142.0 / 255.0, 1.0]
-                        };
-                        for index in 0..4 {
-                            rusterix.scene_handler.tool_overlay_3d.add_hardware_line_3d(
-                                GeoId::Unknown(0xE3C4_0000u32.wrapping_add(index as u32)),
-                                world_outline[index] + view_nudge + cam_forward * -0.019,
-                                world_outline[(index + 1) % 4] + view_nudge + cam_forward * -0.019,
-                                color,
-                                125,
-                            );
-                        }
-                    }
-                }
-            }
+        } else if matches!(server_ctx.curr_map_tool_type, MapToolType::Linedef) {
             if let Some(start) = map.curr_grid_pos_3d {
                 let target = server_ctx.hover_cursor_3d.or_else(|| {
                     matches!(server_ctx.geo_hit, Some(GeoId::GeometryObject(_)))
                         .then_some(server_ctx.geo_hit_pos)
                 });
                 if let Some(target) = target {
-                    let color = if server_ctx.curr_map_tool_type == MapToolType::Wall {
-                        [88.0 / 255.0, 196.0 / 255.0, 221.0 / 255.0, 1.0]
-                    } else {
-                        [187.0 / 255.0, 122.0 / 255.0, 208.0 / 255.0, 1.0]
-                    };
+                    let color = [187.0 / 255.0, 122.0 / 255.0, 208.0 / 255.0, 1.0];
                     rusterix.scene_handler.tool_overlay_3d.add_hardware_line_3d(
                         GeoId::Unknown(0xE3C0_0000),
                         start + view_nudge + cam_forward * -0.012,
@@ -7450,7 +7150,6 @@ impl ToolList {
                         | MapToolType::Vertex
                         | MapToolType::Linedef
                         | MapToolType::Sector
-                        | MapToolType::Wall
                 ))
                 && matches!(raw.0, GeoId::GeometryObject(_))
             {

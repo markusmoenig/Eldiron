@@ -288,10 +288,18 @@ pub enum PlayerCamera {
     #[default]
     D2,
     D2Grid,
+    D2Iso,
     D3Iso,
     D3FirstP,
     D3FirstPGrid,
     D3FirstPMouse,
+    D2IsoGrid,
+}
+
+impl PlayerCamera {
+    pub fn is_isometric_2d(&self) -> bool {
+        matches!(self, Self::D2Iso | Self::D2IsoGrid)
+    }
 }
 
 use std::fmt;

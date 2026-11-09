@@ -8,9 +8,11 @@ use denrim_materials::geometry::{Document, Evaluation, Operation, Row, Tile, Val
 pub(crate) mod animation;
 mod assets;
 mod authoring_params;
+mod control_publisher;
 mod groups;
 mod interaction;
 mod layout;
+mod recipe_browser;
 pub use layout::{is_visible, main_canvas, sync_workspace};
 mod effects;
 mod presentation;
@@ -22,6 +24,7 @@ pub const STACK: &str = "Appearance Workspace";
 pub const MODE: &str = "Appearance Mode";
 const EDITOR: &str = "MZ Geometry Rows";
 const PREVIEW: &str = "MZ Geometry Preview";
+#[cfg(test)]
 const ASSETS: &str = "MZ Geometry Assets";
 
 pub fn workspace(material: TheCanvas) -> TheCanvas {
@@ -31,10 +34,6 @@ pub fn workspace(material: TheCanvas) -> TheCanvas {
     bar.limiter_mut().set_max_height(28);
     bar.set_margin(Vec4::new(4, 2, 4, 2));
     bar.set_padding(4);
-    let mut assets = TheDropdownMenu::new(TheId::named(ASSETS));
-    assets.add_option("No geometry assets".into());
-    assets.limiter_mut().set_max_width(150);
-    bar.add_widget(Box::new(assets));
     let mut name = TheTextLineEdit::new(TheId::named("MZ Geometry Name"));
     name.limiter_mut().set_max_width(148);
     bar.add_widget(Box::new(name));
@@ -56,7 +55,7 @@ pub fn workspace(material: TheCanvas) -> TheCanvas {
     bar.set_margin(Vec4::new(4, 2, 4, 2));
     bar.set_padding(4);
     let mut create = TheDropdownMenu::new(TheId::named("MZ New Geometry"));
-    for name in ["New…", "Empty model", "Human", "Sword"] {
+    for name in ["New…", "Browse recipes…", "Empty rig", "Human", "Sword"] {
         create.add_option(name.into());
     }
     create.limiter_mut().set_max_width(145);
@@ -68,6 +67,7 @@ pub fn workspace(material: TheCanvas) -> TheCanvas {
         "Animation events…",
         "Import model…",
         "Export model…",
+        "Advanced controls (TOML)…",
     ] {
         actions.add_option(name.into());
     }
@@ -103,11 +103,32 @@ pub fn workspace(material: TheCanvas) -> TheCanvas {
     let mut stack = TheStackLayout::new(TheId::named(STACK));
     stack.add_canvas(material);
     stack.add_canvas(geometry);
+    let mut compact = TheCanvas::new();
+    let mut info = TheText::new(TheId::named("MZ Mesh Selection Name"));
+    info.set_text("Select an MZ mesh in the tilepicker".into());
+    info.set_text_size(14.);
+    let mut row = TheVLayout::new(TheId::named("MZ Mesh Selection Panel"));
+    row.set_margin(Vec4::new(12, 12, 12, 12));
+    row.add_widget(Box::new(info));
+    let mut edit = TheTraybarButton::new(TheId::named("MZ Edit Selected Mesh"));
+    edit.set_text("Edit mesh".into());
+    edit.set_status_text("Open the selected mesh recipe in the full editor");
+    row.add_widget(Box::new(edit));
+    let mut create = TheTraybarButton::new(TheId::named("MZ New Box"));
+    create.set_text("New mesh".into());
+    create.set_status_text("Create a new editable MZ mesh");
+    row.add_widget(Box::new(create));
+    row.limiter_mut().set_max_height(110);
+    let mut heading = TheCanvas::new();
+    heading.set_layout(row);
+    compact.set_top(heading);
+    compact.set_center(crate::iso_editor::placement_canvas());
+    stack.add_canvas(compact);
     let mut canvas = TheCanvas::new();
     canvas.set_layout(stack);
     let mut mode = TheGroupButton::new(TheId::named(MODE));
     mode.add_text("Materials".into());
-    mode.add_text("Geometry".into());
+    mode.add_text("Meshes".into());
     mode.set_item_width(110);
     let mut bar = TheHLayout::new(TheId::empty());
     bar.limiter_mut().set_max_height(28);
@@ -123,10 +144,9 @@ pub fn workspace(material: TheCanvas) -> TheCanvas {
 pub struct GeometryEditor {
     active: bool,
     selected: Option<Uuid>,
+    iso_output: Option<Uuid>,
+    panel_revision: Option<(Option<Uuid>, u64)>,
     key: Option<String>,
-    choices: Vec<Uuid>,
-    choice_labels: Vec<String>,
-    choice_revisions: Vec<u64>,
     viewport_visible: bool,
     open_in_rig: bool,
     source_revision: u64,
@@ -138,11 +158,14 @@ pub struct GeometryEditor {
     root_document: Option<Document>,
     group_path: Vec<String>,
     control_target: Option<(Uuid, Vec<String>, String, String)>,
+    recipe_browser: Option<recipe_browser::Browser>,
+    control_publisher: Option<control_publisher::Publisher>,
     evaluation: Option<Evaluation>,
     selected_operation: Option<String>,
     selected_source: Option<String>,
     preview_selected: bool,
     camera: usize,
+    iso_mode: bool,
     contour_camera_available: Option<bool>,
     yaw: f32,
     pitch: f32,
@@ -160,6 +183,86 @@ pub struct GeometryEditor {
     texture_sources: Vec<String>,
 }
 impl GeometryEditor {
+    fn texture_material_for_edit(
+        &mut self,
+        project: &mut Project,
+        ctx: &mut TheContext,
+    ) -> Result<Uuid, String> {
+        let Some(Operation::Texture {
+            source,
+            bundle,
+            size,
+            ..
+        }) = self.selected_texture().cloned()
+        else {
+            return Err("Select a Texture operation".into());
+        };
+        if bundle.is_none() {
+            if let Ok(id) = Uuid::parse_str(&source) {
+                if project.procedural_materials.contains_key(&id) {
+                    project.ensure_material_tiles();
+                    return Ok(id);
+                }
+            }
+        }
+        let spec = denrim_materials::geometry::Texture {
+            source: source.clone(),
+            bundle: bundle.clone(),
+            size,
+        };
+        let asset = textures::asset(&spec, &project.palette, Some(project))?;
+        let before = project.clone();
+        let linked_ruleset = if bundle.is_none() {
+            source
+                .strip_prefix("ruleset:material/")
+                .map(shared::rulesets::material_asset_id)
+        } else {
+            None
+        };
+        let id = linked_ruleset.unwrap_or_else(Uuid::new_v4);
+        let saved = crate::procedural_material::duplicate_bundle(
+            &asset.save().map_err(|e| e.to_string())?,
+            id,
+        )?;
+        let mut candidate = project.clone();
+        candidate.procedural_materials.insert(id, saved);
+        if linked_ruleset.is_none() {
+            let mut next = self.document.clone().ok_or("Select a mesh recipe")?;
+            let tile = next
+                .rows
+                .iter_mut()
+                .flat_map(|r| &mut r.tiles)
+                .find(|t| Some(&t.id) == self.selected_operation.as_ref())
+                .ok_or("Select a Texture operation")?;
+            if let Operation::Texture { source, bundle, .. } = &mut tile.op {
+                *source = id.to_string();
+                *bundle = None;
+            }
+            let root = self.encode_active(next, &candidate)?;
+            candidate
+                .procedural_appearances
+                .insert(self.selected.ok_or("Select a mesh")?, root);
+        }
+        candidate.ensure_material_tiles();
+        *project = candidate;
+        UNDOMANAGER.write().unwrap().add_undo(
+            ProjectUndoAtom::TilePickerEdit(Box::new(before), Box::new(project.clone())),
+            ctx,
+        );
+        self.key = Some(String::new());
+        Ok(id)
+    }
+    fn selected_texture(&self) -> Option<&Operation> {
+        let id = self.selected_operation.as_ref()?;
+        self.document
+            .as_ref()?
+            .rows
+            .iter()
+            .flat_map(|r| &r.tiles)
+            .find(|t| &t.id == id)
+            .map(|t| &t.op)
+            .filter(|op| matches!(op, Operation::Texture { .. }))
+    }
     pub fn wants_realtime(&self) -> bool {
         self.active && self.viewport_visible
     }
@@ -192,6 +295,7 @@ impl GeometryEditor {
         self.viewport_visible = false;
         self.open_in_rig = false;
         self.selected = None;
+        self.iso_output = None;
         self.key = None;
         self.document = None;
         self.root_document = None;
@@ -209,10 +313,15 @@ impl GeometryEditor {
     }
     fn mode(ui: &mut TheUI, ctx: &mut TheContext, index: usize) {
         if let Some(s) = ui.get_stack_layout(STACK) {
+            if s.index() != index {
+                // Hidden row editors must not retain keyboard/text-input focus.
+                ctx.ui.clear_focus();
+                ctx.ui.keyboard_focus = None;
+            }
             s.set_index(index);
         }
         if let Some(b) = ui.get_widget(MODE).and_then(|w| w.as_group_button()) {
-            b.set_index(index as i32);
+            b.set_index(index.min(1) as i32);
         }
         sync_workspace(ui, ctx);
         ctx.ui.relayout = true;
@@ -421,13 +530,65 @@ impl GeometryEditor {
         ui: &mut TheUI,
         ctx: &mut TheContext,
     ) -> bool {
+        if self.recipe_browser_event(event, project, ui, ctx)
+            || self.control_publisher_event(event, project, ui, ctx)
+        {
+            return true;
+        }
         if self.asset_actions(event, project, ui, ctx) {
             return true;
         }
+        if let TheEvent::Custom(id, TheValue::Id(tile)) = event {
+            if matches!(id.name.as_str(), "Tile Picked" | "Open Procedural Tile") {
+                if let Some(shared::isometric::TileRecipe::Geometry(recipe)) =
+                    shared::isometric::tile_recipe(project, *tile)
+                {
+                    self.finish_drag(project, ctx, false);
+                    self.selected = Some(recipe);
+                    self.iso_output = Some(*tile);
+                    // Tile/pixel-editor delegation selects a mesh for placement. Only
+                    // explicit mesh editing enters the central modelling workspace.
+                    self.active = false;
+                    self.group_path.clear();
+                    self.key = None;
+                    self.document = None;
+                    self.evaluation = None;
+                    self.scene = Default::default();
+                    self.inspector = Default::default();
+                    self.selected_operation = None;
+                    self.preview_selected = false;
+                    self.open_in_rig = false;
+                    self.camera = 4;
+                    self.preview_key.clear();
+                    crate::sidebar::Sidebar::set_navigation_page(
+                        crate::procedural_material::SIDEBAR_PAGE,
+                        ui,
+                        ctx,
+                    );
+                    if let Some(w) = ui.get_text("MZ Mesh Selection Name") {
+                        let label = project
+                            .procedural_appearances
+                            .get(&recipe)
+                            .and_then(|s| Document::load(s).ok())
+                            .map(|d| d.label)
+                            .unwrap_or_else(|| "MZ mesh".into());
+                        w.set_text(label);
+                    }
+                    Self::mode(ui, ctx, if self.active { 1 } else { 2 });
+                    // Continue dispatch so the material editor clears its old source.
+                    return false;
+                }
+                self.iso_output = None;
+            }
+        }
         if let TheEvent::Custom(id, TheValue::Id(asset)) = event {
-            if id.name == "Open Procedural Geometry" || id.name == "Open Worn Geometry" || id.name == "Open Geometry Recipe" {
+            if id.name == "Open Procedural Geometry"
+                || id.name == "Open Worn Geometry"
+                || id.name == "Open Geometry Recipe"
+            {
                 self.finish_drag(project, ctx, false);
                 self.selected = Some(*asset);
+                self.iso_output = None;
                 self.active = true;
                 self.group_path.clear();
                 self.key = None;
@@ -490,9 +651,10 @@ impl GeometryEditor {
         if let TheEvent::IndexChanged(id, index) = event {
             if id.name == "MZ New Geometry" {
                 let preset = match index {
-                    1 => Some("MZ New Model"),
-                    2 => Some("MZ New Human"),
-                    3 => Some("MZ New Sword"),
+                    1 => Some("MZ New Box"),
+                    2 => Some("MZ New Model"),
+                    3 => Some("MZ New Human"),
+                    4 => Some("MZ New Sword"),
                     _ => None,
                 };
                 layout::set_choice(ui, "MZ New Geometry", 0);
@@ -507,6 +669,41 @@ impl GeometryEditor {
             }
         }
         match event {
+            TheEvent::StateChanged(id, TheWidgetState::Clicked)
+                if id.name == "MZ Edit Selected Mesh" =>
+            {
+                if self.selected.is_some() {
+                    self.active = true;
+                    if self.document.is_none() && self.iso_output.is_none() {
+                        self.open_in_rig = true;
+                    }
+                    self.key = None;
+                    Self::mode(ui, ctx, 1);
+                }
+                return true;
+            }
+            TheEvent::StateChanged(id, TheWidgetState::Clicked)
+                if id.name == "MZ Edit Texture Material" =>
+            {
+                match self.texture_material_for_edit(project, ctx) {
+                    Ok(material) => {
+                        self.active = false;
+                        Self::mode(ui, ctx, 0);
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Open Mesh Material"),
+                            TheValue::Id(material),
+                        ));
+                    }
+                    Err(error) => Self::status(ctx, error),
+                }
+                return true;
+            }
+            TheEvent::Custom(id, _) if id.name == "Return to Mesh Recipe" => {
+                self.active = true;
+                self.preview_key.clear();
+                Self::mode(ui, ctx, 1);
+                return false;
+            }
             TheEvent::StateChanged(id, TheWidgetState::Clicked)
                 if id.name == "MZ Use Ruleset Humanoid" =>
             {
@@ -551,7 +748,29 @@ impl GeometryEditor {
                 self.finish_drag(project, ctx, false);
                 self.active = false;
                 self.playback.playing = false;
-                Self::mode(ui, ctx, 0);
+                Self::mode(ui, ctx, if self.selected.is_some() { 2 } else { 0 });
+                let output = self
+                    .iso_output
+                    .filter(|id| {
+                        project
+                            .isometric_bakes
+                            .get(id)
+                            .is_some_and(|b| Some(b.recipe) == self.selected)
+                    })
+                    .or_else(|| {
+                        project
+                            .isometric_bakes
+                            .iter()
+                            .find(|(_, b)| Some(b.recipe) == self.selected)
+                            .map(|(id, _)| *id)
+                    });
+                if let Some(output) = output {
+                    self.iso_output = Some(output);
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Pick Tile Source"),
+                        TheValue::List(vec![TheValue::Text("single".into()), TheValue::Id(output)]),
+                    ));
+                }
                 return true;
             }
             TheEvent::StateChanged(id, TheWidgetState::Clicked)
@@ -631,11 +850,8 @@ impl GeometryEditor {
             }
             TheEvent::IndexChanged(id, index) if id.name == MODE => {
                 self.finish_drag(project, ctx, false);
-                self.active = *index == 1;
-                if self.active && self.document.is_none() {
-                    self.open_in_rig = true;
-                }
-                Self::mode(ui, ctx, if self.active { 1 } else { 0 });
+                self.active = false;
+                Self::mode(ui, ctx, if *index == 1 { 2 } else { 0 });
                 self.preview_key.clear();
                 return true;
             }
@@ -646,18 +862,6 @@ impl GeometryEditor {
                     Self::mode(ui, ctx, 0);
                 }
                 return false;
-            }
-            TheEvent::IndexChanged(id, index) if id.name == ASSETS => {
-                self.finish_drag(project, ctx, false);
-                self.selected = self.choices.get(*index as usize).copied();
-                self.scene = Default::default();
-                self.open_in_rig = true;
-                self.document = None;
-                self.evaluation = None;
-                self.key = None;
-                self.group_path.clear();
-                self.inspector = Default::default();
-                return true;
             }
             TheEvent::ValueChanged(id, TheValue::Text(label)) if id.name == "MZ Geometry Name" => {
                 if let Some(mut next) = self
@@ -677,7 +881,6 @@ impl GeometryEditor {
             }
             TheEvent::StateChanged(id, TheWidgetState::Clicked)
                 if id.name == "MZ New Sword"
-                    || id.name == "MZ New Box"
                     || id.name == "MZ New Human"
                     || id.name == "MZ New Model" =>
             {
@@ -694,8 +897,6 @@ impl GeometryEditor {
                         )
                         .first()
                         .map_or(denrim_materials::geometry::HUMAN_EXAMPLE, |a| a.source)
-                    } else if id.name == "MZ New Box" {
-                        denrim_materials::geometry::SWORD_EXAMPLE
                     } else {
                         denrim_materials::geometry::SWORD_GROUP_EXAMPLE
                     })
@@ -709,30 +910,6 @@ impl GeometryEditor {
                 }
                 let id_new = Uuid::new_v4();
                 doc.id = id_new.to_string();
-                if id.name == "MZ New Box" {
-                    doc.label = "Box".into();
-                    doc.rows.retain(|r| r.id == "steel");
-                    doc.rows.push(Row {
-                        id: "box".into(),
-                        label: "Box".into(),
-                        tiles: vec![
-                            Tile {
-                                id: "box-shape".into(),
-                                op: Operation::Box {
-                                    size: [0.4, 0.4, 0.4],
-                                },
-                            },
-                            Tile {
-                                id: "box-material".into(),
-                                op: Operation::AssignMaterial {
-                                    row: "steel".into(),
-                                },
-                            },
-                        ],
-                    });
-                    doc.output = "box".into();
-                    doc.grip = None;
-                }
                 let text = doc.save().unwrap();
                 project.procedural_appearances.insert(id_new, text.clone());
                 UNDOMANAGER.write().unwrap().add_undo(
@@ -750,8 +927,8 @@ impl GeometryEditor {
                 {
                     b.set_index(0);
                 }
-                self.camera = 0;
-                layout::set_choice(ui, "MZ Geometry Camera", 0);
+                self.camera = if self.iso_mode { 4 } else { 0 };
+                layout::set_choice(ui, "MZ Geometry Camera", self.camera);
                 self.yaw = -25.;
                 self.pitch = 12.;
                 self.selected_operation = None;
@@ -1091,6 +1268,9 @@ impl GeometryEditor {
             }
             TheEvent::KeyDown(_) | TheEvent::KeyCodeDown(_)
                 if self.active
+                    && !ui.ctrl
+                    && !ui.logo
+                    && !ui.alt
                     && ctx.ui.focus.as_ref().is_some_and(|id| {
                         id.name == EDITOR
                             || id.name == PREVIEW
@@ -1111,6 +1291,7 @@ impl GeometryEditor {
             serde_json::to_string(&project.palette.colors).unwrap_or_default(),
             &self.group_path,
             textures::input_key(project, text),
+            project.procedural_materials.revision(),
             project
                 .procedural_materials
                 .iter()
@@ -1118,11 +1299,41 @@ impl GeometryEditor {
                 .map(|(_, b)| b.as_str())
                 .collect::<Vec<_>>(),
             &project.config,
-            shared::geometry_recipe::preview_input(project,id).map(|(_,key)|key),
+            shared::geometry_recipe::preview_input(project, id).map(|(_, key)| key),
         ))
         .to_string()
     }
-    pub fn update(&mut self, project: &Project, ui: &mut TheUI, ctx: &mut TheContext) -> bool {
+    pub fn update(
+        &mut self,
+        project: &Project,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        server: &ServerContext,
+    ) -> bool {
+        let panel_revision = (self.selected, project.procedural_appearances.revision());
+        if self.panel_revision != Some(panel_revision) {
+            self.panel_revision = Some(panel_revision);
+            let label = self
+                .selected
+                .and_then(|id| project.procedural_appearances.get(&id))
+                .and_then(|text| serde_json::from_str::<serde_json::Value>(text).ok())
+                .and_then(|v| v["label"].as_str().map(str::to_owned))
+                .unwrap_or_else(|| "Select an MZ mesh in the tilepicker".into());
+            if let Some(w) = ui.get_text("MZ Mesh Selection Name") {
+                w.set_text(label);
+            }
+            if let Some(w) = ui.get_widget("MZ Edit Selected Mesh") {
+                w.set_disabled(self.selected.is_none());
+            }
+        }
+        let iso = project
+            .get_map(server)
+            .is_some_and(|m| m.camera == rusterix::MapCamera::TwoDIso);
+        if iso != self.iso_mode {
+            self.iso_mode = iso;
+            self.camera = if iso { 4 } else { 0 };
+            self.preview_key.clear();
+        }
         let page = ui
             .get_stack_layout("Sidebar Page Stack")
             .is_some_and(|s| s.index() == crate::procedural_material::SIDEBAR_PAGE);
@@ -1141,41 +1352,6 @@ impl GeometryEditor {
             self.key = None;
             self.group_path.clear();
             self.root_document = None;
-        }
-        let choices = project
-            .procedural_appearances
-            .keys()
-            .copied()
-            .collect::<Vec<_>>();
-        let revisions = project
-            .procedural_appearances
-            .values()
-            .map(|s| fingerprint(s))
-            .collect::<Vec<_>>();
-        if choices != self.choices || revisions != self.choice_revisions {
-            #[derive(serde::Deserialize)]
-            struct Label {
-                label: String,
-            }
-            let labels = project
-                .procedural_appearances
-                .values()
-                .map(|s| {
-                    serde_json::from_str::<Label>(s).map_or("Invalid geometry".into(), |d| d.label)
-                })
-                .collect::<Vec<_>>();
-            self.choice_revisions = revisions;
-            self.choices = choices;
-            self.choice_labels = labels;
-            if let Some(menu) = ui.get_widget(ASSETS).and_then(|w| w.as_drop_down_menu()) {
-                menu.clear_options();
-                for label in &self.choice_labels {
-                    menu.add_option(label.clone());
-                }
-                if self.choices.is_empty() {
-                    menu.add_option("Create a model, human or sword".into());
-                }
-            }
         }
         let Some(id) = self.selected else {
             if self.key.is_none() {
@@ -1230,7 +1406,11 @@ impl GeometryEditor {
                 let doc = root.group_document(&self.group_path)?.clone();
                 let resolved = shared::appearance_assets::resolve(project, &doc)
                     .map_err(denrim_materials::Error)?;
-                let inputs=self.selected.and_then(|id|shared::geometry_recipe::preview_input(project,id)).map(|(mesh,_)|std::collections::BTreeMap::from([("selection".into(),mesh)])).unwrap_or_default();
+                let inputs = self
+                    .selected
+                    .and_then(|id| shared::geometry_recipe::preview_input(project, id))
+                    .map(|(mesh, _)| std::collections::BTreeMap::from([("selection".into(), mesh)]))
+                    .unwrap_or_default();
                 let mut evaluation = resolved.evaluate_with_inputs(&inputs)?;
                 if let Some(body) = resolved.wearer_context() {
                     let mut preview = body.evaluate()?.mesh;
@@ -1242,8 +1422,10 @@ impl GeometryEditor {
                 Ok((root, doc, evaluation))
             }) {
                 Ok((root, doc, evaluation)) => {
-                    self.texture_sources = textures::ruleset_choices(project)
-                        .into_iter()
+                    let named_sources = textures::ruleset_choices(project);
+                    self.texture_sources = named_sources
+                        .iter()
+                        .cloned()
                         .map(|(uri, _)| uri)
                         .chain(project.procedural_materials.keys().map(ToString::to_string))
                         .collect();
@@ -1282,8 +1464,10 @@ impl GeometryEditor {
                                     .texture_sources
                                     .iter()
                                     .map(|s| {
-                                        if s.starts_with("ruleset:") {
-                                            s.trim_start_matches("ruleset:icon/").replace('_', " ")
+                                        if let Some((_, label)) =
+                                            named_sources.iter().find(|(uri, _)| uri == s)
+                                        {
+                                            label.clone()
                                         } else {
                                             Uuid::parse_str(s)
                                                 .ok()
@@ -1400,11 +1584,6 @@ impl GeometryEditor {
                     self.root_document = Some(root);
                     self.evaluation = Some(evaluation);
                     self.preview_key.clear();
-                    layout::set_choice(
-                        ui,
-                        ASSETS,
-                        self.choices.iter().position(|i| *i == id).unwrap_or(0),
-                    );
                 }
                 Err(e) => {
                     self.document = None;
@@ -1506,10 +1685,55 @@ impl GeometryEditor {
         if dim.width < 16 || dim.height < 16 {
             return changed;
         }
-        let bg = *ui.style.theme().color(MaterialCanvas);
         if let Some(e) = &self.evaluation {
             self.playback.tick(e, ui, ctx);
         }
+        if self.camera == 4 && self.group_path.is_empty() {
+            let texture = self
+                .iso_output
+                .and_then(|output| {
+                    let source = project.isometric_bakes.get(&output)?;
+                    (Some(source.recipe) == self.selected)
+                        .then(|| project.tiles.get(&output))
+                        .flatten()
+                })
+                .or_else(|| {
+                    self.selected.and_then(|id| {
+                        project
+                            .isometric_bakes
+                            .iter()
+                            .find(|(_, b)| b.recipe == id)
+                            .and_then(|(tile, _)| project.tiles.get(tile))
+                    })
+                })
+                .and_then(|t| {
+                    let layout = t.isometric.as_ref()?;
+                    let frames = if layout.frames.is_empty() {
+                        &t.textures
+                    } else {
+                        &layout.frames
+                    };
+                    let index = if self.playback.selected == 0 {
+                        layout.walk_frames
+                    } else {
+                        (self.playback.phase * layout.walk_frames as f32) as usize
+                    };
+                    frames.get(index.min(layout.frames_per_direction.saturating_sub(1)))
+                });
+            if let Some(texture) = texture {
+                let checker = [
+                    *ui.style.theme().color(MaterialCheckerDark),
+                    *ui.style.theme().color(MaterialCheckerLight),
+                ];
+                if let Some(w) = ui.get_widget(PREVIEW).and_then(|w| w.as_render_view()) {
+                    let buffer = w.render_buffer_mut();
+                    buffer.resize(dim.width, dim.height);
+                    shared::isometric::draw_preview(buffer, texture, checker);
+                }
+                return true;
+            }
+        }
+        let bg = *ui.style.theme().color(MaterialCanvas);
         let animation_tick = self
             .evaluation
             .as_ref()

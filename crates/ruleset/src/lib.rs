@@ -435,7 +435,7 @@ pub fn material_asset_id(id: &str) -> theframework::prelude::Uuid {
     theframework::prelude::Uuid::from_u128((0x52554c454d415453u128 << 64) | hash as u128)
 }
 
-/// Editable, palette-bound artwork for every official item, including torch states.
+/// Editable, palette-bound item and UI artwork, including torch states.
 pub fn bundled_icon_material_assets_for_ruleset(
     id: &str,
     version: &str,
@@ -468,6 +468,13 @@ pub fn bundled_icon_material_assets_for_ruleset(
         };
     }
     vec![
+        icon!("ui_preferences", "icon"),
+        icon!("ui_equipment", "icon"),
+        icon!("ui_inventory", "icon"),
+        icon!("ui_spellbook", "icon"),
+        icon!("ui_actions", "icon"),
+        icon!("look", "icon"),
+        icon!("use", "icon"),
         icon!("training_sword", "sword"),
         icon!("round_shield", "shield"),
         icon!("hand_axe", "axe"),

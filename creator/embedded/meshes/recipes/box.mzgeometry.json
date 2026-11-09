@@ -1,0 +1,342 @@
+{
+  "version": 1,
+  "id": "box",
+  "label": "Box",
+  "rows": [
+    {
+      "id": "recipe",
+      "label": "Recipe",
+      "tiles": [
+        {
+          "id": "recipe-0",
+          "op": {
+            "type": "group",
+            "label": "Box",
+            "document": {
+              "version": 1,
+              "id": "box-construction",
+              "label": "Box construction",
+              "rows": [
+                {
+                  "id": "surface",
+                  "label": "Surface",
+                  "tiles": [
+                    {
+                      "id": "surface-0",
+                      "op": {
+                        "type": "material",
+                        "palette": 7,
+                        "roughness": 0.9,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "solid",
+                  "label": "Solid",
+                  "tiles": [
+                    {
+                      "id": "solid-0",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "solid-1",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "surface"
+                      }
+                    },
+                    {
+                      "id": "solid-2",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.5,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "assembly",
+                  "label": "Assembly",
+                  "tiles": [
+                    {
+                      "id": "assembly-0",
+                      "op": {
+                        "type": "assemble",
+                        "rows": [
+                          "solid"
+                        ]
+                      }
+                    },
+                    {
+                      "id": "floor-left",
+                      "op": {
+                        "type": "connector",
+                        "family": "floor",
+                        "translation": [
+                          -0.5,
+                          1,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          -90,
+                          0
+                        ]
+                      }
+                    },
+                    {
+                      "id": "floor-right",
+                      "op": {
+                        "type": "connector",
+                        "family": "floor",
+                        "translation": [
+                          0.5,
+                          1,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          90,
+                          0
+                        ]
+                      }
+                    },
+                    {
+                      "id": "floor-back",
+                      "op": {
+                        "type": "connector",
+                        "family": "floor",
+                        "translation": [
+                          0,
+                          1,
+                          -0.5
+                        ],
+                        "rotation": [
+                          0,
+                          180,
+                          0
+                        ]
+                      }
+                    },
+                    {
+                      "id": "floor-front",
+                      "op": {
+                        "type": "connector",
+                        "family": "floor",
+                        "translation": [
+                          0,
+                          1,
+                          0.5
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "assembly",
+              "grip": null
+            },
+            "controls": [
+              {
+                "id": "width",
+                "label": "Width (m)",
+                "category": "Dimensions",
+                "help": "Changes the source box dimension; UVs and adjoining parts are constructed again.",
+                "order": 0,
+                "value": 1,
+                "reference": 1,
+                "min": 0.02,
+                "max": 10.0,
+                "modifiers": [
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "solid-0",
+                      "parameter": "size0"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "floor-left",
+                      "parameter": "position0"
+                    },
+                    "factor": -0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "floor-right",
+                      "parameter": "position0"
+                    },
+                    "factor": 0.5,
+                    "offset": 0
+                  }
+                ]
+              },
+              {
+                "id": "height",
+                "label": "Height (m)",
+                "category": "Dimensions",
+                "help": "Changes the source box dimension; UVs and adjoining parts are constructed again.",
+                "order": 1,
+                "value": 1,
+                "reference": 1,
+                "min": 0.02,
+                "max": 10.0,
+                "modifiers": [
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "solid-0",
+                      "parameter": "size1"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "solid-2",
+                      "parameter": "position1"
+                    },
+                    "factor": 0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "floor-left",
+                      "parameter": "position1"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "floor-right",
+                      "parameter": "position1"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "floor-back",
+                      "parameter": "position1"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "floor-front",
+                      "parameter": "position1"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  }
+                ]
+              },
+              {
+                "id": "depth",
+                "label": "Depth (m)",
+                "category": "Dimensions",
+                "help": "Changes the source box dimension; UVs and adjoining parts are constructed again.",
+                "order": 2,
+                "value": 1,
+                "reference": 1,
+                "min": 0.02,
+                "max": 10.0,
+                "modifiers": [
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "solid-0",
+                      "parameter": "size2"
+                    },
+                    "factor": 1,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "floor-back",
+                      "parameter": "position2"
+                    },
+                    "factor": -0.5,
+                    "offset": 0
+                  },
+                  {
+                    "type": "parameter",
+                    "target": {
+                      "operation": "floor-front",
+                      "parameter": "position2"
+                    },
+                    "factor": 0.5,
+                    "offset": 0
+                  }
+                ]
+              },
+              {
+                "id": "color",
+                "label": "Color",
+                "category": "Materials",
+                "help": "Project palette color for these parts.",
+                "order": 0,
+                "value": 7,
+                "reference": 7,
+                "min": 0.0,
+                "max": 255.0,
+                "modifiers": [
+                  {
+                    "type": "palette",
+                    "parts": [
+                      "*"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "recipe",
+  "grip": null
+}

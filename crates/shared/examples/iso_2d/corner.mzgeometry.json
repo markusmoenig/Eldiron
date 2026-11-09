@@ -1,0 +1,277 @@
+{
+  "version": 1,
+  "id": "iso-wall-corner",
+  "label": "Isometric wall corner",
+  "rows": [
+    {
+      "id": "stone",
+      "label": "Stone",
+      "tiles": [
+        {
+          "id": "stone-0",
+          "op": {
+            "type": "material",
+            "palette": 7,
+            "roughness": 0.9,
+            "metallic": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "cap",
+      "label": "Cap",
+      "tiles": [
+        {
+          "id": "cap-0",
+          "op": {
+            "type": "material",
+            "palette": 6,
+            "roughness": 0.9,
+            "metallic": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "x-masonry",
+      "label": "X Masonry",
+      "tiles": [
+        {
+          "id": "x-masonry-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.61,
+              2.4,
+              0.22
+            ]
+          }
+        },
+        {
+          "id": "x-masonry-1",
+          "op": {
+            "type": "assign_material",
+            "row": "stone"
+          }
+        },
+        {
+          "id": "x-masonry-2",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.195,
+              1.2,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "x-masonry-3",
+          "op": {
+            "type": "texture",
+            "source": "experiment:wall",
+            "size": 64,
+            "axes": [
+              0,
+              1
+            ],
+            "origin": [
+              -0.5,
+              0
+            ],
+            "span": [
+              1,
+              1.12
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "x-coping",
+      "label": "X Coping",
+      "tiles": [
+        {
+          "id": "x-coping-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.65,
+              0.15,
+              0.3
+            ]
+          }
+        },
+        {
+          "id": "x-coping-1",
+          "op": {
+            "type": "assign_material",
+            "row": "cap"
+          }
+        },
+        {
+          "id": "x-coping-2",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.175,
+              2.475,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "z-masonry",
+      "label": "Z Masonry",
+      "tiles": [
+        {
+          "id": "z-masonry-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.22,
+              2.4,
+              0.61
+            ]
+          }
+        },
+        {
+          "id": "z-masonry-1",
+          "op": {
+            "type": "assign_material",
+            "row": "stone"
+          }
+        },
+        {
+          "id": "z-masonry-2",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0,
+              1.2,
+              0.195
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "z-masonry-3",
+          "op": {
+            "type": "texture",
+            "source": "experiment:wall",
+            "size": 64,
+            "axes": [
+              2,
+              1
+            ],
+            "origin": [
+              -0.5,
+              0
+            ],
+            "span": [
+              1,
+              1.12
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "z-coping",
+      "label": "Z Coping",
+      "tiles": [
+        {
+          "id": "z-coping-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.3,
+              0.15,
+              0.65
+            ]
+          }
+        },
+        {
+          "id": "z-coping-1",
+          "op": {
+            "type": "assign_material",
+            "row": "cap"
+          }
+        },
+        {
+          "id": "z-coping-2",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0,
+              2.475,
+              0.175
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "corner",
+      "label": "Corner",
+      "tiles": [
+        {
+          "id": "corner-0",
+          "op": {
+            "type": "assemble",
+            "rows": [
+              "x-masonry",
+              "x-coping",
+              "z-masonry",
+              "z-coping"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "corner",
+  "grip": null
+}

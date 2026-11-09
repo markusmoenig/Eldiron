@@ -170,7 +170,7 @@ A standard Door is behavior attached to a complete moving part. You do not selec
 
 For a single swinging door:
 
-1. Create or fit the door geometry. For a Wall Tool opening, select the opening and run **Create Fitted Geometry** directly. For ordinary irregular geometry, select one rim edge, press **C** to select its contour, and run **Create Fitted Geometry**; it derives the opposite contour from the connected reveal faces.
+1. Create or fit the door geometry. For an opening, select one rim edge, press **C** to select its contour, and run **Create Fitted Geometry**; it derives the opposite contour from the connected reveal faces.
 2. Convert the new object to a linked Prefab and open its isolated editor.
 3. If the Prefab also contains a frame or other static geometry, select the leaf objects and click **Create Part** so only the leaf moves. A Prefab containing only the leaf can use its existing part.
 4. Select the leaf's hinge edge or hinge vertices and click **Set Pivot**.

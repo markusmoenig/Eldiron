@@ -12,6 +12,9 @@ pub struct Sector {
 
     pub name: String,
     pub linedefs: Vec<u32>,
+    /// Derived compound recipe rings as indices into `linedefs`, stable across ID remapping.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub footprint_topology: Option<denrim_materials::geometry::footprint::Shape<u32>>,
 
     pub properties: ValueContainer,
 
@@ -30,10 +33,45 @@ impl Sector {
             creator_id: Uuid::new_v4(),
             name: String::new(),
             linedefs,
+            footprint_topology: None,
             properties,
 
             layer: None,
         }
+    }
+
+    pub fn footprint_rings(&self) -> Option<denrim_materials::geometry::footprint::Shape<u32>> {
+        if let Some(topology) = &self.footprint_topology {
+            if topology
+                .points()
+                .any(|i| *i as usize >= self.linedefs.len())
+            {
+                return None;
+            }
+            Some(topology.map(|i| self.linedefs[*i as usize]))
+        } else {
+            Some(denrim_materials::geometry::footprint::Shape::single(
+                self.linedefs.clone(),
+            ))
+        }
+    }
+    pub fn footprint_shape(
+        &self,
+        map: &Map,
+    ) -> Option<denrim_materials::geometry::footprint::Shape<[f32; 2]>> {
+        let rings = self.footprint_rings()?;
+        if rings.points().any(|id| {
+            map.find_linedef(*id)
+                .and_then(|e| map.find_vertex(e.start_vertex))
+                .is_none()
+        }) {
+            return None;
+        }
+        Some(rings.map(|id| {
+            let e = map.find_linedef(*id).unwrap();
+            let v = map.find_vertex(e.start_vertex).unwrap();
+            [v.x, v.y]
+        }))
     }
 
     /// Returns the sector's vertices in world space as Vec<Vec3<f32>>.
@@ -191,6 +229,32 @@ impl Sector {
         &self,
         map: &Map,
     ) -> Option<(Vec<[f32; 2]>, Vec<(usize, usize, usize)>)> {
+        if self.footprint_topology.is_some() {
+            let shape = self.footprint_shape(map)?;
+            let mut vertices = Vec::new();
+            let mut triangles = Vec::new();
+            for region in shape.regions {
+                let base = vertices.len();
+                let mut points = region.outer;
+                let mut holes = Vec::new();
+                for hole in region.holes {
+                    holes.push(points.len());
+                    points.extend(hole);
+                }
+                let flat = points
+                    .iter()
+                    .flat_map(|p| [p[0] as f64, p[1] as f64])
+                    .collect::<Vec<_>>();
+                let indices = earcut(&flat, &holes, 2).ok()?;
+                triangles.extend(
+                    indices
+                        .chunks_exact(3)
+                        .map(|i| (base + i[2], base + i[1], base + i[0])),
+                );
+                vertices.extend(points);
+            }
+            return Some((vertices, triangles));
+        }
         // Collect unique vertices from the Linedefs in order
         let mut vertices = Vec::new();
         for &linedef_id in self.linedefs.iter() {
@@ -266,6 +330,11 @@ impl Sector {
 
     /// Checks if a point is inside the sector polygon using the ray-casting algorithm.
     pub fn is_inside(&self, map: &Map, point: Vec2<f32>) -> bool {
+        if self.footprint_topology.is_some() {
+            return self.footprint_shape(map).is_some_and(|shape| {
+                denrim_materials::geometry::footprint::contains(&shape, [point.x, point.y])
+            });
+        }
         // Collect the polygon vertices
         let mut polygon = Vec::new();
         for &linedef_id in &self.linedefs {
@@ -584,7 +653,7 @@ impl PartialEq for Sector {
         a.dedup();
         b.sort_unstable();
         b.dedup();
-        a == b
+        a == b && self.footprint_topology == other.footprint_topology
     }
 }
 

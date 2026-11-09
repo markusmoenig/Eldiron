@@ -976,6 +976,8 @@ impl WorldServices for RegionServices<'_> {
         let camera = match camera {
             "2d" => PlayerCamera::D2,
             "2d_grid" => PlayerCamera::D2Grid,
+            "2d_iso" => PlayerCamera::D2Iso,
+            "2d_iso_grid" => PlayerCamera::D2IsoGrid,
             "iso" => PlayerCamera::D3Iso,
             "firstp" => PlayerCamera::D3FirstP,
             "firstp_mouse" => PlayerCamera::D3FirstPMouse,

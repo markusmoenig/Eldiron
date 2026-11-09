@@ -14991,7 +14991,7 @@ fn hash_u32(mut state: u32) -> u32 {
 ///
 /// Varying range as well as intensity makes the light edge move across distant surfaces instead
 /// of making flicker visible only when the light is very close to a wall.
-fn light_flicker_multipliers(light: &Light, animation_counter: usize) -> (f32, f32) {
+pub fn light_flicker_multipliers(light: &Light, animation_counter: usize) -> (f32, f32) {
     let amount = light.flicker.clamp(0.0, 1.0);
     if amount <= 0.0 {
         return (1.0, 1.0);

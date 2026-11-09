@@ -1569,7 +1569,7 @@ mod tests {
         );
     }
     #[test]
-    fn stonefall_project_compiles_all_graphs_and_rebuilds_editable_walls() {
+    fn stonefall_project_compiles_graphs_and_preserves_authored_geometry() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../test_projects/StonefallDungeon.eldiron");
         let bytes = std::fs::read(path).expect("Stonefall fixture");
@@ -1582,22 +1582,24 @@ mod tests {
             }
         }
         let map = &project.regions[0].map;
-        assert!(!map.wall_assemblies.is_empty());
-        assert_eq!(
-            map.wall_assemblies
-                .iter()
-                .map(|wall| wall.area_surfaces.len())
-                .sum::<usize>(),
-            40
-        );
-        assert_eq!(map.block_prop_instances.len(), 1);
+        assert!(!map.geometry_objects.is_empty());
+        assert_eq!(map.block_prop_instances.len(), 9);
         assert!(
             map.geometry_objects
                 .iter()
-                .all(|o| o.tags.iter().any(|t| t == "eldiron_generated_wall"))
+                .all(|o| o.kind == rusterix::GeometryObjectKind::Brush)
         );
         assert!(project.characters.values().all(|c| c.source.is_empty()));
-        assert!(project.items.values().all(|i| i.source.is_empty()));
+        let restored = crate::project_io::decode_project(
+            &crate::project_io::encode_project(&project).unwrap(),
+        )
+        .unwrap();
+        for (id, item) in &project.items {
+            assert_eq!(
+                item.source, restored.items[id].source,
+                "authored item scripts must survive independently of geometry"
+            );
+        }
     }
     #[test]
     fn configuration_definitions_have_unique_port_keys() {

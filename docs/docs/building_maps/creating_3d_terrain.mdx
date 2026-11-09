@@ -1,15 +1,28 @@
 ---
 title: "Creating 3D Maps: Terrain"
 sidebar_position: 6
-draft: true
 ---
 
-import Admonition from '@theme/Admonition';
+The **Terrain** tool sculpts the shared landscape directly in the viewport. The
+same height data is used in top-down, 2D Iso and 3D views.
 
-<Admonition type="note" title="Retired Workflow">
-    The older procedural terrain workflow has been retired from the current 3D editing path.
-</Admonition>
+Select the hill icon in the tool strip, then choose **Raise**, **Lower** or
+**Smooth**. Drag across the ground or hold the pointer still to keep applying the
+brush. Adjust **Radius** and **Strength** with the panel's minus/plus buttons.
+**[ / ]** also change radius; **Shift** temporarily switches to Lower. Lower
+stops at height zero. Each stroke is one undo step, and **Esc** cancels an active
+stroke. Camera pan, orbit and zoom remain available through their normal controls.
 
-The current 3D workflow is based on direct **Geometry Object** editing: create boxes, edit faces/edges/vertices, draw surface guides, cut openings, add ridges or grooves, and apply tiles or colors directly to geometry.
+The circular cursor follows the terrain rather than walls or props. The brush
+can adjust an existing hill made with terrain control vertices; those vertices
+remain available for precise editing through **Edit Vertex**.
 
-See [Creating 3D Maps](creating_3d_maps) for the active 3D map authoring workflow.
+MZ ground materials and painted path compositions stay in world coordinates as
+the landscape changes. Use the Rect tool to paint and compose a winding path
+over a hill. Stairs, walls and upper floors retain their own geometry and
+construction heights. Select a ground MZ material before sculpting a new map to
+use it as the default ground; otherwise a neutral ground appears until a material
+is painted.
+
+See [Procedural Materials](procedural_materials) for ground and path authoring,
+and [Creating 3D Maps](creating_3d_maps) for buildings and other geometry.

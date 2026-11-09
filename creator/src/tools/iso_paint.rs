@@ -123,9 +123,281 @@ pub struct IsoPaintTool {
     selection_projection: Option<IsoPaintSelectionProjection>,
     selection_move_bounds: Option<[f32; 4]>,
     selection_grid_step: f32,
+    terrain_hover: Option<Vec2<f32>>,
+    terrain_radius: f32,
+    terrain_selection_start: Option<Vec2<f32>>,
+    terrain_stamp_last: Option<Vec2<f32>>,
 }
 
 impl IsoPaintTool {
+    fn terrain_stamp_dabs(
+        &mut self,
+        map: &Map,
+        layer: &mut IsoPaintLayer,
+        point: IsoPaintPoint,
+    ) -> bool {
+        let Some(uv) = point.surface_uv else {
+            return false;
+        };
+        let target = Vec2::<f32>::from(uv);
+        let spacing =
+            (layer.active_size * 9. * (1.55 - layer.active_stamp_density.clamp(0., 1.) * 0.9)
+                / 32.)
+                .max(1. / 32.);
+        let erase_radius = (layer.active_size * 5. / 32.).max(0.1);
+        let spacing = if layer.active_operation == "erase" {
+            spacing.min(erase_radius * 0.5)
+        } else {
+            spacing
+        };
+        let mut positions = Vec::new();
+        if let Some(last) = self.terrain_stamp_last {
+            let distance = (target - last).magnitude();
+            let count = (distance / spacing).floor() as usize;
+            for i in 1..=count {
+                positions.push(last + (target - last) * (i as f32 * spacing / distance));
+            }
+        } else {
+            positions.push(target);
+        }
+        let surface = rusterix::chunkbuilder::terrain_surface::TerrainSurface::cached(map);
+        let mut changed = false;
+        for at in positions {
+            self.terrain_stamp_last = Some(at);
+            if layer.active_operation == "erase" {
+                let kind = layer.active_brush.clone();
+                changed |= layer.erase_terrain_stamps_near(at.into_array(), erase_radius, &kind);
+                continue;
+            }
+            if layer.active_selection().is_some_and(|s| {
+                !s.contains(
+                    rusterix::isometric::paint::TERRAIN_PAINT_GEO,
+                    [(at.x * 32.).round() as i32, (at.y * 32.).round() as i32],
+                )
+            }) {
+                continue;
+            }
+            let height = if let Some(surface) = &surface {
+                let Some(height) = surface.height_at(at) else {
+                    continue;
+                };
+                height
+            } else {
+                if !rusterix::isometric::flat_terrain_contains(map, at) {
+                    continue;
+                }
+                0.
+            };
+            let mut point = point.clone();
+            point.surface_uv = Some(at.into_array());
+            point.world = Some([at.x, height, at.y]);
+            // Native procedural artwork uses a fixed world density, independent
+            // of the editor zoom. Keep the 3D billboard scale compatible too.
+            point.camera_scale = point.viewport_size.map(|s| s[1] as f32 / 64.);
+            layer.add_stamp(point);
+            changed = true;
+        }
+        changed
+    }
+
+    fn terrain_paint_point(
+        map: &Map,
+        viewport: [i32; 2],
+        coord: Vec2<i32>,
+    ) -> Option<IsoPaintPoint> {
+        let projection = rusterix::isometric::Projection::editor(
+            map,
+            Vec2::new(viewport[0] as f32, viewport[1] as f32),
+        );
+        let world = rusterix::isometric::terrain_point(map, projection, coord.map(|v| v as f32))?;
+        Some(
+            IsoPaintPoint::new(
+                [coord.x, coord.y],
+                Some(world),
+                Some(IsoPaintOwner::Terrain { x: 0, z: 0 }),
+            )
+            .with_surface_uv(Some(Vec2::new(world.x, world.z)))
+            .with_paint_geo(Some(rusterix::isometric::paint::TERRAIN_PAINT_GEO))
+            .with_surface_normal(Some(Vec3::unit_y()))
+            .with_viewport_size(Some(viewport)),
+        )
+    }
+
+    fn terrain_map_event(
+        &mut self,
+        event: MapEvent,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        region: &mut Region,
+        server: &mut ServerContext,
+    ) -> Option<ProjectUndoAtom> {
+        let viewport = Self::paint_viewport_size(ui, server)?;
+        if !server.pc.is_prefab() {
+            Self::sync_live_paint_settings(ui, &mut region.iso_paint);
+        }
+        self.terrain_radius = if Self::is_stamp_mode(&region.iso_paint) {
+            (region.iso_paint.active_size * 5. / 32.).max(0.1)
+        } else {
+            (region.iso_paint.active_size * 2.).round().clamp(1., 96.) / 32.
+        };
+        let coord = match &event {
+            MapClicked(p) | MapDragged(p) | MapHover(p) | MapUp(p) => Some(*p),
+            _ => None,
+        };
+        let point = coord.and_then(|p| Self::terrain_paint_point(&region.map, viewport, p));
+        if let Some(coord) = coord {
+            server.iso_paint_hover_screen = Some(coord);
+            self.terrain_hover = point.as_ref().and_then(|p| p.surface_uv).map(Vec2::from);
+        }
+        match event {
+            MapClicked(_) => {
+                self.reset_stroke();
+                let point = point?;
+                if region.iso_paint.active_operation == "pick" {
+                    let mut r = RUSTERIX.write().unwrap();
+                    shared::iso_paint_terrain::sync(
+                        &mut r.assets,
+                        region.map.id,
+                        &mut region.iso_paint,
+                    );
+                    if let Some((mut color, _)) = r
+                        .assets
+                        .terrain_paint
+                        .get(&region.map.id)
+                        .and_then(|paint| paint.sample(point.surface_uv.unwrap()))
+                        .filter(|(color, _)| color[3] > 0)
+                    {
+                        let (index, swatch) = r
+                            .assets
+                            .palette
+                            .colors
+                            .iter()
+                            .enumerate()
+                            .filter_map(|(i, c)| c.as_ref().map(|c| (i, c.to_u8_array())))
+                            .min_by_key(|(_, c)| {
+                                (0..3)
+                                    .map(|i| (c[i] as i32 - color[i] as i32).pow(2))
+                                    .sum::<i32>()
+                            })
+                            .unwrap_or((0, color));
+                        color = swatch;
+                        color[3] = 255;
+                        region.iso_paint.active_color = color;
+                        region.iso_paint.active_palette_colors = vec![color];
+                        region.iso_paint.active_palette_indices = vec![index as u16];
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("3D Paint Refresh"),
+                            TheValue::Empty,
+                        ));
+                    }
+                    return None;
+                }
+                self.stroke_before = Some(region.iso_paint.clone());
+                self.painting = true;
+                if region.iso_paint.active_operation == "select" {
+                    self.terrain_selection_start = point.surface_uv.map(Vec2::from);
+                } else if Self::is_stamp_mode(&region.iso_paint) {
+                    self.stroke_changed =
+                        self.terrain_stamp_dabs(&region.map, &mut region.iso_paint, point);
+                } else {
+                    self.active_stroke = Some(region.iso_paint.begin_stroke(point));
+                    self.stroke_changed = true;
+                }
+            }
+            MapDragged(_) | MapUp(_) if self.painting => {
+                if let Some(start) = self.terrain_selection_start {
+                    if let Some(end) = point.as_ref().and_then(|p| p.surface_uv).map(Vec2::from) {
+                        let min = start.map2(end, f32::min);
+                        let max = start.map2(end, f32::max);
+                        let p = rusterix::isometric::Projection::editor(
+                            &region.map,
+                            Vec2::new(viewport[0] as f32, viewport[1] as f32),
+                        );
+                        let surface =
+                            rusterix::chunkbuilder::terrain_surface::TerrainSurface::cached(
+                                &region.map,
+                            );
+                        server.iso_paint_selection_rect = Some(
+                            [min, Vec2::new(max.x, min.y), max, Vec2::new(min.x, max.y)].map(|q| {
+                                p.screen(
+                                    q,
+                                    surface.as_ref().and_then(|s| s.height_at(q)).unwrap_or(0.),
+                                )
+                                .map(|v| v.round() as i32)
+                                .into_array()
+                            }),
+                        );
+                        if matches!(event, MapUp(_)) {
+                            if ((max.x - min.x) * (max.y - min.y) * 1024.) > 1_048_576. {
+                                self.reset_stroke();
+                                server.iso_paint_selection_rect = None;
+                                ctx.ui.send(TheEvent::SetStatusText(
+                                    TheId::empty(),
+                                    "Select a smaller terrain area (up to 32 × 32 tiles).".into(),
+                                ));
+                                Self::request_paint_redraw(ctx);
+                                return None;
+                            }
+                            let owner = IsoPaintOwner::Terrain { x: 0, z: 0 };
+                            let mut selection = IsoPaintSelection::new(owner.clone());
+                            for z in (min.y * 32.).floor() as i32..=(max.y * 32.).ceil() as i32 {
+                                for x in (min.x * 32.).floor() as i32..=(max.x * 32.).ceil() as i32
+                                {
+                                    let q = Vec2::new(x as f32 / 32., z as f32 / 32.);
+                                    if surface.as_ref().is_none_or(|s| s.contains(q)) {
+                                        selection.set_pixel(
+                                            owner.clone(),
+                                            rusterix::isometric::paint::TERRAIN_PAINT_GEO,
+                                            [x, z],
+                                        );
+                                    }
+                                }
+                            }
+                            if !selection.is_empty() {
+                                region.iso_paint.set_active_selection(selection);
+                                self.stroke_changed = true;
+                            }
+                        }
+                    }
+                } else if Self::is_stamp_mode(&region.iso_paint) {
+                    if let Some(point) = point {
+                        self.stroke_changed |=
+                            self.terrain_stamp_dabs(&region.map, &mut region.iso_paint, point);
+                    }
+                } else if let Some(id) = self.active_stroke {
+                    if let Some(point) = point {
+                        self.stroke_changed |= region.iso_paint.append_point(id, point);
+                    }
+                }
+                if matches!(event, MapUp(_)) {
+                    let undo = self.stroke_changed.then(|| {
+                        ProjectUndoAtom::RegionPaintEdit(
+                            ProjectContext::Region(region.id),
+                            region.id,
+                            Box::new(self.stroke_before.take().unwrap()),
+                            Box::new(region.iso_paint.clone()),
+                        )
+                    });
+                    self.reset_stroke();
+                    server.iso_paint_selection_rect = None;
+                    Self::request_paint_redraw(ctx);
+                    return undo;
+                }
+            }
+            MapEscape => {
+                if let Some(before) = self.stroke_before.take() {
+                    region.iso_paint = before;
+                }
+                self.reset_stroke();
+                self.terrain_hover = None;
+                server.iso_paint_selection_rect = None;
+            }
+            _ => {}
+        }
+        Self::request_paint_redraw(ctx);
+        None
+    }
+
     fn active_size_max(layer: &IsoPaintLayer) -> f32 {
         if Self::is_stamp_mode(layer) {
             ISO_PAINT_MAX_STAMP_BRUSH_SIZE
@@ -692,7 +964,7 @@ impl IsoPaintTool {
     fn selection_projection(
         buffer: &scenevm::PaintSurfaceBuffer,
         start: Vec2<i32>,
-        map: &Map,
+        _map: &Map,
     ) -> Option<IsoPaintSelectionProjection> {
         let mut clicked = None;
         let mut clicked_distance = i32::MAX;
@@ -714,15 +986,8 @@ impl IsoPaintTool {
         let owner = Self::owner_from_geo_id(clicked.geo_id);
         let anchor = clicked;
 
-        let mut normal: Vec3<f32> = Vec3::from(anchor.normal).try_normalized()?;
-        let mut origin_world = Vec3::from(anchor.world);
-        if let IsoPaintOwner::GeometryObject(assembly_id) = &owner
-            && let Some((wall_origin, wall_normal)) =
-                map.wall_surface_frame_for_assembly(*assembly_id, origin_world, Some(normal))
-        {
-            origin_world = wall_origin;
-            normal = wall_normal;
-        }
+        let normal: Vec3<f32> = Vec3::from(anchor.normal).try_normalized()?;
+        let origin_world = Vec3::from(anchor.world);
         let world_up = Vec3::<f32>::unit_y();
         let (axis_u, axis_v) = if normal.y.abs() < 0.9 {
             let axis_v = (world_up - normal * world_up.dot(normal)).try_normalized()?;
@@ -952,6 +1217,8 @@ impl IsoPaintTool {
         self.selection_drag_start = None;
         self.selection_projection = None;
         self.selection_move_bounds = None;
+        self.terrain_selection_start = None;
+        self.terrain_stamp_last = None;
     }
 }
 
@@ -974,6 +1241,10 @@ impl Tool for IsoPaintTool {
             selection_projection: None,
             selection_move_bounds: None,
             selection_grid_step: 1.0,
+            terrain_hover: None,
+            terrain_radius: 0.5,
+            terrain_selection_start: None,
+            terrain_stamp_last: None,
         }
     }
 
@@ -1004,10 +1275,16 @@ impl Tool for IsoPaintTool {
         match tool_event {
             Activate => {
                 self.reset_stroke();
+                self.terrain_hover = None;
                 server_ctx.curr_map_tool_type = MapToolType::IsoPaint;
                 // 3D Paint operates in every 3D camera.  Preserve the artist's current orbit
                 // or first-person view; entering from 2D defaults to the familiar iso view.
-                if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                let terrain_iso = !server_ctx.pc.is_prefab()
+                    && project
+                        .get_map(server_ctx)
+                        .is_some_and(|m| m.camera == MapCamera::TwoDIso)
+                    && server_ctx.editor_view_mode == EditorViewMode::D2;
+                if server_ctx.editor_view_mode == EditorViewMode::D2 && !terrain_iso {
                     server_ctx.editor_view_mode = EditorViewMode::Iso;
                 }
                 server_ctx.geometry_edit_mode = GeometryEditMode::Geometry;
@@ -1053,7 +1330,7 @@ impl Tool for IsoPaintTool {
 
                 if !server_ctx.pc.is_prefab() {
                     let current_dock = DOCKMANAGER.read().unwrap().dock.clone();
-                    if current_dock != "3D Paint" {
+                    if current_dock != "Paint" {
                         self.previous_dock = if current_dock.is_empty() {
                             None
                         } else {
@@ -1061,7 +1338,7 @@ impl Tool for IsoPaintTool {
                         };
                     }
                     DOCKMANAGER.write().unwrap().set_dock(
-                        "3D Paint".into(),
+                        "Paint".into(),
                         ui,
                         ctx,
                         project,
@@ -1087,7 +1364,7 @@ impl Tool for IsoPaintTool {
                 RUSTERIX.write().unwrap().set_overlay_dirty();
                 ctx.ui.redraw_all = true;
                 if !server_ctx.pc.is_prefab()
-                    && DOCKMANAGER.read().unwrap().dock == "3D Paint"
+                    && DOCKMANAGER.read().unwrap().dock == "Paint"
                     && let Some(prev) = self.previous_dock.take()
                 {
                     DOCKMANAGER
@@ -1098,6 +1375,60 @@ impl Tool for IsoPaintTool {
                 true
             }
             _ => false,
+        }
+    }
+
+    fn draw_hud(
+        &mut self,
+        buffer: &mut TheRGBABuffer,
+        map: &mut Map,
+        _ctx: &mut TheContext,
+        server: &mut ServerContext,
+        _assets: &rusterix::Assets,
+    ) {
+        if server.editor_view_mode != EditorViewMode::D2 || map.camera != MapCamera::TwoDIso {
+            return;
+        }
+        let projection = rusterix::isometric::Projection::editor(
+            map,
+            Vec2::new(buffer.dim().width as f32, buffer.dim().height as f32),
+        );
+        if let Some(center) = self.terrain_hover {
+            let points = super::terrain::TerrainTool::outline(map, center, self.terrain_radius);
+            for pair in points.windows(2) {
+                rusterix::isometric::line(
+                    buffer,
+                    projection.screen(Vec2::new(pair[0].x, pair[0].z), pair[0].y),
+                    projection.screen(Vec2::new(pair[1].x, pair[1].z), pair[1].y),
+                    [235, 205, 135, 240],
+                );
+            }
+        }
+        if let (Some(start), Some(end)) = (self.terrain_selection_start, self.terrain_hover) {
+            let surface = rusterix::chunkbuilder::terrain_surface::TerrainSurface::cached(map);
+            let corners = [
+                start,
+                Vec2::new(end.x, start.y),
+                end,
+                Vec2::new(start.x, end.y),
+            ];
+            for i in 0..4 {
+                let a = corners[i];
+                let b = corners[(i + 1) % 4];
+                let steps = ((b - a).magnitude() * 8.).ceil().clamp(1., 2048.) as usize;
+                let project = |q| {
+                    projection.screen(
+                        q,
+                        surface.as_ref().and_then(|s| s.height_at(q)).unwrap_or(0.),
+                    )
+                };
+                let mut previous = project(a);
+                for k in 1..=steps {
+                    let next = project(a + (b - a) * (k as f32 / steps as f32));
+                    rusterix::isometric::line(buffer, previous, next, [135, 205, 235, 240]);
+                    previous = next;
+                }
+            }
         }
     }
 
@@ -1163,6 +1494,11 @@ impl Tool for IsoPaintTool {
         region: &mut Region,
         server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
+        if region.map.camera == MapCamera::TwoDIso
+            && server_ctx.editor_view_mode == EditorViewMode::D2
+        {
+            return self.terrain_map_event(map_event, ui, ctx, region, server_ctx);
+        }
         match map_event {
             MapClicked(coord) => {
                 let viewport_size = Self::paint_viewport_size(ui, server_ctx);
@@ -1476,5 +1812,483 @@ impl Tool for IsoPaintTool {
             }
             other => other,
         }
+    }
+}
+
+#[cfg(test)]
+mod terrain_tests {
+    use super::*;
+    use rusterix::chunkbuilder::{
+        terrain_sculpt::{SculptMode, TerrainSculpt},
+        terrain_surface::TerrainSurface,
+    };
+
+    #[test]
+    #[ignore = "native editor activation, undo and game rendering require Metal"]
+    fn iso_terrain_stamps_native_sculpt_erase_undo_and_play() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../generated");
+        let mut project = shared::project_io::decode_project(
+            &std::fs::read(root.join("mz-iso2d-terrain-playground/MZTerrainPlayground.eldiron"))
+                .unwrap(),
+        )
+        .unwrap();
+        project.name = "MZ Organic Terrain Stamps / Steam Lords".into();
+        let mut server = ServerContext::default();
+        server.curr_region = project.regions[0].id;
+        server.pc = ProjectContext::Region(server.curr_region);
+        server.editor_view_mode = EditorViewMode::D2;
+        let mut ui = TheUI::new();
+        let mut ctx = TheContext::new(1000, 700, 1.);
+        let mut view = TheRenderView::new(TheId::named("PolyView"));
+        view.set_dim(TheDim::sized(1000, 700), &mut ctx);
+        ui.canvas.set_widget(view);
+        RUSTERIX.write().unwrap().set_tiles_for_maps(
+            project.tiles.clone(),
+            false,
+            [&project.regions[0].map],
+        );
+        let mut tool = IsoPaintTool::new();
+        tool.tool_event(Activate, &mut ui, &mut ctx, &mut project, &mut server);
+        assert_eq!(project.regions[0].map.camera, MapCamera::TwoDIso);
+        assert_eq!(server.editor_view_mode, EditorViewMode::D2);
+        let center = Vec2::new(28.5, 16.5);
+        let size = Vec2::new(1000., 700.);
+        project.regions[0].map.grid_size = 46.;
+        server.center_map_at_grid_pos(size, center, &mut project.regions[0].map);
+        let click = |map: &Map, at: Vec2<f32>| {
+            let h = TerrainSurface::from_map(map)
+                .unwrap()
+                .height_at(at)
+                .unwrap();
+            rusterix::isometric::Projection::editor(map, size)
+                .screen(at, h)
+                .map(|v| v.round() as i32)
+        };
+        let stamps = |region: &Region| {
+            region
+                .iso_paint
+                .chunks
+                .values()
+                .flat_map(|c| c.stamps.iter().cloned())
+                .collect::<Vec<_>>()
+        };
+        for (kind, offset, color) in [
+            ("grass", -1.2, [79, 119, 84, 255]),
+            ("flowers", 0., [192, 209, 204, 255]),
+            ("rubble", 1.2, [124, 148, 161, 255]),
+        ] {
+            let paint = &mut project.regions[0].iso_paint;
+            paint.active_brush = kind.into();
+            paint.active_operation = "draw".into();
+            paint.active_material_mode = "stamp".into();
+            paint.active_size = 1.8;
+            paint.active_opacity = 1.;
+            paint.active_stamp_size_jitter = 0.2;
+            paint.active_stamp_density = 0.7;
+            paint.active_color = color;
+            paint.active_palette_colors = vec![
+                color,
+                [161, 159, 124, 255],
+                [79, 119, 84, 255],
+                [124, 148, 161, 255],
+            ];
+            ui.set_widget_value("3D Paint Material Mode", &mut ctx, TheValue::Int(2));
+            ui.set_widget_value("3D Paint Tool Size", &mut ctx, TheValue::Float(1.8));
+            let a = click(&project.regions[0].map, center + Vec2::new(offset, -0.7));
+            let b = click(&project.regions[0].map, center + Vec2::new(offset, 1.));
+            tool.region_map_event(
+                MapClicked(a),
+                &mut ui,
+                &mut ctx,
+                &mut project.regions[0],
+                &mut server,
+            );
+            tool.region_map_event(
+                MapDragged(b),
+                &mut ui,
+                &mut ctx,
+                &mut project.regions[0],
+                &mut server,
+            );
+            assert!(
+                tool.region_map_event(
+                    MapUp(b),
+                    &mut ui,
+                    &mut ctx,
+                    &mut project.regions[0],
+                    &mut server
+                )
+                .is_some()
+            );
+        }
+        let original = stamps(&project.regions[0]);
+        for kind in ["grass", "flowers", "rubble"] {
+            assert!(
+                original.iter().filter(|s| s.kind == kind).count() >= 3,
+                "drag should interpolate {kind} stamps"
+            );
+        }
+        assert!(project.regions[0].iso_paint.baked_chunks.is_empty());
+        // Erase after changing both camera offset and zoom: old screen positions
+        // must not determine which stamp is removed.
+        let target = original
+            .iter()
+            .find(|s| s.kind == "flowers")
+            .unwrap()
+            .surface_uv
+            .unwrap();
+        project.regions[0].map.grid_size = 64.;
+        server.center_map_at_grid_pos(size, Vec2::<f32>::from(target), &mut project.regions[0].map);
+        let at = click(&project.regions[0].map, Vec2::from(target));
+        project.regions[0].iso_paint.active_brush = "flowers".into();
+        project.regions[0].iso_paint.active_operation = "erase".into();
+        tool.region_map_event(
+            MapClicked(at),
+            &mut ui,
+            &mut ctx,
+            &mut project.regions[0],
+            &mut server,
+        );
+        let undo = tool
+            .region_map_event(
+                MapUp(at),
+                &mut ui,
+                &mut ctx,
+                &mut project.regions[0],
+                &mut server,
+            )
+            .unwrap();
+        let erased = stamps(&project.regions[0]);
+        assert!(erased.len() < original.len());
+        assert_eq!(
+            erased.iter().filter(|s| s.kind != "flowers").count(),
+            original.iter().filter(|s| s.kind != "flowers").count()
+        );
+        undo.undo(&mut project, &mut ui, &mut ctx, &mut server);
+        assert_eq!(stamps(&project.regions[0]), original);
+        undo.redo(&mut project, &mut ui, &mut ctx, &mut server);
+        assert_eq!(stamps(&project.regions[0]), erased);
+        undo.undo(&mut project, &mut ui, &mut ctx, &mut server);
+        project.regions[0].iso_paint.active_operation = "draw".into();
+        tool.region_map_event(
+            MapClicked(at),
+            &mut ui,
+            &mut ctx,
+            &mut project.regions[0],
+            &mut server,
+        );
+        tool.region_map_event(
+            MapEscape,
+            &mut ui,
+            &mut ctx,
+            &mut project.regions[0],
+            &mut server,
+        );
+        assert_eq!(stamps(&project.regions[0]), original);
+        let out = root.join("iso-organic-stamps");
+        std::fs::create_dir_all(&out).unwrap();
+        let mut assets = rusterix::Assets::default();
+        assets.set_tiles(project.tiles.clone());
+        let mut cache = rusterix::isometric::GroundCache::default();
+        server.center_map_at_grid_pos(size, center, &mut project.regions[0].map);
+        for (name, mode, amount) in [
+            ("before", None, 0.),
+            ("raised", Some(SculptMode::Raise), 0.8),
+            ("smoothed", Some(SculptMode::Smooth), 0.5),
+            ("lowered", Some(SculptMode::Lower), 0.3),
+        ] {
+            let region = &mut project.regions[0];
+            if let Some(mode) = mode {
+                TerrainSculpt::dab(&mut region.map, center, 2.5, amount, mode);
+            }
+            assert_eq!(
+                stamps(region),
+                original,
+                "sculpting must not rewrite stamp sources"
+            );
+            shared::iso_paint_terrain::sync(&mut assets, region.map.id, &mut region.iso_paint);
+            assert_eq!(
+                assets.terrain_paint[&region.map.id].stamps.len(),
+                original.len()
+            );
+            let mut buffer = TheRGBABuffer::new(TheDim::sized(1000, 700));
+            rusterix::isometric::draw_scene_cached(
+                &region.map,
+                &assets,
+                &mut buffer,
+                rusterix::isometric::Projection::editor(&region.map, size),
+                0.,
+                None,
+                &Default::default(),
+                Some(&mut cache),
+            );
+            std::fs::write(out.join(format!("{name}.png")), buffer.to_png().unwrap()).unwrap();
+        }
+        let spawn = center + Vec2::new(-0.5, 1.);
+        let h = TerrainSurface::from_map(&project.regions[0].map)
+            .unwrap()
+            .height_at(spawn)
+            .unwrap();
+        for character in project.regions[0].characters.values_mut() {
+            character.position = Vec3::new(spawn.x, h, spawn.y);
+        }
+        let bytes = shared::project_io::encode_project(&project).unwrap();
+        let mut reopened = shared::project_io::decode_project(&bytes).unwrap();
+        assert_eq!(stamps(&reopened.regions[0]), original);
+        let mut runtime = rusterix::Rusterix::new_without_audio();
+        runtime.set_tiles_for_maps(reopened.tiles.clone(), false, [&reopened.regions[0].map]);
+        shared::rusterix_utils::setup_client(&mut runtime, &mut reopened);
+        let mut game = rusterix::client::widget::game::GameWidget::new();
+        game.set_camera_mode(rusterix::PlayerCamera::D2Iso);
+        game.grid_size = 64.;
+        game.player_pos = center;
+        game.buffer = TheRGBABuffer::new(TheDim::sized(1000, 700));
+        game.graphical_draw(
+            &reopened.regions[0].map,
+            &reopened.time,
+            0,
+            &runtime.assets,
+            &mut runtime.scene_handler,
+        );
+        std::fs::write(out.join("playing.png"), game.buffer.to_png().unwrap()).unwrap();
+        let with = game.buffer.pixels().to_vec();
+        runtime
+            .assets
+            .terrain_paint
+            .remove(&reopened.regions[0].map.id);
+        game.graphical_draw(
+            &reopened.regions[0].map,
+            &reopened.time,
+            0,
+            &runtime.assets,
+            &mut runtime.scene_handler,
+        );
+        assert!(
+            with.chunks_exact(4)
+                .zip(game.buffer.pixels().chunks_exact(4))
+                .filter(|(a, b)| a != b)
+                .count()
+                > 50
+        );
+        std::fs::write(out.join("OrganicTerrain.eldiron"), bytes).unwrap();
+    }
+
+    #[test]
+    #[ignore = "native Paint tool activation, undo and rendering require Metal"]
+    fn iso_terrain_paint_native_stroke_sculpt_undo_and_reopen() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../generated");
+        let mut project = shared::project_io::decode_project(
+            &std::fs::read(root.join("mz-iso2d-terrain-playground/MZTerrainPlayground.eldiron"))
+                .unwrap(),
+        )
+        .unwrap();
+        let mut server = ServerContext::default();
+        server.curr_region = project.regions[0].id;
+        server.pc = ProjectContext::Region(server.curr_region);
+        server.editor_view_mode = EditorViewMode::D2;
+        let size = Vec2::new(1000., 700.);
+        let mut ui = TheUI::new();
+        let mut ctx = TheContext::new(1000, 700, 1.);
+        let mut view = TheRenderView::new(TheId::named("PolyView"));
+        view.set_dim(TheDim::sized(1000, 700), &mut ctx);
+        ui.canvas.set_widget(view);
+        RUSTERIX.write().unwrap().set_tiles_for_maps(
+            project.tiles.clone(),
+            false,
+            [&project.regions[0].map],
+        );
+        let mut tool = IsoPaintTool::new();
+        tool.tool_event(Activate, &mut ui, &mut ctx, &mut project, &mut server);
+        assert_eq!(server.editor_view_mode, EditorViewMode::D2);
+        assert_eq!(project.regions[0].map.camera, MapCamera::TwoDIso);
+        let center = Vec2::new(28.5, 16.5);
+        server.center_map_at_grid_pos(size, center, &mut project.regions[0].map);
+        let paint = &mut project.regions[0].iso_paint;
+        paint.active_size = 8.;
+        paint.active_operation = "draw".into();
+        paint.active_brush = "material".into();
+        paint.active_material_mode = "coat".into();
+        paint.active_opacity = 1.;
+        paint.active_color = [161, 159, 124, 255];
+        paint.active_palette_indices = vec![21];
+        paint.active_palette_colors = vec![paint.active_color];
+        let click = |map: &Map, at: Vec2<f32>| {
+            let h = TerrainSurface::from_map(map)
+                .unwrap()
+                .height_at(at)
+                .unwrap();
+            rusterix::isometric::Projection::editor(map, size)
+                .screen(at, h)
+                .map(|v| v.round() as i32)
+        };
+        let start = click(&project.regions[0].map, center);
+        let end = click(&project.regions[0].map, center + Vec2::new(1., 0.));
+        tool.region_map_event(
+            MapClicked(start),
+            &mut ui,
+            &mut ctx,
+            &mut project.regions[0],
+            &mut server,
+        );
+        tool.region_map_event(
+            MapDragged(end),
+            &mut ui,
+            &mut ctx,
+            &mut project.regions[0],
+            &mut server,
+        );
+        let undo = tool
+            .region_map_event(
+                MapUp(end),
+                &mut ui,
+                &mut ctx,
+                &mut project.regions[0],
+                &mut server,
+            )
+            .unwrap();
+        let painted = project.regions[0].iso_paint.baked_chunks.clone();
+        assert!(!painted.is_empty());
+        let point = project.regions[0]
+            .iso_paint
+            .chunks
+            .values()
+            .flat_map(|c| &c.strokes)
+            .next()
+            .unwrap()
+            .points[0]
+            .clone();
+        assert!((Vec2::<f32>::from(point.surface_uv.unwrap()) - center).magnitude() < 0.05);
+        undo.undo(&mut project, &mut ui, &mut ctx, &mut server);
+        assert!(project.regions[0].iso_paint.baked_chunks.is_empty());
+        undo.redo(&mut project, &mut ui, &mut ctx, &mut server);
+        assert_eq!(project.regions[0].iso_paint.baked_chunks, painted);
+        let out = root.join("iso-terrain-paint");
+        std::fs::create_dir_all(&out).unwrap();
+        let mut assets = rusterix::Assets::default();
+        assets.set_tiles(project.tiles.clone());
+        let mut cache = rusterix::isometric::GroundCache::default();
+        for (name, sculpt) in [("painted", false), ("sculpted", true)] {
+            let region = &mut project.regions[0];
+            if sculpt {
+                assert!(TerrainSculpt::dab(
+                    &mut region.map,
+                    center,
+                    2.5,
+                    0.8,
+                    SculptMode::Raise
+                ));
+            }
+            assert_eq!(region.iso_paint.baked_chunks, painted);
+            shared::iso_paint_terrain::sync(&mut assets, region.map.id, &mut region.iso_paint);
+            let mut buffer = TheRGBABuffer::new(TheDim::sized(1000, 700));
+            rusterix::isometric::draw_scene_cached(
+                &region.map,
+                &assets,
+                &mut buffer,
+                rusterix::isometric::Projection::editor(&region.map, size),
+                0.,
+                None,
+                &Default::default(),
+                Some(&mut cache),
+            );
+            let p = click(&region.map, center);
+            let at = (p.y as usize * 1000 + p.x as usize) * 4;
+            assert!(
+                buffer.pixels()[at] > 110,
+                "paint should remain on the hill after sculpting"
+            );
+            tool.region_map_event(MapHover(p), &mut ui, &mut ctx, region, &mut server);
+            tool.draw_hud(&mut buffer, &mut region.map, &mut ctx, &mut server, &assets);
+            std::fs::write(out.join(format!("{name}.png")), buffer.to_png().unwrap()).unwrap();
+        }
+        // Escape cancels a new stroke without touching the previous paint.
+        let at = click(&project.regions[0].map, center);
+        tool.region_map_event(
+            MapClicked(at),
+            &mut ui,
+            &mut ctx,
+            &mut project.regions[0],
+            &mut server,
+        );
+        tool.region_map_event(
+            MapEscape,
+            &mut ui,
+            &mut ctx,
+            &mut project.regions[0],
+            &mut server,
+        );
+        assert_eq!(project.regions[0].iso_paint.baked_chunks, painted);
+        // Terrain selections clip/fill in the same world coordinates.
+        let before_selection = project.regions[0].iso_paint.clone();
+        project.regions[0].iso_paint.active_operation = "select".into();
+        let a = click(&project.regions[0].map, center - 0.2);
+        let b = click(&project.regions[0].map, center + 0.2);
+        tool.region_map_event(
+            MapClicked(a),
+            &mut ui,
+            &mut ctx,
+            &mut project.regions[0],
+            &mut server,
+        );
+        assert!(
+            tool.region_map_event(
+                MapUp(b),
+                &mut ui,
+                &mut ctx,
+                &mut project.regions[0],
+                &mut server
+            )
+            .is_some()
+        );
+        assert!(
+            project.regions[0]
+                .iso_paint
+                .active_selection()
+                .is_some_and(|s| s.contains(
+                    rusterix::isometric::paint::TERRAIN_PAINT_GEO,
+                    [(center.x * 32.) as i32, (center.y * 32.) as i32]
+                ))
+        );
+        project.regions[0].iso_paint.active_operation = "draw".into();
+        project.regions[0].iso_paint.active_color = [60, 80, 160, 255];
+        project.regions[0].iso_paint.active_palette_colors = vec![[60, 80, 160, 255]];
+        assert!(project.regions[0].iso_paint.fill_active_selection());
+        project.regions[0].iso_paint = before_selection;
+        let bytes = shared::project_io::encode_project(&project).unwrap();
+        let mut reopened = shared::project_io::decode_project(&bytes).unwrap();
+        assert_eq!(reopened.regions[0].iso_paint.baked_chunks, painted);
+        let mut runtime = rusterix::Rusterix::new_without_audio();
+        runtime.set_tiles_for_maps(reopened.tiles.clone(), false, [&reopened.regions[0].map]);
+        shared::rusterix_utils::setup_client(&mut runtime, &mut reopened);
+        assert!(
+            runtime
+                .assets
+                .terrain_paint
+                .contains_key(&reopened.regions[0].map.id)
+        );
+        let mut game = rusterix::client::widget::game::GameWidget::new();
+        game.set_camera_mode(rusterix::PlayerCamera::D2Iso);
+        game.grid_size = 40.;
+        game.player_pos = center;
+        game.buffer = TheRGBABuffer::new(TheDim::sized(1000, 700));
+        game.graphical_draw(
+            &reopened.regions[0].map,
+            &reopened.time,
+            0,
+            &runtime.assets,
+            &mut runtime.scene_handler,
+        );
+        let h = TerrainSurface::from_map(&reopened.regions[0].map)
+            .unwrap()
+            .height_at(center)
+            .unwrap();
+        let p = game.isometric_projection.unwrap().screen(center, h);
+        let at = (p.y.round() as usize * 1000 + p.x.round() as usize) * 4;
+        assert!(
+            game.buffer.pixels()[at] > 110,
+            "saved paint must appear during play"
+        );
+        std::fs::write(out.join("playing.png"), game.buffer.to_png().unwrap()).unwrap();
+        std::fs::write(out.join("PaintedTerrain.eldiron"), bytes).unwrap();
     }
 }

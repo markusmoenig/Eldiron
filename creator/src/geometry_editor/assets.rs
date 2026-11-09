@@ -1,5 +1,4 @@
-//! Small asset actions; group authors publish controls as editable TOML rather
-//! than a second, deeply nested configuration inspector.
+//! Import/export and advanced asset actions. Normal control publishing is visual.
 use super::*;
 use denrim_materials::geometry::group::{Control, Modifier};
 
@@ -20,6 +19,7 @@ fn template(document: &Document) -> Result<Vec<Control>, String> {
         let mut scale = [0.; 3];
         scale[axis] = 1.;
         controls.push(Control {
+            expression: None,
             id: ["width", "height", "depth"][axis].into(),
             label: ["Width", "Height", "Depth"][axis].into(),
             category: "Shape".into(),
@@ -53,6 +53,7 @@ fn template(document: &Document) -> Result<Vec<Control>, String> {
         .map(|p| p.id.clone())
         .collect();
     controls.push(Control {
+        expression: None,
         id: "color".into(),
         label: "Color".into(),
         category: "Appearance".into(),
@@ -72,9 +73,11 @@ pub(super) fn portable(project: &Project, source: &str) -> Result<String, String
     fn embed(doc: &mut Document, project: &Project) -> Result<(), String> {
         for tile in doc.rows.iter_mut().flat_map(|r| &mut r.tiles) {
             match &mut tile.op {
-                Operation::Asset { document, .. } | Operation::Group { document, .. } | Operation::Input { preview: document, .. } => {
-                    embed(document, project)?
-                }
+                Operation::Asset { document, .. }
+                | Operation::Group { document, .. }
+                | Operation::Input {
+                    preview: document, ..
+                } => embed(document, project)?,
                 Operation::Texture {
                     source,
                     bundle,
@@ -117,7 +120,7 @@ impl GeometryEditor {
                 layout::set_choice(ui, "MZ Geometry Actions", 0);
                 Some((|| {
                     match index {
-                        1 => {
+                        5 => {
                             self.finish_drag(project, ctx, false);
                             let selected = self.selected.ok_or("Select a geometry asset")?;
                             let op = self

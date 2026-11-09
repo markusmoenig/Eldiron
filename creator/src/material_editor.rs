@@ -1377,7 +1377,7 @@ impl MaterialEditorWidget {
             } = line
             {
                 let width = area.size[0] * 0.55 / values.len().max(1) as f32;
-                for (component, p) in values.iter().enumerate() {
+                for (component, p) in values.iter().enumerate().filter(|(_, p)| p.min < p.max) {
                     parameters.push((
                         owner.clone(),
                         p.clone(),
@@ -2013,6 +2013,7 @@ impl MaterialEditorWidget {
                                         .max(0.) as usize;
                                 values
                                     .get(component.min(values.len().saturating_sub(1)))
+                                    .filter(|p| p.min < p.max)
                                     .map(|p| Hit::Number(owner.clone(), p.id.clone()))
                             }
                         }

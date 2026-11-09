@@ -139,40 +139,44 @@ pub fn project_file_format(bytes: &[u8]) -> ProjectFileFormat {
 }
 
 pub fn decode_project(bytes: &[u8]) -> Result<Project, String> {
+    let trace_start = std::time::Instant::now();
+    let trace = |label| {
+        if std::env::var_os("ELDIRON_PROFILE_STARTUP").is_some() {
+            eprintln!("Project {label}: {:.2?}", trace_start.elapsed());
+        }
+    };
     let mut project = match project_file_format(bytes) {
         ProjectFileFormat::LegacyJson => serde_json::from_slice(bytes)
             .map_err(|err| format!("invalid legacy Eldiron project JSON: {err}")),
         ProjectFileFormat::ArchiveV1 => decode_project_archive(bytes),
     }?;
-    crate::construction_graph::ensure_wall_patterns(&mut project);
-    for error in crate::construction_graph::synchronize(&mut project) {
-        eprintln!("Construction pattern: {error}");
-    }
-    // Wall assemblies are the source of truth, including maps authored without cached meshes.
+    trace("archive");
     for region in &mut project.regions {
         // Region names are the public names used by start_region and server routing.
         region.map.name.clone_from(&region.name);
-        if !region.map.wall_assemblies.is_empty() {
-            region.map.rebuild_wall_geometry();
-        }
     }
     if let Err(error) = crate::entity_graph::synchronize(&mut project) {
         eprintln!("Entity configuration: {error}");
     }
+    trace("entity graphs");
     for error in crate::geometry_recipe::synchronize(&mut project).1 {
         eprintln!("MZ geometry recipe: {error}");
     }
+    trace("geometry recipes");
+    for error in crate::isometric::synchronize(&mut project) {
+        eprintln!("{error}");
+    }
+    trace("iso cache");
     Ok(project)
 }
 
 pub fn encode_project(project: &Project) -> Result<Vec<u8>, String> {
     let mut archived_project = project.clone();
+    for error in crate::isometric::synchronize(&mut archived_project) {
+        eprintln!("{error}");
+    }
     for error in crate::geometry_recipe::synchronize(&mut archived_project).1 {
         eprintln!("MZ geometry recipe: {error}");
-    }
-    crate::construction_graph::ensure_wall_patterns(&mut archived_project);
-    for error in crate::construction_graph::synchronize(&mut archived_project) {
-        eprintln!("Construction pattern: {error}");
     }
     // Refresh valid projections; incomplete authoring graphs retain their last valid data.
     let _ = crate::entity_graph::synchronize(&mut archived_project);

@@ -67,9 +67,14 @@ impl ActionList {
             crate::actions::editing_camera::EditingCamera::new(),
         );
         list.register(
-            "camera.first_person",
+            "camera.2d_iso",
             Camera,
-            crate::actions::firstp_camera::FirstPCamera::new(),
+            crate::actions::iso_2d_camera::Iso2DCamera::new(),
+        );
+        list.register(
+            "camera.orbit",
+            Camera,
+            crate::actions::orbit_camera::OrbitCamera::new(),
         );
         list.register(
             "camera.isometric",
@@ -77,9 +82,9 @@ impl ActionList {
             crate::actions::iso_camera::IsoCamera::new(),
         );
         list.register(
-            "camera.orbit",
+            "camera.first_person",
             Camera,
-            crate::actions::orbit_camera::OrbitCamera::new(),
+            crate::actions::firstp_camera::FirstPCamera::new(),
         );
         list.register(
             "tile.apply",
@@ -111,8 +116,16 @@ impl ActionList {
             Geometry,
             crate::actions::create_geometry_box::CreateGeometryBox::new(),
         );
-        list.register("geometry.apply_mz_recipe",Procedural,crate::actions::mz_recipe::ApplyMZRecipe::new());
-        list.register("geometry.edit_mz_recipe",Procedural,crate::actions::mz_recipe::EditMZRecipe::new());
+        list.register(
+            "geometry.apply_mz_recipe",
+            Procedural,
+            crate::actions::mz_recipe::ApplyMZRecipe::new(),
+        );
+        list.register(
+            "geometry.edit_mz_recipe",
+            Procedural,
+            crate::actions::mz_recipe::EditMZRecipe::new(),
+        );
         list.register(
             "geometry.create_rounded_box",
             Geometry,
@@ -162,21 +175,6 @@ impl ActionList {
             "prefab.rotate_placed",
             Prefab,
             crate::actions::prefabs::RotatePlacedPrefab::new(),
-        );
-        list.register(
-            "prefab.flip_mounted",
-            Prefab,
-            crate::actions::prefabs::FlipMountedPrefab::new(),
-        );
-        list.register(
-            "prefab.detach",
-            Prefab,
-            crate::actions::prefabs::DetachMountedPrefab::new(),
-        );
-        list.register(
-            "prefab.reattach",
-            Prefab,
-            crate::actions::prefabs::ReattachMountedPrefab::new(),
         );
         list.register(
             "face.create_cutout",
@@ -496,5 +494,67 @@ mod tests {
             .unwrap();
         let descriptor = actions.descriptor_by_id(action.id().uuid).unwrap();
         assert_eq!(descriptor.group, ActionGroup::Geometry);
+    }
+    #[test]
+    fn camera_shortcuts_follow_toolbar_order() {
+        let list = ActionList::new();
+        for (id, key, index, mode, camera) in [
+            (
+                "camera.editing",
+                '2',
+                0,
+                EditorViewMode::D2,
+                MapCamera::TwoD,
+            ),
+            (
+                "camera.2d_iso",
+                '3',
+                1,
+                EditorViewMode::D2,
+                MapCamera::TwoDIso,
+            ),
+            (
+                "camera.orbit",
+                '4',
+                2,
+                EditorViewMode::Orbit,
+                MapCamera::ThreeDIso,
+            ),
+            (
+                "camera.isometric",
+                '5',
+                3,
+                EditorViewMode::Iso,
+                MapCamera::ThreeDIso,
+            ),
+            (
+                "camera.first_person",
+                '6',
+                4,
+                EditorViewMode::FirstP,
+                MapCamera::ThreeDFirstPerson,
+            ),
+        ] {
+            let action = list.get_action_by_command_id(id).unwrap();
+            let accelerator = action.accel().unwrap();
+            assert!(accelerator.matches(
+                false,
+                !cfg!(target_os = "macos"),
+                false,
+                cfg!(target_os = "macos"),
+                key
+            ));
+            assert_eq!(mode.toolbar_index(camera), index);
+            assert_eq!(EditorViewMode::from_toolbar_index(index), mode);
+            let mut ui = TheUI::new();
+            let mut ctx = TheContext::new(100, 100, 1.);
+            let rx = ui.add_state_listener("camera shortcut".into());
+            ui.init(&mut ctx);
+            let mut map = Map::default();
+            let mut server = ServerContext::default();
+            action.apply(&mut map, &mut ui, &mut ctx, &mut server);
+            ui.process_events(&mut ctx);
+            assert!(rx.try_iter().any(|e|matches!(e,TheEvent::IndexChanged(id,i) if id.name=="Editor View Switch" && i==index as usize)),"{id}");
+        }
     }
 }

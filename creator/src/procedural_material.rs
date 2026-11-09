@@ -23,6 +23,8 @@ pub(crate) mod palette;
 pub(crate) mod pixel_style;
 mod row_inputs;
 pub(crate) mod starters;
+#[cfg(test)]
+mod woodland_demo;
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum PreviewSelection {
     Operation(String),
@@ -155,6 +157,11 @@ pub fn material_canvas() -> TheCanvas {
     row.limiter_mut().set_max_height(28);
     row.set_margin(Vec4::new(6, 4, 6, 4));
     row.add_widget(Box::new(library));
+    let mut back = TheTraybarButton::new(TheId::named("MZ Return to Mesh"));
+    back.set_text("Back to mesh".into());
+    back.set_status_text("Return to the mesh recipe that uses this material");
+    back.set_disabled(true);
+    row.add_widget(Box::new(back));
     let mut top = TheCanvas::new();
     top.set_layout(row);
     canvas.set_top(top);
@@ -1319,6 +1326,11 @@ fn insertion_index(row: &format::Row, after: Option<&str>) -> Result<usize, Stri
 
 #[derive(Default)]
 pub struct ProceduralMaterialEditor {
+    mesh_material: bool,
+    iso_revision: Option<u64>,
+    iso_placement_revision: Option<u64>,
+    iso_bounds_selection: Option<(Uuid, Vec<u32>)>,
+    iso_mode: bool,
     tile: Option<Uuid>,
     active: bool,
     requested: std::collections::HashMap<Uuid, u64>,
@@ -1362,7 +1374,28 @@ impl ProceduralMaterialEditor {
             .send(TheEvent::SetStatusText(TheId::empty(), text.into()));
     }
     fn open(&mut self, id: Uuid, ui: &mut TheUI, ctx: &mut TheContext, project: &Project) {
+        self.mesh_material = false;
         self.map_binding = None;
+        let id = match shared::isometric::tile_recipe(project, id) {
+            Some(shared::isometric::TileRecipe::Material(recipe)) => recipe,
+            Some(shared::isometric::TileRecipe::Geometry(_)) => {
+                // GeometryEditor owns the same workspace for this selection.
+                // Clear the previous material without navigating away from it.
+                self.active = false;
+                self.tile = None;
+                self.bundle = None;
+                self.asset = None;
+                self.frame = None;
+                self.selected_operation = None;
+                self.selected_source = None;
+                self.selected_input = None;
+                self.composition_preview = None;
+                self.preview_request = false;
+                self.revision = self.revision.wrapping_add(1);
+                return;
+            }
+            None => id,
+        };
         if !project.procedural_materials.contains_key(&id) {
             self.clear_selection(ui, ctx);
             return;
@@ -1462,6 +1495,36 @@ impl ProceduralMaterialEditor {
         project: &mut Project,
         server: &mut ServerContext,
     ) -> bool {
+        if crate::iso_editor::handle_event(event, project, server, ctx) {
+            return true;
+        }
+        if let TheEvent::Custom(id, TheValue::Id(material)) = event {
+            if id.name == "Open Mesh Material" {
+                self.open(*material, ui, ctx, project);
+                self.mesh_material = true;
+                if let Some(w) = ui.get_widget("MZ Return to Mesh") {
+                    w.set_disabled(false);
+                }
+                return true;
+            }
+        }
+        if matches!(event,TheEvent::StateChanged(id,TheWidgetState::Clicked) if id.name=="MZ Return to Mesh")
+            && self.mesh_material
+        {
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Return to Mesh Recipe"),
+                TheValue::Empty,
+            ));
+            return true;
+        }
+        if matches!(event,TheEvent::Custom(id,_) if id.name=="Return to Mesh Recipe") {
+            self.tile = None;
+            self.bundle = None;
+            self.asset = None;
+            self.frame = None;
+            self.mesh_material = false;
+            return false;
+        }
         if let TheEvent::IndexChanged(id, index) = event {
             if id.name == "Ruleset Material" {
                 if let Some(def) = index.checked_sub(1).and_then(|i| {
@@ -1566,6 +1629,9 @@ impl ProceduralMaterialEditor {
         match event {
             TheEvent::StateChanged(id, state)
                 if self.active
+                    && !ui.ctrl
+                    && !ui.logo
+                    && !ui.alt
                     && ctx.ui.focus.as_ref().is_some_and(|focus| {
                         focus.name == EDITOR
                             || focus.name == "Material Tiling"
@@ -1592,7 +1658,10 @@ impl ProceduralMaterialEditor {
                 ctx.ui.redraw_all = true;
                 true
             }
-            TheEvent::Custom(id, _) if id.name == "Procedural Tiles Restored" || id.name == "Scepter Materials Published" => {
+            TheEvent::Custom(id, _)
+                if id.name == "Procedural Tiles Restored"
+                    || id.name == "Scepter Materials Published" =>
+            {
                 self.palette_key = None;
                 self.composition_key = None;
                 self.composition_ui_key = None;
@@ -1851,6 +1920,9 @@ impl ProceduralMaterialEditor {
             // let a Delete or typing gesture also mutate the map hidden underneath.
             TheEvent::KeyDown(_) | TheEvent::KeyCodeDown(_)
                 if self.active
+                    && !ui.ctrl
+                    && !ui.logo
+                    && !ui.alt
                     && ctx.ui.focus.as_ref().is_some_and(|focus| {
                         focus.name == EDITOR
                             || focus.name == "Material Tiling"
@@ -1963,7 +2035,96 @@ impl ProceduralMaterialEditor {
         server: &mut ServerContext,
     ) -> bool {
         let mut perf = crate::misc::FrameProfile::new();
+        if let Some(map) = project
+            .get_map_mut(server)
+            .filter(|m| m.camera == rusterix::MapCamera::TwoDIso)
+        {
+            crate::iso_editor::sync_bounds_selection(map, &mut self.iso_bounds_selection);
+        }
+        crate::iso_editor::sync(ui, project, server, ctx);
         let mut changed = false;
+        if let Some(w) = ui.get_widget("MZ Return to Mesh") {
+            w.set_disabled(!self.mesh_material);
+        }
+        if project.ensure_material_tiles() {
+            refresh_tiles(ctx);
+            changed = true;
+        }
+        let iso_mode = project
+            .get_map(server)
+            .is_some_and(|m| m.camera == rusterix::MapCamera::TwoDIso);
+        if self.iso_mode != iso_mode {
+            self.iso_mode = iso_mode;
+            self.preview_dirty = true;
+        }
+        if iso_mode || !project.isometric_bakes.is_empty() {
+            let revision = rusterix::procedural_avatar::fingerprint(&(
+                project.procedural_materials.revision(),
+                project.procedural_appearances.revision(),
+                palette::key(&project.palette),
+                project
+                    .procedural_material_cache_keys
+                    .iter()
+                    .collect::<Vec<_>>(),
+                project.isometric_bakes.len(),
+            ));
+            if self.iso_revision != Some(revision) {
+                self.iso_revision = Some(revision);
+                let before = project.get_map(server).cloned();
+                for error in shared::isometric::synchronize(project) {
+                    Self::status(ui, ctx, error);
+                }
+                refresh_tiles(ctx);
+                crate::utils::editor_scene_refresh_material_textures(project, server);
+                if let (Some(before), Some(after)) = (before, project.get_map(server)) {
+                    if before.changed != after.changed {
+                        crate::utils::editor_scene_apply_map_edit(project, server, &before, after);
+                    }
+                }
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Soft Update Minimap"),
+                    TheValue::Empty,
+                ));
+                ctx.ui.redraw_all = true;
+                self.preview_dirty = true;
+                changed = true;
+            }
+        }
+        if iso_mode {
+            let revision = |p: &Project| {
+                rusterix::procedural_avatar::fingerprint(
+                    &p.regions
+                        .iter()
+                        .map(|r| (r.map.id, r.map.changed))
+                        .collect::<Vec<_>>(),
+                )
+            };
+            let current = revision(project);
+            if self.iso_placement_revision != Some(current) {
+                let before = project
+                    .get_map(server)
+                    .filter(|m| {
+                        m.sectors.iter().any(|s| {
+                            s.properties
+                                .get_bool_default("iso_follow_mesh_bounds", false)
+                        })
+                    })
+                    .cloned();
+                let changed_maps = shared::isometric::placement::synchronize(project);
+                self.iso_placement_revision = Some(revision(project));
+                if let (Some(before), Some(after)) = (before, project.get_map(server)) {
+                    if changed_maps.contains(&after.id) {
+                        crate::utils::editor_scene_apply_map_edit(project, server, &before, after);
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Soft Update Minimap"),
+                            TheValue::Empty,
+                        ));
+                        ctx.ui.redraw_all = true;
+                        changed = true;
+                    }
+                }
+            }
+        }
         #[cfg(not(target_arch = "wasm32"))]
         {
             changed |= self.model_sources.update(project, ctx);
@@ -2053,6 +2214,7 @@ impl ProceduralMaterialEditor {
             let needs_worker = self.tile.is_some()
                 || self.bake_keys.iter().any(|(id, key)| {
                     project.tiles.contains_key(id)
+                        && !project.isometric_bakes.contains_key(id)
                         && project.procedural_material_cache_keys.get(id) != Some(key)
                 });
             if self.worker.is_none() && needs_worker {
@@ -2069,7 +2231,8 @@ impl ProceduralMaterialEditor {
                         != shared::ruleset_materials::resolution(&project.config, &result.tile)
                             .unwrap_or(pixel_density)
                         || project.procedural_materials.get(&result.tile) != Some(&result.bundle)
-                        || !project.tiles.contains_key(&result.tile)
+                        || (!project.tiles.contains_key(&result.tile)
+                            && !shared::isometric::is_material_source(project, result.tile))
                     {
                         continue;
                     }
@@ -2080,6 +2243,8 @@ impl ProceduralMaterialEditor {
                                 project.procedural_material_cache_keys.get(&result.tile)
                                     != Some(&key);
                             if needs_bake
+                                && project.tiles.contains_key(&result.tile)
+                                && !project.isometric_bakes.contains_key(&result.tile)
                                 && !shared::ruleset_materials::is_library_tile(
                                     &project.config,
                                     &result.tile,
@@ -2137,12 +2302,14 @@ impl ProceduralMaterialEditor {
                 if installed_bakes {
                     // Install completed tiles together before exposing one coherent scene.
                     refresh_tiles(ctx);
-                    crate::utils::editor_scene_refresh_material_textures(project);
+                    crate::utils::editor_scene_refresh_material_textures(project, server);
                 }
                 // The persisted cache key makes undo/redo and interrupted saves
                 // rebuild correctly even when the material editor is closed.
                 for (id, bundle) in &project.procedural_materials {
-                    if shared::ruleset_materials::is_library_tile(&project.config, id) {
+                    if shared::ruleset_materials::is_library_tile(&project.config, id)
+                        || project.isometric_bakes.contains_key(id)
+                    {
                         continue;
                     }
                     // The authoring request below renders and bakes this tile.
@@ -2180,7 +2347,10 @@ impl ProceduralMaterialEditor {
         }
         let pixel_density =
             shared::ruleset_materials::resolution(&project.config, &tile).unwrap_or(pixel_density);
-        if !project.tiles.contains_key(&tile) || !project.procedural_materials.contains_key(&tile) {
+        if (!project.tiles.contains_key(&tile)
+            && !shared::isometric::is_material_source(project, tile))
+            || !project.procedural_materials.contains_key(&tile)
+        {
             self.clear_selection(ui, ctx);
             return true;
         }
@@ -2370,6 +2540,8 @@ impl ProceduralMaterialEditor {
                     };
                     pixels.map(|pixels| (frame.size, pixels, frame.continuous))
                 });
+                // Materials are projection-independent sources. Iso projection
+                // belongs to their map/model outputs, not this source preview.
                 draw_preview_with_colors(buffer, image, checker);
                 return true;
             }
@@ -2462,6 +2634,116 @@ mod tests {
     use super::*;
     fn fixture() -> EditableMaterialAsset {
         starter(Uuid::new_v4()).unwrap()
+    }
+    #[test]
+    #[ignore = "requires native GPU for shared mesh material preview and scene publication"]
+    fn mesh_only_material_is_editable_and_refreshes_linked_geometry_tiles() {
+        let (mut ui, mut ctx) = ui_fixture();
+        let mut p = Project::default();
+        p.config = "[ruleset]\nsource='project'\n".into();
+        let material = Uuid::new_v4();
+        let model = Uuid::new_v4();
+        let source = EditableMaterialAsset::parse(
+            &material.to_string(),
+            r#"project 1
+material "surface" called "Wall Bricks"
+  mode pbr
+  row "color"
+    use "Color" id "brick-color"
+      set "color" to 0.7 0.1 0.02 1
+  output base color from row "color" xyz
+"#,
+            "surface",
+        )
+        .unwrap();
+        let original = source.save().unwrap();
+        p.procedural_materials.insert(material, original.clone());
+        p.procedural_appearances.insert(model,format!(r#"{{"version":1,"id":"wall","label":"Wall","rows":[{{"id":"wall","label":"Wall","tiles":[{{"id":"box","op":{{"type":"box","size":[1,1,0.22]}}}},{{"id":"bricks","op":{{"type":"texture","source":"{material}","size":32,"axes":[0,1],"origin":[-0.5,-0.5],"span":[1,1]}}}}]}}],"output":"wall"}}"#));
+        let outputs = [Uuid::new_v4(), Uuid::new_v4()];
+        for (i, output) in outputs.iter().enumerate() {
+            p.isometric_bakes.insert(
+                *output,
+                shared::isometric::Bake {
+                    recipe: model,
+                    ground: false,
+                    yaw: i as f32 * 90.,
+                    directions: 1,
+                    motion: None,
+                    frames: 1,
+                    signature: 0,
+                },
+            );
+        }
+        let map = &mut p.regions[0].map;
+        map.camera = rusterix::MapCamera::TwoDIso;
+        let v = [[0., 0.], [1., 0.], [1., 1.], [0., 1.]].map(|p| map.add_vertex_at(p[0], p[1]));
+        for i in 0..4 {
+            map.create_linedef_manual(v[i], v[(i + 1) % 4]);
+        }
+        let id = map.close_polygon_manual().unwrap();
+        map.find_sector_mut(id).unwrap().properties.set(
+            "source",
+            rusterix::Value::Source(rusterix::PixelSource::TileId(outputs[0])),
+        );
+        let mut server = ServerContext::default();
+        server.curr_region = p.regions[0].id;
+        let mut host = ProceduralMaterialEditor::default();
+        host.handle_event(
+            &TheEvent::Custom(TheId::named("Open Mesh Material"), TheValue::Id(material)),
+            &mut ui,
+            &mut ctx,
+            &mut p,
+            &mut server,
+        );
+        host.update(&mut ui, &mut ctx, &mut p, &mut server);
+        assert_eq!(host.tile, Some(material));
+        assert_eq!(p.tiles[&material].alias, "Wall Bricks");
+        assert!(
+            !shared::isometric::is_material_source(&p, material),
+            "This material has no ground-output route"
+        );
+        let old = outputs.map(|id| p.tiles[&id].textures.clone());
+        let changed = edited_for_project(
+            &source,
+            MaterialEditorCommand::SetNumber {
+                operation: "brick-color".into(),
+                parameter: "color:0".into(),
+                value: 0.02,
+            },
+            &p,
+        )
+        .unwrap()
+        .save()
+        .unwrap();
+        p.procedural_materials.insert(material, changed.clone());
+        host.update(&mut ui, &mut ctx, &mut p, &mut server);
+        for (i, id) in outputs.iter().enumerate() {
+            assert_ne!(p.tiles[id].textures, old[i]);
+            assert_eq!(
+                RUSTERIX.read().unwrap().assets.tiles[id].textures,
+                p.tiles[id].textures
+            );
+        }
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
+        while host.frame.is_none() && std::time::Instant::now() < deadline {
+            std::thread::sleep(std::time::Duration::from_millis(20));
+            host.update(&mut ui, &mut ctx, &mut p, &mut server);
+        }
+        assert!(
+            host.frame.is_some(),
+            "Mesh-only material preview was discarded"
+        );
+        let atom = ProjectUndoAtom::ProceduralMaterialEdit(material, original, changed);
+        atom.undo(&mut p, &mut ui, &mut ctx, &mut server);
+        host.update(&mut ui, &mut ctx, &mut p, &mut server);
+        for (i, id) in outputs.iter().enumerate() {
+            assert_eq!(p.tiles[id].textures, old[i]);
+        }
+        atom.redo(&mut p, &mut ui, &mut ctx, &mut server);
+        host.update(&mut ui, &mut ctx, &mut p, &mut server);
+        for (i, id) in outputs.iter().enumerate() {
+            assert_ne!(p.tiles[id].textures, old[i]);
+        }
     }
     #[test]
     fn installed_bakes_request_one_picker_refresh_without_a_second_tile_reset() {
@@ -3171,6 +3453,195 @@ mod tests {
         assert_eq!(ui.get_stack_layout("Game Output Stack").unwrap().index(), 1);
     }
     #[test]
+    #[ignore = "requires native GPU for MZ preview and editor texture publication"]
+    fn isometric_material_recipe_edits_refresh_tiles_and_scene_automatically() {
+        let (mut ui, mut ctx) = ui_fixture();
+        let mut p = Project::default();
+        p.config = "[ruleset]\nsource='project'\n".into();
+        let recipe = Uuid::new_v4();
+        let source = starter(recipe).unwrap();
+        p.procedural_materials
+            .insert(recipe, source.save().unwrap());
+        let outputs = [Uuid::new_v4(), Uuid::new_v4()];
+        for id in outputs {
+            p.isometric_bakes.insert(
+                id,
+                shared::isometric::Bake {
+                    recipe,
+                    ground: true,
+                    yaw: 0.,
+                    directions: 1,
+                    motion: None,
+                    frames: 1,
+                    signature: 0,
+                },
+            );
+        }
+        let map = &mut p.regions[0].map;
+        *map = Map::default();
+        map.camera = rusterix::MapCamera::TwoDIso;
+        map.grid_size = 40.;
+        let v = [[0., 0.], [1., 0.], [1., 1.], [0., 1.]].map(|p| map.add_vertex_at(p[0], p[1]));
+        for i in 0..4 {
+            map.create_linedef_manual(v[i], v[(i + 1) % 4]);
+        }
+        let sector = map.close_polygon_manual().unwrap();
+        map.find_sector_mut(sector).unwrap().properties.set(
+            "source",
+            rusterix::Value::Source(rusterix::PixelSource::TileId(outputs[0])),
+        );
+        let mut server = ServerContext::default();
+        server.curr_region = p.regions[0].id;
+        server.curr_tile_id = Some(outputs[0]);
+        let mut host = ProceduralMaterialEditor::default();
+        host.handle_event(
+            &TheEvent::Custom(TheId::named("Tile Picked"), TheValue::Id(outputs[0])),
+            &mut ui,
+            &mut ctx,
+            &mut p,
+            &mut server,
+        );
+        host.update(&mut ui, &mut ctx, &mut p, &mut server);
+        assert_eq!(host.tile, Some(recipe));
+        assert!(p.tiles.contains_key(&recipe));
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while host.frame.is_none() && std::time::Instant::now() < deadline {
+            std::thread::sleep(std::time::Duration::from_millis(20));
+            host.update(&mut ui, &mut ctx, &mut p, &mut server);
+        }
+        assert!(
+            host.frame.is_some(),
+            "A source without a flat tile must still receive its MZ preview"
+        );
+        let old = p.tiles[&outputs[0]].textures.clone();
+        let draw = |p: &Project| {
+            let mut pixels = vec![0; 320 * 240 * 4];
+            RUSTERIX
+                .write()
+                .unwrap()
+                .draw_d2(&p.regions[0].map, &mut pixels, 320, 240);
+            pixels
+        };
+        let before = draw(&p);
+        let next = edited(
+            &source,
+            MaterialEditorCommand::SetNumber {
+                operation: "pigment".into(),
+                parameter: "color2:0".into(),
+                value: 0.99,
+            },
+        )
+        .unwrap()
+        .save()
+        .unwrap();
+        let atom = ProjectUndoAtom::ProceduralMaterialEdit(
+            recipe,
+            p.procedural_materials[&recipe].clone(),
+            next.clone(),
+        );
+        p.procedural_materials.insert(recipe, next);
+        host.update(&mut ui, &mut ctx, &mut p, &mut server);
+        for id in outputs {
+            assert_ne!(p.tiles[&id].textures, old);
+            assert_eq!(
+                RUSTERIX.read().unwrap().assets.tiles[&id].textures,
+                p.tiles[&id].textures
+            );
+        }
+        assert_ne!(draw(&p), before);
+        atom.undo(&mut p, &mut ui, &mut ctx, &mut server);
+        host.update(&mut ui, &mut ctx, &mut p, &mut server);
+        assert_eq!(draw(&p), before);
+        atom.redo(&mut p, &mut ui, &mut ctx, &mut server);
+        host.update(&mut ui, &mut ctx, &mut p, &mut server);
+        assert_ne!(draw(&p), before);
+        // A source and its iso output may also share an ID. A late flat-preview
+        // result must never replace the projected output's pixels.
+        p.isometric_bakes.insert(
+            recipe,
+            shared::isometric::Bake {
+                recipe,
+                ground: true,
+                yaw: 0.,
+                directions: 1,
+                motion: None,
+                frames: 1,
+                signature: 0,
+            },
+        );
+        host.update(&mut ui, &mut ctx, &mut p, &mut server);
+        let projected = p.tiles[&recipe].clone();
+        let preview = host.frame.take().unwrap();
+        let (sender, receiver) = std::sync::mpsc::channel();
+        host.worker.as_mut().unwrap().results = receiver;
+        sender
+            .send(gpu::Completed {
+                pixels_per_tile: pixel_style::density(&p.config),
+                tile: recipe,
+                bundle: p.procedural_materials[&recipe].clone(),
+                revision: host.revision,
+                frame: Ok(preview),
+            })
+            .unwrap();
+        host.update(&mut ui, &mut ctx, &mut p, &mut server);
+        assert_eq!(
+            p.tiles[&recipe], projected,
+            "Late flat previews must not overwrite projected tile data"
+        );
+    }
+
+    #[test]
+    fn picking_isometric_material_tiles_edits_the_source_and_supports_undo() {
+        let (mut ui, mut ctx) = ui_fixture();
+        let mut project = Project::default();
+        let mut server = ServerContext::default();
+        let recipe = Uuid::new_v4();
+        let output = Uuid::new_v4();
+        let before = starter(recipe).unwrap().save().unwrap();
+        project.procedural_materials.insert(recipe, before.clone());
+        project.tiles.insert(output, rusterix::Tile::empty());
+        project.isometric_bakes.insert(
+            output,
+            shared::isometric::Bake {
+                recipe,
+                ground: true,
+                yaw: 0.,
+                directions: 1,
+                motion: None,
+                frames: 1,
+                signature: 0,
+            },
+        );
+        server.curr_tile_id = Some(output);
+        let mut host = ProceduralMaterialEditor::default();
+        host.handle_event(
+            &TheEvent::Custom(TheId::named("Tile Picked"), TheValue::Id(output)),
+            &mut ui,
+            &mut ctx,
+            &mut project,
+            &mut server,
+        );
+        assert_eq!(host.tile, Some(recipe));
+        assert_eq!(server.curr_tile_id, Some(output));
+        assert!(!project.tiles.contains_key(&recipe));
+        assert!(host.handle_event(
+            &TheEvent::IndexChanged(TheId::named("Material Tiling"), 1),
+            &mut ui,
+            &mut ctx,
+            &mut project,
+            &mut server
+        ));
+        let after = project.procedural_materials[&recipe].clone();
+        assert_ne!(before, after);
+        assert!(!project.procedural_materials.contains_key(&output));
+        let atom = ProjectUndoAtom::ProceduralMaterialEdit(recipe, before.clone(), after.clone());
+        atom.undo(&mut project, &mut ui, &mut ctx, &mut server);
+        assert_eq!(project.procedural_materials[&recipe], before);
+        atom.redo(&mut project, &mut ui, &mut ctx, &mut server);
+        assert_eq!(project.procedural_materials[&recipe], after);
+    }
+
+    #[test]
     fn selecting_procedural_material_reselects_its_tab_after_manual_navigation() {
         let (mut ui, mut ctx) = ui_fixture();
         let mut host = ProceduralMaterialEditor::default();
@@ -3848,6 +4319,7 @@ mod gpu_workspace_test {
             .get_widget(EDITOR)
             .and_then(|w| w.as_any().downcast_mut::<MaterialEditorWidget>())
         {
+            widget.select_operation("pigment");
             widget.set_thumbnail(
                 "color-noise".into(),
                 TheRGBABuffer::from(frame.selection.as_ref().unwrap().1.clone(), 384, 384)

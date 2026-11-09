@@ -74,10 +74,10 @@ status_editor_preview_post_off = Предпросмотр постобработ
 status_editor_preview_lighting_on = Предпросмотр освещения в редакторе включен.
 status_editor_preview_lighting_off = Предпросмотр освещения в редакторе выключен.
 ## Sidebar
-status_project_add_button = Добавить в проект.
+status_project_add_button = Создать новые ресурсы в проекте.
 status_project_remove_button = Удалить элемент из проекта.
 status_project_duplicate_button = Дублировать текущий элемент проекта.
-status_project_import_button = Импортировать в проект.
+status_project_import_button = Загрузить сохранённые ресурсы Eldiron в проект.
 status_project_export_button = Экспортировать из проекта.
 ## Dock
 status_dock_action_apply = Применить текущее действие.
@@ -129,8 +129,8 @@ action_create_cutout_desc = Вырезает отверстие по выбра�
 action_create_surface_face = Создать грань
 action_create_surface_face_desc = Создает новую выбираемую 3D-грань из выбранного замкнутого контура линий поверхности, не прорезая базовый объект.
 action_create_fitted_geometry = Создать вписанную геометрию
-action_create_fitted_geometry_desc = Создает одно- или двустворчатую вписанную геометрию по выбранному проему стены или связанному контуру, с центрированной глубиной и сплошной либо решетчатой конструкцией.
-status_create_fitted_geometry_failed = Для вписанной геометрии нужен выбранный проем стены или замкнутый край проема со связанными внутренними гранями. В режиме ребер выберите ребро края и нажмите C.
+action_create_fitted_geometry_desc = Создает одно- или двустворчатую вписанную геометрию по выбранному связанному контуру, с центрированной глубиной и сплошной либо решетчатой конструкцией.
+status_create_fitted_geometry_failed = Для вписанной геометрии нужен замкнутый край проема со связанными внутренними гранями. В режиме ребер выберите ребро края и нажмите C.
 status_create_fitted_geometry_created = Независимая вписанная геометрия создана и выбрана для редактирования.
 action_create_groove = Создать канавку
 action_create_groove_desc = Преобразует выбранные 3D-линии поверхности в постоянную углубленную геометрию.
@@ -252,9 +252,9 @@ status_help_input = Введите вопрос и нажмите Enter.
 status_help_back = Вернуться на предыдущую страницу справки.
 status_help_forward = Перейти на следующую страницу справки.
 tooltip_camera_2d = 2D-камера — Редактировать карту в 2D. (Ctrl/Cmd+2)
-tooltip_camera_orbit = 3D-орбитальная камера — Вращаться вокруг текущей цели. (Ctrl/Cmd+3)
-tooltip_camera_iso = 3D-изометрическая камера — Редактировать в изометрическом 3D-виде. (Ctrl/Cmd+4)
-tooltip_camera_firstp = 3D-камера от первого лица — WASD перемещает в обычном режиме. Удерживайте правую кнопку для обзора в полёте и отпустите для возврата. На тачпаде Space переключает обзор; повторный Space или Escape возвращает назад. (Ctrl/Cmd+5)
+tooltip_camera_orbit = 3D-орбитальная камера — Вращаться вокруг текущей цели. (Ctrl/Cmd+4)
+tooltip_camera_iso = 3D-изометрическая камера — Редактировать в изометрическом 3D-виде. (Ctrl/Cmd+5)
+tooltip_camera_firstp = 3D-камера от первого лица — WASD перемещает в обычном режиме. Удерживайте правую кнопку для обзора в полёте и отпустите для возврата. На тачпаде Space переключает обзор; повторный Space или Escape возвращает назад. (Ctrl/Cmd+6)
 action_tile_procedural_style = Стиль
 action_tile_procedural_kind = Тип
 action_tile_procedural_weight = Вес
@@ -851,22 +851,8 @@ status_node_branch_toggle = Включить или отключить выбр�
 
 node_branch_empty = Пустая ветка
 
-construction_node_noise = Шум
-construction_row_noise_mode = Алгоритм
-construction_row_noise_scale = Масштаб
-construction_row_noise_seed = Начальное число
-construction_row_noise_low = Тёмное значение
-construction_row_noise_high = Светлое значение
-construction_noise_value = Значений
-construction_noise_voronoi = Вороной
-construction_help_noise = Создаёт поле значений. Подключите его к градиенту для создания материала.
 
-construction_node_gradient = Градиент
-construction_port_value = Значение
-construction_help_gradient = Преобразует поле значений в градиент между двумя выбранными цветами.
 
-construction_row_color_low = Нижний цвет
-construction_row_color_high = Верхний цвет
 
 text_play_cancel = Отмена
 text_play_choose = Введите номер ответа и нажмите Enter (0 для отмены).
@@ -886,3 +872,93 @@ prefab_nodes_catalog_help = Перетащите узел в выбранную 
 prefab_nodes_branch_help = Выберите ветвь части для редактирования её узлов и геометрии.
 prefab_node_part_links = Связи части
 prefab_node_part_links_help = Переименовать префаб, выбрать родительскую часть или переназначить выбранную геометрию.
+
+# Tileset creation from images
+tileset_add = Добавить тайлы…
+tileset_import_saved = Импортировать набор тайлов…
+tileset_create = Добавить тайлы
+tileset_default_name = Новые тайлы
+tileset_source = Источник
+tileset_source_sheet = Лист спрайтов
+tileset_source_images = Отдельные изображения
+tileset_layout = Проекция
+tileset_layout_2d = 2D
+tileset_layout_iso = 2D-изометрия
+tileset_cell_width = Ширина ячейки земли
+tileset_frame_width = Ширина кадра
+tileset_frame_height = Высота кадра
+tileset_choose_images = Выбрать изображения…
+tileset_files = Выбрано изображений PNG: { $count }.
+tileset_ground_cell = Ячейка земли: { $width } × { $height }. Прозрачные поля сохраняются.
+tileset_advanced = Дополнительно
+tileset_kind = Тип спрайта
+tileset_kind_auto = По именам файлов
+tileset_kind_ground = Земля
+tileset_kind_object = Объект
+tileset_kind_character = Персонаж
+tileset_anchor_x = Опора X (−1 = автоматически)
+tileset_anchor_y = Опора Y (−1 = автоматически)
+tileset_lighting = Освещение спрайта
+tileset_lighting_original = Сохранить исходные цвета
+tileset_lighting_tint = Оттенок освещения мира
+tileset_fps = Скорость анимации (кадров/с)
+tileset_group_directions = Группировать направления и анимацию
+tileset_create_help = Загрузите источник и выберите кадры в редакторе, либо добавьте всё как коллекцию.
+tileset_edit_help = Опора учитывает прозрачные поля. Настройки применяются ко всем направлениям и кадрам спрайта.
+tileset_iso_settings = Настройки изометрического спрайта…
+tileset_error_name = Введите имя коллекции.
+tileset_error_size = Ширина ячейки должна быть чётной, от 2 до 4096 пикселей.
+tileset_error_rate = Частота анимации должна быть больше 0 и не выше 120 кадров/с.
+tileset_error_empty = Выберите хотя бы одно изображение PNG.
+tileset_error_many = За один раз можно добавить не более 2048 изображений или кадров.
+tileset_error_image = { $name }: размеры изображения должны быть от 1 до 4096 пикселей.
+tileset_error_duplicate = Повторяющееся направление или кадр спрайта: { $name }.
+tileset_error_views = { $name }: выберите все направления N/E/S/W или отключите их группировку.
+tileset_error_canvas = { $name }: все направления и кадры должны иметь одинаковый размер холста.
+tileset_error_frame = { $name }: отсутствует кадр { $frame } анимации { $clip } для направления { $direction }.
+tileset_error_direction = { $name }: анимация { $clip } должна включать направление 0.
+tileset_error_removed = Этого спрайта больше нет в проекте.
+tileset_error_read = Не удалось прочитать { $name }.
+tileset_error_png = { $name } не является допустимым изображением PNG.
+tileset_error_saved = { $name } не является допустимым сохранённым набором тайлов Eldiron.
+tileset_error_one_sheet = Выберите один лист спрайтов или смените источник на отдельные изображения.
+tileset_error_frame_size = Ширина и высота кадра должны быть от 1 до 4096 пикселей.
+tileset_error_sheet_size = Размеры листа должны быть кратны размерам кадра.
+tileset_error_transparent = Выбранные кадры полностью прозрачны.
+
+# Project chooser and examples
+project_chooser_intro = Создайте игру или откройте проект.
+project_new_2d = Новый 2D-проект
+project_new_2d_iso = Новый 2D-изометрический проект
+project_new_3d = Новый 3D-проект
+project_browse_examples = Просмотреть примеры…
+project_open_existing = Открыть проект…
+project_chooser_cancel = Отмена
+example_dialog_title = Примеры проектов
+example_intro_title = Изучите примеры игр
+example_intro_sub = Откройте пример как новый проект.
+example_loading = Загрузка примеров…
+example_loading_sub = Получение примеров из репозитория Eldiron.
+example_loading_project = Загрузка примера проекта…
+example_open = Открыть пример
+example_back = Назад
+example_unsaved_note = Примеры открываются как несохранённые проекты.
+example_empty = Нет доступных примеров.
+example_empty_sub = Не удалось загрузить каталог примеров.
+status_project_choose = Создайте игру 2D, 2D-изометрию или 3D, просмотрите примеры или откройте проект.
+status_example_initialized = Пример проекта открыт.
+status_example_load_failed = Не удалось загрузить пример проекта.
+tileset_collection_name = Имя коллекции
+
+# Source selection and animation
+tileset_after_load = После загрузки
+tileset_select_in_editor = Выбрать в редакторе тайлов
+tileset_add_all = Добавить всё как коллекцию
+tileset_open_source = Открыть источник
+tileset_single = Отдельные тайлы
+tileset_single_help = Добавить выбранные ячейки как тайлы; объединять именованные изометрические направления, если включено.
+tileset_animation = Анимация
+tileset_animation_help = Добавить выбранные ячейки как кадры одной анимации в порядке предпросмотра.
+tileset_add_selected = Добавить выбранное
+tileset_add_selected_help = Добавить в палитру только выбранные тайлы или анимацию.
+tileset_error_source_size = Источник слишком велик. Разделите изображения на меньшие группы.

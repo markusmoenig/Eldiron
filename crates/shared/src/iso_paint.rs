@@ -1647,6 +1647,39 @@ impl IsoPaintLayer {
         self.erase_stamps_near_owner(screen, radius, None)
     }
 
+    /// Terrain stamps are edited in world X/Z, never their old screen positions.
+    pub fn erase_terrain_stamps_near(&mut self, uv: [f32; 2], radius: f32, kind: &str) -> bool {
+        let selection = self
+            .active_selection_id
+            .and_then(|id| self.selection_masks.get(&id));
+        let mut changed = false;
+        for chunk in self.chunks.values_mut() {
+            let before = chunk.stamps.len();
+            chunk.stamps.retain(|stamp| {
+                let Some(at) = stamp.surface_uv else {
+                    return true;
+                };
+                let selected = selection.is_none_or(|s| {
+                    s.contains(
+                        rusterix::isometric::paint::TERRAIN_PAINT_GEO,
+                        at.map(|v| (v * ISO_PAINT_BAKED_PIXELS_PER_UV).round() as i32),
+                    )
+                });
+                let matching = stamp.paint_geo
+                    == Some(rusterix::isometric::paint::TERRAIN_PAINT_GEO)
+                    && matches!(stamp.owner, Some(IsoPaintOwner::Terrain { .. }))
+                    && (stamp.kind == kind || (kind == "grass" && stamp.kind == "grass_stamp"));
+                let near = (at[0] - uv[0]).powi(2) + (at[1] - uv[1]).powi(2) <= radius * radius;
+                !(matching && selected && near)
+            });
+            if chunk.stamps.len() != before {
+                chunk.stamp_revision = chunk.stamp_revision.wrapping_add(1);
+                changed = true;
+            }
+        }
+        changed
+    }
+
     pub fn erase_stamps_near_owner(
         &mut self,
         screen: [i32; 2],

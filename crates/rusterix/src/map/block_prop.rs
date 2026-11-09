@@ -453,7 +453,15 @@ impl<'de> Deserialize<'de> for BlockPropGeometrySource {
             },
         }
         let geometry_objects = match StoredGeometry::deserialize(deserializer)? {
-            StoredGeometry::MZ { binding, generated_cache } => return Ok(Self::MZ { binding, generated_cache }),
+            StoredGeometry::MZ {
+                binding,
+                generated_cache,
+            } => {
+                return Ok(Self::MZ {
+                    binding,
+                    generated_cache,
+                });
+            }
             StoredGeometry::Authored { geometry_objects } => geometry_objects,
             StoredGeometry::Baked { generated_cache } => generated_cache,
         };
@@ -473,13 +481,17 @@ impl BlockPropGeometrySource {
     pub fn geometry_objects(&self) -> &[GeometryObject] {
         match self {
             Self::Authored { geometry_objects } => geometry_objects,
-            Self::MZ { generated_cache, .. } => generated_cache,
+            Self::MZ {
+                generated_cache, ..
+            } => generated_cache,
         }
     }
     pub fn geometry_objects_mut(&mut self) -> &mut Vec<GeometryObject> {
         match self {
             Self::Authored { geometry_objects } => geometry_objects,
-            Self::MZ { generated_cache, .. } => generated_cache,
+            Self::MZ {
+                generated_cache, ..
+            } => generated_cache,
         }
     }
 }
@@ -747,10 +759,6 @@ pub struct BlockPropInstance {
     pub runtime_state: ValueContainer,
     #[serde(default)]
     pub overrides: ValueContainer,
-    /// Optional semantic host. The cached world transform remains usable when
-    /// the host disappears, while valid hosts can recompute it after edits.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub host_attachment: Option<BlockPropHostAttachment>,
 }
 
 impl BlockPropInstance {
@@ -762,28 +770,8 @@ impl BlockPropInstance {
             parameter_overrides: ValueContainer::default(),
             runtime_state: ValueContainer::default(),
             overrides: ValueContainer::default(),
-            host_attachment: None,
         }
     }
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub enum BlockPropHostAttachment {
-    WallSpan {
-        assembly_id: Uuid,
-        span_id: Uuid,
-        /// Arc distance from the span's start node.
-        along: f32,
-        /// Height above the wall path.
-        height: f32,
-        /// Canonical perpendicular side: -1 or +1.
-        side: f32,
-        /// Additional distance away from the wall center plane.
-        offset: f32,
-        /// Rotation around the mounting normal in quarter turns.
-        #[serde(default)]
-        rotation_quarters: i32,
-    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -1710,7 +1698,6 @@ pub fn resolve_block_prop_preview_geometry(
         parameter_overrides: ValueContainer::default(),
         runtime_state,
         overrides: ValueContainer::default(),
-        host_attachment: None,
     };
     let mut resolution = BlockPropGeometryResolution::default();
     for part in &asset.parts {
@@ -2350,5 +2337,22 @@ mod tests {
                 .properties
                 .get_bool_default("block_prop_missing", false)
         );
+    }
+}
+
+impl super::Map {
+    /// Rotate a placed prefab without changing its position or source asset.
+    pub fn rotate_block_prop_placement(&mut self, id: Uuid, turns: i32) -> bool {
+        let Some(instance) = self.block_prop_instances.iter_mut().find(|i| i.id == id) else {
+            return false;
+        };
+        let (sin, cos) = (turns as f32 * std::f32::consts::FRAC_PI_2).sin_cos();
+        for column in [0, 2] {
+            let x = instance.world_transform[column][0];
+            let z = instance.world_transform[column][2];
+            instance.world_transform[column][0] = x * cos + z * sin;
+            instance.world_transform[column][2] = -x * sin + z * cos;
+        }
+        true
     }
 }

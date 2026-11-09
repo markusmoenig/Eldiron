@@ -1,0 +1,30 @@
+{
+  "@surface": {
+    "base color": 7,
+    "emission": 1
+  },
+  "sheet-colors": {
+    "color0": 6,
+    "color1": 7,
+    "color2": 8,
+    "color3": 9
+  },
+  "sheet-outline": {
+    "color": 1
+  },
+  "rolls-colors": {
+    "color0": 18,
+    "color1": 19,
+    "color2": 21,
+    "color3": 22
+  },
+  "rolls-outline": {
+    "color": 1
+  },
+  "entries-color": {
+    "color": 18
+  },
+  "markers-color": {
+    "color": 21
+  }
+}

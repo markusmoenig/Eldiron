@@ -535,21 +535,6 @@ impl PaletteDock {
             server_ctx.curr_map_tool_type = crate::actions::current_selection_tool_type(map);
         }
 
-        if server_ctx.curr_map_tool_type == MapToolType::Wall
-            && project.get_map(server_ctx).is_some_and(|map| {
-                crate::actions::wall_hud_material_slot_locked(
-                    map,
-                    server_ctx.selected_hud_icon_index,
-                )
-            })
-        {
-            ctx.ui.send(TheEvent::SetStatusText(
-                TheId::empty(),
-                fl!("construction_material_graph_owned"),
-            ));
-            return;
-        }
-
         let mut undo_atom: Option<ProjectUndoAtom> = None;
         let mut needs_scene_redraw = false;
         let mut applied_to_action_slot = false;
@@ -618,12 +603,7 @@ impl PaletteDock {
             && let Some(map) = project.get_map_mut(server_ctx)
         {
             let prev = map.clone();
-            if crate::actions::apply_wall_hud_material_to_selection(
-                map,
-                server_ctx,
-                server_ctx.selected_hud_icon_index,
-                Some(source.clone()),
-            ) || crate::actions::apply_named_geometry_hud_material_to_selection(
+            if crate::actions::apply_named_geometry_hud_material_to_selection(
                 map,
                 server_ctx.selected_hud_icon_index,
                 Some(source.clone()),
@@ -705,21 +685,6 @@ impl PaletteDock {
             server_ctx.curr_map_tool_type = crate::actions::current_selection_tool_type(map);
         }
 
-        if server_ctx.curr_map_tool_type == MapToolType::Wall
-            && project.get_map(server_ctx).is_some_and(|map| {
-                crate::actions::wall_hud_material_slot_locked(
-                    map,
-                    server_ctx.selected_hud_icon_index,
-                )
-            })
-        {
-            ctx.ui.send(TheEvent::SetStatusText(
-                TheId::empty(),
-                fl!("construction_material_graph_owned"),
-            ));
-            return;
-        }
-
         let mut cleared_action_slot = false;
         let mut undo_atom: Option<ProjectUndoAtom> = None;
         let mut needs_scene_redraw = false;
@@ -743,12 +708,7 @@ impl PaletteDock {
 
         if !cleared_action_slot && let Some(map) = project.get_map_mut(server_ctx) {
             let prev = map.clone();
-            if crate::actions::apply_wall_hud_material_to_selection(
-                map,
-                server_ctx,
-                server_ctx.selected_hud_icon_index,
-                None,
-            ) || crate::actions::apply_named_geometry_hud_material_to_selection(
+            if crate::actions::apply_named_geometry_hud_material_to_selection(
                 map,
                 server_ctx.selected_hud_icon_index,
                 None,

@@ -1,0 +1,165 @@
+{
+  "version": 1,
+  "id": "iso-grass-step",
+  "label": "Iso Grass Step",
+  "rows": [
+    {
+      "id": "earth",
+      "label": "Earth",
+      "tiles": [
+        {
+          "id": "earth-0",
+          "op": {
+            "type": "material",
+            "palette": 19,
+            "roughness": 0.9,
+            "metallic": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "grass",
+      "label": "Grass",
+      "tiles": [
+        {
+          "id": "grass-0",
+          "op": {
+            "type": "material",
+            "palette": 36,
+            "roughness": 0.9,
+            "metallic": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "soil",
+      "label": "Soil",
+      "tiles": [
+        {
+          "id": "soil-0",
+          "op": {
+            "type": "box",
+            "size": [
+              1,
+              0.23,
+              1
+            ]
+          }
+        },
+        {
+          "id": "soil-1",
+          "op": {
+            "type": "assign_material",
+            "row": "earth"
+          }
+        },
+        {
+          "id": "soil-2",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0,
+              -0.135,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "turf",
+      "label": "Turf",
+      "tiles": [
+        {
+          "id": "turf-0",
+          "op": {
+            "type": "box",
+            "size": [
+              1,
+              0.02,
+              1
+            ]
+          }
+        },
+        {
+          "id": "turf-1",
+          "op": {
+            "type": "assign_material",
+            "row": "grass"
+          }
+        },
+        {
+          "id": "turf-2",
+          "op": {
+            "type": "texture",
+            "source": "experiment:grass",
+            "size": 64,
+            "axes": [
+              0,
+              2
+            ],
+            "origin": [
+              -0.5,
+              -0.5
+            ],
+            "span": [
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "turf-3",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0,
+              -0.01,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "block",
+      "label": "Block",
+      "tiles": [
+        {
+          "id": "block-0",
+          "op": {
+            "type": "assemble",
+            "rows": [
+              "soil",
+              "turf"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "block",
+  "grip": null
+}

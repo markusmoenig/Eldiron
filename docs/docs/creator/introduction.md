@@ -5,7 +5,7 @@ sidebar_position: 1
 
 **Eldiron Creator** is where everything comes together—a **graphical editor** that lets you build your own adventures.
 
-![Eldiron Creator](/img/docs/screenshot.png)
+![Current Eldiron Creator with the Hideout 2D region, Project sidebar, and Tile Picker.](/img/creator/overview.png)
 
 On the **left side** of the screen, you’ll find a **list of tools**. These tools are used to **edit the geometry** of the currently selected region or content. The 2D and 3D geometry is displayed in the **geometry editor** in the middle of the screen.
 

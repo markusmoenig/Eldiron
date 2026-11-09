@@ -26,6 +26,7 @@ pub enum SidebarMode {
 }
 
 pub struct Sidebar {
+    tileset_creator:crate::tileset_creation::Creator,
     pub width: i32,
     console: crate::docks::console::ConsoleDock,
     debug: crate::docks::log::LogDock,
@@ -126,15 +127,14 @@ impl Sidebar {
     ) -> bool {
         let changed = Self::set_navigation_page(index, ui, ctx);
         if index == 2 {
-            let construction = DOCKMANAGER.read().unwrap().dock == "Construction";
             let prefab = DOCKMANAGER.read().unwrap().dock == "Prefabs";
             if prefab {
                 crate::docks::prefab_nodes::sync_node_list(ui, ctx);
             }
-            if !construction && !prefab {
+            if !prefab {
                 crate::docks::nodes::sync_node_list(ui, ctx, server_ctx.pc);
             }
-            if !construction && !prefab && crate::docks::nodes::has_catalog(server_ctx.pc) {
+            if !prefab && crate::docks::nodes::has_catalog(server_ctx.pc) {
                 DOCKMANAGER
                     .write()
                     .unwrap()
@@ -181,6 +181,7 @@ impl Sidebar {
     pub fn new() -> Self {
         Self {
             width: 380,
+            tileset_creator:Default::default(),
             console: crate::docks::console::ConsoleDock::new(),
             debug: crate::docks::log::LogDock::new(),
             help: crate::docks::help::HelpDock::new(),
@@ -331,7 +332,7 @@ impl Sidebar {
                 TheContextMenuItem::new("Add Region".to_string(), TheId::named("Add Region")),
                 TheContextMenuItem::new("Add Character".to_string(), TheId::named("Add Character")),
                 TheContextMenuItem::new("Add Item".to_string(), TheId::named("Add Item")),
-                TheContextMenuItem::new("Add Tileset".to_string(), TheId::named("Add Tileset")),
+                TheContextMenuItem::new(fl!("tileset_add"), TheId::named("Add Tileset")),
                 TheContextMenuItem::new("Add Screen".to_string(), TheId::named("Add Screen")),
                 TheContextMenuItem::new("Add Avatar".to_string(), TheId::named("Add Avatar")),
                 TheContextMenuItem::new(
@@ -371,7 +372,7 @@ impl Sidebar {
                 ),
                 TheContextMenuItem::new("Import Item".to_string(), TheId::named("Import Item")),
                 TheContextMenuItem::new(
-                    "Import Tileset".to_string(),
+                    fl!("tileset_import_saved"),
                     TheId::named("Import Tileset"),
                 ),
                 TheContextMenuItem::new("Import Screen".to_string(), TheId::named("Import Screen")),
@@ -611,6 +612,7 @@ impl Sidebar {
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
+        if self.tileset_creator.event(event,ui,ctx,project,server_ctx){return true;}
         if crate::item_appearance::handle_event(event, project, ctx) {
             return true;
         }
@@ -897,18 +899,19 @@ impl Sidebar {
                         if let Some(map) = project.get_map_mut(server_ctx)
                             && let Some(bbox) = minimap_bbox_for_map(map)
                         {
-                            let scale_x = width / bbox.z;
-                            let scale_y = height / bbox.w;
-
-                            let bbox_center_x = bbox.x + bbox.z / 2.0;
-                            let bbox_center_y = bbox.y + bbox.w / 2.0;
-
-                            let offset_x = -bbox_center_x * scale_x;
-                            let offset_y = bbox_center_y * scale_y;
-
-                            let grid_x = (coord.x as f32 - width / 2.0 - offset_x) / scale_x;
-                            let grid_y = (coord.y as f32 - height / 2.0 + offset_y) / scale_y;
-                            let grid_pos = Vec2::new(grid_x, grid_y);
+                            let bbox = if map.camera == MapCamera::TwoDIso {
+                                *crate::minimap::MINIMAPBOX.read().unwrap()
+                            } else {
+                                bbox
+                            };
+                            let grid_pos = crate::minimap::minimap_pixel_to_world_on_map(
+                                Vec2::new(coord.x as f32, coord.y as f32),
+                                Vec2::new(width, height),
+                                bbox,
+                                map,
+                            );
+                            let grid_x = grid_pos.x;
+                            let grid_y = grid_pos.y;
 
                             // Keep 2D and 3D camera anchors independent.
                             if server_ctx.editor_view_mode == EditorViewMode::D2 {
@@ -1533,13 +1536,9 @@ impl Sidebar {
             }
             TheEvent::DragStarted(id, text, offset) => {
                 if let Some(key) = id.name.strip_prefix("Node Catalog/") {
-                    let construction = DOCKMANAGER.read().unwrap().dock == "Construction";
                     let prefab = DOCKMANAGER.read().unwrap().dock == "Prefabs";
                     if (prefab && crate::docks::prefab_nodes::node_available(key))
-                        || (construction && crate::docks::construction::node_available(key))
-                        || (!construction
-                            && !prefab
-                            && crate::docks::nodes::node_available(server_ctx.pc, key))
+                        || (!prefab && crate::docks::nodes::node_available(server_ctx.pc, key))
                     {
                         let mut drop = TheDrop::new(id.clone());
                         drop.set_title(text.clone());
@@ -1927,7 +1926,6 @@ impl Sidebar {
                         }
                     }
                 } else if id.name == "Tilemap Add"
-                    || id.name == "Add Tileset"
                     || id.name == "Add Image"
                     || id.name == "Avatar Atlas Import"
                 {
@@ -2207,15 +2205,27 @@ impl Sidebar {
                     }
                 } else if id.name == "Tileset Import" {
                     for p in paths {
-                        let contents = std::fs::read_to_string(p).unwrap_or("".to_string());
-                        let mut tilemap: Tilemap =
-                            serde_json::from_str(&contents).unwrap_or(Tilemap::default());
-
-                        tilemap.id = Uuid::new_v4();
-
-                        let atom = ProjectUndoAtom::AddTilemap(tilemap);
-                        atom.redo(project, ui, ctx, server_ctx);
-                        UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                        let before = project.clone();
+                        let mut after = before.clone();
+                        let result = (|| -> Result<bool,String> {
+                            let text=std::fs::read_to_string(p).map_err(|_|fl!("tileset_error_read",name=p.display().to_string()))?;
+                            let value:serde_json::Value=serde_json::from_str(&text).map_err(|_|fl!("tileset_error_saved",name=p.display().to_string()))?;
+                            if value.get("collection").is_some() {
+                                crate::tile_collection::import_tile_collection_package(&mut after,p).map_err(|_|fl!("tileset_error_saved",name=p.display().to_string()))?;
+                                Ok(false)
+                            }else {
+                                let mut tilemap:Tilemap=serde_json::from_value(value).map_err(|_|fl!("tileset_error_saved",name=p.display().to_string()))?;
+                                tilemap.id=Uuid::new_v4();after.add_tilemap(tilemap);Ok(true)
+                            }
+                        })();
+                        match result {
+                            Ok(legacy) => {
+                                let atom=if legacy {ProjectUndoAtom::AddTilemap(after.tilemaps.pop().expect("validated sheet asset"))}else{ProjectUndoAtom::TilePickerEdit(Box::new(before),Box::new(after))};
+                                atom.redo(project,ui,ctx,server_ctx);UNDOMANAGER.write().unwrap().add_undo(atom,ctx);
+                                ctx.ui.send(TheEvent::Custom(TheId::named("Update Tiles"),TheValue::Empty));redraw=true;
+                            }
+                            Err(error)=>ctx.ui.send(TheEvent::SetStatusText(id.clone(),error)),
+                        }
                     }
                 } else if id.name == "Tileset Export" {
                     if let Some(tilemap) = project.get_tilemap(id.uuid) {
@@ -2390,7 +2400,7 @@ impl Sidebar {
                         }
                     }
                     project.add_asset(asset);
-                } else if id.name == "Tilemap Add" || id.name == "Add Tileset" {
+                } else if id.name == "Tilemap Add" {
                     let mut tilemap = Tilemap::new();
                     tilemap.name = name.clone();
                     tilemap.id = Uuid::new_v4();
@@ -2808,20 +2818,6 @@ impl Sidebar {
                     let atom = ProjectUndoAtom::AddItem(Item::default());
                     atom.redo(project, ui, ctx, server_ctx);
                     UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
-                } else if id.name == "Add Tileset" {
-                    // Add Tileset - open PNG file requester
-                    ctx.ui.open_file_requester(
-                        TheId::named_with_id("Add Tileset", Uuid::new_v4()),
-                        "Open PNG Image".into(),
-                        TheFileExtension::new(
-                            "PNG Image".into(),
-                            vec!["png".to_string(), "PNG".to_string()],
-                        ),
-                    );
-                    ctx.ui
-                        .set_widget_state("Add Tileset".to_string(), TheWidgetState::None);
-                    ctx.ui.clear_hover();
-                    redraw = true;
                 } else if id.name == "Add Screen" {
                     // Add Screen
                     let atom = ProjectUndoAtom::AddScreen(Screen::default());
@@ -2873,10 +2869,10 @@ impl Sidebar {
                 } else if id.name == "Import Tileset" {
                     ctx.ui.open_file_requester(
                         TheId::named_with_id("Tileset Import", Uuid::new_v4()),
-                        "Import Tileset".into(),
+                        fl!("tileset_import_saved"),
                         TheFileExtension::new(
-                            "Eldiron Tileset".into(),
-                            vec!["eldiron_tileset".to_string()],
+                            fl!("eldiron_tileset"),
+                            vec!["eldiron_tileset".to_string(),"eldiron_tiles".to_string()],
                         ),
                     );
                 } else if id.name == "Import Screen" {
@@ -5226,5 +5222,26 @@ mod tests {
         .description();
 
         assert!(help.contains(&expected));
+    }
+    #[test]
+    #[ignore = "requires a native GPU for the editor grid overlay"]
+    fn grid_shortcut_from_the_ui_reaches_the_editor_action() {
+        let mut ui = TheUI::new();
+        let mut ctx = TheContext::new(400, 300, 1.);
+        ui.init(&mut ctx);
+        let rx = ui.add_state_listener("grid shortcut".into());
+        let mut project = Project::default();
+        let mut server = ServerContext::default();
+        server.curr_region = project.regions[0].id;
+        let mut sidebar = Sidebar::new();
+        let old = server.show_editor_grid;
+        ui.ctrl = !cfg!(target_os = "macos");
+        ui.logo = cfg!(target_os = "macos");
+        ui.key_down(Some('t'), None, &mut ctx);
+        ui.process_events(&mut ctx);
+        for event in rx.try_iter() {
+            sidebar.handle_event(&event, &mut ui, &mut ctx, &mut project, &mut server);
+        }
+        assert_eq!(server.show_editor_grid, !old);
     }
 }

@@ -52,6 +52,8 @@ fn render_debug_log(message: &str) {
 }
 
 pub struct GameWidget {
+    pub isometric_ground: crate::isometric::GroundCache,
+    pub isometric_projection: Option<crate::isometric::Projection>,
     pub name: String,
     pub scenemanager: SceneManager,
     pub backend: Option<Box<dyn GameWidgetBackend>>,
@@ -133,7 +135,10 @@ impl Default for GameWidget {
 
 impl GameWidget {
     fn is_2d_camera(camera: &PlayerCamera) -> bool {
-        matches!(camera, PlayerCamera::D2 | PlayerCamera::D2Grid)
+        matches!(
+            camera,
+            PlayerCamera::D2 | PlayerCamera::D2Iso | PlayerCamera::D2IsoGrid | PlayerCamera::D2Grid
+        )
     }
 
     pub fn render_surface_dim(&self) -> TheDim {
@@ -149,6 +154,8 @@ impl GameWidget {
 
     pub fn new() -> Self {
         Self {
+            isometric_ground: Default::default(),
+            isometric_projection: None,
             name: String::new(),
             scenemanager: SceneManager::default(),
             backend: Some(Box::new(GraphicalGameWidgetBackend::new())),
@@ -252,7 +259,10 @@ impl GameWidget {
         self.force_dynamics_rebuild = true;
         self.firstp_camera_y = None;
         match self.camera {
-            PlayerCamera::D2 | PlayerCamera::D2Grid => {}
+            PlayerCamera::D2
+            | PlayerCamera::D2Iso
+            | PlayerCamera::D2IsoGrid
+            | PlayerCamera::D2Grid => {}
             PlayerCamera::D3Iso => {
                 let mut iso = D3IsoCamera::new();
                 self.apply_iso_camera_overrides(&mut iso);
@@ -345,6 +355,8 @@ impl GameWidget {
                     "firstp_mouse" => self.set_camera_mode(PlayerCamera::D3FirstPMouse),
                     "firstp_grid" => self.set_camera_mode(PlayerCamera::D3FirstPGrid),
                     "2d_grid" => self.set_camera_mode(PlayerCamera::D2Grid),
+                    "2d_iso" => self.set_camera_mode(PlayerCamera::D2Iso),
+                    "2d_iso_grid" => self.set_camera_mode(PlayerCamera::D2IsoGrid),
                     _ => self.set_camera_mode(PlayerCamera::D2),
                 }
             }
@@ -493,6 +505,16 @@ impl GameWidget {
     }
 
     fn update_player_context(&mut self, map: &Map) {
+        if self.follow_player_camera
+            && map.camera == crate::MapCamera::TwoDIso
+            && Self::is_2d_camera(&self.camera)
+        {
+            self.camera = if matches!(self.camera, PlayerCamera::D2Grid | PlayerCamera::D2IsoGrid) {
+                PlayerCamera::D2IsoGrid
+            } else {
+                PlayerCamera::D2Iso
+            };
+        }
         if !self.follow_player_camera {
             return;
         }
@@ -726,6 +748,13 @@ impl GameWidget {
     ) {
         self.update_player_context(map);
 
+        if self.camera.is_isometric_2d() {
+            self.mapmini = map.as_mini(&assets.blocking_tiles());
+            self.build_region_name = map.name.clone();
+            self.build_map_changed = map.changed;
+            return;
+        }
+
         if let Some(bbox) = map.bounding_box() {
             self.map_bbox = bbox;
         }
@@ -813,6 +842,10 @@ impl GameWidget {
         }
 
         self.update_player_context(map);
+        if self.camera.is_isometric_2d() {
+            return;
+        }
+
         let avatar_frame_styles = self.avatar_frame_styles(map, assets);
         if Self::is_2d_camera(&self.camera) {
             scene_handler.build_dynamics_2d(map, animation_frame, assets, &avatar_frame_styles);
@@ -904,7 +937,9 @@ impl GameWidget {
         scene_handler: &mut SceneHandler,
     ) {
         self.graphical_prepare_frame(map, time, animation_frame, assets, scene_handler);
-        if Self::is_2d_camera(&self.camera) {
+        if self.camera.is_isometric_2d() {
+            self.render_isometric(map, assets, time, animation_frame, scene_handler);
+        } else if Self::is_2d_camera(&self.camera) {
             self.render_prepared_d2(time, animation_frame, scene_handler);
         } else {
             self.render_prepared_d3(time, animation_frame, scene_handler);
@@ -941,6 +976,8 @@ impl GameWidget {
         if self.backend_name == "text" {
             let _ = (animation_frame, scene_handler);
             self.text_draw(map, time, assets);
+        } else if self.camera.is_isometric_2d() {
+            self.render_isometric(map, assets, time, animation_frame, scene_handler);
         } else if Self::is_2d_camera(&self.camera) {
             self.render_prepared_d2(time, animation_frame, scene_handler);
         } else {
@@ -956,6 +993,14 @@ impl GameWidget {
         assets: &Assets,
         scene_handler: &mut SceneHandler,
     ) {
+        if self.camera.is_isometric_2d() {
+            self.update_player_context(map);
+            if map.name != self.build_region_name || map.changed != self.build_map_changed {
+                self.graphical_build(map, assets, scene_handler);
+            }
+            self.prepare_isometric(map);
+            return;
+        }
         let debug_enabled = render_debug_enabled();
         let debug_total_start = debug_enabled.then(Instant::now);
         let mut debug_build_ms = 0.0;
@@ -1111,6 +1156,96 @@ impl GameWidget {
             );
             if debug_enabled {
                 render_debug_log(&report);
+            }
+        }
+    }
+
+    /// Convert widget-local pixels to the ground plane for clicks, hover, and drops.
+    pub fn screen_to_ground(&self, point: Vec2<f32>) -> Vec2<f32> {
+        if self.camera.is_isometric_2d() {
+            if let Some(projection) = self.isometric_projection {
+                let picked = self.mapmini.elevation.pick(projection, point);
+                return Vec2::new(picked.x, picked.z);
+            }
+        }
+        self.top_left + point / self.grid_size
+    }
+
+    pub fn ground_to_screen(&self, point: Vec2<f32>) -> Vec2<f32> {
+        if self.camera.is_isometric_2d() {
+            if let Some(projection) = self.isometric_projection {
+                return projection.screen(point, self.mapmini.elevation.height_at(point));
+            }
+        }
+        (point - self.top_left) * self.grid_size
+    }
+
+    fn prepare_isometric(&mut self, map: &Map) {
+        let width = self.buffer.dim().width.max(1) as f32;
+        let height = self.buffer.dim().height.max(1) as f32;
+        let unit = self.grid_size.clamp(4., 256.);
+        let mut center = self.player_pos;
+        if self.clamp_camera_to_map {
+            let bbox = map.bbox();
+            let span = bbox.max - bbox.min;
+            if (span.x + span.y) * unit < width
+                && (span.x + span.y) * unit * 0.5 + unit * 4. < height
+            {
+                center = (bbox.min + bbox.max) * 0.5;
+            }
+        }
+        let focus = Vec2::new(
+            (self.camera_safe_left + width - self.camera_safe_right) * 0.5,
+            (self.camera_safe_top + height - self.camera_safe_bottom) * 0.58,
+        );
+        let mut projection = crate::isometric::Projection {
+            origin: Vec2::zero(),
+            unit,
+        };
+        let height = if (center - self.player_pos).magnitude_squared() < 0.001 {
+            self.mapmini.elevation.height_at(center)
+        } else {
+            0.
+        };
+        projection.origin = (focus - projection.screen(center, height)).map(|v| v.round());
+        self.top_left = projection.ground(Vec2::zero());
+        self.isometric_projection = Some(projection);
+    }
+
+    fn render_isometric(
+        &mut self,
+        map: &Map,
+        assets: &Assets,
+        time: &TheTime,
+        frame: usize,
+        scene_handler: &mut SceneHandler,
+    ) {
+        if let Some(projection) = self.isometric_projection {
+            scene_handler.apply_runtime_render_state_settings();
+            scene_handler.settings.apply_hour(time.to_f32());
+            scene_handler.build_dynamics_2d(map, frame, assets, &Default::default());
+
+            let particles = scene_handler.isometric_particles(map, assets, frame);
+            let lighting = crate::isometric::lighting::Lighting::new(
+                &scene_handler.settings,
+                scene_handler.vm.vm.lights.values(),
+                frame,
+            );
+            let avatars = scene_handler.isometric_avatars(map, assets, frame);
+            if let Err(error) = crate::isometric::draw_scene_gpu_cached(
+                map,
+                assets,
+                &mut self.buffer,
+                projection,
+                frame as f32 * assets.animation_tick_seconds(),
+                None,
+                &avatars,
+                Some(&mut self.isometric_ground),
+                &lighting,
+                &mut scene_handler.vm,
+                &particles,
+            ) {
+                eprintln!("{error}");
             }
         }
     }

@@ -366,6 +366,9 @@ pub struct Project {
     /// Portable, versioned MZ geometry recipes. Meshes/previews are derived caches.
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
     pub procedural_appearances: crate::procedural_assets::ProceduralAssets,
+    /// Source bindings for MZ-generated 2D isometric tiles and directional sprites.
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    pub isometric_bakes: IndexMap<Uuid, crate::isometric::Bake>,
 
     /// Ordered shape/blend layers referencing shared procedural picker tiles.
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
@@ -379,10 +382,6 @@ pub struct Project {
     /// schedules a rebuild in Creator, including after undo or an interrupted bake.
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
     pub procedural_material_cache_keys: IndexMap<Uuid, u64>,
-
-    /// Reusable construction graphs for walls, floors, and ceilings.
-    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
-    pub construction_patterns: IndexMap<Uuid, crate::construction_graph::ConstructionPatternAsset>,
 
     /// Reusable linked construction blocks, furniture, and interactive props.
     #[serde(default)]
@@ -532,11 +531,11 @@ impl Project {
             tiles: IndexMap::default(),
             procedural_materials: Default::default(),
             procedural_appearances: Default::default(),
+            isometric_bakes: IndexMap::default(),
             material_compositions: IndexMap::default(),
             map_material_bindings: IndexMap::default(),
             procedural_material_cache_keys: IndexMap::default(),
 
-            construction_patterns: IndexMap::default(),
             block_props: IndexMap::default(),
             prefab_graphs: IndexMap::default(),
             block_prop_paint: IndexMap::default(),
@@ -1339,6 +1338,43 @@ impl Project {
         self.procedural_material_cache_keys.shift_remove(id);
     }
 
+    /// Every editable MZ material has a normal picker tile at its own source ID.
+    /// Isometric model/ground outputs keep their separate IDs and source links.
+    pub fn ensure_material_tiles(&mut self) -> bool {
+        let missing: Vec<_> = self
+            .procedural_materials
+            .iter()
+            .filter(|(id, _)| !self.tiles.contains_key(*id))
+            .map(|(id, bundle)| (*id, bundle.clone()))
+            .collect();
+        let mut changed = false;
+        for (id, bundle) in missing {
+            let Ok(asset) = denrim_materials::integration::EditableMaterialAsset::reopen(&bundle)
+            else {
+                continue;
+            };
+            let label = asset
+                .document()
+                .materials
+                .iter()
+                .find(|m| m.id == asset.selected_material)
+                .map(|m| m.label.clone())
+                .filter(|s| !s.is_empty())
+                .unwrap_or_else(|| "MZ Material".into());
+            let mut tile = rusterix::Tile::from_texture(rusterix::Texture::new(
+                [100, 100, 105, 255].repeat(16 * 16),
+                16,
+                16,
+            ));
+            tile.id = id;
+            tile.alias = label;
+            tile.blocking = false;
+            self.tiles.insert(id, tile);
+            changed = true;
+        }
+        changed
+    }
+
     /// Gets the given tile from the project.
     pub fn get_tile(&self, id: &Uuid) -> Option<&rusterix::Tile> {
         self.tiles.get(id)
@@ -1501,19 +1537,8 @@ mod tests {
             .prefab_editor_part_by_object
             .insert(object_id, part_id);
 
-        let mut instance = rusterix::BlockPropInstance::new(asset_id);
+        let instance = rusterix::BlockPropInstance::new(asset_id);
         let instance_id = instance.id;
-        let assembly_id = Uuid::new_v4();
-        let span_id = Uuid::new_v4();
-        instance.host_attachment = Some(rusterix::BlockPropHostAttachment::WallSpan {
-            assembly_id,
-            span_id,
-            along: 1.5,
-            height: 1.25,
-            side: -1.0,
-            offset: 0.03,
-            rotation_quarters: 2,
-        });
         project.regions[0].map.block_prop_instances.push(instance);
         let mut local_transform = identity_block_prop_transform();
         local_transform[3][1] = 0.05;
@@ -1554,18 +1579,6 @@ mod tests {
         assert_eq!(
             restored.regions[0].map.block_prop_instances[0].asset_id,
             asset_id
-        );
-        assert_eq!(
-            restored.regions[0].map.block_prop_instances[0].host_attachment,
-            Some(rusterix::BlockPropHostAttachment::WallSpan {
-                assembly_id,
-                span_id,
-                along: 1.5,
-                height: 1.25,
-                side: -1.0,
-                offset: 0.03,
-                rotation_quarters: 2,
-            })
         );
         assert_eq!(
             restored.regions[0].map.block_prop_surface_placements[0].occupant,

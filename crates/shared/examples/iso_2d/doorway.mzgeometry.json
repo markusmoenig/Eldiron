@@ -1,0 +1,297 @@
+{
+  "version": 1,
+  "id": "iso-doorway",
+  "label": "Isometric doorway",
+  "rows": [
+    {
+      "id": "stone",
+      "label": "Stone",
+      "tiles": [
+        {
+          "id": "stone-0",
+          "op": {
+            "type": "material",
+            "palette": 7,
+            "roughness": 0.9,
+            "metallic": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "cap",
+      "label": "Cap",
+      "tiles": [
+        {
+          "id": "cap-0",
+          "op": {
+            "type": "material",
+            "palette": 6,
+            "roughness": 0.9,
+            "metallic": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "left-jamb",
+      "label": "left-jamb",
+      "tiles": [
+        {
+          "id": "left-jamb-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.1,
+              2.4,
+              0.22
+            ]
+          }
+        },
+        {
+          "id": "left-jamb-1",
+          "op": {
+            "type": "assign_material",
+            "row": "stone"
+          }
+        },
+        {
+          "id": "left-jamb-2",
+          "op": {
+            "type": "transform",
+            "translation": [
+              -0.45,
+              1.2,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "left-jamb-3",
+          "op": {
+            "type": "texture",
+            "source": "experiment:wall",
+            "size": 64,
+            "axes": [
+              0,
+              1
+            ],
+            "origin": [
+              -0.5,
+              0
+            ],
+            "span": [
+              1,
+              1.12
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "right-jamb",
+      "label": "right-jamb",
+      "tiles": [
+        {
+          "id": "right-jamb-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.1,
+              2.4,
+              0.22
+            ]
+          }
+        },
+        {
+          "id": "right-jamb-1",
+          "op": {
+            "type": "assign_material",
+            "row": "stone"
+          }
+        },
+        {
+          "id": "right-jamb-2",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.45,
+              1.2,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "right-jamb-3",
+          "op": {
+            "type": "texture",
+            "source": "experiment:wall",
+            "size": 64,
+            "axes": [
+              0,
+              1
+            ],
+            "origin": [
+              -0.5,
+              0
+            ],
+            "span": [
+              1,
+              1.12
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "lintel",
+      "label": "lintel",
+      "tiles": [
+        {
+          "id": "lintel-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.8,
+              0.4,
+              0.22
+            ]
+          }
+        },
+        {
+          "id": "lintel-1",
+          "op": {
+            "type": "assign_material",
+            "row": "stone"
+          }
+        },
+        {
+          "id": "lintel-2",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0,
+              2.2,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "lintel-3",
+          "op": {
+            "type": "texture",
+            "source": "experiment:wall",
+            "size": 64,
+            "axes": [
+              0,
+              1
+            ],
+            "origin": [
+              -0.5,
+              0
+            ],
+            "span": [
+              1,
+              1.12
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "coping",
+      "label": "coping",
+      "tiles": [
+        {
+          "id": "coping-0",
+          "op": {
+            "type": "box",
+            "size": [
+              1.04,
+              0.15,
+              0.3
+            ]
+          }
+        },
+        {
+          "id": "coping-1",
+          "op": {
+            "type": "assign_material",
+            "row": "cap"
+          }
+        },
+        {
+          "id": "coping-2",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0,
+              2.475,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "doorway",
+      "label": "Doorway",
+      "tiles": [
+        {
+          "id": "doorway-0",
+          "op": {
+            "type": "assemble",
+            "rows": [
+              "left-jamb",
+              "right-jamb",
+              "lintel",
+              "coping"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "doorway",
+  "grip": null
+}

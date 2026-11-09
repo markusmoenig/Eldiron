@@ -1,0 +1,193 @@
+{
+  "version": 1,
+  "id": "rock",
+  "label": "Rock",
+  "rows": [
+    {
+      "id": "recipe",
+      "label": "Recipe",
+      "tiles": [
+        {
+          "id": "recipe-0",
+          "op": {
+            "type": "group",
+            "label": "Rock",
+            "document": {
+              "version": 1,
+              "id": "rock-construction",
+              "label": "Rock construction",
+              "rows": [
+                {
+                  "id": "stone",
+                  "label": "Stone",
+                  "tiles": [
+                    {
+                      "id": "stone-0",
+                      "op": {
+                        "type": "material",
+                        "palette": 7,
+                        "roughness": 0.9,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "rock",
+                  "label": "Rock",
+                  "tiles": [
+                    {
+                      "id": "rock-0",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "radius": [
+                              0.3,
+                              0.25
+                            ]
+                          },
+                          {
+                            "center": [
+                              -0.08,
+                              0.15,
+                              0.02
+                            ],
+                            "radius": [
+                              0.52,
+                              0.42
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.04,
+                              0.42,
+                              -0.06
+                            ],
+                            "radius": [
+                              0.39,
+                              0.33
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.65,
+                              0
+                            ],
+                            "radius": [
+                              0.12,
+                              0.14
+                            ]
+                          }
+                        ],
+                        "segments": 7,
+                        "material": "stone"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "assembly",
+                  "label": "Assembly",
+                  "tiles": [
+                    {
+                      "id": "assembly-0",
+                      "op": {
+                        "type": "assemble",
+                        "rows": [
+                          "rock"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "assembly",
+              "grip": null
+            },
+            "controls": [
+              {
+                "id": "width",
+                "label": "Width (m)",
+                "category": "Dimensions",
+                "help": "Overall size; the base remains on the ground.",
+                "order": 0,
+                "value": 1,
+                "reference": 1,
+                "min": 0.02,
+                "max": 10.0,
+                "modifiers": [
+                  {
+                    "type": "fit_axis",
+                    "axis": 0
+                  }
+                ]
+              },
+              {
+                "id": "height",
+                "label": "Height (m)",
+                "category": "Dimensions",
+                "help": "Overall size; the base remains on the ground.",
+                "order": 1,
+                "value": 0.65,
+                "reference": 0.65,
+                "min": 0.02,
+                "max": 10.0,
+                "modifiers": [
+                  {
+                    "type": "fit_axis",
+                    "axis": 1
+                  }
+                ]
+              },
+              {
+                "id": "depth",
+                "label": "Depth (m)",
+                "category": "Dimensions",
+                "help": "Overall size; the base remains on the ground.",
+                "order": 2,
+                "value": 0.84,
+                "reference": 0.84,
+                "min": 0.02,
+                "max": 10.0,
+                "modifiers": [
+                  {
+                    "type": "fit_axis",
+                    "axis": 2
+                  }
+                ]
+              },
+              {
+                "id": "stone",
+                "label": "Stone",
+                "category": "Materials",
+                "help": "Project palette color for these parts.",
+                "order": 0,
+                "value": 7,
+                "reference": 7,
+                "min": 0.0,
+                "max": 255.0,
+                "modifiers": [
+                  {
+                    "type": "palette",
+                    "parts": [
+                      "*"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "recipe",
+  "grip": null
+}

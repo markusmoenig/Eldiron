@@ -27,6 +27,7 @@ struct TileBoardPlacement {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum TileTabKind {
     Project,
+    Materials,
     Collection(Uuid),
 }
 
@@ -39,6 +40,7 @@ impl TileTabSpec {
     fn name(&self, project: &Project) -> String {
         match self.kind {
             TileTabKind::Project => "Project".to_string(),
+            TileTabKind::Materials => "MZ Materials".into(),
             TileTabKind::Collection(id) => project
                 .tile_collections
                 .get(&id)
@@ -49,6 +51,8 @@ impl TileTabSpec {
 }
 
 pub struct TilesDock {
+    iso_mode: bool,
+    bitmap_previews: std::sync::Mutex<std::collections::HashMap<Uuid,rusterix::Texture>>,
     widget_prefix: &'static str,
     pub filter: String,
     pub filter_role: u8,
@@ -81,6 +85,8 @@ impl Dock for TilesDock {
         Self: Sized,
     {
         Self {
+            iso_mode: false,
+            bitmap_previews: Default::default(),
             widget_prefix: "",
             filter: String::new(),
             filter_role: 0,
@@ -232,6 +238,9 @@ impl Dock for TilesDock {
         project: &Project,
         server_ctx: &mut ServerContext,
     ) {
+        self.iso_mode = project
+            .get_map(server_ctx)
+            .is_some_and(|m| m.camera == rusterix::MapCamera::TwoDIso);
         self.curr_tile = server_ctx.curr_tile_id;
         self.curr_source = server_ctx.curr_tile_source;
         if server_ctx.curr_tile_board_cell.is_none() {
@@ -251,6 +260,10 @@ impl Dock for TilesDock {
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
+        self.iso_mode = project
+            .get_map(server_ctx)
+            .is_some_and(|m| m.camera == rusterix::MapCamera::TwoDIso);
+        project.ensure_material_tiles();
         let mut redraw = false;
 
         match event {
@@ -271,6 +284,10 @@ impl Dock for TilesDock {
                 }
             }
             TheEvent::ContextMenuSelected(widget_id, item_id) => {
+                if item_id.name=="Edit Iso Sprite" {
+                    ctx.ui.send(TheEvent::Custom(TheId::named("Edit Iso Sprite"),TheValue::Id(item_id.uuid)));return true;
+                }
+
                 if widget_id.name == self.widget_name("Tiles Dock Collections") {
                     if item_id.name == self.widget_name("Tiles Dock New Collection") {
                         self.create_collection(project, ui, ctx);
@@ -580,20 +597,7 @@ impl Dock for TilesDock {
                         server_ctx.curr_map_tool_type =
                             crate::actions::current_selection_tool_type(map);
                     }
-                    if server_ctx.curr_map_tool_type == MapToolType::Wall
-                        && project.get_map(server_ctx).is_some_and(|map| {
-                            crate::actions::wall_hud_material_slot_locked(
-                                map,
-                                server_ctx.selected_hud_icon_index,
-                            )
-                        })
-                    {
-                        ctx.ui.send(TheEvent::SetStatusText(
-                            TheId::empty(),
-                            fl!("construction_material_graph_owned"),
-                        ));
-                        return true;
-                    }
+
                     let selected_source =
                         crate::utils::get_surface_apply_source(project, server_ctx);
                     if let Some(selected_source) = selected_source {
@@ -679,23 +683,12 @@ impl Dock for TilesDock {
 
                         if !applied_to_action && let Some(map) = project.get_map_mut(server_ctx) {
                             let prev = map.clone();
-                            let applied_to_material_slot =
-                                selected_material_source.clone().is_some_and(|source| {
-                                    crate::actions::apply_wall_hud_material_to_selection(
-                                        map,
-                                        server_ctx,
-                                        server_ctx.selected_hud_icon_index,
-                                        Some(source),
-                                    )
-                                });
-                            if applied_to_material_slot
-                                || crate::actions::apply_named_geometry_hud_surface_source_to_selection(
-                                    map,
-                                    server_ctx.selected_hud_icon_index,
-                                    Some(&selected_source),
-                                    Some(self.apply_tile_mode),
-                                )
-                            {
+                            if crate::actions::apply_named_geometry_hud_surface_source_to_selection(
+                                map,
+                                server_ctx.selected_hud_icon_index,
+                                Some(&selected_source),
+                                Some(self.apply_tile_mode),
+                            ) {
                                 undo_atom = Some(ProjectUndoAtom::MapEdit(
                                     server_ctx.pc,
                                     Box::new(prev),
@@ -782,20 +775,7 @@ impl Dock for TilesDock {
                         server_ctx.curr_map_tool_type =
                             crate::actions::current_selection_tool_type(map);
                     }
-                    if server_ctx.curr_map_tool_type == MapToolType::Wall
-                        && project.get_map(server_ctx).is_some_and(|map| {
-                            crate::actions::wall_hud_material_slot_locked(
-                                map,
-                                server_ctx.selected_hud_icon_index,
-                            )
-                        })
-                    {
-                        ctx.ui.send(TheEvent::SetStatusText(
-                            TheId::empty(),
-                            fl!("construction_material_graph_owned"),
-                        ));
-                        return true;
-                    }
+
                     let mut cleared_action_slot = false;
                     let mut undo_atom: Option<ProjectUndoAtom> = None;
                     let mut needs_scene_redraw = false;
@@ -826,12 +806,7 @@ impl Dock for TilesDock {
 
                     if !cleared_action_slot && let Some(map) = project.get_map_mut(server_ctx) {
                         let prev = map.clone();
-                        if crate::actions::apply_wall_hud_material_to_selection(
-                            map,
-                            server_ctx,
-                            server_ctx.selected_hud_icon_index,
-                            None,
-                        ) || crate::actions::apply_named_geometry_hud_material_to_selection(
+                        if crate::actions::apply_named_geometry_hud_material_to_selection(
                             map,
                             server_ctx.selected_hud_icon_index,
                             None,
@@ -1127,13 +1102,24 @@ impl Dock for TilesDock {
                     redraw = true;
                 }
             }
-            TheEvent::Custom(id, _) => {
-                if id.name == "Update Tilepicker Textures" {
+            TheEvent::Custom(id, value) => {
+                if id.name == "Reveal Tile Collection" {
+                    if let TheValue::Id(collection)=value {
+                        self.sync_tabs(ui,ctx,project);
+                        if let Some(index)=self.tab_specs(project).iter().position(|tab|tab.kind==TileTabKind::Collection(*collection)) {
+                            self.active_tab=index;
+                            if let Some(layout)=ui.get_layout(&self.widget_name(TILES_TAB_LAYOUT)) && let Some(tabs)=layout.as_tab_layout(){tabs.set_index(index);}
+                            self.sync_collection_menu(ui,project);self.sync_sidebar(ctx,project);self.render_views(ui,ctx,project);redraw=true;
+                        }
+                    }
+                } else if id.name == "Update Tilepicker Textures" {
+                    self.bitmap_previews.lock().unwrap().clear();
                     // Baking updates pixels, not board layout, selection, filters
                     // or sidebar context. Keep those stable while images arrive.
                     self.render_views(ui, ctx, project);
                     redraw = true;
                 } else if id.name == "Update Tilepicker" {
+                    self.bitmap_previews.lock().unwrap().clear();
                     self.curr_tile = server_ctx.curr_tile_id;
                     self.curr_source = server_ctx.curr_tile_source;
                     if self.curr_source.is_some() {
@@ -1288,6 +1274,9 @@ impl TilesDock {
                 kind: TileTabKind::Collection(*id),
             });
         }
+        specs.push(TileTabSpec {
+            kind: TileTabKind::Materials,
+        });
         specs
     }
 
@@ -1356,6 +1345,10 @@ impl TilesDock {
         ));
 
         if let Some(source) = self.curr_source {
+            if let TileSource::SingleTile(id)=source && project.tiles.get(&id).is_some_and(|t|t.isometric.as_ref().is_some_and(|s|s.bitmap)) {
+                items.push(TheContextMenuItem::new(fl!("tileset_iso_settings"),TheId::named_with_id("Edit Iso Sprite",id)));
+            }
+
             for collection in project.tile_collections.values() {
                 items.push(TheContextMenuItem::new(
                     format!("Add To {}", collection.name),
@@ -1532,6 +1525,22 @@ impl TilesDock {
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) -> bool {
+        let TileSource::SingleTile(tile_id) = source;
+        if project.procedural_materials.contains_key(&tile_id) {
+            let used = shared::ruleset_materials::is_library_tile(&project.config, &tile_id)
+                || project
+                    .isometric_bakes
+                    .values()
+                    .any(|b| b.recipe == tile_id)
+                || project
+                    .procedural_appearances
+                    .values()
+                    .any(|s| s.contains(&tile_id.to_string()));
+            if used {
+                ctx.ui.send(TheEvent::SetStatusText(TheId::empty(),"This material is used by a mesh, tile output, or ruleset. Replace its references before deleting it.".into()));
+                return false;
+            }
+        }
         let before = project.clone();
         let deleted_reserved_slot = self
             .board_position_for_tab(project, self.active_tab, source)
@@ -1875,15 +1884,17 @@ impl TilesDock {
             .tiles
             .iter()
             .filter_map(|(id, tile)| {
-                if project.map_material_bindings.contains_key(id)
-                    || ruleset_tiles.contains(id)
-                    || shared::ruleset_materials::is_library_tile(&project.config, id)
+                if kind != TileTabKind::Materials
+                    && (project.map_material_bindings.contains_key(id)
+                        || ruleset_tiles.contains(id)
+                        || shared::ruleset_materials::is_library_tile(&project.config, id))
                 {
                     return None;
                 }
                 let source = TileSource::SingleTile(*id);
                 let in_tab = match kind {
                     TileTabKind::Project => true,
+                    TileTabKind::Materials => project.procedural_materials.contains_key(id),
                     TileTabKind::Collection(id) => project.collection_contains_source(&id, source),
                 };
                 (self.matches_tile(tile) && in_tab).then(|| TileBoardEntry {
@@ -2006,7 +2017,15 @@ impl TilesDock {
     ) {
         let TileSource::SingleTile(id) = source;
         if let Some(tile) = project.tiles.get(&id) {
-            self.draw_tile_into_rect_alpha(buffer, ctx, tile, rect, 2, alpha);
+            self.draw_tile_into_rect_alpha(
+                buffer,
+                ctx,
+                tile,
+                rect,
+                2,
+                alpha,
+                self.iso_mode && !project.procedural_materials.contains_key(&id),
+            );
         }
         let hovered = Some(source) == self.tile_hover_source;
         if hovered || Some(source) == self.current_source() {
@@ -2034,6 +2053,7 @@ impl TilesDock {
         rect: Vec4<i32>,
         padding: i32,
         alpha: f32,
+        iso_preview: bool,
     ) {
         if tile.textures.is_empty() {
             return;
@@ -2065,15 +2085,44 @@ impl TilesDock {
             );
             return;
         }
-        let tex = &tile.textures[0];
+        let tex = if iso_preview {
+            tile.isometric
+                .as_ref()
+                .and_then(|s| s.frames.first())
+                .unwrap_or(&tile.textures[0])
+        } else {
+            &tile.textures[0]
+        };
+        // Padding is part of placement metadata, not of the picker thumbnail.
+        let bitmap=tile.isometric.as_ref().is_some_and(|s|s.bitmap);
+        let mut previews=self.bitmap_previews.lock().unwrap();
+        let tex=if bitmap {previews.entry(tile.id).or_insert_with(|| {
+            let mut bounds=[tex.width,tex.height,0,0];
+            for y in 0..tex.height {for x in 0..tex.width {if tex.data[(y*tex.width+x)*4+3]>0 {
+                bounds[0]=bounds[0].min(x);bounds[1]=bounds[1].min(y);bounds[2]=bounds[2].max(x+1);bounds[3]=bounds[3].max(y+1);
+            }}}
+            if bounds[2]<=bounds[0]||bounds[3]<=bounds[1] {return rusterix::Texture::alloc(1,1);}
+            let w=bounds[2]-bounds[0];let h=bounds[3]-bounds[1];
+            rusterix::Texture::new(Self::crop_texture_rgba(&tex.data,(tex.width,tex.height),(bounds[0],bounds[1],w,h)),w,h)
+        })}else{tex};
         let stride = buffer.stride();
-        let full_rect = Vec4::new(
+        let mut full_rect = Vec4::new(
             rect.x + padding,
             rect.y + padding,
             (rect.z - padding * 2).max(1),
             (rect.w - padding * 2).max(1),
         );
-        let Some(draw_rect) = Self::clip_rect(buffer, rect, padding) else {
+        if bitmap || (iso_preview && tile.isometric.is_some()) {
+            let scale = (full_rect.z as f32 / tex.width.max(1) as f32)
+                .min(full_rect.w as f32 / tex.height.max(1) as f32);
+            let w = (tex.width as f32 * scale).round().max(1.) as i32;
+            let h = (tex.height as f32 * scale).round().max(1.) as i32;
+            full_rect.x += (full_rect.z - w) / 2;
+            full_rect.y += (full_rect.w - h) / 2;
+            full_rect.z = w;
+            full_rect.w = h;
+        }
+        let Some(draw_rect) = Self::clip_rect(buffer, full_rect, 0) else {
             return;
         };
         let full_x0 = full_rect.x;
@@ -2140,7 +2189,18 @@ impl TilesDock {
                         buffer.pixels_mut().copy_from_slice(preview.pixels());
                     } else if !tile.textures.is_empty() {
                         let index = tile.frame_index(server_ctx.animation_counter);
-                        let tex = &tile.textures[index];
+                        let tex = if project
+                            .get_map(server_ctx)
+                            .is_some_and(|m| m.camera == rusterix::MapCamera::TwoDIso)
+                            && !project.procedural_materials.contains_key(&tile_id)
+                        {
+                            tile.isometric
+                                .as_ref()
+                                .and_then(|s| s.frames.get(index % s.frames.len().max(1)))
+                                .unwrap_or(&tile.textures[index])
+                        } else {
+                            &tile.textures[index]
+                        };
                         let src_w = tex.width as f32;
                         let src_h = tex.height as f32;
                         let dst_w = buffer.dim().width as f32;
@@ -2481,6 +2541,12 @@ impl TilesDock {
             TheId::named("Tile Picked"),
             TheValue::Id(tile_id),
         ));
+        if self.current_tab_kind(project) == TileTabKind::Materials {
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Open Procedural Tile"),
+                TheValue::Id(tile_id),
+            ));
+        }
         Self::activate_edit_tile_meta_action(server_ctx);
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Update Action List"),
@@ -2545,6 +2611,121 @@ impl TilesDock {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn material_swatches_stay_flat_in_iso_while_output_tiles_keep_their_projection() {
+        let mut project = Project::default();
+        let mut material = rusterix::Tile::from_texture(rusterix::Texture::new(
+            [180, 30, 20, 255].repeat(16),
+            4,
+            4,
+        ));
+        material.isometric = Some(rusterix::isometric::SpriteLayout {
+            ground: true,
+            frames: vec![rusterix::isometric::ground_sprite(&rusterix::Texture::new(
+                [20, 180, 30, 255].repeat(16),
+                4,
+                4,
+            ))],
+            ..Default::default()
+        });
+        let source = material.id;
+        let mut output = material.clone();
+        output.id = Uuid::new_v4();
+        let projected = output.id;
+        project.tiles.insert(source, material);
+        project.tiles.insert(projected, output);
+        project.procedural_materials.insert(source, "source".into());
+        let mut dock = <TilesDock as Dock>::new();
+        dock.iso_mode = true;
+        let mut ctx = TheContext::new(40, 40, 1.);
+        let mut swatch = TheRGBABuffer::new(TheDim::sized(40, 40));
+        dock.draw_source_alpha(
+            &mut swatch,
+            &mut ctx,
+            &project,
+            0,
+            Vec4::new(0, 0, 40, 40),
+            TileSource::SingleTile(source),
+            1.,
+        );
+        assert_eq!(
+            &swatch.pixels()[(4 * 40 + 4) * 4..(4 * 40 + 4) * 4 + 4],
+            &[180, 30, 20, 255]
+        );
+        let mut image = TheRGBABuffer::new(TheDim::sized(40, 40));
+        dock.draw_source_alpha(
+            &mut image,
+            &mut ctx,
+            &project,
+            0,
+            Vec4::new(0, 0, 40, 40),
+            TileSource::SingleTile(projected),
+            1.,
+        );
+        assert_eq!(
+            &image.pixels()[(20 * 40 + 20) * 4..(20 * 40 + 20) * 4 + 4],
+            &[20, 180, 30, 255]
+        );
+        assert_eq!(
+            image.pixels()[(4 * 40 + 4) * 4 + 3],
+            0,
+            "Only the output tile should have a diamond silhouette"
+        );
+    }
+    #[test]
+    fn all_mz_material_sources_have_named_picker_entries_and_library_materials_are_visible() {
+        let mut p = Project::default();
+        let id = Uuid::new_v4();
+        let a = denrim_materials::integration::EditableMaterialAsset::parse(
+            &id.to_string(),
+            include_str!("../../embedded/materials/05-walls.material"),
+            "surface",
+        )
+        .unwrap();
+        p.procedural_materials.insert(id, a.save().unwrap());
+        assert!(p.ensure_material_tiles());
+        assert_eq!(p.tiles[&id].alias, "Walls");
+        assert!(!p.ensure_material_tiles());
+        shared::ruleset_materials::install(&mut p).unwrap();
+        p.ensure_material_tiles();
+        let dock = <TilesDock as Dock>::new();
+        let tab = dock
+            .tab_specs(&p)
+            .iter()
+            .position(|t| t.kind == TileTabKind::Materials)
+            .unwrap();
+        let entries = dock.entries_for_tab(&p, tab);
+        for id in p.procedural_materials.keys() {
+            assert!(
+                entries
+                    .iter()
+                    .any(|entry| entry.source == TileSource::SingleTile(*id)),
+                "Missing material {id}"
+            );
+        }
+        let mut filtered = <TilesDock as Dock>::new();
+        filtered.filter = "walls".into();
+        assert!(
+            filtered
+                .entries_for_tab(&p, tab)
+                .iter()
+                .any(|e| e.source == TileSource::SingleTile(id))
+        );
+        p.procedural_appearances
+            .insert(Uuid::new_v4(), format!("material reference: {id}"));
+        let mut ui = TheUI::new();
+        let mut ctx = TheContext::new(400, 300, 1.);
+        let mut server = ServerContext::default();
+        assert!(!filtered.delete_source(
+            &mut p,
+            TileSource::SingleTile(id),
+            &mut ui,
+            &mut ctx,
+            &mut server
+        ));
+        assert!(p.procedural_materials.contains_key(&id));
+        assert!(p.tiles.contains_key(&id));
+    }
 
     #[test]
     fn baked_texture_refresh_keeps_picker_context() {
@@ -2692,7 +2873,7 @@ mod tests {
         assert_eq!(server_ctx.curr_tile_id, Some(id));
         assert_eq!(dock.selected_empty_cell, None);
         assert_eq!(server_ctx.curr_tile_board_cell, None);
-        assert_eq!(dock.tab_specs(&project).len(), 1);
+        assert_eq!(dock.tab_specs(&project).len(), 2);
     }
 
     #[test]

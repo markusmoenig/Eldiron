@@ -68,15 +68,152 @@ fn parameters(
         Operation::Armature { .. } | Operation::Profiles { .. } | Operation::Texture { .. } => {
             return super::authoring_params::parameters(op, selection);
         }
+        Operation::Connector {
+            translation,
+            rotation,
+            ..
+        } => {
+            for k in 0..3 {
+                scalar(
+                    &format!("position{k}"),
+                    &format!("Position {}", ["X", "Y", "Z"][k]),
+                    translation[k],
+                    -1000.,
+                    1000.,
+                );
+                scalar(
+                    &format!("rotation{k}"),
+                    &format!("Rotation {}", ["X", "Y", "Z"][k]),
+                    rotation[k],
+                    -1000.,
+                    1000.,
+                );
+            }
+        }
         Operation::Group { controls, .. } => return super::groups::parameters(controls, selection),
         Operation::Asset { .. } | Operation::Input { .. } => {}
-        Operation::FitTo { target, axes, source_anchor, target_anchor, padding } => {
-            scalar("target", "Target row", doc.rows.iter().position(|r| &r.id == target).unwrap_or(0) as f32, 0., doc.rows.len().saturating_sub(1) as f32);
-            p.push(property("target", "Target row", vec!["target".into()], MaterialPropertyKind::Choice, doc.rows.iter().map(|r|r.label.clone()).collect()));
+        Operation::Footprint { row, holes, append } => {
+            let contours = doc
+                .rows
+                .iter()
+                .take_while(|r| r.tiles.iter().all(|t| t.id != operation))
+                .filter(|r| matches!(evaluation.rows.get(&r.id), Some(Value::Contour(_))))
+                .collect::<Vec<_>>();
+            scalar(
+                "footprint_row",
+                "Contour (X/Z)",
+                contours.iter().position(|r| &r.id == row).unwrap_or(0) as f32,
+                0.,
+                contours.len().saturating_sub(1) as f32,
+            );
+            p.push(property(
+                "footprint_row",
+                "Contour (X/Z)",
+                vec!["footprint_row".into()],
+                MaterialPropertyKind::Choice,
+                contours.iter().map(|r| r.label.clone()).collect(),
+            ));
+            for (i, hole) in holes.iter().enumerate() {
+                let key = format!("footprint_hole:{i}");
+                scalar(
+                    &key,
+                    &format!("Hole {}", i + 1),
+                    contours
+                        .iter()
+                        .position(|r| &r.id == hole)
+                        .map_or(0, |i| i + 1) as f32,
+                    0.,
+                    contours.len() as f32,
+                );
+                p.push(property(
+                    &key,
+                    &format!("Hole {}", i + 1),
+                    vec![key.clone()],
+                    MaterialPropertyKind::Choice,
+                    std::iter::once("Remove hole".into())
+                        .chain(contours.iter().map(|r| r.label.clone()))
+                        .collect(),
+                ));
+            }
+            let available = contours
+                .iter()
+                .filter(|r| &r.id != row && !holes.contains(&r.id))
+                .collect::<Vec<_>>();
+            if holes.len() < 32 && !available.is_empty() {
+                scalar(
+                    "footprint_add_hole",
+                    "Add hole",
+                    0.,
+                    0.,
+                    available.len() as f32,
+                );
+                p.push(property(
+                    "footprint_add_hole",
+                    "Add hole",
+                    vec!["footprint_add_hole".into()],
+                    MaterialPropertyKind::Choice,
+                    std::iter::once("Choose contour…".into())
+                        .chain(available.iter().map(|r| r.label.clone()))
+                        .collect(),
+                ));
+            }
+            scalar(
+                "footprint_append",
+                "Add region",
+                if *append { 1. } else { 0. },
+                0.,
+                1.,
+            );
+            p.push(property(
+                "footprint_append",
+                "Add region",
+                vec!["footprint_append".into()],
+                MaterialPropertyKind::Boolean,
+                vec![],
+            ));
+            p.last_mut().unwrap().tooltip="Append this outer contour and its holes to the current footprint. Leave off to replace it. Repeat and Assemble retain all regions.".into();
+        }
+        Operation::FitTo {
+            target,
+            axes,
+            source_anchor,
+            target_anchor,
+            padding,
+        } => {
+            scalar(
+                "target",
+                "Target row",
+                doc.rows.iter().position(|r| &r.id == target).unwrap_or(0) as f32,
+                0.,
+                doc.rows.len().saturating_sub(1) as f32,
+            );
+            p.push(property(
+                "target",
+                "Target row",
+                vec!["target".into()],
+                MaterialPropertyKind::Choice,
+                doc.rows.iter().map(|r| r.label.clone()).collect(),
+            ));
             for k in 0..3 {
-                scalar(&format!("fit{k}"), &format!("Fit {}",["X","Y","Z"][k]), if axes[k] {1.} else {0.},0.,1.);
-                for (key,label,values,low,high) in [("source_anchor","Source anchor",source_anchor,0.,1.),("target_anchor","Target anchor",target_anchor,0.,1.),("padding","Padding",padding,-10.,10.)] {
-                    scalar(&format!("{key}{k}"),&format!("{label} {}",["X","Y","Z"][k]),values[k],low,high);
+                scalar(
+                    &format!("fit{k}"),
+                    &format!("Fit {}", ["X", "Y", "Z"][k]),
+                    if axes[k] { 1. } else { 0. },
+                    0.,
+                    1.,
+                );
+                for (key, label, values, low, high) in [
+                    ("source_anchor", "Source anchor", source_anchor, 0., 1.),
+                    ("target_anchor", "Target anchor", target_anchor, 0., 1.),
+                    ("padding", "Padding", padding, -10., 10.),
+                ] {
+                    scalar(
+                        &format!("{key}{k}"),
+                        &format!("{label} {}", ["X", "Y", "Z"][k]),
+                        values[k],
+                        low,
+                        high,
+                    );
                 }
             }
         }
@@ -119,13 +256,23 @@ fn parameters(
             return super::rigging::parameters(op, doc, evaluation, selection);
         }
         Operation::Contour { points } => {
+            let footprint =
+                doc.rows
+                    .iter()
+                    .find(|r| r.tiles.iter().any(|t| t.id == operation))
+                    .is_some_and(|owner| {
+                        doc.rows.iter().flat_map(|r| &r.tiles).any(
+                            |t| matches!(&t.op, Operation::Footprint { row, holes, .. } if row == &owner.id || holes.contains(&owner.id)),
+                        )
+                    });
+            let axes = if footprint { ["X", "Z"] } else { ["X", "Y"] };
             for (i, point) in points.iter().enumerate() {
                 for k in 0..2 {
-                    scalar(&format!("point{i}:{k}"), ["X", "Y"][k], point[k], -10., 10.);
+                    scalar(&format!("point{i}:{k}"), axes[k], point[k], -10., 10.);
                 }
                 p.push(property(
                     &format!("point{i}"),
-                    &format!("Point {} X / Y", i + 1),
+                    &format!("Point {} X / {}", i + 1, axes[1]),
                     (0..2).map(|k| format!("point{i}:{k}")).collect(),
                     MaterialPropertyKind::Vector,
                     vec![],
@@ -133,6 +280,11 @@ fn parameters(
             }
         }
         Operation::Extrude { depth } => scalar("depth", "Thickness (m)", *depth, 0.001, 2.),
+        Operation::Repeat { .. } => {
+            for f in denrim_materials::geometry::parameters::fields(op) {
+                scalar(&f.id, &f.label, f.value, f.min, f.max);
+            }
+        }
         Operation::Box { size } => {
             for k in 0..3 {
                 scalar(
@@ -420,6 +572,7 @@ pub fn view_selected(
                         id: tile.id.clone(),
                         label: match &tile.op {
                             Operation::Group { label, .. } => label.clone(),
+                            Operation::Connector { .. } => tile.id.replace('-', " "),
                             Operation::Texture { source, .. }
                                 if source.starts_with("ruleset:material/") =>
                             {
@@ -434,7 +587,9 @@ pub fn view_selected(
                         properties,
                         palette: None,
                         combine: None,
-                        source: None,
+                        source: if let Operation::Connector { family, .. } = &tile.op {
+                            Some(MaterialSourceCodeView { code: family.clone(), help: "Connector family: enter a matching key such as wall or roof. Opposing connectors in the same family can snap. Local +Z points out of the connection.".into(), references: "Use letters, digits, _, -, . or /. Position and rotation can be bound to published recipe controls.".into() })
+                        } else { None },
                     }
                 })
                 .collect(),
@@ -480,6 +635,8 @@ pub fn view_selected(
     view.sources = [
         ("contour", "Contour", "Geometry"),
         ("extrude", "Extrude", "Geometry"),
+        ("footprint", "Footprint", "Geometry"),
+        ("connector", "Connector", "Geometry"),
         ("box", "Box", "Geometry"),
         ("input", "Selection input", "Geometry"),
         ("fit_to", "Fit To Geometry", "Geometry"),
@@ -488,6 +645,7 @@ pub fn view_selected(
         ("surface_offset", "Surface Offset", "Geometry"),
         ("revolve", "Revolve", "Geometry"),
         ("transform", "Transform", "Transform"),
+        ("repeat", "Repeat", "Geometry"),
         ("reference", "Row", "Geometry"),
         ("assemble", "Assemble", "Geometry"),
         ("material", "PBR Material", "Color"),
@@ -549,6 +707,12 @@ pub fn edit_selected(
     selection: &super::rigging::Selection,
 ) -> Result<(), String> {
     match command {
+        MaterialEditorCommand::SetSource { operation, code } => {
+            let Operation::Connector { family, .. } = &mut tile_mut(doc, &operation)?.op else {
+                return Err("This operation has no editable source".into());
+            };
+            *family = code.trim().into();
+        }
         MaterialEditorCommand::SetNumber {
             operation,
             parameter,
@@ -563,6 +727,13 @@ pub fn edit_selected(
                 .map(|r| r.id.clone());
             let evaluation = doc.evaluate().map_err(|e| e.to_string())?;
             let rows = doc.rows.iter().map(|r| r.id.clone()).collect::<Vec<_>>();
+            let footprint_rows = doc
+                .rows
+                .iter()
+                .take_while(|r| r.tiles.iter().all(|t| t.id != operation))
+                .filter(|r| matches!(evaluation.rows.get(&r.id), Some(Value::Contour(_))))
+                .map(|r| r.id.clone())
+                .collect::<Vec<_>>();
             let tile = tile_mut(doc, &operation)?;
             if let Operation::SelectParts { parts } = &mut tile.op {
                 if let Some(id) = parameter.strip_prefix("selected:") {
@@ -653,6 +824,18 @@ pub fn edit_selected(
                     return Err("Open the linked geometry asset to edit its construction".into());
                 }
                 Operation::Input { .. } => return Err("Geometry inputs are supplied by the host selection; edit their portable preview in the recipe source".into()),
+                Operation::Footprint { row, holes, append } => {
+                    if parameter=="footprint_row" { *row=footprint_rows.get(value.round().max(0.) as usize).cloned().ok_or("Missing contour row")?; }
+                    else if parameter=="footprint_append" { *append=value>=0.5; }
+                    else if parameter=="footprint_add_hole" {
+                        if value>=1. && holes.len()<32 {
+                            let available=footprint_rows.iter().filter(|r|r.as_str()!=row.as_str() && !holes.contains(r)).cloned().collect::<Vec<_>>();
+                            holes.push(available.get(value.round() as usize-1).cloned().ok_or("Missing hole contour")?);
+                        }
+                    } else if let Some(i)=parameter.strip_prefix("footprint_hole:").and_then(|s|s.parse::<usize>().ok()).filter(|i|*i<holes.len()) {
+                        if value<0.5 {holes.remove(i);} else {holes[i]=footprint_rows.get(value.round() as usize-1).cloned().ok_or("Missing hole contour")?;}
+                    } else {return Err("Unknown footprint parameter".into());}
+                }
                 Operation::FitTo { target, axes, source_anchor, target_anchor, padding } => {
                     if parameter == "target" { *target = row_id.ok_or("Missing target row")?; }
                     else {
@@ -692,6 +875,14 @@ pub fn edit_selected(
                     *p.get_mut(k).ok_or("Invalid axis")? = value;
                 }
                 Operation::Extrude { depth } => *depth = value,
+                Operation::Repeat { count, translation, rotation } => {
+                    if parameter == "count" { *count = value.round().max(0.) as u32; }
+                    else if let Some(k) = parameter.strip_prefix("step").and_then(|s| s.parse::<usize>().ok()) {
+                        *translation.get_mut(k).ok_or("Invalid repeat axis")? = value;
+                    } else if let Some(k) = parameter.strip_prefix("rotation").and_then(|s| s.parse::<usize>().ok()) {
+                        *rotation.get_mut(k).ok_or("Invalid repeat rotation")? = value;
+                    } else { return Err("Unknown repeat input".into()); }
+                }
                 Operation::SurfaceOffset { distance } => *distance = value,
                 Operation::SelectParts { .. } => return Err("Choose a mesh part".into()),
                 Operation::Revolve { segments } => *segments = value.round().max(0.) as u32,
@@ -707,10 +898,7 @@ pub fn edit_selected(
                     rotation,
                     scale,
                 } => set_transform(&parameter, value, translation, rotation, Some(scale))?,
-                Operation::Grip {
-                    translation,
-                    rotation,
-                } => set_transform(&parameter, value, translation, rotation, None)?,
+                Operation::Grip { translation, rotation } | Operation::Connector { translation, rotation, .. } => set_transform(&parameter, value, translation, rotation, None)?,
                 Operation::Material {
                     palette,
                     roughness,
@@ -825,6 +1013,8 @@ pub fn edit_selected(
                     points: vec![[-0.1, 0.], [0.1, 0.], [0.1, 0.3], [-0.1, 0.3]],
                 },
                 "extrude" => Operation::Extrude { depth: 0.03 },
+                "connector" => Operation::Connector { family:"wall".into(),translation:[0.;3],rotation:[0.;3] },
+                "footprint" => Operation::Footprint { holes:vec![],append:false,row: earlier.iter().rev().find(|r| matches!(evaluation.rows.get(&r.id), Some(Value::Contour(_)))).map(|r| r.id.clone()).ok_or("Add a footprint Contour row above this mesh row first")? },
                 "wearer" => Operation::Asset{source:denrim_materials::geometry::WEARER_SOURCE.into(),document:Box::new(Document::load(denrim_materials::geometry::HUMAN_EXAMPLE).and_then(|d|d.wearer_body()).map_err(|e|e.to_string())?)},
                 "select_parts" => {
                     let mesh = row.as_ref().and_then(|id|doc.rows.iter().find(|r|&r.id==id))
@@ -840,6 +1030,7 @@ pub fn edit_selected(
                 "input" => Operation::Input { name:"selection".into(), preview:Box::new(Document { version:1,id:"selection-preview".into(),label:"Selection preview".into(),rows:vec![Row{id:"preview".into(),label:"Preview bounds".into(),tiles:vec![Tile{id:"preview-box".into(),op:Operation::Box {size:[4.,2.,4.]}}]}],output:"preview".into(),grip:None }) },
                 "fit_to" => Operation::FitTo { target:first_mesh.ok_or("Add a selection input row first")?, axes:[true,false,true],source_anchor:[0.5,0.,0.5],target_anchor:[0.5,1.,0.5],padding:[0.;3] },
                 "revolve" => Operation::Revolve { segments: 12 },
+                "repeat" => Operation::Repeat { count: 3, translation:[0.3,0.,0.], rotation:[0.;3] },
                 "transform" => Operation::Transform {
                     translation: [0.; 3],
                     rotation: [0.; 3],
@@ -929,6 +1120,16 @@ pub fn edit_selected(
                         *rig = reference.row
                     } else {
                         *grip = Some(reference.row)
+                    }
+                }
+                Operation::Footprint { row, holes, .. } => {
+                    let i = index
+                        .parse::<usize>()
+                        .map_err(|_| "Invalid footprint input")?;
+                    if i == 0 {
+                        *row = reference.row;
+                    } else {
+                        *holes.get_mut(i - 1).ok_or("Missing footprint hole")? = reference.row;
                     }
                 }
                 Operation::Reference { row } | Operation::AssignMaterial { row } => {

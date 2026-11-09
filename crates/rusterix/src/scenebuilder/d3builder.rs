@@ -249,7 +249,7 @@ impl D3Builder {
                             .unwrap_or(0.0);
                         if ground_y == 0.0 {
                             let config =
-                                crate::chunkbuilder::terrain_generator::TerrainConfig::default();
+                                crate::chunkbuilder::terrain_generator::TerrainConfig::for_map(map);
                             ground_y = crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(
                                 map, pos_xz, &config,
                             );
@@ -304,7 +304,7 @@ impl D3Builder {
                         .unwrap_or(0.0);
                     if ground_y == 0.0 {
                         let config =
-                            crate::chunkbuilder::terrain_generator::TerrainConfig::default();
+                            crate::chunkbuilder::terrain_generator::TerrainConfig::for_map(map);
                         ground_y = crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(
                             map, pos_xz, &config,
                         );
@@ -352,7 +352,7 @@ impl D3Builder {
                         .unwrap_or(0.0);
                     if ground_y == 0.0 {
                         let config =
-                            crate::chunkbuilder::terrain_generator::TerrainConfig::default();
+                            crate::chunkbuilder::terrain_generator::TerrainConfig::for_map(map);
                         ground_y = crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(
                             map, pos_xz, &config,
                         );

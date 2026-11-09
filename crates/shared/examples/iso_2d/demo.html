@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MZ · 2D isometric field test</title>
+<style>
+:root{color-scheme:dark;font:14px/1.5 system-ui,-apple-system,sans-serif;color:#d9e7df;background:#0b1718}*{box-sizing:border-box}body{margin:0}main{max-width:1380px;margin:auto;padding:26px}header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;gap:18px}.eyebrow{color:#98baa6;font:11px/1.5 ui-monospace,monospace;letter-spacing:.18em}h1{font:500 28px/1.2 Georgia,serif;color:#f1ead4;margin:6px 0}p{margin:8px 0;color:#a7bdb1}.badge{border:1px solid #365449;border-radius:30px;padding:7px 12px;color:#a9d5af;font-size:12px;white-space:nowrap}.layout{display:grid;grid-template-columns:minmax(0,1fr) 235px;gap:18px}.stage{border:1px solid #30463c;border-radius:14px;background:#11221d;overflow:hidden;position:relative}canvas{display:block;width:100%;height:auto;image-rendering:pixelated;touch-action:none;outline:none}.stage-head{padding:12px 16px;display:flex;justify-content:space-between;border-bottom:1px solid #2a3d33;color:#c0ceba;font-size:12px}.stage-foot{padding:12px 16px;border-top:1px solid #2a3d33;color:#95af9e;font-size:12px}.side{display:flex;flex-direction:column;gap:15px}.card{border:1px solid #30463c;border-radius:12px;padding:16px;background:#11201e}.label{color:#c9d5be;font-size:11px;letter-spacing:.13em;text-transform:uppercase;margin-bottom:12px}button{font:inherit;background:#1b352c;border:1px solid #466447;color:#d6e7d5;border-radius:7px;padding:8px 11px;cursor:pointer}button:hover{background:#2b4a36}button[aria-pressed=true]{background:#d9ca96;border-color:#d9ca96;color:#243328}.controls{display:flex;flex-wrap:wrap;gap:7px}.cases button{width:100%;text-align:left;margin-bottom:6px;font-size:12px}button:focus-visible{outline:2px solid #fae2a8;outline-offset:3px}.muted{font-size:12px;color:#96afa0}dl{margin:0}dt{color:#8da896;font-size:11px;margin-top:9px}dd{margin:2px 0 0;font:12px ui-monospace,monospace;color:#dfddbd;overflow-wrap:anywhere}#status{color:#bdcca8}.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:#a3b79f;margin-top:12px}.dot{display:inline-block;width:7px;height:7px;margin-right:5px;background:#e6d597;border-radius:50%}.brick{background:#a16a4e}.leaf{background:#73a76b}.note{max-width:800px;font-size:12px;margin-top:17px;color:#8fa69a}@media(max-width:880px){main{padding:16px}.layout{grid-template-columns:1fr}.side{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}h1{font-size:24px}header{align-items:flex-start}.badge{font-size:10px}}
+</style></head>
+<body><main>
+<header><div><div class="eyebrow">ELDIRON / MZ LAB</div><h1>A small isometric clearing</h1><p>MZ ground, a closed room, a tree, and one walking character.</p></div><span class="badge">2D sprite experiment</span></header>
+<div class="layout"><section class="stage">
+<div class="stage-head"><span>Click the ground to walk · WASD / arrow keys</span><span id="status">Loading MZ sprites…</span></div>
+<canvas id="scene" width="1000" height="660" tabindex="0" aria-label="Interactive 2D isometric clearing with a closed room, a tree and a walking character"></canvas>
+<div class="stage-foot">One fixed 2:1 projection · Ground anchors and footprint collisions · Front/back sprite sorting</div>
+</section><aside class="side">
+<section class="card"><div class="label">Movement</div><div class="controls"><button id="auto" aria-pressed="true">Auto walk</button><button id="pause" aria-pressed="false">Pause</button><button id="debug" aria-pressed="false">Footprints</button></div><p class="muted">Auto walk circles the closed room and tree. Clicking or using the keyboard takes control.</p></section>
+<section class="card cases"><div class="label">Check the overlaps</div><button data-case="wall-behind">Behind the room</button><button data-case="wall-front">In front of the room</button><button data-case="room-inside">Inside the room</button><button data-case="tree-behind">Behind the tree</button><button data-case="tree-front">In front of the tree</button><p class="muted">These pause at fixed positions. The room has no doorway, so it can also test closed-wall collisions.</p></section>
+<section class="card"><div class="label">Live readout</div><dl><dt>Character / world coordinates</dt><dd id="position">—</dd><dt>Movement</dt><dd id="movement">—</dd><dt>Back → front</dt><dd id="order">—</dd><dt>Pointer / ground cell</dt><dd id="pointer">—</dd></dl></section>
+<section class="card"><div class="label">Asset sources</div><p class="muted">Procedural MZ materials for grass and paving. MZ straight-wall, corner, and tree recipes. The official MZ humanoid and walk rig.</p><div class="legend"><span><i class="dot"></i>Character</span><span><i class="dot brick"></i>Wall</span><span><i class="dot leaf"></i>Tree</span></div></section>
+</aside></div>
+<p class="note">An isolated rendering experiment, not an Eldiron map mode. All art is baked once into PNG sprites; this page uses Canvas 2D and runs offline. No meshes, WebGL, external fonts, or network requests at runtime.</p>
+</main>
+<script>/*__WORLD__*/</script>
+<script>
+const assets=/*__ASSETS__*/;
+const W=MZIso,canvas=document.getElementById('scene'),ctx=canvas.getContext('2d');
+const origin={x:148,y:330},images={};
+const hero={x:4.6,z:2.1},keys=new Set();
+let ready=false,auto=true,paused=false,debug=false,route=[],patrolIndex=1,clock=0,heading=0,moving=false,last=0,hover=null,clickMark=null;
+const $=id=>document.getElementById(id);
+function screen(x,z,h=0){const p=W.project(x,z,h);return {x:p.x+origin.x,y:p.y+origin.y};}
+function ground(x,y){return W.unproject(x-origin.x,y-origin.y);}
+function drawSprite(sprite,x,z){const p=screen(x,z);ctx.drawImage(images[sprite.image],sprite.x,sprite.y,sprite.w,sprite.h,Math.round(p.x)-sprite.anchor[0],Math.round(p.y)-sprite.anchor[1],sprite.w,sprite.h);}
+function diamond(x,z,color,stroke=false){const p=[[x,z],[x+1,z],[x+1,z+1],[x,z+1]].map(([x,z])=>screen(x,z));ctx.beginPath();p.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();ctx[stroke?'strokeStyle':'fillStyle']=color;stroke?ctx.stroke():ctx.fill();}
+function footprint(points,color){ctx.beginPath();points.map(p=>screen(p.x,p.z)).forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();ctx.fillStyle=color;ctx.fill();ctx.strokeStyle=color.replace(/,[^,]+\)$/,',.9)');ctx.stroke();}
+function shadow(x,z,rx,rz,opacity){const p=screen(x,z);ctx.save();ctx.translate(p.x,p.y);ctx.rotate(-.28);ctx.scale(rx,rz);ctx.beginPath();ctx.arc(0,0,1,0,Math.PI*2);ctx.fillStyle=`rgba(8,25,19,${opacity})`;ctx.fill();ctx.restore();}
+function draw(){
+  if(!ready)return;
+  ctx.imageSmoothingEnabled=false;
+  const gradient=ctx.createLinearGradient(0,0,0,660);gradient.addColorStop(0,'#162c25');gradient.addColorStop(1,'#0c1918');ctx.fillStyle=gradient;ctx.fillRect(0,0,1000,660);
+  // A shallow board edge makes the ground plane readable without a 3D scene.
+  footprint([{x:0,z:11},{x:11,z:11},{x:11,z:11.15},{x:0,z:11.15}],'rgba(21,38,28,1)');
+  for(let d=0;d<22;d++)for(let x=0;x<11;x++){const z=d-x;if(z<0||z>=11)continue;
+    const path=(x>=2&&x<=8&&(z===2||z===8))||(z>=2&&z<=8&&(x===2||x===8));
+    drawSprite(assets.sprites[path?'path':'grass'],x+.5,z+.5);
+    if(debug)diamond(x,z,'rgba(183,215,155,.11)',true);
+  }
+  // Shadows are 2D decals, drawn on the ground before the ordered object layer.
+  for(const p of W.props){if(p.id==='tree')shadow(p.x+.45,p.z+.25,48,22,.22);else shadow(p.x+.20,p.z+.12,23,8,.12);}
+  shadow(hero.x,hero.z,12,5,.34);
+  if(hover){const x=Math.floor(hover.x),z=Math.floor(hover.z);if(x>=0&&x<11&&z>=0&&z<11)diamond(x,z,W.blocked(hover.x,hover.z)?'rgba(225,125,100,.25)':'rgba(237,219,142,.19)');}
+  if(clickMark){const p=screen(clickMark.x,clickMark.z);ctx.strokeStyle='#efdca0';ctx.lineWidth=1.5;ctx.beginPath();ctx.ellipse(p.x,p.y,8,4,0,0,Math.PI*2);ctx.stroke();}
+  if(debug){
+    for(const wall of W.WALLS)footprint([{x:wall.x0,z:wall.z0},{x:wall.x1,z:wall.z0},{x:wall.x1,z:wall.z1},{x:wall.x0,z:wall.z1}],'rgba(232,146,105,.33)');
+    const c=W.TREE;footprint(Array.from({length:24},(_,i)=>({x:c.x+Math.cos(i/24*Math.PI*2)*.55,z:c.z+Math.sin(i/24*Math.PI*2)*.55})),'rgba(141,220,143,.3)');
+    if(route.length){ctx.beginPath();const points=[hero,...route].map(p=>screen(p.x,p.z));points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.strokeStyle='#e6d79d';ctx.setLineDash([3,5]);ctx.stroke();ctx.setLineDash([]);}
+  }
+  const ordered=W.ordered(hero);
+  for(const p of ordered){
+    const sprite=p.id==='character'?assets.character[heading][moving?Math.floor(clock/assets.walk_seconds*assets.frames)%assets.frames:assets.frames]:assets.sprites[p.sprite];
+    drawSprite(sprite,p.x,p.z);
+    if(debug){const anchor=screen(p.x,p.z);ctx.fillStyle=p.id==='character'?'#ffe6a1':'#d6ebc7';ctx.fillRect(anchor.x-2,anchor.y-2,4,4);}
+  }
+  $('position').textContent=`x ${hero.x.toFixed(2)} / z ${hero.z.toFixed(2)}`;
+  $('movement').textContent=paused?'Paused':moving?(auto?'Walking / automatic route':'Walking / manual'):'Idle';
+  $('order').textContent=ordered.filter(p=>p.id==='character'||p.id==='tree'||p.id.startsWith('corner')).map(p=>p.id==='character'?'YOU':p.id).join(' → ');
+}
+function setAuto(value){auto=value;$('auto').setAttribute('aria-pressed',String(auto));route=[];}
+function setPaused(value){paused=value;$('pause').setAttribute('aria-pressed',String(paused));if(paused)moving=false;draw();}
+function move(dx,dz,dt){const length=Math.hypot(dx,dz);if(length<1e-8)return false;dx/=length;dz/=length;
+  const before={...hero};
+  const distance=2.5*dt,target={x:hero.x+dx*distance,z:hero.z+dz*distance};
+  if(W.segmentClear(hero,target)){hero.x=target.x;hero.z=target.z;}else{
+    if(W.segmentClear(hero,{x:target.x,z:hero.z}))hero.x=target.x;
+    if(W.segmentClear(hero,{x:hero.x,z:target.z}))hero.z=target.z;
+  }
+  heading=(Math.round(Math.atan2(dx,dz)/(Math.PI/4))+8)%8;return Math.hypot(hero.x-before.x,hero.z-before.z)>1e-8;
+}
+function update(dt){moving=false;if(paused||!ready)return;
+  let sx=0,sy=0;if(keys.has('a')||keys.has('arrowleft'))sx--;if(keys.has('d')||keys.has('arrowright'))sx++;if(keys.has('w')||keys.has('arrowup'))sy--;if(keys.has('s')||keys.has('arrowdown'))sy++;
+  if(sx||sy){setAuto(false);moving=move(sx-sy,sx+sy,dt);}
+  else {
+    if(auto&&!route.length){const target=W.patrol[patrolIndex];route=W.path(hero,target);patrolIndex=(patrolIndex+1)%W.patrol.length;}
+    while(route.length&&Math.hypot(route[0].x-hero.x,route[0].z-hero.z)<.035)route.shift();
+    if(route.length){const p=route[0],distance=Math.hypot(p.x-hero.x,p.z-hero.z);moving=move(p.x-hero.x,p.z-hero.z,Math.min(dt,distance/2.5));}
+  }
+  if(moving)clock+=dt;
+}
+function frame(time){const dt=Math.min((time-last)/1000||0,.04);last=time;update(dt);draw();requestAnimationFrame(frame);}
+$('auto').onclick=()=>{setAuto(!auto);setPaused(false);canvas.focus();};
+$('pause').onclick=()=>{setPaused(!paused);canvas.focus();};
+$('debug').onclick=()=>{debug=!debug;$('debug').setAttribute('aria-pressed',String(debug));draw();};
+const cases={'wall-behind':[5,2.15],'wall-front':[5,7.85],'room-inside':[5,5],'tree-behind':[8.6,6.35],'tree-front':[8.6,8.35]};
+for(const button of document.querySelectorAll('[data-case]'))button.onclick=()=>{const [x,z]=cases[button.dataset.case];hero.x=x;hero.z=z;heading=0;clock=0;route=[];clickMark=null;setAuto(false);setPaused(true);$('status').textContent=button.textContent;draw();};
+canvas.onpointermove=event=>{const r=canvas.getBoundingClientRect();hover=ground((event.clientX-r.left)*canvas.width/r.width,(event.clientY-r.top)*canvas.height/r.height);$('pointer').textContent=`${Math.floor(hover.x)}, ${Math.floor(hover.z)}`;};
+canvas.onpointerleave=()=>{hover=null;$('pointer').textContent='—';};
+canvas.onpointerdown=event=>{canvas.focus();const r=canvas.getBoundingClientRect(),to=ground((event.clientX-r.left)*canvas.width/r.width,(event.clientY-r.top)*canvas.height/r.height);const next=W.path(hero,to);setAuto(false);route=next;clickMark=next.length?to:null;setPaused(false);$('status').textContent=next.length?'Walking to clicked ground':'That point is blocked';};
+document.addEventListener('keydown',event=>{const key=event.key.toLowerCase();if(['w','a','s','d','arrowup','arrowleft','arrowdown','arrowright',' '].includes(key)){event.preventDefault();if(key===' '){if(!event.repeat)setPaused(!paused);}else{keys.add(key);setPaused(false);}}});
+document.addEventListener('keyup',event=>keys.delete(event.key.toLowerCase()));window.addEventListener('blur',()=>keys.clear());
+Promise.all(Object.entries(assets.images).map(([key,src])=>new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>{images[key]=img;resolve();};img.onerror=reject;img.src=src;}))).then(()=>{ready=true;$('status').textContent='MZ sprites ready · automatic route';requestAnimationFrame(frame);}).catch(error=>{$('status').textContent='Sprite loading failed';console.error(error);});
+</script></body></html>

@@ -1,0 +1,30 @@
+{
+  "@surface": {
+    "base color": 7,
+    "emission": 1
+  },
+  "plate-colors": {
+    "color0": 4,
+    "color1": 6,
+    "color2": 7,
+    "color3": 9
+  },
+  "plate-outline": {
+    "color": 1
+  },
+  "ridge-color": {
+    "color": 8
+  },
+  "waist-colors": {
+    "color0": 18,
+    "color1": 19,
+    "color2": 21,
+    "color3": 22
+  },
+  "waist-outline": {
+    "color": 1
+  },
+  "rivets-color": {
+    "color": 22
+  }
+}

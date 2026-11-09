@@ -1,0 +1,45 @@
+project 1
+result from material "surface"
+material "surface" called "Art Study / Roof"
+  mode pbr
+  tiling raw
+  default roughness to 0.93
+  row "tone" called "Individual Block Tones"
+    use "Cell Data" id "block-tone"
+      set "scope" to 1
+  row "shape" called "Irregular Block"
+    use "Rounded Rectangle" id "block"
+      set "halfSize" to 0.48 0.48
+      set "radius" to 0.018
+  row "profile" called "Recessed Mortar"
+    use "Distance Profile" id "edge"
+      input from row "shape" distance
+      set "width" to 0.09
+      set "profile" to 2
+    use "Multiply" id "block-tone-multiply"
+      set "localValue" from row "tone" xxx mapped 0.55 to 1
+  row "grain" called "Coursed Masonry"
+    use "Grid" id "layout"
+      input from row "profile" xyz
+      set "cells" to 8 12
+      set "continuous" to 1
+      set "rowOffset" to 0.5
+      set "gap" to 0.03 0.12
+    use "Multiply" id "stone-grit"
+      set "localValue" from row "dust" xxx mapped 0.66 to 1.15
+  row "dust" called "Stone Grain"
+    use "White Noise" id "dust"
+      set "cells" to 140 140
+  row "color" called "Palette Surface"
+    use "Color Ramp" id "colors"
+      input from row "grain" xxx
+      set "position0" to 0.1
+      set "color0" to 0.022174 0.006995 0.004777 1
+      set "position1" to 0.35
+      set "color1" to 0.097587 0.042311 0.028426 1
+      set "position2" to 0.65
+      set "color2" to 0.162029 0.078187 0.052861 1
+      set "position3" to 0.9
+      set "color3" to 0.361307 0.205079 0.141263 1
+      set "interpolation" to 1
+  output base color from row "color" xyz

@@ -1,4 +1,4 @@
-use crate::editor::{RUSTERIX, SCENEMANAGER};
+use crate::editor::UNDOMANAGER;
 use crate::prelude::*;
 use rusterix::TileRole;
 
@@ -85,16 +85,10 @@ impl Dock for TilemapDock {
         toolbar_hlayout.add_widget(Box::new(hdivider));
 
         let mut add_switch = TheGroupButton::new(TheId::named("Tilemap Editor Switch"));
-        add_switch.add_text_status(
-            "Single".to_string(),
-            "Add each selected cell as an individual tile.".to_string(),
-        );
-        add_switch.add_text_status(
-            "Anim".to_string(),
-            "Add the selected cells as animation frames.".to_string(),
-        );
+        add_switch.add_text_status(fl!("tileset_single"), fl!("tileset_single_help"));
+        add_switch.add_text_status(fl!("tileset_animation"), fl!("tileset_animation_help"));
 
-        add_switch.set_item_width(70);
+        add_switch.set_item_width(96);
         add_switch.set_index(0);
         toolbar_hlayout.add_widget(Box::new(add_switch));
 
@@ -103,8 +97,8 @@ impl Dock for TilemapDock {
         toolbar_hlayout.add_widget(Box::new(hdivider));
 
         let mut add_button = TheTraybarButton::new(TheId::named("Tilemap Editor Add"));
-        add_button.set_text(fl!("tilemap_add_button"));
-        add_button.set_status_text(&fl!("status_tilemap_add_button"));
+        add_button.set_text(fl!("tileset_add_selected"));
+        add_button.set_status_text(&fl!("tileset_add_selected_help"));
 
         toolbar_hlayout.add_widget(Box::new(add_button));
         toolbar_hlayout.add_widget(Box::new(clear_button));
@@ -187,11 +181,18 @@ impl Dock for TilemapDock {
 
         match event {
             TheEvent::Custom(id, value) => {
+                if id.name == "Update Tilepicker" {
+                    self.sync_used(project, ui);
+                }
                 if id.name == "Tilemap Grid Size Changed" {
                     if let Some(rgba_layout) = ui.get_rgba_layout("Tilemap Editor") {
                         if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
                             if let Some(grid_size) = value.to_i32() {
-                                rgba_view.set_grid(Some(grid_size));
+                                let grid = project
+                                    .get_tilemap(self.curr_tilemap_id)
+                                    .map(|s| s.grid_dimensions())
+                                    .unwrap_or(Vec2::new(grid_size, grid_size));
+                                rgba_view.set_grid_dimensions(grid);
                             }
                         }
                     }
@@ -272,192 +273,49 @@ impl Dock for TilemapDock {
             TheEvent::StateChanged(id, state) => {
                 if id.name == "Tilemap Editor Clear" && *state == TheWidgetState::Clicked {
                     self.clear(ui);
-                } else if id.name == "Tilemap Editor Add" {
-                    let clear_selection = true;
-                    let selected_role = ui
+                } else if id.name == "Tilemap Editor Add" && *state == TheWidgetState::Clicked {
+                    let role = ui
                         .get_drop_down_menu("Tilemap Editor Role")
-                        .map(|role_widget| TileRole::from_index(role_widget.selected_index() as u8))
+                        .map(|w| TileRole::from_index(w.selected_index() as u8))
                         .unwrap_or(TileRole::Nature);
-
-                    if let Some(editor) = ui
-                        .canvas
-                        .get_layout(Some(&"Tilemap Editor".to_string()), None)
-                    {
-                        if let Some(editor) = editor.as_rgba_layout() {
-                            let mut tiles = vec![];
-
-                            if self.add_mode == Single {
-                                let sequence = editor
-                                    .rgba_view_mut()
-                                    .as_rgba_view()
-                                    .unwrap()
-                                    .selection_as_sequence();
-                                for region in sequence.regions {
-                                    let mut tile = Tile::default();
-                                    let mut s = TheRGBARegionSequence::default();
-                                    s.regions.push(region);
-                                    tile.sequence = s;
-                                    tiles.push(tile);
-                                }
-                            } else if self.add_mode == Anim {
-                                let mut tile = Tile::default();
-                                let sequence = editor
-                                    .rgba_view_mut()
-                                    .as_rgba_view()
-                                    .unwrap()
-                                    .selection_as_sequence();
-                                tile.sequence = sequence;
-                                tiles.push(tile);
-                            }
-
-                            for mut tile in tiles {
-                                // if let Some(text_line_edit) =
-                                //     ui.get_text_line_edit("Tilemap Editor Name Edit")
-                                // {
-                                //     tile.name = text_line_edit.text();
-                                // }
-
-                                // if let Some(block_widget) = ui
-                                //     .canvas
-                                //     .get_widget(Some(&"Tilemap Editor Block".to_string()), None)
-                                // {
-                                //     tile.blocking = block_widget.state() == TheWidgetState::Selected;
-                                // }
-
-                                tile.role = selected_role;
-
-                                // Only add if non-empty
-                                if !tile.sequence.regions.is_empty() {
-                                    /*
-                                    if let Some(layout) = ui
-                                        .canvas
-                                        .get_layout(Some(&"Tilemap Tile List".to_string()), None)
-                                    {
-                                        let list_layout_id = layout.id().clone();
-                                        if let Some(list_layout) = layout.as_list_layout() {
-                                            let mut item = TheListItem::new(TheId::named_with_id(
-                                                "Tilemap Tile",
-                                                tile.id,
-                                            ));
-                                            item.set_text(tile.name.clone());
-                                            let mut sub_text = if tile.blocking {
-                                                "Blocking".to_string()
-                                            } else {
-                                                "Non-Blocking".to_string()
-                                            };
-                                            sub_text +=
-                                                ("  ".to_string() + tile.role.to_string()).as_str();
-                                            item.set_sub_text(sub_text);
-                                            item.set_state(TheWidgetState::Selected);
-                                            item.set_size(42);
-                                            item.set_associated_layout(list_layout_id);
-                                            if let Some(t) =
-                                                project.get_tilemap(self.curr_tilemap_id)
-                                            {
-                                                item.set_icon(
-                                                    tile.sequence.regions[0]
-                                                        .scale(&t.buffer, 36, 36),
-                                                );
-                                            }
-                                            list_layout.deselect_all();
-                                            let id = item.id().clone();
-                                            list_layout.add_item(item, ctx);
-                                            ctx.ui.send_widget_state_changed(
-                                                &id,
-                                                TheWidgetState::Selected,
-                                            );
-
-                                            clear_selection = true;
-                                            redraw = true;
-                                        }
-                                    }*/
-
-                                    let id = tile.id;
-                                    let tile_for_runtime = tile.clone();
-                                    // Add the local tile to the bitmmap
-                                    if let Some(tilemap) =
-                                        project.get_tilemap_mut(self.curr_tilemap_id)
-                                    {
-                                        tilemap.tiles.push(tile);
-                                        // self.set_tilemap(tilemap, ui, ctx);
-                                    }
-
-                                    if let Some(tilemap) = project.get_tilemap(self.curr_tilemap_id)
-                                    {
-                                        let extracted = tilemap
-                                            .buffer
-                                            .extract_sequence(&tile_for_runtime.sequence);
-                                        let mut texture_array: Vec<rusterix::Texture> = vec![];
-                                        for b in &extracted {
-                                            let mut texture = rusterix::Texture::new(
-                                                b.pixels().to_vec(),
-                                                b.dim().width as usize,
-                                                b.dim().height as usize,
-                                            );
-                                            texture.generate_normals(true);
-                                            texture_array.push(texture);
-                                        }
-                                        let mut tile = rusterix::Tile {
-                                            id,
-                                            role: tile_for_runtime.role,
-                                            textures: texture_array.clone(),
-                                            uv_pages: None,
-                                            module: None,
-                                            blocking: tile_for_runtime.blocking,
-                                            scale: tile_for_runtime.scale,
-                                            alias: tile_for_runtime.name.clone(),
-                                            gameplay_tags: Vec::new(),
-                                            procedural: Default::default(),
-
-                                            geometry: Default::default(),
-                                            material: Default::default(),
-
-                                            baked_material_data: Vec::new(),
-                                            particle_emitter: None,
-                                            light_emitter: None,
-                                            attachments: Vec::new(),
-                                            light_effects: Vec::new(),
-                                            particle_effects: Vec::new(),
-                                        };
-                                        tile.set_default_materials();
-                                        project.tiles.insert(id, tile);
-                                    }
-
-                                    let mut rusterix = RUSTERIX.write().unwrap();
-                                    rusterix.set_tiles(project.tiles.clone(), true);
-                                    SCENEMANAGER.write().unwrap().set_tile_list(
-                                        rusterix.assets.tile_list.clone(),
-                                        rusterix.assets.tile_indices.clone(),
-                                    );
-
-                                    ctx.ui.send(TheEvent::Custom(
-                                        TheId::named("Update Tilepicker"),
-                                        TheValue::Empty,
-                                    ));
-                                    //self.update_tiles(ui, ctx, project);
-                                }
-                            }
-                        }
+                    let selected = ui
+                        .get_rgba_layout("Tilemap Editor")
+                        .and_then(|l| {
+                            l.rgba_view_mut()
+                                .as_rgba_view()
+                                .map(|v| v.selection_as_sequence())
+                        })
+                        .unwrap_or_default();
+                    if selected.regions.is_empty() {
+                        return false;
                     }
-
-                    // Clear the selection if successful
-                    if clear_selection {
-                        if let Some(editor) = ui
-                            .canvas
-                            .get_layout(Some(&"Tilemap Editor".to_string()), None)
-                        {
-                            if let Some(editor) = editor.as_rgba_layout() {
-                                editor
-                                    .rgba_view_mut()
-                                    .as_rgba_view()
-                                    .unwrap()
-                                    .set_selection(FxHashSet::default());
-                            }
-                            ctx.ui.send(TheEvent::StateChanged(
-                                TheId::named("Tilemap Editor Clear"),
-                                TheWidgetState::Clicked,
-                            ))
+                    let before = project.clone();
+                    let mut after = before.clone();
+                    match crate::tileset_creation::add_selected(
+                        &mut after,
+                        self.curr_tilemap_id,
+                        &selected,
+                        self.add_mode == Anim,
+                        role,
+                    ) {
+                        Ok(_) => {
+                            let atom =
+                                ProjectUndoAtom::TilePickerEdit(Box::new(before), Box::new(after));
+                            atom.redo(project, ui, ctx, _server_ctx);
+                            UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                            self.clear(ui);
+                            self.sync_used(project, ui);
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Update Tiles"),
+                                TheValue::Empty,
+                            ));
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Reveal Tile Collection"),
+                                TheValue::Id(self.curr_tilemap_id),
+                            ));
+                            redraw = true;
                         }
+                        Err(error) => ctx.ui.send(TheEvent::SetStatusText(id.clone(), error)),
                     }
                 }
             }
@@ -534,6 +392,26 @@ impl Dock for TilemapDock {
 }
 
 impl TilemapDock {
+    fn sync_used(&self, project: &Project, ui: &mut TheUI) {
+        if let Some(source) = project.get_tilemap(self.curr_tilemap_id) {
+            let g = source.grid_dimensions();
+            let used = source
+                .tiles
+                .iter()
+                .flat_map(|t| {
+                    t.sequence
+                        .regions
+                        .iter()
+                        .map(|r| (r.x as i32 / g.x, r.y as i32 / g.y))
+                })
+                .collect();
+            if let Some(layout) = ui.get_rgba_layout("Tilemap Editor")
+                && let Some(view) = layout.rgba_view_mut().as_rgba_view()
+            {
+                view.set_used(used);
+            }
+        }
+    }
     /// Set the current tilemap
     pub fn set_tilemap(
         &mut self,
@@ -550,7 +428,7 @@ impl TilemapDock {
             rgba_layout.set_scroll_offset(tilemap.scroll_offset);
             if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
                 rgba_view.set_supports_external_zoom(true);
-                rgba_view.set_grid(Some(tilemap.grid_size));
+                rgba_view.set_grid_dimensions(tilemap.grid_dimensions());
                 rgba_view.set_mode(TheRGBAViewMode::TileSelection);
                 rgba_view.set_background([116, 116, 116, 255]);
                 let mut c = WHITE;
@@ -566,8 +444,8 @@ impl TilemapDock {
                 for tile in &tilemap.tiles {
                     for region in &tile.sequence.regions {
                         used.insert((
-                            region.x as i32 / tilemap.grid_size,
-                            region.y as i32 / tilemap.grid_size,
+                            region.x as i32 / tilemap.grid_dimensions().x,
+                            region.y as i32 / tilemap.grid_dimensions().y,
                         ));
                     }
                 }
@@ -610,6 +488,7 @@ impl TilemapDock {
             role: rusterix::TileRole::from_index(rgba_tile.role),
             textures: texture_array.clone(),
             uv_pages: None,
+            isometric: None,
             module: None,
             blocking: rgba_tile.blocking,
             scale: rgba_tile.scale,
@@ -663,10 +542,10 @@ impl TilemapDock {
 
                     if let Some(tilemap) = project.get_tilemap(self.curr_tilemap_id) {
                         let region = TheRGBARegion::new(
-                            dim.x as usize * tilemap.grid_size as usize,
-                            dim.y as usize * tilemap.grid_size as usize,
-                            dim.width as usize * tilemap.grid_size as usize,
-                            dim.height as usize * tilemap.grid_size as usize,
+                            dim.x as usize * tilemap.grid_dimensions().x as usize,
+                            dim.y as usize * tilemap.grid_dimensions().y as usize,
+                            dim.width as usize * tilemap.grid_dimensions().x as usize,
+                            dim.height as usize * tilemap.grid_dimensions().y as usize,
                         );
                         tile.buffer.push(tilemap.buffer.extract_region(&region));
                     }

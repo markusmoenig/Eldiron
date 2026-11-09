@@ -1247,11 +1247,10 @@ impl TheUI {
         }
 
         let popover_border = self.style.theme().metric(PopoverBorderWidth).round() as i32;
-        if self.dialog.is_none()
-            && self
-                .popover
-                .as_ref()
-                .is_some_and(|popover| !popover.contains(coord, popover_border))
+        if self
+            .popover
+            .as_ref()
+            .is_some_and(|popover| !popover.contains(coord, popover_border))
         {
             self.clear_popover(ctx);
             redraw = true;
@@ -1672,12 +1671,6 @@ impl TheUI {
 
     /// Returns the layout at the given position.
     pub fn get_layout_at_coord(&mut self, coord: Vec2<i32>) -> Option<TheId> {
-        if let Some(dialog) = &mut self.dialog {
-            if let Some(layout) = dialog.get_layout_at_coord(coord) {
-                return Some(layout);
-            }
-            return None;
-        }
         let popover_border = self.style.theme().metric(PopoverBorderWidth).round() as i32;
         if self
             .popover
@@ -1689,6 +1682,12 @@ impl TheUI {
                 .as_mut()
                 .and_then(|popover| popover.canvas.get_layout_at_coord(coord));
         }
+        if let Some(dialog) = &mut self.dialog {
+            if let Some(layout) = dialog.get_layout_at_coord(coord) {
+                return Some(layout);
+            }
+            return None;
+        }
         if let Some(layout) = self.canvas.get_layout_at_coord(coord) {
             return Some(layout);
         }
@@ -1697,12 +1696,6 @@ impl TheUI {
 
     /// Returns the absolute widget at the given position.
     pub fn get_widget_at_coord(&mut self, coord: Vec2<i32>) -> Option<&mut Box<dyn TheWidget>> {
-        if let Some(dialog) = &mut self.dialog {
-            if let Some(widget) = dialog.get_widget_at_coord(coord) {
-                return Some(widget);
-            }
-            return None;
-        }
         let popover_border = self.style.theme().metric(PopoverBorderWidth).round() as i32;
         if self
             .popover
@@ -1713,6 +1706,12 @@ impl TheUI {
                 .popover
                 .as_mut()
                 .and_then(|popover| popover.canvas.get_widget_at_coord(coord));
+        }
+        if let Some(dialog) = &mut self.dialog {
+            if let Some(widget) = dialog.get_widget_at_coord(coord) {
+                return Some(widget);
+            }
+            return None;
         }
         if let Some(widget) = self.canvas.get_widget_at_coord(coord) {
             return Some(widget);
@@ -1969,7 +1968,7 @@ impl TheUI {
 
     /// Gets a given TheTextLayout by name
     pub fn get_text_layout(&mut self, name: &str) -> Option<&mut dyn TheTextLayoutTrait> {
-        if let Some(layout) = self.canvas.get_layout(Some(&name.to_string()), None) {
+        if let Some(layout) = self.get_layout_abs(Some(&name.to_string()), None) {
             return layout.as_text_layout();
         }
         None
@@ -2211,7 +2210,6 @@ impl TheUI {
     pub fn draw_dialog(&mut self, ctx: &mut TheContext) {
         if let Some(dialog_canvas) = &mut self.dialog {
             dialog_canvas.draw(&mut self.style, ctx);
-            dialog_canvas.draw_overlay(&mut self.style, ctx);
 
             let header_height = self.style.theme().metric(PopupHeaderHeight).round() as i32;
             let border_width = self.style.theme().metric(PopupBorderWidth).round() as i32;
@@ -2280,6 +2278,20 @@ impl TheUI {
                 dialog_canvas.dim.buffer_y,
                 &dialog_canvas.buffer,
             );
+            // Widget overlays use screen coordinates and may extend outside the dialog.
+            // Compose them on the root buffer after placing the dialog itself.
+            if let Some(overlay_id) = ctx.ui.overlay.clone()
+                && let Some(widget) = dialog_canvas.get_widget(None, Some(&overlay_id.uuid))
+            {
+                let overlay = widget.draw_overlay(&mut self.style, ctx);
+                if overlay.is_valid() {
+                    self.canvas.buffer.copy_into(
+                        overlay.dim().buffer_x,
+                        overlay.dim().buffer_y,
+                        &overlay,
+                    );
+                }
+            }
         }
     }
 }

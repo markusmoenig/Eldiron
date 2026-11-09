@@ -887,6 +887,8 @@ fn definitions_with_rules(rules: &str) -> GraphDefinitions {
                 fl!("node_camera_firstp"),
                 fl!("node_camera_firstp_grid"),
                 fl!("node_camera_firstp_mouse"),
+                fl!("node_camera_2d_iso"),
+                fl!("node_camera_2d_iso_grid"),
             ],
             selected: 1,
         },

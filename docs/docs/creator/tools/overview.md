@@ -13,8 +13,9 @@ Some tools are specifically designed for **map editing** and display a common **
 - **Linedef / Edge Tool**
 - **Sector / Face Tool**
 - **Rect Tool**
+- **Terrain Tool**
 - **Prefab Tool**
-- **3D Paint Tool**
+- **Paint Tool**
 
 The tool strip also contains **mode toggles** below the main map tools:
 
@@ -58,7 +59,7 @@ See [Camera Actions](../actions#camera-actions) for the complete per-camera cont
 
 ### HUD Overview
 
-![HUD](/img/docs/hud.png)
+![Current map HUD showing grid snap steps and a tile assignment slot.](/img/creator/map-hud.png)
 
 - The **upper-left corner** of the HUD shows the **current map position**. In 3D views it falls back to the selected geometry position when the cursor is not hovering geometry and displays enough decimal precision for the smallest grid snap steps.
 - The numbers **1 ... 6** represent **grid snap steps**:
@@ -116,7 +117,7 @@ World materials, MZ appearances and UI use this one project palette. For world
 tiles, **Make Proc** opens the [procedural material editor](/docs/building_maps/procedural_materials);
 the Rect tool's Compose mode edits layered material shapes on the map.
 
-With the [3D Paint Tool](iso_paint), the lower picker area shows the **3D Paint** dock instead:
+With the [Paint Tool](iso_paint), the lower picker area shows the **Paint** dock instead:
 
 - visual brush presets
 - draw/erase/pick and Surface/No Clip controls
@@ -145,11 +146,18 @@ In 3D views:
 
 This keeps the familiar 2D tool vocabulary while changing the 3D behavior to direct object, face, edge, and vertex editing.
 
-The **Wall Tool** also provides **Surface** mode for fireplaces, forge beds, raised platforms, and similar inserts. Hover inside a region enclosed by connected wall spans to preview the fitted surface, then click to create it. Independently drawn wall runs whose endpoints touch the middle of existing straight walls are resolved into fitted junctions, so a curved forge front can divide a larger room into its own surface region. Elevation uses 0.25-unit steps; thickness and wall clearance remain independently adjustable, and the **Surface** HUD material slot accepts the same colors and tiles as other geometry. Because the fitted boundary stores its source wall spans, it follows later node moves and curve changes; Delete removes the selected surface.
+## Terrain Brush
 
-In Surface mode, press **F** to create or select a floor and **C** to create or select a ceiling. A closed wall boundary can own one of each independently. Elevation and thickness remain separate for each surface; older untyped surfaces load as floors. Press **H** to hide or show the active surface kind in the editor preview, or **V** to show both kinds. These preview controls do not change game visibility.
+The **Terrain** hill icon selects the landscape brush. Choose **Raise**,
+**Lower** or **Smooth** and drag across the map, or hold to build up the effect.
+Use the panel's minus/plus buttons for **Radius** and **Strength**, or **[ / ]**
+for radius. Hold **Shift** to lower temporarily. Lower stops at height zero.
+**Esc** cancels the current stroke; undo/redo restores entire strokes.
 
-In **Build** mode, choose **Ring**, click the center, and drag the radius to create a closed four-span curved wall for wells, round rooms, or towers. Releasing finishes the ring and returns Build to **Line**, keeping the normal Wall panel compact. The generated nodes and spans remain editable like any other connected wall.
+The brush follows the shared terrain in top-down, 2D Iso and 3D views, including
+existing hills made with control vertices. MZ ground materials and painted paths
+follow the surface; buildings, stairs and other rigid parts retain their authored
+geometry. Stonefall uses ordinary editable geometry.
 
 ## Authoring Mode
 
@@ -163,7 +171,7 @@ For the full workflow and metadata format, see [Authoring](../authoring).
 
 The **Text Play** toggle offers typed gameplay commands in the Game view, or in a dock while editing a running region. Input intents come from the character's Entity Nodes, including instance overrides. Prompt answers appear as numbered choices; enter the number and press Return, or enter **0** to cancel. Expired choices and choices outside conversation range cannot be selected.
 
-Authored sectors and connections provide room descriptions and named exits. Scenes with only Wall Tool geometry show the region name and nearby characters and items instead; inventory, stats and targeted commands still work. This proximity view does not infer room boundaries or named exits from walls. Add authored sectors and connections for room-to-room text navigation.
+Authored sectors and connections provide room descriptions and named exits. Scenes with only Geometry Objects show the region name and nearby characters and items instead; inventory, stats and targeted commands still work. This proximity view does not infer room boundaries or named exits from walls. Add authored sectors and connections for room-to-room text navigation.
 
 ## Palette Mode
 
@@ -185,8 +193,14 @@ Project Prefabs are UUID-backed shared sources: editing the source updates linke
 
 For the full workflow, see [Prefab Tool](blocks).
 
-## 3D Paint Mode
+## Paint Mode
 
-The **3D Paint Tool** paints persistent surface-space layers directly onto 3D region geometry. It is meant for organic detail such as moss, cracks, grass, dirt, puddles, generated brick patterns, stamps, and color-only touchups. The paint stays attached to its surface in isometric, orbit, and first-person views; it is not available in the 2D map view.
+The **Paint Tool** paints terrain in **2D Iso** and surfaces on 3D region geometry.
+In 2D Iso, strokes and their brush outline follow the hills. Raise, lower or smooth
+the terrain and the paint remains anchored to the same ground coordinates. Paint
+appears during play and supports erase, selections, fill, undo and save/reopen.
+Grass, flowers and rocks/rubble also work as organic **Stamp** brushes in 2D Iso:
+their positions stay fixed while their height follows sculpted terrain. They draw
+alongside characters and props. Surface material responses use the 3D workflow.
 
-For the full workflow, see [3D Paint Tool](iso_paint).
+For the full workflow, see [Paint Tool](iso_paint).
