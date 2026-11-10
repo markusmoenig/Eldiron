@@ -126,20 +126,57 @@ pub fn workspace(material: TheCanvas) -> TheCanvas {
     stack.add_canvas(compact);
     let mut canvas = TheCanvas::new();
     canvas.set_layout(stack);
-    let mut mode = TheGroupButton::new(TheId::named(MODE));
-    mode.add_text("Materials".into());
-    mode.add_text("Meshes".into());
-    mode.set_item_width(110);
-    let mut bar = TheHLayout::new(TheId::empty());
-    bar.limiter_mut().set_max_height(28);
-    bar.set_margin(Vec4::new(4, 2, 4, 2));
-    bar.add_widget(Box::new(mode));
-    bar.add_widget(crate::appearance_workspace::return_button());
+    let mut bar = TheHLayout::new(TheId::named("MZ Workspace Navigation"));
+    workspace_navigation(&mut bar, 0);
     let mut top = TheCanvas::new();
     top.set_layout(bar);
     canvas.set_top(top);
     canvas
 }
+fn workspace_navigation(bar: &mut dyn TheHLayoutTrait, index: usize) {
+    let back = bar.widgets().iter().position(|w| w.id().name == "Definition Appearance Return")
+        .map(|i| bar.widgets().remove(i))
+        .unwrap_or_else(crate::appearance_workspace::return_button);
+    bar.clear();
+    bar.limiter_mut().set_max_height(28);
+    bar.set_margin(Vec4::new(4, 2, 4, 2));
+    let mut mode = TheGroupButton::new(TheId::named(MODE));
+    mode.add_text_status("Materials".into(), fl!("mz_workspace_materials_desc"));
+    mode.add_text_status("Meshes".into(), fl!("mz_workspace_meshes_desc"));
+    mode.set_item_width(110);
+    mode.set_index(index.min(1) as i32);
+    bar.add_widget(Box::new(mode));
+    bar.add_widget(back);
+}
+
+pub(crate) fn sync_composition_header(ui: &mut TheUI, ctx: &mut TheContext, composing: bool) {
+    let index = ui.get_stack_layout(STACK).map_or(0, |stack| stack.index());
+    let Some(bar) = ui.get_hlayout("MZ Workspace Navigation") else { return; };
+    let tabs = bar.widgets().iter().any(|w| w.id().name == MODE);
+    let mut changed = false;
+    if composing {
+        if tabs {
+            bar.widgets().retain(|w| w.id().name != MODE);
+            changed = true;
+        }
+        // Keep the appearance return button alive so its owner can enable it.
+        // An unused return button occupies no row in the compositor.
+        let height = if bar.widgets().iter().any(|w| !w.disabled()) { 28 } else { 0 };
+        if bar.limiter_mut().get_max_height() != height {
+            bar.limiter_mut().set_max_height(height);
+            bar.set_margin(if height == 0 { Vec4::zero() } else { Vec4::new(4, 2, 4, 2) });
+            changed = true;
+        }
+    } else if !tabs {
+        workspace_navigation(bar, index);
+        changed = true;
+    }
+    if changed {
+        ctx.ui.relayout = true;
+        ctx.ui.redraw_all = true;
+    }
+}
+
 #[derive(Default)]
 pub struct GeometryEditor {
     active: bool,

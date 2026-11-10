@@ -1344,7 +1344,7 @@ fn render(
 ) {
     render_at_hour(p, character, out, name, position, unit, center, 12.);
 }
-fn render_at_hour(
+pub(crate) fn render_at_hour(
     p: &Project,
     character: Uuid,
     out: &Path,
@@ -1367,6 +1367,7 @@ fn render_at_hour(
     let mut assets = rusterix::Assets::default();
     assets.set_tiles(p.tiles.clone());
     assets.palette = p.palette.clone();
+    shared::iso_paint_terrain::sync(&mut assets, map.id, &mut p.regions[0].iso_paint.clone());
     let mut image = TheRGBABuffer::new(TheDim::sized(1280, 900));
     let mut projection = rusterix::isometric::Projection {
         origin: Vec2::zero(),

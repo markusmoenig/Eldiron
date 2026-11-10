@@ -389,6 +389,18 @@ pub struct TileUvPages {
     pub units_per_page: u32,
 }
 
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+pub struct PaintAssetLayout {
+    pub brush: String,
+    pub stamp: bool,
+    pub shape: String,
+    pub material_id: u8,
+    pub size: f32,
+    pub opacity: f32,
+    pub native_size: [u32; 2],
+    pub anchor: [f32; 2],
+}
+
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug, Default)]
 pub struct Tile {
     pub id: Uuid,
@@ -397,6 +409,9 @@ pub struct Tile {
     pub textures: Vec<Texture>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub uv_pages: Option<TileUvPages>,
+    /// Derived placement hints for an editable MZ paint/stamp recipe.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub paint: Option<PaintAssetLayout>,
     /// Foot anchor and directional animation layout for baked 2D isometric art.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub isometric: Option<crate::isometric::SpriteLayout>,
@@ -463,6 +478,18 @@ impl Tile {
         mode: crate::SampleMode,
         repeat: crate::RepeatMode,
     ) -> [u8; 4] {
+        let (index, uv) = self.surface_address(uv, frame, repeat);
+        self.textures
+            .get(index)
+            .map_or([0; 4], |texture| texture.sample(uv[0], uv[1], mode, repeat))
+    }
+
+    fn surface_address(
+        &self,
+        uv: [f32; 2],
+        frame: usize,
+        repeat: crate::RepeatMode,
+    ) -> (usize, [f32; 2]) {
         let mut index = self.frame_index(frame);
         let mut uv = uv;
         if let Some(pages) = &self.uv_pages
@@ -483,9 +510,49 @@ impl Tile {
                 uv = grid.map(|v| v.rem_euclid(1.));
             }
         }
-        self.textures
+        (index, uv)
+    }
+
+    /// Sample terrain albedo and its matching live-light material channels.
+    /// Spatial pages and animation must address the same texel for both samples.
+    #[inline]
+    pub fn sample_surface_2d(&self, uv: [f32; 2], frame: usize) -> ([u8; 4], [f32; 3]) {
+        let (color, material) = self.sample_paint_surface(uv,frame);
+        (color,[material[0],material[1],material[3]])
+    }
+    #[inline]
+    pub fn sample_paint_surface(&self, uv: [f32; 2], frame: usize) -> ([u8; 4], [f32; 4]) {
+        let (index, uv) = self.surface_address(uv, frame, crate::RepeatMode::RepeatXY);
+        let Some(texture) = self
+            .textures
             .get(index)
-            .map_or([0; 4], |texture| texture.sample(uv[0], uv[1], mode, repeat))
+            .filter(|t| t.width > 0 && t.height > 0)
+        else {
+            return ([0; 4], [0.95, 0., 1., 0.]);
+        };
+        let uv = uv.map(|v| v.rem_euclid(1.));
+        let x = (uv[0] * (texture.width - 1) as f32).round() as u32;
+        let y = (uv[1] * (texture.height - 1) as f32).round() as u32;
+        let color = texture.sample_nearest(uv[0], uv[1]);
+        let at = (y as usize * texture.width + x as usize) * 2;
+        let material = self
+            .material
+            .rmoe_values_for_color(color)
+            .map(|v| (v[0], v[1], v[2], v[3]))
+            .or_else(|| {
+                self.baked_material_data
+                    .get(index)
+                    .and_then(|b| b.get(at..at + 2))
+                    .map(|b| Texture::decode_material_bytes([b[0], b[1]]))
+            })
+            .unwrap_or_else(|| {
+                if texture.data_ext.is_some() {
+                    texture.get_materials(x, y)
+                } else {
+                    (0.95, 0., 1., 0.)
+                }
+            });
+        (color, [material.0, material.1, material.2, material.3])
     }
 
     /// Parse a comma, semicolon, or newline separated gameplay tag list.
@@ -543,6 +610,7 @@ impl Tile {
         Self {
             id: Uuid::new_v4(),
             role: TileRole::ManMade,
+            paint: None,
             textures: vec![texture],
             uv_pages: None,
             isometric: None,
@@ -665,6 +733,7 @@ impl Tile {
             role: self.role,
             textures: resized_textures,
             uv_pages: self.uv_pages.clone(),
+            paint: self.paint.clone(),
             isometric: self.isometric.clone(),
             module: self.module.clone(),
             blocking: self.blocking,
@@ -793,6 +862,46 @@ mod tests {
         assert!(metallic >= 0.85);
         assert_eq!(opacity, 1.0);
         assert_eq!(emissive, 0.0);
+    }
+
+    #[test]
+    fn sample_surface_uses_matching_spatial_pages_and_animation_materials() {
+        let mut tile = Tile::empty();
+        // Two spatial pages for each of two animation phases.
+        for (value, roughness) in [(40, 0.2), (80, 0.4), (120, 0.6), (160, 0.8)] {
+            let mut texture = Texture::from_color([value, value, value, 255]);
+            texture.set_materials_all(roughness, 0., 1., 0.);
+            tile.baked_material_data.push(texture.material_bytes());
+            tile.textures.push(texture);
+        }
+        tile.uv_pages = Some(TileUvPages {
+            origin: [-1, 0],
+            size: [2, 1],
+            units_per_page: 1,
+            animation_frames: 2,
+            repeat_period: [0.; 2],
+            axes: [[0.; 3]; 2],
+        });
+        let tile: Tile = serde_json::from_str(&serde_json::to_string(&tile).unwrap()).unwrap();
+        for (uv, phase, value, roughness) in [
+            ([-0.5, 0.5], 0, 40, 0.2),
+            ([0.5, 0.5], 0, 80, 0.4),
+            ([-0.5, 0.5], 1, 120, 0.6),
+            ([0.5, 0.5], 3, 160, 0.8),
+        ] {
+            let (color, material) = tile.sample_surface_2d(uv, phase);
+            assert_eq!(color, [value, value, value, 255]);
+            assert!((material[0] - roughness).abs() < 0.01);
+            assert_eq!(
+                color,
+                tile.sample_2d(
+                    uv,
+                    phase,
+                    crate::SampleMode::Nearest,
+                    crate::RepeatMode::RepeatXY
+                )
+            );
+        }
     }
 
     #[test]

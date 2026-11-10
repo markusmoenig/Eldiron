@@ -18,6 +18,11 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use scenevm::{Atom, Chunk, DynamicObject, GeoId, Light, SceneVM};
 use theframework::prelude::*;
 
+/// Shared editor colors for top-down and sprite-isometric geometry guides.
+pub const EDITOR_GEOMETRY_COLOR: [u8; 4] = [255, 255, 255, 255];
+pub const EDITOR_SELECTION_COLOR: [u8; 4] = [187, 122, 208, 255];
+pub const EDITOR_CURSOR_COLOR: [u8; 4] = [255, 255, 0, 255];
+
 // Stream serialized effect settings into the hash, avoiding a temporary byte
 // vector for every sector/edge on each redraw.
 fn hash_serialized(hasher: &mut rustc_hash::FxHasher, value: &impl serde::Serialize) {
@@ -3675,11 +3680,11 @@ impl SceneHandler {
             // });
             self.vm.execute(Atom::AddSolid {
                 id: self.white,
-                color: [255, 255, 255, 255],
+                color: EDITOR_GEOMETRY_COLOR,
             });
             self.vm.execute(Atom::AddSolid {
                 id: self.selected,
-                color: [187, 122, 208, 255],
+                color: EDITOR_SELECTION_COLOR,
             });
             self.vm.execute(Atom::AddSolid {
                 id: self.gray,
@@ -3699,7 +3704,7 @@ impl SceneHandler {
             });
             self.vm.execute(Atom::AddSolid {
                 id: self.yellow,
-                color: vek::Rgba::yellow().into_array(),
+                color: EDITOR_CURSOR_COLOR,
             });
             self.vm.execute(Atom::AddSolid {
                 id: self.red,

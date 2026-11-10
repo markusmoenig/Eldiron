@@ -354,6 +354,7 @@ impl ChunkBuilder for D2ChunkBuilder {
         if map.properties.get_bool_default("terrain_enabled", false)
             && let Ok(fallback_tile_id) = Uuid::from_str(DEFAULT_TILE_ID)
         {
+            let terrain_outputs = super::terrain_material::outputs(map);
             let default_tile_id = if let Some(Value::Source(pixel_source)) =
                 map.properties.get("default_terrain_tile")
             {
@@ -746,6 +747,7 @@ impl ChunkBuilder for D2ChunkBuilder {
                         }
 
                         if let Some(tile_id2) = blend_tile_id {
+                            let tile_id2 = super::terrain_material::resolve(&terrain_outputs, assets, tile_id2);
                             vmchunk.add_poly_2d_blended(
                                 GeoId::Terrain(tile_x, tile_z),
                                 primary_tile_id,

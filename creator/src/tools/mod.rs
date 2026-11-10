@@ -7,6 +7,7 @@ use rusterix::Assets;
 pub mod game;
 pub mod geometry;
 pub mod iso_paint;
+pub(crate) mod paint_picker;
 // pub mod info;
 pub mod blocks;
 pub mod collision_probe;
@@ -182,3 +183,6 @@ pub trait Tool: Send + Sync {
     ) {
     }
 }
+
+#[cfg(test)]
+mod iso_geometry_tests;

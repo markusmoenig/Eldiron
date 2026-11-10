@@ -16,6 +16,7 @@ pub(crate) const PREVIEW_STACK: &str = "Sidebar Preview Stack";
 const PREVIEW: &str = "Material Preview";
 pub(crate) mod composition;
 pub(crate) mod image_source;
+pub(crate) mod paint_assets;
 pub(crate) mod map_composition;
 #[cfg(not(target_arch = "wasm32"))]
 mod model_source;
@@ -153,7 +154,7 @@ pub fn material_canvas() -> TheCanvas {
         library.add_option(format!("Ruleset · {}", def.id.replace('-', " ")));
     }
     library.limiter_mut().set_max_width(240);
-    let mut row = TheHLayout::new(TheId::empty());
+    let mut row = TheHLayout::new(TheId::named("MZ Material Navigation"));
     row.limiter_mut().set_max_height(28);
     row.set_margin(Vec4::new(6, 4, 6, 4));
     row.add_widget(Box::new(library));
@@ -1212,6 +1213,11 @@ pub(crate) fn edited_for_project(
     command: MaterialEditorCommand,
     project: &Project,
 ) -> Result<EditableMaterialAsset, String> {
+    match &command {
+        MaterialEditorCommand::SetNumber { operation, parameter, value } if parameter.starts_with("@paint-") => return paint_assets::edit(asset, operation, parameter, *value, project),
+        MaterialEditorCommand::SetPaletteParameter { operation, parameter, index } if parameter.starts_with("@paint-color-") => return paint_assets::edit_palette(asset,operation,parameter,*index,project),
+        _ => {}
+    }
     #[cfg(not(target_arch = "wasm32"))]
     {
         if let MaterialEditorCommand::AddSource { source, row, after } = &command
@@ -1327,6 +1333,8 @@ fn insertion_index(row: &format::Row, after: Option<&str>) -> Result<usize, Stri
 #[derive(Default)]
 pub struct ProceduralMaterialEditor {
     mesh_material: bool,
+    back_label: Option<bool>,
+    composition_parents: Vec<(Uuid, usize, Option<shared::material_composition::MapMaterialBinding>, bool)>,
     iso_revision: Option<u64>,
     iso_placement_revision: Option<u64>,
     iso_bounds_selection: Option<(Uuid, Vec<u32>)>,
@@ -1361,6 +1369,7 @@ pub struct ProceduralMaterialEditor {
     composition_ui_key: Option<(Uuid, u64, usize)>,
     composition_layer: usize,
     composition_advanced: bool,
+    composition_navigation: Option<(bool,bool)>,
     composition_choices: Vec<Uuid>,
     map_binding: Option<shared::material_composition::MapMaterialBinding>,
     #[cfg(not(target_arch = "wasm32"))]
@@ -1375,6 +1384,7 @@ impl ProceduralMaterialEditor {
     }
     fn open(&mut self, id: Uuid, ui: &mut TheUI, ctx: &mut TheContext, project: &Project) {
         self.mesh_material = false;
+        self.composition_parents.clear();
         self.map_binding = None;
         let id = match shared::isometric::tile_recipe(project, id) {
             Some(shared::isometric::TileRecipe::Material(recipe)) => recipe,
@@ -1424,6 +1434,7 @@ impl ProceduralMaterialEditor {
             }
         }
         self.composition_layer = 0;
+        self.composition_advanced = false;
         self.composition_ui_key = None;
         if project.material_compositions.contains_key(&id) {
             self.preview_tile = false;
@@ -1502,20 +1513,29 @@ impl ProceduralMaterialEditor {
             if id.name == "Open Mesh Material" {
                 self.open(*material, ui, ctx, project);
                 self.mesh_material = true;
+                self.sync_composition_navigation(ui,ctx,project);
                 if let Some(w) = ui.get_widget("MZ Return to Mesh") {
                     w.set_disabled(false);
                 }
                 return true;
             }
         }
-        if matches!(event,TheEvent::StateChanged(id,TheWidgetState::Clicked) if id.name=="MZ Return to Mesh")
-            && self.mesh_material
-        {
-            ctx.ui.send(TheEvent::Custom(
-                TheId::named("Return to Mesh Recipe"),
-                TheValue::Empty,
-            ));
-            return true;
+        if matches!(event,TheEvent::StateChanged(id,TheWidgetState::Clicked) if id.name=="MZ Return to Mesh") {
+            if let Some((tile, layer, binding, mesh)) = self.composition_parents.pop() {
+                let parents = std::mem::take(&mut self.composition_parents);
+                self.open(tile, ui, ctx, project);
+                self.composition_parents = parents;
+                self.composition_layer = layer;
+                self.map_binding = binding;
+                self.mesh_material = mesh;
+                self.composition_view(ui, ctx, project);
+                self.sync_back_button(ui);
+                return true;
+            }
+            if self.mesh_material {
+                ctx.ui.send(TheEvent::Custom(TheId::named("Return to Mesh Recipe"), TheValue::Empty));
+                return true;
+            }
         }
         if matches!(event,TheEvent::Custom(id,_) if id.name=="Return to Mesh Recipe") {
             self.tile = None;
@@ -1740,7 +1760,8 @@ impl ProceduralMaterialEditor {
                 true
             }
             TheEvent::Custom(id, TheValue::Id(tile)) if id.name == "Tile Picked" => {
-                if self.map_binding.is_none() {
+                let composing=self.active && self.tile.is_some_and(|id|project.material_compositions.contains_key(&id));
+                if self.map_binding.is_none() && !composing && server.curr_map_tool_type != MapToolType::IsoPaint {
                     self.open(*tile, ui, ctx, project);
                 }
                 false
@@ -1938,6 +1959,46 @@ impl ProceduralMaterialEditor {
             _ => false,
         }
     }
+    fn sync_composition_navigation(&mut self, ui: &mut TheUI, ctx: &mut TheContext, project: &Project) {
+        let composing=self.tile.is_some_and(|id|project.material_compositions.contains_key(&id));
+        crate::geometry_editor::sync_composition_header(ui, ctx, composing);
+        let back=self.mesh_material || !self.composition_parents.is_empty();
+        if self.composition_navigation==Some((composing,back)) { return; }
+        if let Some(row)=ui.get_hlayout("MZ Material Navigation") {
+            row.clear();
+            if composing {
+                let mut title=TheText::new(TheId::named("Composition Title"));
+                title.set_text(fl!("mz_blend_title"));
+                row.add_widget(Box::new(title));
+            } else {
+                let mut library=TheDropdownMenu::new(TheId::named("Ruleset Material"));
+                library.add_option("Tile material".into());
+                let definitions=shared::ruleset_materials::definitions(&project.config);
+                for def in &definitions { library.add_option(format!("Ruleset · {}",def.id.replace('-'," "))); }
+                library.set_selected_index(definitions.iter().position(|d|Some(shared::rulesets::material_asset_id(d.id))==self.tile).map_or(0,|i|i+1) as i32);
+                library.limiter_mut().set_max_width(240);
+                row.add_widget(Box::new(library));
+            }
+            if back {
+                let mut button=TheTraybarButton::new(TheId::named("MZ Return to Mesh"));
+                button.set_text(if self.composition_parents.is_empty(){"Back to mesh".into()}else{fl!("mz_back_to_composite")});
+                row.add_widget(Box::new(button));
+            }
+            self.composition_navigation=Some((composing,back));
+            self.back_label=None;
+            ctx.ui.relayout=true;ctx.ui.redraw_all=true;
+        }
+    }
+    fn sync_back_button(&mut self, ui: &mut TheUI) {
+        let composite = !self.composition_parents.is_empty();
+        if let Some(w) = ui.get_widget("MZ Return to Mesh") {
+            w.set_disabled(!self.mesh_material && !composite);
+            if self.back_label != Some(composite) {
+                w.set_value(TheValue::Text(if composite { fl!("mz_back_to_composite") } else { "Back to mesh".into() }));
+                self.back_label = Some(composite);
+            }
+        }
+    }
     fn set_project_view(ui: &mut TheUI, asset: &EditableMaterialAsset, project: &Project) {
         Self::sync_tiling_button(ui, asset);
         if let Ok(mut view) = view(asset) {
@@ -1960,6 +2021,7 @@ impl ProceduralMaterialEditor {
                 .collect();
             #[cfg(not(target_arch = "wasm32"))]
             model_source::decorate(&mut view, asset, project);
+            paint_assets::decorate(&mut view, asset);
             view.image_sources
                 .sort_by(|a, b| a.1.cmp(&b.1).then(a.0.cmp(&b.0)));
             for (operation, label) in &mut view.image_bindings {
@@ -2043,9 +2105,7 @@ impl ProceduralMaterialEditor {
         }
         crate::iso_editor::sync(ui, project, server, ctx);
         let mut changed = false;
-        if let Some(w) = ui.get_widget("MZ Return to Mesh") {
-            w.set_disabled(!self.mesh_material);
-        }
+        self.sync_back_button(ui);
         if project.ensure_material_tiles() {
             refresh_tiles(ctx);
             changed = true;

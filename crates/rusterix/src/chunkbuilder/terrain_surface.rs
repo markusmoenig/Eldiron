@@ -97,7 +97,14 @@ impl TerrainSurface {
                 bounds.max = bounds.max.map2(p + 1., f32::max);
             }
         }
+        super::terrain_shape::TerrainShapes::from_map(map)
+            .expand_bounds(&mut bounds, &mut max_height);
         max_height += super::terrain_sculpt::TerrainSculpt::from_map(map).max_offset();
+        // Complete cells keep rendering, ground queries and streaming consistent
+        // when a guide's influence is narrower than one terrain grid cell.
+        let grid = config.subdivisions as f32;
+        bounds.min = (bounds.min * grid).map(f32::floor) / grid;
+        bounds.max = (bounds.max * grid).map(f32::ceil) / grid;
         let excluded = map
             .sectors
             .iter()
@@ -180,18 +187,7 @@ impl TerrainSurface {
         if !self.contains(p) {
             return None;
         }
-        let n = self.subdivisions as f32;
-        let cell = (p * n).map(f32::floor) / n;
-        let uv = (p - cell) * n;
-        let h00 = self.grid_height(cell);
-        let h10 = self.grid_height(cell + Vec2::new(1. / n, 0.));
-        let h01 = self.grid_height(cell + Vec2::new(0., 1. / n));
-        Some(if uv.x + uv.y <= 1. {
-            h00 * (1. - uv.x - uv.y) + h10 * uv.x + h01 * uv.y
-        } else {
-            let h11 = self.grid_height(cell + 1. / n);
-            h10 * (1. - uv.y) + h01 * (1. - uv.x) + h11 * (uv.x + uv.y - 1.)
-        })
+        Some(self.sampler.height_on_grid(p, self.subdivisions))
     }
     pub fn triangles(&self, clip: BBox, mut emit: impl FnMut([Vec3<f32>; 3])) {
         let n = self.subdivisions as f32;
@@ -205,19 +201,26 @@ impl TerrainSurface {
             .max
             .map2(clip.max, f32::min)
             .map(|v| (v * n).ceil() as i32);
+        if min.x >= max.x || min.y >= max.y {
+            return;
+        }
+        // Sample each grid corner once, keeping two rows rather than a full
+        // height map. This also speeds iso rasterization, shadows and ray picks.
+        let row = |z: i32| {
+            (min.x..=max.x)
+                .map(|x| {
+                    let p = Vec2::new(x as f32 / n, z as f32 / n);
+                    Vec3::new(p.x, self.grid_height(p), p.y)
+                })
+                .collect::<Vec<_>>()
+        };
+        let mut previous = row(min.y);
         for z in min.y..max.y {
-            for x in min.x..max.x {
-                let p = Vec2::new(x as f32 / n, z as f32 / n);
-                let points = [
-                    p,
-                    p + Vec2::new(1. / n, 0.),
-                    p + Vec2::new(0., 1. / n),
-                    p + 1. / n,
-                ]
-                .map(|p| Vec3::new(p.x, self.grid_height(p), p.y));
+            let next = row(z + 1);
+            for column in 0..previous.len() - 1 {
                 for tri in [
-                    [points[0], points[2], points[1]],
-                    [points[1], points[2], points[3]],
+                    [previous[column], next[column], previous[column + 1]],
+                    [previous[column + 1], next[column], next[column + 1]],
                 ] {
                     let center = (tri[0] + tri[1] + tri[2]) / 3.;
                     if self.contains(Vec2::new(center.x, center.z)) {
@@ -225,6 +228,7 @@ impl TerrainSurface {
                     }
                 }
             }
+            previous = next;
         }
     }
 }
@@ -286,6 +290,11 @@ pub(crate) mod tests {
                 }
                 let p = tri[0] * 0.21 + tri[1] * 0.32 + tri[2] * 0.47;
                 assert!((field.height_at(Vec2::new(p.x, p.z)).unwrap() - p.y).abs() < 0.00001);
+                assert!(
+                    (TerrainGenerator::sample_height_at(&map, Vec2::new(p.x, p.z), &config) - p.y)
+                        .abs()
+                        < 0.00001
+                );
             });
         }
     }

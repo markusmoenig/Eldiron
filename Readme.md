@@ -18,9 +18,9 @@ Eldiron is open-source and licensed under the **MIT License**.
 
 For a more detailed feature overview please visit [Eldiron.com](https://eldiron.com)
 
-2D Example           | 3D Example
-:-------------------------:|:-------------------------:
-![Eldiron Screenshot](images/hideout2d.png)  |  ![Eldiron Screenshot](images/eldiron_v0.9.png)
+| 2D · Hideout | 2D Iso · Wayfarer's Rest | 3D · Stonefall Dungeon |
+| :---: | :---: | :---: |
+| ![Hideout 2D in Eldiron Creator v0.96.0](docs/static/img/creator/hideout2d-v096.png) | ![Wayfarer's Rest in 2D Iso in Eldiron Creator v0.96.0](docs/static/img/iso/wayfarers-rest-v096.png) | ![Stonefall Dungeon first-person gameplay in Eldiron Creator v0.96.0](docs/static/img/creator/stonefall-first-person-v096.png) |
 
 ## Source Code
 

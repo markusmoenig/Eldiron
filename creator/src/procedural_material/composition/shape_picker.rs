@@ -1,8 +1,9 @@
 //! Visual, tile-local composition presets. Highlighted pixels use the added material.
 use super::*;
 pub(super) const PICKER: &str = "Composition Shape Picker";
-const COLUMNS: usize = 4;
-const CELL_HEIGHT: i32 = 66;
+const COLUMNS: usize = 5;
+const CELL_HEIGHT: i32 = 58;
+const PREVIEW_SIZE: usize = 34;
 pub(super) struct Preset {
     pub label: &'static str,
     shape: CompositionShape,
@@ -135,6 +136,10 @@ impl Preset {
         layer.shape = self.shape;
         layer.angle = self.angle;
         layer.position = self.position;
+        // World shapes can use larger edge values than tile-local presets.
+        // Selecting a thumbnail must remain valid when changing shape kinds.
+        layer.feather = layer.feather.clamp(0., 1.);
+        layer.wobble = layer.wobble.clamp(0., 0.25);
         if self.shape == CompositionShape::Blend {
             layer.amount = 0.5;
         }
@@ -299,29 +304,37 @@ impl TheWidget for ShapePicker {
             };
             ctx.draw
                 .rect_outline_border(buffer.draw_target(), &card, stride, &border, 1);
-            let mut preview = TheRGBABuffer::new(TheDim::sized(40, 40));
-            for py in 0..40 {
-                for px in 0..40 {
-                    let amount =
-                        preset.coverage([(px as f32 + 0.5) / 40., (py as f32 + 0.5) / 40.]);
+            let mut preview =
+                TheRGBABuffer::new(TheDim::sized(PREVIEW_SIZE as i32, PREVIEW_SIZE as i32));
+            for py in 0..PREVIEW_SIZE {
+                for px in 0..PREVIEW_SIZE {
+                    let amount = preset.coverage([
+                        (px as f32 + 0.5) / PREVIEW_SIZE as f32,
+                        (py as f32 + 0.5) / PREVIEW_SIZE as f32,
+                    ]);
                     let color: RGBA = std::array::from_fn(|c| {
                         (base[c] as f32 * (1. - amount) + added[c] as f32 * amount) as u8
                     });
-                    let at = (py * 40 + px) * 4;
+                    let at = (py * PREVIEW_SIZE + px) * 4;
                     preview.pixels_mut()[at..at + 4].copy_from_slice(&color);
                 }
             }
             ctx.draw.scale_chunk(
                 buffer.draw_target(),
-                &(x + card.2.saturating_sub(40) / 2, y + 3, 40, 40),
+                &(
+                    x + card.2.saturating_sub(PREVIEW_SIZE) / 2,
+                    y + 3,
+                    PREVIEW_SIZE,
+                    PREVIEW_SIZE,
+                ),
                 stride,
                 preview.pixels(),
-                &(40, 40),
+                &(PREVIEW_SIZE, PREVIEW_SIZE),
                 1.,
             );
             ctx.draw.text_rect_blend(
                 buffer.draw_target(),
-                &(x + 1, y + 44, card.2.saturating_sub(2), 16),
+                &(x + 1, y + 38, card.2.saturating_sub(2), 14),
                 stride,
                 preset.label,
                 TheFontSettings {

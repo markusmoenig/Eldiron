@@ -29,6 +29,9 @@ impl Default for CompositionTiling {
 pub struct CompositionLayer {
     pub id: Uuid,
     pub material: Uuid,
+    /// Map geometry supplies a built-in area/path shape; no mask asset is needed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub geometry: Option<CompositionGeometry>,
     pub shape: CompositionShape,
     /// Split position in tile units, with 0.5 through the tile centre.
     pub position: f32,
@@ -74,6 +77,16 @@ pub enum CompositionShape {
     Crossing,
     /// Join matching road layers on neighbouring painted map cells.
     AutoRoad,
+    /// Continuous world-space stroke along chosen map linedefs.
+    MapPath,
+    /// Filled map sectors with a soft, noisy boundary.
+    MapArea,
+}
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct CompositionGeometry {
+    pub map: Uuid,
+    pub linedefs: Vec<u32>,
+    pub sectors: Vec<u32>,
 }
 fn default_wobble_scale() -> f32 {
     2.
@@ -89,6 +102,7 @@ impl CompositionLayer {
         Self {
             id: Uuid::new_v4(),
             material,
+            geometry: None,
             shape: CompositionShape::Split,
             position: 0.5,
             angle: 0.,

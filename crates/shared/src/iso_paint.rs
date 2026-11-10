@@ -293,6 +293,12 @@ impl IsoPaintPoint {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct IsoPaintStamp {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<Uuid>,
+    #[serde(skip)]
+    pub source_image: Option<std::sync::Arc<rusterix::Tile>>,
+    #[serde(skip)]
+    pub source_material_pass: bool,
     pub id: Uuid,
     #[serde(default = "default_order")]
     pub order: u64,
@@ -352,6 +358,9 @@ impl IsoPaintStamp {
             * std::f32::consts::TAU
             * rotation_jitter.clamp(0.0, 1.0);
         Self {
+            source: None,
+            source_image: None,
+            source_material_pass: false,
             id: Uuid::new_v4(),
             order: 0,
             kind,
@@ -403,6 +412,8 @@ impl IsoPaintStamp {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct IsoPaintStroke {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<Uuid>,
     pub id: Uuid,
     #[serde(default = "default_order")]
     pub order: u64,
@@ -468,6 +479,7 @@ impl IsoPaintStroke {
     ) -> Self {
         let screen = first_point.screen;
         Self {
+            source: None,
             id: Uuid::new_v4(),
             order: 0,
             operation,
@@ -729,6 +741,14 @@ pub struct IsoPaintLayer {
     pub active_operation: String,
     #[serde(default = "default_brush")]
     pub active_brush: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub active_source: Option<Uuid>,
+    #[serde(skip)]
+    pub source_images: std::collections::HashMap<Uuid, std::sync::Arc<rusterix::Tile>>,
+    #[serde(skip)]
+    pub source_revision: Option<u64>,
+    #[serde(skip)]
+    pub active_source_material: Option<[u8; 2]>,
     #[serde(default = "default_brush_shape")]
     pub active_brush_shape: String,
     #[serde(default = "default_material")]
@@ -787,6 +807,8 @@ impl Default for IsoPaintLayer {
             surface_instance_owners: Vec::new(),
             active_operation: default_operation(),
             active_brush: default_brush(),
+            active_source: None, source_images: Default::default(), source_revision: None,
+            active_source_material: None,
             active_brush_shape: default_brush_shape(),
             active_material: default_material(),
             active_finish: default_finish(),
@@ -950,7 +972,9 @@ impl IsoPaintLayer {
         }
         let index = (local_y as usize * ISO_PAINT_BAKED_CHUNK_SIZE as usize + local_x as usize) * 4;
         let opacity = self.active_opacity.clamp(0.0, 1.0);
-        let alpha = ((coverage as f32 / 255.0) * opacity * 255.0).round() as u8;
+        // MZ alpha and brush coverage are independent: a transparent Replace still
+        // replaces the whole covered surface, while Coat uses the source alpha.
+        let alpha = (if self.active_source_material.is_some() { color[3] } else { coverage } as f32 * opacity).round() as u8;
         // Replace needs a spatial mask even at opacity zero so it can make the surface fully
         // transparent. Coat continues to weight material coverage by its selected opacity.
         let material_coverage = if self.active_material_mode == "replace" {
@@ -958,7 +982,9 @@ impl IsoPaintLayer {
         } else {
             alpha
         };
-        let material_pixel = self.baked_material_pixel(material_coverage);
+        let material_pixel = if let Some([rm, oe]) = self.active_source_material {
+            [if self.active_material_mode == "replace" {128} else {64} + self.active_material_id.min(59), rm, oe, material_coverage]
+        } else { self.baked_material_pixel(material_coverage) };
         color[3] = alpha;
         let erase = self.active_operation == "erase";
         let chunk = self
@@ -1005,7 +1031,7 @@ impl IsoPaintLayer {
         chunk.revision = chunk.revision.wrapping_add(1);
     }
 
-    fn paint_baked_pattern_color(&self, x: i32, y: i32) -> [u8; 4] {
+    pub fn paint_baked_pattern_color(&self, x: i32, y: i32) -> [u8; 4] {
         let fallback = self.active_color;
         let scale = self.active_pattern_scale.clamp(0.25, 4.0);
         // Pattern dimensions are independent of surface-coordinate density. Keep the raw
@@ -1143,21 +1169,29 @@ impl IsoPaintLayer {
                 }
                 let local =
                     brush_local_offset(transform, [(x - center[0]) as f32, (y - center[1]) as f32]);
-                let Some(mut color) = iso_paint_brush::sample_pixel(
-                    &sample,
-                    local[0].round() as i32,
-                    local[1].round() as i32,
-                ) else {
-                    continue;
+                let mut color = if self.active_source.is_some() {
+                    let alpha = iso_paint_brush::shape_alpha(&shape,local[0].round() as i32,local[1].round() as i32,radius,255,seed);
+                    if alpha == 0 { continue; }
+                    [255,255,255,alpha]
+                } else {
+                    let Some(color) = iso_paint_brush::sample_pixel(&sample,local[0].round() as i32,local[1].round() as i32) else { continue; };
+                    color
                 };
-                if brush == "brick" {
+                let coverage = color[3];
+                self.active_source_material = None;
+                if let Some(source) = self.active_source.and_then(|id| self.source_images.get(&id)) {
+                    let (sampled, material) = source.sample_paint_surface([x as f32 / 64., y as f32 / 64.], seed as usize);
+                    color[0..3].copy_from_slice(&sampled[0..3]);
+                    color[3] = ((color[3] as u16 * sampled[3] as u16) / 255) as u8;
+                    self.active_source_material = Some(rusterix::Texture::encode_material_bytes(material[0],material[1],material[2],material[3]));
+                } else if brush == "brick" {
                     let pattern_color = self.paint_baked_pattern_color(x, y);
                     if pattern_color[3] == 0 {
                         continue;
                     }
                     color[0..3].copy_from_slice(&pattern_color[0..3]);
                 }
-                self.write_baked_pixel(owner, paint_geo, [x, y], color, color[3]);
+                self.write_baked_pixel(owner, paint_geo, [x, y], color, if self.active_source_material.is_some() {coverage} else {color[3]});
             }
         }
     }
@@ -1229,6 +1263,7 @@ impl IsoPaintLayer {
         let saved_selection_id = self.active_selection_id;
         self.active_selection_id = stroke.selection_id;
         let saved = (
+            self.active_source,
             self.active_operation.clone(),
             self.active_brush.clone(),
             self.active_brush_shape.clone(),
@@ -1245,6 +1280,7 @@ impl IsoPaintLayer {
             self.active_size,
             self.active_opacity,
         );
+        self.active_source = stroke.source;
         self.active_operation = stroke.operation.clone();
         self.active_brush = stroke.brush.clone();
         self.active_brush_shape = stroke.brush_shape.clone();
@@ -1293,6 +1329,7 @@ impl IsoPaintLayer {
         }
 
         (
+            self.active_source,
             self.active_operation,
             self.active_brush,
             self.active_brush_shape,
@@ -1344,7 +1381,12 @@ impl IsoPaintLayer {
                 }
                 let x = chunk.origin[0] + (index % ISO_PAINT_BAKED_CHUNK_SIZE as usize) as i32;
                 let y = chunk.origin[1] + (index / ISO_PAINT_BAKED_CHUNK_SIZE as usize) as i32;
-                let mut sampled_color = if brush == "brick" {
+                self.active_source_material = None;
+                let mut sampled_color = if let Some(source) = self.active_source.and_then(|id|self.source_images.get(&id)) {
+                    let (color, material) = source.sample_paint_surface([x as f32/64.,y as f32/64.],selection_seed as usize);
+                    self.active_source_material = Some(rusterix::Texture::encode_material_bytes(material[0],material[1],material[2],material[3]));
+                    color
+                } else if brush == "brick" {
                     self.paint_baked_pattern_color(x, y)
                 } else {
                     let Some(sampled) = iso_paint_brush::sample_tiled_pixel(&sample, x, y) else {
@@ -1352,7 +1394,7 @@ impl IsoPaintLayer {
                     };
                     sampled
                 };
-                if sampled_color[3] == 0 {
+                if sampled_color[3] == 0 && !(self.active_source_material.is_some() && self.active_material_mode == "replace") {
                     continue;
                 }
                 let sampled_coverage = ((coverage as u16 * sampled_color[3] as u16) / 255) as u8;
@@ -1362,7 +1404,7 @@ impl IsoPaintLayer {
                     chunk.paint_geo,
                     [x, y],
                     sampled_color,
-                    sampled_coverage,
+                    if self.active_source_material.is_some() {coverage} else {sampled_coverage},
                 );
             }
         }
@@ -1373,6 +1415,28 @@ impl IsoPaintLayer {
     /// geometry before billboard creation.
     /// Points from the discarded screen-space experiment have no surface coordinates and are
     /// therefore ignored rather than being projected with the wrong semantics.
+    pub fn refresh_sources(&mut self, assets: &rusterix::Assets) {
+        if self.source_revision == Some(assets.tiles_revision) { return; }
+        let ids: std::collections::HashSet<_> = self.chunks.values().flat_map(|c|c.strokes.iter().filter_map(|s|s.source)
+            .chain(c.stamps.iter().filter_map(|s|s.source))).chain(self.active_source).collect();
+        let mut changed = false;
+        self.source_images.retain(|id,_| ids.contains(id));
+        for id in ids {
+            if let Some(tile) = assets.tiles.get(&id) {
+                if self.source_images.get(&id).is_none_or(|old| old.as_ref() != tile) {
+                    self.source_images.insert(id, std::sync::Arc::new(tile.clone())); changed = true;
+                }
+            }
+        }
+        for chunk in self.chunks.values_mut() {
+            for stamp in &mut chunk.stamps {
+                stamp.source_image = stamp.source.and_then(|id| self.source_images.get(&id).cloned());
+            }
+        }
+        self.source_revision = Some(assets.tiles_revision);
+        if changed { self.rebuild_baked_paint(); self.baked_version = ISO_PAINT_BAKE_VERSION; }
+    }
+
     pub fn rebuild_baked_paint(&mut self) {
         let strokes: Vec<_> = self
             .chunks
@@ -1542,6 +1606,7 @@ impl IsoPaintLayer {
             self.active_opacity,
             first_point,
         );
+        stroke.source = self.active_source;
         stroke.selection_id = self.active_selection_id;
         stroke.order = self.next_paint_order();
         let id = stroke.id;
@@ -1632,6 +1697,8 @@ impl IsoPaintLayer {
             self.active_stamp_size_jitter,
             self.active_stamp_rotation_jitter,
         );
+        stamp.source = self.active_source;
+        stamp.source_image = self.active_source.and_then(|id| self.source_images.get(&id).cloned());
         stamp.order = self.next_paint_order();
         let id = stamp.id;
         let chunk = self

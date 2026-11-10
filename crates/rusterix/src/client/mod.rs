@@ -2091,10 +2091,7 @@ impl Client {
                 &mut buffer,
                 crate::isometric::Projection::editor(map, Vec2::new(width as f32, height as f32)),
                 self.animation_frame as f32 * assets.animation_tick_seconds(),
-                Some(crate::isometric::EditorGuides {
-                    grid: self.builder_d2.draw_grid,
-                    hover: self.builder_d2.hover_cursor,
-                }),
+                Some(self.builder_d2.isometric_guides()),
                 &avatars,
                 Some(&mut self.isometric_ground),
                 &lighting,

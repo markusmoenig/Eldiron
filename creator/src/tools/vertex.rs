@@ -977,7 +977,9 @@ impl Tool for VertexTool {
                         selection
                     };
 
-                    let preview_rectangle = if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                    let preview_rectangle = if server_ctx.editor_view_mode == EditorViewMode::D2
+                        && map.camera != rusterix::MapCamera::TwoDIso
+                    {
                         (click_pos, drag_pos)
                     } else {
                         (self.click_pos, Vec2::new(coord.x as f32, coord.y as f32))

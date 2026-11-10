@@ -781,6 +781,10 @@ impl Texture {
         r | (m << 4) | (o << 8) | (e << 12)
     }
 
+    pub fn encode_material_bytes(roughness: f32, metallic: f32, opacity: f32, emission: f32) -> [u8;2] {
+        Self::pack_materials(roughness,metallic,opacity,emission).to_le_bytes()
+    }
+
     /// Unpack material properties from u16
     /// Returns (roughness, metallic, opacity, emissive) in 0.0-1.0
     #[inline(always)]
@@ -932,15 +936,19 @@ impl Texture {
         let idx = (y * self.width + x) * 4;
 
         if let Some(ext) = self.data_ext.as_ref() {
-            if let Some(material_id) = Self::material_id_from_bytes([ext[idx], ext[idx + 1]]) {
-                let [roughness, metallic, opacity, emissive] =
-                    MaterialDefinition::from_id(material_id).rmoe_values();
-                return (roughness, metallic, opacity, emissive);
-            }
-            let mat_packed = u16::from_le_bytes([ext[idx], ext[idx + 1]]);
-            Self::unpack_materials(mat_packed)
+            Self::decode_material_bytes([ext[idx], ext[idx + 1]])
         } else {
             (0.5, 0.0, 1.0, 0.0) // Defaults: half rough, no metal, opaque, no emissive
+        }
+    }
+
+    /// Decode persisted material texels, including semantic library materials.
+    pub fn decode_material_bytes(bytes: [u8; 2]) -> (f32, f32, f32, f32) {
+        if let Some(id) = Self::material_id_from_bytes(bytes) {
+            let [r, m, o, e] = MaterialDefinition::from_id(id).rmoe_values();
+            (r, m, o, e)
+        } else {
+            Self::unpack_materials(u16::from_le_bytes(bytes))
         }
     }
 

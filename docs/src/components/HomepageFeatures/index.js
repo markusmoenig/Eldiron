@@ -7,11 +7,11 @@ function Screenshot({ src, alt, className }) {
   return <img className={className} src={useBaseUrl(src)} alt={alt} />;
 }
 
-function SectionHeader({ eyebrow, title, description }) {
+function SectionHeader({ eyebrow, title, description, id }) {
   return (
     <div className={styles.sectionHeader}>
       <p className={styles.eyebrow}>{eyebrow}</p>
-      <h2>{title}</h2>
+      <h2 id={id}>{title}</h2>
       <p>{description}</p>
     </div>
   );
@@ -89,24 +89,31 @@ function FormatSection({ section }) {
   );
 }
 
-function ToolsSection({ section }) {
+function GeneralFeaturesSection({ section }) {
   return (
-    <section className={styles.toolsSection}>
+    <section className={styles.featuresSection} aria-labelledby="general-features-title">
       <SectionHeader
+        id="general-features-title"
         eyebrow={section.eyebrow}
         title={section.title}
         description={section.description}
       />
-      <div className={styles.toolsGrid}>
+      <div className={styles.featuresGrid}>
         {section.items.map((item) => (
-          <article key={item.title} className={styles.toolCard}>
-            <div className={styles.toolImageWrap}>
-              <Screenshot className={styles.toolImage} src={item.image} alt={item.alt} />
+          <article key={item.title} className={styles.featureCard}>
+            <div className={styles.featureArt} aria-hidden="true">
+              <Screenshot
+                src={item.figure}
+                alt=""
+                className={styles.featureFigure}
+              />
             </div>
-            <div className={styles.toolCopy}>
+            <div className={styles.featureCopy}>
               <h3>{item.title}</h3>
               <p>{item.description}</p>
-              <Link to={item.href}>{item.linkLabel}</Link>
+              <Link to={item.href} className={styles.featureLink}>
+                {item.linkLabel} <span aria-hidden="true">→</span>
+              </Link>
             </div>
           </article>
         ))}
@@ -156,8 +163,8 @@ function HomepageSection({ section }) {
     return <FormatSection section={section} />;
   }
 
-  if (section.type === "tools") {
-    return <ToolsSection section={section} />;
+  if (section.type === "features") {
+    return <GeneralFeaturesSection section={section} />;
   }
 
   return null;

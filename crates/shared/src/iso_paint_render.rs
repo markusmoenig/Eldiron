@@ -354,6 +354,7 @@ impl IsoPaintRenderer {
         let mut has_alpha_paint = false;
         for chunk in layer.baked_chunks.values() {
             let needs_alpha = chunk.material_rgba.chunks_exact(4).any(|pixel| {
+                if (pixel[0] == 252 || (128..=187).contains(&pixel[0])) && pixel[3] > 0 { return true; }
                 if pixel[0] != 254 || pixel[3] == 0 || pixel[2] == 0 {
                     return false;
                 }
@@ -576,6 +577,7 @@ impl IsoPaintRenderer {
         }
         for (stamp, resolved_world) in &resolved_stamps {
             stamp.id.hash(&mut hasher);
+            stamp.source_image.as_ref().map(|t| std::sync::Arc::as_ptr(t) as usize).hash(&mut hasher);
             stamp.order.hash(&mut hasher);
             stamp.size.to_bits().hash(&mut hasher);
             resolved_world
@@ -2376,6 +2378,7 @@ impl IsoPaintRenderer {
         }
         if min[0] >= max[0] || min[1] >= max[1] {
             return rusterix::isometric::paint::StampSprite {
+                surface: None,
                 texture: rusterix::Texture::new(vec![0; 4], 1, 1),
                 anchor: [0., 0.],
             };
@@ -2386,7 +2389,19 @@ impl IsoPaintRenderer {
                 &source.pixels()[(y * width + min[0]) * 4..(y * width + max[0]) * 4],
             );
         }
+        let surface = if stamp.source_image.is_some() {
+            let mut material_stamp = stamp.clone(); material_stamp.source_material_pass = true;
+            let (materials,_) = Self::iso_paint_native_stamp_raster(&material_stamp);
+            let mut surface = rusterix::isometric::surface::SurfaceFrame::new((max[0]-min[0])*(max[1]-min[1]));
+            for y in min[1]..max[1] { for x in min[0]..max[0] {
+                let at = (y*width+x)*4;
+                let (r,m,_,e) = rusterix::Texture::decode_material_bytes([materials.pixels()[at+1],materials.pixels()[at+2]]);
+                surface.set((y-min[1])*(max[0]-min[0])+x-min[0],Vec3::unit_y(),0.,r,m,e);
+            } }
+            Some(surface)
+        } else { None };
         rusterix::isometric::paint::StampSprite {
+            surface,
             texture: rusterix::Texture::new(rgba, max[0] - min[0], max[1] - min[1]),
             anchor: [
                 anchor[0] as f32 - min[0] as f32,
@@ -2395,7 +2410,7 @@ impl IsoPaintRenderer {
         }
     }
 
-    fn iso_paint_native_stamp_raster(stamp: &IsoPaintStamp) -> (TheRGBABuffer, [i32; 2]) {
+    pub fn iso_paint_native_stamp_raster(stamp: &IsoPaintStamp) -> (TheRGBABuffer, [i32; 2]) {
         let native_size = stamp.size.max(0.01);
         // These bounds cover the tallest native procedural stamp (tree) while remaining small
         // enough to build per stamp.
@@ -3618,6 +3633,47 @@ impl IsoPaintRenderer {
         owner_geo_id: Option<scenevm::GeoId>,
         size: f32,
     ) {
+        if let Some(tile) = &stamp.source_image
+            && let Some(layout) = &tile.paint
+        {
+            let scale = size / layout.size.max(0.01);
+            let (sin, cos) = stamp.rotation.sin_cos();
+            let width = layout.native_size[0] as f32 * scale;
+            let height = layout.native_size[1] as f32 * scale;
+            let anchor = layout.anchor.map(|v| v * scale);
+            let corners = [[0.,0.], [width,0.], [0.,height], [width,height]].map(|p| {
+                let dx = p[0] - anchor[0];
+                let dy = p[1] - anchor[1];
+                [dx*cos - dy*sin, dx*sin + dy*cos]
+            });
+            let dim = *buffer.dim();
+            let min_x = corners.iter().map(|p|p[0]).fold(f32::INFINITY, f32::min).floor() as i32;
+            let max_x = corners.iter().map(|p|p[0]).fold(f32::NEG_INFINITY, f32::max).ceil() as i32;
+            let min_y = corners.iter().map(|p|p[1]).fold(f32::INFINITY, f32::min).floor() as i32;
+            let max_y = corners.iter().map(|p|p[1]).fold(f32::NEG_INFINITY, f32::max).ceil() as i32;
+            // Inverse sampling keeps rotated/scaled sprites solid without holes between pixels.
+            for y in min_y.max(-screen[1])..max_y.min(dim.height-screen[1]) {
+                for x in min_x.max(-screen[0])..max_x.min(dim.width-screen[0]) {
+                    let sx = x as f32*cos + y as f32*sin + anchor[0];
+                    let sy = -x as f32*sin + y as f32*cos + anchor[1];
+                    if sx < 0. || sy < 0. || sx >= width || sy >= height { continue; }
+                    let (mut color, material) = tile.sample_paint_surface([sx/width, sy/height], stamp.variation as usize);
+                    if color[3] == 0 { continue; }
+                    color[3] = (color[3] as f32 * stamp.opacity).round() as u8;
+                    let at = [screen[0]+x, screen[1]+y];
+                    if stamp.source_material_pass {
+                        if Self::iso_paint_stamp_pixel_visible(surface_buffer,stamp_depth,owner_geo_id,at[0],at[1]) {
+                            let [rm,oe] = rusterix::Texture::encode_material_bytes(material[0],material[1],material[2],material[3]);
+                            let index = (at[1] as usize * dim.width as usize + at[0] as usize) * 4;
+                            buffer.pixels_mut()[index..index+4].copy_from_slice(&[64+stamp.material_id.min(59),rm,oe,color[3]]);
+                        }
+                    } else {
+                        Self::iso_paint_blend_stamp_pixel(buffer, surface_buffer, stamp_depth, owner_geo_id, at[0], at[1], color);
+                    }
+                }
+            }
+            return;
+        }
         match stamp.kind.as_str() {
             "grass" | "grass_stamp" => Self::draw_iso_paint_grass_stamp(
                 buffer,
@@ -3771,6 +3827,15 @@ impl IsoPaintRenderer {
         owner_geo_id: Option<scenevm::GeoId>,
         size: f32,
     ) {
+        if stamp.source_image.is_some() {
+            let mut material_stamp = stamp.clone(); material_stamp.source_material_pass = true;
+            let mut material = TheRGBABuffer::new(TheDim::sized(width as i32,height as i32));
+            Self::draw_iso_paint_stamp_shape(&mut material,&material_stamp,surface_buffer,screen,None,owner_geo_id,size);
+            for (target,source) in material_pixels.chunks_exact_mut(4).zip(material.pixels().chunks_exact(4)) {
+                if source[3] > 0 { target.copy_from_slice(source); }
+            }
+            return;
+        }
         if stamp.material_id == 0 || width == 0 || height == 0 {
             return;
         }

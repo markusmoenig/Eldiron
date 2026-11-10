@@ -9,7 +9,8 @@ use shared::material_composition::{
 use std::{collections::HashSet, path::Path};
 
 mod recipe_playground;
-mod uo_art;
+mod terrain_art;
+pub(super) mod uo_art;
 
 const GRASS: &str = include_str!("../../../crates/shared/examples/iso_2d/woodland/grass.material");
 const EARTH: &str = include_str!("../../../crates/shared/examples/iso_2d/woodland/soil.material");

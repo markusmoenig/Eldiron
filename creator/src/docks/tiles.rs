@@ -1527,7 +1527,11 @@ impl TilesDock {
     ) -> bool {
         let TileSource::SingleTile(tile_id) = source;
         if project.procedural_materials.contains_key(&tile_id) {
-            let used = shared::ruleset_materials::is_library_tile(&project.config, &tile_id)
+            let used = project.regions.iter().map(|r| &r.iso_paint)
+                .chain(project.block_prop_paint.values()).any(|paint| paint.chunks.values().any(|chunk|
+                    chunk.strokes.iter().any(|stroke| stroke.source == Some(tile_id))
+                    || chunk.stamps.iter().any(|stamp| stamp.source == Some(tile_id))))
+                || shared::ruleset_materials::is_library_tile(&project.config, &tile_id)
                 || project
                     .isometric_bakes
                     .values()
@@ -1537,7 +1541,7 @@ impl TilesDock {
                     .values()
                     .any(|s| s.contains(&tile_id.to_string()));
             if used {
-                ctx.ui.send(TheEvent::SetStatusText(TheId::empty(),"This material is used by a mesh, tile output, or ruleset. Replace its references before deleting it.".into()));
+                ctx.ui.send(TheEvent::SetStatusText(TheId::empty(),fl!("paint_picker_in_use")));
                 return false;
             }
         }
@@ -1884,6 +1888,7 @@ impl TilesDock {
             .tiles
             .iter()
             .filter_map(|(id, tile)| {
+                if tile.alias.starts_with(rusterix::chunkbuilder::terrain_material::PREFIX) { return None; }
                 if kind != TileTabKind::Materials
                     && (project.map_material_bindings.contains_key(id)
                         || ruleset_tiles.contains(id)
@@ -2188,7 +2193,7 @@ impl TilesDock {
                             );
                         buffer.pixels_mut().copy_from_slice(preview.pixels());
                     } else if !tile.textures.is_empty() {
-                        let index = tile.frame_index(server_ctx.animation_counter);
+                        let index = tile.frame_index(if tile.paint.is_some() {0} else {server_ctx.animation_counter});
                         let tex = if project
                             .get_map(server_ctx)
                             .is_some_and(|m| m.camera == rusterix::MapCamera::TwoDIso)
@@ -2541,7 +2546,7 @@ impl TilesDock {
             TheId::named("Tile Picked"),
             TheValue::Id(tile_id),
         ));
-        if self.current_tab_kind(project) == TileTabKind::Materials {
+        if self.current_tab_kind(project) == TileTabKind::Materials && server_ctx.curr_map_tool_type != MapToolType::IsoPaint {
             ctx.ui.send(TheEvent::Custom(
                 TheId::named("Open Procedural Tile"),
                 TheValue::Id(tile_id),
@@ -2725,6 +2730,14 @@ mod tests {
         ));
         assert!(p.procedural_materials.contains_key(&id));
         assert!(p.tiles.contains_key(&id));
+        p.procedural_appearances.clear();
+        let mut region = shared::region::Region::new();
+        region.iso_paint.active_source = Some(id);
+        region.iso_paint.begin_stroke(IsoPaintPoint::new([0;2],None,None));
+        p.regions.push(region);
+        assert!(!filtered.delete_source(&mut p,TileSource::SingleTile(id),&mut ui,&mut ctx,&mut server),
+            "paint references must prevent deletion of their editable recipe");
+        assert!(p.procedural_materials.contains_key(&id));
     }
 
     #[test]

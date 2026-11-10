@@ -1013,6 +1013,18 @@ impl D2PreviewBuilder {
         scene.d2_dynamic.push(batch);
     }
 
+    pub fn isometric_guides(&self) -> crate::isometric::EditorGuides {
+        crate::isometric::EditorGuides {
+            grid: self.draw_grid,
+            hover: self.hover_cursor,
+            geometry_hover: self.hover,
+            tool: self.map_tool_type,
+            hide_rect_geometry: self.no_rect_geo,
+            editing_slice: self.editing_slice,
+            editing_slice_height: self.editing_slice_height,
+        }
+    }
+
     pub fn set_map_tool_type(&mut self, tool: MapToolType) {
         self.map_tool_type = tool;
     }

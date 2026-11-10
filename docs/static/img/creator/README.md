@@ -1,5 +1,14 @@
 # Current Creator documentation screenshots
 
+The top-down homepage and guide illustrations use `hideout2d-v096.png`, supplied
+by the project owner on 2026-11-10. It is an unchanged copy of the approved
+3428 × 1978 screenshot. The automated curation script does not overwrite it.
+
+The 3D homepage and guide illustration uses `stonefall-first-person-v096.png`,
+also supplied by the project owner on 2026-11-10. It preserves the original
+3428 × 1978 screenshot of first-person Stonefall gameplay, including the game HUD.
+It replaces the overhead editor illustration and is not overwritten by the script.
+
 Audited on 2026-11-09. These assets are captured from the actual Creator UI with
 the Brown theme, using the checked-in Hideout 2D and Stonefall Dungeon examples.
 They contain no AI header, generated UI, recoloring, or added labels. The geometry
@@ -14,8 +23,8 @@ at their usage sites. The original files remain available for historical referen
 
 | Guide / subject | Previous asset | Current asset |
 | --- | --- | --- |
-| Creator introduction | `/img/docs/screenshot.png` | `overview.png` |
-| Rect painting | `building_maps/rect_tool.png` | `rect-tool.png` |
+| Creator introduction | `/img/docs/screenshot.png` | `hideout2d-v096.png` |
+| Top-down map creation | `building_maps/rect_tool.png` | `hideout2d-v096.png` |
 | Tile metadata | `building_maps/editing_tile.png` | `tile-metadata.png` |
 | Tilesets (two guides) | `/img/screenshots/tilesets.png` | `tileset-editor.png` |
 | Tile Picker | `/img/screenshots/dungeon3d_iso.png` | `tile-picker.png` |
@@ -26,11 +35,10 @@ at their usage sites. The original files remain available for historical referen
 | Applying a tile | `applied_tile.png` | `applied-tile.png` |
 | Map HUD | `/img/docs/hud.png` | `map-hud.png` |
 
-The documentation homepage's hero and nine feature/format images previously used
-release screenshots. They now reference current
-native captures: 2D, 3D, authoring, settings, Behavior Nodes, painting, Prefabs, and
-the Tile Picker. The 3D geometry guide also gains a current Stonefall overview.
-Captions and directly related control names were checked against these captures.
+The homepage now uses the owner's approved screenshots for top-down 2D, 2D Iso,
+and first-person 3D. The original terminal screenshot is retained for text
+adventures. The former "Focused workflows inside the editor" section was removed.
+The 3D geometry guide also uses the approved first-person Stonefall screenshot.
 
 The remaining old UI screenshots occur in dated blog posts and the Foreword's
 development history; those deliberately retain their original appearance. PNGs

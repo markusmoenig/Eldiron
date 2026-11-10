@@ -1,5 +1,7 @@
 //! Tile composition authoring and lowering to ordinary whole-material mixers.
 use super::*;
+mod map_shapes;
+mod terrain_layers;
 mod neighbours;
 pub(super) mod raster_source;
 mod shape_picker;
@@ -101,7 +103,7 @@ fn shape_code_with_distance(
         .unwrap_or_default();
     let a = layer.angle.to_radians();
     let d = match layer.shape {
-        CompositionShape::AutoRoad => {
+        CompositionShape::AutoRoad | CompositionShape::MapArea | CompositionShape::MapPath => {
             distance.unwrap_or_else(|| format!("{} - min(abs(p.x), abs(p.y))", layer.position / 2.))
         }
         CompositionShape::Split => format!(
@@ -317,6 +319,8 @@ pub(super) fn bundle_for_surface(
 
 /// Refresh world UV coverage and dependent bundles for both UI and Scepter.
 pub(crate) fn prepare_project(project: &mut Project) -> Vec<String> {
+    super::paint_assets::synchronize(project);
+    terrain_layers::sync(project);
     let mut errors = vec![];
     let sources: Vec<_> = project
         .procedural_materials
@@ -334,7 +338,9 @@ pub(crate) fn prepare_project(project: &mut Project) -> Vec<String> {
             // not a material edit and must preserve its saved bake keys.
             let repeating = material(&asset)
                 .is_ok_and(|m| m.tiling.mode != denrim_materials::periodic::Mode::Raw);
-            let pages = if repeating {
+            let pages = if project.tiles.get(&id).is_some_and(|t| t.paint.is_some()) {
+                surface_pages::for_template(project, id)
+            } else if repeating {
                 None
             } else {
                 surface_pages::for_template(project, id)
@@ -505,7 +511,9 @@ impl Builder<'_> {
                     | CompositionShape::Strips
                     | CompositionShape::Road
                     | CompositionShape::Crossing
-                    | CompositionShape::AutoRoad => "Mask",
+                    | CompositionShape::AutoRoad
+                    | CompositionShape::MapArea
+                    | CompositionShape::MapPath => "Mask",
                     CompositionShape::Height => "Bump Height",
                     CompositionShape::Overlay => "Overlay",
                     CompositionShape::UvPosition => unreachable!(),
@@ -526,14 +534,23 @@ impl Builder<'_> {
                     | CompositionShape::Strips
                     | CompositionShape::Road
                     | CompositionShape::Crossing
-                    | CompositionShape::AutoRoad => {
+                    | CompositionShape::AutoRoad
+                    | CompositionShape::MapArea
+                    | CompositionShape::MapPath => {
                         append_mask_row(
                             &mut recipe,
                             "shape",
                             &format!("shape-{}", layer.id),
                             &shape_code_with_distance(
                                 layer,
-                                neighbours::distance(self.project, id, layer)?,
+                                if matches!(
+                                    layer.shape,
+                                    CompositionShape::MapArea | CompositionShape::MapPath
+                                ) {
+                                    map_shapes::distance(self.project, layer)?
+                                } else {
+                                    neighbours::distance(self.project, id, layer)?
+                                },
                             ),
                         )?;
                     }
@@ -631,12 +648,16 @@ impl Builder<'_> {
     }
 }
 fn validate_layer(layer: &CompositionLayer) -> Result<(), String> {
+    let world = matches!(
+        layer.shape,
+        CompositionShape::MapArea | CompositionShape::MapPath
+    );
     for (value, min, max) in [
-        (layer.position, 0., 1.),
+        (layer.position, 0., if world { 64. } else { 1. }),
         (layer.angle, -180., 180.),
-        (layer.feather, 0., 1.),
+        (layer.feather, 0., if world { 8. } else { 1. }),
         (layer.amount, 0., 1.),
-        (layer.wobble, 0., 0.25),
+        (layer.wobble, 0., if world { 2. } else { 0.25 }),
         (layer.wobble_scale, 0.1, 16.),
         (layer.overlay_level, 0., 1.),
     ] {
@@ -692,7 +713,7 @@ fn mask_rows(project: &Project, source: Uuid) -> Vec<(String, String, String)> {
                 .into_iter()
                 .filter(|row| !row.tiles.is_empty())
                 .map(move |row| {
-                    let label = format!("{} · {}", material.label, row.label);
+                    let label = format!("{} · {}", row.label, material.label);
                     (material.id.clone(), row.id, label)
                 })
         })
@@ -700,7 +721,7 @@ fn mask_rows(project: &Project, source: Uuid) -> Vec<(String, String, String)> {
 }
 
 fn requires_world_coordinates(project: &Project) -> bool {
-    if !project.material_compositions.is_empty() {
+    if !project.material_compositions.is_empty() || terrain_layers::authored(project) {
         return true;
     }
     thread_local! { static WORLD: std::cell::Cell<(u64,bool)> = const {std::cell::Cell::new((0,false))}; }
@@ -823,12 +844,16 @@ impl ProceduralMaterialEditor {
             return;
         }
         self.composition_key = Some(key);
+        let maps_before: Vec<_> = project.regions.iter().map(|r| r.map.changed).collect();
         for error in prepare_project(project) {
             Self::status(
                 ui,
                 ctx,
                 format!("Composition: {error}. Keeping the last working preview."),
             );
+        }
+        if project.regions.iter().map(|r| r.map.changed).collect::<Vec<_>>() != maps_before {
+            ctx.ui.send(TheEvent::Custom(TheId::named("Procedural Tiles Restored"), TheValue::Empty));
         }
         self.composition_key = Some(input_key(project));
     }
@@ -838,6 +863,7 @@ impl ProceduralMaterialEditor {
         ctx: &mut TheContext,
         project: &Project,
     ) {
+        self.sync_composition_navigation(ui, ctx, project);
         let composition = self
             .tile
             .and_then(|id| project.material_compositions.get(&id));
@@ -884,6 +910,7 @@ impl ProceduralMaterialEditor {
             .filter(|(id, tile)| {
                 Some(**id) != self.tile
                     && !project.map_material_bindings.contains_key(*id)
+                    && !tile.alias.starts_with(rusterix::chunkbuilder::terrain_material::PREFIX)
                     && !tile.textures.is_empty()
             })
             .map(|(id, _)| *id)
@@ -913,81 +940,62 @@ impl ProceduralMaterialEditor {
             text.set_text(label);
             layout.add_pair("On map".into(), Box::new(text));
         }
-        let add_material =
-            |layout: &mut dyn TheTextLayoutTrait, name: &str, label: &str, selected: Uuid| {
-                let mut menu = TheDropdownMenu::new(TheId::named(name));
-                menu.limiter_mut().set_max_width(i32::MAX);
-                for id in &self.composition_choices {
-                    menu.add_option(material_label(project, *id));
-                }
-                if let Some(index) = self
-                    .composition_choices
-                    .iter()
-                    .position(|id| *id == selected)
-                {
-                    menu.set_selected_index(index as i32);
-                } else {
-                    menu.add_option("Missing material".into());
-                    menu.set_selected_index(self.composition_choices.len() as i32);
-                }
-                layout.add_pair(label.into(), Box::new(menu));
-            };
-        add_material(layout, BASE, "Background", composition.base);
-        let mut layers = TheDropdownMenu::new(TheId::named(LAYER));
-        layers.limiter_mut().set_max_width(i32::MAX);
-        for (i, layer) in composition.layers.iter().enumerate() {
-            let label = material_label(project, layer.material);
-            let kind = SHAPES
-                .iter()
-                .find(|(shape, _)| *shape == layer.shape)
-                .unwrap()
-                .1;
-            layers.add_option(format!("{} · {kind} · {label}", i + 1));
+        // The surface/result supplies the background automatically. Layer
+        // buttons select an existing blend; material assignment comes only from
+        // the tilepicker, so there is no second project-wide asset picker here.
+        for (index, layer) in composition.layers.iter().enumerate() {
+            let mut button = TheTraybarButton::new(TheId::named(&format!("{LAYER} {index}")));
+            button.set_text(format!(
+                "{} · {}",
+                index + 1,
+                material_label(project, layer.material)
+            ));
+            button.set_state(if index == self.composition_layer {
+                TheWidgetState::Selected
+            } else {
+                TheWidgetState::None
+            });
+            layout.add_pair(String::new(), Box::new(button));
         }
-        if composition.layers.is_empty() {
-            layers.add_option("Base only".into());
-        }
-        layers.set_selected_index(self.composition_layer as i32);
-        layout.add_pair("Layer".into(), Box::new(layers));
+        let mut use_picked = TheTraybarButton::new(TheId::named("Composition Use Picked"));
+        use_picked.set_text(fl!("mz_use_selected_material"));
+        use_picked.set_status_text(&fl!("mz_use_selected_material_desc"));
+        layout.add_pair(String::new(), Box::new(use_picked));
         let mut controls = TheGroupButton::new(TheId::named("Composition Actions"));
         for (label, help) in [
-            ("Add layer", "Add another layer over the result"),
-            ("Remove", "Remove this layer"),
-            ("Earlier", "Move this layer earlier"),
-            ("Later", "Move this layer later"),
+            (
+                fl!("mz_add_blend"),
+                "Add another blend over the current result",
+            ),
+            (fl!("mz_remove_blend"), "Remove this blend"),
         ] {
-            controls.add_text_status(label.into(), help.into());
+            controls.add_text_status(label, help.into());
         }
-        controls.set_item_width(74);
+        if self.composition_advanced {
+            controls.add_text_status("Earlier".into(), "Move this blend earlier".into());
+            controls.add_text_status("Later".into(), "Move this blend later".into());
+        }
+        controls.set_item_width(if self.composition_advanced { 74 } else { 132 });
         layout.add_pair(String::new(), Box::new(controls));
         let mut save = TheTraybarButton::new(TheId::named(SAVE_COPY));
         save.set_text("Save copy to Tilepicker".into());
         save.set_status_text("Create a reusable copy of these layers. Paint it anywhere, then edit individual placements independently.");
-        layout.add_pair(String::new(), Box::new(save));
+        if self.composition_advanced {
+            layout.add_pair(String::new(), Box::new(save));
+        }
         if let Some(layer) = composition.layers.get(self.composition_layer) {
-            add_material(layout, MATERIAL, "Add material", layer.material);
-            if self.map_binding.is_some() {
-                let mut button = TheTraybarButton::new(TheId::named("Composition Use Picked"));
-                button.set_text("Use picked material".into());
-                button.set_status_text("Use the tile selected in the Tilepicker for this layer.");
-                layout.add_pair(String::new(), Box::new(button));
+            if self.composition_advanced {
+                let mut edit = TheTraybarButton::new(TheId::named("Composition Edit Material"));
+                edit.set_text(fl!("mz_edit_material"));
+                edit.set_disabled(!project.procedural_materials.contains_key(&layer.material));
+                layout.add_pair(String::new(), Box::new(edit));
             }
             let mut hint = TheText::new(TheId::named("Composition Shape Help"));
-            hint.set_text("Highlight = added material. Rest = background.".into());
+            hint.set_text(fl!("mz_blend_current_result"));
             hint.limiter_mut().set_max_height(34);
             layout.add_pair(String::new(), Box::new(hint));
             layout.add_pair(String::new(), Box::new(ShapePicker::for_layer(layer)));
-            let mut advanced = TheTraybarButton::new(TheId::named("Composition Advanced"));
-            advanced.set_text(
-                if self.composition_advanced {
-                    "Hide advanced"
-                } else {
-                    "Advanced mixing…"
-                }
-                .into(),
-            );
-            layout.add_pair(String::new(), Box::new(advanced));
-            if self.composition_advanced {
+            if self.composition_advanced && SHAPES.iter().any(|(shape, _)| *shape == layer.shape) {
                 let mut shape = TheDropdownMenu::new(TheId::named(SHAPE));
                 for (_, label) in SHAPES {
                     shape.add_option(label.into());
@@ -1064,7 +1072,7 @@ impl ProceduralMaterialEditor {
                 );
                 layout.add_pair(label.into(), Box::new(menu));
             };
-            if self.composition_advanced && layer.shape == CompositionShape::Mask {
+            if layer.shape == CompositionShape::Mask {
                 optional_material(
                     layout,
                     MASK_MATERIAL,
@@ -1089,6 +1097,10 @@ impl ProceduralMaterialEditor {
                         menu.set_selected_index(rows.len() as i32);
                     }
                     layout.add_pair("Mask row".into(), Box::new(menu));
+                    let mut edit = TheTraybarButton::new(TheId::named("Composition Edit Mask"));
+                    edit.set_text(fl!("mz_edit_mask"));
+                    edit.set_status_text(&fl!("mz_edit_mask_desc"));
+                    layout.add_pair(String::new(), Box::new(edit));
                     let mut menu = TheDropdownMenu::new(TheId::named(MASK_CHANNEL));
                     for label in ["R", "G", "B", "Opacity", "RGB", "Distance"] {
                         menu.add_option(label.into());
@@ -1165,6 +1177,17 @@ impl ProceduralMaterialEditor {
                 layout.add_pair(label.into(), Box::new(edit));
             }
         }
+
+        let mut advanced = TheTraybarButton::new(TheId::named("Composition Advanced"));
+        advanced.set_text(
+            if self.composition_advanced {
+                "Hide advanced"
+            } else {
+                "Advanced mixing…"
+            }
+            .into(),
+        );
+        layout.add_pair(String::new(), Box::new(advanced));
         self.composition_ui_key = Some((key.0, key.1, self.composition_layer));
         ctx.ui.relayout = true;
         ctx.ui.redraw_all = true;
@@ -1222,6 +1245,51 @@ impl ProceduralMaterialEditor {
         let Some(before) = project.material_compositions.get(&tile).cloned() else {
             return false;
         };
+        if let TheEvent::StateChanged(id, TheWidgetState::Clicked) = event {
+            let source = match id.name.as_str() {
+                "Composition Edit Base" => Some(before.base),
+                "Composition Edit Material" => before
+                    .layers
+                    .get(self.composition_layer)
+                    .map(|l| l.material),
+                "Composition Edit Mask" => before
+                    .layers
+                    .get(self.composition_layer)
+                    .and_then(|l| l.mask.as_ref())
+                    .map(|m| m.material),
+                _ => None,
+            };
+            if let Some(source) = source {
+                if !project.procedural_materials.contains_key(&source) {
+                    return true;
+                }
+                let mut parents = std::mem::take(&mut self.composition_parents);
+                parents.push((
+                    tile,
+                    self.composition_layer,
+                    self.map_binding.clone(),
+                    self.mesh_material,
+                ));
+                self.open(source, ui, ctx, project);
+                self.composition_parents = parents;
+                self.sync_composition_navigation(ui, ctx, project);
+                self.sync_back_button(ui);
+                return true;
+            }
+        }
+        if let TheEvent::StateChanged(id, TheWidgetState::Clicked) = event {
+            if let Some(index) = id
+                .name
+                .strip_prefix(&format!("{LAYER} "))
+                .and_then(|s| s.parse::<usize>().ok())
+            {
+                if index < before.layers.len() {
+                    self.composition_layer = index;
+                    self.composition_ui_key = None;
+                }
+                return true;
+            }
+        }
         let mut after = before.clone();
         let name;
         match event {
@@ -1296,11 +1364,15 @@ impl ProceduralMaterialEditor {
                             .is_some_and(|tile| !tile.textures.is_empty())
                         && !project.map_material_bindings.contains_key(id)
                 }) else {
-                    Self::status(ui, ctx, "Pick a tile in the Tilepicker first.");
+                    Self::status(ui, ctx, fl!("mz_select_material_first"));
                     return true;
                 };
                 if let Some(layer) = after.layers.get_mut(self.composition_layer) {
                     layer.material = material;
+                    layer.blend = true;
+                } else {
+                    after.layers.push(CompositionLayer::split(material));
+                    self.composition_layer = after.layers.len() - 1;
                 }
                 name = "";
             }
@@ -1469,17 +1541,17 @@ impl ProceduralMaterialEditor {
         }
         match name {
             ADD => {
-                let source = server
-                    .curr_tile_id
-                    .filter(|id| {
-                        *id != tile
-                            && project
-                                .tiles
-                                .get(id)
-                                .is_some_and(|tile| !tile.textures.is_empty())
-                            && !project.map_material_bindings.contains_key(id)
-                    })
-                    .unwrap_or_else(|| after.layers.last().map_or(after.base, |l| l.material));
+                let Some(source) = server.curr_tile_id.filter(|id| {
+                    *id != tile
+                        && project
+                            .tiles
+                            .get(id)
+                            .is_some_and(|tile| !tile.textures.is_empty())
+                        && !project.map_material_bindings.contains_key(id)
+                }) else {
+                    Self::status(ui, ctx, fl!("mz_select_material_first"));
+                    return true;
+                };
                 after.layers.push(CompositionLayer::split(source));
                 self.composition_layer = after.layers.len() - 1;
             }
@@ -1630,6 +1702,240 @@ mod tests {
             .insert(id, asset.save().unwrap());
         id
     }
+    #[test]
+    fn tilepicker_assigns_material_without_changing_the_current_result_or_editor() {
+        let (mut ui, mut ctx) = super::super::tests::workspace_ui(1200, 950);
+        let mut p = Project::default();
+        let a = source(&mut p, [1., 0., 0.], 0.9);
+        let b = source(&mut p, [0., 1., 0.], 0.8);
+        let c = source(&mut p, [0., 0., 1.], 0.4);
+        let mut layer = CompositionLayer::split(b);
+        layer.shape = CompositionShape::Blend;
+        layer.amount = 0.5;
+        let tile = composition_tile(
+            &mut p,
+            MaterialComposition {
+                base: a,
+                layers: vec![layer],
+                tiling: Default::default(),
+            },
+        );
+        let mut host = ProceduralMaterialEditor::default();
+        let mut server = ServerContext::default();
+        host.open(tile, &mut ui, &mut ctx, &p);
+        host.composition_view(&mut ui, &mut ctx, &p);
+        for absent in [BASE, MATERIAL, LAYER, "Ruleset Material"] {
+            assert!(
+                ui.get_widget(absent).is_none(),
+                "redundant picker: {absent}"
+            );
+        }
+        assert!(ui.get_widget("Composition Use Picked").is_some());
+        server.curr_tile_id = Some(c);
+        host.handle_event(
+            &TheEvent::Custom(TheId::named("Tile Picked"), TheValue::Id(c)),
+            &mut ui,
+            &mut ctx,
+            &mut p,
+            &mut server,
+        );
+        assert_eq!(host.tile, Some(tile));
+        assert_eq!(
+            p.material_compositions[&tile].layers[0].material, b,
+            "picking alone must not modify the blend"
+        );
+        assert!(host.handle_event(
+            &TheEvent::StateChanged(
+                TheId::named("Composition Use Picked"),
+                TheWidgetState::Clicked
+            ),
+            &mut ui,
+            &mut ctx,
+            &mut p,
+            &mut server
+        ));
+        assert_eq!(p.material_compositions[&tile].base, a);
+        assert_eq!(p.material_compositions[&tile].layers[0].material, c);
+        assert_eq!(
+            sample(&p, tile, [0.5; 2], Channel::BaseColor),
+            vec![0.5, 0., 0.5]
+        );
+        server.curr_tile_id = Some(b);
+        host.handle_event(
+            &TheEvent::IndexChanged(TheId::named("Composition Actions"), 0),
+            &mut ui,
+            &mut ctx,
+            &mut p,
+            &mut server,
+        );
+        host.handle_event(
+            &TheEvent::IndexChanged(TheId::named(shape_picker::PICKER), 17),
+            &mut ui,
+            &mut ctx,
+            &mut p,
+            &mut server,
+        );
+        assert_eq!(
+            sample(&p, tile, [0.5; 2], Channel::BaseColor),
+            vec![0.25, 0.5, 0.25],
+            "new layers blend over the preceding result"
+        );
+        host.composition_view(&mut ui, &mut ctx, &p);
+        host.handle_event(
+            &TheEvent::StateChanged(TheId::named("Composition Layer 0"), TheWidgetState::Clicked),
+            &mut ui,
+            &mut ctx,
+            &mut p,
+            &mut server,
+        );
+        assert_eq!(host.composition_layer, 0);
+        host.handle_event(
+            &TheEvent::IndexChanged(TheId::named("Composition Actions"), 1),
+            &mut ui,
+            &mut ctx,
+            &mut p,
+            &mut server,
+        );
+        host.composition_view(&mut ui, &mut ctx, &p);
+        assert_eq!(p.material_compositions[&tile].layers.len(), 1);
+        assert_eq!(p.material_compositions[&tile].base, a);
+        assert_eq!(
+            sample(&p, tile, [0.5; 2], Channel::BaseColor),
+            vec![0.5, 0.5, 0.]
+        );
+        assert!(ui.get_widget(shape_picker::PICKER).is_some());
+        assert!(ui.get_widget("Composition Layer 0").is_some());
+    }
+
+    #[test]
+    fn compose_only_offers_tile_shapes_and_ignores_removed_binding_controls() {
+        let (mut ui, mut ctx) = super::super::tests::workspace_ui(1200, 950);
+        let mut p = Project::default();
+        let base = source(&mut p, [0., 1., 0.], 0.9);
+        let earth = source(&mut p, [1., 0., 0.], 0.93);
+        for kind in [
+            CompositionShape::Split,
+            CompositionShape::MapArea,
+            CompositionShape::MapPath,
+        ] {
+            let mut layer = CompositionLayer::split(earth);
+            layer.shape = kind;
+            let tile = composition_tile(
+                &mut p,
+                MaterialComposition {
+                    base,
+                    layers: vec![layer],
+                    tiling: Default::default(),
+                },
+            );
+            let before = p.material_compositions[&tile].clone();
+            let mut host = ProceduralMaterialEditor::default();
+            let mut server = ServerContext::default();
+            host.open(tile, &mut ui, &mut ctx, &p);
+            for advanced in [false, true] {
+                host.composition_advanced = advanced;
+                host.composition_ui_key = None;
+                host.composition_view(&mut ui, &mut ctx, &p);
+                assert!(ui.get_widget(shape_picker::PICKER).is_some());
+                for removed in [
+                    "Composition Map Shape",
+                    "Composition Bind Shape",
+                    "Composition Bound Shape",
+                ] {
+                    assert!(
+                        ui.get_widget(removed).is_none(),
+                        "removed control: {removed}"
+                    );
+                }
+                assert!(!host.handle_event(
+                    &TheEvent::IndexChanged(TheId::named("Composition Map Shape"), 1),
+                    &mut ui,
+                    &mut ctx,
+                    &mut p,
+                    &mut server,
+                ));
+                assert!(!host.handle_event(
+                    &TheEvent::StateChanged(
+                        TheId::named("Composition Bind Shape"),
+                        TheWidgetState::Clicked
+                    ),
+                    &mut ui,
+                    &mut ctx,
+                    &mut p,
+                    &mut server,
+                ));
+                assert_eq!(p.material_compositions[&tile], before);
+            }
+        }
+        assert!(!SHAPES.iter().any(|(shape, _)| matches!(
+            shape,
+            CompositionShape::MapArea | CompositionShape::MapPath
+        )));
+    }
+
+    #[test]
+    fn mask_sources_are_visible_without_advanced_and_can_be_opened_and_returned_to() {
+        let (mut ui, mut ctx) = super::super::tests::workspace_ui(1200, 950);
+        let mut p = Project::default();
+        let base = source(&mut p, [1., 0., 0.], 0.9);
+        let rock = source(&mut p, [0., 1., 0.], 0.4);
+        let mask = mask_source(&mut p, [0.5; 4]);
+        let mut layer = CompositionLayer::split(rock);
+        layer.shape = CompositionShape::Mask;
+        layer.mask = Some(CompositionMask {
+            material: mask,
+            owner: "surface".into(),
+            row: "mask".into(),
+            components: "xxx".into(),
+            mapping: None,
+        });
+        let tile = composition_tile(
+            &mut p,
+            MaterialComposition {
+                base,
+                layers: vec![layer],
+                tiling: Default::default(),
+            },
+        );
+        let mut server = ServerContext::default();
+        server.curr_tile_id = Some(tile);
+        let mut host = ProceduralMaterialEditor::default();
+        host.open(tile, &mut ui, &mut ctx, &p);
+        assert!(!host.composition_advanced);
+        host.composition_view(&mut ui, &mut ctx, &p);
+        assert!(ui.get_widget(MASK_MATERIAL).is_some());
+        assert!(ui.get_widget(MASK_ROW).is_some());
+        assert!(ui.get_widget("Composition Edit Mask").is_some());
+        let original = p.material_compositions[&tile].clone();
+        assert!(host.handle_event(
+            &TheEvent::StateChanged(
+                TheId::named("Composition Edit Mask"),
+                TheWidgetState::Clicked
+            ),
+            &mut ui,
+            &mut ctx,
+            &mut p,
+            &mut server
+        ));
+        assert_eq!(host.tile, Some(mask));
+        assert_eq!(
+            server.curr_tile_id,
+            Some(tile),
+            "editing a mask must preserve the map brush"
+        );
+        assert!(host.handle_event(
+            &TheEvent::StateChanged(TheId::named("MZ Return to Mesh"), TheWidgetState::Clicked),
+            &mut ui,
+            &mut ctx,
+            &mut p,
+            &mut server
+        ));
+        assert_eq!(host.tile, Some(tile));
+        assert_eq!(host.composition_layer, 0);
+        assert_eq!(p.material_compositions[&tile], original);
+        assert_eq!(server.curr_tile_id, Some(tile));
+    }
+
     #[test]
     fn row_mask_supports_channels_remap_transparency_and_roundtrip() {
         let mut p = Project::default();
@@ -2598,7 +2904,24 @@ mod tests {
         assert_eq!(reopened.material_compositions[&id].tiling, after.tiling);
     }
     #[test]
-    fn shape_grid_is_default_and_selection_saves_undoes_and_retains_layer_identity() {
+    fn visible_shapes_can_replace_world_shapes_with_larger_edge_parameters() {
+        let mut layer = CompositionLayer::split(Uuid::new_v4());
+        layer.shape = CompositionShape::MapArea;
+        layer.feather = 3.;
+        layer.wobble = 0.8;
+        for preset in &PRESETS {
+            let mut selected = layer.clone();
+            preset.apply(&mut selected);
+            assert!(
+                validate_layer(&selected).is_ok(),
+                "{} must be selectable from a map shape",
+                preset.label
+            );
+        }
+    }
+
+    #[test]
+    fn shapes_stay_visible_when_selecting_editing_and_removing_layers() {
         let (mut ui, mut ctx) = super::super::tests::workspace_ui(1200, 950);
         ui.init(&mut ctx);
         ui.set_theme(Box::new(TheBrownTheme::new()), &mut ctx);
@@ -2617,8 +2940,18 @@ mod tests {
         );
         let mut host = ProceduralMaterialEditor::default();
         let mut server = ServerContext::default();
+        assert!(ui.get_widget(crate::geometry_editor::MODE).is_some());
         host.open(id, &mut ui, &mut ctx, &project);
         host.composition_view(&mut ui, &mut ctx, &project);
+        assert!(ui.get_widget(crate::geometry_editor::MODE).is_none());
+        assert_eq!(ui.get_hlayout("MZ Workspace Navigation").unwrap().limiter_mut().get_max_height(), 0);
+        ui.get_widget("Definition Appearance Return").unwrap().set_disabled(false);
+        host.composition_view(&mut ui, &mut ctx, &project);
+        assert!(ui.get_widget(crate::geometry_editor::MODE).is_none());
+        assert_eq!(ui.get_hlayout("MZ Workspace Navigation").unwrap().limiter_mut().get_max_height(), 28);
+        ui.get_widget("Definition Appearance Return").unwrap().set_disabled(true);
+        host.composition_view(&mut ui, &mut ctx, &project);
+
         assert!(ui.get_widget(shape_picker::PICKER).is_some());
         assert!(
             ui.get_widget(SHAPE).is_none(),
@@ -2636,6 +2969,12 @@ mod tests {
         let after = project.material_compositions[&id].clone();
         assert_eq!(after.layers[0].shape, CompositionShape::Corner);
         assert_eq!(after.layers[0].angle, 90.);
+        host.composition_view(&mut ui, &mut ctx, &project);
+        assert!(ui.get_widget(shape_picker::PICKER).is_some());
+        for control in [FEATHER, WOBBLE] {
+            assert!(ui.get_widget(control).is_some());
+        }
+        assert!(ui.get_widget("Composition Choose Shape").is_none());
         assert_eq!(after.layers[0].id, before.layers[0].id);
         let reopened: MaterialComposition =
             serde_json::from_str(&serde_json::to_string(&after).unwrap()).unwrap();
@@ -2669,6 +3008,22 @@ mod tests {
         );
         host.composition_view(&mut ui, &mut ctx, &project);
         assert!(ui.get_widget(SHAPE).is_some());
+        assert!(ui.get_widget(crate::geometry_editor::MODE).is_none());
+        host.handle_event(
+            &TheEvent::StateChanged(TheId::named("Composition Edit Material"), TheWidgetState::Clicked),
+            &mut ui, &mut ctx, &mut project, &mut server,
+        );
+        host.composition_view(&mut ui, &mut ctx, &project);
+        assert!(ui.get_widget(crate::geometry_editor::MODE).is_some());
+        assert!(ui.get_widget("MZ Return to Mesh").is_some());
+        host.handle_event(
+            &TheEvent::StateChanged(TheId::named("MZ Return to Mesh"), TheWidgetState::Clicked),
+            &mut ui, &mut ctx, &mut project, &mut server,
+        );
+        host.composition_view(&mut ui, &mut ctx, &project);
+        assert!(ui.get_widget(crate::geometry_editor::MODE).is_none());
+        assert!(ui.get_widget(shape_picker::PICKER).is_some());
+
     }
     #[test]
     fn layer_controls_and_undo_preserve_shared_sources() {
@@ -2686,6 +3041,7 @@ mod tests {
             },
         );
         let mut server = ServerContext::default();
+        server.curr_tile_id = Some(b);
         let mut host = ProceduralMaterialEditor::default();
         host.open(id, &mut ui, &mut ctx, &p);
         host.composition_view(&mut ui, &mut ctx, &p);

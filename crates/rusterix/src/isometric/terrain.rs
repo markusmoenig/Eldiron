@@ -11,16 +11,18 @@ pub(super) fn render(
     buffer: &mut TheRGBABuffer,
     p: Projection,
     seconds: f32,
-) -> Vec<[f32; 5]> {
+) -> Vec<[f32; 8]> {
     let width = buffer.dim().width.max(0) as usize;
     let height = buffer.dim().height.max(0) as usize;
-    let mut depth = vec![[f32::NEG_INFINITY, 0., 0., 1., 0.]; width * height];
+    let mut depth = vec![[f32::NEG_INFINITY, 0., 0., 1., 0., 0.95, 0., 0.]; width * height];
     if width == 0 || height == 0 {
         return depth;
     }
+    let outputs = crate::chunkbuilder::terrain_material::outputs(map);
     let resolve = |source: &crate::PixelSource| {
         source
             .render_tile_id(assets)
+            .map(|id| crate::chunkbuilder::terrain_material::resolve(&outputs, assets, id))
             .and_then(|id| assets.tile_index(&id))
             .and_then(|i| assets.tile_list.get(i as usize))
     };
@@ -164,30 +166,39 @@ pub(super) fn render(
                         if d <= depth[at][0] {
                             continue;
                         }
-                        let sample = |tile: &Tile| {
-                            tile.sample_2d(
-                                [world.x, world.z],
-                                frame,
-                                crate::SampleMode::Nearest,
-                                crate::RepeatMode::RepeatXY,
-                            )
-                        };
-                        let mut color = sample(facet.tile);
+                        let sample =
+                            |tile: &Tile| tile.sample_surface_2d([world.x, world.z], frame);
+                        let (mut color, mut material) = sample(facet.tile);
                         if let Some((weights, tile)) = facet.mix {
                             let u = world.x.rem_euclid(1.);
                             let v = world.z.rem_euclid(1.);
                             let a = weights[0] * (1. - v) + weights[3] * v;
                             let b = weights[1] * (1. - v) + weights[2] * v;
-                            color = mix_floor_colors(color, sample(tile), a * (1. - u) + b * u);
+                            let amount = a * (1. - u) + b * u;
+                            let (other_color, other_material) = sample(tile);
+                            color = mix_floor_colors(color, other_color, amount);
+                            material = std::array::from_fn(|i| {
+                                material[i] * (1. - amount) + other_material[i] * amount
+                            });
                         }
                         if color[3] == 0 {
                             continue;
                         }
                         if let Some(paint) = paint {
                             color = paint.composite(color, [world.x, world.z]);
+                            material = paint.surface_material(material, [world.x, world.z]);
                         }
                         blend(pixels, at * 4, color);
-                        depth[at] = [d, world.y, facet.normal.x, facet.normal.y, facet.normal.z];
+                        depth[at] = [
+                            d,
+                            world.y,
+                            facet.normal.x,
+                            facet.normal.y,
+                            facet.normal.z,
+                            material[0],
+                            material[1],
+                            material[2],
+                        ];
                     }
                 }
             }
@@ -196,7 +207,7 @@ pub(super) fn render(
 }
 
 pub(super) struct Occlusion<'a> {
-    pub pixels: &'a [[f32; 5]],
+    pub pixels: &'a [[f32; 8]],
     pub width: usize,
     pub offset: Vec2<usize>,
     pub foot_y: f32,
@@ -215,5 +226,107 @@ impl Occlusion<'_> {
         pixel[1] > self.foot_height + 0.06
             && pixel[0]
                 > self.foot_depth + (self.foot_y - y as f32 - 0.5) / self.unit * 0.6666667 + 0.02
+    }
+}
+
+#[cfg(test)]
+mod material_tests {
+    use super::*;
+    use crate::{PixelSource, Texture};
+
+    #[test]
+    fn terrain_materials_reach_gpu_surface_after_height_and_blend_changes() {
+        let mut map = Map::default();
+        map.properties.set("terrain_enabled", Value::Bool(true));
+        map.properties.set("terrain_subdivisions", Value::Int(4));
+        // A bare guide supplies the terrain bounds and a slope.
+        let a = map.add_vertex_at(0., 0.);
+        let b = map.add_vertex_at(2., 2.);
+        let line = map.create_linedef_manual(a, b);
+        let line = map.find_linedef_mut(line).unwrap();
+        line.properties.set("terrain_shape", Value::Bool(true));
+        line.properties.set("terrain_shape_width", Value::Float(2.));
+        line.properties.set("terrain_shape_blend", Value::Float(1.));
+        line.properties
+            .set("terrain_start_height", Value::Float(0.));
+        line.properties.set("terrain_end_height", Value::Float(1.));
+        let mut texture = Texture::from_color([120, 110, 100, 255]);
+        texture.set_materials_all(0.4, 0., 1., 0.2);
+        let mut tile = Tile::from_texture(texture);
+        tile.baked_material_data = vec![tile.textures[0].material_bytes()];
+        // Serialization strips texture material bytes; terrain must restore
+        // persisted MZ material channels rather than seeing neutral defaults.
+        let tile: Tile = serde_json::from_str(&serde_json::to_string(&tile).unwrap()).unwrap();
+        map.properties.set(
+            "default_terrain_tile",
+            Value::Source(PixelSource::TileId(tile.id)),
+        );
+        let mut assets = Assets::default();
+        assets.set_tiles([(tile.id, tile)].into_iter().collect());
+        let surface = TerrainSurface::from_map(&map).unwrap();
+        let mut image = TheRGBABuffer::new(theframework::prelude::TheDim::sized(96, 96));
+        let p = Projection {
+            origin: Vec2::new(12., 60.),
+            unit: 20.,
+        };
+        let pixels = render(&map, &assets, &surface, &mut image, p, 0.);
+        let hits: Vec<_> = pixels.iter().filter(|hit| hit[0].is_finite()).collect();
+        assert!(!hits.is_empty());
+        assert!(hits.iter().any(|hit| hit[1] > 0.2));
+        assert!(
+            hits.iter().all(|hit| (hit[5] - 0.4).abs() < 0.01
+                && hit[6] == 0.
+                && (hit[7] - 0.2).abs() < 0.01)
+        );
+        let settings = crate::RenderSettings::default();
+        let lighting = super::super::lighting::Lighting::new(&settings, std::iter::empty(), 0);
+        let frame = super::super::lighting::Frame::gpu(&lighting, Vec::new(), pixels.len());
+        super::super::lighting::ground(&frame, &mut image, p, &pixels, 96, Vec2::zero());
+        let canvas = frame.canvas.unwrap().into_inner().unwrap();
+        for (hit, packed) in pixels.iter().zip(canvas) {
+            if hit[0].is_finite() {
+                assert_eq!(
+                    packed,
+                    super::super::surface::packed(
+                        Vec3::new(hit[2], hit[3], hit[4]),
+                        hit[1],
+                        0.4,
+                        0.,
+                        0.2
+                    )
+                );
+            }
+        }
+
+        let mut other = Texture::from_color([60, 80, 40, 255]);
+        other.set_materials_all(0.8, 0., 1., 0.);
+        let mut other = Tile::from_texture(other);
+        other.baked_material_data = vec![other.textures[0].material_bytes()];
+        let other_id = other.id;
+        let mut tiles = assets.tiles.clone();
+        tiles.insert(other_id, other);
+        assets.set_tiles(tiles);
+        let blends = (-3..5)
+            .flat_map(|x| {
+                (-3..5).map(move |z| {
+                    (
+                        (x, z),
+                        (
+                            crate::VertexBlendPreset::FullBlend,
+                            PixelSource::TileId(other_id),
+                        ),
+                    )
+                })
+            })
+            .collect();
+        map.properties
+            .set("blend_tiles", Value::BlendOverrides(blends));
+        let mixed = render(&map, &assets, &surface, &mut image, p, 0.);
+        assert!(
+            mixed
+                .iter()
+                .filter(|h| h[0].is_finite())
+                .all(|h| (h[5] - 0.6).abs() < 0.01 && (h[7] - 0.1).abs() < 0.01)
+        );
     }
 }

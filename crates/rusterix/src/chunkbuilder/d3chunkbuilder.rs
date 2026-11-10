@@ -2194,8 +2194,7 @@ impl ChunkBuilder for D3ChunkBuilder {
         generate_linedef_features(map, assets, chunk, vmchunk);
 
         // Generate terrain for this chunk
-        let terrain_counter = chunk.bbox.min.x as u32 * 10000 + chunk.bbox.min.y as u32;
-        generate_terrain(map, assets, chunk, vmchunk, terrain_counter);
+        generate_terrain(map, assets, chunk, vmchunk);
         generate_organic_volumes(map, assets, chunk, vmchunk);
 
         // Set all hidden geometry as not visible.
@@ -5852,7 +5851,6 @@ pub(crate) fn generate_terrain(
     assets: &Assets,
     chunk: &mut Chunk,
     vmchunk: &mut scenevm::Chunk,
-    _terrain_id: u32,
 ) {
     // Check if terrain generation is enabled for this map
     let terrain_enabled = map.properties.get_bool_default("terrain_enabled", false);
@@ -5861,11 +5859,13 @@ pub(crate) fn generate_terrain(
         return;
     }
 
+    let terrain_outputs = super::terrain_material::outputs(map);
+
     // Get default terrain tile ID from map properties
     let default_tile_id =
         if let Some(Value::Source(pixel_source)) = map.properties.get("default_terrain_tile") {
-            if let Some(tile) = pixel_source.tile_from_tile_list(assets) {
-                tile.id
+            if let Some(tile_id) = pixel_source.tile_id_from_tile_list(assets) {
+                tile_id
             } else {
                 Uuid::from_str(DEFAULT_TILE_ID).unwrap()
             }
@@ -5891,48 +5891,8 @@ pub(crate) fn generate_terrain(
         }
     });
 
-    // Create terrain generator config (can be upsampled per-ridge via `ridge_subdiv`).
-    let mut config = TerrainConfig::for_map(map);
-    let mut chunk_ridge_subdiv = config.subdivisions.max(1);
-    let mut chunk_exclusion_subdiv = config.subdivisions.max(1);
-    for sector in &map.sectors {
-        match sector.properties.get_int_default("terrain_mode", 0) {
-            1 => {
-                if sector.bounding_box(map).intersects(&chunk.bbox) {
-                    let exclusion_subdiv = sector
-                        .properties
-                        .get_int_default("terrain_exclusion_subdiv", 4)
-                        .clamp(1, 8) as u32;
-                    chunk_exclusion_subdiv = chunk_exclusion_subdiv.max(exclusion_subdiv);
-                }
-            }
-            2 => {
-                let mut expanded_bbox = sector.bounding_box(map);
-                let influence = sector
-                    .properties
-                    .get_float_default("ridge_plateau_width", 0.0)
-                    .max(0.0)
-                    + sector
-                        .properties
-                        .get_float_default("ridge_falloff_distance", 0.0)
-                        .max(0.0);
-                if influence > 0.0 {
-                    expanded_bbox.expand(Vec2::broadcast(influence * 2.0));
-                }
-                if !expanded_bbox.intersects(&chunk.bbox) {
-                    continue;
-                }
-                let ridge_subdiv = sector
-                    .properties
-                    .get_int_default("ridge_subdiv", 1)
-                    .clamp(1, 8) as u32;
-                chunk_ridge_subdiv = chunk_ridge_subdiv.max(ridge_subdiv);
-            }
-            _ => {}
-        }
-    }
-    config.subdivisions = chunk_ridge_subdiv.max(chunk_exclusion_subdiv);
-    let generator = TerrainGenerator::new(config);
+    // Resolution and clipping are shared with iso rendering and navigation.
+    let generator = TerrainGenerator::new(TerrainConfig::for_map(map));
 
     // Collect road tile definitions from linedefs.
     let mut road_tile_linedefs: Vec<(Vec2<f32>, Vec2<f32>, f32, f32, Uuid, bool, u32, f32)> =
@@ -6022,9 +5982,24 @@ pub(crate) fn generate_terrain(
     // Generate terrain meshes for this chunk (grouped by tile)
     let generated_meshes = generator.generate(map, chunk, assets, default_tile_id, tile_overrides);
     if let Some(meshes) = generated_meshes.as_ref() {
+        // Share smooth vertex normals across material and cell boundaries.
+        let mut normal_sums: FxHashMap<(u32, u32), Vec3<f32>> = FxHashMap::default();
+        for (_, vertices, indices, _) in meshes {
+            for triangle in indices.chunks_exact(3) {
+                let [a, b, c] =
+                    [triangle[0], triangle[1], triangle[2]].map(|i| vertices[i as usize]);
+                let normal = (b - a).cross(c - a);
+                for p in [a, b, c] {
+                    *normal_sums
+                        .entry((p.x.to_bits(), p.z.to_bits()))
+                        .or_insert(Vec3::zero()) += normal;
+                }
+            }
+        }
+
         // Process each mesh (one per tile)
         for (_mesh_idx, (tile_id, vertices, indices, uvs)) in meshes.iter().enumerate() {
-            let world_pages = assets
+            let world_pages = terrain_outputs.values().any(|id| id == tile_id) || assets
                 .tile_index(tile_id)
                 .and_then(|i| assets.tile_list.get(i as usize))
                 .is_some_and(|t| t.uv_pages.is_some());
@@ -6070,7 +6045,7 @@ pub(crate) fn generate_terrain(
                 let has_manual_tile_override = if let Some(overrides) = tile_overrides {
                     overrides
                         .get(&(tile_x, tile_z))
-                        .and_then(|ps| ps.tile_from_tile_list(assets))
+                        .and_then(|ps| ps.tile_id_from_tile_list(assets))
                         .is_some()
                 } else {
                     false
@@ -6078,7 +6053,7 @@ pub(crate) fn generate_terrain(
                 let has_manual_blend_override = if let Some(overrides) = blend_overrides {
                     overrides
                         .get(&(tile_x, tile_z))
-                        .and_then(|(_, ps)| ps.tile_from_tile_list(assets))
+                        .and_then(|(_, ps)| ps.tile_id_from_tile_list(assets))
                         .is_some()
                 } else {
                     false
@@ -6119,8 +6094,7 @@ pub(crate) fn generate_terrain(
                 if has_smooth_road {
                     let bg_tile = if let Some(overrides) = tile_overrides {
                         if let Some(ps) = overrides.get(&(tile_x, tile_z)) {
-                            ps.tile_from_tile_list(assets)
-                                .map(|t| t.id)
+                            ps.tile_id_from_tile_list(assets)
                                 .unwrap_or(default_tile_id)
                         } else {
                             default_tile_id
@@ -6197,8 +6171,7 @@ pub(crate) fn generate_terrain(
                 if has_smooth_ridge {
                     let bg_tile = if let Some(overrides) = tile_overrides {
                         if let Some(ps) = overrides.get(&(tile_x, tile_z)) {
-                            ps.tile_from_tile_list(assets)
-                                .map(|t| t.id)
+                            ps.tile_id_from_tile_list(assets)
                                 .unwrap_or(default_tile_id)
                         } else {
                             default_tile_id
@@ -6275,8 +6248,7 @@ pub(crate) fn generate_terrain(
                 if has_smooth_vertex {
                     let bg_tile = if let Some(overrides) = tile_overrides {
                         if let Some(ps) = overrides.get(&(tile_x, tile_z)) {
-                            ps.tile_from_tile_list(assets)
-                                .map(|t| t.id)
+                            ps.tile_id_from_tile_list(assets)
                                 .unwrap_or(default_tile_id)
                         } else {
                             default_tile_id
@@ -6350,7 +6322,8 @@ pub(crate) fn generate_terrain(
                 if !has_road_tile && !has_ridge_tile && !has_vertex_tile {
                     if let Some(blend_map) = blend_overrides {
                         if let Some((preset, ps)) = blend_map.get(&(tile_x, tile_z)) {
-                            if let Some(tile2) = ps.tile_from_tile_list(assets) {
+                            if let Some(tile2_id) = ps.tile_id_from_tile_list(assets) {
+                                let tile2_id = super::terrain_material::resolve(&terrain_outputs, assets, tile2_id);
                                 let map_v = |v: f32| {
                                     if has_manual_override || world_pages {
                                         v
@@ -6401,7 +6374,7 @@ pub(crate) fn generate_terrain(
                                     map,
                                     GeoId::Terrain(tile_x, tile_z),
                                     *tile_id,
-                                    tile2.id,
+                                    tile2_id,
                                     blended_verts,
                                     blended_uvs,
                                     blend_weights,
@@ -6425,32 +6398,45 @@ pub(crate) fn generate_terrain(
                         1.0 - v
                     }
                 };
-                for &triangle in &triangles {
-                    let i0 = triangle.0;
-                    let i1 = triangle.1;
-                    let i2 = triangle.2;
-
-                    let tri_vertices = vec![vertices_4d[i0], vertices_4d[i1], vertices_4d[i2]];
-                    let tri_uvs = vec![
-                        [uvs[i0][0], map_v(uvs[i0][1])],
-                        [uvs[i1][0], map_v(uvs[i1][1])],
-                        [uvs[i2][0], map_v(uvs[i2][1])],
-                    ];
-                    let tri_indices = vec![(0, 1, 2)];
-                    add_terrain_poly_3d(
-                        vmchunk,
-                        map,
-                        GeoId::Terrain(tile_x, tile_z),
-                        *tile_id,
-                        tri_vertices,
-                        tri_uvs,
-                        tri_indices,
-                        0,
-                        true,
-                        tile_x,
-                        tile_z,
-                    );
+                let mut remap = FxHashMap::default();
+                let mut cell_vertices = Vec::new();
+                let mut cell_uvs = Vec::new();
+                let mut cell_indices = Vec::with_capacity(triangles.len());
+                for &(a, b, c) in &triangles {
+                    let [a, b, c] = [a, b, c].map(|index| {
+                        *remap.entry(index).or_insert_with(|| {
+                            let local = cell_vertices.len();
+                            cell_vertices.push(vertices_4d[index]);
+                            cell_uvs.push([uvs[index][0], map_v(uvs[index][1])]);
+                            local
+                        })
+                    });
+                    cell_indices.push((a, b, c));
                 }
+                add_terrain_poly_3d(
+                    vmchunk,
+                    map,
+                    GeoId::Terrain(tile_x, tile_z),
+                    *tile_id,
+                    cell_vertices,
+                    cell_uvs,
+                    cell_indices,
+                    0,
+                    true,
+                    tile_x,
+                    tile_z,
+                );
+            }
+        }
+        for (owner, polys) in &mut vmchunk.polys3d_map {
+            if !matches!(owner, GeoId::Terrain(..)) {
+                continue;
+            }
+            for poly in polys {
+                poly.normals = poly.vertices.iter().map(|p| {
+                    normal_sums.get(&(p[0].to_bits(), p[2].to_bits()))
+                        .copied().unwrap_or(Vec3::unit_y()).normalized().into_array()
+                }).collect();
             }
         }
     }

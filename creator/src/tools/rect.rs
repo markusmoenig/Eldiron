@@ -17,7 +17,8 @@ pub struct RectTool {
     hud: Hud,
     composition_mode_rects: Vec<TheDim>,
     rotation_rects: Vec<(TheDim, f32)>,
-    composition_control_active: bool,
+    // A gesture beginning on the HUD must never become a map-paint stroke.
+    hud_control_active: bool,
 
     processed: FxHashSet<RectPaintKey>,
 
@@ -53,7 +54,7 @@ impl Tool for RectTool {
             hud: Hud::new(HudMode::Rect),
             composition_mode_rects: Vec::new(),
             rotation_rects: Vec::new(),
-            composition_control_active: false,
+            hud_control_active: false,
 
             processed: FxHashSet::default(),
 
@@ -193,6 +194,7 @@ impl Tool for RectTool {
                 }
             }
             MapClicked(coord) => {
+                self.hud_control_active = false;
                 if let Some(delta) = self
                     .rotation_rects
                     .iter()
@@ -200,6 +202,7 @@ impl Tool for RectTool {
                     .map(|(_, d)| *d)
                 {
                     self.reset_stroke();
+                    self.hud_control_active = true;
                     Self::rotate_brush(map, delta);
                     RUSTERIX.write().unwrap().set_dirty();
                     ctx.ui.redraw_all = true;
@@ -226,7 +229,7 @@ impl Tool for RectTool {
                     .position(|rect| rect.contains(coord))
                 {
                     self.reset_stroke();
-                    self.composition_control_active = true;
+                    self.hud_control_active = true;
                     server_ctx.rect_compose_mode = index == 1;
                     server_ctx.rect_composition_target = None;
                     ctx.ui.send(TheEvent::Custom(
@@ -247,6 +250,8 @@ impl Tool for RectTool {
                     return None;
                 }
                 if self.hud.clicked(coord.x, coord.y, map, ui, ctx, server_ctx) {
+                    self.reset_stroke();
+                    self.hud_control_active = true;
                     crate::editor::RUSTERIX.write().unwrap().set_dirty();
                     return None;
                 }
@@ -373,7 +378,7 @@ impl Tool for RectTool {
                 }
             }
             MapDragged(coord) => {
-                if self.composition_control_active {
+                if self.hud_control_active {
                     return None;
                 }
                 if server_ctx.pc.is_region() && server_ctx.rect_compose_mode && !ui.alt {
@@ -502,8 +507,8 @@ impl Tool for RectTool {
                 }
             }
             MapUp(_) => {
-                if self.composition_control_active {
-                    self.composition_control_active = false;
+                if self.hud_control_active {
+                    self.hud_control_active = false;
                     return None;
                 }
                 if self.stroke_active {
@@ -723,6 +728,78 @@ mod tests {
             map.sectors[0].properties.get_float_default("iso_yaw", 0.),
             0.
         );
+    }
+
+    #[test]
+    #[ignore = "requires native GPU for editor paint publication"]
+    fn iso_rotation_buttons_capture_drag_until_release_without_placing_tiles() {
+        // Exercise both HUD layouts and both directions, including small mouse
+        // jitter followed by a drag off the button and onto the map.
+        for width in [400, 800] {
+            for button in 0..2 {
+                let mut map = Map::default();
+                map.camera = MapCamera::TwoDIso;
+                map.grid_size = 40.;
+                let mut ui = TheUI::new();
+                let mut ctx = TheContext::new(width, 400, 1.);
+                let mut view = TheRenderView::new(TheId::named("PolyView"));
+                view.set_dim(TheDim::sized(width as i32, 400), &mut ctx);
+                ui.canvas.set_widget(view);
+                let mut server = ServerContext::default();
+                server.pc = ProjectContext::Region(Uuid::new_v4());
+                server.editor_view_mode = EditorViewMode::D2;
+                server.curr_map_tool_type = MapToolType::Rect;
+                server.curr_tile_source = Some(TileSource::SingleTile(Uuid::new_v4()));
+                let mut tool = RectTool::new();
+                let mut buffer = TheRGBABuffer::new(TheDim::sized(width as i32, 400));
+                tool.draw_composition_controls(&mut buffer, &map, &mut ctx, &server);
+                let rect = tool.rotation_rects[button].0;
+                let click = Vec2::new(rect.x + rect.width / 2, rect.y + rect.height / 2);
+                let paint_at =
+                    rusterix::isometric::Projection::editor(&map, Vec2::new(width as f32, 400.))
+                        .screen(Vec2::new(0.5, 0.5), 0.)
+                        .map(|v| v.round() as i32);
+                for event in [
+                    MapHover(click),
+                    MapClicked(click),
+                    MapDragged(click + Vec2::new(1, 1)),
+                    MapDragged(paint_at),
+                    MapUp(paint_at),
+                ] {
+                    assert!(
+                        tool.map_event(event, &mut ui, &mut ctx, &mut map, &mut server)
+                            .is_none()
+                    );
+                }
+                let yaw = if button == 0 { 270. } else { 90. };
+                assert_eq!(map.properties.get_float_default("iso_brush_yaw", 0.), yaw);
+                assert!(map.vertices.is_empty());
+                assert!(map.linedefs.is_empty());
+                assert!(map.sectors.is_empty(), "A rotation gesture placed a tile");
+                assert!(!map.properties.contains("tiles"));
+                assert!(!tool.stroke_active);
+
+                // Mouse-up releases capture: the next deliberate click paints
+                // normally, with the newly chosen orientation and one undo.
+                tool.map_event(MapHover(paint_at), &mut ui, &mut ctx, &mut map, &mut server);
+                tool.map_event(
+                    MapClicked(paint_at),
+                    &mut ui,
+                    &mut ctx,
+                    &mut map,
+                    &mut server,
+                );
+                assert!(
+                    tool.map_event(MapUp(paint_at), &mut ui, &mut ctx, &mut map, &mut server)
+                        .is_some()
+                );
+                assert_eq!(map.sectors.len(), 1);
+                assert_eq!(
+                    map.sectors[0].properties.get_float_default("iso_yaw", 0.),
+                    yaw
+                );
+            }
+        }
     }
     #[test]
     fn smooth_terrain_brush_preserves_rigid_iso_parts_and_explicit_levels() {
@@ -1167,7 +1244,7 @@ mod tests {
             CompositionSurface::RectTile { sector: first }
         );
         // A mode-button drag must never leak through into Paint mode.
-        tool.composition_control_active = true;
+        tool.hud_control_active = true;
         server.rect_compose_mode = false;
         tool.map_event(
             MapDragged(first_click),
@@ -1177,7 +1254,7 @@ mod tests {
             &mut server,
         );
         tool.map_event(MapUp(first_click), &mut ui, &mut ctx, &mut map, &mut server);
-        assert!(!tool.composition_control_active);
+        assert!(!tool.hud_control_active);
         assert_eq!(serde_json::to_string(&map.sectors).unwrap(), before);
     }
     #[test]
@@ -2103,7 +2180,7 @@ impl RectTool {
     }
 
     fn reset_stroke(&mut self) {
-        self.composition_control_active = false;
+        self.hud_control_active = false;
         self.stroke_active = false;
         self.stroke_changed = false;
         self.stroke_prev_map = None;

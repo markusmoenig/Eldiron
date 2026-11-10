@@ -1,3 +1,5 @@
+use super::shape_terrain::{self, Kind};
+use super::terrain_material;
 use crate::prelude::*;
 use rusterix::Value;
 use std::str::FromStr;
@@ -39,9 +41,9 @@ impl EditSector {
         ));
         if iso {
             nodeui.add_item(TheNodeUIItem::FloatEditSlider(
-                "actionSectorIsoHeight".into(),
-                "Height".into(),
-                "Elevation of this iso tile placement".into(),
+                "actionSectorFloorHeight".into(),
+                fl!("sector_floor_height"),
+                fl!("sector_floor_height_desc"),
                 0.,
                 0.0..=32.0,
                 false,
@@ -54,6 +56,8 @@ impl EditSector {
             ));
         }
 
+        shape_terrain::controls(&mut nodeui, Kind::Sector);
+        terrain_material::controls(&mut nodeui, Kind::Sector);
         nodeui
     }
 }
@@ -88,8 +92,8 @@ impl Action for EditSector {
         None
     }
 
-    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        server_ctx.editor_view_mode == EditorViewMode::D2 && map.selected_sectors.len() == 1
+    fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, _server_ctx: &ServerContext) -> bool {
+        map.selected_sectors.len() == 1
     }
 
     fn load_params(&mut self, map: &Map) {
@@ -99,6 +103,8 @@ impl Action for EditSector {
         {
             self.nodeui
                 .set_text_value("actionSectorName", sector.name.clone());
+            shape_terrain::load(&mut self.nodeui, &sector.properties, Kind::Sector);
+            terrain_material::load(&mut self.nodeui, &sector.properties, Kind::Sector);
             self.nodeui.set_text_value(
                 "actionSectorItem",
                 sector.properties.get_str_default("item", "".into()),
@@ -108,7 +114,7 @@ impl Action for EditSector {
                 sector.properties.get_bool_default("visible", true),
             );
             self.nodeui.set_f32_value(
-                "actionSectorIsoHeight",
+                "actionSectorFloorHeight",
                 sector.properties.get_float_default("floor_height", 0.),
             );
             self.nodeui.set_bool_value(
@@ -125,10 +131,13 @@ impl Action for EditSector {
         _ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
+        if let Err(error) = terrain_material::validate(&self.nodeui) {
+            _ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
+            return None;
+        }
         let mut changed = false;
         let prev = map.clone();
         let iso = map.camera == rusterix::MapCamera::TwoDIso;
-        let mut new_level = None;
 
         let name = self
             .nodeui
@@ -146,10 +155,15 @@ impl Action for EditSector {
         if let Some(sector_id) = map.selected_sectors.first()
             && let Some(sector) = map.find_sector_mut(*sector_id)
         {
+            if server_ctx.pc.is_region() {
+                changed |= shape_terrain::apply(&self.nodeui, &mut sector.properties, Kind::Sector);
+                changed |=
+                    terrain_material::apply(&self.nodeui, &mut sector.properties, Kind::Sector);
+            }
             if iso {
                 let h = self
                     .nodeui
-                    .get_f32_value("actionSectorIsoHeight")
+                    .get_f32_value("actionSectorFloorHeight")
                     .unwrap_or(0.)
                     .clamp(0., 32.);
                 let walk = self
@@ -159,7 +173,6 @@ impl Action for EditSector {
                 if sector.properties.get_float_default("floor_height", 0.) != h
                     || sector.properties.get_bool_default("iso_walkable", false) != walk
                 {
-                    new_level = Some(h);
                     sector.properties.set("floor_height", Value::Float(h));
                     sector.properties.set("iso_walkable", Value::Bool(walk));
                     changed = true;
@@ -184,8 +197,14 @@ impl Action for EditSector {
         }
 
         if changed {
-            if let Some(height) = new_level {
-                map.properties.set("iso_edit_height", Value::Float(height));
+            if server_ctx.pc.is_region()
+                && (self
+                    .nodeui
+                    .get_bool_value("terrainEnabled")
+                    .unwrap_or(false)
+                    || terrain_material::enabled(&self.nodeui))
+            {
+                shape_terrain::enable(map, server_ctx);
             }
             map.changed = map.changed.wrapping_add(1);
             Some(ProjectUndoAtom::MapEdit(
@@ -219,6 +238,32 @@ impl Action for EditSector {
                 id,
             ));
         }
+    }
+
+    fn hud_material_slots(
+        &self,
+        _map: &Map,
+        _server: &ServerContext,
+    ) -> Option<Vec<super::ActionMaterialSlot>> {
+        _server
+            .pc
+            .is_region()
+            .then(|| terrain_material::slots(&self.nodeui, Kind::Sector))
+    }
+    fn set_hud_material_source(
+        &mut self,
+        _map: &Map,
+        _server: &ServerContext,
+        slot: i32,
+        source: rusterix::PixelSource,
+    ) -> bool {
+        terrain_material::set_slot(&mut self.nodeui, slot, Some(source), Kind::Sector)
+    }
+    fn clear_hud_material_slot(&mut self, _map: &Map, _server: &ServerContext, slot: i32) -> bool {
+        terrain_material::set_slot(&mut self.nodeui, slot, None, Kind::Sector)
+    }
+    fn preserves_hud_material_slots(&self) -> bool {
+        true
     }
 
     fn params(&self) -> TheNodeUI {
@@ -261,10 +306,14 @@ mod tests {
         let id = map.selected_sectors[0];
         let mut action = <EditSector as Action>::new();
         action.load_params(&map);
-        action.nodeui.set_f32_value("actionSectorIsoHeight", 0.75);
+        action.nodeui.set_f32_value("actionSectorFloorHeight", 0.75);
         action
             .nodeui
             .set_bool_value("actionSectorIsoWalkable", true);
+        let other_id = map.sectors.len() as u32 + 10;
+        map.sectors
+            .push(rusterix::Sector::new(other_id, Vec::new()));
+        let other = map.find_sector(other_id).unwrap().clone();
         let undo = action
             .apply(
                 &mut map,
@@ -285,6 +334,14 @@ mod tests {
                 .elevation
                 .height_at(Vec2::broadcast(0.5)),
             0.75
+        );
+        assert_eq!(
+            map.properties.get_float_default("iso_edit_height", 0.),
+            0.25
+        );
+        assert_eq!(
+            serde_json::to_value(map.find_sector(other_id).unwrap()).unwrap(),
+            serde_json::to_value(&other).unwrap()
         );
         let ProjectUndoAtom::MapEdit(_, before, after) = undo else {
             panic!("Expected normal map undo");
@@ -310,7 +367,7 @@ mod tests {
         assert!(
             action
                 .nodeui
-                .get_f32_value("actionSectorIsoHeight")
+                .get_f32_value("actionSectorFloorHeight")
                 .is_none()
         );
     }

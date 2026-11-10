@@ -69,3 +69,18 @@ For custom surface details, select the host face first, then switch to the **Lin
 ### 2D and 3D
 
 Create named sectors as logical units for areas NPCs can move in or as destinations for the [Go To node](../../characters_items/node_reference#go-to). Use On Enter Area on a character or On Area on the place itself to respond to transitions.
+
+## Shape Terrain
+
+The Edit action's **terrain** section can use this geometry as a live modifier
+on the shared landscape. Linedefs form graded corridors with endpoint heights,
+width and edge blending. Sectors form filled plateaus or inward-sloping hills.
+See [Shape Terrain with geometry](../../building_maps/creating_3d_terrain#shape-terrain-with-geometry)
+for controls and the Unending Night walkthrough.
+
+Terrain materials belong to this geometry's **Edit** settings under
+`[terrain.material]`. Set a source tile/material, soft and noisy edges, and
+area inset.
+The geometry supplies the outline automatically. See
+[terrain material TOML](/docs/building_maps/procedural_materials#terrain-materials-from-geometry-toml)
+for examples, material assignment, clearing and layer ordering.

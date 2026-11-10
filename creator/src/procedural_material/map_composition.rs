@@ -350,29 +350,8 @@ impl ProceduralMaterialEditor {
             };
             id
         } else {
-            let Some(id) = server
-                .curr_tile_id
-                .filter(|id| {
-                    project
-                        .tiles
-                        .get(id)
-                        .is_some_and(|tile| !tile.textures.is_empty())
-                        && !project.map_material_bindings.contains_key(id)
-                })
-                .or_else(|| {
-                    project.tiles.keys().copied().find(|id| {
-                        !project.map_material_bindings.contains_key(id)
-                            && project
-                                .tiles
-                                .get(id)
-                                .is_some_and(|tile| !tile.textures.is_empty())
-                    })
-                })
-            else {
-                Self::status(ui, ctx, "Pick a source tile first.");
-                return;
-            };
-            id
+            Self::status(ui, ctx, fl!("mz_blend_paint_first"));
+            return;
         };
         if project.map_material_bindings.get(&base) == Some(&binding)
             && project.material_compositions.contains_key(&base)
@@ -413,26 +392,14 @@ impl ProceduralMaterialEditor {
             };
             composition.clone()
         } else {
-            let overlay = server
-                .curr_tile_id
-                .filter(|id| {
-                    *id != base
-                        && project
-                            .tiles
-                            .get(id)
-                            .is_some_and(|tile| !tile.textures.is_empty())
-                        && !project.map_material_bindings.contains_key(id)
-                })
-                .or_else(|| {
-                    project.tiles.keys().copied().find(|id| {
-                        *id != base
-                            && !project.map_material_bindings.contains_key(id)
-                            && project
-                                .tiles
-                                .get(id)
-                                .is_some_and(|tile| !tile.textures.is_empty())
-                    })
-                });
+            let overlay = server.curr_tile_id.filter(|id| {
+                *id != base
+                    && project
+                        .tiles
+                        .get(id)
+                        .is_some_and(|tile| !tile.textures.is_empty())
+                    && !project.map_material_bindings.contains_key(id)
+            });
             MaterialComposition {
                 tiling: Default::default(),
                 base,

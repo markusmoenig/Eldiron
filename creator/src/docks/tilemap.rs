@@ -484,6 +484,7 @@ impl TilemapDock {
             texture_array.push(texture);
         }
         self.preview_tile = Some(rusterix::Tile {
+            paint: None,
             id: rgba_tile.id,
             role: rusterix::TileRole::from_index(rgba_tile.role),
             textures: texture_array.clone(),

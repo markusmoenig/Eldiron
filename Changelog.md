@@ -1,3 +1,52 @@
+# Eldiron v0.96.0
+
+## New Features
+
+### MaterialZ
+
+- **Integrated procedural materials:** Create and edit MaterialZ materials directly in Creator with a live preview. Combine shapes, noise, palette colors, and imported images to produce color, roughness, metallic, opacity, and emission textures.
+- **Material composition:** Layer materials with Rect tool compositions for paths, ground details, and transitions. Adjust blending and edge shapes, then save reusable results to the Tile Picker.
+- **Procedural mesh recipes:** Build scenery and props from editable recipes, with published controls for dimensions, colors, and other parameters. Formulas let related dimensions update together.
+- **Recipe footprints:** Define collision and walkable support separately from a mesh's visible silhouette, including multiple regions and holes. Follow recipe shape keeps isometric placements in sync when a recipe changes.
+- **Connector snapping:** Assemble compatible recipe parts using matching connectors. Linked parts follow changes to their parent recipe's dimensions, making fences, walls, and other modular structures easier to adjust.
+
+### 2D Iso
+
+- **Isometric editing and gameplay:** Build and play isometric worlds with a dedicated grid, directional characters, and depth sorting. Use existing 2D iso tilesets, procedural MaterialZ artwork, or a mixture of both in the same region.
+- **Isometric asset importing:** Import sprite sheets or separate images, define the ground diamond and placement anchor, and organize tiles into collections. Conventional direction and animation filenames can be grouped during import.
+- **Isometric lighting:** Combine sunlight, ambient light, and local lights with soft shadows. Keep imported sprites' original colors or tint them with world lighting, while MaterialZ artwork uses its generated surfaces.
+- **Playable isometric starter:** Start with a ready-to-play 2D Iso project, including the Kenney Isometric Dungeon example, to explore placement, movement, and interaction before building your own world.
+
+### Terrain and Painting
+
+- **Terrain sculpting across views:** Raise, lower, and smooth terrain with adjustable brush size and strength in 2D, 2D Iso, and 3D. Ground artwork and painted details follow the shaped landscape.
+- **Geometry-driven terrain:** Turn editable lines into graded corridors and sectors into hills or plateaus. Control heights, widths, and blend distances, then reshape the terrain by moving the guide geometry.
+- **Terrain material guides:** Bind MaterialZ sources to paths and areas, with verges, insets, and soft or noisy edges. Material coverage follows the guides as you edit them.
+- **Painting in 2D Iso:** Add painted details and stamps such as grass, flowers, and rubble directly to isometric regions. Painting supports picking, erasing, selection, filling, and undo, and remains visible during gameplay.
+
+### Characters and Items
+
+- **MaterialZ appearance recipes:** Author shared character bodies, clothing, and equipment as procedural artwork. The same rigged recipes provide directional sprites in 2D and posed meshes in 3D, including Human, Orc, and Skeleton bodies.
+- **Appearance workspace:** Preview characters and items in 2D or 3D, turn them around, and inspect animation frames. Edit item icons, world models, worn models, materials, and on/off states from one place.
+- **Rigging and animation:** Edit joints, body profiles, poses, motion tracks, and attachments in the main viewport. Use grips and sockets to attach equipment to the character rig.
+- **Pixel-style controls:** Set character and map-item sprite resolution and 3D pixel size in Game Settings. These controls let you tune procedural artwork's pixelated appearance independently of world materials and inventory icons.
+
+### Creator and Text Play
+
+- **Unified project palette:** Materials, character artwork, and other palette-based content now share one 256-slot project palette. Import local or Lospec palettes, preview color matching, and undo palette changes.
+- **Ruleset catalogue:** Browse and search ruleset definitions in a dedicated editor with typed forms, lists, tables, icon selection, and effect previews. Create, duplicate, rename, and remove definitions without editing a large rules graph.
+- **New Project chooser:** Create playable 2D, 2D Iso, or 3D projects with a player, region, input setup, and responsive screen already connected. Browse examples separately when you want a more developed starting point.
+- **Reworked Tile Picker:** Browse project assets, MaterialZ materials, and local collections, and create procedural assets with Make Proc. Import and export collections to reuse artwork between projects.
+- **Expanded Scepter editing:** Local automation can author maps, entities, MaterialZ materials, and compositions through Creator, with undo and validation. Renderer previews and the built-in Lorebook help scripts inspect results and discover commands.
+- **Optional AI interpretation for text play:** Accept natural-language input and translate it into the game's authored intents. This is opt-in; existing terminal commands remain available.
+
+## Compatibility and Fixes
+
+- Removed the legacy Builder and procedural-recipe authoring systems, along with the unused tilegraph and organicgraph crates. MaterialZ recipes and direct geometry editing are the current authoring workflows.
+- Fixed NPC teleports changing the game view to the NPC's destination region; the view now stays with the player.
+
+---
+
 # Eldiron v0.95.6
 
 ## Improvements

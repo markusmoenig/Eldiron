@@ -244,16 +244,27 @@ impl MapTopology {
         let Some(linedef) = map.find_linedef(linedef_id) else {
             return;
         };
-        if !linedef.properties.contains("terrain_source") {
+        if !linedef.properties.contains("terrain_source")
+            && !linedef.properties.get_bool_default("terrain_shape", false)
+            && !linedef.properties.get_bool_default("terrain_smooth", false)
+        {
             return;
         }
         let width = linedef
             .properties
-            .get_float_default("terrain_width", 2.0)
+            .get_float_default(
+                "terrain_shape_width",
+                linedef.properties.get_float_default("terrain_width", 2.0),
+            )
             .max(0.0);
         let falloff = linedef
             .properties
-            .get_float_default("terrain_tile_falloff", 1.0)
+            .get_float_default(
+                "terrain_shape_blend",
+                linedef
+                    .properties
+                    .get_float_default("terrain_tile_falloff", 1.0),
+            )
             .max(0.0);
         let organic = linedef
             .properties
@@ -280,6 +291,7 @@ impl MapTopology {
         };
         let terrain_mode = sector.properties.get_int_default("terrain_mode", 0);
         if terrain_mode == 0
+            && !sector.properties.get_bool_default("terrain_shape", false)
             && !sector.properties.contains("terrain_source")
             && !sector.properties.get_bool_default("cutout_handle", false)
             && !sector.properties.contains("linked_cutout_handle")
@@ -308,6 +320,11 @@ impl MapTopology {
                 .get_float_default("terrain_tile_falloff", 1.0)
                 .max(0.0),
         };
+        let influence = influence.max(
+            sector
+                .properties
+                .get_float_default("terrain_shape_blend", 0.),
+        );
         bbox.expand(Vec2::broadcast(
             (influence + Self::TERRAIN_SECTOR_PAD) * 2.0,
         ));

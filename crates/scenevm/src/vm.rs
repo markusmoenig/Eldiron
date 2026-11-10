@@ -2515,14 +2515,23 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let paint_overlay = paint_sample.overlay;
     let paint_material_raw = paint_sample.material;
     let paint_color_weight = clamp(paint_overlay.a, 0.0, 1.0) * select(1.0, 0.0, is_avatar);
-    let paint_material_marker = paint_material_raw.r == 254u;
+    let paint_mz_traits = (paint_material_raw.r >= 64u && paint_material_raw.r <= 123u) || (paint_material_raw.r >= 128u && paint_material_raw.r <= 187u);
+    let paint_mz = paint_mz_traits || paint_material_raw.r == 252u || paint_material_raw.r == 253u;
+    let paint_mz_replace = paint_material_raw.r == 252u || (paint_material_raw.r >= 128u && paint_material_raw.r <= 187u);
+    let paint_material_marker = paint_material_raw.r == 254u || paint_mz;
     let paint_material_weight = (f32(paint_material_raw.a) * (1.0 / 255.0)) * select(1.0, 0.0, is_avatar);
-    let paint_replace_material = paint_material_raw.b > 0u;
+    let paint_replace_material = select(paint_material_raw.b > 0u, paint_mz_replace, paint_mz);
     let paint_replace_active = paint_replace_material && paint_material_weight > 0.001;
     let paint_weight = max(paint_color_weight, paint_material_weight);
     if (paint_material_marker && paint_material_weight > 0.001) {
-        let paint_material_id = paint_material_raw.g;
-        let paint_mat = semantic_material_rmoe(paint_material_id);
+        var paint_material_id = select(paint_material_raw.g, 0u, paint_mz);
+        if (paint_mz_traits) { paint_material_id = paint_material_raw.r - select(64u,128u,paint_mz_replace); }
+        var paint_mat = semantic_material_rmoe(paint_material_id);
+        if (paint_mz) {
+            let rm = paint_material_raw.g;
+            let oe = paint_material_raw.b;
+            paint_mat = vec4<f32>(f32(rm & 15u), f32((rm >> 4u) & 15u), f32(oe & 15u), f32((oe >> 4u) & 15u)) / 15.0;
+        }
         let base_opacity = mat.z;
         let coated_mat = mix(mat, paint_mat, paint_material_weight);
         material_id = paint_material_id;

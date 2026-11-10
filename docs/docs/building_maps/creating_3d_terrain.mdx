@@ -24,5 +24,109 @@ construction heights. Select a ground MZ material before sculpting a new map to
 use it as the default ground; otherwise a neutral ground appears until a material
 is painted.
 
+## Shape Terrain with geometry
+
+Use the **Linedef / Edge** and **Sector / Face** tools in a top-down or **2D Iso**
+view to draw editable terrain guides. Select a line or sector, open its
+**Edit Linedef** or **Edit Sector** action, and edit the `[terrain]` section in
+its right-hand action parameters. Set `enabled = true` (**Shape Terrain**) to
+make the geometry influence the landscape. The same terrain
+is rendered in 3D and used for ground picking, walking and shadows.
+
+### Graded corridors
+
+For a linedef, set:
+
+- **Start height** and **End height**: absolute ground altitudes at the linedef's
+  start and end. Height is interpolated along its length. Give adjoining segments
+  matching endpoint heights to form a connected graded route.
+- **Corridor width**: the full width of the graded strip. Half lies on either
+  side of the line. A zero width makes a ridge-like guide.
+- **Edge blend**: the additional distance on each side and around the endpoints
+  over which the strip joins the surrounding landscape. Larger values make
+  gentler slopes.
+
+The linedef action parameters use:
+
+```toml
+[terrain]
+enabled = true
+start_height = 0.0
+end_height = 1.2
+width = 1.8
+blend = 2.5
+```
+
+Leave the action's other sections in place when editing these values.
+
+Draw several connected segments for a winding approach. Each segment retains
+its own height settings. Moving its vertices or dragging the whole line reshapes
+the ground immediately. Endpoint heights are stored on the line; they do not
+move the vertices vertically or turn them into independent hill controls.
+
+### Plateaus and hills
+
+Close a polygon with the Linedef tool, then select the resulting sector:
+
+- **Plateau** fills the polygon at **Target height**, with a smooth transition
+  outside its boundary over **Edge blend** world units. It works for a building
+  site, terrace or clearing, and follows concave boundaries.
+- **Hill** rises inside the boundary. Its edge meets the surrounding ground;
+  the interior reaches full influence at **Edge blend** units from the nearest
+  boundary. A narrow shape with a large blend distance therefore has a lower
+  peak. Reduce the blend distance for a fuller top.
+
+For example, the sector action uses:
+
+```toml
+[terrain]
+enabled = true
+mode = "Plateau" # "Plateau" or "Hill"
+height = 1.2
+blend = 2.5
+```
+
+Target heights are absolute world altitudes. A target below the surrounding
+landscape lowers it. Ground is clamped at zero. Overlapping sector targets blend
+without depending on storage order; graded corridors then shape their routes
+across those regions. Terrain brush strokes remain a final layer of world-space
+sculpt offsets, so sculpting can further adjust an enabled shape.
+
+The separate `floor_height` parameter (**Floor / tile height**) places an elevated tile or floor.
+It does not enable a terrain modifier. Ordinary named areas continue to act as
+logical regions until **Shape Terrain** is enabled. Disabling the modifier removes
+its influence and keeps the geometry and settings available for reuse.
+
+MZ terrain materials, tile overrides, painted paths and organic stamps stay in
+world coordinates and follow the resulting ground height. Shape Terrain controls
+height. Use the selected geometry's `[terrain.material]` TOML section for a
+material that follows the guide, with path width or area inset and soft/noisy
+edges. Rect and Paint strokes remain at their authored world positions.
+See [terrain material settings](procedural_materials#terrain-materials-from-geometry-toml)
+for complete path, verge and rocky-area examples.
+Each inspector edit and geometry move uses normal map undo/redo. Save/reopen
+retains the guide and its parameters; no generated terrain mesh must be saved.
+
+### Try Unending Night
+
+Open `test_projects/UnendingNight.eldiron`. The scene starts in daylight with a
+wider view of the inn and its eastern grounds. Follow the worn MZ trail from
+about `(12.5, 12.5)` toward the new terrain examples:
+
+1. **Terrain Plateau**, around `(21.5, 14)`: select the named sector in the
+   region tree, change **Target height** or **Edge blend**, and walk across it.
+2. **Terrain Hill**, around `(23, 23)`: compare its inward slope with the plateau's
+   outside transition. Move a corner to change the hill's footprint.
+3. **Terrain approach 1–5**: use the Linedef tool to select the graded segments
+   beneath the winding trail. Change an endpoint height or width, or move an
+   endpoint. Walk up and back down; the MZ path stays on the terrain.
+
+Switch to the **3D** camera to inspect the same surface; the saved camera looks
+at the examples. Authoring sectors and linedefs uses the 2D/iso views, while the
+Terrain brush also sculpts directly in 3D. Terrain resolution is shared through
+`terrain_subdivisions`; enabling Shape Terrain uses at least four subdivisions
+per world unit. All cameras consume the same facets, including sculpt strokes
+and terrain exclusions.
+
 See [Procedural Materials](procedural_materials) for ground and path authoring,
 and [Creating 3D Maps](creating_3d_maps) for buildings and other geometry.

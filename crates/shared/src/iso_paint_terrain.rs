@@ -8,6 +8,7 @@ use std::hash::{Hash, Hasher};
 use theframework::prelude::Uuid;
 
 pub fn sync(assets: &mut Assets, map_id: Uuid, layer: &mut IsoPaintLayer) {
+    layer.refresh_sources(assets);
     layer.ensure_baked_paint_current();
     if !layer.visible {
         assets.terrain_paint.remove(&map_id);
@@ -47,6 +48,7 @@ pub fn sync(assets: &mut Assets, map_id: Uuid, layer: &mut IsoPaintLayer) {
             stroke.id.hash(&mut hash);
         }
     }
+    if !layer.source_images.is_empty() { layer.source_revision.hash(&mut hash); }
     let ground_key = hash.finish();
     for stamp in &stamps {
         stamp.id.hash(&mut hash);
@@ -128,6 +130,8 @@ pub fn sync(assets: &mut Assets, map_id: Uuid, layer: &mut IsoPaintLayer) {
 
 fn stamp_raster_key(stamp: &crate::iso_paint::IsoPaintStamp) -> u64 {
     let mut hash = std::collections::hash_map::DefaultHasher::new();
+    stamp.source.hash(&mut hash);
+    stamp.source_image.as_ref().map(|t| std::sync::Arc::as_ptr(t) as usize).hash(&mut hash);
     stamp.kind.hash(&mut hash);
     stamp.variant.hash(&mut hash);
     stamp.size.to_bits().hash(&mut hash);

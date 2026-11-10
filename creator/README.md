@@ -11,7 +11,9 @@ Bitmap tiles and avatars remain supported. See the
 [material guide](../docs/docs/building_maps/procedural_materials.md) and
 [appearance guide](../docs/docs/characters_items/appearance.md).
 
-![Eldiron Creator](images/eldiron_v0.9.png)
+| 2D · Hideout | 2D Iso · Wayfarer's Rest | 3D · Stonefall Dungeon |
+| :---: | :---: | :---: |
+| ![Hideout 2D in Eldiron Creator v0.96.0](../docs/static/img/creator/hideout2d-v096.png) | ![Wayfarer's Rest in 2D Iso in Eldiron Creator v0.96.0](../docs/static/img/iso/wayfarers-rest-v096.png) | ![Stonefall Dungeon first-person gameplay in Eldiron Creator v0.96.0](../docs/static/img/creator/stonefall-first-person-v096.png) |
 
 Eldiron is open-source and licensed under the **MIT License**.
 

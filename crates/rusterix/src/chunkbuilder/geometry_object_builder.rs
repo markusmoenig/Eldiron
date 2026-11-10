@@ -1008,7 +1008,7 @@ impl ChunkBuilder for GeometryObjectBuilder {
     ) {
         // The active geometry editor shares landscape generation with the
         // sector builder; sculpted hills are not a camera-specific overlay.
-        super::d3chunkbuilder::generate_terrain(map, assets, chunk, vmchunk, 0);
+        super::d3chunkbuilder::generate_terrain(map, assets, chunk, vmchunk);
         let resolved_block_props =
             crate::resolve_block_prop_geometry(&map.block_prop_instances, &assets.block_props);
         for object in map

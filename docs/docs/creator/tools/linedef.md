@@ -96,3 +96,18 @@ description = """
 ```
 
 For linedefs, this is intended for connection or passage descriptions rather than geometric direction names.
+
+## Shape Terrain
+
+The Edit action's **terrain** section can use this geometry as a live modifier
+on the shared landscape. Linedefs form graded corridors with endpoint heights,
+width and edge blending. Sectors form filled plateaus or inward-sloping hills.
+See [Shape Terrain with geometry](../../building_maps/creating_3d_terrain#shape-terrain-with-geometry)
+for controls and the Unending Night walkthrough.
+
+Terrain materials belong to this geometry's **Edit** settings under
+`[terrain.material]`. Set a source tile/material, soft and noisy edges, and
+path width (plus an optional verge material).
+The geometry supplies the outline automatically. See
+[terrain material TOML](/docs/building_maps/procedural_materials#terrain-materials-from-geometry-toml)
+for examples, material assignment, clearing and layer ordering.

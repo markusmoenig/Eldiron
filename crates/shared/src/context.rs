@@ -1163,51 +1163,9 @@ impl ServerContext {
         self.geometry_at_filtered(screen_size, screen_pos, map, Some(tool))
     }
 
-    fn iso_editing_geometry(map: &Map) -> Option<(FxHashSet<u32>, FxHashSet<u32>)> {
-        if map.camera != rusterix::MapCamera::TwoDIso {
-            return None;
-        }
-        let h = map.properties.get_float_default("iso_edit_height", 0.);
-        let mut lines: FxHashSet<_> = map
-            .sectors
-            .iter()
-            .filter(|s| (s.properties.get_float_default("floor_height", 0.) - h).abs() < 0.001)
-            .flat_map(|s| s.linedefs.iter().copied())
-            .collect();
-        if h.abs() < 0.001 {
-            lines.extend(
-                map.linedefs
-                    .iter()
-                    .filter(|l| l.sector_ids.is_empty())
-                    .map(|l| l.id),
-            );
-        }
-        let mut vertices: FxHashSet<_> = map
-            .linedefs
-            .iter()
-            .filter(|l| lines.contains(&l.id))
-            .flat_map(|l| [l.start_vertex, l.end_vertex])
-            .collect();
-        if h.abs() < 0.001 {
-            let used: FxHashSet<_> = map
-                .linedefs
-                .iter()
-                .flat_map(|l| [l.start_vertex, l.end_vertex])
-                .collect();
-            vertices.extend(
-                map.vertices
-                    .iter()
-                    .filter(|v| !used.contains(&v.id))
-                    .map(|v| v.id),
-            );
-        }
-        vertices.extend(
-            map.vertices
-                .iter()
-                .filter(|v| v.properties.get_bool_default("terrain_control", false))
-                .map(|v| v.id),
-        );
-        Some((vertices, lines))
+    fn iso_editing_geometry(&self, map: &Map) -> Option<(FxHashSet<u32>, FxHashSet<u32>)> {
+        (map.camera == rusterix::MapCamera::TwoDIso)
+            .then(|| rusterix::isometric::editor::editing_geometry(map, self.no_rect_geo_on_map))
     }
 
     fn geometry_at_filtered(
@@ -1225,7 +1183,7 @@ impl ServerContext {
         };
         let mut selection: (Option<u32>, Option<u32>, Option<u32>) = (None, None, None);
         let hover_threshold = 6.0;
-        let level = Self::iso_editing_geometry(map);
+        let level = self.iso_editing_geometry(map);
 
         if pick_vertices {
             // Check the vertices
@@ -1286,19 +1244,30 @@ impl ServerContext {
 
                     if let Some(start_vertex) = start_vertex {
                         if let Some(end_vertex) = end_vertex {
-                            let start_pos = Self::map_grid_to_local(screen_size, start_vertex, map);
-                            let end_pos = Self::map_grid_to_local(screen_size, end_vertex, map);
-
-                            // Compute the perpendicular distance from the point to the line
-                            let line_vec = end_pos - start_pos;
-                            let mouse_vec = screen_pos - start_pos;
-                            let line_vec_length = line_vec.magnitude();
-                            let projection =
-                                mouse_vec.dot(line_vec) / (line_vec_length * line_vec_length);
-                            let closest_point = start_pos + projection.clamp(0.0, 1.0) * line_vec;
-                            let distance = (screen_pos - closest_point).magnitude();
-
-                            if distance <= hover_threshold {
+                            let points = if map.camera == rusterix::MapCamera::TwoDIso {
+                                rusterix::isometric::editor::projected_segment(
+                                    map,
+                                    rusterix::isometric::Projection::editor(map, screen_size)
+                                        .at_height(map.properties.get_float_default("iso_edit_height", 0.)),
+                                    start_vertex,
+                                    end_vertex,
+                                )
+                            } else {
+                                vec![
+                                    Self::map_grid_to_local(screen_size, start_vertex, map),
+                                    Self::map_grid_to_local(screen_size, end_vertex, map),
+                                ]
+                            };
+                            if points.windows(2).any(|segment| {
+                                let delta = segment[1] - segment[0];
+                                let length = delta.magnitude_squared();
+                                let t = if length > f32::EPSILON {
+                                    ((screen_pos - segment[0]).dot(delta) / length).clamp(0., 1.)
+                                } else {
+                                    0.
+                                };
+                                (screen_pos - (segment[0] + t * delta)).magnitude() <= hover_threshold
+                            }) {
                                 selection.1 = Some(linedef.id);
                                 break;
                             }
@@ -1353,9 +1322,25 @@ impl ServerContext {
             .map(|sector| (sector, sector.area(map)))
             .collect();
         ordered.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        let iso_ground = (map.camera == rusterix::MapCamera::TwoDIso).then(|| {
+            Self::iso_ground_at_pixel(
+                map,
+                rusterix::isometric::Projection::editor(map, screen_size),
+                screen_pos,
+            )
+        });
         for (sector, _) in ordered.iter().rev() {
             if sector.intersects_vertical_slice(map, self.editing_slice, self.editing_slice_height)
             {
+                if let Some(ground) = iso_ground {
+                    // Curved terrain boundaries cannot be picked as a flat
+                    // polygon between projected corners. Use the terrain hit.
+                    if sector.is_inside(map, ground) {
+                        selection.2 = Some(sector.id);
+                        return selection;
+                    }
+                    continue;
+                }
                 let mut vertices = Vec::new();
                 for &linedef_id in &sector.linedefs {
                     if let Some(linedef) = map.find_linedef(linedef_id) {
@@ -1393,24 +1378,33 @@ impl ServerContext {
         projected.vertices = map.vertices.clone();
         projected.linedefs = map.linedefs.clone();
         projected.sectors = map.sectors.clone();
-        if let Some((vertices, lines)) = Self::iso_editing_geometry(map) {
-            projected.vertices.retain(|v| vertices.contains(&v.id));
-            projected.linedefs.retain(|l| lines.contains(&l.id));
+        let level = self.iso_editing_geometry(map);
+        if level.is_some() {
             let h = map.properties.get_float_default("iso_edit_height", 0.);
-            projected
-                .sectors
-                .retain(|s| (s.properties.get_float_default("floor_height", 0.) - h).abs() < 0.001);
+            projected.sectors.retain(|s| {
+                (s.properties.get_float_default("floor_height", 0.) - h).abs() < 0.001
+                    && !(self.no_rect_geo_on_map
+                        && s.properties.contains("rect")
+                        && s.name.is_empty())
+            });
         }
         for vertex in &mut projected.vertices {
             let point = Self::map_grid_to_local(size, Vec2::new(vertex.x, vertex.y), map);
             vertex.x = point.x;
             vertex.y = point.y;
         }
-        self.geometry_in_rectangle(
+        let mut selection = self.geometry_in_rectangle(
             Vec2::new(a.x.min(b.x), a.y.min(b.y)),
             Vec2::new(a.x.max(b.x), a.y.max(b.y)),
             &projected,
-        )
+        );
+        // Keep complete polygon topology during intersection tests, including
+        // named Rect areas, then filter vertex/line results to editable guides.
+        if let Some((vertices, lines)) = level {
+            selection.0.retain(|id| vertices.contains(id));
+            selection.1.retain(|id| lines.contains(id));
+        }
+        selection
     }
 
     /// Returns all geometry within the given rectangle.
@@ -1727,6 +1721,69 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn iso_area_picking_follows_terrain_inside_curved_boundaries() {
+        use rusterix::{Map, MapCamera, MapToolType, Value};
+        let mut map = Map::default();
+        map.camera = MapCamera::TwoDIso;
+        map.grid_size = 48.;
+        map.properties.set("terrain_enabled", Value::Bool(true));
+        map.properties.set("terrain_edge_falloff", Value::Float(0.));
+        map.add_vertex_at(-6., -6.);
+        map.add_vertex_at(6., 6.);
+        let peak = map.add_vertex_at(0., 0.);
+        let v = map.find_vertex_mut(peak).unwrap();
+        v.z = 3.;
+        v.properties.set("terrain_control", Value::Bool(true));
+        v.properties.set("smoothness", Value::Float(1.));
+        let vertices = [[-2., -1.], [2., -1.], [2., 1.], [-2., 1.]]
+            .map(|p| map.add_vertex_at(p[0], p[1]));
+        for i in 0..4 {
+            map.create_linedef_manual(vertices[i], vertices[(i + 1) % 4]);
+        }
+        let id = map.close_polygon_manual().unwrap();
+        let context = ServerContext::default();
+        let size = Vec2::new(900., 700.);
+        for point in [Vec2::zero(), Vec2::new(0., -0.75), Vec2::new(0., 0.75)] {
+            let screen = ServerContext::map_grid_to_local(size, point, &map);
+            assert_eq!(context.geometry_at_for_tool(size, screen, &map, MapToolType::Sector).2, Some(id));
+        }
+        let outside = ServerContext::map_grid_to_local(size, Vec2::new(0., 1.5), &map);
+        assert_eq!(context.geometry_at_for_tool(size, outside, &map, MapToolType::Sector).2, None);
+    }
+
+    #[test]
+    fn iso_hidden_tile_geometry_does_not_block_named_area_picking_or_box_selection() {
+        use rusterix::{Map, MapCamera, MapToolType, Value};
+        let mut map = Map::default();
+        map.camera = MapCamera::TwoDIso;
+        map.grid_size = 32.;
+        let vertices = [[0., 0.], [4., 0.], [4., 4.], [0., 4.]]
+            .map(|p| map.add_vertex_at(p[0], p[1]));
+        for i in 0..4 {
+            map.create_linedef_manual(vertices[i], vertices[(i + 1) % 4]);
+        }
+        let id = map.close_polygon_manual().unwrap();
+        let sector = map.find_sector_mut(id).unwrap();
+        sector.layer = Some(1);
+        sector.properties.set("rect", Value::Bool(true));
+        sector.name = "Destination".into();
+        let context = ServerContext::default();
+        let size = Vec2::new(800., 600.);
+        let corner = ServerContext::map_grid_to_local(size, Vec2::zero(), &map);
+        let center = ServerContext::map_grid_to_local(size, Vec2::new(2., 2.), &map);
+        assert_eq!(context.geometry_at_for_tool(size, corner, &map, MapToolType::Vertex).0, None);
+        assert_eq!(context.geometry_at_for_tool(size, center, &map, MapToolType::Sector).2, Some(id));
+        let a = Vec2::new(390., 160.);
+        let b = Vec2::new(670., 440.);
+        let selection = context.geometry_in_screen_rectangle(size, a, b, &map);
+        assert!(selection.0.is_empty());
+        assert!(selection.1.is_empty());
+        assert_eq!(selection.2, vec![id]);
+        map.find_sector_mut(id).unwrap().name.clear();
+        assert!(context.geometry_in_screen_rectangle(size, a, b, &map).2.is_empty());
     }
 
     #[test]

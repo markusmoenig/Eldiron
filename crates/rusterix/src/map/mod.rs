@@ -1396,6 +1396,11 @@ impl Map {
             }
             bbox.expand_bbox(sculpt);
         }
+        if self.properties.get_bool_default("terrain_enabled", false) {
+            let mut height = 0.;
+            crate::chunkbuilder::terrain_shape::TerrainShapes::from_map(self)
+                .expand_bounds(&mut bbox, &mut height);
+        }
         bbox
     }
 
@@ -1516,6 +1521,10 @@ impl Map {
                     .properties
                     .get_float("floor_height")
                     .or_else(|| self.geometry_floor_height_at(center))
+                    .or_else(|| {
+                        crate::chunkbuilder::terrain_surface::TerrainSurface::cached(self)
+                            .and_then(|terrain| terrain.height_at(center))
+                    })
                     .unwrap_or(0.0);
                 Some(Vec3::new(center.x, y, center.y))
             })

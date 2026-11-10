@@ -853,11 +853,6 @@ action_editor_preview_fill = Luz de relleno del editor
 action_editor_preview_fill_desc = Ajusta la luz ambiental adicional de la vista 3D del editor sin cambiar la iluminación del juego.
 action_editor_preview_fill_amount = Relleno
 
-
-
-
-
-
 text_play_cancel = Cancelar
 text_play_choose = Introduce el número de una respuesta y pulsa Intro (0 para cancelar).
 text_play_invalid_choice = No hay una respuesta activa con ese número.
@@ -966,3 +961,72 @@ tileset_animation_help = Añade las celdas como fotogramas de una animación, en
 tileset_add_selected = Añadir selección
 tileset_add_selected_help = Añade solo los tiles o la animación seleccionados al selector.
 tileset_error_source_size = El origen es demasiado grande. Divide las imágenes en grupos más pequeños.
+
+# Shared terrain geometry modifiers
+shape_terrain = Moldear terreno
+shape_terrain_desc = Usar esta geometría para moldear el terreno compartido.
+terrain_shape_mode = Forma del terreno
+terrain_shape_plateau = Meseta
+terrain_shape_hill = Colina
+terrain_shape_height = Altura objetivo
+terrain_shape_start = Altura inicial
+terrain_shape_end = Altura final
+terrain_shape_width = Ancho del corredor
+terrain_shape_blend = Transición del borde
+terrain_shape_height_desc = Altitud del terreno en unidades del mundo. La altura del suelo y de las piezas es independiente.
+terrain_shape_width_desc = Ancho total del corredor antes de la transición al terreno.
+terrain_shape_blend_desc = Distancia de transición suave al terreno circundante.
+sector_floor_height = Altura del suelo / pieza
+sector_floor_height_desc = Elevación de este suelo o pieza. Moldear terreno modifica el terreno.
+
+mz_edit_material = Editar receta del material
+mz_edit_mask = Editar receta de máscara
+mz_back_to_composite = Volver a composición
+mz_edit_mask_desc = Abre el grafo MZ de la máscara y sus controles editables. Regresa con Volver a composición.
+
+mz_shape_geometry_missing = El material del terreno hace referencia a geometría del mapa que falta.
+mz_shape_closed_area = Las formas de área necesitan un sector cerrado.
+mz_shape_limit = Usa como máximo 256 bordes o líneas de camino por forma.
+
+mz_blend_title = Mezclar materiales
+mz_use_selected_material = Usar material seleccionado
+mz_use_selected_material_desc = Usa el material seleccionado en el selector de baldosas para esta mezcla.
+mz_add_blend = Añadir mezcla
+mz_remove_blend = Eliminar
+mz_blend_current_result = Se mezcla sobre el resultado actual.
+mz_choose_shape = Elegir forma…
+mz_select_material_first = Selecciona primero un material en el selector de baldosas.
+
+mz_blend_paint_first = Aplica primero un material a la superficie y mezcla sobre ese resultado.
+
+terrain_material_source = Material del terreno
+terrain_material_source_desc = UUID o alias de baldosa. Déjalo vacío para quitar el material de la geometría.
+terrain_material_verge = Material del borde del camino
+terrain_material_width = Ancho del camino
+terrain_material_verge_width = Ancho del borde
+terrain_material_inset = Margen interior del área
+terrain_material_soft_edge = Borde suave
+terrain_material_noisy_edge = Borde irregular
+terrain_material_noise_scale = Escala del ruido
+terrain_material_edge_desc = Las distancias se expresan en unidades del mapa. Los materiales siguen el terreno en todas las cámaras.
+terrain_material_order = Orden de capas
+terrain_material_order_desc = Los números mayores se mezclan después. En caso de empate, los caminos cubren las áreas.
+terrain_material_invalid = Material del terreno desconocido
+mz_workspace_materials_desc = Edita materiales de superficie MZ y mezclas de baldosas.
+mz_workspace_meshes_desc = Crea piezas 3D procedurales, como paredes, tejados y árboles.
+
+paint_picker_paint = Pintar
+paint_picker_scatter = Dispersar
+paint_picker_size = Tamaño
+paint_picker_jitter = Variación
+paint_picker_rotate = Rotación
+paint_picker_edit = Editar receta
+paint_picker_choose = Elige un material o sello abajo
+paint_picker_choose_stamp = Elige un sello de la colección Organic stamps.
+
+paint_source_title = Fuente de pintura
+paint_stamp_source_title = Fuente del sello
+paint_source_seed = Semilla de variación
+paint_source_artwork_size = Tamaño del diseño
+paint_source_palette_hint = Color de paleta de la fuente
+paint_picker_in_use = Este material se usa en pintura, sellos, una malla, una salida de tile o un conjunto de reglas. Sustituye sus referencias antes de eliminarlo.

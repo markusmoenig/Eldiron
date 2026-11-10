@@ -851,9 +851,6 @@ status_node_branch_toggle = 啟用或停用選取的行為分支，無需刪除�
 
 node_branch_empty = 空分支
 
-
-
-
 text_play_cancel = 取消
 text_play_choose = 輸入選項編號並按 Enter（輸入 0 取消）。
 text_play_invalid_choice = 沒有對應編號的有效選項。
@@ -939,3 +936,72 @@ tileset_animation_help = 依預覽順序將所選格子新增為單一動畫的�
 tileset_add_selected = 新增所選內容
 tileset_add_selected_help = 僅將所選圖塊或動畫新增至圖塊選擇器。
 tileset_error_source_size = 來源過大，請將影像分成較小的群組。
+
+# Shared terrain geometry modifiers
+shape_terrain = 塑造地形
+shape_terrain_desc = 使用此幾何形狀塑造共用地形。
+terrain_shape_mode = 地形形狀
+terrain_shape_plateau = 高臺
+terrain_shape_hill = 山丘
+terrain_shape_height = 目標高度
+terrain_shape_start = 起點高度
+terrain_shape_end = 終點高度
+terrain_shape_width = 走廊寬度
+terrain_shape_blend = 邊緣過渡
+terrain_shape_height_desc = 以世界單位表示的地面高度。樓面和圖塊高度另外設定。
+terrain_shape_width_desc = 邊緣開始過渡到周圍地面之前的走廊總寬度。
+terrain_shape_blend_desc = 形狀平滑過渡到周圍地面的距離。
+sector_floor_height = 樓面 / 圖塊高度
+sector_floor_height_desc = 此樓面或圖塊的高度。使用「塑造地形」變更地面。
+
+mz_edit_material = 編輯材質配方
+mz_edit_mask = 編輯遮罩配方
+mz_back_to_composite = 返回合成
+mz_edit_mask_desc = 開啟遮罩的 MZ 節點圖和可編輯參數。點擊返回合成即可返回。
+
+mz_shape_geometry_missing = 地形材質引用的地圖幾何體不存在。
+mz_shape_closed_area = 區域形狀需要封閉扇區。
+mz_shape_limit = 每個形狀最多使用 256 條邊界或路徑線段。
+
+mz_blend_title = 混合材質
+mz_use_selected_material = 使用所選材質
+mz_use_selected_material_desc = 將圖塊選擇器中目前選定的材質用於此混合層。
+mz_add_blend = 新增混合層
+mz_remove_blend = 移除
+mz_blend_current_result = 混合到目前結果上。
+mz_choose_shape = 選擇形狀…
+mz_select_material_first = 請先在圖塊選擇器中選擇材質。
+
+mz_blend_paint_first = 請先將材質套用到表面，再混合到該結果上。
+
+terrain_material_source = 地形材質
+terrain_material_source_desc = 圖塊 UUID 或別名。留空可移除此幾何體的材質。
+terrain_material_verge = 路徑邊緣材質
+terrain_material_width = 路徑寬度
+terrain_material_verge_width = 邊緣寬度
+terrain_material_inset = 區域內縮
+terrain_material_soft_edge = 柔和邊緣
+terrain_material_noisy_edge = 不規則邊緣
+terrain_material_noise_scale = 雜訊比例
+terrain_material_edge_desc = 邊緣距離使用地圖單位。材質在所有相機視圖中都跟隨地形。
+terrain_material_order = 圖層順序
+terrain_material_order_desc = 較大的數值後混合。順序相同時，路徑覆蓋區域。
+terrain_material_invalid = 未知的地形材質
+mz_workspace_materials_desc = 編輯 MZ 表面材質和圖塊混合。
+mz_workspace_meshes_desc = 建立牆壁、屋頂、樹木等程序化三維部件。
+
+paint_picker_paint = 繪製
+paint_picker_scatter = 散佈
+paint_picker_size = 大小
+paint_picker_jitter = 大小變化
+paint_picker_rotate = 旋轉
+paint_picker_edit = 編輯配方
+paint_picker_choose = 在下方選擇材質或印章
+paint_picker_choose_stamp = 請在 Organic stamps 集合中選擇印章。
+
+paint_source_title = 繪畫來源
+paint_stamp_source_title = 印章來源
+paint_source_seed = 變化種子
+paint_source_artwork_size = 圖案大小
+paint_source_palette_hint = 來源調色盤顏色
+paint_picker_in_use = 此材質正被繪畫、印章、網格、圖塊輸出或規則集使用。刪除前請替換這些參照。

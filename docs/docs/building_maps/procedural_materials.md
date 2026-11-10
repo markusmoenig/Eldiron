@@ -233,28 +233,106 @@ The current renderer **bakes textures and surface pages**. Continuous variation
 does not mean evaluating a material graph for every pixel at game runtime. Large
 continuous surfaces can require more bake coverage and loading work than Repeat.
 
+## Terrain materials from geometry TOML
+
+Use the **Linedef** tool for paths and the **Sector** tool for filled areas.
+Select the geometry and open **Edit Linedef** or **Edit Sector**. Its TOML has
+an independent `[terrain.material]` section. The selected geometry supplies the
+shape automatically; there is no binding step in Rect Compose.
+
+![UnendingNight's native linedef TOML settings beside the rocky hills and continuous dirt trail, with the settings split expanded for readability.](/img/iso/unending-night-terrain-toml.png)
+
+`source` accepts a material/tile UUID or an exact Tile Picker alias. Use
+**Copy Tile ID** in the picker, then paste the UUID into `source`. Alternatively,
+select the action's **Terrain material** HUD slot and choose a tile in the picker;
+the slot fills the same TOML setting. Linedefs have a second **Path verge material**
+slot. Apply the settings normally. Clear `source` (and `verge_source` for a path)
+to remove the coverage without deleting the geometry or its height settings.
+
+For a path, for example:
+
+```toml
+[terrain.material]
+source = "Inn / earth"
+width = 1.35
+soft_edge = 0.45
+noisy_edge = 0.13
+noise_scale = 2.7
+order = 10
+verge_source = "Inn / grass"
+verge_width = 3.2
+```
+
+For a rocky sector:
+
+```toml
+[terrain.material]
+source = "Terrain / Weathered hill rock"
+inset = 0.5
+soft_edge = 1.0
+noisy_edge = 0.28
+noise_scale = 2.7
+order = 0
+```
+
+- **Width** is the full path width; connected segments with matching settings
+  form one continuous path, including rounded joins and ends.
+- **Inset** pulls the area material inside its sector boundary. Zero uses the
+  whole sector. Separate sectors can share the same material and edge settings.
+- **Soft edge** is the transition width; **Noisy edge** is the boundary's uneven
+  displacement. Both are measured in map units. **Noise scale** controls detail.
+- **Order** controls overlaps: larger values blend later. At equal order, paths
+  blend over areas. A path's optional verge blends first, then its main material.
+  A grass verge wider than a dirt trail gives it grassy shoulders beside rock.
+
+The painted ground is always the background. Existing base tiles and their
+painted blends remain editable. MZ materials supply all surface channels,
+including roughness, so sun and local lights remain dynamic. Moving the guides
+moves material coverage; sculpting changes its height while preserving its
+world coordinates and pixel density. `[terrain]` height settings are independent:
+a path can paint flat ground without raising it.
+
+The shared system works in **2D, 2D Iso and 3D**. Eldiron derives MZ outputs and
+world pages from these settings and refreshes them after edits. Those outputs
+are caches, hidden from the Tile Picker; edit the source material or geometry
+settings. Save/reopen and normal map undo/redo preserve the authored settings.
+The maintained **UnendingNight** project uses this workflow for its rocky hills
+and winding, grass-edged dirt trail.
+
+The **Materials / Meshes** tabs navigate the MZ recipe workspace. **Materials**
+edits surface recipes; **Meshes** creates procedural 3D parts such as walls,
+roofs and trees. Compose hides these workspace tabs and shows its blend controls.
+Opening a source material recipe restores the workspace tabs;
+**Back to composite** returns to the blend controls.
+
 ## Compose directly on the map
 
 Material authoring edits a reusable source; composition edits how sources cover
-a particular placement or surface.
+a particular placement or surface. Rect Compose uses tile shapes. Linedef and
+sector geometry are edited separately through their own settings.
 
 1. Paint a base tile, for example grass, with the Rect tool.
 2. Switch the Rect tool from **Paint** to **Compose**, then click the painted
    tile in the map. In 3D, target the painted surface cell.
-3. Choose **Background**, add a layer, then choose **Add material**, for example
-   a road. Bitmap tiles work as inputs too.
-4. Pick a thumbnail from the shape grid: halves, diagonals, curved corners,
+3. The existing surface is automatically the starting result. Pick a road or
+   another material in the Tilepicker and click **Use selected material**.
+   Picking alone changes neither the blend nor the open editor. Bitmap tiles
+   work as inputs too; no background or material dropdown is needed.
+4. Click a shape thumbnail directly in the panel: halves, diagonals, curved corners,
    edge strips, horizontal/vertical roads, crossings, **Auto road**, or **Blend**.
 5. Adjust the selected shape. **Soft edge** blends its boundary; **Wobble** adds
    an uneven edge. Width, position and angle depend on the shape.
 
-Each layer combines its material with the result below it. Add more layers for
-road markings, dirt, borders or decoration, and reorder them with **Earlier** /
-**Later**. Advanced controls expose masks and additional mixing modes. Whole
+Each blend combines its material with the current result below it. Use
+**Add blend** with a Tilepicker material selected to add markings, dirt, borders
+or decoration. The blend buttons select an existing layer for editing;
+**Use selected material** replaces that layer's material. **Remove** deletes it.
+Reordering with **Earlier** / **Later**, source editing and specialist mixing
+options are under **Advanced mixing**. Whole
 floor, ceiling and wall-surface compositions remain available where those
 surface targets are selected.
 
-Use **Save copy to Tilepicker** to turn the current composition into a reusable
+Under **Advanced mixing**, use **Save copy to Tilepicker** to turn the current composition into a reusable
 tile. Paint that copy elsewhere instead of rebuilding the same road composition.
 Auto road derives its connections from adjacent compatible placements; the other
 shape presets retain their authored orientation.
@@ -293,3 +371,21 @@ A material's appearance does not assign gameplay semantics. Set **Role**,
 **Blocking** and **Gameplay Tags** through tile metadata where needed: water or
 rock can block movement, while a painted road need not. Equipment rules and item
 state changes likewise remain gameplay data, not material nodes.
+
+
+## Paint materials and organic stamps
+
+The Paint tool shares the Tile Picker with Rect. Activate **Paint** to add its
+existing procedural materials, brush patterns and organic stamps as editable MZ
+recipes. Choose artwork in **Paint materials**, **Paint brushes** or
+**Organic stamps**, then apply it with the toolbar above the map. Selecting a
+recipe keeps the map open; **Edit recipe** opens its MZ editor.
+
+The **Paint Source** and **Stamp Source** operations retain the native procedural
+generators and expose their palette and variation settings. The generated images
+are embedded, replaceable caches. Existing strokes and stamps retain a reference
+to the recipe, so editing it updates their artwork without changing their terrain
+anchors. The MZ graph remains available for additional material processing.
+
+See the [Paint Tool guide](/docs/creator/tools/iso_paint) for placement controls,
+terrain sculpting behavior and a source-editing walkthrough.

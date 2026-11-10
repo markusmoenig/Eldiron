@@ -254,42 +254,7 @@ impl IsoPaintTool {
                 self.reset_stroke();
                 let point = point?;
                 if region.iso_paint.active_operation == "pick" {
-                    let mut r = RUSTERIX.write().unwrap();
-                    shared::iso_paint_terrain::sync(
-                        &mut r.assets,
-                        region.map.id,
-                        &mut region.iso_paint,
-                    );
-                    if let Some((mut color, _)) = r
-                        .assets
-                        .terrain_paint
-                        .get(&region.map.id)
-                        .and_then(|paint| paint.sample(point.surface_uv.unwrap()))
-                        .filter(|(color, _)| color[3] > 0)
-                    {
-                        let (index, swatch) = r
-                            .assets
-                            .palette
-                            .colors
-                            .iter()
-                            .enumerate()
-                            .filter_map(|(i, c)| c.as_ref().map(|c| (i, c.to_u8_array())))
-                            .min_by_key(|(_, c)| {
-                                (0..3)
-                                    .map(|i| (c[i] as i32 - color[i] as i32).pow(2))
-                                    .sum::<i32>()
-                            })
-                            .unwrap_or((0, color));
-                        color = swatch;
-                        color[3] = 255;
-                        region.iso_paint.active_color = color;
-                        region.iso_paint.active_palette_colors = vec![color];
-                        region.iso_paint.active_palette_indices = vec![index as u16];
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named("3D Paint Refresh"),
-                            TheValue::Empty,
-                        ));
-                    }
+                    Self::pick_paint_color(&mut region.iso_paint, &point, ctx);
                     return None;
                 }
                 self.stroke_before = Some(region.iso_paint.clone());
@@ -489,7 +454,7 @@ impl IsoPaintTool {
     }
 
     fn is_stamp_mode(layer: &IsoPaintLayer) -> bool {
-        matches!(
+        (layer.active_source.is_some() || matches!(
             layer.active_brush.as_str(),
             "grass"
                 | "rubble"
@@ -502,7 +467,7 @@ impl IsoPaintTool {
                 | "candles"
                 | "footprints"
                 | "mud"
-        ) && layer.active_material_mode == "stamp"
+        )) && layer.active_material_mode == "stamp"
     }
 
     fn stamp_label(layer: &IsoPaintLayer) -> &'static str {
@@ -572,7 +537,39 @@ impl IsoPaintTool {
         }
     }
 
+    fn pick_paint_color(layer: &mut IsoPaintLayer, point: &IsoPaintPoint, ctx: &mut TheContext) {
+        let (Some(uv), Some(geo)) = (point.surface_uv, point.paint_geo) else { return; };
+        let assets = RUSTERIX.read().unwrap();
+        layer.refresh_sources(&assets.assets);
+        layer.ensure_baked_paint_current();
+        let at = uv.map(|v| (v * 32.).floor() as i32);
+        let width = shared::iso_paint::ISO_PAINT_BAKED_CHUNK_SIZE;
+        let color = layer.baked_chunks.values().find_map(|chunk| {
+            let x = at[0] - chunk.origin[0];
+            let y = at[1] - chunk.origin[1];
+            if chunk.paint_geo != geo || x < 0 || y < 0 || x >= width || y >= width { return None; }
+            let index = ((y * width + x) * 4) as usize;
+            let rgba: [u8;4] = chunk.color_rgba[index..index+4].try_into().ok()?;
+            (rgba[3] > 0).then_some(rgba)
+        });
+        let Some(color) = color else { return; };
+        let (index, mut swatch) = assets.assets.palette.colors.iter().enumerate()
+            .filter_map(|(i,c)|c.as_ref().map(|c|(i,c.to_u8_array())))
+            .min_by_key(|(_,c)|(0..3).map(|i|(c[i] as i32-color[i] as i32).pow(2)).sum::<i32>())
+            .unwrap_or((0,color));
+        swatch[3] = 255;
+        layer.active_source = None;
+        layer.active_brush = "material".into();
+        layer.active_brush_shape = "solid".into();
+        layer.active_material_mode = "coat".into();
+        layer.active_color = swatch;
+        layer.active_palette_colors = vec![swatch];
+        layer.active_palette_indices = vec![index as u16];
+        ctx.ui.send(TheEvent::Custom(TheId::named("Paint Picker Refresh"), TheValue::Empty));
+    }
+
     fn sync_live_paint_settings(ui: &mut TheUI, layer: &mut IsoPaintLayer) {
+        if layer.active_source.is_some() || ui.get_widget(super::paint_picker::MODE).is_some() { return; }
         if let Some(opacity) = ui
             .get_widget_value("3D Paint Tool Opacity")
             .and_then(|value| value.to_f32())
@@ -1264,6 +1261,10 @@ impl Tool for IsoPaintTool {
         Some('I')
     }
 
+    fn handle_event(&mut self,event:&TheEvent,ui:&mut TheUI,ctx:&mut TheContext,project:&mut Project,server:&mut ServerContext)->bool {
+        super::paint_picker::event(event,ui,ctx,project,server)
+    }
+
     fn tool_event(
         &mut self,
         tool_event: ToolEvent,
@@ -1328,23 +1329,7 @@ impl Tool for IsoPaintTool {
                     }
                 }
 
-                if !server_ctx.pc.is_prefab() {
-                    let current_dock = DOCKMANAGER.read().unwrap().dock.clone();
-                    if current_dock != "Paint" {
-                        self.previous_dock = if current_dock.is_empty() {
-                            None
-                        } else {
-                            Some(current_dock)
-                        };
-                    }
-                    DOCKMANAGER.write().unwrap().set_dock(
-                        "Paint".into(),
-                        ui,
-                        ctx,
-                        project,
-                        server_ctx,
-                    );
-                }
+                super::paint_picker::activate(ui,ctx,project,server_ctx);
 
                 ctx.ui.send(TheEvent::SetStatusText(
                     TheId::empty(),
@@ -1505,6 +1490,11 @@ impl Tool for IsoPaintTool {
                 server_ctx.iso_paint_hover_screen = Some(coord);
                 if !server_ctx.pc.is_prefab() {
                     Self::sync_live_paint_settings(ui, &mut region.iso_paint);
+                }
+                if region.iso_paint.active_operation == "pick" {
+                    let point = Self::paint_point(coord, server_ctx, viewport_size);
+                    Self::pick_paint_color(&mut region.iso_paint, &point, ctx);
+                    return None;
                 }
                 self.painting = true;
                 self.stroke_before = Some(region.iso_paint.clone());
@@ -1878,6 +1868,7 @@ mod terrain_tests {
             ("rubble", 1.2, [124, 148, 161, 255]),
         ] {
             let paint = &mut project.regions[0].iso_paint;
+            paint.active_source = None; // This fixture verifies the original native generator path.
             paint.active_brush = kind.into();
             paint.active_operation = "draw".into();
             paint.active_material_mode = "stamp".into();
@@ -2106,6 +2097,7 @@ mod terrain_tests {
         let paint = &mut project.regions[0].iso_paint;
         paint.active_size = 8.;
         paint.active_operation = "draw".into();
+        paint.active_source = None; // Native paint regression; picker linkage has its own coverage.
         paint.active_brush = "material".into();
         paint.active_material_mode = "coat".into();
         paint.active_opacity = 1.;

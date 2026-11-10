@@ -9291,6 +9291,7 @@ impl TheTrait for Editor {
                         );
                     }
                     for paint in self.project.block_prop_paint.values_mut() {
+                        paint.refresh_sources(&RUSTERIX.read().unwrap().assets);
                         paint.ensure_baked_paint_current();
                     }
                     let prefab_paint_catalog = self.project.block_prop_paint.clone();

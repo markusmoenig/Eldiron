@@ -83,7 +83,10 @@ impl<'a> Frame<'a> {
         Self {
             lighting,
             casters,
-            canvas: Some(std::sync::Mutex::new(vec![[0, f32::INFINITY.to_bits()]; pixels])),
+            canvas: Some(std::sync::Mutex::new(vec![
+                [0, f32::INFINITY.to_bits()];
+                pixels
+            ])),
             geometry: None,
             sun_cells: Default::default(),
             sun_global: Vec::new(),
@@ -315,7 +318,7 @@ pub(super) fn ground(
     frame: &Frame<'_>,
     buffer: &mut theframework::prelude::TheRGBABuffer,
     p: Projection,
-    geometry: &[[f32; 5]],
+    geometry: &[[f32; 8]],
     source_width: usize,
     offset: Vec2<usize>,
 ) {
@@ -334,9 +337,9 @@ pub(super) fn ground(
                         *pixel = super::surface::packed(
                             Vec3::new(hit[2], hit[3], hit[4]),
                             hit[1],
-                            0.95,
-                            0.,
-                            0.,
+                            hit[5],
+                            hit[6],
+                            hit[7],
                         );
                     }
                 }
@@ -351,14 +354,14 @@ pub(super) fn ground(
         .for_each(|(band, pixels)| {
             let mut shading = Shading::new(frame);
             let height = pixels.len() / (width * 4);
-            let sample = |hit: &[f32; 5]| Sample {
+            let sample = |hit: &[f32; 8]| Sample {
                 normal: Vec3::new(hit[2], hit[3], hit[4]),
                 height: hit[1],
-                roughness: 0.95,
-                metallic: 0.,
-                emission: 0.,
+                roughness: hit[5],
+                metallic: hit[6],
+                emission: hit[7],
             };
-            let position = |x: usize, y: usize, hit: &[f32; 5]| {
+            let position = |x: usize, y: usize, hit: &[f32; 8]| {
                 let at = p.ground(Vec2::new(
                     x as f32 + 0.5,
                     y as f32 + 0.5 + hit[1] * p.unit * 1.2247449,
@@ -394,7 +397,8 @@ pub(super) fn ground(
                             }
                             let (illumination, specular) = if let Some(radiance) =
                                 shared.filter(|_| {
-                                    (hit[1] - anchor[1]).abs() < 0.1
+                                    hit[5..8] == anchor[5..8]
+                                        && (hit[1] - anchor[1]).abs() < 0.1
                                         && (Vec3::new(hit[2], hit[3], hit[4])
                                             - Vec3::new(anchor[2], anchor[3], anchor[4]))
                                         .magnitude_squared()
@@ -409,7 +413,7 @@ pub(super) fn ground(
                                 pixels[at..at + 4].try_into().unwrap(),
                                 illumination,
                                 specular,
-                                0.,
+                                hit[7],
                             );
                             pixels[at..at + 4].copy_from_slice(&color);
                         }
@@ -674,7 +678,7 @@ mod tests {
             let frame = Frame::new(
                 &lighting,
                 vec![Caster {
-                        exact: false,
+                    exact: false,
                     grid,
                     position: Vec3::zero(),
                     scale: 1.,
@@ -701,7 +705,7 @@ mod tests {
                 .collect(),
         };
         let caster = Caster {
-                        exact: false,
+            exact: false,
             grid: &grid,
             position: Vec3::zero(),
             scale: 1.,
@@ -719,7 +723,7 @@ mod tests {
         };
         assert!(
             !Caster {
-                        exact: false,
+                exact: false,
                 grid: &hole,
                 ..caster
             }
@@ -741,7 +745,9 @@ pub(super) fn gpu_draw(
     let mut columns = Vec::new();
     let mut casters = Vec::new();
     for c in &frame.casters {
-        if frame.geometry.is_some() && c.exact { continue; }
+        if frame.geometry.is_some() && c.exact {
+            continue;
+        }
         let g = c.grid;
         if g.width == 0
             || g.height == 0
@@ -778,7 +784,12 @@ pub(super) fn gpu_draw(
         .map(|v| PointLight {
             position: [v.position.x, v.position.y, v.position.z, 0.],
             color: [v.color.x, v.color.y, v.color.z, 0.],
-            parameters: [v.intensity, v.end_distance, v.start_distance, l.point_shadow_softness],
+            parameters: [
+                v.intensity,
+                v.end_distance,
+                v.start_distance,
+                l.point_shadow_softness,
+            ],
         })
         .collect::<Vec<_>>();
     let u = Uniforms {

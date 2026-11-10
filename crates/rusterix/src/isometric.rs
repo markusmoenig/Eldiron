@@ -149,11 +149,8 @@ pub fn ground_sprite(texture: &Texture) -> Texture {
     Texture::new(pixels, 64, 32)
 }
 
-#[derive(Clone, Copy)]
-pub struct EditorGuides {
-    pub grid: bool,
-    pub hover: Option<Vec2<f32>>,
-}
+pub mod editor;
+pub use editor::EditorGuides;
 
 /// Keyboard axes follow the iso grid: forward +X, right +Z.
 /// Click destinations and StepTo actions already contain world coordinates.
@@ -199,7 +196,7 @@ pub struct GroundCache {
     sprite_owners: Vec<u32>,
     terrain_key: Option<(Uuid, u32)>,
     terrain_model: Option<std::sync::Arc<crate::chunkbuilder::terrain_surface::TerrainSurface>>,
-    terrain_pixels: Vec<[f32; 5]>,
+    terrain_pixels: Vec<[f32; 8]>,
     surface_key: Option<u64>,
     surfaces: std::collections::HashMap<(u32, Uuid, usize), CachedSurface>,
     shadow_geometry: Option<(u64, std::sync::Arc<scenevm::isometric::ShadowGeometry>)>,
@@ -259,7 +256,7 @@ impl<'a> Draw<'a> {
                 height: stamp.sprite.texture.height,
                 anchor: Vec2::from(stamp.sprite.anchor),
                 unit: paint::PIXELS_PER_UNIT,
-                surface: None,
+                surface: stamp.sprite.surface.as_ref(),
                 bitmap:false,prelit:false,ground:false,
             });
         }
@@ -877,9 +874,9 @@ fn draw_scene_impl(
             .chunks_exact_mut(4)
             .map(|pixel| {
                 let hit = if pixel[3] > 0 {
-                    [0., 0., 0., 1., 0.]
+                    [0., 0., 0., 1., 0., 0.95, 0., 0.]
                 } else {
-                    [f32::NEG_INFINITY, 0., 0., 1., 0.]
+                    [f32::NEG_INFINITY, 0., 0., 1., 0., 0.95, 0., 0.]
                 };
                 pixel[3] = 255;
                 hit
@@ -917,7 +914,7 @@ fn draw_scene_impl(
         lighting::ground(live, buffer, projection, geometry, width, terrain_offset);
     }
     if let Some(guides) = guides.filter(|_| gpu.is_none()) {
-        draw_guides(
+        editor::draw_guides(
             map,
             buffer,
             projection.at_height(map.properties.get_float_default("iso_edit_height", 0.)),
@@ -1056,7 +1053,7 @@ fn draw_scene_impl(
     if let (Some(draw), Some(frame)) = (&mut gpu, &live) {
         draw(frame, buffer, projection);
         if let Some(guides) = guides {
-            draw_guides(
+            editor::draw_guides(
                 map,
                 buffer,
                 projection.at_height(map.properties.get_float_default("iso_edit_height", 0.)),
@@ -1457,140 +1454,6 @@ fn blend(pixels: &mut [u8], at: usize, color: [u8; 4]) {
             ((color[k] as u32 * alpha + pixels[at + k] as u32 * (255 - alpha) + 127) / 255) as u8;
     }
     pixels[at + 3] = 255;
-}
-
-/// Editor guides are projected ground geometry, never silhouette outlines on the art.
-fn draw_guides(map: &Map, buffer: &mut TheRGBABuffer, p: Projection, guides: EditorGuides) {
-    let surface = if map
-        .properties
-        .get_float_default("iso_edit_height", 0.)
-        .abs()
-        < 0.001
-    {
-        crate::chunkbuilder::terrain_surface::TerrainSurface::cached(map)
-    } else {
-        None
-    };
-    let screen = |q: Vec2<f32>| {
-        p.screen(
-            q,
-            surface.as_ref().and_then(|t| t.height_at(q)).unwrap_or(0.),
-        )
-    };
-    if guides.grid {
-        let w = buffer.dim().width as f32;
-        let h = buffer.dim().height as f32;
-        let corners = [
-            Vec2::zero(),
-            Vec2::new(w, 0.),
-            Vec2::new(w, h),
-            Vec2::new(0., h),
-        ]
-        .map(|q| p.ground(q));
-        let min = corners
-            .iter()
-            .fold(Vec2::new(f32::INFINITY, f32::INFINITY), |a, b| {
-                Vec2::new(a.x.min(b.x), a.y.min(b.y))
-            })
-            .map(|v| v.floor());
-        let max = corners
-            .iter()
-            .fold(Vec2::new(f32::NEG_INFINITY, f32::NEG_INFINITY), |a, b| {
-                Vec2::new(a.x.max(b.x), a.y.max(b.y))
-            })
-            .map(|v| v.ceil());
-        let subdivisions = map.subdivisions.clamp(1., 8.);
-        for axis in 0..2 {
-            let start = (min[axis] * subdivisions) as i32;
-            let end = (max[axis] * subdivisions) as i32;
-            for i in start..=end.min(start + 2048) {
-                let v = i as f32 / subdivisions;
-                let color = if v.fract() == 0. {
-                    [165, 193, 174, 50]
-                } else {
-                    [145, 174, 155, 20]
-                };
-                let (a, b) = if axis == 0 {
-                    (Vec2::new(v, min.y), Vec2::new(v, max.y))
-                } else {
-                    (Vec2::new(min.x, v), Vec2::new(max.x, v))
-                };
-                let steps = if surface.is_some() {
-                    ((b - a).magnitude() * 4.).ceil().min(2048.) as usize
-                } else {
-                    1
-                };
-                let mut previous = screen(a);
-                for k in 1..=steps.max(1) {
-                    let next = screen(a + (b - a) * (k as f32 / steps.max(1) as f32));
-                    line(buffer, previous, next, color);
-                    previous = next;
-                }
-            }
-        }
-    }
-    for id in &map.selected_sectors {
-        if let Some(sector) = map.find_sector(*id) {
-            for id in &sector.linedefs {
-                if let Some(l) = map.find_linedef(*id) {
-                    if let (Some(a), Some(b)) =
-                        (map.get_vertex(l.start_vertex), map.get_vertex(l.end_vertex))
-                    {
-                        line(buffer, screen(a), screen(b), [232, 201, 132, 220]);
-                    }
-                }
-            }
-        }
-    }
-    for id in &map.selected_linedefs {
-        if let Some(l) = map.find_linedef(*id) {
-            if let (Some(a), Some(b)) =
-                (map.get_vertex(l.start_vertex), map.get_vertex(l.end_vertex))
-            {
-                line(buffer, screen(a), screen(b), [232, 201, 132, 255]);
-            }
-        }
-    }
-    for v in map
-        .vertices
-        .iter()
-        .filter(|v| v.properties.get_bool_default("terrain_control", false))
-    {
-        let q = screen(v.as_vec2());
-        line(
-            buffer,
-            q - Vec2::new(4., 0.),
-            q + Vec2::new(4., 0.),
-            [215, 190, 120, 220],
-        );
-        line(
-            buffer,
-            q - Vec2::new(0., 4.),
-            q + Vec2::new(0., 4.),
-            [215, 190, 120, 220],
-        );
-    }
-    for id in &map.selected_vertices {
-        if let Some(v) = map.get_vertex(*id) {
-            let q = screen(v);
-            line(
-                buffer,
-                q - Vec2::new(3., 0.),
-                q + Vec2::new(3., 0.),
-                [245, 219, 150, 255],
-            );
-            line(
-                buffer,
-                q - Vec2::new(0., 3.),
-                q + Vec2::new(0., 3.),
-                [245, 219, 150, 255],
-            );
-        }
-    }
-    if let Some(hover) = guides.hover {
-        let a = hover.map(|v| v.floor());
-        terrain_rectangle_guide(buffer, map, p, a, a + 1., [196, 211, 179, 150]);
-    }
 }
 
 /// Draw the brush/selection perimeter on the same facets as ground picking.

@@ -18,7 +18,7 @@ use uuid::Uuid;
 use vek::{Vec2, Vec3};
 
 /// Terrain generation settings
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct TerrainConfig {
     /// Subdivision level: 1 = one quad per world tile, 2 = 4 quads per tile, etc.
     pub subdivisions: u32,
@@ -62,6 +62,7 @@ impl TerrainConfig {
 #[derive(Clone)]
 pub struct TerrainSampler {
     sculpt: super::terrain_sculpt::TerrainSculpt,
+    shapes: super::terrain_shape::TerrainShapes,
     config: TerrainConfig,
     controls: Vec<(Vec2<f32>, f32, f32)>,
     ridges: Vec<(u32, f32, f32, f32, f32)>,
@@ -77,18 +78,34 @@ impl TerrainSampler {
             .ridge_map
             .as_ref()
             .map_or(0., |map| g.calculate_ridge_height_at(p, &self.ridges, map));
-        (g.apply_linedef_smoothing(p, base + ridge, &self.lines) + self.sculpt.sample(p)).max(0.)
+        (self
+            .shapes
+            .apply(p, g.apply_linedef_smoothing(p, base + ridge, &self.lines))
+            + self.sculpt.sample(p))
+        .max(0.)
+    }
+
+    /// Piecewise-linear height of the rendered facets, shared by 3D actors and
+    /// ground picking. The raw sampler is evaluated only at grid corners.
+    pub(crate) fn height_on_grid(&self, p: Vec2<f32>, subdivisions: u32) -> f32 {
+        let n = subdivisions.max(1) as f32;
+        let cell = (p * n).map(f32::floor) / n;
+        let uv = (p - cell) * n;
+        let h00 = self.sample(cell);
+        let h10 = self.sample(cell + Vec2::new(1. / n, 0.));
+        let h01 = self.sample(cell + Vec2::new(0., 1. / n));
+        if uv.x + uv.y <= 1. {
+            h00 * (1. - uv.x - uv.y) + h10 * uv.x + h01 * uv.y
+        } else {
+            let h11 = self.sample(cell + 1. / n);
+            h10 * (1. - uv.y) + h01 * (1. - uv.x) + h11 * (uv.x + uv.y - 1.)
+        }
     }
 }
 
 /// Generates terrain mesh for a chunk
 pub struct TerrainGenerator {
     config: TerrainConfig,
-}
-
-struct ExcludedSectorPoly {
-    bbox: BBox,
-    vertices: Vec<Vec2<f32>>,
 }
 
 impl TerrainGenerator {
@@ -100,7 +117,26 @@ impl TerrainGenerator {
     /// This is useful for getting terrain height at arbitrary points (e.g., for tile outlines)
     /// Uses the exact same interpolation logic as the main terrain generation
     pub fn sample_height_at(map: &Map, point: Vec2<f32>, config: &TerrainConfig) -> f32 {
-        Self::new(config.clone()).sampler(map).sample(point)
+        // Object placement and navigation query this frequently. Compile controls
+        // once per map revision instead of cloning/scanning the world per query.
+        type Cache = (Uuid, u32, TerrainConfig, std::sync::Arc<TerrainSampler>);
+        thread_local! { static CACHE: std::cell::RefCell<Option<Cache>> = const { std::cell::RefCell::new(None) }; }
+        let sampler = CACHE.with(|cache| {
+            let mut cache = cache.borrow_mut();
+            if cache
+                .as_ref()
+                .is_none_or(|c| c.0 != map.id || c.1 != map.changed || &c.2 != config)
+            {
+                *cache = Some((
+                    map.id,
+                    map.changed,
+                    config.clone(),
+                    std::sync::Arc::new(Self::new(config.clone()).sampler(map)),
+                ));
+            }
+            cache.as_ref().unwrap().3.clone()
+        });
+        sampler.height_on_grid(point, config.subdivisions)
     }
 
     /// Prepare the existing terrain rules once for renderers and navigation.
@@ -108,6 +144,7 @@ impl TerrainGenerator {
         let ridges = self.collect_ridge_sectors(map);
         TerrainSampler {
             sculpt: super::terrain_sculpt::TerrainSculpt::from_map(map),
+            shapes: super::terrain_shape::TerrainShapes::from_map(map),
             config: self.config.clone(),
             controls: self.collect_control_points(map),
             lines: self.collect_terrain_linedefs(map),
@@ -131,7 +168,7 @@ impl TerrainGenerator {
         let tangent_z = Vec3::new(0.0, h_up - h_center, delta);
 
         // Cross product to get normal (and normalize)
-        let normal = tangent_x.cross(tangent_z).normalized();
+        let normal = tangent_z.cross(tangent_x).normalized();
         normal
     }
 
@@ -207,41 +244,29 @@ impl TerrainGenerator {
         default_tile_id: Uuid,
         tile_overrides: Option<&FxHashMap<(i32, i32), PixelSource>>,
     ) -> Option<Vec<(Uuid, Vec<Vec3<f32>>, Vec<u32>, Vec<[f32; 2]>)>> {
-        // 1. Collect ALL control points from entire map (global, not per-chunk)
-        // This ensures consistent terrain interpolation across chunk boundaries
-        let control_points = self.collect_control_points(map);
-
-        // 2. Collect ridge sectors
-        let ridge_sectors = self.collect_ridge_sectors(map);
-
-        // 3. Collect terrain linedefs for road smoothing
-        let terrain_linedefs = self.collect_terrain_linedefs(map);
         let terrain_tile_linedefs = self.collect_terrain_tile_linedefs(map);
         let ridge_tile_sectors = self.collect_ridge_tile_sectors(map);
         let vertex_tile_controls = self.collect_vertex_tile_controls(map);
 
-        // 4. Identify sectors marked for terrain exclusion
-        let excluded_sectors = self.collect_excluded_sectors(map, &chunk.bbox);
-
-        // 4. Generate grid mesh
-        let grid = self.generate_grid(&chunk.bbox);
-
-        // Shared world X/Z bounds, matching the point sampler in every camera.
-        let map_bbox = map.geometry_bbox();
-
-        // 6. Interpolate heights at grid points with map edge falloff, ridge, and linedef smoothing
-        let heights = self.interpolate_heights(
-            &grid,
-            &control_points,
-            &ridge_sectors,
-            &terrain_linedefs,
-            map,
-            &map_bbox,
-        );
-
-        // 5. Cut holes for excluded sectors
-        let (vertices, indices, uvs) =
-            self.apply_exclusions(&grid, &heights, &excluded_sectors, map);
+        // Every camera, navigation and shadows use these exact shared facets.
+        let field = super::terrain_surface::TerrainSurface::cached(map)?;
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+        let mut uvs = Vec::new();
+        let mut remap = FxHashMap::default();
+        field.triangles(chunk.bbox, |triangle| {
+            for point in triangle {
+                let index = *remap
+                    .entry((point.x.to_bits(), point.z.to_bits()))
+                    .or_insert_with(|| {
+                        let index = vertices.len() as u32;
+                        vertices.push(point);
+                        uvs.push([point.x, point.z]);
+                        index
+                    });
+                indices.push(index);
+            }
+        });
 
         // Only return None if there are no vertices
         if vertices.is_empty() {
@@ -496,94 +521,6 @@ impl TerrainGenerator {
         out
     }
 
-    /// Collect sectors marked for terrain exclusion
-    fn collect_excluded_sectors(&self, map: &Map, bbox: &BBox) -> Vec<ExcludedSectorPoly> {
-        let mut excluded = Vec::new();
-
-        for sector in &map.sectors {
-            // Check if sector intersects chunk bbox
-            let sector_bbox = sector.bounding_box(map);
-            if !sector_bbox.intersects(bbox) {
-                continue;
-            }
-
-            // Check terrain_mode property
-            let terrain_mode = sector.properties.get_int_default("terrain_mode", 0);
-            if terrain_mode == 1 {
-                // terrain_mode = 1 means exclude
-                let mut vertices = Vec::with_capacity(sector.linedefs.len());
-                for &linedef_id in &sector.linedefs {
-                    if let Some(linedef) = map.find_linedef(linedef_id) {
-                        if let Some(start_vertex) = map.find_vertex(linedef.start_vertex) {
-                            vertices.push(Vec2::new(start_vertex.x, start_vertex.y));
-                        }
-                    }
-                }
-                if vertices.len() >= 3 {
-                    excluded.push(ExcludedSectorPoly {
-                        bbox: sector_bbox,
-                        vertices,
-                    });
-                }
-            }
-        }
-
-        excluded
-    }
-
-    /// Generate grid points within chunk bbox
-    fn generate_grid(&self, bbox: &BBox) -> Vec<Vec2<f32>> {
-        let mut grid = Vec::new();
-
-        // Cell size based on subdivisions: subdiv=1 → 1.0, subdiv=2 → 0.5, subdiv=4 → 0.25
-        let cell_size = 1.0 / self.config.subdivisions as f32;
-
-        // Align to world tile grid
-        let min_x = bbox.min.x.floor();
-        let min_y = bbox.min.y.floor();
-        let max_x = bbox.max.x.ceil();
-        let max_y = bbox.max.y.ceil();
-
-        // Generate grid points at subdivision resolution
-        let steps_x = ((max_x - min_x) / cell_size).ceil() as i32 + 1;
-        let steps_y = ((max_y - min_y) / cell_size).ceil() as i32 + 1;
-
-        for iy in 0..steps_y {
-            for ix in 0..steps_x {
-                let x = min_x + ix as f32 * cell_size;
-                let y = min_y + iy as f32 * cell_size;
-                grid.push(Vec2::new(x, y));
-            }
-        }
-
-        grid
-    }
-
-    /// Interpolate heights at grid points using edge-based falloff and IDW
-    fn interpolate_heights(
-        &self,
-        grid: &[Vec2<f32>],
-        control_points: &[(Vec2<f32>, f32, f32)],
-        ridge_sectors: &[(u32, f32, f32, f32, f32)],
-        terrain_linedefs: &[(Vec2<f32>, Vec2<f32>, f32, f32, f32, f32, f32)],
-        map: &Map,
-        bbox: &BBox,
-    ) -> Vec<f32> {
-        let sculpt = super::terrain_sculpt::TerrainSculpt::from_map(map);
-        grid.iter()
-            .map(|&grid_point| {
-                let base_height = self.interpolate_height_at(grid_point, control_points, bbox);
-                let ridge_height = self.calculate_ridge_height_at(grid_point, ridge_sectors, map);
-                let smoothed_height = self.apply_linedef_smoothing(
-                    grid_point,
-                    base_height + ridge_height,
-                    terrain_linedefs,
-                );
-                (smoothed_height + sculpt.sample(grid_point)).max(0.)
-            })
-            .collect()
-    }
-
     /// Calculate ridge height contribution at a point from all ridge sectors
     /// Ridges create elevated areas along sector boundaries with configurable falloff
     fn calculate_ridge_height_at(
@@ -821,208 +758,6 @@ impl TerrainGenerator {
         }
     }
 
-    /// Apply exclusions by clipping triangles against sector boundaries
-    /// Returns (vertices, indices, UVs)
-    fn apply_exclusions(
-        &self,
-        grid: &[Vec2<f32>],
-        heights: &[f32],
-        excluded_sectors: &[ExcludedSectorPoly],
-        _map: &Map,
-    ) -> (Vec<Vec3<f32>>, Vec<u32>, Vec<[f32; 2]>) {
-        // First generate all grid vertices and triangles
-        let mut all_vertices = Vec::new();
-        let mut vertex_map = vec![None; grid.len()];
-
-        for (i, (&grid_point, &height)) in grid.iter().zip(heights.iter()).enumerate() {
-            vertex_map[i] = Some(all_vertices.len());
-            all_vertices.push((grid_point, height));
-        }
-
-        // Generate all triangles (without exclusions yet)
-        let all_indices = self.triangulate(grid, &vertex_map);
-
-        if excluded_sectors.is_empty() {
-            // No exclusions - just convert to output format
-            let vertices: Vec<Vec3<f32>> = all_vertices
-                .iter()
-                .map(|(pos, h)| Vec3::new(pos.x, *h, pos.y))
-                .collect();
-            let uvs = self.generate_uvs(&vertices);
-            return (vertices, all_indices, uvs);
-        }
-
-        // Clip triangles against excluded sectors
-        let mut final_vertices = Vec::new();
-        let mut final_indices = Vec::new();
-
-        // Convert flat indices to triangle tuples
-        let triangles: Vec<(usize, usize, usize)> = all_indices
-            .chunks_exact(3)
-            .map(|chunk| (chunk[0] as usize, chunk[1] as usize, chunk[2] as usize))
-            .collect();
-
-        for (i0, i1, i2) in triangles {
-            let p0 = all_vertices[i0].0;
-            let p1 = all_vertices[i1].0;
-            let p2 = all_vertices[i2].0;
-            let h0 = all_vertices[i0].1;
-            let h1 = all_vertices[i1].1;
-            let h2 = all_vertices[i2].1;
-            // Check if triangle is entirely inside any excluded sector
-            let mut should_exclude = false;
-
-            for sector in excluded_sectors {
-                if !sector.bbox.contains(p0)
-                    || !sector.bbox.contains(p1)
-                    || !sector.bbox.contains(p2)
-                {
-                    continue;
-                }
-
-                // Conservative exclusion: only drop triangles fully inside the room.
-                // Higher terrain subdivision handles the boundary cleanly without outside holes.
-                if Self::point_in_polygon(p0, &sector.vertices)
-                    && Self::point_in_polygon(p1, &sector.vertices)
-                    && Self::point_in_polygon(p2, &sector.vertices)
-                {
-                    should_exclude = true;
-                    break;
-                }
-            }
-
-            if !should_exclude {
-                // Keep the triangle as-is
-                let base_idx = final_vertices.len();
-                final_vertices.push(Vec3::new(p0.x, h0, p0.y));
-                final_vertices.push(Vec3::new(p1.x, h1, p1.y));
-                final_vertices.push(Vec3::new(p2.x, h2, p2.y));
-
-                final_indices.push(base_idx as u32);
-                final_indices.push((base_idx + 1) as u32);
-                final_indices.push((base_idx + 2) as u32);
-            }
-        }
-
-        let uvs = self.generate_uvs(&final_vertices);
-        (final_vertices, final_indices, uvs)
-    }
-
-    /// Triangulate the grid
-    /// Returns flat list of triangle indices
-    fn triangulate(&self, grid: &[Vec2<f32>], vertex_map: &[Option<usize>]) -> Vec<u32> {
-        let mut indices = Vec::new();
-
-        // Calculate grid dimensions
-        let cell_size = 1.0 / self.config.subdivisions as f32;
-        let min_x = grid.iter().map(|p| p.x).fold(f32::INFINITY, f32::min);
-        let max_x = grid.iter().map(|p| p.x).fold(f32::NEG_INFINITY, f32::max);
-
-        let cols = ((max_x - min_x) / cell_size).round() as usize + 1;
-
-        // Generate triangles for each grid cell
-        for (i, _) in grid.iter().enumerate() {
-            let col = i % cols;
-
-            // Skip if this is not a bottom-left corner of a cell
-            if col >= cols - 1 {
-                continue;
-            }
-
-            // Get the four corners of this cell
-            let i0 = i; // bottom-left
-            let i1 = i + 1; // bottom-right
-            let i2 = i + cols; // top-left
-            let i3 = i + cols + 1; // top-right
-
-            if i2 >= grid.len() || i3 >= grid.len() {
-                continue;
-            }
-
-            // Check if all four vertices exist (not excluded)
-            if let (Some(v0), Some(v1), Some(v2), Some(v3)) = (
-                vertex_map[i0],
-                vertex_map[i1],
-                vertex_map[i2],
-                vertex_map[i3],
-            ) {
-                // Two triangles per quad with counter-clockwise winding (for Y+ normals)
-                // Triangle 1: bottom-left, top-left, bottom-right
-                indices.push(v0 as u32);
-                indices.push(v2 as u32);
-                indices.push(v1 as u32);
-
-                // Triangle 2: bottom-right, top-left, top-right
-                indices.push(v1 as u32);
-                indices.push(v2 as u32);
-                indices.push(v3 as u32);
-            }
-        }
-
-        indices
-    }
-
-    /// Generate UV coordinates for vertices
-    fn generate_uvs(&self, vertices: &[Vec3<f32>]) -> Vec<[f32; 2]> {
-        // UV mapping: 1:1 with world tiles (1.0 world unit = 1.0 UV unit = 1 tile)
-        vertices
-            .iter()
-            .map(|v| [v.x, v.z]) // Direct mapping: world XZ → UV
-            .collect()
-    }
-
-    /// Check if a point is inside or on the boundary of a sector using ray casting algorithm
-    fn point_in_polygon(point: Vec2<f32>, polygon: &[Vec2<f32>]) -> bool {
-        if polygon.len() < 3 {
-            return false;
-        }
-
-        // Small epsilon for boundary detection - points within this distance are considered on the boundary
-        let epsilon = 0.01;
-
-        // First check if point is very close to any edge (on the boundary)
-        let mut j = polygon.len() - 1;
-        for i in 0..polygon.len() {
-            let vi = polygon[i];
-            let vj = polygon[j];
-
-            // Calculate distance from point to line segment
-            let edge = vj - vi;
-            let edge_length_sq = edge.magnitude_squared();
-
-            if edge_length_sq > 0.0 {
-                let t = ((point - vi).dot(edge) / edge_length_sq).clamp(0.0, 1.0);
-                let projection = vi + edge * t;
-                let dist = (point - projection).magnitude();
-
-                if dist < epsilon {
-                    return true; // Point is on the boundary, treat as inside
-                }
-            }
-
-            j = i;
-        }
-
-        // Ray casting algorithm: count intersections with edges
-        let mut inside = false;
-        j = polygon.len() - 1;
-
-        for i in 0..polygon.len() {
-            let vi = polygon[i];
-            let vj = polygon[j];
-
-            if ((vi.y > point.y) != (vj.y > point.y))
-                && (point.x < (vj.x - vi.x) * (point.y - vi.y) / (vj.y - vi.y) + vi.x)
-            {
-                inside = !inside;
-            }
-
-            j = i;
-        }
-
-        inside
-    }
-
     /// Partition triangles by tile using 1x1 UV cells (same as surface builder)
     /// Returns Vec<(tile_id, vertices, indices, UVs)>
     fn partition_by_tiles(
@@ -1038,6 +773,7 @@ impl TerrainGenerator {
         ridge_tile_sectors: &[(u32, f32, f32, Uuid)],
         vertex_tile_controls: &[(Vec2<f32>, f32, f32, Uuid)],
     ) -> Vec<(Uuid, Vec<Vec3<f32>>, Vec<u32>, Vec<[f32; 2]>)> {
+        let outputs = super::terrain_material::outputs(map);
         let mut per_tile: FxHashMap<Uuid, Vec<u32>> = FxHashMap::default();
 
         // Process triangles in groups of 3 indices
@@ -1064,8 +800,8 @@ impl TerrainGenerator {
             // 5) Default terrain tile
             let tile_id = if let Some(overrides) = tile_overrides {
                 if let Some(pixel_source) = overrides.get(&tile_cell) {
-                    if let Some(tile) = pixel_source.tile_from_tile_list(assets) {
-                        tile.id
+                    if let Some(tile_id) = pixel_source.tile_id_from_tile_list(assets) {
+                        tile_id
                     } else {
                         if let Some(road_tile_id) = Self::road_tile_for_triangle(
                             Vec2::new(uv0[0], uv0[1]),
@@ -1147,6 +883,8 @@ impl TerrainGenerator {
                     default_tile_id
                 }
             };
+
+            let tile_id = super::terrain_material::resolve(&outputs, assets, tile_id);
 
             // Add triangle indices to this tile's batch
             per_tile

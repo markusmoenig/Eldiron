@@ -848,11 +848,6 @@ action_editor_preview_fill = Editor-Fülllicht
 action_editor_preview_fill_desc = Zusätzliches Umgebungslicht für die 3D-Editorvorschau einstellen, ohne die Spielbeleuchtung zu ändern.
 action_editor_preview_fill_amount = Fülllicht
 
-
-
-
-
-
 text_play_cancel = Abbrechen
 text_play_choose = Antwortnummer eingeben und Return drücken (0 zum Abbrechen).
 text_play_invalid_choice = Keine aktive Antwort mit dieser Nummer.
@@ -961,3 +956,72 @@ tileset_animation_help = Ausgewählte Zellen in der Vorschau-Reihenfolge als ein
 tileset_add_selected = Auswahl hinzufügen
 tileset_add_selected_help = Nur die ausgewählten Kacheln oder die Animation zur Kachelauswahl hinzufügen.
 tileset_error_source_size = Die Quelle ist zu groß. Teile die Bilder in kleinere Gruppen auf.
+
+# Shared terrain geometry modifiers
+shape_terrain = Gelände formen
+shape_terrain_desc = Diese Geometrie formt das gemeinsame Gelände.
+terrain_shape_mode = Geländeform
+terrain_shape_plateau = Plateau
+terrain_shape_hill = Hügel
+terrain_shape_height = Zielhöhe
+terrain_shape_start = Anfangshöhe
+terrain_shape_end = Endhöhe
+terrain_shape_width = Korridorbreite
+terrain_shape_blend = Randübergang
+terrain_shape_height_desc = Bodenhöhe in Welteinheiten. Bodenflächen- und Kachelhöhe sind getrennt.
+terrain_shape_width_desc = Gesamte Korridorbreite vor dem Übergang zum Gelände.
+terrain_shape_blend_desc = Abstand für den weichen Übergang zum umgebenden Gelände.
+sector_floor_height = Bodenflächen- / Kachelhöhe
+sector_floor_height_desc = Höhe dieser Bodenfläche oder Kachelplatzierung. Gelände formen ändert den Untergrund.
+
+mz_edit_material = Materialrezept bearbeiten
+mz_edit_mask = Maskenrezept bearbeiten
+mz_back_to_composite = Zurück zur Komposition
+mz_edit_mask_desc = MZ-Maskengraph und bearbeitbare Regler öffnen. Mit Zurück zur Komposition zurückkehren.
+
+mz_shape_geometry_missing = Das Geländematerial verweist auf fehlende Kartengeometrie.
+mz_shape_closed_area = Flächenformen benötigen einen geschlossenen Sektor.
+mz_shape_limit = Pro Form höchstens 256 Randkanten oder Pfadlinien verwenden.
+
+mz_blend_title = Materialien mischen
+mz_use_selected_material = Ausgewähltes Material verwenden
+mz_use_selected_material_desc = Das aktuell im Tilepicker ausgewählte Material für diese Mischung verwenden.
+mz_add_blend = Mischung hinzufügen
+mz_remove_blend = Entfernen
+mz_blend_current_result = Wird über das aktuelle Ergebnis gemischt.
+mz_choose_shape = Form wählen…
+mz_select_material_first = Zuerst ein Material im Tilepicker auswählen.
+
+mz_blend_paint_first = Zuerst ein Material auf die Oberfläche anwenden und dann über dieses Ergebnis mischen.
+
+terrain_material_source = Geländematerial
+terrain_material_source_desc = Kachel-UUID oder Alias. Leer lassen, um das Material von der Geometrie zu entfernen.
+terrain_material_verge = Material für Wegrand
+terrain_material_width = Wegbreite
+terrain_material_verge_width = Randbreite
+terrain_material_inset = Flächeneinzug
+terrain_material_soft_edge = Weicher Rand
+terrain_material_noisy_edge = Unregelmäßiger Rand
+terrain_material_noise_scale = Rauschskalierung
+terrain_material_edge_desc = Randabstände in Karteneinheiten. Materialien folgen dem Gelände in jeder Kamera.
+terrain_material_order = Ebenenreihenfolge
+terrain_material_order_desc = Höhere Zahlen werden später gemischt. Bei Gleichstand liegen Wege über Flächen.
+terrain_material_invalid = Unbekanntes Geländematerial
+mz_workspace_materials_desc = MZ-Oberflächenmaterialien und Kachelmischungen bearbeiten.
+mz_workspace_meshes_desc = Prozedurale 3D-Teile wie Wände, Dächer und Bäume erstellen.
+
+paint_picker_paint = Malen
+paint_picker_scatter = Streuen
+paint_picker_size = Größe
+paint_picker_jitter = Größenstreuung
+paint_picker_rotate = Drehung
+paint_picker_edit = Rezept bearbeiten
+paint_picker_choose = Material oder Stempel unten auswählen
+paint_picker_choose_stamp = Einen Stempel in der Sammlung Organic stamps auswählen.
+
+paint_source_title = Malquelle
+paint_stamp_source_title = Stempelquelle
+paint_source_seed = Variations-Seed
+paint_source_artwork_size = Motivgröße
+paint_source_palette_hint = Palettenfarbe der Quelle
+paint_picker_in_use = Dieses Material wird von Farbe, Stempeln, einem Mesh, einer Kachelausgabe oder einem Regelwerk verwendet. Ersetze die Verweise vor dem Löschen.

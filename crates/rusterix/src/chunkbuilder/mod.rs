@@ -4,6 +4,7 @@ pub mod d3chunkbuilder;
 pub mod geometry_object_builder;
 pub mod surface_mesh_builder;
 pub mod terrain_generator;
+pub mod terrain_material;
 pub mod terrain_sculpt;
 pub mod terrain_surface;
 pub mod topology_builder;
@@ -41,3 +42,5 @@ pub trait ChunkBuilder: Send + Sync {
 
     fn boxed_clone(&self) -> Box<dyn ChunkBuilder>;
 }
+
+pub mod terrain_shape;

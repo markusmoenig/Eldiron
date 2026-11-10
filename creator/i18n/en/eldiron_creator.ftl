@@ -1227,11 +1227,6 @@ action_editor_preview_fill = Editor Fill Light
 action_editor_preview_fill_desc = Set extra ambient fill for the 3D editor preview without changing game lighting.
 action_editor_preview_fill_amount = Fill
 
-
-
-
-
-
 text_play_cancel = Cancel
 text_play_choose = Enter a choice number and press Return (0 to cancel).
 text_play_invalid_choice = No active choice with that number.
@@ -1326,3 +1321,72 @@ tileset_animation_help = Add the selected cells as frames of one animation, in p
 tileset_add_selected = Add Selected
 tileset_add_selected_help = Add only the selected tiles or animation to the tile picker.
 tileset_error_source_size = The source is too large. Split the images into smaller groups.
+
+# Shared terrain geometry modifiers
+shape_terrain = Shape Terrain
+shape_terrain_desc = Use this geometry to shape the shared terrain.
+terrain_shape_mode = Terrain shape
+terrain_shape_plateau = Plateau
+terrain_shape_hill = Hill
+terrain_shape_height = Target height
+terrain_shape_start = Start height
+terrain_shape_end = End height
+terrain_shape_width = Corridor width
+terrain_shape_blend = Edge blend
+terrain_shape_height_desc = Ground altitude in world units. Floor and tile height are separate.
+terrain_shape_width_desc = Full corridor width before the edges blend into the ground.
+terrain_shape_blend_desc = Distance over which the shape joins the surrounding ground.
+sector_floor_height = Floor / tile height
+sector_floor_height_desc = Elevation of this floor or tile placement. Use Shape Terrain to change the ground.
+
+mz_edit_material = Edit material recipe
+mz_edit_mask = Edit mask recipe
+mz_back_to_composite = Back to composite
+mz_edit_mask_desc = Open the mask MZ graph and its editable controls. Return with Back to composite.
+
+mz_shape_geometry_missing = The terrain material references missing map geometry.
+mz_shape_closed_area = Area shapes need a closed sector.
+mz_shape_limit = Use at most 256 boundary edges or path lines in one shape.
+
+mz_blend_title = Blend materials
+mz_use_selected_material = Use selected material
+mz_use_selected_material_desc = Use the material currently selected in the Tilepicker for this blend.
+mz_add_blend = Add blend
+mz_remove_blend = Remove
+mz_blend_current_result = Blends over the current result.
+mz_choose_shape = Choose shape…
+mz_select_material_first = Pick a material in the Tilepicker first.
+
+mz_blend_paint_first = Apply a material to the surface first, then blend over that result.
+
+terrain_material_source = Terrain material
+terrain_material_source_desc = Tile UUID or alias. Leave empty to remove this material from the geometry.
+terrain_material_verge = Path verge material
+terrain_material_width = Path width
+terrain_material_verge_width = Verge width
+terrain_material_inset = Area inset
+terrain_material_soft_edge = Soft edge
+terrain_material_noisy_edge = Noisy edge
+terrain_material_noise_scale = Noise scale
+terrain_material_edge_desc = Edge distances are in map units. Materials follow the terrain in every camera.
+terrain_material_order = Layer order
+terrain_material_order_desc = Higher numbers blend later. At equal order, paths blend over areas.
+terrain_material_invalid = Unknown terrain material
+mz_workspace_materials_desc = Edit MZ surface materials and tile blends.
+mz_workspace_meshes_desc = Create procedural 3D parts, such as walls, roofs and trees.
+
+paint_picker_paint = Paint
+paint_picker_scatter = Scatter
+paint_picker_size = Size
+paint_picker_jitter = Size jitter
+paint_picker_rotate = Rotation
+paint_picker_edit = Edit recipe
+paint_picker_choose = Pick a material or stamp below
+paint_picker_choose_stamp = Choose a stamp in the Organic stamps collection.
+
+paint_source_title = Paint Source
+paint_stamp_source_title = Stamp Source
+paint_source_seed = Variation seed
+paint_source_artwork_size = Artwork size
+paint_source_palette_hint = Source palette color
+paint_picker_in_use = This material is used by paint, stamps, a mesh, a tile output or a ruleset. Replace its references before deleting it.

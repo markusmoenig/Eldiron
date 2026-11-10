@@ -731,9 +731,17 @@ impl ToolList {
             return undo_atom;
         } else if server_ctx.get_map_context() == MapContext::Region {
             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                let terrain_drag = matches!(map_event, MapEvent::MapDragged(_))
+                    && Self::selected_edit_affects_terrain(&region.map, server_ctx);
+                let revision = region.map.changed;
                 let undo_atom = self
                     .get_current_tool()
                     .region_map_event(map_event, ui, ctx, region, server_ctx);
+                if terrain_drag {
+                    // Tool drags may restore their initial map snapshot. Keep the
+                    // shared terrain cache revision monotonic for live previews.
+                    region.map.changed = revision.wrapping_add(1);
+                }
                 if undo_atom
                     .as_ref()
                     .is_some_and(|atom| !atom.is_iso_paint_only())
@@ -1028,7 +1036,9 @@ impl ToolList {
 
         let mut bbox = sector.bounding_box(map);
         if Self::sector_affects_terrain(sector) {
-            bbox.expand(Vec2::broadcast(8.0));
+            let radius = sector.properties
+                .get_float_default("terrain_shape_blend", 0.).max(4.);
+            bbox.expand(Vec2::broadcast(radius * 2.));
         }
         Self::add_bbox_dirty_chunks(bbox, chunks);
     }
@@ -1042,11 +1052,17 @@ impl ToolList {
         if Self::linedef_affects_terrain(linedef) {
             let width = linedef
                 .properties
-                .get_float_default("terrain_width", 2.0)
+                .get_float_default(
+                    "terrain_shape_width",
+                    linedef.properties.get_float_default("terrain_width", 2.0),
+                )
                 .max(0.0);
             let falloff = linedef
                 .properties
-                .get_float_default("terrain_tile_falloff", 1.0)
+                .get_float_default(
+                    "terrain_shape_blend",
+                    linedef.properties.get_float_default("terrain_tile_falloff", 1.0),
+                )
                 .max(0.0);
             bbox.expand(Vec2::broadcast((width + falloff + 8.0) * 2.0));
         } else {
@@ -1061,12 +1077,14 @@ impl ToolList {
     }
 
     fn linedef_affects_terrain(linedef: &rusterix::Linedef) -> bool {
-        linedef.properties.contains("terrain_source")
+        linedef.properties.get_bool_default("terrain_shape", false)
+            || linedef.properties.contains("terrain_source")
             || linedef.properties.get_bool_default("terrain_smooth", false)
     }
 
     fn sector_affects_terrain(sector: &rusterix::Sector) -> bool {
-        sector.properties.get_int_default("terrain_mode", 0) != 0
+        sector.properties.get_bool_default("terrain_shape", false)
+            || sector.properties.get_int_default("terrain_mode", 0) != 0
             || sector.properties.contains("terrain_source")
             || sector.properties.get_bool_default("cutout_handle", false)
             || sector.properties.contains("linked_cutout_handle")
@@ -1117,6 +1135,11 @@ impl ToolList {
                     .iter()
                     .filter_map(|id| map.find_vertex(*id))
                     .any(Self::vertex_affects_terrain)
+                    || map.linedefs.iter().any(|l| {
+                        Self::linedef_affects_terrain(l)
+                            && (map.selected_vertices.contains(&l.start_vertex)
+                                || map.selected_vertices.contains(&l.end_vertex))
+                    })
                     || topology
                         .sectors_for_vertices(map.selected_vertices.iter().copied())
                         .into_iter()
@@ -1300,6 +1323,11 @@ impl ToolList {
                         && old.properties == new.properties => {}
                 _ => {
                     affected_vertices.insert(vertex_id);
+                    for map in [old_map, new_map] {
+                        affected_linedefs.extend(map.linedefs.iter()
+                            .filter(|l| l.start_vertex == vertex_id || l.end_vertex == vertex_id)
+                            .map(|l| l.id));
+                    }
                     affected_sectors.extend(old_topology.sectors_for_vertices([vertex_id]));
                     affected_sectors.extend(new_topology.sectors_for_vertices([vertex_id]));
                 }

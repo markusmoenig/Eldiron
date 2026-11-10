@@ -162,6 +162,47 @@ a different pack. A sprite's transparent outline is not a collision mesh.
 Use editable map sectors for the physical footprint of a wall or object.
 Doorways must leave a gap in the blocking geometry as well as in the artwork.
 
+## Draw named areas for commands
+
+The **Vertex**, **Linedef / Edge**, and **Sector / Face** tools also work in
+**2D Iso**, with the scene fully rendered behind their editing guides.
+
+1. Select **Linedef / Edge** and click each corner of your area. The current
+   segment previews in iso. Click the starting vertex again to close the polygon
+   and create a sector.
+2. Select **Sector / Face**, click inside the area, and enter its **Name** in
+   the **Edit Sector** action. The named area appears in the region tree and
+   can be used by commands such as `goto("Meeting place", 1.0)`.
+3. Use **Vertex** to move individual corners, **Linedef / Edge** to move edges,
+   or **Sector / Face** to move the whole area. Drag on empty space for a
+   screen-aligned box selection. These edits use normal map undo/redo.
+
+The guides and snapping follow the shared terrain, so areas can be drawn over
+hills. Geometry guides appear while editing sectors and their boundaries;
+ordinary Rect placement keeps the scene view clear of unselected boundaries.
+Hidden tile-placement footprints are excluded from geometry picking. A named
+area needs no tile or MZ asset: leave it untextured if it is only a destination
+or gameplay region.
+
+### Sector height and the construction plane
+
+**Edit Sector → `floor_height`** (Floor / tile height) is the selected sector's floor or tile-placement
+altitude, in world units. **Walkable top** makes that surface support the player,
+which is useful for steps and upper floors. For an untextured named area, height
+can specify an upstairs destination for commands. It does not sculpt the shared
+terrain or move other sectors, trees, or buildings. A textured sector covering
+the whole map naturally has a floor covering the whole map.
+
+The separate Rect placement **Top height** control sets the editor's construction
+plane for painting and picking at an elevation. Changing a sector's height leaves
+that plane and its grid in place; the selected sector outline follows its own
+height. Use the **Terrain** brush to raise or lower continuous ground, or enable
+[Shape Terrain](creating_3d_terrain#shape-terrain-with-geometry) on a linedef or
+sector for an editable corridor, plateau or hill.
+
+Selected and hovered geometry uses the same purple as ordinary 2D; unselected
+geometry is white and the snapped cursor is yellow.
+
 ## Lighting, shadows and terrain limits
 
 For sun colours, night ambient levels and soft local shadows, see
@@ -173,7 +214,12 @@ sun/ambient/local-light color affect the artwork, but cannot recover the
 individual face normals from a color image. Eldiron does not invent mesh
 geometry or accurate mesh shadows from a sprite silhouette.
 
-MZ assets with surface data continue to use live surface lighting. Both asset
+MZ assets with surface data continue to use live surface lighting. Sculpted
+terrain also uses its MZ roughness, metallic and emission channels, including
+blended materials. A nonmetallic rock with moderate roughness can catch subtle
+sun or local-light highlights without painting them into the texture.
+
+Both asset
 types share the iso scene and depth ordering; supporting ordinary PNGs does
 not require removing the MZ rendering path.
 

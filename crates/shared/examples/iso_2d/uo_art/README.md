@@ -178,3 +178,62 @@ The editable MZ fixture and actual mesh/terrain occlusion remain in use.
 The filter follows the three-stage PCSS approach (blocker search, penumbra
 estimate, shadow filtering), adapted to the point-light depth views and receiving
 surface planes: <https://developer.nvidia.com/gpugems/gpugems3/part-ii-light-and-shadows/chapter-8-summed-area-variance-shadow-maps>.
+
+## Live terrain shape examples
+
+The maintained UnendingNight project includes **Terrain Plateau**, **Terrain Hill**
+and five graded linedefs under a continuous **MZ Composite** path east of
+the inn. Edit their Shape Terrain inspector controls in 2D/iso; the generated
+height field is shared with 3D, walking, picking and shadows. Floor/tile height
+remains independent. The camera starts wider in daylight, and its 3D anchor faces
+the examples.
+
+```sh
+cargo run -p eldiron-shared --release --example shape_terrain -- \
+  test_projects/UnendingNight.eldiron generated/unending-night/shape-terrain --review
+```
+
+This helper adds the editable examples only once, verifies both directions of
+the graded route, compares real 3D chunk vertices with the shared surface, and
+profiles chunk generation. `--review` captures native iso and 3D views and times
+3D VM rendering/readback. Captures, backup and logs remain in ignored generated/.
+The intentionally maintained `.eldiron` project is the only generated example
+artifact intended for version control.
+
+
+### Inspect the hill and path materials
+
+The existing terrain composition uses **Inn / grass** as the base, weathered
+rock on Terrain Plateau and Terrain Hill, a wide grassy verge, and a narrower
+earth trail. Moving its guide geometry updates the coverage, while sculpting
+keeps material coordinates attached to the terrain.
+
+Rect **Compose** offers tile shapes, soft/noisy edges and material layers.
+There are no map-area/path modes or geometry-binding buttons in Compose.
+Edit terrain heights through the linedef/sector **Shape Terrain** settings.
+The hill sectors and five approach linedefs own their `[terrain.material]`
+settings. Select an example with Sector/Linedef, open Edit Sector/Edit Linedef,
+and change `source`, `width`/`inset`, `soft_edge`, or `noisy_edge` in TOML.
+Path settings also include `verge_source` (grass) and `verge_width`; clear the
+source strings to remove material coverage while keeping terrain heights.
+The terrain result blends over existing paint in 2D, iso and 3D. Derived MZ
+outputs are hidden from the picker, regenerated from geometry settings, and
+saved as caches with the project. Edit the original MZ sources in the picker.
+
+Under **Advanced mixing**, the rock material is separately editable using
+**Edit material recipe**;
+**Back to composite** returns to the selected layer. Its Roughness row maps
+facets to **0.34–0.54**, with zero metallic. Iso terrain passes those MZ material
+channels to live GPU lighting, giving subtle sun/local-light highlights rather
+than painted reflections. Guildhall palette bindings remain in place.
+
+To refresh the maintained example with the normal compositor and native MZ baker:
+
+```sh
+cargo test -p eldiron-creator --lib update_unending_night_terrain_art -- --ignored --nocapture
+```
+
+The helper verifies persisted trail continuity and live-light material data
+after reopening, and captures day/evening GPU views under ignored
+`generated/unending-night/terrain-art/`. Only the maintained project is saved
+after successful verification; captures, backups and standalone caches stay ignored.

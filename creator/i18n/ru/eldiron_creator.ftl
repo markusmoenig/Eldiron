@@ -851,9 +851,6 @@ status_node_branch_toggle = Включить или отключить выбр�
 
 node_branch_empty = Пустая ветка
 
-
-
-
 text_play_cancel = Отмена
 text_play_choose = Введите номер ответа и нажмите Enter (0 для отмены).
 text_play_invalid_choice = Нет активного ответа с таким номером.
@@ -962,3 +959,72 @@ tileset_animation_help = Добавить выбранные ячейки как
 tileset_add_selected = Добавить выбранное
 tileset_add_selected_help = Добавить в палитру только выбранные тайлы или анимацию.
 tileset_error_source_size = Источник слишком велик. Разделите изображения на меньшие группы.
+
+# Shared terrain geometry modifiers
+shape_terrain = Формировать рельеф
+shape_terrain_desc = Использовать эту геометрию для изменения общего рельефа.
+terrain_shape_mode = Форма рельефа
+terrain_shape_plateau = Плато
+terrain_shape_hill = Холм
+terrain_shape_height = Целевая высота
+terrain_shape_start = Высота начала
+terrain_shape_end = Высота конца
+terrain_shape_width = Ширина коридора
+terrain_shape_blend = Плавность края
+terrain_shape_height_desc = Высота земли в единицах мира. Высота пола и тайлов задаётся отдельно.
+terrain_shape_width_desc = Полная ширина коридора до плавного перехода к земле.
+terrain_shape_blend_desc = Расстояние плавного перехода к окружающему рельефу.
+sector_floor_height = Высота пола / тайла
+sector_floor_height_desc = Высота этого пола или тайла. Для изменения земли используйте Формировать рельеф.
+
+mz_edit_material = Изменить рецепт материала
+mz_edit_mask = Изменить рецепт маски
+mz_back_to_composite = Назад к композиции
+mz_edit_mask_desc = Открыть граф MZ маски и его параметры. Для возврата нажмите Назад к композиции.
+
+mz_shape_geometry_missing = Материал рельефа ссылается на отсутствующую геометрию карты.
+mz_shape_closed_area = Для формы области нужен замкнутый сектор.
+mz_shape_limit = Используйте не более 256 рёбер или линий пути в одной форме.
+
+mz_blend_title = Смешивание материалов
+mz_use_selected_material = Взять выбранный материал
+mz_use_selected_material_desc = Использовать выбранный в палитре тайлов материал для этого слоя.
+mz_add_blend = Добавить слой
+mz_remove_blend = Удалить
+mz_blend_current_result = Смешивается с текущим результатом.
+mz_choose_shape = Выбрать форму…
+mz_select_material_first = Сначала выберите материал в палитре тайлов.
+
+mz_blend_paint_first = Сначала нанесите материал на поверхность, затем смешивайте с полученным результатом.
+
+terrain_material_source = Материал рельефа
+terrain_material_source_desc = UUID или псевдоним тайла. Пустая строка удаляет материал с геометрии.
+terrain_material_verge = Материал обочины
+terrain_material_width = Ширина пути
+terrain_material_verge_width = Ширина обочины
+terrain_material_inset = Отступ области
+terrain_material_soft_edge = Мягкий край
+terrain_material_noisy_edge = Неровный край
+terrain_material_noise_scale = Масштаб шума
+terrain_material_edge_desc = Расстояния заданы в единицах карты. Материалы следуют рельефу во всех камерах.
+terrain_material_order = Порядок слоёв
+terrain_material_order_desc = Большие значения смешиваются позже. При равных значениях пути накладываются на области.
+terrain_material_invalid = Неизвестный материал рельефа
+mz_workspace_materials_desc = Редактирование материалов MZ и смешивания тайлов.
+mz_workspace_meshes_desc = Создание процедурных 3D-деталей: стен, крыш и деревьев.
+
+paint_picker_paint = Рисовать
+paint_picker_scatter = Рассеять
+paint_picker_size = Размер
+paint_picker_jitter = Разброс
+paint_picker_rotate = Поворот
+paint_picker_edit = Редактировать рецепт
+paint_picker_choose = Выберите материал или штамп внизу
+paint_picker_choose_stamp = Выберите штамп в коллекции Organic stamps.
+
+paint_source_title = Источник краски
+paint_stamp_source_title = Источник штампа
+paint_source_seed = Зерно вариации
+paint_source_artwork_size = Размер рисунка
+paint_source_palette_hint = Цвет палитры источника
+paint_picker_in_use = Этот материал используется краской, штампами, мешем, выводом тайла или набором правил. Замените ссылки перед удалением.

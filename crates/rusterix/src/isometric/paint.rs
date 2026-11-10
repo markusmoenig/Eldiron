@@ -4,6 +4,7 @@ use rustc_hash::FxHashMap;
 use std::sync::Arc;
 
 pub struct StampSprite {
+    pub surface: Option<super::surface::SurfaceFrame>,
     pub texture: crate::Texture,
     pub anchor: [f32; 2],
 }
@@ -48,12 +49,31 @@ impl TerrainPaint {
         ))
     }
 
+    /// Blend the painted library material with the terrain's MZ surface.
+    pub fn surface_material(&self, base: [f32; 3], world: [f32; 2]) -> [f32; 3] {
+        let Some((_, material)) = self.sample(world) else {
+            return base;
+        };
+        let (r,m,e,replace) = match material[0] {
+            254 => { let [r,m,_,e] = crate::material_library::MaterialDefinition::from_id(material[1]).rmoe_values(); (r,m,e,material[2]!=0) }
+            64..=123 | 128..=187 | 252 | 253 => { let (r,m,_,e) = crate::Texture::decode_material_bytes([material[1],material[2]]); (r,m,e,material[0]==252 || (128..=187).contains(&material[0])) }
+            _ => return base,
+        };
+        let amount = if replace && material[3] > 0 {
+            1.
+        } else {
+            material[3] as f32 / 255.
+        };
+        let top = [r, m, e];
+        std::array::from_fn(|i| base[i] * (1. - amount) + top[i] * amount)
+    }
+
     pub fn composite(&self, base: [u8; 4], world: [f32; 2]) -> [u8; 4] {
         let Some((paint, material)) = self.sample(world) else {
             return base;
         };
         let alpha = paint[3] as f32 / 255.;
-        let coverage = if material[2] != 0 {
+        let coverage = if material[0] == 252 || (128..=187).contains(&material[0]) || material[0] == 254 && material[2] != 0 {
             material[3] as f32 / 255.
         } else {
             alpha

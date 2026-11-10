@@ -166,11 +166,19 @@ pub(super) fn for_surface(
     layout(points.into_iter().map(|p| point(p, basis)).collect(), basis)
 }
 fn is_source(project: &Project, source: Option<&PixelSource>, id: Uuid) -> bool {
-    matches!(source,Some(PixelSource::TileId(tile)) if *tile==id
-        || project.tiles.get(tile).and_then(|t|t.isometric.as_ref()).is_some_and(|l|l.top_material==Some(id))
-        || matches!(shared::isometric::tile_recipe(project,*tile),Some(shared::isometric::TileRecipe::Material(recipe)) if recipe==id))
+    match source {
+        Some(PixelSource::TileId(tile)) => *tile == id
+            || project.tiles.get(tile).and_then(|t|t.isometric.as_ref()).is_some_and(|l|l.top_material==Some(id))
+            || matches!(shared::isometric::tile_recipe(project,*tile),Some(shared::isometric::TileRecipe::Material(recipe)) if recipe==id),
+        Some(PixelSource::Color(color)) => PixelSource::color_tile_uuid(color) == id,
+        Some(PixelSource::PaletteIndex(index)) => PixelSource::palette_tile_uuid(*index) == id,
+        _ => false,
+    }
 }
 pub(super) fn for_template(project: &Project, id: Uuid) -> Option<rusterix::TileUvPages> {
+    if project.tiles.get(&id).is_some_and(|t| t.paint.is_some()) {
+        return Some(rusterix::TileUvPages { animation_frames:4, repeat_period:[1.;2], origin:[0;2], size:[1;2], axes:[[0.;3];2], units_per_page:1 });
+    }
     let mut points = Vec::new();
     for map in project
         .regions
@@ -178,6 +186,9 @@ pub(super) fn for_template(project: &Project, id: Uuid) -> Option<rusterix::Tile
         .map(|r| &r.map)
         .chain(project.screens.values().map(|s| &s.map))
     {
+        let outputs = rusterix::chunkbuilder::terrain_material::outputs(map);
+        // Derived outputs cover the same world domain as their painted background.
+        let id = outputs.iter().find_map(|(base, output)| (*output == id).then_some(*base)).unwrap_or(id);
         for sector in &map.sectors {
             if is_source(project, sector.properties.get_source("source"), id)
                 || is_source(project, sector.properties.get_source("ceiling_source"), id)

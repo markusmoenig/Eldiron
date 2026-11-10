@@ -274,6 +274,8 @@ pub mod edit_face_texture;
 pub mod edit_geometry;
 pub mod edit_linedef;
 pub mod edit_sector;
+pub mod shape_terrain;
+pub mod terrain_material;
 pub mod edit_tile_meta;
 pub mod edit_vertex;
 pub mod editing_camera;
