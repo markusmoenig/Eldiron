@@ -1021,3 +1021,284 @@ fn reference_graph_text_input_and_cancel_follow_authored_cell_addresses() {
     assert_eq!(rows[1][1], GraphControlValue::Text("External field".into()));
     assert!(f.graph.take_edits().is_empty());
 }
+
+fn detached_draft(f: &mut Fixture) -> (GraphViewState, GraphTextDraft) {
+    let target = f.graph.text_focus().unwrap().clone();
+    f.graph.finish_text(&mut f.doc, false);
+    let state = GraphViewState::new("detached-test", f.doc.clone());
+    let mut draft =
+        GraphTextDraft::new(state.binding(), target, state.document(), &mut f.fonts).unwrap();
+    draft.view.prepare(
+        &mut f.fonts,
+        theframework::text::TextOptions {
+            family: "Roboto",
+            size: 15.,
+            width: Some(220.),
+            line_height: Some(24.),
+        },
+        theframework::paint::Rect::new(40., 60., 220., 180.),
+        false,
+    );
+    draft.view.set_focused(&mut f.fonts, true);
+    (state, draft)
+}
+
+#[test]
+fn detached_graph_draft_checkpoints_multiline_source_without_ending_ime_or_local_history() {
+    let original = "A\r\n東京 e\u{301}";
+    let mut f = Fixture::new(original);
+    let (mut state, mut draft) = detached_draft(&mut f);
+    let source = state.document().clone();
+    assert_eq!(draft.text(), original);
+    assert!(!draft.has_changes());
+    draft
+        .view
+        .editor
+        .execute(&mut f.fonts, EditorCommand::SelectAll);
+    draft
+        .view
+        .input(&mut f.fonts, &InputEvent::Text("next\r\n値".into()));
+    let target = draft.view.text_input_state(&mut f.fonts).unwrap().target;
+    draft.view.input(
+        &mut f.fonts,
+        &InputEvent::CompositionFor {
+            target,
+            text: "日本".into(),
+            cursor: None,
+        },
+    );
+    assert_eq!(draft.text(), "next\r\n値");
+    let first = state.checkpoint_draft(&mut draft).unwrap().unwrap();
+    assert_eq!(first.serial, 1);
+    assert!(!draft.has_changes());
+    assert_eq!(
+        draft.view.text_input_state(&mut f.fonts).unwrap().target,
+        target
+    );
+    assert!(draft.view.editor.is_composing());
+    assert!(state.checkpoint_draft(&mut draft).unwrap().is_none());
+    let mut persisted = source;
+    for edit in &first.edits {
+        edit.apply(&mut persisted, true);
+    }
+    assert_eq!(&persisted, state.document());
+    assert!(state.acknowledge(first.binding, first.serial));
+    assert_eq!(
+        draft
+            .view
+            .input(&mut f.fonts, &key(PhysicalKey::Enter))
+            .action,
+        None
+    );
+    draft.view.input(
+        &mut f.fonts,
+        &InputEvent::TextFor {
+            target,
+            text: "日本".into(),
+        },
+    );
+    assert_eq!(draft.text(), "next\r\n値日本");
+    draft.view.editor.execute(&mut f.fonts, EditorCommand::Undo);
+    assert_eq!(draft.text(), "next\r\n値");
+    assert!(state.checkpoint_draft(&mut draft).unwrap().is_none());
+    draft.view.editor.execute(&mut f.fonts, EditorCommand::Undo);
+    assert_eq!(draft.text(), original);
+    let second = state.checkpoint_draft(&mut draft).unwrap().unwrap();
+    assert_eq!(second.serial, 2);
+    for edit in &second.edits {
+        edit.apply(&mut persisted, true);
+    }
+    assert_eq!(&persisted, state.document());
+    assert!(state.acknowledge(second.binding, second.serial));
+    assert!(
+        state.pending_through(first.serial).is_empty(),
+        "old wake-up cannot duplicate a saved draft"
+    );
+    draft.view.editor.execute(&mut f.fonts, EditorCommand::Redo);
+    assert_eq!(draft.text(), "next\r\n値");
+    assert!(state.checkpoint_draft(&mut draft).unwrap().is_some());
+}
+
+#[test]
+fn detached_graph_draft_follows_identified_cells_and_preserves_other_current_fields() {
+    let mut f = cell_fixture(true);
+    let (mut state, mut draft) = detached_draft(&mut f);
+    draft
+        .view
+        .editor
+        .execute(&mut f.fonts, EditorCommand::SelectAll);
+    draft
+        .view
+        .input(&mut f.fonts, &InputEvent::Text("long\n日本".into()));
+    state.edit(|document, _| {
+        let GraphControlValue::List {
+            rows,
+            columns,
+            row_ids,
+        } = &mut document.nodes[0].rows[0].value
+        else {
+            unreachable!()
+        };
+        rows.swap(0, 1);
+        row_ids.swap(0, 1);
+        columns.swap(0, 1);
+        for row in rows.iter_mut() {
+            row.swap(0, 1);
+        }
+        rows[1][0] = GraphControlValue::Text("Current external field".into());
+    });
+    let before = state.document().clone();
+    let commit = state.checkpoint_draft(&mut draft).unwrap().unwrap();
+    let GraphControlValue::List { rows, .. } = &state.document().nodes[0].rows[0].value else {
+        unreachable!()
+    };
+    assert_eq!(rows[0][1], GraphControlValue::Text("long\n日本".into()));
+    assert_eq!(
+        rows[1][0],
+        GraphControlValue::Text("Current external field".into())
+    );
+    let mut undo = state.document().clone();
+    assert_eq!(commit.edits.len(), 1);
+    commit.edits[0].apply(&mut undo, false);
+    assert_eq!(undo, before);
+}
+
+#[test]
+fn detached_graph_draft_conflicts_retain_the_draft_without_overwriting_new_source() {
+    let mut f = Fixture::new("Original");
+    let (mut state, mut draft) = detached_draft(&mut f);
+    draft
+        .view
+        .editor
+        .execute(&mut f.fonts, EditorCommand::SelectAll);
+    draft.view.input(
+        &mut f.fonts,
+        &InputEvent::Text("Retained private draft".into()),
+    );
+    state.edit(|document, _| {
+        document.nodes[0].rows[0].value = GraphControlValue::Text("External source".into());
+    });
+    let external = state.document().clone();
+    assert_eq!(
+        state.checkpoint_draft(&mut draft).unwrap_err(),
+        GraphDraftError::SourceChanged
+    );
+    assert_eq!(state.document(), &external);
+    assert_eq!(draft.text(), "Retained private draft");
+    assert_eq!(state.last_serial(), 0);
+    state.edit(|document, _| {
+        document.nodes.clear();
+    });
+    assert_eq!(
+        state.checkpoint_draft(&mut draft).unwrap_err(),
+        GraphDraftError::MissingTarget
+    );
+    assert_eq!(draft.text(), "Retained private draft");
+    state.replace_document("detached-test", external);
+    assert_eq!(
+        state.checkpoint_draft(&mut draft).unwrap_err(),
+        GraphDraftError::WrongBinding
+    );
+    assert_eq!(state.last_serial(), 0);
+}
+
+#[test]
+fn detached_graph_draft_requires_exclusive_inline_and_pointer_editing_scope() {
+    let mut f = Fixture::new("Original");
+    let (mut state, mut draft) = detached_draft(&mut f);
+    draft
+        .view
+        .editor
+        .execute(&mut f.fonts, EditorCommand::SelectAll);
+    draft
+        .view
+        .input(&mut f.fonts, &InputEvent::Text("Detached".into()));
+    for inline in [true, false] {
+        state.edit(|document, editor| {
+            let point = if inline {
+                let r = document.nodes[0].row_rect(0, &document.metrics());
+                [r.origin[0] + 12., r.origin[1] + 10.]
+            } else {
+                [
+                    document.nodes[0].position[0] + 24.,
+                    document.nodes[0].position[1] + 12.,
+                ]
+            };
+            editor.pointer_down(
+                document,
+                editor.viewport.to_screen(point),
+                &BasicGraphControls,
+            );
+        });
+        assert_eq!(state.editor().text_focus().is_some(), inline);
+        assert_eq!(state.editor().is_gesturing(), !inline);
+        assert_eq!(
+            state.checkpoint_draft(&mut draft).unwrap_err(),
+            GraphDraftError::EditorBusy
+        );
+        assert_eq!(state.last_serial(), 0);
+        state.finish_text(false);
+        state.edit(|document, editor| editor.cancel_gesture(document));
+    }
+    assert!(state.checkpoint_draft(&mut draft).unwrap().is_some());
+    assert_eq!(draft.text(), "Detached");
+}
+
+#[test]
+fn detached_graph_checkpoint_keeps_a_preceding_inline_commit_in_its_own_serial() {
+    let mut f = Fixture::new("Original");
+    let target = f.graph.text_focus().unwrap().clone();
+    f.graph.finish_text(&mut f.doc, false);
+    let mut state = GraphViewState::new("ordered-detached-test", f.doc.clone());
+    state.edit(|document, editor| {
+        let r = document.nodes[0].row_rect(0, &document.metrics());
+        editor.pointer_down(
+            document,
+            editor
+                .viewport
+                .to_screen([r.origin[0] + 12., r.origin[1] + 10.]),
+            &BasicGraphControls,
+        );
+        assert!(editor.text_focus().is_some());
+        editor.text_input(document, GraphTextInput::SelectAll);
+        editor.text_input(document, GraphTextInput::Insert("Inline".into()));
+        editor.finish_text(document, true);
+    });
+    let mut draft =
+        GraphTextDraft::new(state.binding(), target, state.document(), &mut f.fonts).unwrap();
+    draft.view.prepare(
+        &mut f.fonts,
+        theframework::text::TextOptions {
+            family: "Roboto",
+            size: 15.,
+            width: Some(220.),
+            line_height: Some(24.),
+        },
+        theframework::paint::Rect::new(0., 0., 220., 180.),
+        false,
+    );
+    draft.view.set_focused(&mut f.fonts, true);
+    draft
+        .view
+        .editor
+        .execute(&mut f.fonts, EditorCommand::SelectAll);
+    draft
+        .view
+        .input(&mut f.fonts, &InputEvent::Text("Detached\ntext".into()));
+    let notification = state.checkpoint_draft(&mut draft).unwrap().unwrap();
+    assert_eq!(notification.serial, 2);
+    let commits = state.pending_through(notification.serial);
+    assert_eq!(commits.len(), 2);
+    assert_eq!(commits[0].edits.len(), 1);
+    assert_eq!(commits[1].edits.len(), 1);
+    let mut authoritative = f.doc.clone();
+    commits[0].edits[0].apply(&mut authoritative, true);
+    assert_eq!(
+        authoritative.nodes[0].rows[0].value,
+        GraphControlValue::Text("Inline".into())
+    );
+    commits[1].edits[0].apply(&mut authoritative, true);
+    assert_eq!(&authoritative, state.document());
+    assert!(state.acknowledge(notification.binding, notification.serial));
+    assert!(state.checkpoint_draft(&mut draft).unwrap().is_none());
+}

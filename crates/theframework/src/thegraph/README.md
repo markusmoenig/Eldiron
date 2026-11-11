@@ -194,3 +194,21 @@ budget. Identified tables avoid that copy. Native list hit/IME/paint share the
 resolved address, and paint resolves it once per list rather than per cell.
 Folding is a completed reversible `ReplaceNode` edit, so serial-based storage
 retains authored fold state too.
+
+
+Detached multiline panels can retain a CPU `GraphTextDraft` instead of another
+text implementation. Construct it from a captured `GraphTextFocus`, the current
+binding/document and the shared `TextSystem`, after finishing the inline editor.
+Its public `EditorView` supplies the existing shaped layout, wrapping, input,
+clipboard, IME, selection, scroll and local undo ports. The host supplies panel
+chrome and exclusive input scope; it must service clipboard responses and retain
+the draft independently of GPU/device replacement.
+
+`GraphViewState::checkpoint_draft` applies committed source through the same
+ordered queue without ending composition or history. A preceding completed
+inline edit keeps its own serial. A changed/removed source or wrong document
+binding returns an error and retains the private draft without overwriting newer
+data. Incomplete pointer/inline editing is rejected until its owner completes or
+cancels it. Dropping an uncheckpointed draft does not alter source; after a Save
+checkpoint, dropping it leaves the already saved source intact. This is a CPU
+model/transaction adapter; application panel integration is separate.

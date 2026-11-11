@@ -47,3 +47,8 @@ pub use native_text::*;
 mod view;
 #[cfg(all(feature = "text", feature = "ui"))]
 pub use view::*;
+
+#[cfg(all(feature = "text", feature = "ui"))]
+mod native_draft;
+#[cfg(all(feature = "text", feature = "ui"))]
+pub use native_draft::*;

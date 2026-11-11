@@ -211,6 +211,10 @@ impl GraphEditor {
     pub fn take_edits(&mut self) -> Vec<GraphEdit> {
         std::mem::take(&mut self.edits)
     }
+    /// An incomplete pointer gesture is not a completed document transaction.
+    pub fn is_gesturing(&self) -> bool {
+        self.gesture.is_some() || self.cut_path.is_some()
+    }
     pub fn pending_wire(&self) -> Option<GraphId> {
         if let Some(Gesture::Wire(id)) = self.gesture {
             Some(id)

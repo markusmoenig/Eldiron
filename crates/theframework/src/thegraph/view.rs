@@ -106,6 +106,27 @@ impl GraphViewState {
         self.pending.push_back(commit.clone());
         Some(commit)
     }
+    /// Detached panels use the same source binding and retained transaction queue
+    /// as inline edits. The view owner must suspend its other editing scopes.
+    pub fn checkpoint_draft(
+        &mut self,
+        draft: &mut GraphTextDraft,
+    ) -> Result<Option<Arc<GraphCommit>>, GraphDraftError> {
+        draft.validate(self.binding, &self.document)?;
+        if self.editor.is_gesturing() || self.editor.text_focus().is_some() {
+            return Err(GraphDraftError::EditorBusy);
+        }
+        // Preserve a completed prior inline transaction as its own serial. The
+        // returned latest notification lets the owner consume the whole prefix.
+        let preceding = self.publish_edits();
+        if let Some(edit) = draft.checkpoint(self.binding, &mut self.document)? {
+            self.editor.record_edit(edit);
+            self.invalidate();
+            Ok(self.publish_edits())
+        } else {
+            Ok(preceding)
+        }
+    }
     pub fn pending_commits(&self) -> impl Iterator<Item = &GraphCommit> {
         self.pending.iter().map(Arc::as_ref)
     }
