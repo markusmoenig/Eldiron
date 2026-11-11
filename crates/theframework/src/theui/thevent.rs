@@ -73,6 +73,13 @@ pub enum TheEvent {
     TileEditorUp(TheId),
     TileZoomBy(TheId, f32),
 
+    /// Committed reversible graph edits. The binding token rejects queued
+    /// events after an application installs a different authoring document.
+    GraphCommitted(TheId, u64, Vec<crate::thegraph::GraphEdit>),
+    /// Graph-level commands stay with the application's document/branch owner;
+    /// they must not invoke the platform text clipboard behind the native view.
+    #[cfg(feature = "text")]
+    GraphCommand(TheId, u64, crate::text_edit::EditorCommand),
     RenderViewClicked(TheId, Vec2<i32>),
     RenderViewDragged(TheId, Vec2<i32>),
     RenderViewHoverChanged(TheId, Vec2<i32>),

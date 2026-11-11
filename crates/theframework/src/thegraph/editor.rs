@@ -569,8 +569,13 @@ impl GraphEditor {
         }
     }
     pub fn cancel(&mut self, doc: &mut GraphDocument) {
-        self.cut_path = None;
         self.finish_text(doc, false);
+        self.cancel_gesture(doc);
+    }
+    /// Cancel pointer capture without cancelling an independent committed text
+    /// draft. Menus and suspended scopes can retain that draft for resumption.
+    pub fn cancel_gesture(&mut self, doc: &mut GraphDocument) {
+        self.cut_path = None;
         match self.gesture.take() {
             Some(Gesture::Move { node, before, .. }) => {
                 if let Some(n) = doc.nodes.iter_mut().find(|n| n.id == node) {

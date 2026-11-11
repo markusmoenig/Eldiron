@@ -36,6 +36,7 @@ pub trait GraphPainter {
         false
     }
 }
+#[derive(Clone, Debug)]
 pub struct GraphTheme {
     pub background: GraphColor,
     pub grid: GraphColor,

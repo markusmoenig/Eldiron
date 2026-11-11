@@ -42,3 +42,8 @@ pub use theframework_core::graph::*;
 mod native_text;
 #[cfg(all(feature = "text", feature = "ui"))]
 pub use native_text::*;
+
+#[cfg(all(feature = "text", feature = "ui"))]
+mod view;
+#[cfg(all(feature = "text", feature = "ui"))]
+pub use view::*;
