@@ -2328,40 +2328,15 @@ impl Client {
         separator: &str,
         max_parts: Option<usize>,
     ) {
-        if !append {
-            self.set_ui_state(binding, value);
-            return;
-        }
-
-        let binding = binding.trim();
-        let value = value.trim();
-        if binding.is_empty() || value.is_empty() {
-            self.set_ui_state(binding, "");
-            return;
-        }
-
-        let separator = if separator.is_empty() { " " } else { separator };
-        let mut parts = self
-            .ui_state
-            .get(binding)
-            .map(|existing| {
-                existing
-                    .split(separator)
-                    .map(str::trim)
-                    .filter(|part| !part.is_empty())
-                    .map(str::to_string)
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
-        parts.push(value.to_string());
-        if let Some(max_parts) = max_parts
-            && max_parts > 0
-            && parts.len() > max_parts
-        {
-            let drop_count = parts.len() - max_parts;
-            parts.drain(0..drop_count);
-        }
-        self.set_ui_state(binding, &parts.join(separator));
+        let value = screen_model::button_binding_value(
+            &self.ui_state,
+            binding,
+            value,
+            append,
+            separator,
+            max_parts,
+        );
+        self.set_ui_state(binding, &value);
     }
 
     fn sync_bound_button_activation(&mut self, binding: &str) {
@@ -3130,7 +3105,8 @@ impl Client {
 
         // Draw the button widgets which support inventory / gear on top
         let stage_started = Instant::now();
-        for widget in self.button_widgets.values_mut() {
+        for id in screen_model::ordered_button_ids(&self.button_widgets) {
+            let widget = self.button_widgets.get_mut(&id).unwrap();
             let hide = self.widgets_to_hide.iter().any(|pattern| {
                 if pattern.ends_with('*') {
                     let prefix = &pattern[..pattern.len() - 1];
@@ -3840,7 +3816,8 @@ impl Client {
             }
         }
 
-        for widget in self.button_widgets.values_mut() {
+        for id in screen_model::ordered_button_ids(&self.button_widgets) {
+            let widget = self.button_widgets.get_mut(&id).unwrap();
             let hide = self.widgets_to_hide.iter().any(|pattern| {
                 if pattern.ends_with('*') {
                     let prefix = &pattern[..pattern.len() - 1];
@@ -5640,37 +5617,13 @@ impl Client {
         self.curr_cursor = self.default_cursor;
     }
 
-    fn is_targeting_button(widget: &Widget) -> bool {
-        widget.command_slot.is_some()
-            || matches!(
-                widget.command_binding(),
-                Some(ClientCommandBinding::Intent(_) | ClientCommandBinding::RulesAction(_))
-            )
-    }
-
     fn activate_targeting_button(&mut self, button_id: u32) {
-        self.activated_widgets.retain(|id| {
-            *id != button_id
-                && self
-                    .button_widgets
-                    .get(id)
-                    .map(|widget| !Self::is_targeting_button(widget))
-                    .unwrap_or(true)
-        });
-        self.permanently_activated_widgets.retain(|id| {
-            *id != button_id
-                && self
-                    .button_widgets
-                    .get(id)
-                    .map(|widget| !Self::is_targeting_button(widget))
-                    .unwrap_or(true)
-        });
-        if !self.activated_widgets.contains(&button_id) {
-            self.activated_widgets.push(button_id);
-        }
-        if !self.permanently_activated_widgets.contains(&button_id) {
-            self.permanently_activated_widgets.push(button_id);
-        }
+        screen_model::select_targeting_button(
+            &self.button_widgets,
+            &mut self.activated_widgets,
+            &mut self.permanently_activated_widgets,
+            button_id,
+        );
 
         if let Some(widget) = self.button_widgets.get(&button_id) {
             self.curr_intent_cursor = widget.item_cursor_id;
@@ -5682,28 +5635,13 @@ impl Client {
     fn activate_walk_button(&mut self, button_id: u32) {
         self.intent.clear();
         self.selected_targeting_intent = Some(String::new());
-        self.activated_widgets.retain(|id| {
-            *id != button_id
-                && self
-                    .button_widgets
-                    .get(id)
-                    .map(|widget| !Self::is_targeting_button(widget))
-                    .unwrap_or(true)
-        });
-        self.permanently_activated_widgets.retain(|id| {
-            *id != button_id
-                && self
-                    .button_widgets
-                    .get(id)
-                    .map(|widget| !Self::is_targeting_button(widget))
-                    .unwrap_or(true)
-        });
-        if !self.activated_widgets.contains(&button_id) {
-            self.activated_widgets.push(button_id);
-        }
-        if !self.permanently_activated_widgets.contains(&button_id) {
-            self.permanently_activated_widgets.push(button_id);
-        }
+        screen_model::select_targeting_button(
+            &self.button_widgets,
+            &mut self.activated_widgets,
+            &mut self.permanently_activated_widgets,
+            button_id,
+        );
+
         self.curr_intent_cursor = None;
         self.curr_clicked_intent_cursor = None;
         self.curr_cursor = self.default_cursor;
@@ -6633,10 +6571,9 @@ impl Client {
 
         // The game viewport can extend underneath the toolbar. Its buttons own
         // their clicks, including intent selectors which emit no server action.
-        let hit_button = self.button_widgets.values().any(|widget| {
-            !screen_model::widget_name_is_hidden(&widget.name, &self.widgets_to_hide)
-                && widget.rect.contains(point)
-        });
+        let hit_button_id =
+            screen_model::topmost_button_at(&self.button_widgets, &self.widgets_to_hide, point);
+        let hit_button = hit_button_id.is_some();
 
         if active_intent.is_some() && !hit_button {
             for widget in self.avatar_widgets.values() {
@@ -6786,11 +6723,11 @@ impl Client {
         }
 
         for (id, widget) in self.button_widgets.iter() {
-            if !screen_model::widget_name_is_hidden(&widget.name, &self.widgets_to_hide)
-                && widget.rect.contains(point)
-            {
+            if hit_button_id == Some(*id) {
                 self.pressed_widget = Some(*id);
-                self.activated_widgets.push(*id);
+                if !self.activated_widgets.contains(id) {
+                    self.activated_widgets.push(*id);
+                }
 
                 if let (Some(binding), Some(value)) =
                     (widget.binding.as_deref(), widget.value.as_deref())
@@ -6880,17 +6817,7 @@ impl Client {
                     }
                 }
 
-                if let Some(hide) = &widget.hide {
-                    self.widgets_to_hide.clear();
-                    for h in hide {
-                        self.widgets_to_hide.push(h.clone());
-                    }
-                }
-                if let Some(show) = &widget.show {
-                    for s in show {
-                        self.widgets_to_hide.retain(|x| x != s);
-                    }
-                }
+                screen_model::apply_button_visibility(widget, &mut self.widgets_to_hide);
                 if let Some(entity) =
                     screen_model::resolve_party_entity(map, widget.party.as_deref())
                 {
@@ -6931,19 +6858,12 @@ impl Client {
                     camera_action = Some(EntityAction::SetPlayerCamera(player_camera.clone()));
                 }
 
-                // Deactivate the widgets and activate this widget
-                if !widget.deactivate.is_empty() {
-                    for widget_to_deactivate in &widget.deactivate {
-                        for (id, widget) in self.button_widgets.iter() {
-                            if screen_model::deactivate_matches(widget, widget_to_deactivate) {
-                                self.activated_widgets.retain(|x| x != id);
-                                self.permanently_activated_widgets.retain(|x| x != id);
-                            }
-                        }
-                    }
-                    self.activated_widgets.push(widget.id);
-                    self.permanently_activated_widgets.push(widget.id);
-                }
+                screen_model::apply_button_deactivation(
+                    &self.button_widgets,
+                    &mut self.activated_widgets,
+                    &mut self.permanently_activated_widgets,
+                    *id,
+                );
             }
         }
         if let Some(button_id) = selected_targeting_button_id {
@@ -7807,7 +7727,7 @@ impl Client {
 
         // Deactivate all other targeting buttons so shortcut intent is authoritative.
         for (id, widget) in self.button_widgets.iter() {
-            if *id != button_id && Self::is_targeting_button(widget) {
+            if *id != button_id && screen_model::is_targeting_button(widget) {
                 self.activated_widgets.retain(|x| x != id);
                 self.permanently_activated_widgets.retain(|x| x != id);
             }
