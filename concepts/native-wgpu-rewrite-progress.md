@@ -20,11 +20,12 @@ Started: 2026-11-11 (Asia/Bangkok). Overall Goal: active; full M0–M9 scope rem
 
 ## Milestone state
 
-- M0: in progress (baseline compile and initial contracts/decisions recorded; visual/performance baselines still needed).
-- M1: starting explicit GPU infrastructure and scene target interfaces.
-- M2/M3: pending paint/text/backend and widget conversion.
-- M4: CPU core data extraction started; runtime/session extraction pending.
-- M5/M6/M7/M8/M9: pending; no platform/runtime parity claimed.
+- M0: in progress. Baseline compile, explicit ownership/paint/text decisions and GPU visual fixtures exist; release performance baselines and complete workflow inventory remain.
+- M1: in progress. Shared GPU context, scene output leases, explicit captures and native/foreign surface presentation work; application multiview/isometric/recovery integration remains.
+- M2: in progress. Paint/Swash/Parley pipeline and native/foreign hosts work; batching, resource lifetime budgets and full text/input parity remain.
+- M3: in progress. Every active built-in TheWidget implementation now has a command paint path, including procedural controls and the legacy node canvas. Complex Creator integration, full widget catalog parity and legacy adapter retirement remain.
+- M4: CPU core data extraction started; shared runtime/session extraction pending.
+- M5/M6/M7/M8/M9: application conversion/platform acceptance pending. Browser and iOS framework compile, and detached CAMetalLayer presentation pass; this is not complete application/platform parity.
 
 ## Implementation and verification
 
@@ -34,9 +35,9 @@ Started: 2026-11-11 (Asia/Bangkok). Overall Goal: active; full M0–M9 scope rem
 
 ## Next work
 
-1. Compile and test core extraction; preserve baseline builds.
-2. Implement renderkit context, native/Xcode surface targets, texture registry and explicit readback.
-3. Inject context into SceneVM and expose GPU scene outputs; then paint/Swash pipeline and application migration.
+1. Integrate the paint/scene contracts into actual Creator panels and clients; keep unsupported/custom application drawing explicit while converting it.
+2. Extract the shared CPU runtime/session and graphical presentation boundaries, then adopt the terminal and graphical launchers.
+3. Complete scene/isometric/preview ownership, text/input/platform services, renderer batching/resource budgets/idle behavior and all platform/workflow acceptance. Checkpoints below retain detailed evidence and known gaps; continue without routine milestone stops.
 
 ## Blockers
 
@@ -138,3 +139,15 @@ A shared text viewport planner now supplies scroll geometry for multiline editin
 Validation: 90 library tests (including two Markdown document projection tests), headless command UI, the paint GPU integration, and ten UI integration tests passed. New actual-GPU fixtures verify foreground/underline preservation during link hover, exactly one rich-text link action, and exactly one Markdown URL-request event with a non-ASCII prefix/combining accent and nested emphasis. URL requests were observed in the event stream; no external URL was opened. Rich-text and Markdown captures were visually inspected at 150% density. All four application compile checks and browser/iOS-simulator compile checks passed. Logs: `/private/tmp/eldiron-markdown-neutral-tests.log`, `/private/tmp/eldiron-text-checkpoint-tests.log`, `/private/tmp/eldiron-text-checkpoint-{apps,web,ios}.log`.
 
 Next widget families: switch/time controls, icon grid/row, color/direction pickers, SDF view, legacy node canvas. Application/runtime migration and final acceptance/performance/platform work remain outstanding; continue without a milestone stop.
+
+### Procedural controls, collections and node canvas
+
+Converted the remaining active built-in widget implementations: switch/time controls, icon grid and scrollable row, color/direction pickers, SDF view and node canvas. Layouts invoke a shared widget entry point that skips unassigned rectangles, preventing controls from drawing stray geometry at the origin. Collection preparation computes visible hit rectangles; image content invalidation is independent of hover/selection/scrolling.
+
+The backend-neutral paint contract now includes colored triangle meshes with explicit sRGB interpolation, analytic nearest-distance fields/materials, and explicit repeating image sampling. The color picker emits a geometric hue ring and triangle; direction paint uses its own widget center. SDF views send analytic shapes/materials, preserving nearest-shape overlap rather than replacing it with painter-order fills. Fixed pre-existing signed-distance errors in rhombus/rectangular interiors and a zero-length direction normalization case. Analytic fields composite premultiplied linear color with density-aware edge coverage.
+
+The node canvas retains interaction rectangles and emits node chrome, Swash labels, sockets, curves, cut feedback and focus through commands. Its command path clears legacy viewport pixel storage. CPU previews/overlays remain explicit source assets; GPU previews can be supplied as opaque image handles without UI/device coupling. Repeated overlays use one quad regardless of tile size. Preview/overlay content dirtiness is separate from interaction redraw. Hit testing honors the selected node's actual topmost draw order; deletion clears the stale selected index and preserves/remaps GPU preview handles. Application preview producers still need migration to the GPU handle API, and legacy wire cutting still needs its hit geometry reconciled with the painted curve.
+
+Validation passed: 91 library tests, three renderer-free command UI tests, paint GPU integration and twelve UI integration tests (eleven actual GPU fixtures plus one structural-layout regression). New fixtures verify visible icon selection after scrolling, one-thumbnail invalidation, no upload on selection, unassigned-widget suppression, time-track agreement, actual color-ring/SDF GPU pixels, nearest-material overlap, zero procedural raster-asset uploads, live GPU-only node previews, one-quad tiled overlays, exactly one terminal-connection event and node-drag event. Procedural and node captures were visually inspected at 150% density. All four application compatibility checks, browser host compile and iOS-simulator UI/presenter compile passed. Logs: `/private/tmp/eldiron-icon-headless-tests.log`, `/private/tmp/eldiron-widget-checkpoint-tests.log`, `/private/tmp/eldiron-widget-checkpoint-{apps,web,ios}.log`. Evidence: `native-wgpu-evidence/procedural-controls.png`, `native-wgpu-evidence/node-canvas.png`.
+
+A first GPU shader run rejected a reserved WGSL identifier; it was renamed and the complete GPU regression suite then passed. A direction-line pixel assertion was adjusted to account for fractional-DPI MSAA coverage; logical geometry and visible pixel darkness are both verified. These are intermediate checks; full Creator/client migration, performance and platform acceptance remain outstanding, and the overall Goal stays active.

@@ -1,3 +1,6 @@
+#[cfg(feature = "text")]
+#[path = "thecolorpicker_paint.rs"]
+mod paint;
 use crate::prelude::*;
 use maths_rs::prelude::*;
 use rayon::prelude::*;
@@ -33,6 +36,19 @@ pub struct TheColorPicker {
 }
 
 impl TheWidget for TheColorPicker {
+    #[cfg(feature = "text")]
+    fn prepare_paint(&mut self, _ctx: &mut TheContext, _theme: &dyn TheTheme) {
+        self.dot_size = (self.dim.width.min(self.dim.height).max(0) as f32 / 20.).max(5.);
+        self.compute_points();
+    }
+    #[cfg(feature = "text")]
+    fn paint(
+        &mut self,
+        painter: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        self.paint_commands(painter)
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,
@@ -355,10 +371,12 @@ pub trait TheColorPickerTrait: TheWidget {
 impl TheColorPickerTrait for TheColorPicker {
     fn set_background_color(&mut self, color: [u8; 4]) {
         self.background = Some(color);
+        self.is_dirty = true;
     }
 
     fn set_border_color(&mut self, color: [u8; 4]) {
         self.border = Some(color);
+        self.is_dirty = true;
     }
 
     fn set_color(&mut self, color: vek::Vec3<f32>) {
@@ -367,6 +385,7 @@ impl TheColorPickerTrait for TheColorPicker {
         self.h = hsl.x * 360.0;
         self.s = hsl.y;
         self.l = hsl.z;
+        self.is_dirty = true;
     }
 
     fn set_continuous(&mut self, continuous: bool) {

@@ -68,11 +68,11 @@ impl TheTreeNode {
         include_self: bool,
     ) -> crate::theui::paint::UiPaintResult {
         if include_self {
-            self.widget.paint(p)?;
+            p.widget(self.widget.as_mut())?;
         }
         if self.open {
             for w in &mut self.widgets {
-                w.paint(p)?;
+                p.widget(w.as_mut())?;
             }
             for child in &mut self.childs {
                 child.paint_commands(p, true)?;
@@ -648,7 +648,7 @@ impl TheLayout for TheTreeLayout {
         p.list.ops.push(PaintOp::PopTransform);
         p.list.ops.push(PaintOp::PopClip);
         if self.vertical_scrollbar_visible {
-            self.vertical_scrollbar.paint(p)?;
+            p.widget(self.vertical_scrollbar.as_mut())?;
         }
         if self.background.is_some() {
             p.outline(r, *p.theme.color(TextLayoutBorder), 1.);

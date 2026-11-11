@@ -824,3 +824,297 @@ fn markdown_uses_projected_grapheme_ranges_for_gpu_links() {
         .write_image_data(pixels.pixels())
         .unwrap();
 }
+
+#[test]
+#[ignore = "requires native GPU; run with --ignored"]
+fn procedural_controls_use_mesh_and_analytic_distance_paint() {
+    use theframework::{
+        paint::{PaintList, Rect},
+        theui::paint::WidgetPainter,
+    };
+    let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut images = UiImages::new(gpu.clone());
+    let mut ctx = TheContext::new(640, 230, 1.5);
+    let mut style = TheClassicStyle::new();
+    let mut color = TheColorPicker::new(TheId::named("color"));
+    color.set_dim(TheDim::new(10, 10, 200, 200), &mut ctx);
+    color.set_color(Vec3::new(0., 1., 0.));
+    let mut direction = TheDirectionPicker::new(TheId::named("direction"));
+    direction.set_dim(TheDim::new(220, 10, 200, 200), &mut ctx);
+    assert!(!direction.on_event(&TheEvent::MouseDown(Vec2::new(100, 100)), &mut ctx));
+    direction.on_event(&TheEvent::MouseDown(Vec2::new(190, 100)), &mut ctx);
+    assert_eq!(
+        direction.value(),
+        TheValue::Direction(Vec3::new(1., 0., 0.))
+    );
+    let mut sdf = TheSDFView::new(TheId::named("sdf"));
+    sdf.set_dim(TheDim::new(430, 10, 200, 200), &mut ctx);
+    let mut field = TheSDFCanvas::new();
+    field.add(
+        TheSDF::Circle(TheDim::new(20, 20, 80, 80)),
+        ThePattern::Solid(TheColor::from_u8_array([255, 0, 0, 255])),
+    );
+    field.add(
+        TheSDF::Circle(TheDim::new(55, 25, 70, 70)),
+        ThePattern::Solid(TheColor::from_u8_array([0, 255, 0, 255])),
+    );
+    field.add(
+        TheSDF::RoundedRect(TheDim::new(20, 130, 55, 45), (0., 0., 0., 0.)),
+        ThePattern::SolidWithBorder(
+            TheColor::from_u8_array([0, 0, 255, 255]),
+            TheColor::white(),
+            2.,
+        ),
+    );
+    field.add(
+        TheSDF::Rhombus(TheDim::new(100, 130, 50, 50)),
+        ThePattern::Solid(TheColor::white()),
+    );
+    sdf.set_canvas(field);
+    let mut list = PaintList::default();
+    list.rect(Rect::new(0., 0., 640., 230.), 0., [0.06, 0.06, 0.07, 1.]);
+    for widget in [&mut color as &mut dyn TheWidget, &mut direction, &mut sdf] {
+        widget.prepare_paint(&mut ctx, style.theme().as_ref());
+        let mut p = WidgetPainter {
+            list: &mut list,
+            text: &mut ctx.text,
+            images: &mut images,
+            ui: &ctx.ui,
+            theme: style.theme().as_mut(),
+        };
+        p.widget(widget).unwrap();
+    }
+    assert!(list.ops.iter().any(|op| matches!(op, PaintOp::Mesh { .. })));
+    assert!(
+        list.ops
+            .iter()
+            .any(|op| matches!(op, PaintOp::DistanceField { .. }))
+    );
+    assert_eq!(
+        gpu.transfers().uploaded_bytes,
+        0,
+        "procedural controls must not upload raster assets"
+    );
+    let output = GpuImage::new(&gpu, ImageDescriptor::rgba(960, 345)).unwrap();
+    let mut renderer = PaintRenderer::new(gpu.clone()).unwrap();
+    renderer
+        .render(
+            &list,
+            &images.registry,
+            &output.view,
+            output.descriptor.format,
+            (960, 345),
+            1.5,
+            [0.; 4],
+        )
+        .unwrap();
+    assert_eq!(gpu.transfers().readback_bytes, 0);
+    let mut capture = ReadbackTicket::capture(&gpu, output).unwrap();
+    gpu.device
+        .poll(wgpu::PollType::Wait {
+            submission_index: None,
+            timeout: Some(std::time::Duration::from_secs(30)),
+        })
+        .unwrap();
+    let result = capture.try_finish(&gpu).unwrap().unwrap();
+    let pixel = |x: usize, y: usize| {
+        let i = ((y as f32 * 1.5) as usize * 960 + (x as f32 * 1.5) as usize) * 4;
+        &result.pixels()[i..i + 4]
+    };
+    let red = pixel(110, 24);
+    assert!(
+        red[0] > 245 && red[1] < 15 && red[2] < 15,
+        "hue ring: {red:?}"
+    );
+    assert_eq!(
+        pixel(505, 70),
+        [255, 0, 0, 255],
+        "nearest field wins in overlap, independent of painter order"
+    );
+    assert_eq!(pixel(530, 70), [0, 255, 0, 255]);
+    assert_eq!(pixel(470, 160), [0, 0, 255, 255]);
+    assert_eq!(pixel(555, 165), [255, 255, 255, 255]);
+    assert!(
+        pixel(400, 110)[0] < 110,
+        "direction line follows its own widget center: {:?}",
+        pixel(400, 110)
+    );
+    let file = std::fs::File::create("/private/tmp/eldiron-wgpu-procedural.png").unwrap();
+    let mut encoder = png::Encoder::new(file, 960, 345);
+    encoder.set_color(png::ColorType::Rgba);
+    encoder.set_depth(png::BitDepth::Eight);
+    encoder
+        .write_header()
+        .unwrap()
+        .write_image_data(result.pixels())
+        .unwrap();
+    color.on_event(&TheEvent::MouseDown(Vec2::new(100, 5)), &mut ctx);
+    color.on_event(&TheEvent::MouseUp(Vec2::new(100, 5)), &mut ctx);
+    if let TheValue::Float3(v) = color.value() {
+        assert!(v.x > 0.99 && v.y < 0.01 && v.z < 0.01);
+    } else {
+        panic!("color value lost");
+    }
+}
+
+#[test]
+#[ignore = "requires native GPU; run with --ignored"]
+fn node_canvas_paints_live_gpu_previews_and_routes_terminal_dragging() {
+    use theframework::{paint::PaintList, platform::*};
+    let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut images = UiImages::new(gpu.clone());
+    let mut renderer = PaintRenderer::new(gpu.clone()).unwrap();
+    let preview = GpuImage::new(&gpu, ImageDescriptor::rgba(64, 48)).unwrap();
+    renderer
+        .render(
+            &PaintList::default(),
+            &images.registry,
+            &preview.view,
+            preview.descriptor.format,
+            (64, 48),
+            1.,
+            [0., 0., 1., 1.],
+        )
+        .unwrap();
+    let handle = images.registry.insert(preview).unwrap();
+    let mut session = UiSession::new((600, 300), 1.5);
+    let events = session.ui.add_state_listener("nodes".into());
+    let mut canvas = TheNodeCanvas::new();
+    canvas.node_width = 160;
+    let terminal = || TheNodeTerminal {
+        name: "Color".into(),
+        category_name: "ColorSocket".into(),
+    };
+    for (name, position, input) in [
+        ("Source", Vec2::new(20, 30), false),
+        ("Output", Vec2::new(330, 70), true),
+    ] {
+        canvas.nodes.push(TheNode {
+            name: name.into(),
+            status_text: None,
+            position,
+            inputs: if input { vec![terminal()] } else { vec![] },
+            outputs: if input { vec![] } else { vec![terminal()] },
+            preview: TheRGBABuffer::empty(),
+            supports_preview: true,
+            preview_is_open: true,
+            can_be_deleted: true,
+        });
+    }
+    canvas
+        .categories
+        .insert("ColorSocket".into(), TheColor::white());
+    let mut view = TheNodeCanvasView::new(TheId::named("nodes"));
+    view.set_canvas(canvas);
+    view.set_node_preview_image(0, Some((handle, Vec2::new(64, 48))));
+    let mut overlay = TheRGBABuffer::new(TheDim::sized(1, 1));
+    overlay.fill([0, 0, 0, 0]);
+    view.set_overlay(Some(overlay));
+    session.ui.canvas.set_widget(view);
+    let first = session.paint(&mut images).unwrap();
+    assert_eq!(
+        first
+            .ops
+            .iter()
+            .filter(|op| matches!(op, PaintOp::Image { .. }))
+            .count(),
+        2,
+        "a tiled 1px overlay is one quad; the preview is another"
+    );
+    assert!(session.ui.canvas.buffer.pixels().is_empty());
+    let uploads = gpu.transfers().uploaded_bytes;
+    let down = [168., 61.];
+    let up = [342., 101.];
+    session.input(&InputEvent::PointerButton {
+        button: PointerButton::Primary,
+        pressed: true,
+        position: down,
+    });
+    session.input(&InputEvent::PointerMoved { position: up });
+    session.input(&InputEvent::PointerButton {
+        button: PointerButton::Primary,
+        pressed: false,
+        position: up,
+    });
+    assert_eq!(
+        events
+            .try_iter()
+            .filter(|e| matches!(e,TheEvent::NodeConnectionAdded(_,v) if v==&vec![(0,0,1,0)]))
+            .count(),
+        1
+    );
+    let list = session.paint(&mut images).unwrap();
+    assert_eq!(
+        gpu.transfers().uploaded_bytes,
+        uploads,
+        "selection and wires cannot upload previews or overlays again"
+    );
+    assert!(list.ops.iter().any(|op|matches!(op,PaintOp::Stroke{path,..} if path.elements.iter().any(|e|matches!(e,theframework::paint::PathElement::Cubic(..))))));
+    let output = GpuImage::new(&gpu, ImageDescriptor::rgba(900, 450)).unwrap();
+    renderer
+        .render(
+            &list,
+            &images.registry,
+            &output.view,
+            output.descriptor.format,
+            (900, 450),
+            1.5,
+            [0.; 4],
+        )
+        .unwrap();
+    assert_eq!(gpu.transfers().readback_bytes, 0);
+    let mut capture = ReadbackTicket::capture(&gpu, output).unwrap();
+    gpu.device
+        .poll(wgpu::PollType::Wait {
+            submission_index: None,
+            timeout: Some(std::time::Duration::from_secs(30)),
+        })
+        .unwrap();
+    let result = capture.try_finish(&gpu).unwrap().unwrap();
+    let i = (198 * 900 + 151) * 4;
+    assert_eq!(
+        &result.pixels()[i..i + 4],
+        [0, 0, 255, 255],
+        "GPU-only preview appears inside the node"
+    );
+    let file = std::fs::File::create("/private/tmp/eldiron-wgpu-nodes.png").unwrap();
+    let mut encoder = png::Encoder::new(file, 900, 450);
+    encoder.set_color(png::ColorType::Rgba);
+    encoder.set_depth(png::BitDepth::Eight);
+    encoder
+        .write_header()
+        .unwrap()
+        .write_image_data(result.pixels())
+        .unwrap();
+    session.input(&InputEvent::PointerButton {
+        button: PointerButton::Primary,
+        pressed: true,
+        position: [80., 39.],
+    });
+    session.input(&InputEvent::PointerMoved {
+        position: [100., 39.],
+    });
+    session.input(&InputEvent::PointerButton {
+        button: PointerButton::Primary,
+        pressed: false,
+        position: [100., 39.],
+    });
+    assert_eq!(
+        events
+            .try_iter()
+            .filter(|e| matches!(e,TheEvent::NodeDragged(_,0,p) if *p==Vec2::new(40,30)))
+            .count(),
+        1
+    );
+    session.paint(&mut images).unwrap();
+    assert_eq!(
+        session
+            .ui
+            .get_widget("nodes")
+            .unwrap()
+            .as_node_canvas_view()
+            .unwrap()
+            .node_index_at(&Vec2::new(41, 31)),
+        Some(0)
+    );
+}

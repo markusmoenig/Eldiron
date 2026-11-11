@@ -146,6 +146,10 @@ pub struct Stroke {
 pub enum Sampling {
     Nearest,
     Linear,
+    /// Repeat addressing is explicit for tiled source assets; one quad can
+    /// cover any viewport without allocating per-pixel or per-tile geometry.
+    RepeatNearest,
+    RepeatLinear,
 }
 #[derive(Clone, Debug)]
 pub struct FontFace {
@@ -165,8 +169,46 @@ pub struct GlyphRun {
     pub variations: Arc<[i16]>,
     pub glyphs: Arc<[Glyph]>,
 }
+/// A colored logical-space triangle mesh. Colors interpolate as straight sRGB
+/// before the renderer converts to linear premultiplied output. This supports
+/// color controls and other continuous data without rasterizing a source image.
+#[derive(Clone, Copy, Debug)]
+pub struct PaintVertex {
+    pub position: Point,
+    pub color: Color,
+}
+/// Analytic distance geometry, in local logical coordinates. A field chooses
+/// the nearest primitive at each sample; this preserves union/material behavior
+/// when primitives overlap rather than changing it to painter-order fills.
+#[derive(Clone, Debug)]
+pub enum DistanceGeometry {
+    Circle { center: Point, radius: f32 },
+    Hexagon { center: Point, radius: f32 },
+    Rhombus { center: Point, half_size: Point },
+    RoundedRect { rect: Rect, radii: [f32; 4] },
+}
+#[derive(Clone, Debug)]
+pub struct DistancePrimitive {
+    pub geometry: DistanceGeometry,
+    pub fill: Color,
+    pub border: Color,
+    pub border_width: f32,
+}
+#[derive(Clone, Debug)]
+pub struct DistanceField {
+    pub background: Color,
+    pub primitives: Arc<[DistancePrimitive]>,
+}
 #[derive(Clone, Debug)]
 pub enum PaintOp {
+    DistanceField {
+        rect: Rect,
+        field: Arc<DistanceField>,
+    },
+    Mesh {
+        vertices: Arc<[PaintVertex]>,
+        indices: Arc<[u32]>,
+    },
     Rect {
         rect: Rect,
         radius: f32,
@@ -226,6 +268,21 @@ impl PaintList {
         let mut scopes = Vec::new();
         for op in &self.ops {
             match op {
+                PaintOp::Mesh { vertices, indices } => {
+                    if indices.len() % 3 != 0
+                        || indices.iter().any(|i| *i as usize >= vertices.len())
+                    {
+                        return Err("invalid triangle mesh indices");
+                    }
+                    if vertices.iter().any(|v| {
+                        v.position
+                            .iter()
+                            .chain(v.color.iter())
+                            .any(|x| !x.is_finite())
+                    }) {
+                        return Err("nonfinite triangle mesh vertex");
+                    }
+                }
                 PaintOp::PushTransform(_) => scopes.push(0),
                 PaintOp::PushClip(_) | PaintOp::PushPathClip(..) => scopes.push(1),
                 PaintOp::PushOpacity(alpha) => {

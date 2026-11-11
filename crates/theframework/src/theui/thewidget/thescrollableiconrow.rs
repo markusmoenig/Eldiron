@@ -1,3 +1,6 @@
+#[cfg(feature = "text")]
+#[path = "thescrollableiconrow_paint.rs"]
+mod paint;
 use crate::prelude::*;
 
 #[derive(Clone, Debug)]
@@ -34,6 +37,8 @@ pub struct TheScrollableIconRow {
     gap: i32,
     show_labels: bool,
     is_dirty: bool,
+    #[cfg(feature = "text")]
+    image_dirty: FxHashSet<usize>,
 }
 
 impl TheScrollableIconRow {
@@ -66,6 +71,18 @@ impl TheScrollableIconRow {
 }
 
 impl TheWidget for TheScrollableIconRow {
+    #[cfg(feature = "text")]
+    fn prepare_paint(&mut self, _ctx: &mut TheContext, _theme: &dyn TheTheme) {
+        self.prepare_commands();
+    }
+    #[cfg(feature = "text")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        self.paint_commands(p)
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,
@@ -91,6 +108,8 @@ impl TheWidget for TheScrollableIconRow {
             gap: 5,
             show_labels: false,
             is_dirty: true,
+            #[cfg(feature = "text")]
+            image_dirty: FxHashSet::default(),
         }
     }
 
@@ -336,6 +355,10 @@ pub trait TheScrollableIconRowTrait {
 impl TheScrollableIconRowTrait for TheScrollableIconRow {
     fn set_items(&mut self, items: Vec<TheScrollableIconRowItem>) {
         self.items = items;
+        #[cfg(feature = "text")]
+        {
+            self.image_dirty = (0..self.items.len()).collect();
+        }
         self.selected = self.selected.min(self.items.len().saturating_sub(1));
         self.clamp_scroll();
         self.is_dirty = true;

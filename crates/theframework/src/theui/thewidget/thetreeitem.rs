@@ -153,7 +153,7 @@ impl TheWidget for TheTreeItem {
                 p.list
                     .ops
                     .push(PaintOp::PushTransform(Transform::translate(r.x, r.y)));
-                widget.paint(p)?;
+                p.widget(widget.as_mut())?;
                 p.list.ops.push(PaintOp::PopTransform);
             }
             for (width, value) in &self.values {

@@ -25,6 +25,7 @@ struct Geometry {
     vertices: wgpu::Buffer,
     indices: wgpu::Buffer,
     count: u32,
+    colored: bool,
 }
 struct Draw {
     geometry: Geometry,
@@ -56,7 +57,10 @@ pub struct PaintRenderer {
     shader: wgpu::ShaderModule,
     linear: wgpu::Sampler,
     nearest: wgpu::Sampler,
+    repeat_nearest: wgpu::Sampler,
+    repeat_linear: wgpu::Sampler,
     white: Arc<GpuImage>,
+    empty_field: wgpu::Buffer,
     pipelines: HashMap<wgpu::TextureFormat, Arc<Pipelines>>,
     atlas: GlyphAtlas,
     pub glyphs: GlyphCache,
@@ -94,6 +98,16 @@ impl PaintRenderer {
                         ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                         count: None,
                     },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 3,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
                 ],
             });
         let pipeline_layout =
@@ -110,8 +124,10 @@ impl PaintRenderer {
                 label: Some("ui-paint-shader"),
                 source: wgpu::ShaderSource::Wgsl(include_str!("paint.wgsl").into()),
             });
-        let sampler = |filter| {
+        let sampler = |filter, address_mode| {
             context.device.create_sampler(&wgpu::SamplerDescriptor {
+                address_mode_u: address_mode,
+                address_mode_v: address_mode,
                 mag_filter: filter,
                 min_filter: filter,
                 ..Default::default()
@@ -133,9 +149,19 @@ impl PaintRenderer {
             },
             white.texture.size(),
         );
+        let empty_field = context
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("ui-empty-distance-field"),
+                contents: &[0; 80],
+                usage: wgpu::BufferUsages::STORAGE,
+            });
         Ok(Self {
-            linear: sampler(wgpu::FilterMode::Linear),
-            nearest: sampler(wgpu::FilterMode::Nearest),
+            empty_field,
+            linear: sampler(wgpu::FilterMode::Linear, wgpu::AddressMode::ClampToEdge),
+            nearest: sampler(wgpu::FilterMode::Nearest, wgpu::AddressMode::ClampToEdge),
+            repeat_linear: sampler(wgpu::FilterMode::Linear, wgpu::AddressMode::Repeat),
+            repeat_nearest: sampler(wgpu::FilterMode::Nearest, wgpu::AddressMode::Repeat),
             context,
             layout,
             pipeline_layout,
@@ -174,7 +200,7 @@ impl PaintRenderer {
             };
             self.context.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor{
                 label:Some("ui-paint-pipeline"),layout:Some(&self.pipeline_layout),
-                vertex:wgpu::VertexState{module:&self.shader,entry_point:Some("vs"),compilation_options:Default::default(),buffers:&[wgpu::VertexBufferLayout{array_stride:std::mem::size_of::<Vertex>() as u64,step_mode:wgpu::VertexStepMode::Vertex,attributes:&wgpu::vertex_attr_array![0=>Float32x2,1=>Float32x2,2=>Float32x2]}]},
+                vertex:wgpu::VertexState{module:&self.shader,entry_point:Some("vs"),compilation_options:Default::default(),buffers:&[wgpu::VertexBufferLayout{array_stride:std::mem::size_of::<Vertex>() as u64,step_mode:wgpu::VertexStepMode::Vertex,attributes:&wgpu::vertex_attr_array![0=>Float32x2,1=>Float32x2,2=>Float32x2,3=>Float32x4]}]},
                 fragment:Some(wgpu::FragmentState{module:&self.shader,entry_point:Some("fs"),compilation_options:Default::default(),targets:&[Some(wgpu::ColorTargetState{format,blend:Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),write_mask:if phase==0{wgpu::ColorWrites::ALL}else{wgpu::ColorWrites::empty()}})]}),
                 primitive:wgpu::PrimitiveState::default(),depth_stencil:Some(wgpu::DepthStencilState{format:wgpu::TextureFormat::Depth24PlusStencil8,depth_write_enabled:Some(false),depth_compare:Some(wgpu::CompareFunction::Always),stencil:wgpu::StencilState{front:stencil,back:stencil,read_mask:255,write_mask:if phase==0{0}else{255}},bias:Default::default()}),
                 multisample:wgpu::MultisampleState{count:samples,..Default::default()},multiview_mask:None,cache:None,
@@ -210,6 +236,7 @@ impl PaintRenderer {
             vertices,
             indices: buffer,
             count: indices.len() as u32,
+            colored: false,
         }
     }
     fn draw(
@@ -220,6 +247,18 @@ impl PaintRenderer {
         size: (u32, u32),
         stencil: u32,
         phase: u8,
+    ) -> Draw {
+        self.draw_with_field(geometry, brush, image, size, stencil, phase, None)
+    }
+    fn draw_with_field(
+        &self,
+        geometry: Geometry,
+        brush: &Brush,
+        image: Option<(&GpuImage, Sampling)>,
+        size: (u32, u32),
+        stencil: u32,
+        phase: u8,
+        field: Option<(&DistanceField, Point)>,
     ) -> Draw {
         let (mode, color0, color1, gradient) = match brush {
             Brush::Solid(c) => (0, linear(*c), [0.; 4], [0.; 4]),
@@ -247,11 +286,19 @@ impl PaintRenderer {
         });
         let params = Params {
             viewport: [size.0 as f32, size.1 as f32],
-            mode: if image.is_some() { 2 } else { mode },
-            source,
+            mode: if field.is_some() {
+                4
+            } else if geometry.colored {
+                3
+            } else if image.is_some() {
+                2
+            } else {
+                mode
+            },
+            source: field.map_or(source, |(f, _)| f.primitives.len() as u32),
             color0,
             color1,
-            gradient,
+            gradient: field.map_or(gradient, |(_, p)| [p[0], p[1], 0., 0.]),
         };
         let uniform = self
             .context
@@ -262,11 +309,22 @@ impl PaintRenderer {
                 usage: wgpu::BufferUsages::UNIFORM,
             });
         let texture = image.map_or(&*self.white, |(image, _)| image);
-        let sampler = if image.is_some_and(|(_, s)| s == Sampling::Nearest) {
-            &self.nearest
-        } else {
-            &self.linear
+        let sampler = match image.map(|(_, s)| s).unwrap_or(Sampling::Linear) {
+            Sampling::Nearest => &self.nearest,
+            Sampling::Linear => &self.linear,
+            Sampling::RepeatNearest => &self.repeat_nearest,
+            Sampling::RepeatLinear => &self.repeat_linear,
         };
+        let field_data = field.map(|(f, _)| distance_data(f));
+        let field_buffer = field_data.as_ref().filter(|v| !v.is_empty()).map(|data| {
+            self.context
+                .device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("ui-distance-primitives"),
+                    contents: bytemuck::cast_slice(data),
+                    usage: wgpu::BufferUsages::STORAGE,
+                })
+        });
         let bind = self
             .context
             .device
@@ -285,6 +343,13 @@ impl PaintRenderer {
                     wgpu::BindGroupEntry {
                         binding: 2,
                         resource: wgpu::BindingResource::Sampler(sampler),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 3,
+                        resource: field_buffer
+                            .as_ref()
+                            .unwrap_or(&self.empty_field)
+                            .as_entire_binding(),
                     },
                 ],
             });
@@ -345,6 +410,35 @@ impl PaintRenderer {
             let transform = *transforms.last().unwrap();
             let level = clips.len() as u32;
             match &ops[i] {
+                PaintOp::DistanceField { rect, field } => {
+                    if rect.width > 0. && rect.height > 0. {
+                        let (v, ix) = mesh::quad(*rect, Rect::default(), transform, density);
+                        draws.push(self.draw_with_field(
+                            self.geometry(&v, &ix),
+                            &Brush::Solid(field.background),
+                            None,
+                            size,
+                            level,
+                            0,
+                            Some((field, [rect.x, rect.y])),
+                        ));
+                    }
+                }
+                PaintOp::Mesh { vertices, indices } => {
+                    if !indices.is_empty() {
+                        let vertices = mesh::colored(vertices, transform, density);
+                        let mut geometry = self.geometry(&vertices, indices);
+                        geometry.colored = true;
+                        draws.push(self.draw(
+                            geometry,
+                            &Brush::Solid([1.; 4]),
+                            None,
+                            size,
+                            level,
+                            0,
+                        ));
+                    }
+                }
                 PaintOp::Rect {
                     rect,
                     radius,
@@ -645,4 +739,52 @@ impl PaintRenderer {
         self.context.queue.submit([encoder.finish()]);
         Ok(())
     }
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+struct DistanceData {
+    bounds: [f32; 4],
+    radii: [f32; 4],
+    fill: Color,
+    border: Color,
+    meta: [f32; 4],
+}
+fn distance_data(field: &DistanceField) -> Vec<DistanceData> {
+    field
+        .primitives
+        .iter()
+        .map(|p| {
+            let (kind, bounds, radii) = match p.geometry {
+                DistanceGeometry::Circle { center, radius } => {
+                    (0., [center[0], center[1], radius, radius], [0.; 4])
+                }
+                DistanceGeometry::Hexagon { center, radius } => {
+                    (1., [center[0], center[1], radius, radius], [0.; 4])
+                }
+                DistanceGeometry::Rhombus { center, half_size } => (
+                    2.,
+                    [center[0], center[1], half_size[0], half_size[1]],
+                    [0.; 4],
+                ),
+                DistanceGeometry::RoundedRect { rect, radii } => (
+                    3.,
+                    [
+                        rect.x + rect.width * 0.5,
+                        rect.y + rect.height * 0.5,
+                        rect.width * 0.5,
+                        rect.height * 0.5,
+                    ],
+                    radii,
+                ),
+            };
+            DistanceData {
+                bounds,
+                radii,
+                fill: linear(p.fill),
+                border: linear(p.border),
+                meta: [kind, p.border_width.max(0.), 0., 0.],
+            }
+        })
+        .collect()
 }

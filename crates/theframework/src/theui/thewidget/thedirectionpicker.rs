@@ -12,6 +12,50 @@ pub struct TheDirectionPicker {
 }
 
 impl TheWidget for TheDirectionPicker {
+    #[cfg(feature = "text")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::paint::{LineCap, LineJoin, PaintOp, Path, PathElement, Rect, Stroke};
+        let r = crate::theui::paint::bounds(&self.dim);
+        let radius = r.width.min(r.height) * 0.45;
+        let center = [r.x + r.width * 0.5, r.y + r.height * 0.5];
+        p.list.ops.push(PaintOp::PushClip(r));
+        p.list.rect(
+            Rect::new(
+                center[0] - radius,
+                center[1] - radius,
+                radius * 2.,
+                radius * 2.,
+            ),
+            radius,
+            [0.502, 0.502, 0.502, 1.],
+        );
+        if let TheValue::Direction(value) = self.value {
+            p.list.ops.push(PaintOp::Stroke {
+                path: std::sync::Arc::new(Path {
+                    elements: vec![
+                        PathElement::Move(center),
+                        PathElement::Line([
+                            center[0] + value.x * radius,
+                            center[1] + value.z * radius,
+                        ]),
+                    ],
+                }),
+                stroke: Stroke {
+                    width: 1.,
+                    cap: LineCap::Round,
+                    join: LineJoin::Round,
+                    brush: [0., 0., 0., 1.].into(),
+                },
+            });
+        }
+        p.list.ops.push(PaintOp::PopClip);
+        self.is_dirty = false;
+        Ok(())
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,
@@ -52,6 +96,9 @@ impl TheWidget for TheDirectionPicker {
                         (coord.x - self.dim().width / 2) as f32,
                         (coord.y - self.dim().height / 2) as f32,
                     );
+                    if v.magnitude_squared() <= f32::EPSILON {
+                        return false;
+                    }
                     let norm = v.normalized();
 
                     let value = Vec3::new(norm.x, 0.0, norm.y);
@@ -69,6 +116,9 @@ impl TheWidget for TheDirectionPicker {
                         (coord.x - self.dim().width / 2) as f32,
                         (coord.y - self.dim().height / 2) as f32,
                     );
+                    if v.magnitude_squared() <= f32::EPSILON {
+                        return false;
+                    }
                     let norm = v.normalized();
 
                     let value = Vec3::new(norm.x, 0.0, norm.y);

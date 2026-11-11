@@ -25,6 +25,99 @@ pub struct TheTimeSlider {
 }
 
 impl TheWidget for TheTimeSlider {
+    #[cfg(feature = "text")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::paint::{PaintOp, Rect};
+        let r = crate::theui::paint::bounds(&self.dim);
+        p.list.ops.push(PaintOp::PushClip(r));
+        p.fill(r, TimeSliderBorder);
+        let brush = p.theme_brush(r, TimeSliderBackgroundChrome);
+        p.list.rect(r.inset(1.), 0., brush);
+        let width = self.visual_track_width();
+        if width > 0 {
+            for hour in 1..=24 {
+                p.fill(
+                    Rect::new(
+                        r.x + (width * hour / 24) as f32,
+                        r.y + r.height - 4.,
+                        2.,
+                        2.,
+                    ),
+                    TimeSliderLine,
+                );
+            }
+            if let TheValue::Time(time) = &self.value {
+                let offset = time.to_widget_offset(width as u32) as f32;
+                let brush = p.theme_brush(r, TimeSliderPositionChrome);
+                p.list.rect(
+                    Rect::new(r.x + offset, r.y + 1., 2., (r.height - 2.).max(0.)),
+                    0.,
+                    brush,
+                );
+            }
+            for (time, _) in &self.marker {
+                let offset = time.to_widget_offset(width as u32) as f32;
+                let brush = p.theme_brush(
+                    r,
+                    if self.selected_marker == Some(*time) {
+                        TimeSliderPositionChrome
+                    } else {
+                        TimeSliderMarkerChrome
+                    },
+                );
+                p.list.rect(
+                    Rect::new(r.x + offset, r.y + 1., 2., (r.height - 2.).max(0.)),
+                    0.,
+                    brush.clone(),
+                );
+                p.list.rect(
+                    Rect::new(r.x + offset, r.y + 1., 10., (r.height - 2.).clamp(0., 12.)),
+                    0.,
+                    brush,
+                );
+            }
+        }
+        let size = if self.tall { 12. } else { 11. };
+        let space = (width / 12).max(1) as f32;
+        for hour in (2..24).step_by(2) {
+            let x = r.x + (width * hour / 24) as f32;
+            p.label(
+                Rect::new(
+                    x - space * 0.5,
+                    r.y + if self.tall { 3. } else { 0. },
+                    space,
+                    (r.height - 1.).max(0.),
+                ),
+                &hour.to_string(),
+                size,
+                *p.theme.color(TimeSliderText),
+                TheHorizontalAlign::Center,
+                TheVerticalAlign::Top,
+            );
+        }
+        if let TheValue::Time(time) = &self.value {
+            p.label(
+                Rect::new(
+                    r.x + width as f32,
+                    r.y,
+                    (r.width - width as f32 - 3.).max(0.),
+                    r.height,
+                ),
+                &time.to_time24(),
+                size,
+                *p.theme.color(TimeSliderPosition),
+                TheHorizontalAlign::Right,
+                TheVerticalAlign::Center,
+            );
+        }
+        p.list.ops.push(PaintOp::PopClip);
+        self.is_dirty = false;
+        Ok(())
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,

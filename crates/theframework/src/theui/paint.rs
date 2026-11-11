@@ -41,6 +41,16 @@ pub struct WidgetPainter<'a> {
     pub theme: &'a mut dyn TheTheme,
 }
 impl WidgetPainter<'_> {
+    /// Layout nodes use this entry point so an unassigned/hidden rectangle never
+    /// emits geometry at the origin. Image-content invalidation is independent.
+    pub fn widget(&mut self, widget: &mut dyn TheWidget) -> UiPaintResult {
+        if !widget.dim().is_valid() {
+            widget.set_needs_redraw(false);
+            return Ok(());
+        }
+        widget.paint(self)
+    }
+
     pub fn icon(&mut self, name: &str, rect: Rect) -> UiPaintResult {
         if let Some(source) = self.ui.icon(name) {
             if source.pixel_width() == 0 || source.pixel_height() == 0 {

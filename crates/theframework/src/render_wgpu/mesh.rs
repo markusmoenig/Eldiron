@@ -10,6 +10,7 @@ pub struct Vertex {
     pub position: Point,
     pub local: Point,
     pub uv: Point,
+    pub color: Color,
 }
 pub fn rect_path(rect: Rect, radius: f32) -> Path {
     let r = radius
@@ -126,6 +127,7 @@ pub fn tessellate(
                 position: [pos[0] * density, pos[1] * density],
                 local,
                 uv: [0., 0.],
+                color: [1.; 4],
             }
         })
         .collect();
@@ -154,9 +156,25 @@ pub fn quad(rect: Rect, uv: Rect, t: Transform, density: f32) -> (Vec<Vertex>, V
                     position: [p[0] * density, p[1] * density],
                     local,
                     uv,
+                    color: [1.; 4],
                 }
             })
             .collect(),
         vec![0, 1, 2, 0, 2, 3],
     )
+}
+
+pub fn colored(vertices: &[PaintVertex], t: Transform, density: f32) -> Vec<Vertex> {
+    vertices
+        .iter()
+        .map(|v| {
+            let p = t.point(v.position);
+            Vertex {
+                position: [p[0] * density, p[1] * density],
+                local: v.position,
+                uv: [0.; 2],
+                color: v.color,
+            }
+        })
+        .collect()
 }

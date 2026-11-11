@@ -19,6 +19,20 @@ pub struct TheSDFView {
 }
 
 impl TheWidget for TheSDFView {
+    #[cfg(feature = "text")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        let r = crate::theui::paint::bounds(&self.dim);
+        p.list.ops.push(crate::paint::PaintOp::DistanceField {
+            rect: r,
+            field: std::sync::Arc::new(self.canvas.paint_field()),
+        });
+        self.is_dirty = false;
+        Ok(())
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,
@@ -228,6 +242,7 @@ pub trait TheSDFViewTrait {
 impl TheSDFViewTrait for TheSDFView {
     fn set_canvas(&mut self, canvas: TheSDFCanvas) {
         self.canvas = canvas;
+        self.is_dirty = true;
     }
     fn set_status(&mut self, index: usize, text: String) {
         self.status_text.insert(index, text);

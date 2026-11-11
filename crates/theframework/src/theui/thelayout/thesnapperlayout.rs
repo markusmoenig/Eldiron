@@ -37,7 +37,7 @@ impl TheLayout for TheSnapperLayout {
             DefaultWidgetBackground,
         );
         for (bar, layout) in self.bars.iter_mut().zip(&mut self.layouts) {
-            bar.paint(p)?;
+            p.widget(bar.as_mut())?;
             if bar.is_open() {
                 layout.paint(p)?;
             }

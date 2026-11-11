@@ -78,13 +78,13 @@ impl TheLayout for TheListLayout {
             let d = widget.dim();
             if d.y + d.height >= self.dim.y + offset && d.y < self.dim.y + self.dim.height + offset
             {
-                widget.paint(p)?;
+                p.widget(widget.as_mut())?;
             }
         }
         p.list.ops.push(PaintOp::PopTransform);
         p.list.ops.push(PaintOp::PopClip);
         if self.vertical_scrollbar_visible {
-            self.vertical_scrollbar.paint(p)?;
+            p.widget(self.vertical_scrollbar.as_mut())?;
         }
         self.is_dirty = false;
         Ok(())

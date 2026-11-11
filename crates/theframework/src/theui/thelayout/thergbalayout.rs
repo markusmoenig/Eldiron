@@ -50,12 +50,12 @@ impl TheLayout for TheRGBALayout {
         if let Some(bg) = self.background {
             p.fill(r, bg);
         }
-        self.rgba_view.paint(p)?;
+        p.widget(self.rgba_view.as_mut())?;
         if self.vertical_scrollbar_visible {
-            self.vertical_scrollbar.paint(p)?;
+            p.widget(self.vertical_scrollbar.as_mut())?;
         }
         if self.horizontal_scrollbar_visible {
-            self.horizontal_scrollbar.paint(p)?;
+            p.widget(self.horizontal_scrollbar.as_mut())?;
         }
         if self.vertical_scrollbar_visible || self.horizontal_scrollbar_visible {
             p.fill(

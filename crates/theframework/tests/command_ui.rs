@@ -8,15 +8,19 @@ use theframework::{
 #[derive(Default)]
 struct RecordingImages {
     handles: HashMap<String, ImageHandle>,
+    uploads: usize,
 }
 impl UiImageResources for RecordingImages {
     fn image(
         &mut self,
         key: &str,
         source: &TheRGBABuffer,
-        _changed: bool,
+        changed: bool,
     ) -> Result<ImageHandle, UiPaintError> {
         assert!(!source.pixels().is_empty());
+        if changed || !self.handles.contains_key(key) {
+            self.uploads += 1;
+        }
         let slot = self.handles.len() as u32;
         Ok(*self.handles.entry(key.into()).or_insert(ImageHandle {
             owner: 99,
@@ -52,4 +56,140 @@ fn ui_emits_text_and_image_commands_without_a_renderer_or_window() {
     assert!(list.ops.iter().any(|v| matches!(v, PaintOp::Image { .. })));
     assert_eq!(resources.handles.len(), 1);
     assert!(ui.canvas.buffer.pixels().is_empty());
+}
+
+fn paint_widget(
+    widget: &mut dyn TheWidget,
+    ctx: &mut TheContext,
+    resources: &mut RecordingImages,
+) -> theframework::paint::PaintList {
+    use theframework::theui::paint::WidgetPainter;
+    let mut style = TheClassicStyle::new();
+    widget.prepare_paint(ctx, style.theme().as_ref());
+    let mut list = theframework::paint::PaintList::default();
+    let mut painter = WidgetPainter {
+        list: &mut list,
+        text: &mut ctx.text,
+        images: resources,
+        ui: &ctx.ui,
+        theme: style.theme().as_mut(),
+    };
+    painter.widget(widget).unwrap();
+    list.validate().unwrap();
+    list
+}
+
+#[test]
+fn icon_collections_keep_content_uploads_separate_from_selection_and_scroll() {
+    let mut ctx = TheContext::new(320, 180, 1.);
+    let mut resources = RecordingImages::default();
+    let mut icon = TheRGBABuffer::new(TheDim::sized(12, 8));
+    icon.fill([255, 128, 0, 255]);
+    let mut grid = TheIconGridView::new(TheId::named("grid"));
+    grid.set_items(
+        (0..1000)
+            .map(|index| {
+                let mut item = TheIconGridItem::new(format!("Item {index}"));
+                item.icon = Some(icon.clone());
+                item
+            })
+            .collect(),
+    );
+    grid.set_dim(TheDim::new(30, 20, 320, 150), &mut ctx);
+    let first = paint_widget(&mut grid, &mut ctx, &mut resources);
+    assert!(
+        first
+            .ops
+            .iter()
+            .filter(|op| matches!(op, PaintOp::Image { .. }))
+            .count()
+            <= 6
+    );
+    let uploads = resources.uploads;
+    grid.on_event(&TheEvent::MouseDown(Vec2::new(10, 10)), &mut ctx);
+    assert_eq!(grid.selected(), Some(0));
+    grid.on_event(&TheEvent::Hover(Vec2::new(110, 10)), &mut ctx);
+    paint_widget(&mut grid, &mut ctx, &mut resources);
+    assert_eq!(resources.uploads, uploads);
+    grid.set_item_icon(0, Some(icon.clone()));
+    paint_widget(&mut grid, &mut ctx, &mut resources);
+    assert_eq!(resources.uploads, uploads + 1);
+    grid.on_event(&TheEvent::MouseWheel(Vec2::new(0, -104)), &mut ctx);
+    paint_widget(&mut grid, &mut ctx, &mut resources);
+    grid.on_event(&TheEvent::MouseDown(Vec2::new(10, 10)), &mut ctx);
+    assert_eq!(grid.selected(), Some(3));
+    assert!(grid.visible_items().start > 0);
+
+    let mut row = TheScrollableIconRow::new(TheId::named("row"));
+    row.set_items(
+        (0..1000)
+            .map(|index| {
+                let mut item = TheScrollableIconRowItem::new(format!("Row {index}"));
+                item.icon = Some(icon.clone());
+                item
+            })
+            .collect(),
+    );
+    row.set_dim(TheDim::new(10, 20, 200, 60), &mut ctx);
+    let first = paint_widget(&mut row, &mut ctx, &mut resources);
+    assert!(
+        first
+            .ops
+            .iter()
+            .filter(|op| matches!(op, PaintOp::Image { .. }))
+            .count()
+            <= 4
+    );
+    let uploads = resources.uploads;
+    row.on_event(&TheEvent::MouseDown(Vec2::new(85, 15)), &mut ctx);
+    row.on_event(&TheEvent::MouseUp(Vec2::new(85, 15)), &mut ctx);
+    assert_eq!(row.selected(), 1);
+    paint_widget(&mut row, &mut ctx, &mut resources);
+    assert_eq!(resources.uploads, uploads);
+    row.on_event(&TheEvent::MouseWheel(Vec2::new(-80, 0)), &mut ctx);
+    paint_widget(&mut row, &mut ctx, &mut resources);
+    row.on_event(&TheEvent::MouseDown(Vec2::new(10, 15)), &mut ctx);
+    row.on_event(&TheEvent::MouseUp(Vec2::new(10, 15)), &mut ctx);
+    assert_eq!(row.selected(), 1);
+}
+
+#[test]
+fn unassigned_widgets_emit_no_geometry_and_time_input_matches_the_track() {
+    let mut ctx = TheContext::new(400, 100, 1.);
+    let mut resources = RecordingImages::default();
+    let mut switch = TheSwitchbar::new(TheId::named("switch"));
+    switch.set_text("Section".into());
+    assert!(
+        paint_widget(&mut switch, &mut ctx, &mut resources)
+            .ops
+            .is_empty()
+    );
+    switch.set_dim(TheDim::new(10, 20, 300, 24), &mut ctx);
+    let list = paint_widget(&mut switch, &mut ctx, &mut resources);
+    assert!(
+        list.ops
+            .iter()
+            .any(|op| matches!(op, PaintOp::Stroke { .. }))
+    );
+    assert!(
+        list.ops
+            .iter()
+            .any(|op| matches!(op, PaintOp::GlyphRun { .. }))
+    );
+    let mut time = TheTimeSlider::new(TheId::named("time"));
+    time.set_dim(TheDim::new(10, 50, 400, 24), &mut ctx);
+    time.on_event(&TheEvent::MouseDown(Vec2::new(100, 12)), &mut ctx);
+    let value = time.value();
+    let list = paint_widget(&mut time, &mut ctx, &mut resources);
+    assert!(
+        list.ops
+            .iter()
+            .any(|op| matches!(op, PaintOp::GlyphRun { .. }))
+    );
+    assert_eq!(time.value(), value);
+    if let TheValue::Time(t) = value {
+        assert!(t.to_widget_offset(360).abs_diff(100) < 3);
+    } else {
+        panic!("time value lost");
+    }
 }

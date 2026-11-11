@@ -28,7 +28,7 @@ impl TheLayout for TheTabLayout {
         p: &mut crate::theui::paint::WidgetPainter<'_>,
     ) -> crate::theui::paint::UiPaintResult {
         p.fill(crate::theui::paint::bounds(&self.dim), TabbarConnector);
-        self.tabbar.paint(p)?;
+        p.widget(self.tabbar.as_mut())?;
         let index = self
             .tabbar
             .as_tabbar()

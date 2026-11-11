@@ -105,7 +105,7 @@ impl TheCanvas {
         }
         if self.center.is_none() {
             if let Some(widget) = &mut self.widget {
-                widget.paint(painter)?;
+                painter.widget(widget.as_mut())?;
             }
             if let Some(layout) = &mut self.layout {
                 layout.paint(painter)?;

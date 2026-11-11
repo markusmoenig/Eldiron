@@ -105,12 +105,12 @@ impl TheLayout for TheTextLayout {
                     TheVerticalAlign::Top,
                 );
             }
-            widget.paint(p)?;
+            p.widget(widget.as_mut())?;
         }
         p.list.ops.push(PaintOp::PopTransform);
         p.list.ops.push(PaintOp::PopClip);
         if self.vertical_scrollbar_visible {
-            self.vertical_scrollbar.paint(p)?;
+            p.widget(self.vertical_scrollbar.as_mut())?;
         }
         if self.background.is_some() {
             p.outline(r, *p.theme.color(TextLayoutBorder), 1.);

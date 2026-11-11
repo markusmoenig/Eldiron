@@ -38,7 +38,7 @@ impl TheLayout for TheVLayout {
             p.fill(bounds(&self.dim), role);
         }
         for widget in &mut self.widgets {
-            widget.paint(p)?;
+            p.widget(widget.as_mut())?;
         }
         Ok(())
     }

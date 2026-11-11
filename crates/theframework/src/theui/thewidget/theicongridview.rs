@@ -1,3 +1,6 @@
+#[cfg(feature = "text")]
+#[path = "theicongridview_paint.rs"]
+mod paint;
 use crate::prelude::*;
 
 use super::thescrollbarchrome::draw_scrollbar_chrome;
@@ -48,6 +51,8 @@ pub struct TheIconGridView {
     scrollbar_hovered: bool,
     scrollbar_drag_anchor: Option<(i32, i32)>,
     is_dirty: bool,
+    #[cfg(feature = "text")]
+    image_dirty: FxHashSet<usize>,
 }
 
 impl TheIconGridView {
@@ -189,6 +194,18 @@ impl TheIconGridView {
 }
 
 impl TheWidget for TheIconGridView {
+    #[cfg(feature = "text")]
+    fn prepare_paint(&mut self, _ctx: &mut TheContext, _theme: &dyn TheTheme) {
+        self.prepare_commands();
+    }
+    #[cfg(feature = "text")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        self.paint_commands(p)
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,
@@ -214,6 +231,8 @@ impl TheWidget for TheIconGridView {
             scrollbar_hovered: false,
             scrollbar_drag_anchor: None,
             is_dirty: true,
+            #[cfg(feature = "text")]
+            image_dirty: FxHashSet::default(),
         }
     }
 
@@ -572,12 +591,20 @@ impl TheIconGridViewTrait for TheIconGridView {
     fn set_item_icon(&mut self, index: usize, icon: Option<TheRGBABuffer>) {
         if let Some(item) = self.items.get_mut(index) {
             item.icon = icon;
+            #[cfg(feature = "text")]
+            {
+                self.image_dirty.insert(index);
+            }
             self.is_dirty = true;
         }
     }
 
     fn set_items(&mut self, items: Vec<TheIconGridItem>) {
         self.items = items;
+        #[cfg(feature = "text")]
+        {
+            self.image_dirty = (0..self.items.len()).collect();
+        }
         self.selected = self
             .selected
             .filter(|selected| *selected < self.items.len());

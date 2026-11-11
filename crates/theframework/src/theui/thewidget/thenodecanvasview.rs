@@ -1,3 +1,6 @@
+#[cfg(feature = "text")]
+#[path = "thenodecanvasview_paint.rs"]
+mod paint;
 use crate::prelude::*;
 use crate::theui::thewidget::thenodechrome::{TheNodeChromePaints, draw_node_chrome};
 use rayon::prelude::*;
@@ -40,11 +43,29 @@ pub struct TheNodeCanvasView {
 
     overlay: Option<TheRGBABuffer>,
     overlay_tiled: bool,
+    #[cfg(feature = "text")]
+    preview_dirty: FxHashSet<usize>,
+    #[cfg(feature = "text")]
+    preview_images: FxHashMap<usize, (crate::paint::ImageHandle, Vec2<u32>)>,
+    #[cfg(feature = "text")]
+    overlay_dirty: bool,
     last_mouse_down_time: Instant,
     last_mouse_down_coord: Vec2<i32>,
 }
 
 impl TheWidget for TheNodeCanvasView {
+    #[cfg(feature = "text")]
+    fn prepare_paint(&mut self, _ctx: &mut TheContext, _theme: &dyn TheTheme) {
+        self.prepare_commands();
+    }
+    #[cfg(feature = "text")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        self.paint_commands(p)
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,
@@ -58,7 +79,7 @@ impl TheWidget for TheNodeCanvasView {
 
             action: TheNodeAction::None,
 
-            render_buffer: TheRGBABuffer::new(TheDim::new(0, 0, 20, 20)),
+            render_buffer: TheRGBABuffer::empty(),
             wheel_scale: -0.4,
             accumulated_wheel_delta: Vec2::zero(),
 
@@ -77,6 +98,12 @@ impl TheWidget for TheNodeCanvasView {
 
             overlay: None,
             overlay_tiled: true,
+            #[cfg(feature = "text")]
+            preview_dirty: FxHashSet::default(),
+            #[cfg(feature = "text")]
+            preview_images: FxHashMap::default(),
+            #[cfg(feature = "text")]
+            overlay_dirty: true,
             last_mouse_down_time: Instant::now(),
             last_mouse_down_coord: Vec2::zero(),
         }
@@ -384,6 +411,24 @@ impl TheWidget for TheNodeCanvasView {
                     if let Some(deleted_node_index) = self.canvas.selected_node {
                         if self.canvas.nodes[deleted_node_index].can_be_deleted {
                             self.canvas.nodes.remove(deleted_node_index);
+                            self.canvas.selected_node = None;
+                            #[cfg(feature = "text")]
+                            {
+                                self.preview_dirty = (0..self.canvas.nodes.len()).collect();
+                                self.preview_images = std::mem::take(&mut self.preview_images)
+                                    .into_iter()
+                                    .filter_map(|(i, v)| {
+                                        if i == deleted_node_index {
+                                            None
+                                        } else {
+                                            Some((
+                                                if i > deleted_node_index { i - 1 } else { i },
+                                                v,
+                                            ))
+                                        }
+                                    })
+                                    .collect();
+                            }
                             self.node_rects.remove(deleted_node_index);
 
                             // Filter out connections involving the deleted node and adjust indices for others
@@ -435,11 +480,15 @@ impl TheWidget for TheNodeCanvasView {
         &mut self.dim
     }
 
-    fn set_dim(&mut self, dim: TheDim, _ctx: &mut TheContext) {
+    fn set_dim(&mut self, dim: TheDim, ctx: &mut TheContext) {
         if self.dim != dim {
             self.dim = dim;
             self.is_dirty = true;
-            self.render_buffer.resize(dim.width, dim.height);
+            if ctx.ui.command_paint {
+                self.render_buffer = TheRGBABuffer::empty();
+            } else {
+                self.render_buffer.resize(dim.width, dim.height);
+            }
         }
     }
 
@@ -882,6 +931,12 @@ pub trait TheNodeCanvasViewTrait: TheWidget {
     fn set_overlay_tiled(&mut self, tiled: bool);
     fn set_node_preview(&mut self, index: usize, buffer: TheRGBABuffer);
     fn set_node_preview_open(&mut self, index: usize, open: bool);
+    #[cfg(feature = "text")]
+    fn set_node_preview_image(
+        &mut self,
+        index: usize,
+        image: Option<(crate::paint::ImageHandle, Vec2<u32>)>,
+    );
     fn fill_node_ui_images(&mut self, ctx: &mut TheContext);
     fn node_index_at(&self, coord: &Vec2<i32>) -> Option<usize>;
     fn terminal_at(&self, node_index: usize, coord: Vec2<i32>) -> Option<(bool, u8)>;
@@ -908,10 +963,19 @@ impl TheNodeCanvasViewTrait for TheNodeCanvasView {
     }
     fn set_canvas(&mut self, canvas: TheNodeCanvas) {
         self.canvas = canvas;
+        #[cfg(feature = "text")]
+        {
+            self.preview_dirty = (0..self.canvas.nodes.len()).collect();
+            self.preview_images.clear();
+        }
         self.is_dirty = true;
     }
     fn set_overlay(&mut self, overlay: Option<TheRGBABuffer>) {
         self.overlay = overlay;
+        #[cfg(feature = "text")]
+        {
+            self.overlay_dirty = true;
+        }
         self.is_dirty = true;
     }
     fn set_overlay_tiled(&mut self, tiled: bool) {
@@ -919,10 +983,31 @@ impl TheNodeCanvasViewTrait for TheNodeCanvasView {
         self.is_dirty = true;
     }
     fn set_node_preview(&mut self, index: usize, buffer: TheRGBABuffer) {
-        if !self.canvas.nodes.is_empty() {
-            self.canvas.nodes[index].preview = buffer;
+        if let Some(node) = self.canvas.nodes.get_mut(index) {
+            node.preview = buffer;
+            #[cfg(feature = "text")]
+            {
+                self.preview_dirty.insert(index);
+                self.preview_images.remove(&index);
+            }
             self.is_dirty = true;
         }
+    }
+    #[cfg(feature = "text")]
+    fn set_node_preview_image(
+        &mut self,
+        index: usize,
+        image: Option<(crate::paint::ImageHandle, Vec2<u32>)>,
+    ) {
+        if index >= self.canvas.nodes.len() {
+            return;
+        }
+        if let Some(image) = image {
+            self.preview_images.insert(index, image);
+        } else {
+            self.preview_images.remove(&index);
+        }
+        self.is_dirty = true;
     }
     fn set_node_preview_open(&mut self, index: usize, open: bool) {
         if let Some(node) = self.canvas.nodes.get_mut(index) {
@@ -932,6 +1017,15 @@ impl TheNodeCanvasViewTrait for TheNodeCanvasView {
     }
     fn fill_node_ui_images(&mut self, _ctx: &mut TheContext) {}
     fn node_index_at(&self, coord: &Vec2<i32>) -> Option<usize> {
+        if let Some(index) = self.canvas.selected_node {
+            if self
+                .node_rects
+                .get(index)
+                .is_some_and(|r| r.contains(*coord))
+            {
+                return Some(index);
+            }
+        }
         for (i, r) in self.node_rects.iter().enumerate().rev() {
             if r.contains(*coord) {
                 return Some(i);

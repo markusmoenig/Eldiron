@@ -44,6 +44,53 @@ impl TheSDFCanvas {
         self.patterns.push(pattern);
     }
 
+    #[cfg(feature = "text")]
+    pub fn paint_field(&self) -> crate::paint::DistanceField {
+        use crate::paint::{DistanceField, DistanceGeometry, DistancePrimitive};
+        use crate::theui::paint::bounds;
+        let color = |c: &TheColor| [c.r, c.g, c.b, c.a];
+        let primitives = self
+            .sdfs
+            .iter()
+            .zip(&self.patterns)
+            .enumerate()
+            .map(|(index, (sdf, pattern))| {
+                let geometry = match sdf {
+                    TheSDF::Circle(d) => DistanceGeometry::Circle {
+                        center: [d.center().x, d.center().y],
+                        radius: d.radius(),
+                    },
+                    TheSDF::Hexagon(d) => DistanceGeometry::Hexagon {
+                        center: [d.center().x, d.center().y],
+                        radius: d.radius() * 0.875,
+                    },
+                    TheSDF::Rhombus(d) => DistanceGeometry::Rhombus {
+                        center: [d.center().x, d.center().y],
+                        half_size: [d.radius(); 2],
+                    },
+                    TheSDF::RoundedRect(d, r) => DistanceGeometry::RoundedRect {
+                        rect: bounds(d),
+                        radii: [r.0, r.1, r.2, r.3],
+                    },
+                };
+                let (fill, border, width) = match pattern {
+                    ThePattern::Solid(c) => (c, c, 0.),
+                    ThePattern::SolidWithBorder(c, b, w) => (c, b, *w),
+                };
+                DistancePrimitive {
+                    geometry,
+                    fill: color(self.highlight(index).unwrap_or(fill)),
+                    border: color(border),
+                    border_width: width,
+                }
+            })
+            .collect::<Vec<_>>();
+        DistanceField {
+            background: color(&self.background),
+            primitives: primitives.into(),
+        }
+    }
+
     /// Renders the sdfs into the given buffer.
     pub fn render(&self, buffer: &mut TheRGBABuffer) {
         let density = buffer.render_scale();

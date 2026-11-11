@@ -197,7 +197,7 @@ impl TheLayout for TheSharedVLayout {
                     self.canvas[0].paint(p)?;
                     self.canvas[1].paint(p)?;
                     for w in &mut self.widgets {
-                        w.paint(p)?;
+                        p.widget(w.as_mut())?;
                     }
                 }
             }

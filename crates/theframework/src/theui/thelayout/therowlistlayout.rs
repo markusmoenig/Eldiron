@@ -58,13 +58,13 @@ impl TheLayout for TheRowListLayout {
             }
             let d = w.dim();
             if d.x + d.width >= self.dim.x + offset && d.x < self.dim.x + self.dim.width + offset {
-                w.paint(p)?;
+                p.widget(w.as_mut())?;
             }
         }
         p.list.ops.push(PaintOp::PopTransform);
         p.list.ops.push(PaintOp::PopClip);
         if self.horizontal_scrollbar_visible {
-            self.horizontal_scrollbar.paint(p)?;
+            p.widget(self.horizontal_scrollbar.as_mut())?;
         }
         self.is_dirty = false;
         Ok(())

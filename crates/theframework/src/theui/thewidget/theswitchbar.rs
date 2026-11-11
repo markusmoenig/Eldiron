@@ -41,6 +41,53 @@ pub struct TheSwitchbar {
 }
 
 impl TheWidget for TheSwitchbar {
+    #[cfg(feature = "text")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::paint::{LineCap, LineJoin, PaintOp, Path, PathElement, Rect, Stroke};
+        use std::sync::Arc;
+        let r = crate::theui::paint::bounds(&self.dim);
+        p.fill(r, SwitchbarBorder);
+        let brush = p.theme_brush(r, SwitchbarChrome);
+        p.list.rect(r.inset(1.), 0., brush);
+        let y = r.y + r.height * 0.5;
+        let mut elements = Vec::new();
+        for offset in [0., 4.] {
+            let x = r.x + 7. + offset;
+            elements.extend([
+                PathElement::Move([x, y - 3.5]),
+                PathElement::Line([x + 3.5, y]),
+                PathElement::Line([x, y + 3.5]),
+            ]);
+        }
+        p.list.ops.push(PaintOp::Stroke {
+            path: Arc::new(Path { elements }),
+            stroke: Stroke {
+                width: 1.5,
+                cap: LineCap::Round,
+                join: LineJoin::Round,
+                brush: p.theme_brush(r, SwitchbarMarker),
+            },
+        });
+        p.label(
+            Rect::new(
+                r.x + 30.,
+                r.y + 1.,
+                (r.width - 30.).max(0.),
+                (r.height - 1.).max(0.),
+            ),
+            &self.text,
+            13.,
+            *p.theme.color(SectionbarNormalTextColor),
+            TheHorizontalAlign::Left,
+            TheVerticalAlign::Center,
+        );
+        self.is_dirty = false;
+        Ok(())
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,
@@ -96,6 +143,7 @@ impl TheWidget for TheSwitchbar {
     fn set_value(&mut self, value: TheValue) {
         if let Some(text) = value.to_string() {
             self.text = text;
+            self.is_dirty = true;
             self.is_dirty = true;
         }
     }
