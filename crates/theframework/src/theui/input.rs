@@ -12,7 +12,7 @@ impl TheUI {
         if self.context_menu.is_none() && ctx.ui.overlay.is_none() {
             let mut find = |widget: &mut dyn TheWidget| {
                 if widget.id().uuid == id.uuid
-                    && widget.supports_text_input()
+                    && (widget.supports_text_input() || widget.uses_native_editor())
                     && !widget.disabled()
                     && !ctx.ui.is_disabled(&id.name)
                 {
@@ -36,7 +36,7 @@ impl TheUI {
         let mut targets = Vec::new();
         let screen = crate::paint::Rect::new(0., 0., ctx.width as f32, ctx.height as f32);
         let mut collect = |widget: &mut dyn TheWidget| {
-            if !widget.supports_text_input()
+            if !(widget.supports_text_input() || widget.uses_native_editor())
                 || widget.disabled()
                 || ctx.ui.is_disabled(&widget.id().name)
             {
@@ -93,12 +93,20 @@ impl TheUI {
         command: crate::text_edit::EditorCommand,
         ctx: &mut TheContext,
     ) -> bool {
-        if !ctx.ui.command_paint || !self.synchronize_editor_scope(ctx) {
+        if !ctx.ui.command_paint {
             return false;
         }
+        let visible = self.synchronize_editor_scope(ctx);
         let Some(id) = ctx.ui.focus.clone() else {
             return false;
         };
+        if !visible {
+            // A suspended native owner must not fall through to the legacy
+            // event/OS clipboard path behind a menu or another input scope.
+            return self
+                .get_widget_abs(None, Some(&id.uuid))
+                .is_some_and(|widget| widget.uses_native_editor());
+        }
         let Some(response) = self
             .get_widget_abs(None, Some(&id.uuid))
             .and_then(|widget| widget.editor_command(command, ctx))

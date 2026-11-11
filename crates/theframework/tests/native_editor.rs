@@ -778,3 +778,153 @@ fn multiline_drag_move_updates_the_saved_document_once_and_undo_restores_selecti
     assert_eq!(restored.rows.join("\n"), source);
     assert_eq!((restored.selection.start, restored.selection.end), (1, 4));
 }
+
+#[test]
+fn rich_and_markdown_selection_copy_share_native_commands_without_ime_or_document_mutation() {
+    for markdown in [false, true] {
+        let mut ui = TheUI::new();
+        let mut ctx = TheContext::new(420, 200, 1.);
+        ui.init(&mut ctx);
+        let id = TheId::named("Display");
+        let source = "A東京e\u{301}\nsecond";
+        if markdown {
+            let mut display = TheMarkdownView::new(id.clone());
+            display.set_text("**A東京e\u{301}**\n\nsecond".into());
+            ui.canvas.set_widget(display);
+        } else {
+            let mut display = TheTextView::new(id.clone());
+            display.set_text(source.into());
+            ui.canvas.set_widget(display);
+        }
+        ui.prepare_paint_layout(&mut ctx);
+        ctx.ui.set_focus(&id);
+        ui.process_events(&mut ctx);
+        let widget = ui.get_widget_id(id.uuid).unwrap();
+        assert!(!widget.supports_text_input());
+        assert!(!widget.supports_undo_redo());
+        assert!(widget.uses_native_editor());
+        assert!(widget.editor_input_state(&mut ctx).is_none());
+        send(
+            &mut ui,
+            &mut ctx,
+            InputEvent::Modifiers(Modifiers {
+                control: true,
+                ..Default::default()
+            }),
+        );
+        send(&mut ui, &mut ctx, key(PhysicalKey::Letter(b'a')));
+        send(&mut ui, &mut ctx, key(PhysicalKey::Letter(b'c')));
+        assert!(
+            matches!(ctx.ui.editor_clipboard.pop_front(), Some(EditorClipboard::Write { text, cut: None }) if text==source)
+        );
+        send(
+            &mut ui,
+            &mut ctx,
+            InputEvent::Modifiers(Modifiers::default()),
+        );
+        for event in [
+            InputEvent::Text("bad".into()),
+            InputEvent::Composition {
+                text: "仮".into(),
+                cursor: None,
+            },
+            key(PhysicalKey::Backspace),
+        ] {
+            send(&mut ui, &mut ctx, event);
+        }
+        ui.cut(&mut ctx);
+        ui.paste(&mut ctx);
+        ui.undo(&mut ctx);
+        assert!(ctx.ui.editor_clipboard.is_empty());
+        assert_eq!(
+            ui.get_widget_id(id.uuid).unwrap().value(),
+            TheValue::Text(source.into())
+        );
+        ui.copy(&mut ctx);
+        assert!(
+            matches!(ctx.ui.editor_clipboard.pop_front(), Some(EditorClipboard::Write { text, cut: None }) if text==source)
+        );
+        ui.context_menu = Some(TheContextMenu::new());
+        ui.prepare_paint_layout(&mut ctx);
+        ui.copy(&mut ctx);
+        ui.paste(&mut ctx);
+        assert!(ctx.ui.editor_clipboard.is_empty());
+        ui.context_menu = None;
+        ui.prepare_paint_layout(&mut ctx);
+        ui.copy(&mut ctx);
+        assert!(
+            matches!(ctx.ui.editor_clipboard.pop_front(), Some(EditorClipboard::Write { text, cut: None }) if text==source)
+        );
+    }
+}
+
+#[test]
+fn tab_traversal_includes_selectable_displays_and_skips_nonselectable_help() {
+    let mut ui = TheUI::new();
+    let mut ctx = TheContext::new(1000, 150, 1.);
+    ui.init(&mut ctx);
+    let mut row = TheHLayout::new(TheId::named("Text owners"));
+    let a = TheId::named("Edit");
+    let b = TheId::named("Rich");
+    let c = TheId::named("Markdown");
+    row.widgets()
+        .push(Box::new(TheTextLineEdit::new(a.clone())));
+    let mut help = TheTextView::new(TheId::named("Help"));
+    help.set_text("Nonselectable hint".into());
+    help.set_selectable(false);
+    row.widgets().push(Box::new(help));
+    let mut rich = TheTextView::new(b.clone());
+    rich.set_text("Selectable rich text".into());
+    row.widgets().push(Box::new(rich));
+    let mut markdown = TheMarkdownView::new(c.clone());
+    markdown.set_text("**Selectable** text".into());
+    row.widgets().push(Box::new(markdown));
+    ui.canvas.set_layout(row);
+    ui.prepare_paint_layout(&mut ctx);
+    ctx.ui.set_focus(&a);
+    ui.process_events(&mut ctx);
+    for expected in [&b, &c, &a, &b] {
+        send(&mut ui, &mut ctx, key(PhysicalKey::Tab));
+        assert_eq!(ctx.ui.focus.as_ref(), Some(expected));
+    }
+}
+
+#[cfg(feature = "render-wgpu")]
+#[test]
+fn display_copy_reaches_host_services_without_starting_a_gpu_or_enabling_ime() {
+    use theframework::{platform::*, render_wgpu::UiFrameImages};
+    struct App;
+    impl UiApplication for App {
+        fn initialize(
+            &mut self,
+            _: &mut UiSession,
+            _: &mut UiFrameImages<'_>,
+        ) -> renderkit::Result<()> {
+            unreachable!()
+        }
+    }
+    let mut app = UiApplicationAdapter::new(App);
+    let id = TheId::named("Transcript");
+    let mut display = TheTextView::new(id.clone());
+    display.set_text("A東京e\u{301}".into());
+    app.session.ui.canvas.set_widget(display);
+    app.session
+        .ui
+        .prepare_paint_layout(&mut app.session.context);
+    app.session.context.ui.set_focus(&id);
+    let mut host = HostContext::new((1200, 700));
+    app.input(
+        &InputEvent::Modifiers(Modifiers {
+            control: true,
+            ..Default::default()
+        }),
+        &mut host,
+    );
+    app.input(&key(PhysicalKey::Letter(b'a')), &mut host);
+    app.input(&key(PhysicalKey::Letter(b'c')), &mut host);
+    assert!(host.text_input.is_none());
+    assert_eq!(host.requests.len(), 1);
+    assert!(
+        matches!(host.requests.pop(), Some(HostRequest::ClipboardWrite { text, request: None }) if text=="A東京e\u{301}")
+    );
+}

@@ -502,3 +502,6 @@ pub trait TheWidget: Send {
     /// Cast to any
     fn as_any(&mut self) -> &mut dyn Any;
 }
+
+#[cfg(feature = "text")]
+mod thetextdisplay_native;

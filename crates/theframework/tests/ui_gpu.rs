@@ -729,6 +729,22 @@ fn rich_text_paints_styles_and_routes_a_grapheme_link_once() {
             [0.05, 0.05, 0.05, 1.],
         )
         .unwrap();
+    let uploaded = gpu.transfers().uploaded_bytes;
+    let rasterized = renderer.glyphs.rasterizations;
+    let repeated = session.paint(&mut images).unwrap();
+    renderer
+        .render(
+            &repeated,
+            &images.registry,
+            &output.view,
+            output.descriptor.format,
+            (output.descriptor.width, output.descriptor.height),
+            1.5,
+            [0.05, 0.05, 0.05, 1.],
+        )
+        .unwrap();
+    assert_eq!(gpu.transfers().uploaded_bytes, uploaded);
+    assert_eq!(renderer.glyphs.rasterizations, rasterized);
     assert!(session.ui.canvas.buffer.pixels().is_empty());
     assert_eq!(gpu.transfers().readback_bytes, 0);
     let mut capture = ReadbackTicket::capture(&gpu, output).unwrap();
@@ -807,6 +823,22 @@ fn markdown_uses_projected_grapheme_ranges_for_gpu_links() {
             [0.05, 0.05, 0.05, 1.],
         )
         .unwrap();
+    let uploaded = gpu.transfers().uploaded_bytes;
+    let rasterized = renderer.glyphs.rasterizations;
+    let repeated = session.paint(&mut images).unwrap();
+    renderer
+        .render(
+            &repeated,
+            &images.registry,
+            &output.view,
+            output.descriptor.format,
+            (output.descriptor.width, output.descriptor.height),
+            1.5,
+            [0.05, 0.05, 0.05, 1.],
+        )
+        .unwrap();
+    assert_eq!(gpu.transfers().uploaded_bytes, uploaded);
+    assert_eq!(renderer.glyphs.rasterizations, rasterized);
     assert!(session.ui.canvas.buffer.pixels().is_empty());
     assert_eq!(gpu.transfers().readback_bytes, 0);
     let mut capture = ReadbackTicket::capture(&gpu, output).unwrap();

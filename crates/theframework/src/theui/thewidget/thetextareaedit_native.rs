@@ -591,6 +591,31 @@ impl TheTextAreaEdit {
                     self.native.capture = Some(Capture::Text);
                     self.native.view.editor.export_selection(&mut self.state);
                 }
+                match self.native.capture {
+                    Some(Capture::Horizontal) => {
+                        let offset = self
+                            .hscrollbar
+                            .as_horizontal_scrollbar()
+                            .unwrap()
+                            .scroll_offset();
+                        self.native.view.set_scroll(
+                            &mut ctx.text,
+                            [offset as f32, self.native.view.scroll()[1]],
+                        );
+                    }
+                    Some(Capture::Vertical) => {
+                        let offset = self
+                            .vscrollbar
+                            .as_vertical_scrollbar()
+                            .unwrap()
+                            .scroll_offset();
+                        self.native.view.set_scroll(
+                            &mut ctx.text,
+                            [self.native.view.scroll()[0], offset as f32],
+                        );
+                    }
+                    _ => {}
+                }
                 self.last_mouse_down_coord = *coord;
                 self.last_mouse_down_time = Instant::now();
                 self.is_dirty = true;

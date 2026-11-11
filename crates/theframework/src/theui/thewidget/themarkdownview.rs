@@ -43,6 +43,8 @@ pub struct TheMarkdownStyles {
 }
 
 pub struct TheMarkdownView {
+    #[cfg(feature = "text")]
+    native: super::thetextdisplay_native::NativeTextDisplay,
     // Widget Basic
     id: TheId,
     limiter: TheSizeLimiter,
@@ -73,8 +75,6 @@ pub struct TheMarkdownView {
     link_hovered: Option<usize>,
     md_nodes: Vec<(Range<usize>, TheMarkdownNode)>,
     styles: TheMarkdownStyles,
-    #[cfg(feature = "text")]
-    command_styles: Vec<(Range<usize>, TheTextStyle)>,
 
     // Modifiers
     modifier_ctrl: bool,
@@ -104,6 +104,46 @@ impl TheWidget for TheMarkdownView {
         self.paint_commands(p)
     }
 
+    #[cfg(feature = "text")]
+    fn uses_native_editor(&self) -> bool {
+        self.selectable
+    }
+    #[cfg(feature = "text")]
+    fn editor_set_active(&mut self, active: bool, ctx: &mut TheContext) {
+        self.is_dirty |= self
+            .native
+            .set_active(active && self.selectable && ctx.ui.has_focus(&self.id), ctx);
+    }
+    #[cfg(feature = "text")]
+    fn editor_input(
+        &mut self,
+        event: &crate::platform::InputEvent,
+        ctx: &mut TheContext,
+    ) -> Option<crate::text_edit::EditorResponse> {
+        if !ctx.ui.command_paint {
+            return None;
+        }
+        let response = self.native.input(event, &mut self.state, ctx);
+        self.is_dirty |= response.input.redraw;
+        Some(response)
+    }
+    #[cfg(feature = "text")]
+    fn editor_command(
+        &mut self,
+        command: crate::text_edit::EditorCommand,
+        ctx: &mut TheContext,
+    ) -> Option<crate::text_edit::EditorResponse> {
+        if !ctx.ui.command_paint {
+            return None;
+        }
+        let response = self.native.command(command, &mut self.state, ctx);
+        self.is_dirty |= response.input.redraw;
+        Some(response)
+    }
+    fn supports_precise_scroll(&self) -> bool {
+        cfg!(feature = "text")
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,
@@ -123,6 +163,8 @@ impl TheWidget for TheMarkdownView {
         )));
 
         Self {
+            #[cfg(feature = "text")]
+            native: super::thetextdisplay_native::NativeTextDisplay::new(&id),
             id,
             limiter,
             status: None,
@@ -147,8 +189,6 @@ impl TheWidget for TheMarkdownView {
             link_hovered: None,
             md_nodes: vec![],
             styles: TheMarkdownStyles::default(),
-            #[cfg(feature = "text")]
-            command_styles: Vec::new(),
 
             modifier_ctrl: false,
 
@@ -177,7 +217,7 @@ impl TheWidget for TheMarkdownView {
     }
 
     fn disabled(&self) -> bool {
-        true
+        false
     }
 
     fn dim(&self) -> &TheDim {
@@ -220,15 +260,58 @@ impl TheWidget for TheMarkdownView {
     }
 
     fn supports_clipboard(&mut self) -> bool {
-        true
+        self.selectable
     }
 
     fn supports_undo_redo(&mut self) -> bool {
-        true
+        false
     }
 
     #[allow(clippy::single_match)]
     fn on_event(&mut self, event: &TheEvent, ctx: &mut TheContext) -> bool {
+        #[cfg(feature = "text")]
+        if ctx.ui.command_paint {
+            match event {
+                TheEvent::MouseDown(coord) | TheEvent::Hover(coord) => {
+                    let point = [
+                        self.dim.x as f32 + coord.x as f32,
+                        self.dim.y as f32 + coord.y as f32,
+                    ];
+                    let hit = self.native.grapheme_at(point, ctx);
+                    let link = hit.and_then(|index| {
+                        self.md_nodes
+                            .iter()
+                            .position(|(range, node)| node.is_link() && range.contains(&index))
+                    });
+                    if matches!(event, TheEvent::MouseDown(_)) {
+                        if let Some(index) = link {
+                            if let TheMarkdownNode::Link(url) = &self.md_nodes[index].1 {
+                                ctx.ui.send(TheEvent::ExternalUrlRequested(url.clone()));
+                            }
+                            self.native.link_pressed(&mut self.state, ctx);
+                            self.is_dirty = true;
+                            return true;
+                        }
+                    } else if self.link_hovered != link {
+                        self.link_hovered = link;
+                        self.is_dirty = true;
+                    }
+                }
+                TheEvent::LostHover(_) => {
+                    self.link_hovered = None;
+                    self.is_dirty = true;
+                }
+                _ => {}
+            }
+            if let Some(redraw) =
+                self.native
+                    .event(&self.id, &self.dim, &mut self.state, event, ctx)
+            {
+                self.is_dirty |= redraw;
+                return redraw;
+            }
+            return false;
+        }
         let mut redraw = false;
         match event {
             TheEvent::Copy => {
@@ -548,8 +631,7 @@ impl TheWidget for TheMarkdownView {
     fn set_value(&mut self, value: TheValue) {
         match value {
             TheValue::Empty => {
-                self.state.reset();
-                self.is_dirty = true;
+                self.set_md_text(String::new());
             }
             TheValue::Text(text) => {
                 self.set_md_text(text);
@@ -835,6 +917,10 @@ impl TheMarkdownViewTrait for TheMarkdownView {
 
 impl TheMarkdownView {
     fn set_md_text(&mut self, source: String) {
+        #[cfg(feature = "text")]
+        {
+            self.native.replaced = true;
+        }
         let (text, spans) = document::project(&source).unwrap_or_else(|_| (source, Vec::new()));
         self.md_nodes = spans;
         self.state.reset();

@@ -229,6 +229,15 @@ impl EditorView {
             self.modifiers = Modifiers::default();
         }
     }
+    /// Resolve a host-local point through this viewport into a document hit.
+    /// This shares the transform, shaping and grapheme policy used for selection.
+    pub fn hit_test(&mut self, fonts: &mut TextSystem, position: [f32; 2]) -> Option<EditorHit> {
+        if !self.bounds.contains(position) {
+            return None;
+        }
+        let point = self.local_point(fonts, position);
+        self.editor.hit_test(fonts, point)
+    }
     /// The containing host may supply its native multiple-click count.
     pub fn pointer_down(&mut self, fonts: &mut TextSystem, position: [f32; 2], clicks: u8) -> bool {
         if !self.bounds.contains(position) {

@@ -35,6 +35,8 @@ pub struct TheTextViewBlock {
 }
 
 pub struct TheTextView {
+    #[cfg(feature = "text")]
+    native: super::thetextdisplay_native::NativeTextDisplay,
     // Widget Basic
     id: TheId,
     limiter: TheSizeLimiter,
@@ -96,6 +98,46 @@ impl TheWidget for TheTextView {
         self.paint_commands(p)
     }
 
+    #[cfg(feature = "text")]
+    fn uses_native_editor(&self) -> bool {
+        self.selectable
+    }
+    #[cfg(feature = "text")]
+    fn editor_set_active(&mut self, active: bool, ctx: &mut TheContext) {
+        self.is_dirty |= self
+            .native
+            .set_active(active && self.selectable && ctx.ui.has_focus(&self.id), ctx);
+    }
+    #[cfg(feature = "text")]
+    fn editor_input(
+        &mut self,
+        event: &crate::platform::InputEvent,
+        ctx: &mut TheContext,
+    ) -> Option<crate::text_edit::EditorResponse> {
+        if !ctx.ui.command_paint {
+            return None;
+        }
+        let response = self.native.input(event, &mut self.state, ctx);
+        self.is_dirty |= response.input.redraw;
+        Some(response)
+    }
+    #[cfg(feature = "text")]
+    fn editor_command(
+        &mut self,
+        command: crate::text_edit::EditorCommand,
+        ctx: &mut TheContext,
+    ) -> Option<crate::text_edit::EditorResponse> {
+        if !ctx.ui.command_paint {
+            return None;
+        }
+        let response = self.native.command(command, &mut self.state, ctx);
+        self.is_dirty |= response.input.redraw;
+        Some(response)
+    }
+    fn supports_precise_scroll(&self) -> bool {
+        cfg!(feature = "text")
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,
@@ -115,6 +157,8 @@ impl TheWidget for TheTextView {
         )));
 
         Self {
+            #[cfg(feature = "text")]
+            native: super::thetextdisplay_native::NativeTextDisplay::new(&id),
             id,
             limiter,
             status: None,
@@ -170,7 +214,7 @@ impl TheWidget for TheTextView {
     }
 
     fn disabled(&self) -> bool {
-        true
+        false
     }
 
     fn dim(&self) -> &TheDim {
@@ -217,19 +261,62 @@ impl TheWidget for TheTextView {
     }
 
     fn supports_text_input(&self) -> bool {
-        true
+        false
     }
 
     fn supports_clipboard(&mut self) -> bool {
-        true
+        self.selectable
     }
 
     fn supports_undo_redo(&mut self) -> bool {
-        true
+        false
     }
 
     #[allow(clippy::single_match)]
     fn on_event(&mut self, event: &TheEvent, ctx: &mut TheContext) -> bool {
+        #[cfg(feature = "text")]
+        if ctx.ui.command_paint {
+            match event {
+                TheEvent::MouseDown(coord) | TheEvent::Hover(coord) => {
+                    let point = [
+                        self.dim.x as f32 + coord.x as f32,
+                        self.dim.y as f32 + coord.y as f32,
+                    ];
+                    let hit = self.native.grapheme_at(point, ctx);
+                    let interaction = hit.and_then(|index| {
+                        self.interactive_ranges
+                            .iter()
+                            .position(|(range, _)| range.contains(&index))
+                    });
+                    if matches!(event, TheEvent::MouseDown(_)) {
+                        if let Some(index) = interaction {
+                            let (_, action) = &self.interactive_ranges[index];
+                            ctx.ui
+                                .send(TheEvent::Custom(action.id.clone(), action.value.clone()));
+                            self.native.link_pressed(&mut self.state, ctx);
+                            self.is_dirty = true;
+                            return true;
+                        }
+                    } else if self.hovered_interaction != interaction {
+                        self.hovered_interaction = interaction;
+                        self.is_dirty = true;
+                    }
+                }
+                TheEvent::LostHover(_) => {
+                    self.hovered_interaction = None;
+                    self.is_dirty = true;
+                }
+                _ => {}
+            }
+            if let Some(redraw) =
+                self.native
+                    .event(&self.id, &self.dim, &mut self.state, event, ctx)
+            {
+                self.is_dirty |= redraw;
+                return redraw;
+            }
+            return false;
+        }
         let mut redraw = false;
         match event {
             TheEvent::Copy => {
@@ -547,6 +634,10 @@ impl TheWidget for TheTextView {
     }
 
     fn set_value(&mut self, value: TheValue) {
+        #[cfg(feature = "text")]
+        {
+            self.native.replaced = true;
+        }
         match value {
             TheValue::Empty => {
                 self.state.reset();
@@ -805,6 +896,10 @@ impl TheTextViewTrait for TheTextView {
         self.state.to_text()
     }
     fn set_text(&mut self, text: String) {
+        #[cfg(feature = "text")]
+        {
+            self.native.replaced = true;
+        }
         self.styled_ranges.clear();
         self.interactive_ranges.clear();
         self.hovered_interaction = None;
@@ -812,6 +907,10 @@ impl TheTextViewTrait for TheTextView {
         self.is_dirty = true;
     }
     fn set_blocks(&mut self, blocks: Vec<TheTextViewBlock>) {
+        #[cfg(feature = "text")]
+        {
+            self.native.replaced = true;
+        }
         self.state.reset();
         self.styled_ranges.clear();
         self.interactive_ranges.clear();
@@ -887,6 +986,8 @@ impl TheTextViewTrait for TheTextView {
         self.is_dirty = true;
     }
     fn scroll_to_top(&mut self) {
+        #[cfg(feature = "text")]
+        self.native.request_scroll(false);
         self.renderer.scroll_offset = Vec2::zero();
         self.pending_scroll_to_bottom = false;
         self.is_dirty = true;
