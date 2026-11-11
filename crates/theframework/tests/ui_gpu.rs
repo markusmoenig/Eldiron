@@ -425,3 +425,109 @@ fn installing_layout_after_initial_resize_measures_children() {
     let dim = *session.ui.get_widget("replacement").unwrap().dim();
     assert!(dim.width > 0 && dim.height > 0);
 }
+#[test]
+#[ignore = "requires native GPU; run with --ignored"]
+fn rgba_tile_view_blits_assets_and_keeps_display_changes_gpu_only() {
+    use theframework::platform::UiSession;
+    let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut images = UiImages::new(gpu.clone());
+    let mut session = UiSession::new((256, 128), 1.);
+    let mut view = TheRGBAView::new(TheId::named("tiles"));
+    let mut source = TheRGBABuffer::new(TheDim::sized(16, 8));
+    source.fill([255, 0, 0, 255]);
+    view.set_buffer(source);
+    view.set_mode(TheRGBAViewMode::TileEditor);
+    view.set_grid_dimensions(Vec2::new(8, 4));
+    view.set_zoom(8.);
+    view.set_grid_color([0, 255, 0, 255]);
+    view.set_selection([(0, 0), (1, 0)].into_iter().collect());
+    let mut preview = TheRGBABuffer::new(TheDim::sized(4, 2));
+    preview.fill([0, 0, 255, 255]);
+    view.set_paste_preview(Some((preview, Vec2::new(8, 4))));
+    session.ui.canvas.set_widget(view);
+    let mut renderer = PaintRenderer::new(gpu.clone()).unwrap();
+    let target = GpuImage::new(&gpu, ImageDescriptor::rgba(256, 128)).unwrap();
+    let list = session.paint(&mut images).unwrap();
+    renderer
+        .render(
+            &list,
+            &images.registry,
+            &target.view,
+            target.descriptor.format,
+            (256, 128),
+            1.,
+            [0.; 4],
+        )
+        .unwrap();
+    let uploads = gpu.transfers().uploaded_bytes;
+    session
+        .ui
+        .get_widget("tiles")
+        .unwrap()
+        .as_rgba_view()
+        .unwrap()
+        .set_selection([(0, 0), (1, 0), (0, 1)].into_iter().collect());
+    let list = session.paint(&mut images).unwrap();
+    renderer
+        .render(
+            &list,
+            &images.registry,
+            &target.view,
+            target.descriptor.format,
+            (256, 128),
+            1.,
+            [0.; 4],
+        )
+        .unwrap();
+    assert_eq!(
+        gpu.transfers().uploaded_bytes,
+        uploads,
+        "selection changes must not reupload editable source pixels"
+    );
+    assert_eq!(gpu.transfers().readback_bytes, 0);
+    let mut capture = ReadbackTicket::capture(&gpu, target).unwrap();
+    gpu.device
+        .poll(wgpu::PollType::Wait {
+            submission_index: None,
+            timeout: Some(std::time::Duration::from_secs(30)),
+        })
+        .unwrap();
+    let pixels = capture.try_finish(&gpu).unwrap().unwrap();
+    let pixel = |x: usize, y: usize| &pixels.pixels()[(y * 256 + x) * 4..(y * 256 + x + 1) * 4];
+    assert_eq!(pixel(68, 36), &[255, 0, 0, 255]);
+    assert_eq!(
+        pixel(128, 48),
+        &[0, 255, 0, 255],
+        "shared selection edges must leave the grid visible"
+    );
+    let file = std::fs::File::create("/private/tmp/eldiron-wgpu-tiles.png").unwrap();
+    let mut encoder = png::Encoder::new(file, 256, 128);
+    encoder.set_color(png::ColorType::Rgba);
+    encoder.set_depth(png::BitDepth::Eight);
+    encoder
+        .write_header()
+        .unwrap()
+        .write_image_data(pixels.pixels())
+        .unwrap();
+    let paste = pixel(132, 68);
+    assert!(
+        paste[2] > paste[0],
+        "paste preview is a translucent GPU image: {paste:?}"
+    );
+    session
+        .ui
+        .get_widget("tiles")
+        .unwrap()
+        .as_rgba_view()
+        .unwrap()
+        .buffer_mut()
+        .pixels_mut()[..4]
+        .copy_from_slice(&[0, 255, 255, 255]);
+    session.paint(&mut images).unwrap();
+    assert_eq!(
+        gpu.transfers().uploaded_bytes,
+        uploads + 16 * 8 * 4,
+        "an asset edit uploads the source image, not a window-sized framebuffer"
+    );
+    assert!(session.ui.canvas.buffer.pixels().is_empty());
+}

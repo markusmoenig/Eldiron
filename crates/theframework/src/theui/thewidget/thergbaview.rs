@@ -1,3 +1,6 @@
+#[cfg(feature = "render-wgpu")]
+#[path = "thergbaview_gpu.rs"]
+mod gpu;
 use crate::prelude::*;
 
 /// The display and interaction mode for TheRGBAView
@@ -29,6 +32,10 @@ pub struct TheRGBAView {
     background: RGBA,
 
     buffer: TheRGBABuffer,
+    #[cfg(feature = "render-wgpu")]
+    source_dirty: bool,
+    #[cfg(feature = "render-wgpu")]
+    preview_dirty: bool,
 
     scroll_offset: Vec2<i32>,
     zoom: f32,
@@ -193,6 +200,14 @@ impl TheRGBAView {
 }
 
 impl TheWidget for TheRGBAView {
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        self.paint_gpu(p)
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,
@@ -208,6 +223,10 @@ impl TheWidget for TheRGBAView {
             background: BLACK,
 
             buffer: TheRGBABuffer::empty(),
+            #[cfg(feature = "render-wgpu")]
+            source_dirty: true,
+            #[cfg(feature = "render-wgpu")]
+            preview_dirty: true,
             scroll_offset: Vec2::new(0, 0),
             zoom: 1.0,
 
@@ -1131,9 +1150,18 @@ impl TheRGBAViewTrait for TheRGBAView {
         &self.buffer
     }
     fn buffer_mut(&mut self) -> &mut TheRGBABuffer {
+        #[cfg(feature = "render-wgpu")]
+        {
+            self.source_dirty = true;
+        }
+        self.is_dirty = true;
         &mut self.buffer
     }
     fn set_buffer(&mut self, buffer: TheRGBABuffer) {
+        #[cfg(feature = "render-wgpu")]
+        {
+            self.source_dirty = true;
+        }
         self.buffer = buffer;
         self.is_dirty = true;
     }
@@ -1291,6 +1319,10 @@ impl TheRGBAViewTrait for TheRGBAView {
     }
 
     fn set_paste_preview(&mut self, preview: Option<(TheRGBABuffer, Vec2<i32>)>) {
+        #[cfg(feature = "render-wgpu")]
+        {
+            self.preview_dirty = true;
+        }
         self.paste_preview = preview;
         self.is_dirty = true;
     }
@@ -1310,9 +1342,18 @@ mod rectangular_grid_tests {
     use super::*;
     #[test]
     fn rectangular_frames_share_hit_testing_and_sequence_coordinates() {
-        let mut ctx=TheContext::new(12,24,1.);let mut view=TheRGBAView::new(TheId::empty());view.set_buffer(TheRGBABuffer::new(TheDim::sized(12,24)));view.set_dim(TheDim::sized(12,24),&mut ctx);view.set_zoom(1.);view.set_grid_dimensions(Vec2::new(3,6));
-        assert_eq!(view.get_grid_location(Vec2::new(4,7)),Some((1,1)));view.set_selection([(1,1),(2,1)].into_iter().collect());
-        let regions=view.selection_as_sequence().regions;assert_eq!(regions[0],TheRGBARegion::new(3,6,3,6));assert_eq!(regions[1],TheRGBARegion::new(6,6,3,6));
-        view.set_grid(Some(3));assert_eq!(view.get_grid_location(Vec2::new(4,7)),Some((1,2)));
+        let mut ctx = TheContext::new(12, 24, 1.);
+        let mut view = TheRGBAView::new(TheId::empty());
+        view.set_buffer(TheRGBABuffer::new(TheDim::sized(12, 24)));
+        view.set_dim(TheDim::sized(12, 24), &mut ctx);
+        view.set_zoom(1.);
+        view.set_grid_dimensions(Vec2::new(3, 6));
+        assert_eq!(view.get_grid_location(Vec2::new(4, 7)), Some((1, 1)));
+        view.set_selection([(1, 1), (2, 1)].into_iter().collect());
+        let regions = view.selection_as_sequence().regions;
+        assert_eq!(regions[0], TheRGBARegion::new(3, 6, 3, 6));
+        assert_eq!(regions[1], TheRGBARegion::new(6, 6, 3, 6));
+        view.set_grid(Some(3));
+        assert_eq!(view.get_grid_location(Vec2::new(4, 7)), Some((1, 2)));
     }
 }
