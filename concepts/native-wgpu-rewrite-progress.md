@@ -295,3 +295,24 @@ Moved the existing authored screen compiler, styles, action-bar definitions, pan
 Verification passed: `/private/tmp/eldiron-screen-model-client-tests.log` has 117 client/controller tests, including three new model tests; six pre-existing ignored tests remain ignored. New checks cover all authored families with empty CPU display/upscale storage and absent legacy fonts, responsive generated action-bar relayout with retained IDs/typed values, fixed-screen geometry, normalized private render layers and serialized source-map preservation. `/private/tmp/eldiron-screen-model-{apps,web,ios}.log` confirms all four application compatibility builds, browser presentation target and iOS-simulator presentation target. `/private/tmp/eldiron-screen-model-boundaries.log` confirms all five independent dependency boundaries. Browser conditional dead-code warnings in the existing scene/preparation code remain.
 
 Next: assemble the outward native game-screen controller around these models, runtime read views/addressed batches, native scene views and retained paint/source resources. Complete remaining HUD/input families and shared graphical/Creator adoption, then retire the explicit legacy adapters. Goal remains active; no execution blocker or milestone approval is needed.
+
+### Runtime read views and shared player registration
+
+Added borrowed `RuntimeView` for the outward graphical frontend. It exposes the current map/assets/time/server state/effective render settings, raw authored font sources and immutable authored screen sources/settings. Reading it does not advance time, drain outputs, initialize a text rasterizer or populate legacy graphical asset registries. Screen lookup keeps the existing map-name identity. This lets presentation load Parley/Swash font data and compile screens while runtime/terminal remain free of UI/GPU initialization.
+
+Moved local-player command preparation into CPU-only `rusterix::player_start`, shared by the runtime and the legacy graphical controller. The helper clones the chosen authored actor, applies optional start class/name and explicit entrance placement, and returns command plus input-template/camera-position metadata. Automatic registration retains authored placement; explicit character-creation starts may use the named entrance. The legacy controller can supply its already validated template catalog, preserving quick-play behavior.
+
+`GameSession::start_player` now owns duplicate-start protection, supports deferred registration independently of `auto_create_player`, and resets its registration state on stop/restart. Renderer code does not submit startup commands directly. The existing `create_local_player` API delegates through the same path.
+
+Verification passed:
+
+- `/private/tmp/eldiron-runtime-view-final.log`: clock test plus two session tests, including real 3DStarter startup in automatic and deferred modes run sequentially (engine routing is still process-wide), duplicate-start suppression, registration, stop/restart state, archive identity preservation, repeated read views with unchanged addressed events/time, raw font bytes without legacy font initialization and responsive screen source lookup. Real-project modes passed in 34.03 s.
+- `/private/tmp/eldiron-player-start-core-focused.log`: one focused CPU/no-default-feature player-start test passed; class/name preparation, authored position/input metadata and unchanged source actor/defaults.
+- `/private/tmp/eldiron-player-start-client-tests.log`: all 33 existing client interaction/startup tests passed, including Creator quick-play defaults and one registration only.
+- `/private/tmp/eldiron-runtime-view-terminal.log`: all ten terminal tests passed.
+- `/private/tmp/eldiron-runtime-view-boundaries.log`: all five independent dependency boundaries passed.
+- `/private/tmp/eldiron-runtime-view-apps.log`: all four application compatibility builds passed.
+
+Unresolved full-suite audit item: the initial broad CPU filter `player_start` also selected the existing `server::region::ruleset_progression_tests::spawned_grid_player_startup_ignores_previous_item_context` fixture. It fails because its default context has no event sender; temporarily supplying a sender exposed a missing startup event observation instead. That exploratory fixture change was reverted completely. The new player-start helper is not called by this fixture. Its compatibility/fixture cause remains to be diagnosed before full-suite acceptance; `/private/tmp/eldiron-player-start-core-tests.log` is a failure log, not passing evidence. No production region behavior was changed to suppress it.
+
+Continue with the outward native screen controller/presentation owner consuming `RuntimeView`, shared screen models, addressed batches, prepared sources and independent scene images. Canonical launcher and Creator cutover, remaining HUD/input families, isometric/alpha/recovery/performance/platform completion and retirement remain active.

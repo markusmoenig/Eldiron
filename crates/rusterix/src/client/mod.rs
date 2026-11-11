@@ -2651,42 +2651,26 @@ impl Client {
         }
 
         let map = assets.maps.get(&self.current_map)?;
-        let mut entity = map.entities.iter().find_map(|entity| {
-            entity.get_attr_string("class_name").and_then(|class_name| {
-                self.player_entities
-                    .contains(&class_name)
-                    .then(|| (entity.clone(), class_name))
-            })
-        })?;
-
-        if let Some(class) = class {
-            entity
-                .0
-                .set_attribute("_start_class", Value::Str(class.to_string()));
-        }
-        let player_name = self
-            .ui_state
-            .get("start.name")
-            .map(|value| value.trim())
-            .filter(|value| !value.is_empty());
-        if let Some(player_name) = player_name {
-            entity
-                .0
-                .set_attribute("_start_name", Value::Str(player_name.to_string()));
-        }
-        if let Some(entrance) = map.named_area_center("entrance") {
-            entity.0.set_pos_xz(entrance);
-        }
-        entity.0.set_attribute("player", Value::Bool(true));
-        self.pending_game_camera_pos = Some(entity.0.get_pos_xz());
-
+        let prepared = crate::player_start::prepare_player_start_with_templates(
+            map,
+            &self.player_entities,
+            crate::player_start::PlayerStartOptions {
+                class,
+                name: self.ui_state.get("start.name").map(String::as_str),
+                entrance: true,
+            },
+        )
+        .ok()?;
+        self.pending_game_camera_pos = Some(Vec2::from(prepared.info.position));
         self.client_action = Arc::new(Mutex::new(ClientAction::default()));
-        self.client_action.lock().unwrap().init(entity.1, assets);
-        if let Some(data) = entity.0.attributes.get_str("_input_bindings") {
+        self.client_action
+            .lock()
+            .unwrap()
+            .init(prepared.info.template, assets);
+        if let Some(data) = &prepared.info.input_bindings {
             self.client_action.lock().unwrap().set_input_data(data);
         }
-
-        Some(Command::CreateEntity(map.id, entity.0))
+        Some(prepared.command)
     }
 
     fn goto_screen(

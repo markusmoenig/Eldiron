@@ -30,6 +30,7 @@ pub mod material_profile;
 pub mod orthographic_bake;
 pub mod particleharness;
 pub mod procedural;
+pub mod player_start;
 pub mod rasterizer;
 pub mod ray;
 pub mod rect;

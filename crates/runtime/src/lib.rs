@@ -2,13 +2,16 @@
 //! There is no surface, UI context, font shaping, GPU device or render callback.
 mod clock;
 mod events;
+mod view;
 pub use clock::SessionClock;
 pub use events::{EventInterests, RegionEvents};
 use rustc_hash::FxHashMap;
-use rusterix::{Assets, Command, EntityAction, Server, ServerState};
+pub use rusterix::player_start::{PlayerStartInfo, PlayerStartOptions};
+use rusterix::{Assets, EntityAction, Server, ServerState};
 pub use shared::project::Project;
 use std::time::Duration;
 use theframework_core::{TheTime, Uuid};
+pub use view::{FontSource, RuntimeView, ScreenSource};
 
 #[derive(Clone, Copy, Debug)]
 pub struct SessionOptions {
@@ -53,6 +56,7 @@ pub struct GameSession {
     events: FxHashMap<Uuid, RegionEvents>,
     interests: EventInterests,
     started: bool,
+    local_player_started: bool,
 }
 impl GameSession {
     pub fn new(project: Project) -> Self {
@@ -77,6 +81,7 @@ impl GameSession {
             events: FxHashMap::default(),
             interests: EventInterests::default(),
             started: false,
+            local_player_started: false,
         }
     }
     pub fn start(&mut self, options: SessionOptions) -> Result<(), String> {
@@ -111,6 +116,7 @@ impl GameSession {
         self.current_map = start_map;
         self.clock = SessionClock::new(Duration::from_millis(tick));
         self.started = true;
+        self.local_player_started = false;
         self.interests = options.events;
         self.events.clear();
         self.clock.reset_elapsed();
@@ -136,43 +142,35 @@ impl GameSession {
         {
             return Ok(());
         }
-        let region = self
+        self.start_player(PlayerStartOptions::default())?;
+        Ok(())
+    }
+    /// Register once, independently of automatic-start configuration. Character
+    /// creation screens use this with their chosen class/name and entrance flag.
+    pub fn start_player(
+        &mut self,
+        options: PlayerStartOptions<'_>,
+    ) -> Result<Option<PlayerStartInfo>, String> {
+        if !self.started {
+            return Err("Start the local session before registering a player".into());
+        }
+        if self.local_player_started {
+            return Ok(None);
+        }
+        let map = self
             .project
             .regions
             .iter()
             .find(|r| r.map.name == self.current_map)
+            .map(|r| &r.map)
             .ok_or_else(|| format!("Start region '{}' not found", self.current_map))?;
-        let players = self
-            .assets
-            .entities
-            .iter()
-            .filter_map(|(name, (_, data))| {
-                let table = data.parse::<toml::Table>().ok()?;
-                table
-                    .get("attributes")?
-                    .get("player")?
-                    .as_bool()?
-                    .then_some(name)
-            })
-            .collect::<Vec<_>>();
-        let entity = region
-            .map
-            .entities
-            .iter()
-            .find(|e| {
-                e.get_attr_string("class_name")
-                    .is_some_and(|name| players.iter().any(|p| **p == name))
-            })
-            .cloned()
-            .ok_or_else(|| {
-                format!(
-                    "No auto-created player entity found in start region '{}'",
-                    self.current_map
-                )
-            })?;
-        self.server
-            .process_client_commands(vec![Command::CreateEntity(region.map.id, entity)]);
-        Ok(())
+        let prepared = rusterix::player_start::prepare_player_start(&self.assets, map, options)?;
+        self.server.process_client_commands(vec![prepared.command]);
+        self.local_player_started = true;
+        Ok(Some(prepared.info))
+    }
+    pub fn has_started_player(&self) -> bool {
+        self.local_player_started
     }
     pub fn action(&mut self, action: EntityAction) {
         self.server.local_player_action(action);
@@ -244,6 +242,7 @@ impl GameSession {
         if self.started {
             self.server.stop();
             self.started = false;
+            self.local_player_started = false;
         }
         self.events.clear();
         self.clock.reset_elapsed();
