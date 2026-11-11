@@ -1,3 +1,6 @@
+#[cfg(feature = "native-ui")]
+#[path = "palette_native.rs"]
+mod native;
 use crate::editor::{ACTIONLIST, UNDOMANAGER};
 use crate::prelude::*;
 use crate::undo::project_helper::{apply_palette, refresh_palette_runtime};
@@ -26,6 +29,8 @@ pub(crate) struct PaletteDockBoard {
     drag_index: Option<usize>,
     hovered_index: Option<usize>,
     rectangles: Vec<(usize, TheDim)>,
+    #[cfg(feature = "native-ui")]
+    native_layout_key: Option<(i32, i32, usize)>,
 }
 
 impl PaletteDockBoard {
@@ -48,10 +53,21 @@ impl PaletteDockBoard {
             drag_index: None,
             hovered_index: None,
             rectangles: Vec::new(),
+            #[cfg(feature = "native-ui")]
+            native_layout_key: None,
         }
     }
 
     pub(crate) fn set_palette(&mut self, palette: ThePalette) {
+        // Selection synchronization during a drag keeps the same content.
+        // Replacing palette entries cancels a gesture against the old content.
+        if self.palette.colors != palette.colors {
+            self.drag_index = None;
+        }
+        self.index = self.index.min(palette.colors.len().saturating_sub(1));
+        self.hovered_index = self
+            .hovered_index
+            .filter(|index| *index < palette.colors.len());
         self.palette = palette;
         self.is_dirty = true;
     }
@@ -64,6 +80,9 @@ impl PaletteDockBoard {
     pub(crate) fn set_read_only(&mut self, read_only: bool) {
         if self.read_only != read_only {
             self.read_only = read_only;
+            if read_only {
+                self.drag_index = None;
+            }
             self.is_dirty = true;
         }
     }
@@ -105,6 +124,17 @@ impl PaletteDockBoard {
 }
 
 impl TheWidget for PaletteDockBoard {
+    #[cfg(feature = "native-ui")]
+    fn prepare_paint(&mut self, _ctx: &mut TheContext, _theme: &dyn TheTheme) {
+        self.prepare_native_geometry();
+    }
+    #[cfg(feature = "native-ui")]
+    fn paint(
+        &mut self,
+        painter: &mut theframework::theui::paint::WidgetPainter<'_>,
+    ) -> theframework::theui::paint::UiPaintResult {
+        self.paint_native(painter)
+    }
     fn new(id: TheId) -> Self
     where
         Self: Sized,
@@ -142,6 +172,9 @@ impl TheWidget for PaletteDockBoard {
     fn needs_redraw(&mut self) -> bool {
         self.is_dirty
     }
+    fn supports_hover(&mut self) -> bool {
+        true
+    }
 
     fn on_event(&mut self, event: &TheEvent, ctx: &mut TheContext) -> bool {
         match event {
@@ -161,6 +194,7 @@ impl TheWidget for PaletteDockBoard {
                 }
             }
             TheEvent::Hover(coord) => {
+                ctx.ui.set_hover(&self.id);
                 let mut hovered = None;
                 for (index, rect) in &self.rectangles {
                     if rect.contains(*coord) {
@@ -203,9 +237,16 @@ impl TheWidget for PaletteDockBoard {
                 }
             }
             TheEvent::LostHover(_id) => {
-                self.hovered_index = None;
+                let hovered = self.hovered_index.take().is_some();
+                self.is_dirty |= hovered;
                 ctx.ui
                     .send(TheEvent::SetStatusText(self.id.clone(), String::new()));
+                return hovered;
+            }
+            TheEvent::LostFocus(_) => {
+                let captured = self.drag_index.take().is_some();
+                self.is_dirty |= captured;
+                return captured;
             }
             TheEvent::KeyCodeDown(TheValue::KeyCode(TheKeyCode::Delete)) => {
                 if self.read_only {

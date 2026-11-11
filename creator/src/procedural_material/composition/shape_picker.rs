@@ -1,5 +1,8 @@
 //! Visual, tile-local composition presets. Highlighted pixels use the added material.
 use super::*;
+#[cfg(feature = "native-ui")]
+#[path = "shape_picker_native.rs"]
+mod native;
 pub(super) const PICKER: &str = "Composition Shape Picker";
 const COLUMNS: usize = 5;
 const CELL_HEIGHT: i32 = 58;
@@ -203,6 +206,13 @@ impl ShapePicker {
     }
 }
 impl TheWidget for ShapePicker {
+    #[cfg(feature = "native-ui")]
+    fn paint(
+        &mut self,
+        painter: &mut theframework::theui::paint::WidgetPainter<'_>,
+    ) -> theframework::theui::paint::UiPaintResult {
+        self.paint_native(painter)
+    }
     fn new(id: TheId) -> Self {
         let mut limiter = TheSizeLimiter::new();
         limiter.set_max_size(Vec2::new(
