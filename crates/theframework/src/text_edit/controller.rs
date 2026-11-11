@@ -1,5 +1,9 @@
 //! Neutral editing controller built on Parley's cursor, bidi, selection and IME
 //! engine. It emits clipboard requests; no window, widgets, GPU or system access.
+use super::{
+    EditorPolicy, EditorTab,
+    policy::{self, EditPlan},
+};
 use crate::{
     paint::Rect,
     platform::{InputEvent, InputResponse, Modifiers, PhysicalKey},
@@ -83,6 +87,7 @@ pub struct EditorController {
     input_target: crate::platform::TextInputTarget,
     editor: PlainEditor<usize>,
     multiline: bool,
+    policy: EditorPolicy,
     focused: bool,
     modifiers: Modifiers,
     composition: Option<Snapshot>,
@@ -105,6 +110,7 @@ impl EditorController {
             input_target: crate::platform::TextInputTarget::new(),
             editor: PlainEditor::new(14.),
             multiline,
+            policy: EditorPolicy::default(),
             focused: false,
             modifiers: Modifiers::default(),
             composition: None,
@@ -121,6 +127,97 @@ impl EditorController {
             boundaries: vec![0],
             boundaries_dirty: false,
         }
+    }
+    /// Update the existing saved-state schema as a compatibility projection.
+    /// Native history/bidi affinity stay in this controller; options on `state`
+    /// remain owned by its containing document/widget.
+    pub fn export_state(&self, state: &mut super::TextEditState) {
+        let source = self.text();
+        state.set_text(source.to_owned());
+        let selection = self
+            .composition
+            .as_ref()
+            .map_or(self.editor.raw_selection(), |before| &before.selection);
+        let legacy = |index: usize| {
+            let index = char_boundary(source, index);
+            let prefix = &source[..index];
+            let row = prefix.bytes().filter(|byte| *byte == b'\n').count();
+            let start = prefix.rfind('\n').map_or(0, |position| position + 1);
+            let column = prefix[start..].graphemes(true).count();
+            let global = state.rows[..row]
+                .iter()
+                .map(|line| line.graphemes(true).count() + 1)
+                .sum::<usize>()
+                + column;
+            (super::Cursor::new(row, column), global)
+        };
+        let (_, anchor) = legacy(selection.anchor().index());
+        let (cursor, focus) = legacy(selection.focus().index());
+        state.cursor = cursor;
+        state.selection = super::Selection {
+            start: anchor.min(focus),
+            end: anchor.max(focus),
+        };
+    }
+    /// Install an externally supplied document/state without changing its JSON
+    /// shape. This starts a new native callback epoch and undo history.
+    pub fn import_state(&mut self, fonts: &mut TextSystem, state: &super::TextEditState) {
+        let source = state.to_text();
+        let byte_for_index = |mut index: usize| {
+            let mut byte = 0;
+            for (row, line) in state.rows.iter().enumerate() {
+                let count = line.graphemes(true).count();
+                if index <= count {
+                    return byte
+                        + line
+                            .grapheme_indices(true)
+                            .nth(index)
+                            .map_or(line.len(), |(offset, _)| offset);
+                }
+                index = index.saturating_sub(count + 1);
+                byte += line.len() + usize::from(row + 1 < state.rows.len());
+            }
+            source.len()
+        };
+        let cursor_row = state.cursor.row.min(state.rows.len().saturating_sub(1));
+        let cursor_index = state.rows[..cursor_row]
+            .iter()
+            .map(|line| line.graphemes(true).count() + 1)
+            .sum::<usize>()
+            + state.rows.get(cursor_row).map_or(0, |line| {
+                state.cursor.column.min(line.graphemes(true).count())
+            });
+        let (anchor, focus) = if state.selection.is_none() {
+            let cursor = byte_for_index(cursor_index);
+            (cursor, cursor)
+        } else {
+            let start = state.selection.start.min(state.selection.end);
+            let end = state.selection.start.max(state.selection.end);
+            if cursor_index == start {
+                (byte_for_index(end), byte_for_index(start))
+            } else {
+                (byte_for_index(start), byte_for_index(end))
+            }
+        };
+        let anchor = self.clean(&source[..anchor]).len();
+        let focus = self.clean(&source[..focus]).len();
+        self.set_text(fonts, &source);
+        self.select_bytes(fonts, anchor, focus);
+    }
+    pub fn policy(&self) -> EditorPolicy {
+        self.policy
+    }
+    pub fn accepts_text_input(&self) -> bool {
+        self.focused && !self.policy.read_only
+    }
+    pub fn set_policy(&mut self, fonts: &mut TextSystem, policy: EditorPolicy) {
+        if self.policy.read_only != policy.read_only {
+            self.cancel_edit_group(fonts);
+            self.cancel_composition(fonts);
+            self.clipboard = None;
+            self.input_target = crate::platform::TextInputTarget::new();
+        }
+        self.policy = policy;
     }
     pub fn input_target(&self) -> crate::platform::TextInputTarget {
         self.input_target
@@ -368,6 +465,9 @@ impl EditorController {
         fonts: &mut TextSystem,
         edit: impl FnOnce(&mut PlainEditorDriver<'_, usize>),
     ) -> bool {
+        if self.policy.read_only {
+            return false;
+        }
         self.cancel_composition(fonts);
         self.ensure_fonts(fonts);
         let before = self.state();
@@ -408,7 +508,7 @@ impl EditorController {
     /// Group a continuous user gesture into one bounded undo record. A blur
     /// cancels an unfinished gesture; external document replacement discards it.
     pub fn begin_edit_group(&mut self, fonts: &mut TextSystem) -> bool {
-        if self.edit_group.is_some() {
+        if self.policy.read_only || self.edit_group.is_some() {
             return false;
         }
         self.cancel_composition(fonts);
@@ -438,6 +538,9 @@ impl EditorController {
         changed
     }
     pub fn undo(&mut self, fonts: &mut TextSystem) -> bool {
+        if self.policy.read_only {
+            return false;
+        }
         self.commit_edit_group();
         self.cancel_composition(fonts);
         let Some(change) = self.undo.pop_back() else {
@@ -449,6 +552,9 @@ impl EditorController {
         true
     }
     pub fn redo(&mut self, fonts: &mut TextSystem) -> bool {
+        if self.policy.read_only {
+            return false;
+        }
         self.commit_edit_group();
         self.cancel_composition(fonts);
         let Some(change) = self.redo.pop() else {
@@ -465,6 +571,10 @@ impl EditorController {
         request: u64,
         result: ClipboardResult,
     ) -> EditorResponse {
+        if self.policy.read_only {
+            self.clipboard = None;
+            return EditorResponse::default();
+        }
         let Some(pending) = self.clipboard.take() else {
             return EditorResponse::default();
         };
@@ -481,7 +591,8 @@ impl EditorController {
             }
             ClipboardResult::Text(Some(text)) if !pending.cut => {
                 let text = self.clean(&text);
-                self.transaction(fonts, |driver| driver.insert_or_replace_selection(&text))
+                !text.is_empty()
+                    && self.transaction(fonts, |driver| driver.insert_or_replace_selection(&text))
             }
             _ => false,
         };
@@ -512,9 +623,21 @@ impl EditorController {
             return EditorResponse::default();
         }
         self.ensure_fonts(fonts);
+        if self.policy.read_only
+            && matches!(
+                event,
+                InputEvent::Text(_)
+                    | InputEvent::TextFor { .. }
+                    | InputEvent::Composition { .. }
+                    | InputEvent::CompositionFor { .. }
+            )
+        {
+            return EditorResponse::handled(false);
+        }
         match event {
             InputEvent::Text(text) | InputEvent::TextFor { text, .. } => {
                 let text = self.clean(text);
+                let composing = self.is_composing();
                 let cancelled = self.cancel_composition(fonts);
                 if text.is_empty() {
                     return if cancelled {
@@ -523,9 +646,14 @@ impl EditorController {
                         EditorResponse::default()
                     };
                 }
-                EditorResponse::handled(
-                    self.transaction(fonts, |driver| driver.insert_or_replace_selection(&text)),
-                )
+                if self.policy.auto_brackets && !composing && text.chars().count() == 1 {
+                    if let Some(plan) =
+                        policy::brackets(self.selection_bytes(), text.chars().next().unwrap())
+                    {
+                        return EditorResponse::handled(self.apply_edit_plan(fonts, plan));
+                    }
+                }
+                EditorResponse::handled(self.replace_selection(fonts, &text))
             }
             InputEvent::Composition { text, cursor }
             | InputEvent::CompositionFor { text, cursor, .. } => {
@@ -534,6 +662,7 @@ impl EditorController {
                     return EditorResponse::handled(false);
                 }
                 if self.composition.is_none() {
+                    self.commit_edit_group();
                     self.composition = Some(self.state());
                 }
                 // Platform cursor indices address the original preedit bytes.
@@ -573,6 +702,21 @@ impl EditorController {
             _ => EditorResponse::default(),
         }
     }
+    fn apply_edit_plan(&mut self, fonts: &mut TextSystem, plan: EditPlan) -> bool {
+        self.transaction(fonts, |driver| {
+            for edit in plan.edits.iter().rev() {
+                driver.select_byte_range(edit.range.start, edit.range.end);
+                driver.insert_or_replace_selection(&edit.text);
+            }
+            driver.select_byte_range(plan.selection.0, plan.selection.1);
+        })
+    }
+    /// Explicit user insertion such as paste: preserve undo and skip automatic
+    /// typing-only bracket completion. External set_text remains a new document.
+    pub fn replace_selection(&mut self, fonts: &mut TextSystem, text: &str) -> bool {
+        let text = self.clean(text);
+        self.transaction(fonts, |driver| driver.insert_or_replace_selection(&text))
+    }
     /// An in-document user replacement (for example a numeric drag) participates
     /// in the same undo history without replacing the document/input identity.
     pub fn replace_text(&mut self, fonts: &mut TextSystem, text: &str) -> bool {
@@ -585,6 +729,11 @@ impl EditorController {
     pub fn execute(&mut self, fonts: &mut TextSystem, command: EditorCommand) -> EditorResponse {
         if !self.focused {
             return EditorResponse::default();
+        }
+        if self.policy.read_only
+            && !matches!(command, EditorCommand::Copy | EditorCommand::SelectAll)
+        {
+            return EditorResponse::handled(false);
         }
         self.cancel_composition(fonts);
         match command {
@@ -669,11 +818,22 @@ impl EditorController {
         if self.is_composing() {
             return EditorResponse::handled(false);
         }
+        if self.policy.read_only
+            && matches!(
+                key,
+                PhysicalKey::Enter | PhysicalKey::Backspace | PhysicalKey::Delete
+            )
+        {
+            return EditorResponse::handled(false);
+        }
         if key == PhysicalKey::Enter {
             if self.multiline {
-                return EditorResponse::handled(
-                    self.transaction(fonts, |driver| driver.insert_or_replace_selection("\n")),
+                let plan = policy::newline(
+                    self.editor.raw_text(),
+                    self.selection_bytes(),
+                    self.policy.auto_indent,
                 );
+                return EditorResponse::handled(self.apply_edit_plan(fonts, plan));
             }
             return EditorResponse {
                 action: Some(EditorAction::Submit),
@@ -681,6 +841,19 @@ impl EditorController {
             };
         }
         if key == PhysicalKey::Tab {
+            if self.multiline && !self.policy.read_only {
+                if let EditorTab::Spaces(width) = self.policy.tab {
+                    let plan = policy::indent(
+                        self.editor.raw_text(),
+                        self.selection_bytes(),
+                        width,
+                        mods.shift,
+                    );
+                    return EditorResponse::handled(
+                        plan.is_some_and(|plan| self.apply_edit_plan(fonts, plan)),
+                    );
+                }
+            }
             return EditorResponse {
                 action: Some(EditorAction::FocusNext {
                     backwards: mods.shift,

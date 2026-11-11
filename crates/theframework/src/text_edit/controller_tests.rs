@@ -720,3 +720,245 @@ fn unclaimed_application_accelerators_do_not_edit_or_cancel_preedit() {
     assert!(editor.is_composing());
     assert_eq!(editor.text(), "A東京Z");
 }
+
+#[test]
+fn code_policy_newline_keeps_crlf_indent_and_one_undo_boundary() {
+    let source = "    東京\r\nZ";
+    let (mut fonts, mut editor) = fixture(true, source);
+    editor.set_policy(
+        &mut fonts,
+        EditorPolicy {
+            tab: EditorTab::Spaces(4),
+            auto_indent: true,
+            auto_brackets: true,
+            ..Default::default()
+        },
+    );
+    let cursor = "    東京".len();
+    editor.select_bytes(&mut fonts, cursor, cursor);
+    assert!(key(&mut editor, &mut fonts, PhysicalKey::Enter).changed);
+    assert_eq!(editor.text(), "    東京\r\n    \r\nZ");
+    assert_eq!(editor.selection_bytes(), (cursor + 6, cursor + 6));
+    assert!(editor.undo(&mut fonts));
+    assert_eq!(editor.text(), source);
+    assert_eq!(editor.selection_bytes(), (cursor, cursor));
+    assert!(!editor.undo(&mut fonts));
+}
+#[test]
+fn code_policy_indentation_keeps_unicode_backward_selection_and_excludes_terminal_line_start() {
+    let source = "東京\ne\u{301}\n最後";
+    let (mut fonts, mut editor) = fixture(true, source);
+    editor.set_policy(
+        &mut fonts,
+        EditorPolicy {
+            tab: EditorTab::Spaces(4),
+            ..Default::default()
+        },
+    );
+    let end = source.find("最後").unwrap();
+    editor.select_bytes(&mut fonts, end, 0);
+    assert!(key(&mut editor, &mut fonts, PhysicalKey::Tab).changed);
+    assert_eq!(editor.text(), "    東京\n    e\u{301}\n最後");
+    assert_eq!(editor.selection_bytes(), (end + 8, 0));
+    editor.input(
+        &mut fonts,
+        &InputEvent::Modifiers(Modifiers {
+            shift: true,
+            ..Default::default()
+        }),
+    );
+    assert!(key(&mut editor, &mut fonts, PhysicalKey::Tab).changed);
+    assert_eq!(editor.text(), source);
+    assert_eq!(editor.selection_bytes(), (end, 0));
+    assert!(editor.undo(&mut fonts));
+    assert_eq!(editor.text(), "    東京\n    e\u{301}\n最後");
+    assert!(editor.undo(&mut fonts));
+    assert_eq!(editor.text(), source);
+    editor.set_text(&mut fonts, "      x");
+    editor.select_bytes(&mut fonts, 7, 7);
+    key(&mut editor, &mut fonts, PhysicalKey::Tab);
+    assert_eq!(editor.text(), "    x");
+    assert_eq!(editor.selection_bytes(), (5, 5));
+}
+#[test]
+fn code_brackets_wrap_the_selection_but_paste_and_ime_commit_remain_literal() {
+    let source = "A東京e\u{301}Z";
+    let (mut fonts, mut editor) = fixture(true, source);
+    editor.set_policy(
+        &mut fonts,
+        EditorPolicy {
+            auto_brackets: true,
+            ..Default::default()
+        },
+    );
+    let end = source.len() - 1;
+    editor.select_bytes(&mut fonts, end, 1);
+    assert!(text(&mut editor, &mut fonts, "(").changed);
+    assert_eq!(editor.text(), "A(東京e\u{301})Z");
+    assert_eq!(editor.selection_bytes(), (end + 1, 2));
+    assert!(editor.undo(&mut fonts));
+    assert_eq!(editor.selection_bytes(), (end, 1));
+    let Some(EditorClipboard::Read { request }) =
+        editor.execute(&mut fonts, EditorCommand::Paste).clipboard
+    else {
+        panic!("paste");
+    };
+    assert!(
+        editor
+            .complete_clipboard(&mut fonts, request, ClipboardResult::Text(Some("[".into())))
+            .changed
+    );
+    assert_eq!(editor.text(), "A[Z");
+    editor.undo(&mut fonts);
+    editor.input(
+        &mut fonts,
+        &InputEvent::Composition {
+            text: "(".into(),
+            cursor: None,
+        },
+    );
+    assert!(text(&mut editor, &mut fonts, "(").changed);
+    assert_eq!(editor.text(), "A(Z");
+    editor.undo(&mut fonts);
+    assert!(editor.replace_selection(&mut fonts, "{"));
+    assert_eq!(editor.text(), "A{Z");
+}
+#[test]
+fn readonly_policy_cancels_pending_input_but_retains_selection_copy_navigation_and_history() {
+    let (mut fonts, mut editor) = fixture(true, "A東京Z");
+    text(&mut editor, &mut fonts, "!");
+    editor.execute(&mut fonts, EditorCommand::SelectAll);
+    let Some(EditorClipboard::Read { request }) =
+        editor.execute(&mut fonts, EditorCommand::Paste).clipboard
+    else {
+        panic!("paste");
+    };
+    editor.input(
+        &mut fonts,
+        &InputEvent::Composition {
+            text: "仮".into(),
+            cursor: None,
+        },
+    );
+    let old = editor.input_target();
+    editor.set_policy(
+        &mut fonts,
+        EditorPolicy {
+            read_only: true,
+            ..Default::default()
+        },
+    );
+    assert!(!editor.is_composing());
+    assert!(!editor.accepts_text_input());
+    assert_ne!(editor.input_target(), old);
+    assert!(
+        !editor
+            .complete_clipboard(
+                &mut fonts,
+                request,
+                ClipboardResult::Text(Some("late".into()))
+            )
+            .changed
+    );
+    for physical in [
+        PhysicalKey::Backspace,
+        PhysicalKey::Delete,
+        PhysicalKey::Enter,
+    ] {
+        assert!(!key(&mut editor, &mut fonts, physical).changed);
+    }
+    assert!(!text(&mut editor, &mut fonts, "stale").changed);
+    assert!(!editor.replace_selection(&mut fonts, "stale"));
+    assert!(!editor.undo(&mut fonts));
+    assert!(!editor.begin_edit_group(&mut fonts));
+    assert!(
+        editor
+            .execute(&mut fonts, EditorCommand::Paste)
+            .clipboard
+            .is_none()
+    );
+    assert!(
+        matches!(editor.execute(&mut fonts,EditorCommand::Copy).clipboard,Some(EditorClipboard::Write { text,cut:None }) if text == "A東京Z!")
+    );
+    editor.set_policy(&mut fonts, EditorPolicy::default());
+    assert!(editor.undo(&mut fonts));
+    assert_eq!(editor.text(), "A東京Z");
+}
+#[test]
+fn empty_clipboard_text_preserves_the_selection_and_committed_document() {
+    let (mut fonts, mut editor) = fixture(false, "A東京Z");
+    editor.select_bytes(&mut fonts, 1, 7);
+    let Some(EditorClipboard::Read { request }) =
+        editor.execute(&mut fonts, EditorCommand::Paste).clipboard
+    else {
+        panic!("paste");
+    };
+    assert!(
+        !editor
+            .complete_clipboard(
+                &mut fonts,
+                request,
+                ClipboardResult::Text(Some(String::new()))
+            )
+            .changed
+    );
+    assert_eq!(editor.text(), "A東京Z");
+    assert_eq!(editor.selection_bytes(), (1, 7));
+}
+
+#[test]
+fn saved_state_projection_keeps_unicode_crlf_schema_and_backward_selection_direction() {
+    let source = "A東京\r\ne\u{301}Z";
+    let (mut fonts, mut editor) = fixture(true, source);
+    editor.select_bytes(&mut fonts, source.len() - 1, 1);
+    let mut state = crate::text_edit::TextEditState::default();
+    state.auto_indent = true;
+    state.tab_spaces = 8;
+    state.allow_select_blank = false;
+    editor.export_state(&mut state);
+    assert_eq!(state.to_text(), source);
+    assert_eq!(state.rows, vec!["A東京\r", "e\u{301}Z"]);
+    assert_eq!((state.cursor.row, state.cursor.column), (0, 1));
+    assert_eq!((state.selection.start, state.selection.end), (1, 6));
+    assert!(state.auto_indent && !state.allow_select_blank && state.tab_spaces == 8);
+    let encoded = state.save();
+    let restored = crate::text_edit::TextEditState::load(&encoded);
+    let old_target = editor.input_target();
+    editor.import_state(&mut fonts, &restored);
+    assert_ne!(editor.input_target(), old_target);
+    assert_eq!(editor.text(), source);
+    assert_eq!(editor.selection_bytes(), (source.len() - 1, 1));
+    assert!(!editor.undo(&mut fonts));
+    let mut roundtrip = restored.clone();
+    editor.export_state(&mut roundtrip);
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&roundtrip.save()).unwrap(),
+        serde_json::from_str::<serde_json::Value>(&encoded).unwrap()
+    );
+}
+#[test]
+fn saved_state_projection_uses_committed_ime_state_and_bounds_malformed_positions() {
+    let (mut fonts, mut editor) = fixture(true, "A東京Z");
+    editor.select_bytes(&mut fonts, 1, 7);
+    editor.input(
+        &mut fonts,
+        &InputEvent::Composition {
+            text: "仮".into(),
+            cursor: None,
+        },
+    );
+    let mut state = crate::text_edit::TextEditState::default();
+    editor.export_state(&mut state);
+    assert_eq!(state.to_text(), "A東京Z");
+    assert_eq!((state.selection.start, state.selection.end), (1, 3));
+    state.cursor.row = usize::MAX;
+    state.cursor.column = usize::MAX;
+    state.selection.start = usize::MAX;
+    state.selection.end = usize::MAX;
+    editor.import_state(&mut fonts, &state);
+    assert_eq!(editor.selection_bytes(), (8, 8));
+    state.rows.clear();
+    editor.import_state(&mut fonts, &state);
+    assert_eq!(editor.text(), "");
+    assert_eq!(editor.selection_bytes(), (0, 0));
+}

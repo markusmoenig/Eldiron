@@ -1,6 +1,10 @@
 //! Renderer-independent text editing in grapheme/cursor coordinates. The UI
 //! adapters re-export these exact types, preserving saved undo-state JSON.
 #[cfg(feature = "text")]
+mod policy;
+#[cfg(feature = "text")]
+pub use policy::{EditorPolicy, EditorTab};
+#[cfg(feature = "text")]
 mod controller;
 #[cfg(feature = "text")]
 pub use controller::*;

@@ -285,7 +285,8 @@ impl EditorView {
             })
     }
     pub fn ime_area(&mut self, fonts: &mut TextSystem) -> Option<Rect> {
-        if !self.editor.is_focused() || self.bounds.width <= 0. || self.bounds.height <= 0. {
+        if !self.editor.accepts_text_input() || self.bounds.width <= 0. || self.bounds.height <= 0.
+        {
             return None;
         }
         let local = self.editor.ime_area(fonts);
@@ -468,7 +469,7 @@ impl EditorView {
                 colors.composition,
             );
         }
-        if self.editor.is_focused() && caret_visible {
+        if self.editor.accepts_text_input() && caret_visible {
             if let Some(caret) = self.editor.caret(fonts) {
                 list.rect(caret, 0., colors.caret);
             }
