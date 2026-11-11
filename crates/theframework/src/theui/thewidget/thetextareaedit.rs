@@ -95,8 +95,17 @@ pub struct TheTextAreaEdit {
 
 impl TheWidget for TheTextAreaEdit {
     #[cfg(feature = "text")]
-    fn prepare_paint(&mut self, ctx: &mut TheContext) {
+    fn prepare_paint(&mut self, ctx: &mut TheContext, _theme: &dyn TheTheme) {
         use crate::paint::Rect;
+        let bg = *_theme.color(TextEditBackground);
+        let light = bg[..3].iter().map(|v| *v as u16).sum::<u16>() > 480;
+        if self.last_light_ui != Some(light) {
+            if let Some(h) = self.renderer.highlighter.as_mut() {
+                h.set_light_ui(light);
+                self.modified_since_last_tick = true;
+            }
+            self.last_light_ui = Some(light);
+        }
         let border = 1.;
         let padding = self.renderer.padding;
         let mut r = Rect::new(
@@ -132,12 +141,7 @@ impl TheWidget for TheTextAreaEdit {
             r.x += width;
             r.width = (r.width - width).max(0.);
         }
-        let content = Rect::new(
-            r.x + padding.0 as f32,
-            r.y + padding.1 as f32,
-            (r.width - (padding.0 + padding.2) as f32).max(0.),
-            (r.height - (padding.1 + padding.3) as f32).max(0.),
-        );
+        let content = crate::theui::text_viewport::text_content_rect(r, padding);
         let wrap = self.readonly && self.word_wrap;
         let width = if wrap {
             Some((content.width - self.scrollbar_size as f32).max(1.))
@@ -157,21 +161,18 @@ impl TheWidget for TheTextAreaEdit {
             );
         }
         let bar = self.scrollbar_size as f32;
-        let w = self.renderer.actual_size.x as f32;
-        let h = self.renderer.actual_size.y as f32;
-        let (mut horizontal, mut vertical) = (w > content.width, h > content.height);
-        if horizontal || vertical {
-            horizontal = !wrap && w > (content.width - bar).max(0.);
-            vertical = h > (content.height - bar).max(0.);
-        }
-        let viewport = Rect::new(
-            content.x,
-            content.y,
-            (content.width - if vertical { bar } else { 0. }).max(0.),
-            (content.height - if horizontal { bar } else { 0. }).max(0.),
+        let plan = crate::theui::text_viewport::plan_text_viewport(
+            r,
+            padding,
+            [
+                self.renderer.actual_size.x as f32,
+                self.renderer.actual_size.y as f32,
+            ],
+            bar,
+            wrap,
         );
         self.renderer.command_viewport(
-            viewport,
+            plan.viewport,
             [border + padding.0 as f32, border + padding.1 as f32],
         );
         if changed {
@@ -187,25 +188,15 @@ impl TheWidget for TheTextAreaEdit {
                     .scroll_to_cursor(self.state.find_cursor_index(), self.state.cursor.row);
             }
         }
-        if horizontal {
+        if let Some(r) = plan.horizontal {
             self.hscrollbar.set_dim(
-                TheDim::new(
-                    r.x as i32,
-                    (r.y + r.height - bar) as i32,
-                    (r.width - if vertical { bar } else { 0. }).max(0.) as i32,
-                    bar as i32,
-                ),
+                TheDim::new(r.x as i32, r.y as i32, r.width as i32, r.height as i32),
                 ctx,
             );
         }
-        if vertical {
+        if let Some(r) = plan.vertical {
             self.vscrollbar.set_dim(
-                TheDim::new(
-                    (r.x + r.width - bar) as i32,
-                    r.y as i32,
-                    bar as i32,
-                    (r.height - if horizontal { bar } else { 0. }).max(0.) as i32,
-                ),
+                TheDim::new(r.x as i32, r.y as i32, r.width as i32, r.height as i32),
                 ctx,
             );
         }
@@ -229,20 +220,6 @@ impl TheWidget for TheTextAreaEdit {
         let focused = self.id.equals(&p.ui.focus);
         p.list.ops.push(PaintOp::PushClip(r));
         let inner = p.text_input(r, focused, self.is_disabled, self.embedded, true, true);
-        let bg = *p.theme.color(TextEditBackground);
-        let light = bg[..3].iter().map(|v| *v as u16).sum::<u16>() > 480;
-        if self.last_light_ui != Some(light) {
-            if let Some(h) = self.renderer.highlighter.as_mut() {
-                h.set_light_ui(light);
-                self.renderer.prepare_commands(
-                    &self.state.to_text(),
-                    self.highlight_source.as_deref(),
-                    "Source Code Pro",
-                    p.text,
-                );
-            }
-            self.last_light_ui = Some(light);
-        }
         if let Some(bg) = self
             .renderer
             .highlighter

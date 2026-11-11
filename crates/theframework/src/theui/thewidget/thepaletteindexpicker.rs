@@ -54,7 +54,7 @@ pub struct ThePaletteIndexRowPicker {
 
 impl TheWidget for ThePaletteIndexPicker {
     #[cfg(feature = "text")]
-    fn prepare_paint(&mut self, ctx: &mut TheContext) {
+    fn prepare_paint(&mut self, ctx: &mut TheContext, _theme: &dyn TheTheme) {
         if self.state == TheWidgetState::Clicked {
             let (popup, offset) =
                 paint::PalettePopup::prepare(ctx, &self.id, &self.dim, self.visible_color_count());
@@ -494,7 +494,7 @@ impl ThePaletteIndexPickerTrait for ThePaletteIndexPicker {
 
 impl TheWidget for ThePaletteIndexRowPicker {
     #[cfg(feature = "text")]
-    fn prepare_paint(&mut self, ctx: &mut TheContext) {
+    fn prepare_paint(&mut self, ctx: &mut TheContext, _theme: &dyn TheTheme) {
         if self.state == TheWidgetState::Clicked {
             let (popup, offset) =
                 paint::PalettePopup::prepare(ctx, &self.id, &self.dim, self.visible_color_count());

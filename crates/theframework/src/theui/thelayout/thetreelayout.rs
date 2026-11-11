@@ -34,13 +34,19 @@ impl Default for TheTreeNode {
 
 impl TheTreeNode {
     #[cfg(feature = "text")]
-    fn prepare_commands(&mut self, ctx: &mut TheContext, offset: i32, include_self: bool) {
+    fn prepare_commands(
+        &mut self,
+        ctx: &mut TheContext,
+        offset: i32,
+        include_self: bool,
+        _theme: &dyn TheTheme,
+    ) {
         if include_self {
             ctx.ui.input_transforms.insert(
                 self.widget.id().uuid,
                 crate::paint::Transform::translate(0., -offset as f32),
             );
-            self.widget.prepare_paint(ctx);
+            self.widget.prepare_paint(ctx, _theme);
         }
         if self.open {
             for w in &mut self.widgets {
@@ -48,10 +54,10 @@ impl TheTreeNode {
                     w.id().uuid,
                     crate::paint::Transform::translate(0., -offset as f32),
                 );
-                w.prepare_paint(ctx);
+                w.prepare_paint(ctx, _theme);
             }
             for child in &mut self.childs {
-                child.prepare_commands(ctx, offset, true);
+                child.prepare_commands(ctx, offset, true, _theme);
             }
         }
     }
@@ -596,7 +602,7 @@ pub struct TheTreeLayout {
 
 impl TheLayout for TheTreeLayout {
     #[cfg(feature = "text")]
-    fn prepare_paint(&mut self, ctx: &mut TheContext) {
+    fn prepare_paint(&mut self, ctx: &mut TheContext, _theme: &dyn TheTheme) {
         self.set_dim(self.dim, ctx);
         let offset = self
             .vertical_scrollbar
@@ -604,7 +610,8 @@ impl TheLayout for TheTreeLayout {
             .map(|s| s.scroll_offset())
             .unwrap_or(0);
         self.root.apply_scroll_offset(offset);
-        self.root.prepare_commands(ctx, offset, !self.headerless);
+        self.root
+            .prepare_commands(ctx, offset, !self.headerless, _theme);
     }
     #[cfg(feature = "text")]
     fn paint(

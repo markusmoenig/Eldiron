@@ -23,7 +23,7 @@ pub struct TheRGBALayout {
 
 impl TheLayout for TheRGBALayout {
     #[cfg(feature = "text")]
-    fn prepare_paint(&mut self, ctx: &mut TheContext) {
+    fn prepare_paint(&mut self, ctx: &mut TheContext, _theme: &dyn TheTheme) {
         self.set_dim(self.dim, ctx);
         let offset = Vec2::new(
             self.horizontal_scrollbar
@@ -38,7 +38,7 @@ impl TheLayout for TheRGBALayout {
         if let Some(view) = self.rgba_view.as_rgba_view() {
             view.set_scroll_offset(offset);
         }
-        self.rgba_view.prepare_paint(ctx);
+        self.rgba_view.prepare_paint(ctx, _theme);
     }
     #[cfg(feature = "text")]
     fn paint(

@@ -1,3 +1,6 @@
+#[cfg(feature = "text")]
+#[path = "thetextview_paint.rs"]
+mod paint;
 use std::ops::Range;
 
 use unicode_segmentation::UnicodeSegmentation;
@@ -81,6 +84,18 @@ pub struct TheTextView {
 }
 
 impl TheWidget for TheTextView {
+    #[cfg(feature = "text")]
+    fn prepare_paint(&mut self, ctx: &mut TheContext, _theme: &dyn TheTheme) {
+        self.prepare_commands(ctx);
+    }
+    #[cfg(feature = "text")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        self.paint_commands(p)
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,
@@ -232,7 +247,12 @@ impl TheWidget for TheTextView {
             TheEvent::MouseDown(coord) => {
                 self.is_clicking_interaction = false;
                 if !self.state.is_empty() {
-                    let global_coord = coord + Vec2::new(self.dim.buffer_x, self.dim.buffer_y);
+                    let global_coord = coord
+                        + if ctx.ui.command_paint {
+                            Vec2::new(self.dim.x, self.dim.y)
+                        } else {
+                            Vec2::new(self.dim.buffer_x, self.dim.buffer_y)
+                        };
                     if self.renderer.is_horizontal_overflow()
                         && self.hscrollbar.dim().contains(global_coord)
                     {
@@ -311,13 +331,17 @@ impl TheWidget for TheTextView {
 
                 if !self.state.is_empty() {
                     if self.is_hscrollbar_clicked {
-                        redraw =
-                            self.hscrollbar.on_event(
-                                &TheEvent::MouseDragged(self.hscrollbar.dim().to_local(
-                                    coord + Vec2::new(self.dim.buffer_x, self.dim.buffer_y),
-                                )),
-                                ctx,
-                            );
+                        redraw = self.hscrollbar.on_event(
+                            &TheEvent::MouseDragged(self.hscrollbar.dim().to_local(
+                                coord
+                                    + if ctx.ui.command_paint {
+                                        Vec2::new(self.dim.x, self.dim.y)
+                                    } else {
+                                        Vec2::new(self.dim.buffer_x, self.dim.buffer_y)
+                                    },
+                            )),
+                            ctx,
+                        );
                         if let Some(scrollbar) = self.hscrollbar.as_horizontal_scrollbar() {
                             redraw = self.renderer.scroll(
                                 &Vec2::new(
@@ -329,13 +353,17 @@ impl TheWidget for TheTextView {
                             ) || redraw;
                         }
                     } else if self.is_vscrollbar_clicked {
-                        redraw =
-                            self.vscrollbar.on_event(
-                                &TheEvent::MouseDragged(self.vscrollbar.dim().to_local(
-                                    coord + Vec2::new(self.dim.buffer_x, self.dim.buffer_y),
-                                )),
-                                ctx,
-                            );
+                        redraw = self.vscrollbar.on_event(
+                            &TheEvent::MouseDragged(self.vscrollbar.dim().to_local(
+                                coord
+                                    + if ctx.ui.command_paint {
+                                        Vec2::new(self.dim.x, self.dim.y)
+                                    } else {
+                                        Vec2::new(self.dim.buffer_x, self.dim.buffer_y)
+                                    },
+                            )),
+                            ctx,
+                        );
                         if let Some(scrollbar) = self.vscrollbar.as_vertical_scrollbar() {
                             redraw = self.renderer.scroll(
                                 &Vec2::new(
@@ -399,7 +427,12 @@ impl TheWidget for TheTextView {
                 }
             }
             TheEvent::MouseUp(coord) => {
-                let global_coord = coord + Vec2::new(self.dim.buffer_x, self.dim.buffer_y);
+                let global_coord = coord
+                    + if ctx.ui.command_paint {
+                        Vec2::new(self.dim.x, self.dim.y)
+                    } else {
+                        Vec2::new(self.dim.buffer_x, self.dim.buffer_y)
+                    };
                 if self.is_hscrollbar_clicked {
                     self.hscrollbar.on_event(
                         &TheEvent::MouseUp(self.hscrollbar.dim().to_local(global_coord)),
@@ -426,8 +459,12 @@ impl TheWidget for TheTextView {
                 self.drag_start_index = 0;
             }
             TheEvent::MouseWheel(delta) => {
-                let global_coord =
-                    self.hover_coord + Vec2::new(self.dim.buffer_x, self.dim.buffer_y);
+                let global_coord = self.hover_coord
+                    + if ctx.ui.command_paint {
+                        Vec2::new(self.dim.x, self.dim.y)
+                    } else {
+                        Vec2::new(self.dim.buffer_x, self.dim.buffer_y)
+                    };
                 let scrolled = if self.hscrollbar.dim().contains(global_coord) {
                     let delta = if delta.x.abs() > delta.y.abs() {
                         delta.x
@@ -453,7 +490,12 @@ impl TheWidget for TheTextView {
             TheEvent::Hover(coord) => {
                 // The hovered widget is always current widget not scrollbars
                 // We should manually draw hovered style to scrollbar hovered
-                let global_coord = coord + Vec2::new(self.dim.buffer_x, self.dim.buffer_y);
+                let global_coord = coord
+                    + if ctx.ui.command_paint {
+                        Vec2::new(self.dim.x, self.dim.y)
+                    } else {
+                        Vec2::new(self.dim.buffer_x, self.dim.buffer_y)
+                    };
                 if self.renderer.is_horizontal_overflow() {
                     self.hscrollbar.on_event(
                         &TheEvent::Hover(self.hscrollbar.dim().to_local(global_coord)),

@@ -36,10 +36,10 @@ pub mod prelude {
 #[allow(unused)]
 pub trait TheLayout: Send {
     #[cfg(feature = "text")]
-    fn prepare_paint(&mut self, ctx: &mut TheContext) {
+    fn prepare_paint(&mut self, ctx: &mut TheContext, _theme: &dyn TheTheme) {
         self.set_dim(*self.dim(), ctx);
         for widget in self.widgets() {
-            widget.prepare_paint(ctx);
+            widget.prepare_paint(ctx, _theme);
         }
     }
 

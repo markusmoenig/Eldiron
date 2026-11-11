@@ -29,7 +29,7 @@ pub struct TheDropdownMenu {
 
 impl TheWidget for TheDropdownMenu {
     #[cfg(feature = "text")]
-    fn prepare_paint(&mut self, ctx: &mut TheContext) {
+    fn prepare_paint(&mut self, ctx: &mut TheContext, _theme: &dyn TheTheme) {
         if self.state != TheWidgetState::Clicked {
             return;
         }

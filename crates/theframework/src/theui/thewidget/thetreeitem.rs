@@ -44,7 +44,7 @@ impl TheWidget for TheTreeItem {
     }
 
     #[cfg(feature = "text")]
-    fn prepare_paint(&mut self, ctx: &mut TheContext) {
+    fn prepare_paint(&mut self, ctx: &mut TheContext, _theme: &dyn TheTheme) {
         if let Some((width, widget)) = &mut self.widget_column {
             widget.calculate_size(ctx);
             let h = widget.limiter().get_max_height();
@@ -66,7 +66,7 @@ impl TheWidget for TheTreeItem {
                         .unwrap_or_default(),
                 );
             ctx.ui.input_transforms.insert(widget.id().uuid, transform);
-            widget.prepare_paint(ctx);
+            widget.prepare_paint(ctx, _theme);
         }
     }
     #[cfg(feature = "text")]

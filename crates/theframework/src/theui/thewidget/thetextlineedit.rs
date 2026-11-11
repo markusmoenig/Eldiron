@@ -66,7 +66,7 @@ pub struct TheTextLineEdit {
 
 impl TheWidget for TheTextLineEdit {
     #[cfg(feature = "text")]
-    fn prepare_paint(&mut self, ctx: &mut TheContext) {
+    fn prepare_paint(&mut self, ctx: &mut TheContext, _theme: &dyn TheTheme) {
         if self.modified_since_last_tick || !self.renderer.commands_ready() {
             self.renderer
                 .prepare_commands(&self.state.to_text(), None, "Roboto", &mut ctx.text);

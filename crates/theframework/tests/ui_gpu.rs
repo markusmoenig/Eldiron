@@ -649,3 +649,178 @@ fn palette_grid_and_popup_pick_from_their_painted_cells() {
     assert!(session.ui.canvas.buffer.pixels().is_empty());
     assert_eq!(gpu.transfers().capture_requests, 1);
 }
+#[test]
+#[ignore = "requires native GPU; run with --ignored"]
+fn rich_text_paints_styles_and_routes_a_grapheme_link_once() {
+    use theframework::{paint::Brush, platform::*, theui::thewidget::thetextedit::TheTextStyle};
+    let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut images = UiImages::new(gpu.clone());
+    let mut session = UiSession::new((420, 140), 1.5);
+    let events = session.ui.add_state_listener("rich-events".into());
+    let link = TheId::named("rich-link");
+    let mut view = TheTextView::new(TheId::named("rich"));
+    view.set_font_size(18.);
+    view.set_word_wrap(false);
+    view.set_padding((8, 8, 8, 8));
+    view.set_blocks(vec![TheTextViewBlock {
+        spans: vec![
+            TheTextViewSpan {
+                text: "Read ".into(),
+                ..Default::default()
+            },
+            TheTextViewSpan {
+                text: "cafe\u{301} link".into(),
+                style: TheTextStyle {
+                    foreground: Some(TheColor::from([0u8, 255, 255, 255])),
+                    background: Some(TheColor::from([30u8, 40, 60, 255])),
+                    underline: Some(TheColor::from([0u8, 100, 255, 255])),
+                },
+                interaction: Some(TheTextViewInteraction {
+                    id: link.clone(),
+                    value: TheValue::Int(7),
+                    hover_background: Some(TheColor::from([50u8, 60, 90, 255])),
+                }),
+            },
+        ],
+        ..Default::default()
+    }]);
+    session.ui.canvas.set_widget(view);
+    session.paint(&mut images).unwrap();
+    let layout = session
+        .context
+        .text
+        .layout("Read cafe\u{301} link", "Roboto", 18., None);
+    let caret = layout.caret(5);
+    let position = [8. + caret.x + 3., 8. + caret.y + 10.];
+    session.input(&InputEvent::PointerMoved { position });
+    session.input(&InputEvent::PointerButton {
+        button: PointerButton::Primary,
+        pressed: true,
+        position,
+    });
+    session.input(&InputEvent::PointerButton {
+        button: PointerButton::Primary,
+        pressed: false,
+        position,
+    });
+    let count=events.try_iter().filter(|e|matches!(e,TheEvent::Custom(id,value) if id.uuid==link.uuid&&value.to_i32()==Some(7))).count();
+    assert_eq!(count, 1, "link activation must occur exactly once");
+    let list = session.paint(&mut images).unwrap();
+    assert!(
+        list.ops.iter().any(
+            |v| matches!(v,PaintOp::GlyphRun{color,..} if color[0]==0.&&color[1]==1.&&color[2]==1.)
+        ),
+        "span foreground must survive hover background changes"
+    );
+    assert!(list.ops.iter().any(|v|matches!(v,PaintOp::Rect{rect,brush:Brush::Solid(color),..} if rect.height==1.&&color[2]==1.)),"underlines are paint geometry");
+    let output = GpuImage::new(&gpu, ImageDescriptor::rgba(630, 210)).unwrap();
+    let mut renderer = PaintRenderer::new(gpu.clone()).unwrap();
+    renderer
+        .render(
+            &list,
+            &images.registry,
+            &output.view,
+            output.descriptor.format,
+            (630, 210),
+            1.5,
+            [0.05, 0.05, 0.05, 1.],
+        )
+        .unwrap();
+    assert!(session.ui.canvas.buffer.pixels().is_empty());
+    assert_eq!(gpu.transfers().readback_bytes, 0);
+    let mut capture = ReadbackTicket::capture(&gpu, output).unwrap();
+    gpu.device
+        .poll(wgpu::PollType::Wait {
+            submission_index: None,
+            timeout: Some(std::time::Duration::from_secs(30)),
+        })
+        .unwrap();
+    let pixels = capture.try_finish(&gpu).unwrap().unwrap();
+    let file = std::fs::File::create("/private/tmp/eldiron-wgpu-richtext.png").unwrap();
+    let mut encoder = png::Encoder::new(file, 630, 210);
+    encoder.set_color(png::ColorType::Rgba);
+    encoder.set_depth(png::BitDepth::Eight);
+    encoder
+        .write_header()
+        .unwrap()
+        .write_image_data(pixels.pixels())
+        .unwrap();
+}
+#[test]
+#[ignore = "requires native GPU; run with --ignored"]
+fn markdown_uses_projected_grapheme_ranges_for_gpu_links() {
+    use theframework::platform::*;
+    let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut images = UiImages::new(gpu.clone());
+    let mut session = UiSession::new((420, 220), 1.5);
+    let events = session.ui.add_state_listener("markdown-events".into());
+    let mut view = TheMarkdownView::new(TheId::named("markdown"));
+    view.set_font_size(18.);
+    view.set_padding((8, 8, 8, 8));
+    view.set_text(
+        "é **[cafe\u{301}](https://example.invalid)**\n\n# Heading\n\nUse `value`.".into(),
+    );
+    view.set_markdown_styles(TheMarkdownStyles {
+        heading: Some(TheColor::from([255u8, 200, 60, 255])),
+        link_hovered: Some(TheColor::from([0u8, 255, 255, 255])),
+        ..Default::default()
+    });
+    let projected = view.text();
+    assert_eq!(projected, "é cafe\u{301}\nHeading\nUse value.");
+    session.ui.canvas.set_widget(view);
+    session.paint(&mut images).unwrap();
+    let layout = session
+        .context
+        .text
+        .layout(&projected, "Roboto", 18., Some(391.));
+    let caret = layout.caret("é ".len());
+    let position = [8. + caret.x + 3., 8. + caret.y + 10.];
+    session.input(&InputEvent::PointerMoved { position });
+    session.input(&InputEvent::PointerButton {
+        button: PointerButton::Primary,
+        pressed: true,
+        position,
+    });
+    session.input(&InputEvent::PointerButton {
+        button: PointerButton::Primary,
+        pressed: false,
+        position,
+    });
+    assert_eq!(events.try_iter().filter(|e|matches!(e,TheEvent::ExternalUrlRequested(url) if url=="https://example.invalid")).count(),1);
+    let list = session.paint(&mut images).unwrap();
+    assert!(list.ops.iter().any(
+        |v| matches!(v,PaintOp::GlyphRun{color,..} if color[0]==0.&&color[1]==1.&&color[2]==1.)
+    ));
+    let output = GpuImage::new(&gpu, ImageDescriptor::rgba(630, 330)).unwrap();
+    let mut renderer = PaintRenderer::new(gpu.clone()).unwrap();
+    renderer
+        .render(
+            &list,
+            &images.registry,
+            &output.view,
+            output.descriptor.format,
+            (630, 330),
+            1.5,
+            [0.05, 0.05, 0.05, 1.],
+        )
+        .unwrap();
+    assert!(session.ui.canvas.buffer.pixels().is_empty());
+    assert_eq!(gpu.transfers().readback_bytes, 0);
+    let mut capture = ReadbackTicket::capture(&gpu, output).unwrap();
+    gpu.device
+        .poll(wgpu::PollType::Wait {
+            submission_index: None,
+            timeout: Some(std::time::Duration::from_secs(30)),
+        })
+        .unwrap();
+    let pixels = capture.try_finish(&gpu).unwrap().unwrap();
+    let file = std::fs::File::create("/private/tmp/eldiron-wgpu-markdown.png").unwrap();
+    let mut encoder = png::Encoder::new(file, 630, 330);
+    encoder.set_color(png::ColorType::Rgba);
+    encoder.set_depth(png::BitDepth::Eight);
+    encoder
+        .write_header()
+        .unwrap()
+        .write_image_data(pixels.pixels())
+        .unwrap();
+}

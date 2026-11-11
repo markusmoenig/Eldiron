@@ -26,7 +26,7 @@ pub struct TheListLayout {
 
 impl TheLayout for TheListLayout {
     #[cfg(feature = "text")]
-    fn prepare_paint(&mut self, ctx: &mut TheContext) {
+    fn prepare_paint(&mut self, ctx: &mut TheContext, _theme: &dyn TheTheme) {
         self.set_dim(self.dim, ctx);
         let offset = self
             .vertical_scrollbar
@@ -38,7 +38,7 @@ impl TheLayout for TheListLayout {
                 w.id().uuid,
                 crate::paint::Transform::translate(0., -offset as f32),
             );
-            w.prepare_paint(ctx);
+            w.prepare_paint(ctx, _theme);
         }
     }
 

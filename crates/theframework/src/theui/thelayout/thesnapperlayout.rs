@@ -18,13 +18,13 @@ pub struct TheSnapperLayout {
 
 impl TheLayout for TheSnapperLayout {
     #[cfg(feature = "text")]
-    fn prepare_paint(&mut self, ctx: &mut TheContext) {
+    fn prepare_paint(&mut self, ctx: &mut TheContext, _theme: &dyn TheTheme) {
         self.set_dim(self.dim, ctx);
         for bar in &mut self.bars {
-            bar.prepare_paint(ctx);
+            bar.prepare_paint(ctx, _theme);
         }
         for layout in &mut self.layouts {
-            layout.prepare_paint(ctx);
+            layout.prepare_paint(ctx, _theme);
         }
     }
     #[cfg(feature = "text")]

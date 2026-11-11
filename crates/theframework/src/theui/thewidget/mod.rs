@@ -156,7 +156,7 @@ pub enum TheWidgetState {
 #[allow(unused)]
 pub trait TheWidget: Send {
     #[cfg(feature = "text")]
-    fn prepare_paint(&mut self, _ctx: &mut TheContext) {}
+    fn prepare_paint(&mut self, _ctx: &mut TheContext, _theme: &dyn TheTheme) {}
 
     /// Backend-neutral paint. Legacy widgets remain explicitly unsupported until
     /// their family is migrated; no framebuffer is synthesized here.

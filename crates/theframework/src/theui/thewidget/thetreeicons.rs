@@ -31,7 +31,7 @@ pub struct TheTreeIcons {
 
 impl TheWidget for TheTreeIcons {
     #[cfg(feature = "text")]
-    fn prepare_paint(&mut self, _ctx: &mut TheContext) {
+    fn prepare_paint(&mut self, _ctx: &mut TheContext, _theme: &dyn TheTheme) {
         let columns = self.effective_icons_per_row().max(1) as usize;
         let step = self.icon_size + self.spacing;
         self.rectangles = (0..self.icons.len())

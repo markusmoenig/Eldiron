@@ -2598,7 +2598,7 @@ impl TheTextRenderer {
     }
 }
 
-#[derive(Default, Clone, Debug)]
+#[derive(Default, Clone, Debug, PartialEq)]
 pub struct TheTextStyle {
     pub foreground: Option<TheColor>,
     pub background: Option<TheColor>,

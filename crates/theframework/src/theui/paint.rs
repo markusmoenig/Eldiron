@@ -102,6 +102,41 @@ impl WidgetPainter<'_> {
         area: bool,
         border: bool,
     ) -> Rect {
+        let inner = self.text_input_frame(rect, focused, disabled, embedded, area, border);
+        let radius = if area {
+            1.
+        } else {
+            self.theme.metric(ControlCornerRadius)
+        };
+        let inset = if !border {
+            0.
+        } else if area {
+            1.
+        } else {
+            2.
+        };
+        self.theme_fill(
+            inner,
+            (radius - inset).max(0.),
+            if disabled {
+                TextInputDisabled
+            } else if focused {
+                TextInputFocused
+            } else {
+                TextInputNormal
+            },
+        );
+        inner
+    }
+    pub fn text_input_frame(
+        &mut self,
+        rect: Rect,
+        focused: bool,
+        disabled: bool,
+        embedded: bool,
+        area: bool,
+        border: bool,
+    ) -> Rect {
         let radius = if area {
             1.
         } else {
@@ -149,17 +184,6 @@ impl WidgetPainter<'_> {
             rect.y + inset,
             (rect.width - inset * 2.).max(0.),
             (rect.height - inset * 2.).max(0.),
-        );
-        self.theme_fill(
-            inner,
-            (radius - inset).max(0.),
-            if disabled {
-                TextInputDisabled
-            } else if focused {
-                TextInputFocused
-            } else {
-                TextInputNormal
-            },
         );
         inner
     }

@@ -27,6 +27,16 @@ impl TheTextRenderer {
         family: &str,
         fonts: &mut TextSystem,
     ) {
+        self.prepare_styled_commands(text, highlight_source, family, &[], fonts);
+    }
+    pub fn prepare_styled_commands(
+        &mut self,
+        text: &str,
+        highlight_source: Option<&str>,
+        family: &str,
+        extra: &[(Range<usize>, TheTextStyle)],
+        fonts: &mut TextSystem,
+    ) {
         let mut styles = Vec::new();
         if let Some(highlighter) = &self.highlighter {
             let mut h = syntect::easy::HighlightLines::new(
@@ -60,6 +70,20 @@ impl TheTextRenderer {
                     }
                 }
                 offset += visible.len();
+            }
+        }
+        let mut bytes: Vec<_> = text.grapheme_indices(true).map(|v| v.0).collect();
+        bytes.push(text.len());
+        for (range, style) in extra {
+            if let Some(color) = &style.foreground {
+                let start = bytes.get(range.start).copied().unwrap_or(text.len());
+                let end = bytes.get(range.end).copied().unwrap_or(text.len());
+                if start < end {
+                    styles.push(TextStyleSpan {
+                        range: start..end,
+                        color: rgba(color.to_u8_array()),
+                    });
+                }
             }
         }
         let layout = fonts.layout_styled(text, family, self.font_size, self.max_width, &styles);
@@ -128,6 +152,16 @@ impl TheTextRenderer {
         readonly: bool,
         p: &mut WidgetPainter<'_>,
     ) {
+        self.paint_styled_commands(state, focused, readonly, &[], p);
+    }
+    pub fn paint_styled_commands(
+        &self,
+        state: &TheTextEditState,
+        focused: bool,
+        readonly: bool,
+        styles: &[(Range<usize>, TheTextStyle)],
+        p: &mut WidgetPainter<'_>,
+    ) {
         let Some(layout) = &self.command_layout else {
             return;
         };
@@ -142,6 +176,15 @@ impl TheTextRenderer {
             viewport.x - self.scroll_offset.x as f32,
             viewport.y - self.scroll_offset.y as f32,
         )));
+        for (range, style) in styles {
+            if let Some(color) = &style.background {
+                for rect in
+                    layout.selection(self.layout_byte(range.start), self.layout_byte(range.end))
+                {
+                    p.list.rect(rect, 0., rgba(color.to_u8_array()));
+                }
+            }
+        }
         if let Some(line) = self.debug_line.and_then(|i| self.row_info.get(i)) {
             p.fill(
                 Rect::new(
@@ -183,6 +226,19 @@ impl TheTextRenderer {
                 origin: [0.; 2],
                 color: color.unwrap_or_else(|| p.color(TextEditTextColor)),
             });
+        }
+        for (range, style) in styles {
+            if let Some(color) = &style.underline {
+                for rect in
+                    layout.selection(self.layout_byte(range.start), self.layout_byte(range.end))
+                {
+                    p.list.rect(
+                        Rect::new(rect.x, rect.y + rect.height - 1., rect.width, 1.),
+                        0.,
+                        rgba(color.to_u8_array()),
+                    );
+                }
+            }
         }
         for (start, end) in &self.errors {
             for r in layout.selection(self.layout_byte(*start), self.layout_byte(*end)) {

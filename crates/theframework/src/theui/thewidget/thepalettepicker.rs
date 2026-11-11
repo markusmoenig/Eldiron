@@ -23,7 +23,7 @@ pub struct ThePalettePicker {
 
 impl TheWidget for ThePalettePicker {
     #[cfg(feature = "text")]
-    fn prepare_paint(&mut self, _ctx: &mut TheContext) {
+    fn prepare_paint(&mut self, _ctx: &mut TheContext, _theme: &dyn TheTheme) {
         let mut size = 18;
         if self.dynamic_layout {
             let (cols, rows, width) = self.calc_layout(

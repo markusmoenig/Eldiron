@@ -15,12 +15,12 @@ pub struct TheTabLayout {
 
 impl TheLayout for TheTabLayout {
     #[cfg(feature = "text")]
-    fn prepare_paint(&mut self, ctx: &mut TheContext) {
+    fn prepare_paint(&mut self, ctx: &mut TheContext, _theme: &dyn TheTheme) {
         self.set_dim(self.dim, ctx);
         for c in &mut self.canvas {
-            c.prepare_paint(ctx);
+            c.prepare_paint(ctx, _theme);
         }
-        self.tabbar.prepare_paint(ctx);
+        self.tabbar.prepare_paint(ctx, _theme);
     }
     #[cfg(feature = "text")]
     fn paint(

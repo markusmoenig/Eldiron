@@ -38,12 +38,14 @@ impl TheUI {
             self.relayout(ctx);
         }
         ctx.ui.input_transforms.clear();
-        self.canvas.prepare_paint(ctx);
+        let theme_owner = self.style.theme();
+        let _theme = theme_owner.as_ref();
+        self.canvas.prepare_paint(ctx, _theme);
         if let Some(dialog) = &mut self.dialog {
-            dialog.prepare_paint(ctx);
+            dialog.prepare_paint(ctx, _theme);
         }
         if let Some(popover) = &mut self.popover {
-            popover.canvas.prepare_paint(ctx);
+            popover.canvas.prepare_paint(ctx, _theme);
         }
         if let Some(menu) = &mut self.context_menu {
             menu.prepare_commands_layout(ctx);

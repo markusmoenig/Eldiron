@@ -1,6 +1,10 @@
 use std::ops::Range;
 
-use markdown::{ParseOptions, mdast::Node};
+#[path = "themarkdownview_document.rs"]
+mod document;
+#[cfg(feature = "text")]
+#[path = "themarkdownview_paint.rs"]
+mod paint;
 use web_time::Instant;
 
 use crate::{
@@ -10,25 +14,13 @@ use crate::{
 
 use super::thetextedit::{TheTextEditState, TheTextRenderer};
 
+#[derive(Clone, Debug, PartialEq)]
 enum TheMarkdownNode {
     Emphasis,
     Heading,
     Link(String),
     Strong,
     Text,
-}
-
-impl TheMarkdownNode {
-    fn from_node(value: &Node) -> Option<Self> {
-        match value {
-            Node::Emphasis(_) => Some(TheMarkdownNode::Emphasis),
-            Node::Heading(_) => Some(TheMarkdownNode::Heading),
-            Node::Link(link) => Some(TheMarkdownNode::Link(link.url.clone())),
-            Node::Strong(_) => Some(TheMarkdownNode::Strong),
-            Node::Text(_) => Some(TheMarkdownNode::Text),
-            _ => None,
-        }
-    }
 }
 
 impl TheMarkdownNode {
@@ -81,6 +73,8 @@ pub struct TheMarkdownView {
     link_hovered: Option<usize>,
     md_nodes: Vec<(Range<usize>, TheMarkdownNode)>,
     styles: TheMarkdownStyles,
+    #[cfg(feature = "text")]
+    command_styles: Vec<(Range<usize>, TheTextStyle)>,
 
     // Modifiers
     modifier_ctrl: bool,
@@ -98,6 +92,18 @@ pub struct TheMarkdownView {
 }
 
 impl TheWidget for TheMarkdownView {
+    #[cfg(feature = "text")]
+    fn prepare_paint(&mut self, ctx: &mut TheContext, theme: &dyn TheTheme) {
+        self.prepare_commands(ctx, theme);
+    }
+    #[cfg(feature = "text")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        self.paint_commands(p)
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,
@@ -141,6 +147,8 @@ impl TheWidget for TheMarkdownView {
             link_hovered: None,
             md_nodes: vec![],
             styles: TheMarkdownStyles::default(),
+            #[cfg(feature = "text")]
+            command_styles: Vec::new(),
 
             modifier_ctrl: false,
 
@@ -237,7 +245,12 @@ impl TheWidget for TheMarkdownView {
             }
             TheEvent::MouseDown(coord) => {
                 if !self.state.is_empty() {
-                    let global_coord = coord + Vec2::new(self.dim.buffer_x, self.dim.buffer_y);
+                    let global_coord = coord
+                        + if ctx.ui.command_paint {
+                            Vec2::new(self.dim.x, self.dim.y)
+                        } else {
+                            Vec2::new(self.dim.buffer_x, self.dim.buffer_y)
+                        };
                     if self.renderer.is_horizontal_overflow()
                         && self.hscrollbar.dim().contains(global_coord)
                     {
@@ -306,13 +319,17 @@ impl TheWidget for TheMarkdownView {
 
                 if !self.state.is_empty() {
                     if self.is_hscrollbar_clicked {
-                        redraw =
-                            self.hscrollbar.on_event(
-                                &TheEvent::MouseDragged(self.hscrollbar.dim().to_local(
-                                    coord + Vec2::new(self.dim.buffer_x, self.dim.buffer_y),
-                                )),
-                                ctx,
-                            );
+                        redraw = self.hscrollbar.on_event(
+                            &TheEvent::MouseDragged(self.hscrollbar.dim().to_local(
+                                coord
+                                    + if ctx.ui.command_paint {
+                                        Vec2::new(self.dim.x, self.dim.y)
+                                    } else {
+                                        Vec2::new(self.dim.buffer_x, self.dim.buffer_y)
+                                    },
+                            )),
+                            ctx,
+                        );
                         if let Some(scrollbar) = self.hscrollbar.as_horizontal_scrollbar() {
                             redraw = self.renderer.scroll(
                                 &Vec2::new(
@@ -324,13 +341,17 @@ impl TheWidget for TheMarkdownView {
                             ) || redraw;
                         }
                     } else if self.is_vscrollbar_clicked {
-                        redraw =
-                            self.vscrollbar.on_event(
-                                &TheEvent::MouseDragged(self.vscrollbar.dim().to_local(
-                                    coord + Vec2::new(self.dim.buffer_x, self.dim.buffer_y),
-                                )),
-                                ctx,
-                            );
+                        redraw = self.vscrollbar.on_event(
+                            &TheEvent::MouseDragged(self.vscrollbar.dim().to_local(
+                                coord
+                                    + if ctx.ui.command_paint {
+                                        Vec2::new(self.dim.x, self.dim.y)
+                                    } else {
+                                        Vec2::new(self.dim.buffer_x, self.dim.buffer_y)
+                                    },
+                            )),
+                            ctx,
+                        );
                         if let Some(scrollbar) = self.vscrollbar.as_vertical_scrollbar() {
                             redraw = self.renderer.scroll(
                                 &Vec2::new(
@@ -394,7 +415,12 @@ impl TheWidget for TheMarkdownView {
                 }
             }
             TheEvent::MouseUp(coord) => {
-                let global_coord = coord + Vec2::new(self.dim.buffer_x, self.dim.buffer_y);
+                let global_coord = coord
+                    + if ctx.ui.command_paint {
+                        Vec2::new(self.dim.x, self.dim.y)
+                    } else {
+                        Vec2::new(self.dim.buffer_x, self.dim.buffer_y)
+                    };
                 if self.is_hscrollbar_clicked {
                     self.hscrollbar.on_event(
                         &TheEvent::MouseUp(self.hscrollbar.dim().to_local(global_coord)),
@@ -420,8 +446,12 @@ impl TheWidget for TheMarkdownView {
                 self.drag_start_index = 0;
             }
             TheEvent::MouseWheel(delta) => {
-                let global_coord =
-                    self.hover_coord + Vec2::new(self.dim.buffer_x, self.dim.buffer_y);
+                let global_coord = self.hover_coord
+                    + if ctx.ui.command_paint {
+                        Vec2::new(self.dim.x, self.dim.y)
+                    } else {
+                        Vec2::new(self.dim.buffer_x, self.dim.buffer_y)
+                    };
                 let scrolled = if self.hscrollbar.dim().contains(global_coord) {
                     let delta = if delta.x.abs() > delta.y.abs() {
                         delta.x
@@ -447,7 +477,12 @@ impl TheWidget for TheMarkdownView {
             TheEvent::Hover(coord) => {
                 // The hovered widget is always current widget not scrollbars
                 // We should manually draw hovered style to scrollbar hovered
-                let global_coord = coord + Vec2::new(self.dim.buffer_x, self.dim.buffer_y);
+                let global_coord = coord
+                    + if ctx.ui.command_paint {
+                        Vec2::new(self.dim.x, self.dim.y)
+                    } else {
+                        Vec2::new(self.dim.buffer_x, self.dim.buffer_y)
+                    };
                 if self.renderer.is_horizontal_overflow() {
                     self.hscrollbar.on_event(
                         &TheEvent::Hover(self.hscrollbar.dim().to_local(global_coord)),
@@ -786,6 +821,7 @@ impl TheMarkdownViewTrait for TheMarkdownView {
     }
     fn set_markdown_styles(&mut self, styles: TheMarkdownStyles) {
         self.styles = styles;
+        self.is_dirty = true;
     }
     fn draw_background(&mut self, draw_background: bool) {
         self.draw_background = draw_background;
@@ -798,84 +834,12 @@ impl TheMarkdownViewTrait for TheMarkdownView {
 }
 
 impl TheMarkdownView {
-    fn set_md_text(&mut self, text: String) {
-        self.md_nodes = vec![];
-
-        let text = match markdown::to_mdast(&text, &ParseOptions::default()) {
-            Ok(tree) => {
-                let mut text = String::new();
-                self.traverse_node(&tree, &mut text, false, true);
-                text
-            }
-            Err(err) => {
-                println!("Failed to parse text to markdown: {err:?}");
-                text
-            }
-        };
-
+    fn set_md_text(&mut self, source: String) {
+        let (text, spans) = document::project(&source).unwrap_or_else(|_| (source, Vec::new()));
+        self.md_nodes = spans;
         self.state.reset();
         self.state.set_text(text);
         self.link_hovered = None;
         self.is_dirty = true;
-    }
-
-    fn traverse_node(
-        &mut self,
-        node: &Node,
-        md_text: &mut String,
-        direct_parent: bool,
-        new_paragraph: bool,
-    ) -> usize {
-        if !new_paragraph {
-            if let Some((range, _)) = self.md_nodes.last_mut() {
-                range.end -= 1;
-            }
-        }
-
-        let node_start = md_text.len();
-        let mut text_len = 0;
-        let mut new_paragraph = false;
-
-        match node {
-            Node::Heading(_) | Node::Paragraph(_) => {
-                if !md_text.is_empty() {
-                    md_text.push('\n');
-                    new_paragraph = true;
-                    if let Some((range, _)) = self.md_nodes.last_mut() {
-                        range.end += 1;
-                    }
-                }
-            }
-            _ => {}
-        }
-
-        match node {
-            Node::Text(text) => {
-                md_text.push_str(&text.value);
-                text_len += text.value.len();
-            }
-            _ => {
-                if let Some(children) = node.children() {
-                    for child in children {
-                        text_len += self.traverse_node(
-                            child,
-                            md_text,
-                            TheMarkdownNode::from_node(node).is_some(),
-                            new_paragraph,
-                        );
-                    }
-                }
-            }
-        }
-
-        if text_len > 0 && !direct_parent {
-            if let Some(node) = TheMarkdownNode::from_node(node) {
-                self.md_nodes
-                    .push((node_start..node_start + text_len, node));
-                if !new_paragraph {}
-            }
-        }
-
-        text_len
     }
 }

@@ -4,6 +4,8 @@ mod input;
 pub mod paint;
 #[cfg(feature = "text")]
 mod paint_frame;
+#[cfg(feature = "text")]
+mod text_viewport;
 pub mod thecanvas;
 pub mod thecodehighlighter;
 pub mod thecollection;

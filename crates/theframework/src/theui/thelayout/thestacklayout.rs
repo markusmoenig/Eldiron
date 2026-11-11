@@ -15,13 +15,13 @@ pub struct TheStackLayout {
 
 impl TheLayout for TheStackLayout {
     #[cfg(feature = "text")]
-    fn prepare_paint(&mut self, ctx: &mut TheContext) {
+    fn prepare_paint(&mut self, ctx: &mut TheContext, _theme: &dyn TheTheme) {
         self.set_dim(self.dim, ctx);
         for c in &mut self.canvas {
-            c.prepare_paint(ctx);
+            c.prepare_paint(ctx, _theme);
         }
         for w in &mut self.widgets {
-            w.prepare_paint(ctx);
+            w.prepare_paint(ctx, _theme);
         }
     }
     #[cfg(feature = "text")]

@@ -35,7 +35,7 @@ impl Default for TheCanvas {
 /// TheCanvas divides a screen dimension into 4 possible sub-spaces for its border while containing a set of widgets for its center.
 impl TheCanvas {
     #[cfg(feature = "text")]
-    pub fn prepare_paint(&mut self, ctx: &mut TheContext) {
+    pub fn prepare_paint(&mut self, ctx: &mut TheContext, _theme: &dyn TheTheme) {
         if self.layout_dirty {
             self.set_dim(self.dim, ctx);
         }
@@ -53,13 +53,13 @@ impl TheCanvas {
         .into_iter()
         .flatten()
         {
-            child.prepare_paint(ctx);
+            child.prepare_paint(ctx, _theme);
         }
         if let Some(layout) = &mut self.layout {
-            layout.prepare_paint(ctx);
+            layout.prepare_paint(ctx, _theme);
         }
         if let Some(widget) = &mut self.widget {
-            widget.prepare_paint(ctx);
+            widget.prepare_paint(ctx, _theme);
         }
     }
 

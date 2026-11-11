@@ -71,7 +71,7 @@ impl TheLayout for TheRowListLayout {
     }
 
     #[cfg(feature = "text")]
-    fn prepare_paint(&mut self, ctx: &mut TheContext) {
+    fn prepare_paint(&mut self, ctx: &mut TheContext, _theme: &dyn TheTheme) {
         self.set_dim(self.dim, ctx);
         let offset = self
             .horizontal_scrollbar
@@ -83,7 +83,7 @@ impl TheLayout for TheRowListLayout {
                 w.id().uuid,
                 crate::paint::Transform::translate(-offset as f32, 0.),
             );
-            w.prepare_paint(ctx);
+            w.prepare_paint(ctx, _theme);
         }
     }
 
