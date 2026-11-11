@@ -25,7 +25,7 @@ pub struct TheListLayout {
 }
 
 impl TheLayout for TheListLayout {
-    #[cfg(feature = "render-wgpu")]
+    #[cfg(feature = "text")]
     fn prepare_paint(&mut self, ctx: &mut TheContext) {
         self.set_dim(self.dim, ctx);
         let offset = self
@@ -42,7 +42,7 @@ impl TheLayout for TheListLayout {
         }
     }
 
-    #[cfg(feature = "render-wgpu")]
+    #[cfg(feature = "text")]
     fn paint(
         &mut self,
         p: &mut crate::theui::paint::WidgetPainter<'_>,
@@ -235,7 +235,7 @@ impl TheLayout for TheListLayout {
 
             let content_width = (width - LIST_RIGHT_MARGIN).max(0);
 
-            if ctx.ui.gpu_paint {
+            if ctx.ui.command_paint {
                 self.list_buffer = TheRGBABuffer::empty();
                 *self.list_buffer.dim_mut() = TheDim::new(0, 0, width, total_height);
             } else {

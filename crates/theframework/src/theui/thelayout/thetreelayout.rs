@@ -33,8 +33,8 @@ impl Default for TheTreeNode {
 }
 
 impl TheTreeNode {
-    #[cfg(feature = "render-wgpu")]
-    fn prepare_gpu(&mut self, ctx: &mut TheContext, offset: i32, include_self: bool) {
+    #[cfg(feature = "text")]
+    fn prepare_commands(&mut self, ctx: &mut TheContext, offset: i32, include_self: bool) {
         if include_self {
             ctx.ui.input_transforms.insert(
                 self.widget.id().uuid,
@@ -51,12 +51,12 @@ impl TheTreeNode {
                 w.prepare_paint(ctx);
             }
             for child in &mut self.childs {
-                child.prepare_gpu(ctx, offset, true);
+                child.prepare_commands(ctx, offset, true);
             }
         }
     }
-    #[cfg(feature = "render-wgpu")]
-    fn paint_gpu(
+    #[cfg(feature = "text")]
+    fn paint_commands(
         &mut self,
         p: &mut crate::theui::paint::WidgetPainter<'_>,
         include_self: bool,
@@ -69,7 +69,7 @@ impl TheTreeNode {
                 w.paint(p)?;
             }
             for child in &mut self.childs {
-                child.paint_gpu(p, true)?;
+                child.paint_commands(p, true)?;
             }
         }
         Ok(())
@@ -595,7 +595,7 @@ pub struct TheTreeLayout {
 }
 
 impl TheLayout for TheTreeLayout {
-    #[cfg(feature = "render-wgpu")]
+    #[cfg(feature = "text")]
     fn prepare_paint(&mut self, ctx: &mut TheContext) {
         self.set_dim(self.dim, ctx);
         let offset = self
@@ -604,9 +604,9 @@ impl TheLayout for TheTreeLayout {
             .map(|s| s.scroll_offset())
             .unwrap_or(0);
         self.root.apply_scroll_offset(offset);
-        self.root.prepare_gpu(ctx, offset, !self.headerless);
+        self.root.prepare_commands(ctx, offset, !self.headerless);
     }
-    #[cfg(feature = "render-wgpu")]
+    #[cfg(feature = "text")]
     fn paint(
         &mut self,
         p: &mut crate::theui::paint::WidgetPainter<'_>,
@@ -637,7 +637,7 @@ impl TheLayout for TheTreeLayout {
             0.,
             -offset as f32,
         )));
-        self.root.paint_gpu(p, !self.headerless)?;
+        self.root.paint_commands(p, !self.headerless)?;
         p.list.ops.push(PaintOp::PopTransform);
         p.list.ops.push(PaintOp::PopClip);
         if self.vertical_scrollbar_visible {
@@ -1042,7 +1042,7 @@ impl TheTreeLayout {
                 }
             }
 
-            if ctx.ui.gpu_paint {
+            if ctx.ui.command_paint {
                 self.content_buffer = TheRGBABuffer::empty();
                 *self.content_buffer.dim_mut() = TheDim::new(0, 0, available_width, total_height);
             } else {

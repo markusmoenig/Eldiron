@@ -34,7 +34,7 @@ impl Default for TheCanvas {
 
 /// TheCanvas divides a screen dimension into 4 possible sub-spaces for its border while containing a set of widgets for its center.
 impl TheCanvas {
-    #[cfg(feature = "render-wgpu")]
+    #[cfg(feature = "text")]
     pub fn prepare_paint(&mut self, ctx: &mut TheContext) {
         if self.layout_dirty {
             self.set_dim(self.dim, ctx);
@@ -63,7 +63,7 @@ impl TheCanvas {
         }
     }
 
-    #[cfg(feature = "render-wgpu")]
+    #[cfg(feature = "text")]
     pub fn release_raster_cache(&mut self) {
         self.buffer = TheRGBABuffer::empty();
         *self.buffer.dim_mut() = self.dim;
@@ -81,7 +81,7 @@ impl TheCanvas {
         }
     }
 
-    #[cfg(feature = "render-wgpu")]
+    #[cfg(feature = "text")]
     pub fn paint(
         &mut self,
         painter: &mut crate::theui::paint::WidgetPainter<'_>,
@@ -147,7 +147,7 @@ impl TheCanvas {
         if dim != self.dim || ctx.ui.relayout || self.layout_dirty {
             self.layout_dirty = false;
             self.dim = dim;
-            if ctx.ui.gpu_paint {
+            if ctx.ui.command_paint {
                 *self.buffer.dim_mut() = self.dim;
             } else {
                 self.buffer.set_dim(self.dim);

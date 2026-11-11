@@ -6,16 +6,21 @@ use crate::{
     theui::paint::{WidgetPainter, rgba},
 };
 impl TheTextRenderer {
-    pub(super) fn gpu_byte(&self, index: usize) -> usize {
-        self.gpu_graphemes
+    pub(super) fn layout_byte(&self, index: usize) -> usize {
+        self.command_graphemes
             .get(index)
             .copied()
-            .unwrap_or_else(|| self.gpu.as_ref().map(|l| l.source.len()).unwrap_or(0))
+            .unwrap_or_else(|| {
+                self.command_layout
+                    .as_ref()
+                    .map(|l| l.source.len())
+                    .unwrap_or(0)
+            })
     }
-    pub fn gpu_ready(&self) -> bool {
-        self.gpu.is_some()
+    pub fn commands_ready(&self) -> bool {
+        self.command_layout.is_some()
     }
-    pub fn prepare_gpu(
+    pub fn prepare_commands(
         &mut self,
         text: &str,
         highlight_source: Option<&str>,
@@ -58,15 +63,15 @@ impl TheTextRenderer {
             }
         }
         let layout = fonts.layout_styled(text, family, self.font_size, self.max_width, &styles);
-        self.gpu_graphemes = text.grapheme_indices(true).map(|v| v.0).collect();
-        self.gpu_graphemes.push(text.len());
+        self.command_graphemes = text.grapheme_indices(true).map(|v| v.0).collect();
+        self.command_graphemes.push(text.len());
         self.glyphs = self
-            .gpu_graphemes
+            .command_graphemes
             .iter()
             .enumerate()
             .map(|(i, b)| {
                 let c = layout.caret(*b);
-                let end = layout.caret(self.gpu_graphemes.get(i + 1).copied().unwrap_or(*b));
+                let end = layout.caret(self.command_graphemes.get(i + 1).copied().unwrap_or(*b));
                 TheGlyph {
                     parent: text[*b..].chars().next().unwrap_or('\n'),
                     x: c.x,
@@ -79,11 +84,11 @@ impl TheTextRenderer {
             .into_iter()
             .map(|line| {
                 let start = self
-                    .gpu_graphemes
+                    .command_graphemes
                     .partition_point(|b| *b < line.range.start)
                     .min(self.glyphs.len() - 1);
                 let end = self
-                    .gpu_graphemes
+                    .command_graphemes
                     .partition_point(|b| *b < line.range.end)
                     .saturating_sub(1)
                     .max(start)
@@ -104,26 +109,26 @@ impl TheTextRenderer {
             layout.width().ceil() as usize,
             layout.height().ceil() as usize,
         );
-        self.gpu = Some(layout);
+        self.command_layout = Some(layout);
         self.scroll(&Vec2::zero(), false);
     }
-    pub fn gpu_viewport(&mut self, rect: Rect, inset: [f32; 2]) {
+    pub fn command_viewport(&mut self, rect: Rect, inset: [f32; 2]) {
         self.set_dim(
             rect.x.max(0.) as usize,
             rect.y.max(0.) as usize,
             rect.width.max(0.) as usize,
             rect.height.max(0.) as usize,
         );
-        self.gpu_hit_inset = inset;
+        self.command_hit_inset = inset;
     }
-    pub fn paint_gpu(
+    pub fn paint_commands(
         &self,
         state: &TheTextEditState,
         focused: bool,
         readonly: bool,
         p: &mut WidgetPainter<'_>,
     ) {
-        let Some(layout) = &self.gpu else {
+        let Some(layout) = &self.command_layout else {
             return;
         };
         let viewport = Rect::new(
@@ -154,7 +159,7 @@ impl TheTextRenderer {
             } else {
                 [0.7, 0.5, 0.1, 0.35]
             };
-            for r in layout.selection(self.gpu_byte(*start), self.gpu_byte(*end)) {
+            for r in layout.selection(self.layout_byte(*start), self.layout_byte(*end)) {
                 p.list.rect(r, 0., color);
             }
         }
@@ -166,8 +171,8 @@ impl TheTextRenderer {
                 .map(|c| rgba(c.to_u8_array()))
                 .unwrap_or_else(|| p.color(DefaultSelection));
             for r in layout.selection(
-                self.gpu_byte(state.selection.start),
-                self.gpu_byte(state.selection.end),
+                self.layout_byte(state.selection.start),
+                self.layout_byte(state.selection.end),
             ) {
                 p.list.rect(r, 0., color);
             }
@@ -180,7 +185,7 @@ impl TheTextRenderer {
             });
         }
         for (start, end) in &self.errors {
-            for r in layout.selection(self.gpu_byte(*start), self.gpu_byte(*end)) {
+            for r in layout.selection(self.layout_byte(*start), self.layout_byte(*end)) {
                 p.list.rect(
                     Rect::new(r.x, r.y + r.height - 1., r.width, 1.),
                     0.,
@@ -191,7 +196,7 @@ impl TheTextRenderer {
         if self.indicate_space {
             for (i, glyph) in self.glyphs.iter().enumerate() {
                 if glyph.parent == ' ' {
-                    let r = layout.caret(self.gpu_byte(i));
+                    let r = layout.caret(self.layout_byte(i));
                     p.list.rect(
                         Rect::new(r.x + 2., r.y + r.height * 0.6, 1., 1.),
                         0.,
@@ -201,7 +206,7 @@ impl TheTextRenderer {
             }
         }
         if focused && !readonly {
-            let c = layout.caret(self.gpu_byte(state.find_cursor_index()));
+            let c = layout.caret(self.layout_byte(state.find_cursor_index()));
             if let Some((text, cursor)) = &self.composition {
                 let preedit = p.text.layout(text, "Roboto", self.font_size, None);
                 for run in &preedit.runs {

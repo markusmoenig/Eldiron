@@ -1,8 +1,8 @@
-#[cfg(feature = "render-wgpu")]
+#[cfg(feature = "text")]
 mod input;
-#[cfg(feature = "render-wgpu")]
+#[cfg(feature = "text")]
 pub mod paint;
-#[cfg(feature = "render-wgpu")]
+#[cfg(feature = "text")]
 mod paint_frame;
 pub mod thecanvas;
 pub mod thecodehighlighter;

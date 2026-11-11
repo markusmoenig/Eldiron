@@ -393,7 +393,7 @@ impl ApplicationHandler<HostEvent> for Host {
             crate::platform_services::service_files(&mut self.ui.context.ui);
             let request = self.app.update(&mut self.ui, now - self.last_update);
             self.last_update = now;
-            self.dirty |= request.redraw || self.ui.ui.needs_gpu_redraw(&self.ui.context);
+            self.dirty |= request.redraw || self.ui.ui.needs_paint(&self.ui.context);
             // UI requesters, tooltip deadlines and editing timers remain responsive.
             self.next_update = now
                 + request

@@ -22,7 +22,7 @@ pub struct TheGroupButton {
 }
 
 impl TheWidget for TheGroupButton {
-    #[cfg(feature = "render-wgpu")]
+    #[cfg(feature = "text")]
     fn paint(
         &mut self,
         p: &mut crate::theui::paint::WidgetPainter<'_>,

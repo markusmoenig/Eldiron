@@ -72,7 +72,7 @@ pub trait TheStyle: Send {
             drop.offset.x = width - 10;
         }
 
-        if ctx.ui.gpu_paint {
+        if ctx.ui.command_paint {
             let mut image = TheRGBABuffer::empty();
             *image.dim_mut() = TheDim::sized(width, 24);
             drop.set_image(image);

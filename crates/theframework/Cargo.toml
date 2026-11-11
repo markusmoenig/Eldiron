@@ -94,6 +94,7 @@ web-sys = { version = "0.3", features = ["Gpu", "GpuTextureFormat", "Navigator",
 
 [features]
 platform-winit = ["desktop-dialogs", "dep:winit", "ui", "render-wgpu"]
+ui-paint = ["ui", "text"]
 paint = []
 text = ["paint", "dep:parley", "dep:swash"]
 render-wgpu = ["text", "dep:renderkit", "dep:lyon_tessellation", "dep:bytemuck"]

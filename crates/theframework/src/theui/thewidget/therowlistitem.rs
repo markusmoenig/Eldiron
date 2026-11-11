@@ -26,7 +26,7 @@ pub struct TheRowListItem {
 }
 
 impl TheWidget for TheRowListItem {
-    #[cfg(feature = "render-wgpu")]
+    #[cfg(feature = "text")]
     fn paint(
         &mut self,
         p: &mut crate::theui::paint::WidgetPainter<'_>,
@@ -143,7 +143,7 @@ impl TheWidget for TheRowListItem {
                 }
                 self.mouse_down_pos = Vec2::new(
                     coord.x
-                        + if ctx.ui.gpu_paint {
+                        + if ctx.ui.command_paint {
                             0
                         } else {
                             self.scroll_offset
@@ -155,7 +155,7 @@ impl TheWidget for TheRowListItem {
             TheEvent::MouseDragged(coord) => {
                 let coord = Vec2::new(
                     coord.x
-                        + if ctx.ui.gpu_paint {
+                        + if ctx.ui.command_paint {
                             0
                         } else {
                             self.scroll_offset

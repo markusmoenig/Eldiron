@@ -17,7 +17,7 @@ pub struct TheSnapperLayout {
 }
 
 impl TheLayout for TheSnapperLayout {
-    #[cfg(feature = "render-wgpu")]
+    #[cfg(feature = "text")]
     fn prepare_paint(&mut self, ctx: &mut TheContext) {
         self.set_dim(self.dim, ctx);
         for bar in &mut self.bars {
@@ -27,7 +27,7 @@ impl TheLayout for TheSnapperLayout {
             layout.prepare_paint(ctx);
         }
     }
-    #[cfg(feature = "render-wgpu")]
+    #[cfg(feature = "text")]
     fn paint(
         &mut self,
         p: &mut crate::theui::paint::WidgetPainter<'_>,

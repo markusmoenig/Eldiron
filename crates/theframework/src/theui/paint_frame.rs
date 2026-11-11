@@ -1,9 +1,9 @@
-use super::paint::{UiImages, UiPaintError, WidgetPainter, bounds};
+use super::paint::{UiImageResources, UiPaintError, WidgetPainter, bounds};
 use super::*;
 use crate::paint::{PaintList, PaintOp, Rect};
 
 impl TheUI {
-    pub fn needs_gpu_redraw(&mut self, ctx: &TheContext) -> bool {
+    pub fn needs_paint(&mut self, ctx: &TheContext) -> bool {
         self.is_dirty
             || ctx.ui.redraw_all
             || ctx.ui.relayout
@@ -15,9 +15,9 @@ impl TheUI {
                 .is_some_and(|p| p.canvas.needs_redraw())
     }
 
-    pub fn prepare_gpu_geometry(&mut self, ctx: &mut TheContext) {
-        if !ctx.ui.gpu_paint {
-            ctx.ui.gpu_paint = true;
+    pub fn prepare_paint_layout(&mut self, ctx: &mut TheContext) {
+        if !ctx.ui.command_paint {
+            ctx.ui.command_paint = true;
             ctx.ui.relayout = true;
             self.canvas.release_raster_cache();
             if let Some(dialog) = &mut self.dialog {
@@ -46,18 +46,18 @@ impl TheUI {
             popover.canvas.prepare_paint(ctx);
         }
         if let Some(menu) = &mut self.context_menu {
-            menu.prepare_gpu_layout(ctx);
+            menu.prepare_commands_layout(ctx);
         }
     }
 
     /// Prepare and paint the UI tree directly. Unsupported widget families return
     /// an explicit error instead of allocating a root CPU framebuffer fallback.
-    pub fn paint_gpu(
+    pub fn paint_commands(
         &mut self,
         ctx: &mut TheContext,
-        images: &mut UiImages,
+        images: &mut dyn UiImageResources,
     ) -> Result<PaintList, UiPaintError> {
-        self.prepare_gpu_geometry(ctx);
+        self.prepare_paint_layout(ctx);
         if ctx.width == 0 || ctx.height == 0 {
             return Ok(PaintList::default());
         }
@@ -207,7 +207,7 @@ impl TheUI {
             }
         }
         if let Some(menu) = &self.context_menu {
-            menu.paint_gpu(&mut p)?;
+            menu.paint_commands(&mut p)?;
         }
         ctx.ui.redraw_all = false;
         self.is_dirty = false;
@@ -216,7 +216,7 @@ impl TheUI {
     }
 }
 impl TheContextMenu {
-    fn prepare_gpu_layout(&mut self, ctx: &mut TheContext) {
+    fn prepare_commands_layout(&mut self, ctx: &mut TheContext) {
         let mut y = self.dim.y + 8;
         for item in &mut self.items {
             let height = if item.name.is_empty() {
@@ -230,13 +230,13 @@ impl TheContextMenu {
                 if menu.is_open {
                     menu.set_position(Vec2::new(self.dim.x + self.width - 1, y), ctx);
                     menu.cascading_y_offset = y - self.dim.y;
-                    menu.prepare_gpu_layout(ctx);
+                    menu.prepare_commands_layout(ctx);
                 }
             }
             y += height;
         }
     }
-    fn paint_gpu(&self, p: &mut WidgetPainter<'_>) -> Result<(), UiPaintError> {
+    fn paint_commands(&self, p: &mut WidgetPainter<'_>) -> Result<(), UiPaintError> {
         let outer = bounds(&self.dim);
         p.fill(outer, ContextMenuBorder);
         p.fill(
@@ -307,7 +307,7 @@ impl TheContextMenu {
             if let Some(menu) = &item.sub_menu
                 && menu.is_open
             {
-                menu.paint_gpu(p)?;
+                menu.paint_commands(p)?;
             }
         }
         Ok(())

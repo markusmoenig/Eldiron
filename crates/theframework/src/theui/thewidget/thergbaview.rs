@@ -1,6 +1,6 @@
-#[cfg(feature = "render-wgpu")]
-#[path = "thergbaview_gpu.rs"]
-mod gpu;
+#[cfg(feature = "text")]
+#[path = "thergbaview_paint.rs"]
+mod paint;
 use crate::prelude::*;
 
 /// The display and interaction mode for TheRGBAView
@@ -32,9 +32,9 @@ pub struct TheRGBAView {
     background: RGBA,
 
     buffer: TheRGBABuffer,
-    #[cfg(feature = "render-wgpu")]
+    #[cfg(feature = "text")]
     source_dirty: bool,
-    #[cfg(feature = "render-wgpu")]
+    #[cfg(feature = "text")]
     preview_dirty: bool,
 
     scroll_offset: Vec2<i32>,
@@ -200,12 +200,12 @@ impl TheRGBAView {
 }
 
 impl TheWidget for TheRGBAView {
-    #[cfg(feature = "render-wgpu")]
+    #[cfg(feature = "text")]
     fn paint(
         &mut self,
         p: &mut crate::theui::paint::WidgetPainter<'_>,
     ) -> crate::theui::paint::UiPaintResult {
-        self.paint_gpu(p)
+        self.paint_commands(p)
     }
 
     fn new(id: TheId) -> Self
@@ -223,9 +223,9 @@ impl TheWidget for TheRGBAView {
             background: BLACK,
 
             buffer: TheRGBABuffer::empty(),
-            #[cfg(feature = "render-wgpu")]
+            #[cfg(feature = "text")]
             source_dirty: true,
-            #[cfg(feature = "render-wgpu")]
+            #[cfg(feature = "text")]
             preview_dirty: true,
             scroll_offset: Vec2::new(0, 0),
             zoom: 1.0,
@@ -1150,7 +1150,7 @@ impl TheRGBAViewTrait for TheRGBAView {
         &self.buffer
     }
     fn buffer_mut(&mut self) -> &mut TheRGBABuffer {
-        #[cfg(feature = "render-wgpu")]
+        #[cfg(feature = "text")]
         {
             self.source_dirty = true;
         }
@@ -1158,7 +1158,7 @@ impl TheRGBAViewTrait for TheRGBAView {
         &mut self.buffer
     }
     fn set_buffer(&mut self, buffer: TheRGBABuffer) {
-        #[cfg(feature = "render-wgpu")]
+        #[cfg(feature = "text")]
         {
             self.source_dirty = true;
         }
@@ -1319,7 +1319,7 @@ impl TheRGBAViewTrait for TheRGBAView {
     }
 
     fn set_paste_preview(&mut self, preview: Option<(TheRGBABuffer, Vec2<i32>)>) {
-        #[cfg(feature = "render-wgpu")]
+        #[cfg(feature = "text")]
         {
             self.preview_dirty = true;
         }

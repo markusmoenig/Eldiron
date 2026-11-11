@@ -22,6 +22,79 @@ pub struct ThePalettePicker {
 }
 
 impl TheWidget for ThePalettePicker {
+    #[cfg(feature = "text")]
+    fn prepare_paint(&mut self, _ctx: &mut TheContext) {
+        let mut size = 18;
+        if self.dynamic_layout {
+            let (cols, rows, width) = self.calc_layout(
+                Vec2::new(self.dim.width, self.dim.height),
+                self.palette.colors.len(),
+            );
+            self.columns = cols;
+            self.rows = rows;
+            size = width;
+        } else if self.adaptive_cell_size {
+            let cols = self.columns.max(1);
+            let rows = if self.rows > 0 {
+                self.rows
+            } else {
+                (self.palette.colors.len() as i32 + cols - 1) / cols
+            };
+            let width = ((self.dim.width - 20).max(8) - (cols - 1)) / cols;
+            let height = ((self.dim.height - 16).max(8) - (rows - 1)) / rows.max(1);
+            size = width.min(height).max(8);
+        }
+        self.rectangles.clear();
+        let count = (self.rows.max(0) * self.columns.max(0)) as usize;
+        for i in 0..count.min(self.palette.colors.len()) {
+            self.rectangles.push(TheDim::new(
+                10 + (i % self.columns.max(1) as usize) as i32 * (size + 1),
+                8 + (i / self.columns.max(1) as usize) as i32 * (size + 1),
+                size,
+                size,
+            ));
+        }
+    }
+    #[cfg(feature = "text")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::paint::{PaintOp, Rect};
+        use crate::theui::paint::{bounds, rgba};
+        let r = bounds(&self.dim);
+        p.fill(r, ListLayoutBackground);
+        p.list.ops.push(PaintOp::PushClip(r));
+        for (i, dim) in self.rectangles.iter().enumerate() {
+            let cell = Rect::new(
+                r.x + dim.x as f32,
+                r.y + dim.y as f32,
+                dim.width as f32,
+                dim.height as f32,
+            );
+            if self.index == i || self.hovered_index == Some(i) {
+                p.outline(
+                    cell,
+                    *p.theme.color(if self.index == i {
+                        DefaultSelection
+                    } else {
+                        ListItemHover
+                    }),
+                    1.,
+                );
+            }
+            p.outline(cell.inset(1.), *p.theme.color(ListItemIconBorder), 1.);
+            if let Some(Some(color)) = self.palette.colors.get(i) {
+                p.list.rect(cell.inset(2.), 0., rgba(color.to_u8_array()));
+            } else {
+                p.fill(cell.inset(2.), DefaultWidgetDarkBackground);
+            }
+        }
+        p.list.ops.push(PaintOp::PopClip);
+        self.is_dirty = false;
+        Ok(())
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,

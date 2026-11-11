@@ -6,8 +6,8 @@ pub struct TheRenderView {
     state: TheWidgetState,
 
     render_buffer: TheRGBABuffer,
-    #[cfg(feature = "render-wgpu")]
-    gpu_image: Option<crate::paint::ImageHandle>,
+    #[cfg(feature = "text")]
+    image_handle: Option<crate::paint::ImageHandle>,
     empty_background: Option<TheThemeColors>,
     has_content: bool,
     wheel_scale: f32,
@@ -31,7 +31,7 @@ impl TheRenderView {
     }
 }
 impl TheWidget for TheRenderView {
-    #[cfg(feature = "render-wgpu")]
+    #[cfg(feature = "text")]
     fn paint(
         &mut self,
         p: &mut crate::theui::paint::WidgetPainter<'_>,
@@ -39,7 +39,7 @@ impl TheWidget for TheRenderView {
         use crate::paint::Sampling;
         use crate::theui::paint::bounds;
         let r = bounds(&self.dim);
-        if let Some(image) = self.gpu_image {
+        if let Some(image) = self.image_handle {
             p.list.image(image, r, Sampling::Linear);
         } else if self.has_content {
             p.image(
@@ -70,8 +70,8 @@ impl TheWidget for TheRenderView {
             limiter,
             state: TheWidgetState::None,
 
-            #[cfg(feature = "render-wgpu")]
-            gpu_image: None,
+            #[cfg(feature = "text")]
+            image_handle: None,
             render_buffer: TheRGBABuffer::new(TheDim::new(0, 0, 20, 20)),
             empty_background: None,
             has_content: false,
@@ -357,8 +357,8 @@ impl TheWidget for TheRenderView {
 }
 
 pub trait TheRenderViewTrait: TheWidget {
-    #[cfg(feature = "render-wgpu")]
-    fn set_gpu_image(&mut self, image: Option<crate::paint::ImageHandle>);
+    #[cfg(feature = "text")]
+    fn set_image_handle(&mut self, image: Option<crate::paint::ImageHandle>);
     fn set_scroll_behavior(&mut self, scale: f32, aspect_scaled: bool);
     fn render_buffer_mut(&mut self) -> &mut TheRGBABuffer;
     fn set_auto_focus(&mut self, auto_focus: bool);
@@ -367,9 +367,9 @@ pub trait TheRenderViewTrait: TheWidget {
 }
 
 impl TheRenderViewTrait for TheRenderView {
-    #[cfg(feature = "render-wgpu")]
-    fn set_gpu_image(&mut self, image: Option<crate::paint::ImageHandle>) {
-        self.gpu_image = image;
+    #[cfg(feature = "text")]
+    fn set_image_handle(&mut self, image: Option<crate::paint::ImageHandle>) {
+        self.image_handle = image;
         self.has_content = image.is_some();
         self.is_dirty = true;
     }
@@ -381,9 +381,9 @@ impl TheRenderViewTrait for TheRenderView {
         self.text_input = active;
     }
     fn render_buffer_mut(&mut self) -> &mut TheRGBABuffer {
-        #[cfg(feature = "render-wgpu")]
+        #[cfg(feature = "text")]
         {
-            self.gpu_image = None;
+            self.image_handle = None;
         }
         self.has_content = true;
         self.is_dirty = true;

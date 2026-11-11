@@ -1,6 +1,6 @@
 #[cfg(feature = "paint")]
 pub mod paint;
-#[cfg(all(feature = "render-wgpu", feature = "ui"))]
+#[cfg(all(feature = "text", feature = "ui"))]
 pub mod platform;
 #[cfg(feature = "ui")]
 pub mod platform_services;

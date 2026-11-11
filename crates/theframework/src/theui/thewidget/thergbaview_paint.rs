@@ -3,7 +3,7 @@ use super::*;
 use crate::paint::{PaintOp, Rect, Sampling};
 use crate::theui::paint::{UiPaintResult, WidgetPainter, bounds, rgba};
 impl TheRGBAView {
-    pub(super) fn paint_gpu(&mut self, p: &mut WidgetPainter<'_>) -> UiPaintResult {
+    pub(super) fn paint_commands(&mut self, p: &mut WidgetPainter<'_>) -> UiPaintResult {
         let view = bounds(&self.dim);
         p.list.rect(view, 0., rgba(self.background));
         if !self.buffer.is_valid() || !self.zoom.is_finite() || self.zoom <= 0. {

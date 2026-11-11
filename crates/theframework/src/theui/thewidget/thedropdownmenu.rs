@@ -23,73 +23,47 @@ pub struct TheDropdownMenu {
 
     parent_id: Option<TheId>,
     overlay_offset: Vec2<i32>,
-    #[cfg(feature = "render-wgpu")]
-    gpu_overlay: crate::paint::Rect,
+    #[cfg(feature = "text")]
+    popup_rect: crate::paint::Rect,
 }
 
 impl TheWidget for TheDropdownMenu {
-    #[cfg(feature = "render-wgpu")]
+    #[cfg(feature = "text")]
     fn prepare_paint(&mut self, ctx: &mut TheContext) {
         if self.state != TheWidgetState::Clicked {
             return;
         }
-        let transform = ctx
-            .ui
-            .input_transforms
-            .get(&self.id.uuid)
-            .copied()
-            .unwrap_or_default();
-        let anchor = transform.point([self.dim.x as f32, self.dim.y as f32]);
-        let width = (self.dim.width.max(142) as f32).min(ctx.width as f32);
+        let width = self.dim.width.max(142) as f32;
         let height =
             2. + self.options.len() as f32 * 20. + self.options.len().saturating_sub(1) as f32;
-        let x = anchor[0].clamp(0., (ctx.width as f32 - width - 5.).max(0.));
-        let y = (anchor[1] + 20.).clamp(0., (ctx.height as f32 - height - 5.).max(0.));
-        self.safety_offset = Vec2::new((anchor[0] - x) as i32, (anchor[1] + 20. - y) as i32);
-        self.overlay_offset = Vec2::new(x as i32, y as i32);
-        self.gpu_overlay = crate::paint::Rect::new(x, y, width, height);
+        let (rect, offset) =
+            crate::theui::paint::place_popup(ctx, &self.id, &self.dim, [width, height]);
+        self.safety_offset = offset;
+        self.overlay_offset = Vec2::new(rect.x as i32, rect.y as i32);
+        self.popup_rect = rect;
     }
-    #[cfg(feature = "render-wgpu")]
+    #[cfg(feature = "text")]
     fn paint(
         &mut self,
         p: &mut crate::theui::paint::WidgetPainter<'_>,
     ) -> crate::theui::paint::UiPaintResult {
-        use crate::paint::{FillRule, PaintOp, Path, PathElement, Rect};
+        use crate::paint::Rect;
         use crate::theui::paint::bounds;
-        use std::sync::Arc;
         let r = bounds(&self.dim);
         let interactive = !self.is_disabled && !self.embedded;
-        let (role, border) = if self.is_disabled {
-            (DropdownDisabled, TextEditBorder)
-        } else if !self.embedded && self.state == TheWidgetState::Clicked {
-            (DropdownPressed, ToolbarButtonClickedBorder)
-        } else if interactive && self.id.equals(&p.ui.focus) {
-            (DropdownFocus, SelectedTextEditBorder1)
-        } else if interactive && self.id.equals(&p.ui.hover) {
-            (DropdownHover, ToolbarButtonHoverBorder)
-        } else {
-            (DropdownNormal, TextEditBorder)
-        };
-        let border = if self.is_disabled {
-            *p.theme.color_disabled(border)
-        } else {
-            *p.theme.color(border)
-        };
-        p.button(r, p.theme.metric(ControlCornerRadius), role, border);
-        let x = r.x + r.width - 9.;
-        let y = r.y + (r.height * 0.5).floor();
-        p.list.ops.push(PaintOp::Fill {
-            path: Arc::new(Path {
-                elements: vec![
-                    PathElement::Move([x - 3.5, y - 1.5]),
-                    PathElement::Line([x + 3.5, y - 1.5]),
-                    PathElement::Line([x, y + 2.5]),
-                    PathElement::Close,
-                ],
-            }),
-            rule: FillRule::NonZero,
-            brush: p.theme_brush(r, DropdownMarker),
-        });
+        p.dropdown_chrome(
+            r,
+            TheDropdownChromeState {
+                disabled: self.is_disabled,
+                pressed: !self.embedded && self.state == TheWidgetState::Clicked,
+                hovered: interactive
+                    && self.state != TheWidgetState::Clicked
+                    && self.id.equals(&p.ui.hover),
+                focused: interactive
+                    && self.state != TheWidgetState::Clicked
+                    && self.id.equals(&p.ui.focus),
+            },
+        );
         if let Some(text) = self.options.get(self.selected.max(0) as usize) {
             p.label(
                 Rect::new(r.x + 8., r.y, (r.width - 20.).max(0.), r.height),
@@ -107,13 +81,13 @@ impl TheWidget for TheDropdownMenu {
         self.is_dirty = false;
         Ok(())
     }
-    #[cfg(feature = "render-wgpu")]
+    #[cfg(feature = "text")]
     fn paint_overlay(
         &mut self,
         p: &mut crate::theui::paint::WidgetPainter<'_>,
     ) -> crate::theui::paint::UiPaintResult {
         use crate::paint::Rect;
-        let r = self.gpu_overlay;
+        let r = self.popup_rect;
         p.fill(r, MenubarPopupBackground);
         p.outline(r, *p.theme.color(MenubarPopupBorder), 1.);
         for (i, text) in self.options.iter().enumerate() {
@@ -163,8 +137,8 @@ impl TheWidget for TheDropdownMenu {
 
             parent_id: None,
             overlay_offset: Vec2::zero(),
-            #[cfg(feature = "render-wgpu")]
-            gpu_overlay: crate::paint::Rect::default(),
+            #[cfg(feature = "text")]
+            popup_rect: crate::paint::Rect::default(),
         }
     }
 

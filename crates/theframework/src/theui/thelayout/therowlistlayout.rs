@@ -22,7 +22,7 @@ pub struct TheRowListLayout {
 }
 
 impl TheLayout for TheRowListLayout {
-    #[cfg(feature = "render-wgpu")]
+    #[cfg(feature = "text")]
     fn paint(
         &mut self,
         p: &mut crate::theui::paint::WidgetPainter<'_>,
@@ -70,7 +70,7 @@ impl TheLayout for TheRowListLayout {
         Ok(())
     }
 
-    #[cfg(feature = "render-wgpu")]
+    #[cfg(feature = "text")]
     fn prepare_paint(&mut self, ctx: &mut TheContext) {
         self.set_dim(self.dim, ctx);
         let offset = self
@@ -219,7 +219,7 @@ impl TheLayout for TheRowListLayout {
                 height -= 13;
             }
 
-            if ctx.ui.gpu_paint {
+            if ctx.ui.command_paint {
                 self.list_buffer = TheRGBABuffer::empty();
                 *self.list_buffer.dim_mut() = TheDim::new(0, 0, total_width, height);
             } else {

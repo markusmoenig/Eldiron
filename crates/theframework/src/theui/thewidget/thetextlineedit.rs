@@ -65,11 +65,11 @@ pub struct TheTextLineEdit {
 }
 
 impl TheWidget for TheTextLineEdit {
-    #[cfg(feature = "render-wgpu")]
+    #[cfg(feature = "text")]
     fn prepare_paint(&mut self, ctx: &mut TheContext) {
-        if self.modified_since_last_tick || !self.renderer.gpu_ready() {
+        if self.modified_since_last_tick || !self.renderer.commands_ready() {
             self.renderer
-                .prepare_gpu(&self.state.to_text(), None, "Roboto", &mut ctx.text);
+                .prepare_commands(&self.state.to_text(), None, "Roboto", &mut ctx.text);
             let border = if self.embedded || self.frameless {
                 0.
             } else {
@@ -83,7 +83,7 @@ impl TheWidget for TheTextLineEdit {
             }
             let x = border + self.renderer.padding.0 as f32;
             let y = border + self.renderer.padding.1 as f32;
-            self.renderer.gpu_viewport(
+            self.renderer.command_viewport(
                 crate::paint::Rect::new(
                     self.dim.x as f32 + x,
                     self.dim.y as f32 + y,
@@ -97,7 +97,7 @@ impl TheWidget for TheTextLineEdit {
         }
         self.renderer.scroll_offset.y = 0;
     }
-    #[cfg(feature = "render-wgpu")]
+    #[cfg(feature = "text")]
     fn paint(
         &mut self,
         p: &mut crate::theui::paint::WidgetPainter<'_>,
@@ -146,7 +146,7 @@ impl TheWidget for TheTextLineEdit {
                 }
             }
         }
-        self.renderer.paint_gpu(&self.state, focused, false, p);
+        self.renderer.paint_commands(&self.state, focused, false, p);
         if let Some(palette) = &self.palette {
             if let Some(value) = self.value().to_i32() {
                 if value >= 0 {
@@ -332,9 +332,9 @@ impl TheWidget for TheTextLineEdit {
 
         let mut redraw = false;
         match event {
-            #[cfg(feature = "render-wgpu")]
+            #[cfg(feature = "text")]
             TheEvent::TextComposition(text, cursor) => {
-                #[cfg(feature = "render-wgpu")]
+                #[cfg(feature = "text")]
                 {
                     self.renderer.composition = if text.is_empty() {
                         None
@@ -356,7 +356,7 @@ impl TheWidget for TheTextLineEdit {
                 } else {
                     self.state.insert_text(text);
                 }
-                #[cfg(feature = "render-wgpu")]
+                #[cfg(feature = "text")]
                 {
                     self.renderer.composition = None;
                 }

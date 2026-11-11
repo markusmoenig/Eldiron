@@ -1,3 +1,6 @@
+#[cfg(feature = "text")]
+#[path = "thepaletteindexpicker_paint.rs"]
+mod paint;
 use crate::prelude::*;
 use crate::thecontext::TheCursorIcon;
 use crate::theui::thewidget::thedropdownchrome::{TheDropdownChromeState, draw_dropdown_chrome};
@@ -21,6 +24,8 @@ pub struct ThePaletteIndexPicker {
     embedded: bool,
     parent_id: Option<TheId>,
     overlay_offset: Vec2<i32>,
+    #[cfg(feature = "text")]
+    popup_geometry: paint::PalettePopup,
 }
 
 pub struct ThePaletteIndexRowPicker {
@@ -43,9 +48,39 @@ pub struct ThePaletteIndexRowPicker {
     embedded: bool,
     parent_id: Option<TheId>,
     overlay_offset: Vec2<i32>,
+    #[cfg(feature = "text")]
+    popup_geometry: paint::PalettePopup,
 }
 
 impl TheWidget for ThePaletteIndexPicker {
+    #[cfg(feature = "text")]
+    fn prepare_paint(&mut self, ctx: &mut TheContext) {
+        if self.state == TheWidgetState::Clicked {
+            let (popup, offset) =
+                paint::PalettePopup::prepare(ctx, &self.id, &self.dim, self.visible_color_count());
+            self.safety_offset = offset;
+            self.overlay_offset = Vec2::new(popup.rect.x as i32, popup.rect.y as i32);
+            self.popup_geometry = popup;
+        }
+    }
+    #[cfg(feature = "text")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        self.paint_commands(p);
+        self.is_dirty = false;
+        Ok(())
+    }
+    #[cfg(feature = "text")]
+    fn paint_overlay(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        self.popup_geometry.paint(p, &self.palette, self.selected);
+        Ok(())
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,
@@ -69,6 +104,8 @@ impl TheWidget for ThePaletteIndexPicker {
             embedded: false,
             parent_id: None,
             overlay_offset: Vec2::zero(),
+            #[cfg(feature = "text")]
+            popup_geometry: paint::PalettePopup::default(),
         }
     }
 
@@ -456,6 +493,38 @@ impl ThePaletteIndexPickerTrait for ThePaletteIndexPicker {
 }
 
 impl TheWidget for ThePaletteIndexRowPicker {
+    #[cfg(feature = "text")]
+    fn prepare_paint(&mut self, ctx: &mut TheContext) {
+        if self.state == TheWidgetState::Clicked {
+            let (popup, offset) =
+                paint::PalettePopup::prepare(ctx, &self.id, &self.dim, self.visible_color_count());
+            self.safety_offset = offset;
+            self.overlay_offset = Vec2::new(popup.rect.x as i32, popup.rect.y as i32);
+            self.popup_geometry = popup;
+        }
+    }
+    #[cfg(feature = "text")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        self.paint_commands(p);
+        self.is_dirty = false;
+        Ok(())
+    }
+    #[cfg(feature = "text")]
+    fn paint_overlay(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        self.popup_geometry.paint(
+            p,
+            &self.palette,
+            self.selected.get(self.active_slot).copied().unwrap_or(0),
+        );
+        Ok(())
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,
@@ -480,6 +549,8 @@ impl TheWidget for ThePaletteIndexRowPicker {
             embedded: false,
             parent_id: None,
             overlay_offset: Vec2::zero(),
+            #[cfg(feature = "text")]
+            popup_geometry: paint::PalettePopup::default(),
         }
     }
 

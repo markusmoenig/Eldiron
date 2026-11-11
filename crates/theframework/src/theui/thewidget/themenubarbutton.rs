@@ -20,7 +20,7 @@ pub struct TheMenubarButton {
 }
 
 impl TheWidget for TheMenubarButton {
-    #[cfg(feature = "render-wgpu")]
+    #[cfg(feature = "text")]
     fn paint(
         &mut self,
         p: &mut crate::theui::paint::WidgetPainter<'_>,

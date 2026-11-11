@@ -28,7 +28,7 @@ pub struct TheTraybarButton {
 }
 
 impl TheWidget for TheTraybarButton {
-    #[cfg(feature = "render-wgpu")]
+    #[cfg(feature = "text")]
     fn paint(
         &mut self,
         p: &mut crate::theui::paint::WidgetPainter<'_>,

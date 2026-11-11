@@ -1,6 +1,6 @@
-#[cfg(feature = "render-wgpu")]
-#[path = "thetextedit_gpu.rs"]
-mod gpu;
+#[cfg(feature = "text")]
+#[path = "thetextedit_paint.rs"]
+mod paint;
 use std::ops::Range;
 
 use fontdue::layout::LayoutSettings;
@@ -1047,13 +1047,13 @@ impl TheTextEditState {
 }
 
 pub struct TheTextRenderer {
-    #[cfg(feature = "render-wgpu")]
-    gpu: Option<crate::text::TextLayout>,
-    #[cfg(feature = "render-wgpu")]
-    gpu_graphemes: Vec<usize>,
-    #[cfg(feature = "render-wgpu")]
-    gpu_hit_inset: [f32; 2],
-    #[cfg(feature = "render-wgpu")]
+    #[cfg(feature = "text")]
+    command_layout: Option<crate::text::TextLayout>,
+    #[cfg(feature = "text")]
+    command_graphemes: Vec<usize>,
+    #[cfg(feature = "text")]
+    command_hit_inset: [f32; 2],
+    #[cfg(feature = "text")]
     pub composition: Option<(String, Option<(usize, usize)>)>,
     // Dim
     left: usize,
@@ -1091,13 +1091,13 @@ pub struct TheTextRenderer {
 impl Default for TheTextRenderer {
     fn default() -> Self {
         Self {
-            #[cfg(feature = "render-wgpu")]
-            gpu: None,
-            #[cfg(feature = "render-wgpu")]
-            gpu_graphemes: Vec::new(),
-            #[cfg(feature = "render-wgpu")]
-            gpu_hit_inset: [0.; 2],
-            #[cfg(feature = "render-wgpu")]
+            #[cfg(feature = "text")]
+            command_layout: None,
+            #[cfg(feature = "text")]
+            command_graphemes: Vec::new(),
+            #[cfg(feature = "text")]
+            command_hit_inset: [0.; 2],
+            #[cfg(feature = "text")]
             composition: None,
             left: 0,
             top: 0,
@@ -1147,14 +1147,14 @@ impl TheTextRenderer {
     }
 
     pub fn find_cursor_index(&self, coord: &Vec2<i32>) -> usize {
-        #[cfg(feature = "render-wgpu")]
-        if let Some(layout) = &self.gpu {
+        #[cfg(feature = "text")]
+        if let Some(layout) = &self.command_layout {
             let index = layout.hit_test([
-                coord.x as f32 + self.scroll_offset.x as f32 - self.gpu_hit_inset[0],
-                coord.y as f32 + self.scroll_offset.y as f32 - self.gpu_hit_inset[1],
+                coord.x as f32 + self.scroll_offset.x as f32 - self.command_hit_inset[0],
+                coord.y as f32 + self.scroll_offset.y as f32 - self.command_hit_inset[1],
             ]);
             return self
-                .gpu_graphemes
+                .command_graphemes
                 .partition_point(|b| *b <= index)
                 .saturating_sub(1);
         }
@@ -1594,9 +1594,9 @@ impl TheTextRenderer {
     }
 
     pub fn scroll_to_cursor(&mut self, cursor_index: usize, cursor_row: usize) {
-        #[cfg(feature = "render-wgpu")]
-        if let Some(layout) = &self.gpu {
-            let c = layout.caret(self.gpu_byte(cursor_index));
+        #[cfg(feature = "text")]
+        if let Some(layout) = &self.command_layout {
+            let c = layout.caret(self.layout_byte(cursor_index));
             let x = c.x.max(0.) as usize;
             let y = c.y.max(0.) as usize;
             self.scroll_offset.x = self
@@ -1777,9 +1777,9 @@ impl TheTextRenderer {
     }
 
     fn get_text_left(&self, index: usize) -> usize {
-        #[cfg(feature = "render-wgpu")]
-        if let Some(layout) = &self.gpu {
-            return layout.caret(self.gpu_byte(index)).x.max(0.).ceil() as usize;
+        #[cfg(feature = "text")]
+        if let Some(layout) = &self.command_layout {
+            return layout.caret(self.layout_byte(index)).x.max(0.).ceil() as usize;
         }
 
         if self.glyphs.is_empty() {

@@ -94,7 +94,7 @@ pub struct TheTextAreaEdit {
 }
 
 impl TheWidget for TheTextAreaEdit {
-    #[cfg(feature = "render-wgpu")]
+    #[cfg(feature = "text")]
     fn prepare_paint(&mut self, ctx: &mut TheContext) {
         use crate::paint::Rect;
         let border = 1.;
@@ -145,11 +145,11 @@ impl TheWidget for TheTextAreaEdit {
             None
         };
         let changed = self.modified_since_last_tick
-            || !self.renderer.gpu_ready()
+            || !self.renderer.commands_ready()
             || self.renderer.max_width != width;
         self.renderer.max_width = width;
         if changed {
-            self.renderer.prepare_gpu(
+            self.renderer.prepare_commands(
                 &self.state.to_text(),
                 self.highlight_source.as_deref(),
                 "Source Code Pro",
@@ -170,7 +170,7 @@ impl TheWidget for TheTextAreaEdit {
             (content.width - if vertical { bar } else { 0. }).max(0.),
             (content.height - if horizontal { bar } else { 0. }).max(0.),
         );
-        self.renderer.gpu_viewport(
+        self.renderer.command_viewport(
             viewport,
             [border + padding.0 as f32, border + padding.1 as f32],
         );
@@ -218,7 +218,7 @@ impl TheWidget for TheTextAreaEdit {
             scroll.set_scroll_offset(self.renderer.scroll_offset.y as i32);
         }
     }
-    #[cfg(feature = "render-wgpu")]
+    #[cfg(feature = "text")]
     fn paint(
         &mut self,
         p: &mut crate::theui::paint::WidgetPainter<'_>,
@@ -234,7 +234,7 @@ impl TheWidget for TheTextAreaEdit {
         if self.last_light_ui != Some(light) {
             if let Some(h) = self.renderer.highlighter.as_mut() {
                 h.set_light_ui(light);
-                self.renderer.prepare_gpu(
+                self.renderer.prepare_commands(
                     &self.state.to_text(),
                     self.highlight_source.as_deref(),
                     "Source Code Pro",
@@ -252,7 +252,7 @@ impl TheWidget for TheTextAreaEdit {
             p.list.rect(inner, 0., rgba(bg.to_u8_array()));
         }
         self.renderer
-            .paint_gpu(&self.state, focused, self.readonly, p);
+            .paint_commands(&self.state, focused, self.readonly, p);
         if let StatusbarType::Widget(dim) = &self.statusbar_type {
             let r = bounds(dim);
             p.fill(r, TextEditBackground);
@@ -506,9 +506,9 @@ impl TheWidget for TheTextAreaEdit {
         let mut redraw = false;
         let mut update_status = false;
         match event {
-            #[cfg(feature = "render-wgpu")]
+            #[cfg(feature = "text")]
             TheEvent::TextComposition(text, cursor) => {
-                #[cfg(feature = "render-wgpu")]
+                #[cfg(feature = "text")]
                 {
                     self.renderer.composition = if text.is_empty() {
                         None
@@ -533,7 +533,7 @@ impl TheWidget for TheTextAreaEdit {
                 } else {
                     self.state.insert_text(text);
                 }
-                #[cfg(feature = "render-wgpu")]
+                #[cfg(feature = "text")]
                 {
                     self.renderer.composition = None;
                 }
@@ -637,7 +637,7 @@ impl TheWidget for TheTextAreaEdit {
             TheEvent::MouseDown(coord) => {
                 if !self.state.is_empty() {
                     let global_coord = coord
-                        + if ctx.ui.gpu_paint {
+                        + if ctx.ui.command_paint {
                             Vec2::new(self.dim.x, self.dim.y)
                         } else {
                             Vec2::new(self.dim.buffer_x, self.dim.buffer_y)
@@ -711,7 +711,7 @@ impl TheWidget for TheTextAreaEdit {
                         redraw = self.hscrollbar.on_event(
                             &TheEvent::MouseDragged(self.hscrollbar.dim().to_local(
                                 coord
-                                    + if ctx.ui.gpu_paint {
+                                    + if ctx.ui.command_paint {
                                         Vec2::new(self.dim.x, self.dim.y)
                                     } else {
                                         Vec2::new(self.dim.buffer_x, self.dim.buffer_y)
@@ -733,7 +733,7 @@ impl TheWidget for TheTextAreaEdit {
                         redraw = self.vscrollbar.on_event(
                             &TheEvent::MouseDragged(self.vscrollbar.dim().to_local(
                                 coord
-                                    + if ctx.ui.gpu_paint {
+                                    + if ctx.ui.command_paint {
                                         Vec2::new(self.dim.x, self.dim.y)
                                     } else {
                                         Vec2::new(self.dim.buffer_x, self.dim.buffer_y)
@@ -805,7 +805,7 @@ impl TheWidget for TheTextAreaEdit {
             }
             TheEvent::MouseUp(coord) => {
                 let global_coord = coord
-                    + if ctx.ui.gpu_paint {
+                    + if ctx.ui.command_paint {
                         Vec2::new(self.dim.x, self.dim.y)
                     } else {
                         Vec2::new(self.dim.buffer_x, self.dim.buffer_y)
@@ -851,7 +851,7 @@ impl TheWidget for TheTextAreaEdit {
             }
             TheEvent::MouseWheel(delta) => {
                 let global_coord = self.hover_coord
-                    + if ctx.ui.gpu_paint {
+                    + if ctx.ui.command_paint {
                         Vec2::new(self.dim.x, self.dim.y)
                     } else {
                         Vec2::new(self.dim.buffer_x, self.dim.buffer_y)
@@ -1546,7 +1546,7 @@ impl TheWidget for TheTextAreaEdit {
                 // The hovered widget is always current widget not scrollbars
                 // We should manually draw hovered style to scrollbar hovered
                 let global_coord = coord
-                    + if ctx.ui.gpu_paint {
+                    + if ctx.ui.command_paint {
                         Vec2::new(self.dim.x, self.dim.y)
                     } else {
                         Vec2::new(self.dim.buffer_x, self.dim.buffer_y)

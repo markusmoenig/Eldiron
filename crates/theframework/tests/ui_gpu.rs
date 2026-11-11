@@ -1,8 +1,6 @@
 #![cfg(all(feature = "ui", feature = "render-wgpu"))]
 use renderkit::*;
-use theframework::{
-    paint::PaintOp, prelude::*, render_wgpu::PaintRenderer, theui::paint::UiImages,
-};
+use theframework::{paint::PaintOp, prelude::*, render_wgpu::PaintRenderer, render_wgpu::UiImages};
 #[test]
 #[ignore = "requires native GPU; run with --ignored"]
 fn real_ui_tree_has_no_canvas_framebuffer() {
@@ -20,7 +18,7 @@ fn real_ui_tree_has_no_canvas_framebuffer() {
     layout.widgets().push(Box::new(label));
     layout.widgets().push(Box::new(button));
     ui.canvas.set_layout(layout);
-    let first = ui.paint_gpu(&mut ctx, &mut images).unwrap();
+    let first = ui.paint_commands(&mut ctx, &mut images).unwrap();
     assert!(ui.canvas.buffer.pixels().is_empty());
     assert!(
         first
@@ -43,7 +41,7 @@ fn real_ui_tree_has_no_canvas_framebuffer() {
         .unwrap();
     let uploads = gpu.transfers().uploaded_bytes;
     let rasterizations = renderer.glyphs.rasterizations;
-    let second = ui.paint_gpu(&mut ctx, &mut images).unwrap();
+    let second = ui.paint_commands(&mut ctx, &mut images).unwrap();
     renderer
         .render(
             &second,
@@ -61,7 +59,7 @@ fn real_ui_tree_has_no_canvas_framebuffer() {
     ctx.width = 320;
     ctx.height = 120;
     ctx.ui.relayout = true;
-    ui.paint_gpu(&mut ctx, &mut images).unwrap();
+    ui.paint_commands(&mut ctx, &mut images).unwrap();
     assert!(ui.canvas.buffer.pixels().is_empty());
     let mut capture = ReadbackTicket::capture(&gpu, output).unwrap();
     gpu.device
@@ -405,13 +403,13 @@ fn installing_layout_after_initial_resize_measures_children() {
     use theframework::platform::UiSession;
     let mut session = UiSession::new((640, 400), 1.);
     // Browser/native hosts can receive size information before application data.
-    session.ui.prepare_gpu_geometry(&mut session.context);
+    session.ui.prepare_paint_layout(&mut session.context);
     let mut layout = TheVLayout::new(TheId::named("late-layout"));
     let mut label = TheText::new(TheId::named("late-label"));
     label.set_text("Installed after resize".into());
     layout.widgets().push(Box::new(label));
     session.ui.canvas.set_layout(layout);
-    session.ui.prepare_gpu_geometry(&mut session.context);
+    session.ui.prepare_paint_layout(&mut session.context);
     let dim = *session.ui.get_widget("late-label").unwrap().dim();
     assert!(dim.width > 0 && dim.height > 0);
     assert!(session.ui.canvas.buffer.pixels().is_empty());
@@ -420,8 +418,8 @@ fn installing_layout_after_initial_resize_measures_children() {
         .widgets()
         .push(Box::new(TheTraybarButton::new(TheId::named("replacement"))));
     session.ui.canvas.set_layout(replacement);
-    assert!(session.ui.needs_gpu_redraw(&session.context));
-    session.ui.prepare_gpu_geometry(&mut session.context);
+    assert!(session.ui.needs_paint(&session.context));
+    session.ui.prepare_paint_layout(&mut session.context);
     let dim = *session.ui.get_widget("replacement").unwrap().dim();
     assert!(dim.width > 0 && dim.height > 0);
 }
@@ -530,4 +528,124 @@ fn rgba_tile_view_blits_assets_and_keeps_display_changes_gpu_only() {
         "an asset edit uploads the source image, not a window-sized framebuffer"
     );
     assert!(session.ui.canvas.buffer.pixels().is_empty());
+}
+#[test]
+#[ignore = "requires native GPU; run with --ignored"]
+fn palette_grid_and_popup_pick_from_their_painted_cells() {
+    use theframework::platform::*;
+    let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut images = UiImages::new(gpu.clone());
+    let mut session = UiSession::new((320, 320), 1.);
+    let palette = ThePalette::new(vec![
+        Some(TheColor::from([255, 0, 0, 255])),
+        Some(TheColor::from([0, 255, 0, 255])),
+        Some(TheColor::from([0, 0, 255, 255])),
+        Some(TheColor::from([255, 255, 255, 255])),
+    ]);
+    let mut grid = ThePalettePicker::new(TheId::named("palette"));
+    grid.set_palette(palette.clone());
+    grid.set_rows_columns(2, 2);
+    grid.limiter_mut().set_max_height(90);
+    let mut picker = ThePaletteIndexPicker::new(TheId::named("palette-popup"));
+    picker.set_palette(palette.clone());
+    let mut row = ThePaletteIndexRowPicker::new(TheId::named("palette-row"));
+    row.set_palette(palette);
+    row.set_selected_indices(vec![0, 1]);
+    let mut layout = TheVLayout::new(TheId::named("palette-controls"));
+    layout.widgets().push(Box::new(grid));
+    layout.widgets().push(Box::new(picker));
+    layout.widgets().push(Box::new(row));
+    session.ui.canvas.set_layout(layout);
+    session.paint(&mut images).unwrap();
+    let dim = *session.ui.get_widget("palette").unwrap().dim();
+    let position = [dim.x as f32 + 10. + 19. + 9., dim.y as f32 + 8. + 9.];
+    session.input(&InputEvent::PointerButton {
+        button: PointerButton::Primary,
+        pressed: true,
+        position,
+    });
+    session.input(&InputEvent::PointerButton {
+        button: PointerButton::Primary,
+        pressed: false,
+        position,
+    });
+    assert_eq!(
+        session
+            .ui
+            .get_widget("palette")
+            .unwrap()
+            .as_palette_picker()
+            .unwrap()
+            .index(),
+        1
+    );
+    for (name, index) in [("palette-popup", 2), ("palette-row", 3)] {
+        let dim = *session.ui.get_widget(name).unwrap().dim();
+        let position = [dim.x as f32 + 10., dim.y as f32 + 10.];
+        session.input(&InputEvent::PointerButton {
+            button: PointerButton::Primary,
+            pressed: true,
+            position,
+        });
+        let list = session.paint(&mut images).unwrap();
+        let output = GpuImage::new(&gpu, ImageDescriptor::rgba(320, 320)).unwrap();
+        let mut renderer = PaintRenderer::new(gpu.clone()).unwrap();
+        renderer
+            .render(
+                &list,
+                &images.registry,
+                &output.view,
+                output.descriptor.format,
+                (320, 320),
+                1.,
+                [0.; 4],
+            )
+            .unwrap();
+        assert!(session.context.ui.overlay.is_some());
+        let position = [
+            dim.x as f32 + 10. + index as f32 * 20. + 9.,
+            dim.y as f32 + 20. + 10. + 9.,
+        ];
+        if name == "palette-popup" {
+            assert_eq!(gpu.transfers().readback_bytes, 0);
+            let mut capture = ReadbackTicket::capture(&gpu, output).unwrap();
+            gpu.device
+                .poll(wgpu::PollType::Wait {
+                    submission_index: None,
+                    timeout: Some(std::time::Duration::from_secs(30)),
+                })
+                .unwrap();
+            let pixels = capture.try_finish(&gpu).unwrap().unwrap();
+            let offset = (position[1] as usize * 320 + position[0] as usize) * 4;
+            assert_eq!(
+                &pixels.pixels()[offset..offset + 4],
+                &[0, 0, 255, 255],
+                "the blue palette cell must be painted where it receives input"
+            );
+            let file = std::fs::File::create("/private/tmp/eldiron-wgpu-palette.png").unwrap();
+            let mut encoder = png::Encoder::new(file, 320, 320);
+            encoder.set_color(png::ColorType::Rgba);
+            encoder.set_depth(png::BitDepth::Eight);
+            encoder
+                .write_header()
+                .unwrap()
+                .write_image_data(pixels.pixels())
+                .unwrap();
+        }
+        session.input(&InputEvent::PointerMoved { position });
+        session.input(&InputEvent::PointerButton {
+            button: PointerButton::Primary,
+            pressed: false,
+            position,
+        });
+        assert!(session.context.ui.overlay.is_none());
+        let value = session.ui.get_widget(name).unwrap().value();
+        match value {
+            TheValue::Int(v) => assert_eq!(v, index),
+            TheValue::List(v) => assert_eq!(v[0].to_i32(), Some(index)),
+            _ => panic!("unexpected palette value"),
+        };
+    }
+    assert!(session.ui.canvas.buffer.pixels().is_empty());
+    assert_eq!(gpu.transfers().capture_requests, 1);
 }

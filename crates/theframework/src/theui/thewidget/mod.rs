@@ -155,12 +155,12 @@ pub enum TheWidgetState {
 /// TheWidget trait defines the asbtract functionality of a widget.
 #[allow(unused)]
 pub trait TheWidget: Send {
-    #[cfg(feature = "render-wgpu")]
+    #[cfg(feature = "text")]
     fn prepare_paint(&mut self, _ctx: &mut TheContext) {}
 
     /// Backend-neutral paint. Legacy widgets remain explicitly unsupported until
     /// their family is migrated; no framebuffer is synthesized here.
-    #[cfg(feature = "render-wgpu")]
+    #[cfg(feature = "text")]
     fn paint(
         &mut self,
         _painter: &mut crate::theui::paint::WidgetPainter<'_>,
@@ -170,7 +170,7 @@ pub trait TheWidget: Send {
             self.id().name
         )))
     }
-    #[cfg(feature = "render-wgpu")]
+    #[cfg(feature = "text")]
     fn paint_overlay(
         &mut self,
         _painter: &mut crate::theui::paint::WidgetPainter<'_>,

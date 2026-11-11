@@ -1,9 +1,5 @@
 use super::{InputEvent, InputResponse};
-use crate::{
-    paint::PaintList,
-    prelude::*,
-    theui::paint::{UiImages, UiPaintError},
-};
+use crate::{paint::PaintList, prelude::*, render_wgpu::UiImages, theui::paint::UiPaintError};
 use renderkit::{AcquireFrame, GpuContext, RenderError, Result, SurfaceState};
 use std::sync::Arc;
 
@@ -20,7 +16,7 @@ pub struct UiSession {
 impl UiSession {
     pub fn new(logical_size: (usize, usize), density: f32) -> Self {
         let mut context = TheContext::new(logical_size.0, logical_size.1, density);
-        context.ui.gpu_paint = true;
+        context.ui.command_paint = true;
         let mut ui = TheUI::new();
         ui.init(&mut context);
         Self {
@@ -44,11 +40,11 @@ impl UiSession {
         self.context.ui.redraw_all = true;
     }
     pub fn input(&mut self, event: &InputEvent) -> InputResponse {
-        self.ui.prepare_gpu_geometry(&mut self.context);
+        self.ui.prepare_paint_layout(&mut self.context);
         self.ui.dispatch_input(event, &mut self.context)
     }
     pub fn paint(&mut self, images: &mut UiImages) -> std::result::Result<PaintList, UiPaintError> {
-        self.ui.paint_gpu(&mut self.context, images)
+        self.ui.paint_commands(&mut self.context, images)
     }
 }
 /// Timing policy is explicit: an editor can sleep while a player requests frames.

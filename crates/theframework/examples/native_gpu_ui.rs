@@ -1,6 +1,6 @@
 //! Run with --no-default-features --features platform-winit; --smoke exits after
 //! real surface presentations. This application has no raster drawing callback.
-use theframework::{platform::*, prelude::*, theui::paint::UiImages};
+use theframework::{platform::*, prelude::*, render_wgpu::UiImages};
 struct Demo {
     frames: usize,
     smoke: bool,

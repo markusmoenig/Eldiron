@@ -26,8 +26,8 @@ pub struct TheTreeText {
 
 impl TheWidget for TheTreeText {
     fn measure(&mut self, _available: Vec2<i32>, ctx: &mut TheContext) {
-        #[cfg(feature = "render-wgpu")]
-        if ctx.ui.gpu_paint {
+        #[cfg(feature = "text")]
+        if ctx.ui.command_paint {
             let layout = ctx.text.layout(
                 &self.text,
                 "Roboto",
@@ -43,7 +43,7 @@ impl TheWidget for TheTreeText {
         self.calculate_size(ctx);
     }
 
-    #[cfg(feature = "render-wgpu")]
+    #[cfg(feature = "text")]
     fn paint(
         &mut self,
         p: &mut crate::theui::paint::WidgetPainter<'_>,
@@ -126,8 +126,8 @@ impl TheWidget for TheTreeText {
     }
 
     fn calculate_size(&mut self, _ctx: &mut TheContext) {
-        #[cfg(feature = "render-wgpu")]
-        if _ctx.ui.gpu_paint {
+        #[cfg(feature = "text")]
+        if _ctx.ui.command_paint {
             let layout = _ctx.text.layout(
                 &self.text,
                 "Roboto",
@@ -221,7 +221,7 @@ impl TheWidget for TheTreeText {
 
         // If width changed and we have text, rewrap to get correct height
         if dim.width > 0 && !self.text.is_empty() && width_changed {
-            if !_ctx.ui.gpu_paint {
+            if !_ctx.ui.command_paint {
                 self.wrap_text();
             }
 

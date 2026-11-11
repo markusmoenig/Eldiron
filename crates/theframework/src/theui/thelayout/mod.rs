@@ -35,7 +35,7 @@ pub mod prelude {
 /// TheLayout trait defines an abstract layout interface for widgets.
 #[allow(unused)]
 pub trait TheLayout: Send {
-    #[cfg(feature = "render-wgpu")]
+    #[cfg(feature = "text")]
     fn prepare_paint(&mut self, ctx: &mut TheContext) {
         self.set_dim(*self.dim(), ctx);
         for widget in self.widgets() {
@@ -43,7 +43,7 @@ pub trait TheLayout: Send {
         }
     }
 
-    #[cfg(feature = "render-wgpu")]
+    #[cfg(feature = "text")]
     fn paint(
         &mut self,
         _painter: &mut crate::theui::paint::WidgetPainter<'_>,

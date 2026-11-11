@@ -32,7 +32,7 @@ pub struct TheTreeItem {
 }
 
 impl TheWidget for TheTreeItem {
-    #[cfg(feature = "render-wgpu")]
+    #[cfg(feature = "text")]
     fn paint_overlay(
         &mut self,
         p: &mut crate::theui::paint::WidgetPainter<'_>,
@@ -43,7 +43,7 @@ impl TheWidget for TheTreeItem {
         Ok(())
     }
 
-    #[cfg(feature = "render-wgpu")]
+    #[cfg(feature = "text")]
     fn prepare_paint(&mut self, ctx: &mut TheContext) {
         if let Some((width, widget)) = &mut self.widget_column {
             widget.calculate_size(ctx);
@@ -69,7 +69,7 @@ impl TheWidget for TheTreeItem {
             widget.prepare_paint(ctx);
         }
     }
-    #[cfg(feature = "render-wgpu")]
+    #[cfg(feature = "text")]
     fn paint(
         &mut self,
         p: &mut crate::theui::paint::WidgetPainter<'_>,
@@ -266,7 +266,7 @@ impl TheWidget for TheTreeItem {
                     let widget_coord = Vec2::new(
                         coord.x - dim.x,
                         coord.y - dim.y
-                            + if ctx.ui.gpu_paint {
+                            + if ctx.ui.command_paint {
                                 0
                             } else {
                                 self.scroll_offset
@@ -287,7 +287,7 @@ impl TheWidget for TheTreeItem {
                 self.mouse_down_pos = Vec2::new(
                     coord.x,
                     coord.y
-                        + if ctx.ui.gpu_paint {
+                        + if ctx.ui.command_paint {
                             0
                         } else {
                             self.scroll_offset
@@ -302,7 +302,7 @@ impl TheWidget for TheTreeItem {
                         let widget_coord = Vec2::new(
                             coord.x - dim.x,
                             coord.y - dim.y
-                                + if ctx.ui.gpu_paint {
+                                + if ctx.ui.command_paint {
                                     0
                                 } else {
                                     self.scroll_offset
@@ -317,7 +317,7 @@ impl TheWidget for TheTreeItem {
                     let widget_coord = Vec2::new(
                         coord.x - dim.x,
                         coord.y - dim.y
-                            + if ctx.ui.gpu_paint {
+                            + if ctx.ui.command_paint {
                                 0
                             } else {
                                 self.scroll_offset
@@ -359,7 +359,7 @@ impl TheWidget for TheTreeItem {
                         let widget_coord = Vec2::new(
                             coord.x - dim.x,
                             coord.y - dim.y
-                                + if ctx.ui.gpu_paint {
+                                + if ctx.ui.command_paint {
                                     0
                                 } else {
                                     self.scroll_offset
@@ -377,7 +377,7 @@ impl TheWidget for TheTreeItem {
                     let coord = Vec2::new(
                         coord.x,
                         coord.y
-                            + if ctx.ui.gpu_paint {
+                            + if ctx.ui.command_paint {
                                 0
                             } else {
                                 self.scroll_offset

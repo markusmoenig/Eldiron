@@ -30,7 +30,7 @@ pub struct TheTreeIcons {
 }
 
 impl TheWidget for TheTreeIcons {
-    #[cfg(feature = "render-wgpu")]
+    #[cfg(feature = "text")]
     fn prepare_paint(&mut self, _ctx: &mut TheContext) {
         let columns = self.effective_icons_per_row().max(1) as usize;
         let step = self.icon_size + self.spacing;
@@ -45,7 +45,7 @@ impl TheWidget for TheTreeIcons {
             })
             .collect();
     }
-    #[cfg(feature = "render-wgpu")]
+    #[cfg(feature = "text")]
     fn paint(
         &mut self,
         p: &mut crate::theui::paint::WidgetPainter<'_>,
@@ -164,7 +164,7 @@ impl TheWidget for TheTreeIcons {
                     let adjusted_coord = Vec2::new(
                         coord.x,
                         coord.y
-                            + if ctx.ui.gpu_paint {
+                            + if ctx.ui.command_paint {
                                 0
                             } else {
                                 self.scroll_offset
@@ -199,7 +199,7 @@ impl TheWidget for TheTreeIcons {
                 let adjusted_coord = Vec2::new(
                     coord.x,
                     coord.y
-                        + if ctx.ui.gpu_paint {
+                        + if ctx.ui.command_paint {
                             0
                         } else {
                             self.scroll_offset
@@ -239,7 +239,7 @@ impl TheWidget for TheTreeIcons {
                 let adjusted_coord = Vec2::new(
                     coord.x,
                     coord.y
-                        + if ctx.ui.gpu_paint {
+                        + if ctx.ui.command_paint {
                             0
                         } else {
                             self.scroll_offset

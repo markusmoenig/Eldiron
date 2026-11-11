@@ -35,8 +35,8 @@ pub struct TheUIContext {
     /// use native document pickers and complete with FileRequesterResult.
     pub file_requests: std::collections::VecDeque<FileRequest>,
     /// Selects the framebuffer-free layout/paint path.
-    pub gpu_paint: bool,
-    #[cfg(feature = "render-wgpu")]
+    pub command_paint: bool,
+    #[cfg(feature = "text")]
     pub input_transforms: FxHashMap<Uuid, crate::paint::Transform>,
     pub font: Option<Font>,
     icons: FxHashMap<String, TheRGBABuffer>,
@@ -127,8 +127,8 @@ impl TheUIContext {
         }
 
         Self {
-            gpu_paint: false,
-            #[cfg(feature = "render-wgpu")]
+            command_paint: false,
+            #[cfg(feature = "text")]
             input_transforms: FxHashMap::default(),
             file_requests: std::collections::VecDeque::new(),
             focus: None,
@@ -280,8 +280,8 @@ impl TheUIContext {
     /// Layout and paint share the screen transform; captured drags use its inverse
     /// even when the pointer is outside the viewport. Persistent dimensions remain unchanged.
     pub fn local_position(&self, _id: &TheId, dim: &TheDim, coord: Vec2<i32>) -> Vec2<i32> {
-        #[cfg(feature = "render-wgpu")]
-        if self.gpu_paint {
+        #[cfg(feature = "text")]
+        if self.command_paint {
             if let Some(inverse) = self
                 .input_transforms
                 .get(&_id.uuid)

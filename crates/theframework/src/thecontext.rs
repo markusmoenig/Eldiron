@@ -96,7 +96,7 @@ impl TheContext {
     /// Layout measurement shares shaping with GPU text painting.
     pub fn measure_text(&mut self, value: &str, settings: &TheFontSettings) -> (usize, usize) {
         #[cfg(all(feature = "text", feature = "ui"))]
-        if self.ui.gpu_paint {
+        if self.ui.command_paint {
             let family = match settings.preference {
                 TheFontPreference::Default => "Roboto",
                 TheFontPreference::Code => "Source Code Pro",

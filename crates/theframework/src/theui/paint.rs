@@ -1,9 +1,8 @@
-//! GPU paint integration. Unsupported legacy widgets fail explicitly; there is
+//! Backend-neutral UI command painting. Unsupported legacy widgets fail explicitly; there is
 //! no whole-window CPU fallback hidden behind this interface.
 use crate::paint::Rect;
 use crate::{paint::*, prelude::*, text::TextSystem};
-use renderkit::{GpuContext, ImageAsset, ImageRegistry};
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 #[derive(Debug)]
 pub struct UiPaintError(pub String);
 impl std::fmt::Display for UiPaintError {
@@ -13,44 +12,15 @@ impl std::fmt::Display for UiPaintError {
 }
 impl std::error::Error for UiPaintError {}
 pub type UiPaintResult = Result<(), UiPaintError>;
-pub struct UiImages {
-    pub registry: ImageRegistry,
-    cached: HashMap<String, ImageHandle>,
-}
-impl UiImages {
-    pub fn new(context: Arc<GpuContext>) -> Self {
-        Self {
-            registry: ImageRegistry::new(context),
-            cached: HashMap::new(),
-        }
-    }
-    pub fn image(
+/// Backend service for source images. Paint producers never own a GPU registry,
+/// device, texture, surface or destination pixel storage.
+pub trait UiImageResources {
+    fn image(
         &mut self,
         key: &str,
         source: &TheRGBABuffer,
         changed: bool,
-    ) -> Result<ImageHandle, UiPaintError> {
-        if !changed
-            && let Some(handle) = self.cached.get(key)
-            && self.registry.get(*handle).is_some()
-        {
-            return Ok(*handle);
-        }
-        let image = ImageAsset::rgba(
-            source.pixel_width() as u32,
-            source.pixel_height() as u32,
-            source.pixels().to_vec(),
-        )
-        .map_err(|e| UiPaintError(e.to_string()))?;
-        let handle = self
-            .registry
-            .upload(&image)
-            .map_err(|e| UiPaintError(e.to_string()))?;
-        if let Some(old) = self.cached.insert(key.into(), handle) {
-            self.registry.remove(old);
-        }
-        Ok(handle)
-    }
+    ) -> Result<ImageHandle, UiPaintError>;
 }
 pub fn bounds(dim: &TheDim) -> Rect {
     Rect::new(
@@ -66,7 +36,7 @@ pub fn rgba(color: RGBA) -> Color {
 pub struct WidgetPainter<'a> {
     pub list: &'a mut PaintList,
     pub text: &'a mut TextSystem,
-    pub images: &'a mut UiImages,
+    pub images: &'a mut dyn UiImageResources,
     pub ui: &'a TheUIContext,
     pub theme: &'a mut dyn TheTheme,
 }
@@ -82,6 +52,43 @@ impl WidgetPainter<'_> {
         Ok(())
     }
 
+    pub(crate) fn dropdown_chrome(
+        &mut self,
+        r: Rect,
+        state: crate::theui::thewidget::thedropdownchrome::TheDropdownChromeState,
+    ) {
+        let (role, border) = if state.disabled {
+            (DropdownDisabled, TextEditBorder)
+        } else if state.pressed {
+            (DropdownPressed, ToolbarButtonClickedBorder)
+        } else if state.focused {
+            (DropdownFocus, SelectedTextEditBorder1)
+        } else if state.hovered {
+            (DropdownHover, ToolbarButtonHoverBorder)
+        } else {
+            (DropdownNormal, TextEditBorder)
+        };
+        let border = if state.disabled {
+            *self.theme.color_disabled(border)
+        } else {
+            *self.theme.color(border)
+        };
+        self.button(r, self.theme.metric(ControlCornerRadius), role, border);
+        let x = r.x + r.width - 9.;
+        let y = r.y + (r.height * 0.5).floor();
+        self.list.ops.push(PaintOp::Fill {
+            path: Arc::new(Path {
+                elements: vec![
+                    PathElement::Move([x - 3.5, y - 1.5]),
+                    PathElement::Line([x + 3.5, y - 1.5]),
+                    PathElement::Line([x, y + 2.5]),
+                    PathElement::Close,
+                ],
+            }),
+            rule: FillRule::NonZero,
+            brush: self.theme_brush(r, DropdownMarker),
+        });
+    }
     pub fn button(&mut self, rect: Rect, radius: f32, role: TheThemePaints, border: RGBA) {
         self.list.rect(rect, radius, rgba(border));
         self.theme_fill(rect.inset(1.), (radius - 1.).max(0.), role);
@@ -222,6 +229,13 @@ impl WidgetPainter<'_> {
         self.list.rect(rect, radius, brush);
     }
     pub fn outline(&mut self, rect: Rect, color: RGBA, width: f32) {
+        if width <= 0. || rect.width <= 0. || rect.height <= 0. {
+            return;
+        }
+        // Widget borders occupy the inside of their rectangle. Centering the
+        // stroke on an integer edge would produce half-covered pixels on both
+        // sides at unit density and leak into neighboring controls.
+        let rect = rect.inset(width * 0.5);
         let path = Path {
             elements: vec![
                 PathElement::Move([rect.x, rect.y]),
@@ -288,4 +302,27 @@ impl WidgetPainter<'_> {
         self.list.image(handle, rect, sampling);
         Ok(())
     }
+}
+
+/// Position transient UI in screen space using the same transform as its owner.
+pub fn place_popup(
+    ctx: &TheContext,
+    id: &TheId,
+    dim: &TheDim,
+    size: [f32; 2],
+) -> (Rect, Vec2<i32>) {
+    let transform = ctx
+        .ui
+        .input_transforms
+        .get(&id.uuid)
+        .copied()
+        .unwrap_or_default();
+    let anchor = transform.point([dim.x as f32, dim.y as f32]);
+    let width = size[0].min(ctx.width as f32);
+    let x = anchor[0].clamp(0., (ctx.width as f32 - width - 5.).max(0.));
+    let y = (anchor[1] + 20.).clamp(0., (ctx.height as f32 - size[1] - 5.).max(0.));
+    (
+        Rect::new(x, y, width, size[1]),
+        Vec2::new((anchor[0] - x) as i32, (anchor[1] + 20. - y) as i32),
+    )
 }
