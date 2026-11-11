@@ -44,7 +44,7 @@ fn text_specs<'a>(
         |name: &str| !screen_model::widget_name_is_hidden(name, &elements.widgets_to_hide);
     let mut specs = Vec::new();
     for (id, widget) in &elements.text_input_widgets {
-        if visible(&widget.name) && widget.rect.width > 0. && widget.rect.height > 0. {
+        if visible(&widget.name) && visible_control_rect(elements, widget.rect) {
             specs.push(TextSpec {
                 target: ScreenTextTarget::Input(*id),
                 hit: rect(widget.rect),
@@ -67,7 +67,10 @@ fn text_specs<'a>(
         if !visible(&widget.name) {
             continue;
         }
-        if let Some(command) = layout.command() {
+        if let Some(command) = layout
+            .command()
+            .filter(|command| visible_control_rect(elements, command.hit))
+        {
             specs.push(TextSpec {
                 target: ScreenTextTarget::Command(widget.id),
                 hit: rect(command.hit),
@@ -86,16 +89,20 @@ fn text_specs<'a>(
 }
 impl GameScreenController {
     pub fn focused_text(&self) -> Option<ScreenTextTarget> {
-        self.focused_text
+        if let Some(ScreenFocus::Text(target)) = self.focus {
+            Some(target)
+        } else {
+            None
+        }
     }
     pub fn focused_input(&self) -> Option<u32> {
-        if let Some(ScreenTextTarget::Input(id)) = self.focused_text {
+        if let Some(ScreenTextTarget::Input(id)) = self.focused_text() {
             Some(id)
         } else {
             None
         }
     }
-    fn text_targets(&self) -> Vec<ScreenTextTarget> {
+    pub(super) fn text_targets(&self) -> Vec<ScreenTextTarget> {
         text_specs(&self.elements, &self.messages)
             .iter()
             .map(|s| s.target)
@@ -108,15 +115,16 @@ impl GameScreenController {
                 self.elements.messages_widgets.iter().any(|w| w.id == *id)
             }
         });
-        let specs = text_specs(&self.elements, &self.messages);
         if self
-            .focused_text
-            .is_some_and(|target| !specs.iter().any(|s| s.target == target))
+            .focused_text()
+            .is_some_and(|target| !self.text_targets().contains(&target))
         {
-            self.focused_text = None;
+            self.focus_control(fonts, None);
         }
+        let focused = self.focused_text();
+        let specs = text_specs(&self.elements, &self.messages);
         for (target, view) in &mut self.inputs {
-            view.set_focused(&mut fonts.text, self.focused_text == Some(*target));
+            view.set_focused(&mut fonts.text, focused == Some(*target));
         }
         for spec in specs {
             let view = self
@@ -126,8 +134,8 @@ impl GameScreenController {
             if view.editor.text() != spec.text {
                 view.editor.set_text(&mut fonts.text, spec.text);
             }
-            view.set_focused(&mut fonts.text, self.focused_text == Some(spec.target));
-            if self.focused_text == Some(spec.target) {
+            view.set_focused(&mut fonts.text, focused == Some(spec.target));
+            if focused == Some(spec.target) {
                 view.input(
                     &mut fonts.text,
                     &InputEvent::Modifiers(self.input_modifiers),
@@ -146,14 +154,17 @@ impl GameScreenController {
             );
         }
         for widget in &mut self.elements.messages_widgets {
-            widget.command_active = self.focused_text == Some(ScreenTextTarget::Command(widget.id));
+            widget.command_active = focused == Some(ScreenTextTarget::Command(widget.id));
         }
     }
     pub fn focus_text(&mut self, fonts: &mut GameFonts, target: Option<ScreenTextTarget>) {
-        self.focused_text = target.filter(|target| self.text_targets().contains(target));
+        self.focus_control(fonts, target.map(ScreenFocus::Text));
+    }
+    pub(super) fn sync_text_focus(&mut self, fonts: &mut GameFonts) {
+        let focused = self.focused_text();
         for (target, view) in &mut self.inputs {
-            view.set_focused(&mut fonts.text, self.focused_text == Some(*target));
-            if self.focused_text == Some(*target) {
+            view.set_focused(&mut fonts.text, focused == Some(*target));
+            if focused == Some(*target) {
                 view.input(
                     &mut fonts.text,
                     &InputEvent::Modifiers(self.input_modifiers),
@@ -161,7 +172,7 @@ impl GameScreenController {
             }
         }
         for widget in &mut self.elements.messages_widgets {
-            widget.command_active = self.focused_text == Some(ScreenTextTarget::Command(widget.id));
+            widget.command_active = focused == Some(ScreenTextTarget::Command(widget.id));
         }
     }
     pub fn focus_input(&mut self, fonts: &mut GameFonts, id: Option<u32>) {
@@ -207,17 +218,17 @@ impl GameScreenController {
         event: &InputEvent,
     ) -> ScreenTextResponse {
         let visible = self.text_targets();
-        let old_focus = self.focused_text;
+        let old_focus = self.focused_text();
         if let InputEvent::Modifiers(modifiers) = event {
             self.input_modifiers = *modifiers;
         }
         if self
-            .focused_text
+            .focused_text()
             .is_some_and(|target| !visible.contains(&target))
         {
             self.focus_text(fonts, None);
         }
-        let mut focus_changed = old_focus != self.focused_text;
+        let mut focus_changed = old_focus != self.focused_text();
         if let InputEvent::PointerButton {
             button: PointerButton::Primary,
             pressed: true,
@@ -227,10 +238,19 @@ impl GameScreenController {
             // Fields paint over messages, regardless of their authored IDs.
             let target = text_specs(&self.elements, &self.messages)
                 .into_iter()
-                .filter(|s| s.hit.contains(*position))
+                .filter(|s| {
+                    s.hit.contains(*position)
+                        && Uv::new(
+                            0.,
+                            0.,
+                            self.elements.layout.viewport.x as f32,
+                            self.elements.layout.viewport.y as f32,
+                        )
+                        .contains(*position)
+                })
                 .max_by_key(|s| s.hit_order)
                 .map(|s| s.target);
-            focus_changed |= target != self.focused_text;
+            focus_changed |= target != self.focused_text();
             self.focus_text(fonts, target);
             if let Some(target) = target {
                 let mut editor = self
@@ -273,11 +293,11 @@ impl GameScreenController {
             }
         }
         if matches!(event, InputEvent::Focus(false)) {
-            focus_changed |= self.focused_text.is_some();
+            focus_changed |= self.focused_text().is_some();
             self.input_modifiers = Default::default();
             self.focus_text(fonts, None);
         }
-        let Some(target) = self.focused_text else {
+        let Some(target) = self.focused_text() else {
             return ScreenTextResponse {
                 input: InputResponse {
                     consumed: false,
@@ -295,15 +315,6 @@ impl GameScreenController {
         }
         let mut effects = Vec::new();
         match editor.action {
-            Some(EditorAction::FocusNext { backwards }) => {
-                let index = visible.iter().position(|v| *v == target).unwrap_or(0);
-                let next = if backwards {
-                    (index + visible.len() - 1) % visible.len()
-                } else {
-                    (index + 1) % visible.len()
-                };
-                self.focus_text(fonts, Some(visible[next]));
-            }
             Some(EditorAction::Submit) => {
                 if matches!(target, ScreenTextTarget::Command(_)) {
                     let command = self.inputs[&target].editor.text().trim().to_owned();
@@ -340,7 +351,7 @@ impl GameScreenController {
         request: u64,
         result: ClipboardResult,
     ) -> ScreenTextResponse {
-        if self.focused_text != Some(target) || !self.text_targets().contains(&target) {
+        if self.focused_text() != Some(target) || !self.text_targets().contains(&target) {
             return ScreenTextResponse::default();
         }
         let Some(view) = self.inputs.get_mut(&target) else {
@@ -376,7 +387,7 @@ impl GameScreenController {
         &mut self,
         fonts: &mut GameFonts,
     ) -> Option<theframework::platform::TextInputState> {
-        let target = self.focused_text?;
+        let target = self.focused_text()?;
         if !self.text_targets().contains(&target) {
             return None;
         }
@@ -385,7 +396,7 @@ impl GameScreenController {
             .text_input_state(&mut fonts.text)
     }
     pub fn text_ime_area(&mut self, fonts: &mut GameFonts) -> Option<Uv> {
-        let target = self.focused_text?;
+        let target = self.focused_text()?;
         if !self.text_targets().contains(&target) {
             return None;
         }

@@ -547,7 +547,11 @@ fn native_text_fields_preserve_ime_bindings_focus_and_clipboard_ownership() {
         panic!("paste request")
     };
     controller.text_input_event(&mut fonts, &InputEvent::Modifiers(Modifiers::default()));
-    let response = controller.text_input_event(&mut fonts, &key(PhysicalKey::Tab));
+    let response = controller
+        .input(&session.view(), &mut fonts, &key(PhysicalKey::Tab))
+        .unwrap()
+        .text
+        .unwrap();
     assert_eq!(
         response.editor.action,
         Some(EditorAction::FocusNext { backwards: false })
@@ -572,7 +576,9 @@ fn native_text_fields_preserve_ime_bindings_focus_and_clipboard_ownership() {
             ..Default::default()
         }),
     );
-    controller.text_input_event(&mut fonts, &key(PhysicalKey::Tab));
+    controller
+        .input(&session.view(), &mut fonts, &key(PhysicalKey::Tab))
+        .unwrap();
     assert_eq!(controller.focused_input(), Some(3));
     controller.text_input_event(&mut fonts, &InputEvent::Modifiers(Modifiers::default()));
     let response = controller.text_input_event(&mut fonts, &InputEvent::Focus(false));
@@ -1832,3 +1838,6 @@ fn native_text_target_changes_on_focus_and_recreation_and_rejects_late_commit() 
     next.focus_input(&mut fonts, Some(3));
     assert_ne!(next.text_input_state(&mut fonts).unwrap().target, refocused);
 }
+
+#[path = "game_screen/keyboard.rs"]
+mod keyboard;

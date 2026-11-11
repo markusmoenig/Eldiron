@@ -5,6 +5,12 @@ use super::*;
 use rusterix::{EntityAction, Value};
 use theframework::platform::{InputEvent, LogicalKey, PhysicalKey, PointerButton};
 impl GameScreenController {
+    pub(super) fn message_blocks_input(&self) -> bool {
+        self.elements.messages_widgets.iter().any(|w| {
+            w.blocks_input()
+                && !screen_model::widget_name_is_hidden(&w.name, &self.elements.widgets_to_hide)
+        })
+    }
     fn message_action(&mut self, action: EntityAction) -> ScreenInputResponse {
         // The same dialog can be displayed in several authored transcripts.
         // Acknowledge it in every matching view, submit one runtime action.
@@ -43,7 +49,7 @@ impl GameScreenController {
         match event {
             InputEvent::Key {
                 physical, pressed, ..
-            } if self.focused_text.is_none() => {
+            } if self.focused_text().is_none() => {
                 if *pressed {
                     let key = match physical {
                         PhysicalKey::Enter => "enter",
@@ -62,7 +68,9 @@ impl GameScreenController {
                 self.focus_text(fonts, None);
                 let action = self.elements.messages_widgets[index]
                     .pointer_down(scenevm::prelude::Vec2::new(position[0], position[1]));
-                self.pointer_capture = Some(PointerCapture::Message);
+                self.pointer_capture = Some(PointerCapture::Message(
+                    self.elements.messages_widgets[index].id,
+                ));
                 return Some(self.message_action(action.unwrap_or(EntityAction::Off)));
             }
             InputEvent::Scroll { .. }
@@ -73,7 +81,7 @@ impl GameScreenController {
             | InputEvent::TextFor { .. }
             | InputEvent::CompositionFor { .. }
             | InputEvent::Composition { .. }
-                if self.focused_text.is_none() => {}
+                if self.focused_text().is_none() => {}
             _ => return None,
         }
         Some(ScreenInputResponse {
@@ -103,7 +111,7 @@ impl GameScreenController {
                 logical,
                 pressed,
                 repeat,
-            } if self.focused_text.is_none() => {
+            } if self.focused_text().is_none() => {
                 if !pressed
                     || *repeat
                     || self.input_modifiers.control
@@ -168,7 +176,9 @@ impl GameScreenController {
                         if let Some(action) = widget
                             .pointer_down(scenevm::prelude::Vec2::new(position[0], position[1]))
                         {
-                            self.pointer_capture = Some(PointerCapture::Message);
+                            self.pointer_capture = Some(PointerCapture::Message(
+                                self.elements.messages_widgets[index].id,
+                            ));
                             return Some(self.message_action(action));
                         }
                     }

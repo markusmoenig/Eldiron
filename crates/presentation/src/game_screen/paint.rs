@@ -189,7 +189,7 @@ impl GameScreenController {
             if !hidden(&widget.name) {
                 p.text_input_chrome(
                     widget,
-                    self.focused_text == Some(ScreenTextTarget::Input(key)),
+                    self.focused_text() == Some(ScreenTextTarget::Input(key)),
                 );
                 if let Some(input) = self.inputs.get_mut(&ScreenTextTarget::Input(key)) {
                     input.paint(
@@ -250,6 +250,9 @@ impl GameScreenController {
                 self.animation_frame,
                 content,
             )?;
+            if self.focus == Some(ScreenFocus::Button(key)) {
+                p.border(widget.rect.with_border(1.), 1., widget.label_color);
+            }
         }
         let mut choices = ordered(&model.choice_widgets);
         if let Some(index) = choices
@@ -263,6 +266,9 @@ impl GameScreenController {
             let widget = &model.choice_widgets[&id];
             if !hidden(&widget.name) {
                 p.choice(widget, self.cursor);
+                if self.focus == Some(ScreenFocus::Choice(id)) {
+                    p.border(widget.rect.with_border(1.), 1., widget.indicator_color);
+                }
             }
         }
         p.list.ops.push(PaintOp::PopClip);

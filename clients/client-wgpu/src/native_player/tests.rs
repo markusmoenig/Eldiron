@@ -349,6 +349,68 @@ fn assembled_player_keeps_runtime_edits_and_clock_across_gpu_replacement() {
         before + 3,
         "outside release stops its held mouse control exactly once"
     );
+    // The same runtime receives keyboard button actions exactly once, and a
+    // prepare-time hide cancels its held source before the late key release.
+    let forward_id = *app
+        .screen
+        .elements
+        .button_widgets
+        .iter()
+        .find(|(_, b)| b.rect == forward)
+        .unwrap()
+        .0;
+    app.screen.focus_control(
+        &mut app.fonts,
+        Some(eldiron_presentation::ScreenFocus::Button(forward_id)),
+    );
+    let before_keyboard = app.player.input_stats().submitted_actions;
+    app.input(&key(PhysicalKey::Space), &mut host);
+    assert_eq!(
+        app.player.input_stats().submitted_actions,
+        before_keyboard + 2
+    );
+    app.input(
+        &InputEvent::Key {
+            physical: PhysicalKey::Space,
+            logical: LogicalKey::Other,
+            pressed: false,
+            repeat: false,
+        },
+        &mut host,
+    );
+    assert_eq!(
+        app.player.input_stats().submitted_actions,
+        before_keyboard + 3
+    );
+    app.input(&key(PhysicalKey::Space), &mut host);
+    let before_hide = app.player.input_stats().submitted_actions;
+    let forward_name = app.screen.elements.button_widgets[&forward_id].name.clone();
+    app.screen
+        .elements
+        .widgets_to_hide
+        .push(forward_name.clone());
+    app.update(&mut host, Duration::ZERO);
+    assert_eq!(app.player.input_stats().submitted_actions, before_hide + 1);
+    app.update(&mut host, Duration::ZERO);
+    assert_eq!(app.player.input_stats().submitted_actions, before_hide + 1);
+    app.input(
+        &InputEvent::Key {
+            physical: PhysicalKey::Space,
+            logical: LogicalKey::Other,
+            pressed: false,
+            repeat: false,
+        },
+        &mut host,
+    );
+    assert_eq!(
+        app.player.input_stats().submitted_actions,
+        before_hide + 1,
+        "cancelled source cannot stop twice or activate on its late release"
+    );
+    app.screen
+        .elements
+        .widgets_to_hide
+        .retain(|name| name != &forward_name);
     let expected_geometry = app
         .screen
         .view_images()

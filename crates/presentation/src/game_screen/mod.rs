@@ -2,9 +2,12 @@
 //! views; a host supplies scene/image services and owns its surface and clock.
 mod choice;
 mod commands;
+mod focus;
 mod fonts;
 pub use commands::{ScreenActivation, ScreenEffect};
+pub use focus::{ScreenCapture, ScreenFocus};
 mod input;
+mod keyboard;
 mod router;
 mod transcript;
 pub use router::ScreenInputResponse;
@@ -47,7 +50,8 @@ pub struct GameScreenController {
     pub elements: ScreenElements,
     pub name: String,
     pub cursor: [f32; 2],
-    focused_text: Option<ScreenTextTarget>,
+    focus: Option<ScreenFocus>,
+    keyboard_capture: Option<focus::KeyboardCapture>,
     pub pressed_button: Option<u32>,
     pub choice_controller: screen_model::ChoiceController,
     pub intent: String,
@@ -137,7 +141,8 @@ impl GameScreenController {
             elements,
             name: name.into(),
             cursor: [0.; 2],
-            focused_text: None,
+            focus: None,
+            keyboard_capture: None,
             pressed_button: None,
             choice_controller: screen_model::ChoiceController::default(),
             intent: String::new(),
@@ -334,6 +339,8 @@ impl GameScreenController {
                 }
             }
         }
+        self.prepare_inputs(fonts);
+        self.prepare_focus(fonts);
         for widget in self.elements.deco_widgets.values_mut() {
             widget.animation_frame = animation_frame;
         }
@@ -346,7 +353,6 @@ impl GameScreenController {
                 foreground: builder.build(&self.elements.render_layer(true), world.assets, size),
             });
         }
-        self.prepare_inputs(fonts);
         self.message_scroll
             .retain(|id, _| self.elements.messages_widgets.iter().any(|w| w.id == *id));
         Ok(())
@@ -443,4 +449,29 @@ fn ordered<K: Ord + Copy, V>(map: &FxHashMap<K, V>) -> Vec<K> {
     let mut keys = map.keys().copied().collect::<Vec<_>>();
     keys.sort_unstable();
     keys
+}
+
+/// Interactive controls must intersect the same root clip as their GPU paint.
+fn visible_control_rect(elements: &ScreenElements, r: Rect) -> bool {
+    [r.x, r.y, r.width, r.height].iter().all(|v| v.is_finite())
+        && r.width > 0.
+        && r.height > 0.
+        && rect(r)
+            .intersection(Uv::new(
+                0.,
+                0.,
+                elements.layout.viewport.x as f32,
+                elements.layout.viewport.y as f32,
+            ))
+            .width
+            > 0.
+        && rect(r)
+            .intersection(Uv::new(
+                0.,
+                0.,
+                elements.layout.viewport.x as f32,
+                elements.layout.viewport.y as f32,
+            ))
+            .height
+            > 0.
 }

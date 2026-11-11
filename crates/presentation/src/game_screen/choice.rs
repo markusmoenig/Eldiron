@@ -54,7 +54,7 @@ impl GameScreenController {
                     self.geometry = None;
                 }
                 if outcome.consumed {
-                    self.focus_input(fonts, None);
+                    self.focus_control(fonts, outcome.widget.map(ScreenFocus::Choice));
                 }
                 return InputResponse {
                     consumed: outcome.consumed,

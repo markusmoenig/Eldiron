@@ -16,6 +16,7 @@ pub enum ChoiceNavigation {
 #[derive(Default, Debug, PartialEq, Eq)]
 pub struct ChoiceOutcome {
     pub consumed: bool,
+    pub widget: Option<u32>,
     pub selection: Option<(String, String)>,
 }
 #[derive(Default)]
@@ -53,6 +54,7 @@ impl ChoiceController {
             widgets.get(&id).is_some_and(|w| {
                 w.open
                     && w.kind == ChoiceWidgetKind::Dropdown
+                    && valid_rect(w)
                     && !w.options.is_empty()
                     && !widget_name_is_hidden(&w.name, hidden)
             })
@@ -106,6 +108,7 @@ impl ChoiceController {
             self.original = None;
             return ChoiceOutcome {
                 consumed: true,
+                widget: Some(id),
                 selection,
             };
         }
@@ -113,7 +116,8 @@ impl ChoiceController {
         ids.sort_unstable_by(|a, b| b.cmp(a));
         for id in ids {
             let widget = widgets.get_mut(&id).unwrap();
-            if widget_name_is_hidden(&widget.name, hidden)
+            if !valid_rect(widget)
+                || widget_name_is_hidden(&widget.name, hidden)
                 || !widget.contains_interactive_point(point)
             {
                 continue;
@@ -130,10 +134,105 @@ impl ChoiceController {
             };
             return ChoiceOutcome {
                 consumed: true,
+                widget: Some(id),
                 selection,
             };
         }
         ChoiceOutcome::default()
+    }
+    /// Keyboard activation shares open/pending/commit state with pointer input;
+    /// callers do not synthesize a click at an invented coordinate.
+    pub fn activate(
+        &mut self,
+        id: u32,
+        widgets: &mut FxHashMap<u32, ChoiceWidget>,
+        hidden: &[String],
+        state: &FxHashMap<String, String>,
+    ) -> ChoiceOutcome {
+        self.prepare(widgets, hidden, state);
+        if self.open == Some(id) {
+            return ChoiceOutcome {
+                consumed: true,
+                widget: Some(id),
+                selection: None,
+            };
+        }
+        let valid = widgets.get(&id).is_some_and(|w| {
+            valid_rect(w) && !w.options.is_empty() && !widget_name_is_hidden(&w.name, hidden)
+        });
+        if !valid {
+            return ChoiceOutcome::default();
+        }
+        self.cancel(widgets);
+        let widget = widgets.get_mut(&id).unwrap();
+        widget.sync_value(state.get(&widget.binding).map(String::as_str));
+        let selection = if widget.kind == ChoiceWidgetKind::Dropdown {
+            self.open = Some(id);
+            self.original = Some(widget.selected);
+            widget.open = true;
+            None
+        } else {
+            Some((widget.binding.clone(), widget.selected_value().to_owned()))
+        };
+        ChoiceOutcome {
+            consumed: true,
+            widget: Some(id),
+            selection,
+        }
+    }
+    pub fn navigate_at(
+        &mut self,
+        id: u32,
+        widgets: &mut FxHashMap<u32, ChoiceWidget>,
+        hidden: &[String],
+        state: &FxHashMap<String, String>,
+        navigation: ChoiceNavigation,
+    ) -> ChoiceOutcome {
+        self.prepare(widgets, hidden, state);
+        let Some(widget) = widgets.get(&id) else {
+            return ChoiceOutcome::default();
+        };
+        if !valid_rect(widget)
+            || widget.options.is_empty()
+            || widget_name_is_hidden(&widget.name, hidden)
+        {
+            return ChoiceOutcome::default();
+        }
+        if widget.kind == ChoiceWidgetKind::Dropdown {
+            if self.open != Some(id) {
+                if navigation == ChoiceNavigation::Cancel {
+                    return ChoiceOutcome {
+                        consumed: true,
+                        widget: Some(id),
+                        selection: None,
+                    };
+                }
+                self.activate(id, widgets, hidden, state);
+            }
+            return self.navigate(widgets, hidden, state, navigation);
+        }
+        let widget = widgets.get_mut(&id).unwrap();
+        let last = widget.options.len() - 1;
+        widget.selected = widget.selected.min(last);
+        match navigation {
+            ChoiceNavigation::Previous => widget.selected = widget.selected.saturating_sub(1),
+            ChoiceNavigation::Next => widget.selected = (widget.selected + 1).min(last),
+            ChoiceNavigation::First => widget.selected = 0,
+            ChoiceNavigation::Last => widget.selected = last,
+            ChoiceNavigation::Accept => {}
+            ChoiceNavigation::Cancel => {
+                return ChoiceOutcome {
+                    consumed: true,
+                    widget: Some(id),
+                    selection: None,
+                };
+            }
+        }
+        ChoiceOutcome {
+            consumed: true,
+            widget: Some(id),
+            selection: Some((widget.binding.clone(), widget.selected_value().to_owned())),
+        }
     }
     pub fn navigate(
         &mut self,
@@ -150,6 +249,7 @@ impl ChoiceController {
             self.cancel(widgets);
             return ChoiceOutcome {
                 consumed: true,
+                widget: Some(id),
                 selection: None,
             };
         }
@@ -168,6 +268,7 @@ impl ChoiceController {
                 self.original = None;
                 return ChoiceOutcome {
                     consumed: true,
+                    widget: Some(id),
                     selection,
                 };
             }
@@ -175,9 +276,18 @@ impl ChoiceController {
         }
         ChoiceOutcome {
             consumed: true,
+            widget: Some(id),
             selection: None,
         }
     }
+}
+
+fn valid_rect(w: &ChoiceWidget) -> bool {
+    [w.rect.x, w.rect.y, w.rect.width, w.rect.height]
+        .iter()
+        .all(|v| v.is_finite())
+        && w.rect.width > 0.
+        && w.rect.height > 0.
 }
 
 #[cfg(test)]

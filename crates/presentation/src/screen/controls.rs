@@ -76,7 +76,7 @@ impl ScreenPainter<'_> {
         self.fill(widget.rect, widget.background_color);
         self.border(
             widget.rect,
-            widget.border_size.max(0) as f32,
+            widget.border_size.max(if focused { 1 } else { 0 }) as f32,
             if focused {
                 [238, 214, 118, 255]
             } else {

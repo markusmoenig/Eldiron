@@ -3,7 +3,7 @@
 mod viewport;
 use crate::player_session::PlayerSession;
 use eldiron_presentation::{
-    GameFonts, GameScreenController, SceneViews, ScreenEffect, ScreenTextResponse,
+    GameFonts, GameScreenController, SceneViews, ScreenCapture, ScreenEffect, ScreenTextResponse,
     ScreenTextTarget, ViewId,
     screen::{ContentRevision, ScreenImageCache},
 };
@@ -60,7 +60,7 @@ pub struct PlayerApplication {
     visual_elapsed: Duration,
     frame_count: u64,
     modifiers: Modifiers,
-    controls_captured: bool,
+    control_capture: Option<ScreenCapture>,
     pending_clipboard: Option<(ScreenTextTarget, u64)>,
     failure: Option<String>,
     suspended: bool,
@@ -125,7 +125,7 @@ impl PlayerApplication {
             visual_elapsed: Duration::ZERO,
             frame_count: 0,
             modifiers: Modifiers::default(),
-            controls_captured: false,
+            control_capture: None,
             pending_clipboard: None,
             failure: None,
             suspended: false,
@@ -193,12 +193,12 @@ impl PlayerApplication {
             self.revision,
             animation_frame,
         )?;
-        let captured = self.screen.captures_world_input();
-        if captured && !self.controls_captured {
+        let capture = self.screen.control_capture();
+        if capture != self.control_capture {
             let stop = self.player.cancel_controls();
             self.player.submit_action(stop)?;
         }
-        self.controls_captured = captured;
+        self.control_capture = capture;
         let size = self.screen.elements.layout.viewport;
         self.viewport = ScreenViewport::fit([size.x as f32, size.y as f32], host.logical_size);
         host.text_input = if self.viewport.scale > 0. {
@@ -305,12 +305,12 @@ impl PlayerApplication {
             // The interaction's stop was submitted before its own effects (for
             // example a held movement button). Do not append another Off while
             // synchronizing the same capture transition afterward.
-            self.controls_captured = self.screen.captures_world_input();
         }
         if let Some(text) = &result.text {
             self.clipboard(text, host);
         }
         self.apply(result.effects)?;
+        self.control_capture = self.screen.control_capture();
         let mut response = result.input;
         // A modifier pressed after movement must not swallow its release.
         // Focus/modal transitions already cancel held state; releases remain
