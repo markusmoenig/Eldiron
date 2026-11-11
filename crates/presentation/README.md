@@ -68,3 +68,11 @@ Screen source images now use RGBA16F linear-premultiplied upload normalization.
 The screen cache byte budget counts GPU texel storage (eight bytes per pixel),
 including superseded revisions retained for the current frame. Normalization is
 performed only for changed source assets; unchanged frames reuse registrations.
+
+`ScreenPainter::button` uses the same resolved state style as the legacy controller.
+Chrome, source artwork, borders and labels are commands. Command icons reuse one
+source registration across visual states; generic GPU color filters apply their
+brightness, highlight and disabled treatment. A controller supplies explicit
+`ButtonContent` (empty or a resolved image/fit/inset/quantity) for item/portrait
+content. Quantity badges use Swash text. Entity/item source selection and caching
+remain the responsibility of the graphical controller/asset preparation layer.

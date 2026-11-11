@@ -76,3 +76,45 @@ impl ImageAsset {
         self.pixels
     }
 }
+
+/// Generic image color adjustment in straight encoded sRGB. Coverage remains
+/// independent; GPU sources are sampled in linear premultiplied color first.
+#[derive(Clone, Copy, Debug)]
+pub struct ImageColorFilter {
+    pub scale: [f32; 3],
+    pub bias: [f32; 3],
+    pub saturation: f32,
+    pub minimum: f32,
+    /// Opacity attenuation in the inclusive range 0..=1.
+    pub alpha_scale: f32,
+}
+impl Default for ImageColorFilter {
+    fn default() -> Self {
+        Self {
+            scale: [1.; 3],
+            bias: [0.; 3],
+            saturation: 1.,
+            minimum: 0.,
+            alpha_scale: 1.,
+        }
+    }
+}
+impl ImageColorFilter {
+    /// Reference/legacy source-asset adjustment; command UI executes it on the GPU.
+    pub fn apply_encoded_srgb(self, pixel: [u8; 4]) -> [u8; 4] {
+        let source = [
+            pixel[0] as f32 / 255.,
+            pixel[1] as f32 / 255.,
+            pixel[2] as f32 / 255.,
+        ];
+        let gray = source[0] * 0.299 + source[1] * 0.587 + source[2] * 0.114;
+        let mut result = [0; 4];
+        for i in 0..3 {
+            let value =
+                (gray + (source[i] - gray) * self.saturation) * self.scale[i] + self.bias[i];
+            result[i] = (value.max(self.minimum).clamp(0., 1.) * 255.).round() as u8;
+        }
+        result[3] = (pixel[3] as f32 * self.alpha_scale).round().clamp(0., 255.) as u8;
+        result
+    }
+}

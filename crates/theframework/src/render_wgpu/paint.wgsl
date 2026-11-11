@@ -45,14 +45,23 @@ struct Out{@builtin(position)position:vec4<f32>,@location(0)local:vec2<f32>,@loc
     var o:Out;o.position=vec4<f32>(p.x/params.viewport.x*2.-1.,1.-p.y/params.viewport.y*2.,0.,1.);o.local=local;o.uv=uv;o.color=color;return o;
 }
 fn linear(c:vec3<f32>)->vec3<f32>{return select(c/12.92,pow((c+vec3<f32>(0.055))/1.055,vec3<f32>(2.4)),c>vec3<f32>(0.04045));}
+fn srgb(c:vec3<f32>)->vec3<f32>{let v=max(c,vec3<f32>(0.));return select(v*12.92,1.055*pow(v,vec3<f32>(1./2.4))-vec3<f32>(0.055),v>vec3<f32>(0.0031308));}
 @fragment fn fs(i:Out)->@location(0)vec4<f32>{
     var c=params.color0;
     if(params.mode==4u){return field_color(i.local-params.gradient.xy,c);}
     if(params.mode==3u){c=vec4<f32>(linear(i.color.rgb),i.color.a);}
     if(params.mode==1u){let d=params.gradient.zw-params.gradient.xy;let t=clamp(dot(i.local-params.gradient.xy,d)/max(dot(d,d),0.000001),0.,1.);c=mix(params.color0,params.color1,t);}
-    if(params.mode==2u){
+    if(params.mode==2u || params.mode==5u){
         var tex=textureSample(image,image_sampler,i.uv);
         if((params.source&1u)!=0u){tex=vec4<f32>(linear(tex.rgb),tex.a);}
+        if(params.mode==5u){
+            var straight=tex.rgb;
+            if((params.source&2u)!=0u){straight=tex.rgb/max(tex.a,0.000001);}
+            let encoded=srgb(straight);
+            let gray=dot(encoded,vec3<f32>(0.299,0.587,0.114));
+            let adjusted=clamp(max(mix(vec3<f32>(gray),encoded,params.color1.a)*params.color1.rgb+params.gradient.rgb,vec3<f32>(params.gradient.a)),vec3<f32>(0.),vec3<f32>(1.));
+            return vec4<f32>(linear(adjusted)*tex.a*c.rgb*c.a,tex.a*c.a);
+        }
         if((params.source&2u)!=0u){return vec4<f32>(tex.rgb*c.rgb*c.a,tex.a*c.a);}
         c*=tex;
     }

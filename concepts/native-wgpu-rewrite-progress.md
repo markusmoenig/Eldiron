@@ -25,7 +25,8 @@ Started: 2026-11-11 (Asia/Bangkok). Overall Goal: active; full M0–M9 scope rem
 - M2: in progress. Paint/Swash/Parley pipeline and native/foreign hosts work; batching, resource lifetime budgets and full text/input parity remain.
 - M3: in progress. Every active built-in TheWidget implementation now has a command paint path, including procedural controls and the legacy node canvas. Complex Creator integration, full widget catalog parity and legacy adapter retirement remain.
 - M4: in progress. CPU schema/identity extraction, shared `GameSession`, CPU startup preparation and terminal adoption are implemented and tested. Graphical/Creator adoption, remaining bitmap/value data extraction and engine-global routing isolation remain.
-- M5/M6/M7/M8/M9: application conversion/platform acceptance pending. Browser and iOS framework compile, and detached CAMetalLayer presentation pass; this is not complete application/platform parity.
+- M6: in progress. Independent GPU game views and game-screen paint/source/geometry/button contracts are implemented; complete controller/HUD families and common launcher adoption remain.
+- M5/M7/M8/M9: Creator conversion, retirement and platform/full acceptance pending. Browser and iOS framework compile, and detached CAMetalLayer presentation pass; this is not complete application/platform parity.
 
 ## Implementation and verification
 
@@ -237,3 +238,13 @@ This remains a scene ownership/composition checkpoint. Game-screen/HUD presentat
 - All four apps compile (`/private/tmp/eldiron-linear-source-apps.log`) and browser compilation passes (`/private/tmp/eldiron-linear-source-web.log`).
 - Remaining: GPU normalization/alpha contracts for externally rendered SceneVM outputs and RGBA16F export/capture conversion. Those are not solved by source-asset upload normalization. Complete renderer memory/performance acceptance, full client/Creator adoption and other open M0–M9 tasks remain active.
 - iOS-simulator presentation compilation also passes with normalized source/atlas formats: `/private/tmp/eldiron-linear-source-ios.log`.
+
+## Button visual-state checkpoint (2026-11-11)
+
+- Extracted `Widget::presentation_style` so command UI and the legacy CPU adapter share authored background/border/label resolution. Command-icon treatment uses generic CPU-only `ImageColorFilter` data in `theframework-core`; the CPU reference/legacy adapter and GPU shader implement the same rules. Serialized project types are unchanged.
+- Added `PaintOp::FilteredImage`. It samples normalized source data, recovers straight color, applies encoded-sRGB saturation/scale/bias/minimum luminance and opacity attenuation, then composites in linear premultiplied color. A button state change does not regenerate or upload icon pixels.
+- Added game-screen button command paint: authored chrome/frames/nine-slice, primary artwork, command icons, state borders and Swash labels. Explicit `ButtonContent` supplies already-resolved item/portrait/GPU image content, fit/inset and quantity; badges use shaped glyphs. Selection/source preparation remains outside paint and still needs graphical controller integration.
+- Six actual GPU screen tests pass, including all five visual states against the shared CPU rules, disabled dark-artwork luminance, one shared command source registration, item image content, Swash quantity text and unchanged-frame upload reuse. Log: `/private/tmp/eldiron-button-final-gpu.log`.
+- Passed: 91 ordinary framework library tests, four paint GPU tests, 11 actual UI GPU tests, two legacy command-icon tests, three core schema tests and all five independent dependency boundaries. Logs: `/private/tmp/eldiron-button-library.log`, `/private/tmp/eldiron-button-framework.log`, `/private/tmp/eldiron-button-legacy.log`, `/private/tmp/eldiron-button-core.log`, `/private/tmp/eldiron-button-boundaries.log`.
+- All four apps compile; browser and iOS-simulator presentation compilation pass: `/private/tmp/eldiron-button-apps.log`, `/private/tmp/eldiron-button-web.log`, `/private/tmp/eldiron-button-ios.log`.
+- Next: separate message enqueue/reveal/pagination metrics and hit geometry from fontdue/CPU drawing; use Parley measurement in the native path. Then complete remaining portrait/profile/content/panel presentation and adopt the shared runtime/presentation in graphical launchers and Creator Play. Full M0–M9 Goal remains active.

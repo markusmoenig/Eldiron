@@ -57,6 +57,13 @@ impl BorderGradientDirection {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct ButtonPresentation {
+    pub background: Option<Pixel>,
+    pub border: Pixel,
+    pub label: Pixel,
+}
+
 /// Used right now for button widgets
 pub struct Widget {
     pub name: String,
@@ -522,49 +529,8 @@ impl Widget {
         let stride = buffer.stride();
         let buffer_width = buffer.dim().width as isize;
         let buffer_height = buffer.dim().height as isize;
-        let state_style = self.state_style(visual_state);
-        let is_command_slot = self.command_slot.is_some();
-        let is_command_button = is_command_slot
-            || resolved_command
-                .or(self.command.as_deref())
-                .and_then(parse_client_command)
-                .is_some();
-
-        let effective_background_color =
-            if is_command_button && matches!(visual_state, ButtonVisualState::Selected) {
-                self.background_color
-            } else {
-                state_style.background_color.or(self.background_color)
-            };
-        if let Some(background_color) = effective_background_color {
-            let color = match visual_state {
-                ButtonVisualState::Selected if is_command_button => background_color,
-                ButtonVisualState::Selected => state_style.background_color.unwrap_or([
-                    background_color[0].saturating_add(34),
-                    background_color[1].saturating_add(30),
-                    background_color[2].saturating_add(16),
-                    background_color[3],
-                ]),
-                ButtonVisualState::Hover => state_style.background_color.unwrap_or([
-                    background_color[0].saturating_add(18),
-                    background_color[1].saturating_add(18),
-                    background_color[2].saturating_add(18),
-                    background_color[3],
-                ]),
-                ButtonVisualState::Pressed => state_style.background_color.unwrap_or([
-                    background_color[0].saturating_sub(20),
-                    background_color[1].saturating_sub(20),
-                    background_color[2].saturating_sub(20),
-                    background_color[3],
-                ]),
-                ButtonVisualState::Disabled => state_style.background_color.unwrap_or([
-                    background_color[0] / 2,
-                    background_color[1] / 2,
-                    background_color[2] / 2,
-                    background_color[3],
-                ]),
-                ButtonVisualState::Normal => background_color,
-            };
+        let presentation = self.presentation_style(visual_state, resolved_command);
+        if let Some(color) = presentation.background {
             draw2d.blend_rect_safe(
                 buffer.pixels_mut(),
                 &(
@@ -704,34 +670,7 @@ impl Widget {
         }
 
         if self.border_size > 0 {
-            let border_color = match visual_state {
-                ButtonVisualState::Selected => {
-                    if is_command_button {
-                        [255, 255, 255, 255]
-                    } else {
-                        state_style.border_color.unwrap_or([238, 214, 118, 255])
-                    }
-                }
-                ButtonVisualState::Hover => state_style.border_color.unwrap_or([
-                    self.border_color[0].saturating_add(34),
-                    self.border_color[1].saturating_add(34),
-                    self.border_color[2].saturating_add(34),
-                    self.border_color[3],
-                ]),
-                ButtonVisualState::Pressed => state_style.border_color.unwrap_or([
-                    self.border_color[0].saturating_sub(24),
-                    self.border_color[1].saturating_sub(24),
-                    self.border_color[2].saturating_sub(24),
-                    self.border_color[3],
-                ]),
-                ButtonVisualState::Disabled => state_style.border_color.unwrap_or([
-                    self.border_color[0] / 2,
-                    self.border_color[1] / 2,
-                    self.border_color[2] / 2,
-                    self.border_color[3],
-                ]),
-                ButtonVisualState::Normal => self.border_color,
-            };
+            let border_color = presentation.border;
             draw_widget_border(
                 buffer,
                 self.rect,
@@ -746,6 +685,118 @@ impl Widget {
         }
 
         self.draw_label(buffer, assets, draw2d, visual_state);
+    }
+
+    /// Resolve authored state styles without drawing or measuring text.
+    pub fn presentation_style(
+        &self,
+        visual_state: ButtonVisualState,
+        resolved_command: Option<&str>,
+    ) -> ButtonPresentation {
+        let state_style = self.state_style(visual_state);
+        let is_command_slot = self.command_slot.is_some();
+        let is_command_button = is_command_slot
+            || resolved_command
+                .or(self.command.as_deref())
+                .and_then(parse_client_command)
+                .is_some();
+
+        let effective_background_color =
+            if is_command_button && matches!(visual_state, ButtonVisualState::Selected) {
+                self.background_color
+            } else {
+                state_style.background_color.or(self.background_color)
+            };
+        let background = effective_background_color.map(|background_color| {
+            let color = match visual_state {
+                ButtonVisualState::Selected if is_command_button => background_color,
+                ButtonVisualState::Selected => state_style.background_color.unwrap_or([
+                    background_color[0].saturating_add(34),
+                    background_color[1].saturating_add(30),
+                    background_color[2].saturating_add(16),
+                    background_color[3],
+                ]),
+                ButtonVisualState::Hover => state_style.background_color.unwrap_or([
+                    background_color[0].saturating_add(18),
+                    background_color[1].saturating_add(18),
+                    background_color[2].saturating_add(18),
+                    background_color[3],
+                ]),
+                ButtonVisualState::Pressed => state_style.background_color.unwrap_or([
+                    background_color[0].saturating_sub(20),
+                    background_color[1].saturating_sub(20),
+                    background_color[2].saturating_sub(20),
+                    background_color[3],
+                ]),
+                ButtonVisualState::Disabled => state_style.background_color.unwrap_or([
+                    background_color[0] / 2,
+                    background_color[1] / 2,
+                    background_color[2] / 2,
+                    background_color[3],
+                ]),
+                ButtonVisualState::Normal => background_color,
+            };
+            color
+        });
+        let border_color = match visual_state {
+            ButtonVisualState::Selected => {
+                if is_command_button {
+                    [255, 255, 255, 255]
+                } else {
+                    state_style.border_color.unwrap_or([238, 214, 118, 255])
+                }
+            }
+            ButtonVisualState::Hover => state_style.border_color.unwrap_or([
+                self.border_color[0].saturating_add(34),
+                self.border_color[1].saturating_add(34),
+                self.border_color[2].saturating_add(34),
+                self.border_color[3],
+            ]),
+            ButtonVisualState::Pressed => state_style.border_color.unwrap_or([
+                self.border_color[0].saturating_sub(24),
+                self.border_color[1].saturating_sub(24),
+                self.border_color[2].saturating_sub(24),
+                self.border_color[3],
+            ]),
+            ButtonVisualState::Disabled => state_style.border_color.unwrap_or([
+                self.border_color[0] / 2,
+                self.border_color[1] / 2,
+                self.border_color[2] / 2,
+                self.border_color[3],
+            ]),
+            ButtonVisualState::Normal => self.border_color,
+        };
+        ButtonPresentation {
+            background,
+            border: border_color,
+            label: state_style.label_color.unwrap_or(self.label_color),
+        }
+    }
+
+    pub fn command_icon_filter(state: ButtonVisualState) -> theframework_core::ImageColorFilter {
+        use theframework_core::ImageColorFilter;
+        match state {
+            ButtonVisualState::Normal => ImageColorFilter::default(),
+            ButtonVisualState::Disabled => ImageColorFilter {
+                saturation: 0.,
+                minimum: 104. / 255.,
+                alpha_scale: 0.74,
+                ..Default::default()
+            },
+            ButtonVisualState::Selected => ImageColorFilter {
+                scale: [0.66; 3],
+                bias: [0.34, 0.34 * 226. / 255., 0.34 * 150. / 255.],
+                ..Default::default()
+            },
+            ButtonVisualState::Hover => ImageColorFilter {
+                scale: [1.25; 3],
+                ..Default::default()
+            },
+            ButtonVisualState::Pressed => ImageColorFilter {
+                scale: [0.76; 3],
+                ..Default::default()
+            },
+        }
     }
 
     fn state_style(&self, visual_state: ButtonVisualState) -> ButtonStateStyle {
@@ -815,7 +866,7 @@ impl Widget {
             .as_ref()
     }
 
-    pub(crate) fn command_icon_texture<'a>(
+    pub fn command_icon_texture<'a>(
         assets: &'a Assets,
         command: Option<&str>,
         visual_state: ButtonVisualState,
@@ -967,42 +1018,7 @@ impl Widget {
     }
 
     fn command_icon_pixel(source: Pixel, visual_state: ButtonVisualState) -> Pixel {
-        match visual_state {
-            ButtonVisualState::Normal => source,
-            ButtonVisualState::Disabled => {
-                let gray = (source[0] as f32 * 0.299
-                    + source[1] as f32 * 0.587
-                    + source[2] as f32 * 0.114)
-                    .round()
-                    .clamp(0.0, 255.0) as u8;
-                // Keep dark artwork identifiable when disabled. Some authored icons
-                // use near-black strokes that would otherwise disappear on dark UI.
-                let gray = gray.max(104);
-                [gray, gray, gray, (source[3] as f32 * 0.74).round() as u8]
-            }
-            ButtonVisualState::Selected => {
-                let selected = [255_u8, 226_u8, 150_u8];
-                let mix = 0.34_f32;
-                [
-                    (source[0] as f32 * (1.0 - mix) + selected[0] as f32 * mix).round() as u8,
-                    (source[1] as f32 * (1.0 - mix) + selected[1] as f32 * mix).round() as u8,
-                    (source[2] as f32 * (1.0 - mix) + selected[2] as f32 * mix).round() as u8,
-                    source[3],
-                ]
-            }
-            ButtonVisualState::Hover => [
-                (source[0] as f32 * 1.25).round().clamp(0.0, 255.0) as u8,
-                (source[1] as f32 * 1.25).round().clamp(0.0, 255.0) as u8,
-                (source[2] as f32 * 1.25).round().clamp(0.0, 255.0) as u8,
-                source[3],
-            ],
-            ButtonVisualState::Pressed => [
-                (source[0] as f32 * 0.76).round() as u8,
-                (source[1] as f32 * 0.76).round() as u8,
-                (source[2] as f32 * 0.76).round() as u8,
-                source[3],
-            ],
-        }
+        Self::command_icon_filter(visual_state).apply_encoded_srgb(source)
     }
 
     fn item_icon_state(item: &Item) -> &'static str {

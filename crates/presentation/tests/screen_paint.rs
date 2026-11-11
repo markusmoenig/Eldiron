@@ -477,3 +477,168 @@ fn screen_sampler_repeats_only_the_authored_axis() {
     assert_eq!(pixel(24, 24), [0, 0, 255, 255], "repeat X must clamp Y");
     assert_eq!(pixel(56, 24), [0, 255, 0, 255], "repeat Y must clamp X");
 }
+
+#[test]
+#[ignore = "requires native GPU; run with --ignored"]
+fn button_states_share_source_images_and_execute_color_treatment_on_gpu() {
+    use eldiron_presentation::screen::ButtonContent;
+    use rusterix::{
+        Texture,
+        client::widget::{ButtonVisualState as State, Widget},
+    };
+    let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut registry = ImageRegistry::new(gpu.clone());
+    let mut cache = ScreenImageCache::default();
+    let mut text = TextSystem::default();
+    text.register_font(
+        include_bytes!("../../theframework/embedded/fonts/Roboto-Bold.ttf").to_vec(),
+    );
+    let mut assets = Assets::default();
+    let source = [37, 149, 211, 203];
+    assets.rules = "[ui.commands.spellbook]\nicon='filter-source'".into();
+    assets.textures.insert(
+        "filter-source".into(),
+        Texture::new(source.into_iter().chain([1, 2, 3, 203]).collect(), 2, 1),
+    );
+    let states = [
+        State::Normal,
+        State::Hover,
+        State::Pressed,
+        State::Selected,
+        State::Disabled,
+    ];
+    let output = GpuImage::new(&gpu, ImageDescriptor::rgba(200, 96)).unwrap();
+    let mut renderer = PaintRenderer::new(gpu.clone()).unwrap();
+    let mut uploads = 0;
+    for frame in 0..2 {
+        let mut list = PaintList::default();
+        {
+            let mut images = cache.begin_frame(&mut registry).unwrap();
+            let item = images
+                .rgba("prepared-item", 1, 1, &[255, 128, 0, 255])
+                .unwrap();
+            let mut p = ScreenPainter {
+                list: &mut list,
+                text: &mut text,
+                images: &mut images,
+            };
+            let mut button = Widget::new();
+            button.show_icon = true;
+            button.icon_inset = Some(0.);
+            button.border_size = 0;
+            for (i, state) in states.into_iter().enumerate() {
+                button.rect = Rect::new(i as f32 * 40., 0., 40., 40.);
+                p.button(
+                    &button,
+                    &assets,
+                    state,
+                    Some("ui.spellbook"),
+                    0,
+                    ButtonContent::Empty,
+                )
+                .unwrap();
+            }
+            button.rect = Rect::new(0., 48., 40., 40.);
+            button.inventory_index = Some(0);
+            p.button(
+                &button,
+                &assets,
+                State::Normal,
+                None,
+                0,
+                ButtonContent::Image {
+                    image: item,
+                    source_size: [1; 2],
+                    contain: true,
+                    inset: 4.,
+                    quantity: 20,
+                },
+            )
+            .unwrap();
+        }
+        list.validate().unwrap();
+        assert_eq!(
+            cache.len(),
+            2,
+            "all five command states must share one source registration"
+        );
+        assert_eq!(
+            list.ops
+                .iter()
+                .filter(|op| matches!(op, PaintOp::FilteredImage { .. }))
+                .count(),
+            5
+        );
+        renderer
+            .render(
+                &list,
+                &registry,
+                &output.view,
+                output.descriptor.format,
+                (200, 96),
+                1.,
+                [0., 0., 0., 1.],
+            )
+            .unwrap();
+        assert!(
+            renderer.frame_stats().glyph_quads >= 2,
+            "quantity badge uses shaped glyphs"
+        );
+        if frame == 0 {
+            uploads = gpu.transfers().uploaded_bytes;
+        } else {
+            assert_eq!(gpu.transfers().uploaded_bytes, uploads);
+        }
+    }
+    assert_eq!(gpu.transfers().readback_bytes, 0);
+    let mut ticket = ReadbackTicket::capture(&gpu, output).unwrap();
+    gpu.device
+        .poll(wgpu::PollType::Wait {
+            submission_index: None,
+            timeout: Some(std::time::Duration::from_secs(30)),
+        })
+        .unwrap();
+    let capture = ticket.try_finish(&gpu).unwrap().unwrap();
+    let pixel = |x: usize, y: usize| &capture.pixels()[(y * 200 + x) * 4..(y * 200 + x + 1) * 4];
+    let linear = |c: f32| {
+        if c <= 0.04045 {
+            c / 12.92
+        } else {
+            ((c + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    let encoded = |c: f32| {
+        if c <= 0.0031308 {
+            c * 12.92
+        } else {
+            1.055 * c.powf(1. / 2.4) - 0.055
+        }
+    };
+    for (i, state) in states.into_iter().enumerate() {
+        let treated = Widget::command_icon_filter(state).apply_encoded_srgb(source);
+        let expected = std::array::from_fn::<_, 3, _>(|c| {
+            (encoded(linear(treated[c] as f32 / 255.) * treated[3] as f32 / 255.) * 255.).round()
+                as u8
+        });
+        let actual = pixel(i * 40 + 10, 20);
+        for c in 0..3 {
+            assert!(
+                actual[c].abs_diff(expected[c]) <= 2,
+                "{state:?} channel {c}: {actual:?} vs {expected:?}"
+            );
+        }
+        assert_eq!(actual[3], 255);
+    }
+    let dark_disabled = pixel(190, 20);
+    assert_eq!(dark_disabled[0], dark_disabled[1]);
+    assert_eq!(dark_disabled[1], dark_disabled[2]);
+    assert!(
+        (80..=83).contains(&dark_disabled[0]),
+        "disabled dark artwork retains its minimum luminance: {dark_disabled:?}"
+    );
+    assert_eq!(
+        pixel(8, 56),
+        [255, 128, 0, 255],
+        "resolved item content is composited as an image source"
+    );
+}

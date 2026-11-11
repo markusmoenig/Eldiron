@@ -292,9 +292,9 @@ impl PaintRenderer {
         stencil: u32,
         phase: u8,
     ) -> Draw {
-        self.draw_with_field(geometry, brush, image, size, stencil, phase, None)
+        self.draw_with_effects(geometry, brush, image, size, stencil, phase, None, None)
     }
-    fn draw_with_field(
+    fn draw_with_effects(
         &self,
         geometry: Geometry,
         brush: &Brush,
@@ -303,6 +303,7 @@ impl PaintRenderer {
         stencil: u32,
         phase: u8,
         field: Option<(&DistanceField, Point)>,
+        filter: Option<ImageColorFilter>,
     ) -> Draw {
         let (mode, color0, color1, gradient) = match brush {
             Brush::Solid(c) => (0, linear(*c), [0.; 4], [0.; 4]),
@@ -332,6 +333,8 @@ impl PaintRenderer {
             viewport: [size.0 as f32, size.1 as f32],
             mode: if field.is_some() {
                 4
+            } else if filter.is_some() {
+                5
             } else if geometry.colored {
                 3
             } else if image.is_some() {
@@ -340,9 +343,16 @@ impl PaintRenderer {
                 mode
             },
             source: field.map_or(source, |(f, _)| f.primitives.len() as u32),
-            color0,
-            color1,
-            gradient: field.map_or(gradient, |(_, p)| [p[0], p[1], 0., 0.]),
+            color0: filter.map_or(color0, |f| {
+                [color0[0], color0[1], color0[2], color0[3] * f.alpha_scale]
+            }),
+            color1: filter.map_or(color1, |f| {
+                [f.scale[0], f.scale[1], f.scale[2], f.saturation]
+            }),
+            gradient: filter.map_or_else(
+                || field.map_or(gradient, |(_, p)| [p[0], p[1], 0., 0.]),
+                |f| [f.bias[0], f.bias[1], f.bias[2], f.minimum],
+            ),
         };
         let uniform = self
             .context
@@ -453,7 +463,7 @@ impl PaintRenderer {
                 PaintOp::DistanceField { rect, field } => {
                     if rect.width > 0. && rect.height > 0. {
                         let (v, ix) = mesh::quad(*rect, Rect::default(), transform, density);
-                        draws.push(self.draw_with_field(
+                        draws.push(self.draw_with_effects(
                             self.geometry(&v, &ix),
                             &Brush::Solid(field.background),
                             None,
@@ -461,6 +471,32 @@ impl PaintRenderer {
                             level,
                             0,
                             Some((field, [rect.x, rect.y])),
+                            None,
+                        ));
+                    }
+                }
+                PaintOp::FilteredImage {
+                    image,
+                    rect,
+                    uv,
+                    sampling,
+                    tint,
+                    filter,
+                } => {
+                    let image = images.get(*image).ok_or_else(|| {
+                        RenderError("paint references a stale image handle".into())
+                    })?;
+                    if rect.width > 0. && rect.height > 0. {
+                        let (vertices, indices) = mesh::quad(*rect, *uv, transform, density);
+                        draws.push(self.draw_with_effects(
+                            self.geometry(&vertices, &indices),
+                            &Brush::Solid(*tint),
+                            Some((&image, *sampling)),
+                            size,
+                            level,
+                            0,
+                            None,
+                            Some(*filter),
                         ));
                     }
                 }

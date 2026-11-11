@@ -4593,6 +4593,7 @@ dependencies = [
  "serde",
  "serde_json",
  "theframework",
+ "theframework-core",
  "toml 0.9.11+spec-1.1.0",
  "uuid",
  "vectorize",

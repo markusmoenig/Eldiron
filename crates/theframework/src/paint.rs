@@ -181,6 +181,7 @@ pub struct PaintVertex {
     pub position: Point,
     pub color: Color,
 }
+pub use theframework_core::ImageColorFilter;
 /// A source-image vertex in logical coordinates, independent of GPU buffers.
 #[derive(Clone, Copy, Debug)]
 pub struct ImageVertex {
@@ -211,6 +212,14 @@ pub struct DistanceField {
 }
 #[derive(Clone, Debug)]
 pub enum PaintOp {
+    FilteredImage {
+        image: ImageHandle,
+        rect: Rect,
+        uv: Rect,
+        sampling: Sampling,
+        tint: Color,
+        filter: ImageColorFilter,
+    },
     ImageMesh {
         vertices: Arc<[ImageVertex]>,
         indices: Arc<[u32]>,
@@ -285,6 +294,39 @@ impl PaintList {
         let mut scopes = Vec::new();
         for op in &self.ops {
             match op {
+                PaintOp::FilteredImage {
+                    filter,
+                    tint,
+                    rect,
+                    uv,
+                    ..
+                } => {
+                    if filter
+                        .scale
+                        .iter()
+                        .chain(filter.bias.iter())
+                        .chain(tint.iter())
+                        .chain([
+                            &filter.saturation,
+                            &filter.alpha_scale,
+                            &filter.minimum,
+                            &rect.x,
+                            &rect.y,
+                            &rect.width,
+                            &rect.height,
+                            &uv.x,
+                            &uv.y,
+                            &uv.width,
+                            &uv.height,
+                        ])
+                        .any(|x| !x.is_finite())
+                    {
+                        return Err("nonfinite image color adjustment");
+                    }
+                    if !(0. ..=1.).contains(&filter.alpha_scale) {
+                        return Err("invalid image opacity attenuation");
+                    }
+                }
                 PaintOp::ImageMesh {
                     vertices,
                     indices,
