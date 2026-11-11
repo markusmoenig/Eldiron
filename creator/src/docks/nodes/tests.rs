@@ -2454,3 +2454,52 @@ fn control_touchpad_and_wheel_zoom_nodes_around_pointer() {
     }
     assert!(project.node_graphs.is_empty());
 }
+
+#[test]
+fn authoring_nodes_and_preview_snapshots_do_not_require_raster_or_world_renderers() {
+    fn assert_shared<T: Send + Sync>() {}
+    assert_shared::<tiles::TileControls>();
+    assert_shared::<live::LiveEvents>();
+    assert_shared::<GraphDefinitions>();
+    let isolated = std::env::var_os("ELDIRON_NATIVE_NODES_ISOLATED").is_some();
+    if isolated {
+        assert!(std::sync::LazyLock::get(&crate::editor::RUSTERIX).is_none());
+        assert!(std::sync::LazyLock::get(&crate::editor::SCENEMANAGER).is_none());
+    }
+    let mut dock = NodesDock::new();
+    assert!(dock.resources.is_none());
+    let mut project = Project::default();
+    dock.owner = Some("behavior/world".into());
+    add(&mut dock, "event");
+    dock.store(&mut project, true);
+    assert!(project.node_graphs.contains_key("behavior/world"));
+    dock.refresh_live(&project, &ServerContext::default());
+    assert!(dock.resources.is_none());
+    let bytes = shared::project_io::encode_project(&project).unwrap();
+    let restored = shared::project_io::decode_project(&bytes).unwrap();
+    assert_eq!(restored.node_graphs, project.node_graphs);
+    let mut image = TheRGBABuffer::new(TheDim::sized(2, 2));
+    image.fill([200, 30, 40, 255]);
+    dock.tiles.set_preview("preview", Some(image));
+    let snapshot = dock.tiles.clone();
+    assert!(std::ptr::eq(
+        dock.tiles.image("preview").unwrap(),
+        snapshot.image("preview").unwrap()
+    ));
+    let mut replacement = TheRGBABuffer::new(TheDim::sized(2, 2));
+    replacement.fill([10, 200, 30, 255]);
+    dock.tiles.set_preview("preview", Some(replacement));
+    assert_eq!(
+        &snapshot.image("preview").unwrap().pixels()[..4],
+        &[200, 30, 40, 255]
+    );
+    assert_eq!(
+        &dock.tiles.image("preview").unwrap().pixels()[..4],
+        &[10, 200, 30, 255]
+    );
+    assert!(dock.resources.is_none());
+    if isolated {
+        assert!(std::sync::LazyLock::get(&crate::editor::RUSTERIX).is_none());
+        assert!(std::sync::LazyLock::get(&crate::editor::SCENEMANAGER).is_none());
+    }
+}

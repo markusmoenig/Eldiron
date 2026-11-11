@@ -16,6 +16,7 @@ pub enum GraphTextInput {
 }
 /// Stable authoring addresses for identified list cells; legacy tables without
 /// row IDs conservatively retain a structural guard until their next load.
+#[cfg(feature = "text")]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum GraphCellKey {
     Named(GraphId, String),
@@ -66,6 +67,7 @@ impl GraphCellIdentity {
             row_ids: row_ids.clone(),
         }))
     }
+    #[cfg(feature = "text")]
     fn key(&self) -> GraphCellKey {
         match self {
             Self::Named { row, column } => GraphCellKey::Named(*row, column.clone()),
@@ -162,6 +164,7 @@ pub(super) fn focused_text<'a>(
     }
 }
 impl GraphTextFocus {
+    #[cfg(feature = "text")]
     pub(super) fn cell_key(&self) -> Option<GraphCellKey> {
         self.cell_identity.as_ref().map(GraphCellIdentity::key)
     }

@@ -1,7 +1,7 @@
 use super::*;
 use rusterix::server::event_observation::{EventObservation, EventOwner};
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub(super) struct LiveEvents {
     pub active: bool,
     pub time: TheTime,
@@ -66,8 +66,22 @@ pub(super) fn matches_owner(
 }
 impl NodesDock {
     pub(super) fn refresh_live(&mut self, project: &Project, server_ctx: &ServerContext) -> bool {
-        let runtime = crate::editor::RUSTERIX.read().unwrap();
-        self.update_live(&runtime.server, project, server_ctx)
+        if let Some(runtime) = std::sync::LazyLock::get(&crate::editor::RUSTERIX) {
+            self.update_live(&runtime.read().unwrap().server, project, server_ctx)
+        } else {
+            let changed = self.live.active
+                || self.live.time != project.time
+                || !self.live.latest.is_empty()
+                || !self.live.traces.is_empty()
+                || !self.live.active_nodes.is_empty()
+                || !self.live.active_connections.is_empty()
+                || !self.live.combat_status.is_empty();
+            self.live = LiveEvents {
+                time: project.time,
+                ..Default::default()
+            };
+            changed
+        }
     }
     pub(super) fn update_live(
         &mut self,

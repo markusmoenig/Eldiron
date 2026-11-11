@@ -1,9 +1,10 @@
 //! Host-owned tile assets and a node-native visual selector.
 use super::*;
+use std::sync::Arc;
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub(super) struct TileControls {
-    images: HashMap<String, TheRGBABuffer>,
+    images: HashMap<String, Arc<TheRGBABuffer>>,
     names: HashMap<String, String>,
     pub(super) equipment_names: HashMap<String, String>,
     items: Vec<GraphPickerItem>,
@@ -11,7 +12,7 @@ pub(super) struct TileControls {
 impl TileControls {
     pub(super) fn set_preview(&mut self, key: &str, image: Option<TheRGBABuffer>) {
         if let Some(image) = image {
-            self.images.insert(key.into(), image);
+            self.images.insert(key.into(), Arc::new(image));
         } else {
             self.images.remove(key);
         }
@@ -39,7 +40,11 @@ impl TileControls {
             for (id, texture) in textures {
                 self.images.insert(
                     id.into(),
-                    TheRGBABuffer::from(texture.data, texture.width as u32, texture.height as u32),
+                    Arc::new(TheRGBABuffer::from(
+                        texture.data,
+                        texture.width as u32,
+                        texture.height as u32,
+                    )),
                 );
                 self.names.insert(id.into(), id.replace('_', " "));
             }
@@ -57,11 +62,11 @@ impl TileControls {
             if let Some(texture) = tile.textures.first() {
                 self.images.insert(
                     id.clone(),
-                    TheRGBABuffer::from(
+                    Arc::new(TheRGBABuffer::from(
                         texture.data.clone(),
                         texture.width as u32,
                         texture.height as u32,
-                    ),
+                    )),
                 );
             }
             // Existing authored aliases remain valid; picker selections use stable IDs.
@@ -94,7 +99,7 @@ impl TileControls {
 }
 impl GraphAssets for TileControls {
     fn image(&self, key: &str) -> Option<&TheRGBABuffer> {
-        self.images.get(key)
+        self.images.get(key).map(Arc::as_ref)
     }
 }
 impl GraphControls for TileControls {

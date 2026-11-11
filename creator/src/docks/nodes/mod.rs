@@ -50,7 +50,7 @@ pub struct NodesDock {
     doc: GraphDocument,
     editor: GraphEditor,
     definitions: GraphDefinitions,
-    resources: GraphRasterResources,
+    resources: Option<GraphRasterResources>,
     tiles: tiles::TileControls,
     owner: Option<String>,
     histories: HashMap<String, History>,
@@ -242,6 +242,18 @@ impl NodesDock {
             _ => return None,
         })
     }
+    /// Only the explicit reference presentation/input path needs raster fonts.
+    fn raster_resources() -> GraphRasterResources {
+        let font = fontdue::Font::from_bytes(
+            theframework::Embedded::get("fonts/Roboto-Bold.ttf")
+                .unwrap()
+                .data
+                .as_ref(),
+            fontdue::FontSettings::default(),
+        )
+        .unwrap();
+        GraphRasterResources::new(font)
+    }
     fn render(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
         self.apply_branch_filter();
         self.update_particle_preview();
@@ -290,7 +302,7 @@ impl NodesDock {
             width,
             height,
             density,
-            &mut self.resources,
+            self.resources.get_or_insert_with(Self::raster_resources),
             &self.tiles,
         );
         self.editor.paint(
@@ -1173,20 +1185,12 @@ impl NodesDock {
 }
 impl Dock for NodesDock {
     fn new() -> Self {
-        let font = fontdue::Font::from_bytes(
-            theframework::Embedded::get("fonts/Roboto-Bold.ttf")
-                .unwrap()
-                .data
-                .as_ref(),
-            fontdue::FontSettings::default(),
-        )
-        .unwrap();
         Self {
             doc: GraphDocument::default(),
             committed: GraphDocument::default(),
             editor: node_editor(),
             definitions: catalog::definitions(),
-            resources: GraphRasterResources::new(font),
+            resources: None,
             tiles: Default::default(),
             owner: None,
             histories: HashMap::new(),
@@ -1726,7 +1730,10 @@ impl Dock for NodesDock {
                 if overlay_open {
                     // Click inside places the caret; a click outside commits.
                     if overlay_contains {
-                        let font = &self.resources.font;
+                        let font = &self
+                            .resources
+                            .get_or_insert_with(Self::raster_resources)
+                            .font;
                         let extend = ui.shift;
                         if let Some(overlay) = self.text_overlay.as_mut() {
                             overlay.caret_at(point, font, extend);
@@ -1852,7 +1859,10 @@ impl Dock for NodesDock {
                 if self.text_overlay.is_some() {
                     // Dragging inside the overlay extends the selection.
                     let point = [p.x as f32, p.y as f32];
-                    let font = &self.resources.font;
+                    let font = &self
+                        .resources
+                        .get_or_insert_with(Self::raster_resources)
+                        .font;
                     if let Some(overlay) = self.text_overlay.as_mut() {
                         overlay.caret_at(point, font, true);
                     }
@@ -1969,7 +1979,10 @@ impl Dock for NodesDock {
                         }
                         TheKeyCode::Up | TheKeyCode::Down => {
                             let delta = if *key == TheKeyCode::Up { -1 } else { 1 };
-                            let font = &self.resources.font;
+                            let font = &self
+                                .resources
+                                .get_or_insert_with(Self::raster_resources)
+                                .font;
                             if let Some(overlay) = self.text_overlay.as_mut() {
                                 overlay.move_vertical(delta, font);
                             }
