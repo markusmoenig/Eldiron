@@ -17,6 +17,8 @@ name = "scenevm_unified_app"
 crate-type = ["rlib", "staticlib"]
 
 [dependencies]
+eldiron-runtime = { path = "../../crates/runtime" }
+rustc-hash = "2"
 scenevm = { workspace = true, default-features = true }
 rusterix.workspace = true
 shared = { path = "../../crates/shared", version = "0.96.0", package = "eldiron-shared" }

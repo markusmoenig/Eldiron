@@ -71,6 +71,13 @@ impl ClientAction {
         self.last_cardinal_action = EntityAction::Off;
     }
 
+    /// Release held controls on focus/capture/session transitions without
+    /// replacing authored bindings or changing the view's movement convention.
+    pub fn release_all(&mut self) -> EntityAction {
+        self.set_movement_key(EntityAction::Off, true);
+        EntityAction::Off
+    }
+
     /// Execute the user event
     pub fn user_event(&mut self, event: String, value: Value) -> EntityAction {
         if let Value::Str(v) = value {

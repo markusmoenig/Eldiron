@@ -1,5 +1,6 @@
 pub mod app;
 pub mod misc;
+pub mod player_session;
 
 pub use app::EldironPlayerApp;
 
