@@ -46,8 +46,34 @@ struct Out{@builtin(position)position:vec4<f32>,@location(0)local:vec2<f32>,@loc
 }
 fn linear(c:vec3<f32>)->vec3<f32>{return select(c/12.92,pow((c+vec3<f32>(0.055))/1.055,vec3<f32>(2.4)),c>vec3<f32>(0.04045));}
 fn srgb(c:vec3<f32>)->vec3<f32>{let v=max(c,vec3<f32>(0.));return select(v*12.92,1.055*pow(v,vec3<f32>(1./2.4))-vec3<f32>(0.055),v>vec3<f32>(0.0031308));}
+// Explicit LOD is required inside the non-uniform dilation loop. The UV crop
+// is an image boundary, so adjacent atlas/cropped body pixels cannot leak in.
+fn cropped_alpha(uv: vec2<f32>) -> f32 {
+    if(any(uv < params.color1.xy) || any(uv >= params.color1.zw)){return 0.;}
+    return textureSampleLevel(image,image_sampler,uv,0.).a;
+}
+fn outline(uv: vec2<f32>) -> vec4<f32> {
+    let center=cropped_alpha(uv);
+    if(center>=1.){return vec4<f32>(0.);}
+    let radius=i32(ceil(params.gradient.z));
+    var coverage=0.;
+    for(var y=-radius;y<=radius;y++){
+        for(var x=-radius;x<=radius;x++){
+            let delta=vec2<f32>(f32(x),f32(y))*(params.gradient.z/f32(radius));
+            if(dot(delta,delta)<=params.gradient.z*params.gradient.z){
+                coverage=max(coverage,cropped_alpha(uv+delta*params.gradient.xy));
+                if(coverage>=1.){break;}
+            }
+        }
+        if(coverage>=1.){break;}
+    }
+    coverage=clamp((coverage-center)/max(1.-center,0.000001),0.,1.);
+    let alpha=coverage*params.color0.a;
+    return vec4<f32>(params.color0.rgb*alpha,alpha);
+}
 @fragment fn fs(i:Out)->@location(0)vec4<f32>{
     var c=params.color0;
+    if(params.mode==6u){return outline(i.uv);}
     if(params.mode==4u){return field_color(i.local-params.gradient.xy,c);}
     if(params.mode==3u){c=vec4<f32>(linear(i.color.rgb),i.color.a);}
     if(params.mode==1u){let d=params.gradient.zw-params.gradient.xy;let t=clamp(dot(i.local-params.gradient.xy,d)/max(dot(d,d),0.000001),0.,1.);c=mix(params.color0,params.color1,t);}

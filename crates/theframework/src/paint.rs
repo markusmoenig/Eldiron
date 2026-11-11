@@ -212,6 +212,17 @@ pub struct DistanceField {
 }
 #[derive(Clone, Debug)]
 pub enum PaintOp {
+    /// Circular alpha dilation behind an image. Width is in local logical units;
+    /// samples outside the supplied UV crop are transparent. The caller paints
+    /// the image separately and clips the silhouette to its widget if required.
+    ImageOutline {
+        image: ImageHandle,
+        rect: Rect,
+        uv: Rect,
+        sampling: Sampling,
+        width: f32,
+        color: Color,
+    },
     FilteredImage {
         image: ImageHandle,
         rect: Rect,
@@ -294,6 +305,36 @@ impl PaintList {
         let mut scopes = Vec::new();
         for op in &self.ops {
             match op {
+                PaintOp::ImageOutline {
+                    rect,
+                    uv,
+                    width,
+                    color,
+                    ..
+                } => {
+                    if [
+                        rect.x,
+                        rect.y,
+                        rect.width,
+                        rect.height,
+                        uv.x,
+                        uv.y,
+                        uv.width,
+                        uv.height,
+                        *width,
+                    ]
+                    .iter()
+                    .chain(color.iter())
+                    .any(|v| !v.is_finite())
+                        || *width < 0.
+                        || rect.width <= 0.
+                        || rect.height <= 0.
+                        || uv.width <= 0.
+                        || uv.height <= 0.
+                    {
+                        return Err("invalid image outline geometry");
+                    }
+                }
                 PaintOp::FilteredImage {
                     filter,
                     tint,

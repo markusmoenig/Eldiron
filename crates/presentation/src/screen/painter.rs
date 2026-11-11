@@ -6,6 +6,20 @@ use theframework::{
 
 /// Authored source assets only; presenters never register a rasterized screen/HUD.
 pub trait ScreenImages {
+    /// Revisioned source assets avoid hashing immutable pixels every frame.
+    /// The owner must change revision whenever bytes or dimensions change.
+    /// Backends without a version-aware cache may use the byte-based service.
+    fn rgba_versioned(
+        &mut self,
+        key: &str,
+        revision: u64,
+        width: u32,
+        height: u32,
+        pixels: &[u8],
+    ) -> Result<ImageHandle, String> {
+        let _ = revision;
+        self.rgba(key, width, height, pixels)
+    }
     fn rgba(
         &mut self,
         key: &str,

@@ -27,6 +27,7 @@ pub struct AvatarWidget {
     pub damage_flash_seconds: f32,
     pub damage_stat: String,
 
+    pub(crate) last_entity: Option<(uuid::Uuid, u32)>,
     pub(crate) last_stat_value: Option<f32>,
     pub(crate) damage_flash_started: Option<Instant>,
 }
@@ -57,6 +58,7 @@ impl AvatarWidget {
             border_size: 2,
             damage_flash_seconds: 0.8,
             damage_stat: String::new(),
+            last_entity: None,
             last_stat_value: None,
             damage_flash_started: None,
         }
@@ -129,6 +131,23 @@ impl AvatarWidget {
                 .map(|value| value as f32)
                 .or_else(|| value.as_integer().map(|value| value as f32))
         })
+    }
+
+    pub fn content_recipe<'a>(
+        &'a self,
+        entity: &'a Entity,
+    ) -> crate::client::content::ContentRecipe<'a> {
+        use crate::client::content::{AvatarSourceSettings, ContentRecipe};
+        ContentRecipe::Avatar {
+            entity,
+            settings: AvatarSourceSettings {
+                avatar: self.avatar_name.as_deref(),
+                animation: self.animation.as_deref(),
+                direction: self.perspective,
+                frame: self.frame_index,
+                weapons: self.show_weapons,
+            },
+        }
     }
 
     pub fn init(&mut self) {
@@ -228,6 +247,12 @@ impl AvatarWidget {
     }
 
     fn update_damage_state(&mut self, entity: &Entity, assets: &Assets) {
+        let identity = (entity.creator_id, entity.id);
+        if self.last_entity != Some(identity) {
+            self.last_entity = Some(identity);
+            self.last_stat_value = None;
+            self.damage_flash_started = None;
+        }
         let damage_stat = if self.damage_stat.is_empty() {
             assets.ruleset_attribute_role("health")
         } else {
@@ -308,13 +333,14 @@ impl AvatarWidget {
         }
     }
 
-    fn draw_border(&mut self, assets: &Assets, _draw2d: &Draw2D) {
-        if self.border_size == 0 {
-            return;
-        }
+    /// Controller-owned flash timing; querying visuals never rebuilds source art.
+    pub fn prepare_outline(&mut self, entity: &Entity, assets: &Assets) -> ([u8; 4], usize) {
+        self.update_damage_state(entity, assets);
+        (self.outline_color(assets), self.border_size)
+    }
 
-        let damage_active = self.damage_flash_started.is_some();
-        let color = if damage_active {
+    fn outline_color(&self, assets: &Assets) -> [u8; 4] {
+        if self.damage_flash_started.is_some() {
             Self::palette_color(
                 assets,
                 self.damage_border_color_index,
@@ -322,11 +348,11 @@ impl AvatarWidget {
             )
         } else {
             Self::palette_color(assets, self.border_color_index, self.border_color)
-        };
-        if color[3] == 0 {
-            return;
         }
+    }
 
+    fn draw_border(&mut self, assets: &Assets, _draw2d: &Draw2D) {
+        let color = self.outline_color(assets);
         Self::draw_alpha_outline(&mut self.buffer, color, self.border_size);
     }
 

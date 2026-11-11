@@ -27,6 +27,11 @@ struct Geometry {
     count: u32,
     colored: bool,
 }
+#[derive(Clone, Copy)]
+enum ImageEffect {
+    Filter(ImageColorFilter),
+    Outline { uv: Rect, step: Point, width: f32 },
+}
 struct Draw {
     geometry: Geometry,
     bind: wgpu::BindGroup,
@@ -303,7 +308,7 @@ impl PaintRenderer {
         stencil: u32,
         phase: u8,
         field: Option<(&DistanceField, Point)>,
-        filter: Option<ImageColorFilter>,
+        effect: Option<ImageEffect>,
     ) -> Draw {
         let (mode, color0, color1, gradient) = match brush {
             Brush::Solid(c) => (0, linear(*c), [0.; 4], [0.; 4]),
@@ -329,9 +334,19 @@ impl PaintRenderer {
                 0
             }
         });
+        let filter = match effect {
+            Some(ImageEffect::Filter(f)) => Some(f),
+            _ => None,
+        };
+        let outline = match effect {
+            Some(ImageEffect::Outline { uv, step, width }) => Some((uv, step, width)),
+            _ => None,
+        };
         let params = Params {
             viewport: [size.0 as f32, size.1 as f32],
-            mode: if field.is_some() {
+            mode: if outline.is_some() {
+                6
+            } else if field.is_some() {
                 4
             } else if filter.is_some() {
                 5
@@ -346,12 +361,22 @@ impl PaintRenderer {
             color0: filter.map_or(color0, |f| {
                 [color0[0], color0[1], color0[2], color0[3] * f.alpha_scale]
             }),
-            color1: filter.map_or(color1, |f| {
-                [f.scale[0], f.scale[1], f.scale[2], f.saturation]
-            }),
-            gradient: filter.map_or_else(
-                || field.map_or(gradient, |(_, p)| [p[0], p[1], 0., 0.]),
-                |f| [f.bias[0], f.bias[1], f.bias[2], f.minimum],
+            color1: outline.map_or_else(
+                || {
+                    filter.map_or(color1, |f| {
+                        [f.scale[0], f.scale[1], f.scale[2], f.saturation]
+                    })
+                },
+                |(uv, _, _)| [uv.x, uv.y, uv.x + uv.width, uv.y + uv.height],
+            ),
+            gradient: outline.map_or_else(
+                || {
+                    filter.map_or_else(
+                        || field.map_or(gradient, |(_, p)| [p[0], p[1], 0., 0.]),
+                        |f| [f.bias[0], f.bias[1], f.bias[2], f.minimum],
+                    )
+                },
+                |(_, step, width)| [step[0], step[1], width, 0.],
             ),
         };
         let uniform = self
@@ -475,6 +500,48 @@ impl PaintRenderer {
                         ));
                     }
                 }
+                PaintOp::ImageOutline {
+                    image,
+                    rect,
+                    uv,
+                    sampling,
+                    width,
+                    color,
+                } => {
+                    if *width > 0. && color[3] > 0. {
+                        let image = images.get(*image).ok_or_else(|| {
+                            RenderError("paint references a stale outline image".into())
+                        })?;
+                        let step = [uv.width / rect.width, uv.height / rect.height];
+                        let expanded = Rect::new(
+                            rect.x - width,
+                            rect.y - width,
+                            rect.width + width * 2.,
+                            rect.height + width * 2.,
+                        );
+                        let expanded_uv = Rect::new(
+                            uv.x - step[0] * width,
+                            uv.y - step[1] * width,
+                            uv.width + step[0] * width * 2.,
+                            uv.height + step[1] * width * 2.,
+                        );
+                        let (v, ix) = mesh::quad(expanded, expanded_uv, transform, density);
+                        draws.push(self.draw_with_effects(
+                            self.geometry(&v, &ix),
+                            &Brush::Solid(*color),
+                            Some((&image, *sampling)),
+                            size,
+                            level,
+                            0,
+                            None,
+                            Some(ImageEffect::Outline {
+                                uv: *uv,
+                                step,
+                                width: *width,
+                            }),
+                        ));
+                    }
+                }
                 PaintOp::FilteredImage {
                     image,
                     rect,
@@ -496,7 +563,7 @@ impl PaintRenderer {
                             level,
                             0,
                             None,
-                            Some(*filter),
+                            Some(ImageEffect::Filter(*filter)),
                         ));
                     }
                 }

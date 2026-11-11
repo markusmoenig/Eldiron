@@ -1,4 +1,5 @@
 pub mod action;
+pub mod content;
 pub mod command {
     pub use crate::input_binding::*;
 }

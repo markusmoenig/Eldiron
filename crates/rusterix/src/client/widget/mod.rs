@@ -1155,6 +1155,74 @@ impl Widget {
             .and_then(|id| assets.tiles.get(&id).cloned())
     }
 
+    /// Resolve authored/animated item artwork before UI painting. The returned
+    /// pixels are source-sized; fitting and the quantity badge belong to paint.
+    pub fn item_source_texture(
+        assets: &Assets,
+        item: &Item,
+        frame: usize,
+    ) -> Option<(Texture, crate::client::content::SourceFit)> {
+        use crate::client::content::SourceFit;
+        let explicit = item.attributes.get_str("icon").and_then(|name| {
+            let root = assets.rules_table();
+            let id = root.as_ref().map_or_else(
+                || name.to_string(),
+                |r| Self::resolve_icon_texture_id(r, name),
+            );
+            Uuid::parse_str(&id)
+                .ok()
+                .and_then(|id| assets.tiles.get(&id))
+        });
+        if Self::project_item_icon_frames(assets, item).is_none()
+            && let Some(tile) = explicit
+            && let Some(texture) = tile.textures.get(tile.frame_index(frame))
+        {
+            return Some((texture.clone(), SourceFit::Stretch));
+        }
+        if let Some(frames) = Self::custom_item_icon_frames(assets, item)
+            && let Some(texture) = frames.get(frame % frames.len().max(1))
+        {
+            return Some((texture.clone(), SourceFit::Stretch));
+        }
+        if let Some(Value::Source(source)) = item.attributes.get("source")
+            && let Some(tile) = source.tile_from_tile_list(assets)
+            && let Some(texture) = tile.textures.get(tile.frame_index(frame))
+        {
+            return Some((texture.clone(), SourceFit::Stretch));
+        }
+        if let Some(tile) = AvatarRuntimeBuilder::explicit_item_tile(item, assets)
+            && let Some(texture) = tile.textures.get(tile.frame_index(frame))
+        {
+            return Some((texture.clone(), SourceFit::Stretch));
+        }
+        if let Some((size, rgba)) = Self::item_icon_texture_square_at_frame(assets, item, frame) {
+            return Some((
+                Texture::new(rgba, size as usize, size as usize),
+                SourceFit::Contain,
+            ));
+        }
+        if let Some(Value::StrArray(channels)) = item.attributes.get("avatar_channels")
+            && !channels.is_empty()
+        {
+            let mut color = Self::item_icon_color(assets, item, [188, 173, 159, 255]);
+            color[3] = 255;
+            if let Some((rgba, (width, height))) =
+                Self::avatar_channel_icon_texture(assets, item, channels, color)
+            {
+                return Some((Texture::new(rgba, width, height), SourceFit::Contain));
+            }
+        }
+        let (size, rgba) = Self::item_template_mask_icon_square(assets, item).or_else(|| {
+            (!AvatarRuntimeBuilder::item_has_explicit_tile(item, assets))
+                .then(|| Self::item_equipment_icon_square(assets, item))
+                .flatten()
+        })?;
+        Some((
+            Texture::new(rgba, size as usize, size as usize),
+            SourceFit::Contain,
+        ))
+    }
+
     pub fn draw_item_icon(
         buffer: &mut TheRGBABuffer,
         rect: Rect,
@@ -1163,112 +1231,19 @@ impl Widget {
         draw2d: &Draw2D,
         animation_frame: usize,
     ) -> bool {
-        let stride = buffer.stride();
+        let Some((texture, fit)) = Self::item_source_texture(assets, item, animation_frame) else {
+            return false;
+        };
         let rect = rect.with_border(4.0);
-        let mut drawn = false;
-        let explicit_tile = item.attributes.get_str("icon").and_then(|name| {
-            let root = assets.rules_table();
-            let name = root.as_ref().map_or_else(
-                || name.to_string(),
-                |root| Self::resolve_icon_texture_id(root, name),
-            );
-            Uuid::parse_str(&name)
-                .ok()
-                .and_then(|id| assets.tiles.get(&id))
-        });
-        if Self::project_item_icon_frames(assets, item).is_none()
-            && let Some(tile) = explicit_tile
-            && let Some(texture) = tile.textures.get(tile.frame_index(animation_frame))
-        {
-            blend_texture_layer(buffer, rect, draw2d, texture, 0);
-            drawn = true;
-        }
-        if !drawn
-            && let Some(frames) = Self::custom_item_icon_frames(assets, item)
-            && !frames.is_empty()
-        {
-            let texture = &frames[animation_frame % frames.len()];
-            draw2d.blend_scale_chunk(
-                buffer.pixels_mut(),
-                &(
-                    rect.x as usize,
-                    rect.y as usize,
-                    rect.width as usize,
-                    rect.height as usize,
-                ),
-                stride,
-                &texture.data,
-                &(texture.width, texture.height),
-            );
-            drawn = true;
-        }
-        if !drawn
-            && let Some(Value::Source(source)) = item.attributes.get("source")
-            && let Some(tile) = source.tile_from_tile_list(assets)
-            && !tile.textures.is_empty()
-        {
-            let index = tile.frame_index(animation_frame);
-            let texture = &tile.textures[index];
-            draw2d.blend_scale_chunk(
-                buffer.pixels_mut(),
-                &(
-                    rect.x as usize,
-                    rect.y as usize,
-                    rect.width as usize,
-                    rect.height as usize,
-                ),
-                stride,
-                &texture.data,
-                &(texture.width, texture.height),
-            );
-            drawn = true;
-        }
-
-        if !drawn
-            && let Some(tile) = AvatarRuntimeBuilder::explicit_item_tile(item, assets)
-            && !tile.textures.is_empty()
-        {
-            let index = tile.frame_index(animation_frame);
-            let texture = &tile.textures[index];
-            draw2d.blend_scale_chunk(
-                buffer.pixels_mut(),
-                &(
-                    rect.x as usize,
-                    rect.y as usize,
-                    rect.width as usize,
-                    rect.height as usize,
-                ),
-                stride,
-                &texture.data,
-                &(texture.width, texture.height),
-            );
-            drawn = true;
-        }
-
-        // Ruleset PNGs are authoritative RGBA artwork. Prefer them over the
-        // palette-driven generators, which now serve only as missing-art fallbacks.
-        if !drawn
-            && Self::draw_item_icon_texture(buffer, rect, assets, item, draw2d, animation_frame)
-        {
-            drawn = true;
-        }
-
-        if !drawn && Self::draw_generated_avatar_channel_icon(buffer, rect, assets, item, draw2d) {
-            drawn = true;
-        }
-
-        if !drawn && Self::draw_item_template_mask_icon(buffer, rect, assets, item, draw2d) {
-            drawn = true;
-        }
-
-        if !drawn && !AvatarRuntimeBuilder::item_has_explicit_tile(item, assets) {
-            drawn = Self::draw_generated_equipment_icon(buffer, rect, assets, item, draw2d);
-        }
-
-        if drawn {
-            Self::draw_stack_badge(buffer, rect, item, draw2d);
-        }
-        drawn
+        let fitted = if fit == crate::client::content::SourceFit::Contain {
+            let (x, y, w, h) = Self::fit_rect(rect, (texture.width, texture.height));
+            Rect::new(x as f32, y as f32, w as f32, h as f32)
+        } else {
+            rect
+        };
+        blend_texture_layer(buffer, fitted, draw2d, &texture, 0);
+        Self::draw_stack_badge(buffer, rect, item, draw2d);
+        true
     }
 
     fn draw_stack_badge(buffer: &mut TheRGBABuffer, rect: Rect, item: &Item, _draw2d: &Draw2D) {
@@ -1426,56 +1401,6 @@ impl Widget {
         Some((size as u32, square))
     }
 
-    fn draw_generated_avatar_channel_icon(
-        buffer: &mut TheRGBABuffer,
-        rect: Rect,
-        assets: &Assets,
-        item: &Item,
-        draw2d: &Draw2D,
-    ) -> bool {
-        let Some(Value::StrArray(channels)) = item.attributes.get("avatar_channels") else {
-            return false;
-        };
-        if channels.is_empty() {
-            return false;
-        }
-
-        let mut color = Self::item_icon_color(assets, item, [188, 173, 159, 255]);
-        color[3] = 255;
-
-        let Some((icon, source_size)) =
-            Self::avatar_channel_icon_texture(assets, item, channels, color)
-        else {
-            return false;
-        };
-        let dest = Self::fit_rect(rect, source_size);
-        let stride = buffer.stride();
-        draw2d.blend_scale_chunk(buffer.pixels_mut(), &dest, stride, &icon, &source_size);
-        true
-    }
-
-    fn draw_item_template_mask_icon(
-        buffer: &mut TheRGBABuffer,
-        rect: Rect,
-        assets: &Assets,
-        item: &Item,
-        draw2d: &Draw2D,
-    ) -> bool {
-        let Some((size, icon)) = Self::item_template_mask_icon_square(assets, item) else {
-            return false;
-        };
-        let dest = Self::fit_rect(rect, (size as usize, size as usize));
-        let stride = buffer.stride();
-        draw2d.blend_scale_chunk(
-            buffer.pixels_mut(),
-            &dest,
-            stride,
-            &icon,
-            &(size as usize, size as usize),
-        );
-        true
-    }
-
     fn item_template_mask_icon_square(assets: &Assets, item: &Item) -> Option<(u32, Vec<u8>)> {
         let mut blade = Self::item_role_color(
             assets,
@@ -1492,31 +1417,6 @@ impl Widget {
         highlight[3] = 255;
 
         Self::item_template_mask_square(item, blade, grip, accent, highlight)
-    }
-
-    fn draw_item_icon_texture(
-        buffer: &mut TheRGBABuffer,
-        rect: Rect,
-        assets: &Assets,
-        item: &Item,
-        draw2d: &Draw2D,
-        animation_frame: usize,
-    ) -> bool {
-        let Some((size, icon)) =
-            Self::item_icon_texture_square_at_frame(assets, item, animation_frame)
-        else {
-            return false;
-        };
-        let dest = Self::fit_rect(rect, (size as usize, size as usize));
-        let stride = buffer.stride();
-        draw2d.blend_scale_chunk(
-            buffer.pixels_mut(),
-            &dest,
-            stride,
-            &icon,
-            &(size as usize, size as usize),
-        );
-        true
     }
 
     fn item_icon_texture_square(assets: &Assets, item: &Item) -> Option<(u32, Vec<u8>)> {
@@ -1576,28 +1476,6 @@ impl Widget {
             }
         }
         Some((size as u32, icon))
-    }
-
-    fn draw_generated_equipment_icon(
-        buffer: &mut TheRGBABuffer,
-        rect: Rect,
-        assets: &Assets,
-        item: &Item,
-        draw2d: &Draw2D,
-    ) -> bool {
-        let Some((size, icon)) = Self::item_equipment_icon_square(assets, item) else {
-            return false;
-        };
-        let dest = Self::fit_rect(rect, (size as usize, size as usize));
-        let stride = buffer.stride();
-        draw2d.blend_scale_chunk(
-            buffer.pixels_mut(),
-            &dest,
-            stride,
-            &icon,
-            &(size as usize, size as usize),
-        );
-        true
     }
 
     fn item_equipment_icon_square(assets: &Assets, item: &Item) -> Option<(u32, Vec<u8>)> {
@@ -2128,7 +2006,7 @@ mod tests {
     fn generated_item_icon_colors_use_project_palette() {
         let mut assets = Assets::default();
         assets.palette.colors[10] = Some(TheColor::from_u8(41, 82, 123, 255));
-        assets.palette.colors[10] = Some(TheColor::from_u8(240, 96, 16, 255));
+        assets.palette.colors[20] = Some(TheColor::from_u8(240, 96, 16, 255));
 
         let mut item = Item::default();
         item.attributes.set("color_index", Value::Int(10));

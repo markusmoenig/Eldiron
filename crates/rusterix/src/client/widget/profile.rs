@@ -64,6 +64,35 @@ impl ProfileStatBar {
     }
 }
 
+/// Shared CPU layout/controller projection. Text shaping and GPU image ownership
+/// belong to the presenter; these values have no destination bitmap.
+pub struct ProfilePresentation {
+    pub bounds: Rect,
+    pub image: Rect,
+    pub text: Option<Rect>,
+    pub name: String,
+    pub class: String,
+    pub name_size: f32,
+    pub class_size: f32,
+    pub text_gap: f32,
+    pub name_color: [u8; 4],
+    pub class_color: [u8; 4],
+    pub outline_color: [u8; 4],
+    pub outline_size: usize,
+    pub selected_color: [u8; 4],
+    pub selected_size: usize,
+    pub bars: Vec<ProfileBarPresentation>,
+}
+pub struct ProfileBarPresentation {
+    pub bounds: Rect,
+    pub ratio: f32,
+    pub vertical: bool,
+    pub background: [u8; 4],
+    pub fill: [u8; 4],
+    pub border: [u8; 4],
+    pub border_size: usize,
+}
+
 pub struct ProfileWidget {
     pub animation_frame: usize,
     pub name: String,
@@ -137,6 +166,116 @@ impl ProfileWidget {
             stat_gap: 8.0,
             stats_top_gap: 8.0,
         }
+    }
+
+    /// Source preparation is independent of profile text, bars and UI geometry.
+    pub fn content_recipe<'a>(
+        &'a self,
+        entity: &'a Entity,
+    ) -> crate::client::content::ContentRecipe<'a> {
+        use crate::client::content::{AvatarSourceSettings, ContentRecipe};
+        ContentRecipe::Profile {
+            entity,
+            artwork_frame: self.animation_frame,
+            settings: AvatarSourceSettings {
+                avatar: self.avatar_name.as_deref(),
+                animation: self.animation.as_deref(),
+                direction: self.perspective,
+                frame: self.frame_index,
+                weapons: self.show_weapons,
+            },
+        }
+    }
+
+    pub fn presentation(&self, entity: &Entity) -> Option<ProfilePresentation> {
+        self.measured_presentation(
+            entity,
+            self.name_font_size + self.text_gap + self.class_font_size,
+        )
+    }
+
+    /// Native presenters provide the actual shaped identity block height.
+    pub fn measured_presentation(
+        &self,
+        entity: &Entity,
+        text_height: f32,
+    ) -> Option<ProfilePresentation> {
+        let w = self.rect.width.max(0.) as usize;
+        let h = self.rect.height.max(0.) as usize;
+        if w == 0 || h == 0 {
+            return None;
+        }
+        let inset = self.content_inset().min(w / 2).min(h / 2);
+        let (w, h) = (w.saturating_sub(inset * 2), h.saturating_sub(inset * 2));
+        if w == 0 || h == 0 {
+            return None;
+        }
+        let (mut image, mut text, mut stats) = self.layout_with_text_height(w, h, text_height);
+        Self::offset_layout(&mut image, &mut text, &mut stats, inset);
+        let absolute = |(x, y, w, h): (usize, usize, usize, usize)| {
+            Rect::new(
+                self.rect.x + x as f32,
+                self.rect.y + y as f32,
+                w as f32,
+                h as f32,
+            )
+        };
+        if let Some(text) = &mut text {
+            text.x += self.rect.x;
+            text.y += self.rect.y;
+        }
+        let bars = self
+            .stat_bars
+            .iter()
+            .zip(stats)
+            .map(|(bar, bounds)| {
+                let current = entity.attributes.get_float_default(&bar.stat, 0.);
+                let max = entity
+                    .attributes
+                    .get_float_default(&bar.max_stat, current.max(1.));
+                let ratio = if current.is_finite() && max.is_finite() && max > 0. {
+                    (current / max).clamp(0., 1.)
+                } else {
+                    0.
+                };
+                ProfileBarPresentation {
+                    bounds: absolute(bounds),
+                    ratio,
+                    vertical: self.stats_layout == ProfileStatsLayout::Vertical,
+                    background: bar.background_color,
+                    fill: bar.fill_color,
+                    border: bar.border_color,
+                    border_size: bar.border_size,
+                }
+            })
+            .collect();
+        Some(ProfilePresentation {
+            bounds: self.rect,
+            image: absolute(image),
+            text,
+            name: Self::display_name(entity),
+            class: Self::display_class(entity).unwrap_or_default(),
+            name_size: self.name_font_size,
+            class_size: self.class_font_size,
+            text_gap: self.text_gap,
+            name_color: self.name_color,
+            class_color: self.class_color,
+            outline_color: self.border_color,
+            outline_size: self.border_size,
+            selected_color: self.selected_frame_color,
+            selected_size: if self.selected_frame {
+                self.selected_frame_size
+            } else {
+                0
+            },
+            bars,
+        })
+    }
+
+    /// Crop geometry from source metadata retained by the preparation cache.
+    /// This never rescans source pixels or creates a cropped/scaled UI image.
+    pub fn source_crop(&self, size: u32, bounds: [u32; 4]) -> (usize, usize, usize, usize) {
+        Self::crop_from_bounds(size as usize, bounds.map(|v| v as usize), self.crop)
     }
 
     pub fn init(&mut self) {
@@ -355,7 +494,7 @@ impl ProfileWidget {
             .unwrap_or(fallback)
     }
 
-    fn explicit_profile_texture(
+    pub(crate) fn explicit_profile_texture(
         entity: &Entity,
         assets: &Assets,
         animation_frame: usize,
@@ -413,9 +552,18 @@ impl ProfileWidget {
         rgba: &[u8],
         crop: ProfileCrop,
     ) -> Option<(usize, usize, usize, usize)> {
-        let (min_x, min_y, max_x, max_y) = Self::alpha_bounds(size, rgba)?;
+        let (x, y, max_x, max_y) = Self::alpha_bounds(size, rgba)?;
+        Some(Self::crop_from_bounds(size, [x, y, max_x, max_y], crop))
+    }
+
+    fn crop_from_bounds(
+        size: usize,
+        bounds: [usize; 4],
+        crop: ProfileCrop,
+    ) -> (usize, usize, usize, usize) {
+        let [min_x, min_y, max_x, max_y] = bounds;
         if crop == ProfileCrop::Full {
-            return Some((min_x, min_y, max_x - min_x, max_y - min_y));
+            return (min_x, min_y, max_x - min_x, max_y - min_y);
         }
 
         let body_w = (max_x - min_x).max(1) as f32;
@@ -430,7 +578,7 @@ impl ProfileWidget {
         let crop_y = min_y as f32 - body_h * top_margin;
         let crop_x = center_x - crop_w * 0.5;
 
-        Some(Self::clamped_rect(size, crop_x, crop_y, crop_w, crop_h))
+        Self::clamped_rect(size, crop_x, crop_y, crop_w, crop_h)
     }
 
     fn clamped_rect(
@@ -631,10 +779,27 @@ impl ProfileWidget {
         Option<Rect>,
         Vec<(usize, usize, usize, usize)>,
     ) {
+        self.layout_with_text_height(
+            dst_w,
+            dst_h,
+            self.name_font_size + self.text_gap + self.class_font_size,
+        )
+    }
+
+    fn layout_with_text_height(
+        &self,
+        dst_w: usize,
+        dst_h: usize,
+        text_height: f32,
+    ) -> (
+        (usize, usize, usize, usize),
+        Option<Rect>,
+        Vec<(usize, usize, usize, usize)>,
+    ) {
         let w = dst_w as f32;
         let h = dst_h as f32;
         if self.stats_layout == ProfileStatsLayout::Bottom {
-            return self.bottom_layout(dst_w, dst_h);
+            return self.bottom_layout(dst_w, dst_h, text_height);
         }
 
         let image = self
@@ -676,7 +841,7 @@ impl ProfileWidget {
         } else {
             let stats_x = next_x;
             let stats_w = (w - stats_x).max(1.0);
-            let text_bottom = self.name_font_size + self.text_gap + self.class_font_size;
+            let text_bottom = text_height;
             let bar_count = self.stat_bars.len();
             let total_bar_height = self
                 .stat_bars
@@ -721,9 +886,7 @@ impl ProfileWidget {
             let text_h = if self.stats_layout == ProfileStatsLayout::Vertical {
                 h
             } else {
-                (self.name_font_size + self.text_gap + self.class_font_size)
-                    .min(h)
-                    .max(1.0)
+                text_height.min(h).max(1.0)
             };
             Some(Rect::new(next_x, 0.0, (w - next_x).max(1.0), text_h))
         } else {
@@ -737,6 +900,7 @@ impl ProfileWidget {
         &self,
         dst_w: usize,
         dst_h: usize,
+        text_height: f32,
     ) -> (
         (usize, usize, usize, usize),
         Option<Rect>,
@@ -779,9 +943,7 @@ impl ProfileWidget {
             let image_y = ((content_h - image) * 0.5).max(0.0);
             let text_x = image_x + image + self.text_gap + 4.0;
             let text_w = (w - text_x).max(1.0);
-            let text_h = (self.name_font_size + self.class_font_size + self.text_gap)
-                .min(content_h)
-                .max(1.0);
+            let text_h = text_height.min(content_h).max(1.0);
             let text_y = ((content_h - text_h) * 0.5).max(0.0);
             (
                 (
@@ -794,9 +956,7 @@ impl ProfileWidget {
                 stat_rects,
             )
         } else if self.show_text {
-            let text_h = (self.name_font_size + self.class_font_size + self.text_gap + 4.0)
-                .min(content_h * 0.45)
-                .max(1.0);
+            let text_h = (text_height + 4.0).min(content_h * 0.45).max(1.0);
             let image = self
                 .image_size
                 .unwrap_or_else(|| w.min(content_h - text_h))

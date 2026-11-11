@@ -3,9 +3,18 @@ use renderkit::{ImageAsset, ImageHandle, ImageRegistry};
 use rustc_hash::{FxHashMap, FxHasher};
 use std::hash::{Hash, Hasher};
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SourceStamp {
+    Pixels(u64),
+    Revision {
+        revision: u64,
+        width: u32,
+        height: u32,
+    },
+}
 struct Entry {
     image: ImageHandle,
-    fingerprint: u64,
+    stamp: SourceStamp,
     bytes: usize,
     frame: u64,
 }
@@ -88,6 +97,26 @@ pub struct ScreenImageFrame<'a> {
     images: &'a mut ImageRegistry,
 }
 impl ScreenImages for ScreenImageFrame<'_> {
+    fn rgba_versioned(
+        &mut self,
+        key: &str,
+        revision: u64,
+        width: u32,
+        height: u32,
+        pixels: &[u8],
+    ) -> Result<ImageHandle, String> {
+        self.source(
+            key,
+            width,
+            height,
+            pixels,
+            SourceStamp::Revision {
+                revision,
+                width,
+                height,
+            },
+        )
+    }
     fn rgba(
         &mut self,
         key: &str,
@@ -95,17 +124,34 @@ impl ScreenImages for ScreenImageFrame<'_> {
         height: u32,
         pixels: &[u8],
     ) -> Result<ImageHandle, String> {
+        let mut hash = FxHasher::default();
+        (width, height, pixels).hash(&mut hash);
+        self.source(
+            key,
+            width,
+            height,
+            pixels,
+            SourceStamp::Pixels(hash.finish()),
+        )
+    }
+}
+impl ScreenImageFrame<'_> {
+    fn source(
+        &mut self,
+        key: &str,
+        width: u32,
+        height: u32,
+        pixels: &[u8],
+        stamp: SourceStamp,
+    ) -> Result<ImageHandle, String> {
         let expected = (width as usize)
             .checked_mul(height as usize)
             .and_then(|n| n.checked_mul(4));
         if width == 0 || height == 0 || expected != Some(pixels.len()) {
             return Err("invalid screen source image dimensions/bytes".into());
         }
-        let mut hash = FxHasher::default();
-        (width, height, pixels).hash(&mut hash);
-        let fingerprint = hash.finish();
         if let Some(entry) = self.cache.entries.get_mut(key) {
-            if entry.fingerprint == fingerprint && self.images.get(entry.image).is_some() {
+            if entry.stamp == stamp && self.images.get(entry.image).is_some() {
                 entry.frame = self.cache.frame;
                 return Ok(entry.image);
             }
@@ -119,7 +165,7 @@ impl ScreenImages for ScreenImageFrame<'_> {
             key.into(),
             Entry {
                 image,
-                fingerprint,
+                stamp,
                 bytes: pixels.len() * 2,
                 frame: self.cache.frame,
             },
