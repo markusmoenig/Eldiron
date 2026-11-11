@@ -160,8 +160,39 @@ impl TheUI {
                     {
                         self.advance_editor_focus(ctx, backwards);
                     }
+                    if response.action == Some(crate::text_edit::EditorAction::Cancel) {
+                        if self.popover.is_some() {
+                            self.clear_popover(ctx);
+                        } else if self.dialog.is_some() {
+                            self.clear_dialog();
+                            ctx.ui.clear_focus();
+                            ctx.ui.clear_hover();
+                            ctx.ui.clear_overlay();
+                            ctx.ui.redraw_all = true;
+                        }
+                    }
                     self.is_dirty |= response.input.redraw;
                     self.process_events(ctx);
+                    if !response.input.consumed {
+                        if let InputEvent::Key {
+                            physical: crate::platform::PhysicalKey::Letter(letter),
+                            pressed: true,
+                            ..
+                        } = event
+                        {
+                            let character = letter.to_ascii_lowercase() as char;
+                            if ctx.ui.accelerators.values().any(|accel| {
+                                accel.matches(self.shift, self.ctrl, self.alt, self.logo, character)
+                            }) {
+                                let redraw = self.key_down(Some(character), None, ctx);
+                                self.process_events(ctx);
+                                return InputResponse {
+                                    consumed: true,
+                                    redraw,
+                                };
+                            }
+                        }
+                    }
                     return InputResponse {
                         consumed: result.consumed || response.input.consumed,
                         redraw: response.input.redraw,

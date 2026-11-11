@@ -74,7 +74,7 @@ impl TextLayout {
                         .max()
                         .map(|index| styles[index].color)
                         .or(*original);
-                    if let Some((glyphs, previous)) =
+                    if let Some((glyphs, _)) =
                         groups.last_mut().filter(|(_, previous)| *previous == color)
                     {
                         glyphs.push(run.glyphs[index]);

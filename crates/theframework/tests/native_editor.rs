@@ -389,3 +389,77 @@ fn tree_editor_forwards_addressed_input_clipboard_and_row_local_ime_geometry() {
             .is_none()
     );
 }
+
+#[test]
+fn physical_application_accelerators_work_while_native_text_commands_keep_local_priority() {
+    let (mut ui, mut ctx, _, _) = fixture();
+    let receiver = ui.add_state_listener("Native shortcuts".into());
+    let save = TheId::named("Save");
+    let other_copy = TheId::named("Other Copy");
+    ctx.ui.accelerators.insert(
+        save.clone(),
+        TheAccelerator::new(TheAcceleratorKey::CTRL, 's'),
+    );
+    ctx.ui.accelerators.insert(
+        other_copy.clone(),
+        TheAccelerator::new(TheAcceleratorKey::CTRL, 'c'),
+    );
+    send(
+        &mut ui,
+        &mut ctx,
+        InputEvent::Modifiers(Modifiers {
+            control: true,
+            ..Default::default()
+        }),
+    );
+    assert!(
+        ui.dispatch_input(&key(PhysicalKey::Letter(b's')), &mut ctx)
+            .consumed
+    );
+    assert!(
+        receiver
+            .try_iter()
+            .any(|event| matches!(event,TheEvent::ContextMenuSelected(id,_) if id == save))
+    );
+    send(&mut ui, &mut ctx, key(PhysicalKey::Letter(b'a')));
+    send(&mut ui, &mut ctx, key(PhysicalKey::Letter(b'c')));
+    assert!(
+        !receiver
+            .try_iter()
+            .any(|event| matches!(event,TheEvent::ContextMenuSelected(id,_) if id == other_copy))
+    );
+    assert!(
+        matches!(ctx.ui.editor_clipboard.pop_front(),Some(EditorClipboard::Write { text,cut:None }) if text == "A東京Z")
+    );
+    assert_eq!(ui.get_text_line_edit("First").unwrap().text(), "A東京Z");
+}
+#[test]
+fn popover_editor_escape_cancels_preedit_before_dismissing_its_scope() {
+    let (mut ui, mut ctx, _, _) = fixture();
+    let editor = TheId::named("Popover Field");
+    let mut canvas = TheCanvas::new();
+    canvas.limiter.set_max_width(220);
+    canvas.limiter.set_max_height(60);
+    canvas.set_widget(TheTextLineEdit::new(editor.clone()));
+    ui.show_popover(
+        TheId::named("Popover"),
+        TheDim::new(20, 20, 100, 20),
+        canvas,
+        &mut ctx,
+    );
+    ui.prepare_paint_layout(&mut ctx);
+    ctx.ui.set_focus(&editor);
+    ui.process_events(&mut ctx);
+    send(
+        &mut ui,
+        &mut ctx,
+        InputEvent::Composition {
+            text: "仮".into(),
+            cursor: None,
+        },
+    );
+    send(&mut ui, &mut ctx, key(PhysicalKey::Escape));
+    assert!(ui.popover.is_some());
+    send(&mut ui, &mut ctx, key(PhysicalKey::Escape));
+    assert!(ui.popover.is_none());
+}

@@ -652,6 +652,9 @@ impl EditorController {
                 if let Some(command) = command {
                     return self.execute(fonts, command);
                 }
+                // Application accelerators such as Save keep their own owner.
+                // The following committed text event remains an independent edit.
+                return EditorResponse::default();
             }
         }
         if key == PhysicalKey::Escape {

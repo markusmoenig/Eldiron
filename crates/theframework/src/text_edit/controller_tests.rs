@@ -697,3 +697,26 @@ fn paint_only_syntax_colors_preserve_shaped_positions_bidi_carets_and_preedit_ru
         "paint colors do not reshape the editor"
     );
 }
+
+#[test]
+fn unclaimed_application_accelerators_do_not_edit_or_cancel_preedit() {
+    let (mut fonts, mut editor) = fixture(false, "A東京Z");
+    editor.input(
+        &mut fonts,
+        &InputEvent::Composition {
+            text: "仮".into(),
+            cursor: None,
+        },
+    );
+    editor.input(
+        &mut fonts,
+        &InputEvent::Modifiers(Modifiers {
+            control: true,
+            ..Default::default()
+        }),
+    );
+    let response = key(&mut editor, &mut fonts, PhysicalKey::Letter(b's'));
+    assert!(!response.input.consumed && !response.changed);
+    assert!(editor.is_composing());
+    assert_eq!(editor.text(), "A東京Z");
+}
