@@ -1328,6 +1328,7 @@ dependencies = [
  "rand",
  "rayon",
  "regex",
+ "renderkit",
  "rust-embed",
  "rusterix",
  "scenevm",

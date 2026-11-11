@@ -296,11 +296,19 @@ pub trait TheWidget: Send {
         false
     }
 
-    /// Native editors own their precise selection/composition/history geometry.
+    /// Own native text commands even when temporarily inactive, read-only or
+    /// nonselectable. Such owners must never fall through to legacy clipboard.
     /// Default widgets keep their reference event adapter until migrated.
     #[cfg(feature = "text")]
     fn uses_native_editor(&self) -> bool {
         false
+    }
+    /// Whether this widget currently offers keyboard text/selection focus.
+    /// Read-only displays can override this without advertising platform IME;
+    /// composites can retain native command ownership while no field is active.
+    #[cfg(feature = "text")]
+    fn supports_editor_focus(&self) -> bool {
+        self.supports_text_input()
     }
     #[cfg(feature = "text")]
     fn editor_set_active(&mut self, _active: bool, _ctx: &mut TheContext) {}

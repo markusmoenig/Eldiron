@@ -12,7 +12,7 @@ impl TheUI {
         if self.context_menu.is_none() && ctx.ui.overlay.is_none() {
             let mut find = |widget: &mut dyn TheWidget| {
                 if widget.id().uuid == id.uuid
-                    && (widget.supports_text_input() || widget.uses_native_editor())
+                    && widget.supports_editor_focus()
                     && !widget.disabled()
                     && !ctx.ui.is_disabled(&id.name)
                 {
@@ -36,7 +36,7 @@ impl TheUI {
         let mut targets = Vec::new();
         let screen = crate::paint::Rect::new(0., 0., ctx.width as f32, ctx.height as f32);
         let mut collect = |widget: &mut dyn TheWidget| {
-            if !(widget.supports_text_input() || widget.uses_native_editor())
+            if !widget.supports_editor_focus()
                 || widget.disabled()
                 || ctx.ui.is_disabled(&widget.id().name)
             {
@@ -378,5 +378,38 @@ impl TheUI {
             | InputEvent::CompositionFor { .. } => {}
         }
         result
+    }
+}
+
+#[cfg(test)]
+mod native_owner_tests {
+    use super::*;
+    #[test]
+    fn nonselectable_native_display_still_owns_commands_and_prevents_legacy_clipboard_access() {
+        let mut ctx = TheContext::new(300, 100, 1.);
+        let mut ui = TheUI::new();
+        ui.init(&mut ctx);
+        let id = TheId::named("Nonselectable help");
+        let mut help = TheTextView::new(id.clone());
+        help.set_text("Visible hint".into());
+        help.set_selectable(false);
+        ui.canvas.set_widget(help);
+        ui.prepare_paint_layout(&mut ctx);
+        ctx.ui.set_focus(&id);
+        ui.process_events(&mut ctx);
+        let widget = ui.get_widget_id(id.uuid).unwrap();
+        assert!(widget.uses_native_editor());
+        assert!(!widget.supports_editor_focus());
+        for command in [
+            crate::text_edit::EditorCommand::Copy,
+            crate::text_edit::EditorCommand::Paste,
+            crate::text_edit::EditorCommand::Cut,
+        ] {
+            assert!(
+                ui.focused_editor_command(command, &mut ctx),
+                "must stop before the legacy event or OS clipboard path"
+            );
+        }
+        assert!(ctx.ui.editor_clipboard.is_empty());
     }
 }

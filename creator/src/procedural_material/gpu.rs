@@ -855,10 +855,15 @@ material "surface" called "Initial thumbnails"
         ))
         .unwrap();
         let project = shared::project_io::decode_project(&bytes).unwrap();
-        let ids: Vec<String> = serde_json::from_str(include_str!(
-            "../../../test_projects/Hideout2D-MZ/reference-tiles.json"
-        ))
-        .unwrap();
+        let reference_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../test_projects/Hideout2D-MZ/reference-tiles.json");
+        let reference = std::fs::read_to_string(&reference_path).unwrap_or_else(|error| {
+            panic!(
+                "This optional GPU fixture requires {}: {error}",
+                reference_path.display()
+            )
+        });
+        let ids: Vec<String> = serde_json::from_str(&reference).unwrap();
         let (device, queue) = pollster::block_on(async {
             let adapter = wgpu::Instance::default()
                 .request_adapter(&Default::default())

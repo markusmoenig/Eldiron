@@ -39,6 +39,12 @@ impl TheWidget for TheTreeItem {
             .is_some_and(|(_, widget)| widget.uses_native_editor())
     }
     #[cfg(feature = "text")]
+    fn supports_editor_focus(&self) -> bool {
+        self.widget_column
+            .as_ref()
+            .is_some_and(|(_, widget)| widget.supports_editor_focus())
+    }
+    #[cfg(feature = "text")]
     fn editor_set_active(&mut self, active: bool, ctx: &mut TheContext) {
         if let Some((_, widget)) = &mut self.widget_column {
             widget.editor_set_active(active, ctx);

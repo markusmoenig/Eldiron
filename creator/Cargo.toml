@@ -15,6 +15,7 @@ name = "eldiron-creator"
 path = "src/main.rs"
 
 [dependencies]
+renderkit = { path = "../crates/renderkit", optional = true }
 denrim-materials.workspace = true
 wgpu = "29.0.3"
 half = "2"
@@ -84,6 +85,8 @@ crate-type = ["lib", "staticlib"]
 [features]
 default = ["desktop"]
 desktop = ["theframework/winit_app"]
+native-ui = ["theframework/ui-paint"]
+native-render = ["native-ui", "theframework/render-wgpu", "dep:renderkit"]
 log = ["theframework/log"]
 self-update = ["dep:self_update"]
 staticlib = []

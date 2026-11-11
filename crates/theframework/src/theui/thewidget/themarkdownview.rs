@@ -106,6 +106,10 @@ impl TheWidget for TheMarkdownView {
 
     #[cfg(feature = "text")]
     fn uses_native_editor(&self) -> bool {
+        true
+    }
+    #[cfg(feature = "text")]
+    fn supports_editor_focus(&self) -> bool {
         self.selectable
     }
     #[cfg(feature = "text")]
