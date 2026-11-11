@@ -872,3 +872,181 @@ fn region_fallback_renders_and_resizes_using_only_gpu_game_targets() {
         .unwrap();
     assert!(registry.get(image).is_none());
 }
+
+#[test]
+fn semantic_button_activation_emits_commands_before_binding_changes_without_advancing_world() {
+    use eldiron_presentation::{ScreenActivation, ScreenEffect};
+    use rusterix::client::{command::ClientCommandBinding, widget::Widget};
+    let session = fixture(false);
+    let mut screen = GameScreenController::from_screen("Main", &session.view(), layout()).unwrap();
+    let before = serde_json::to_value(&session.project).unwrap();
+    let time = session.project.time;
+    assert_eq!(
+        screen.activate_button(&session.view(), 2).unwrap(),
+        ScreenActivation {
+            accepted: true,
+            effects: vec![ScreenEffect::Command(ClientCommandBinding::Game(
+                "start".into()
+            ))]
+        }
+    );
+    let mut button = Widget::new();
+    button.id = 40;
+    button.name = "Class".into();
+    button.command = Some("game.start_class.{UI.selected}".into());
+    button.binding = Some("selected".into());
+    button.value = Some("Mage".into());
+    screen.elements.set_binding("selected", "Warrior");
+    screen.elements.button_widgets.insert(40, button);
+    let result = screen.activate_button(&session.view(), 40).unwrap();
+    assert_eq!(
+        result.effects,
+        vec![ScreenEffect::Command(ClientCommandBinding::Game(
+            "start_class.Warrior".into()
+        ))]
+    );
+    assert_eq!(screen.elements.ui_state["selected"], "Mage");
+    screen.elements.widgets_to_hide.push("Class".into());
+    assert!(
+        !screen
+            .activate_button(&session.view(), 40)
+            .unwrap()
+            .accepted
+    );
+    assert!(
+        !screen
+            .activate_button(&session.view(), 999)
+            .unwrap()
+            .accepted
+    );
+    assert_eq!(session.project.time, time);
+    assert_eq!(serde_json::to_value(&session.project).unwrap(), before);
+}
+
+#[test]
+fn semantic_intents_obey_shared_camera_policy_and_cooldown_without_server_ownership() {
+    use eldiron_presentation::ScreenEffect;
+    use rusterix::{
+        EntityAction, PlayerCamera,
+        client::{rules_ui, widget::Widget},
+    };
+    let mut session = fixture(true);
+    let mut screen = GameScreenController::from_screen("Main", &session.view(), layout()).unwrap();
+    let mut button = Widget::new();
+    button.id = 40;
+    button.name = "Attack".into();
+    button.command = Some("intent.attack".into());
+    screen.elements.button_widgets.insert(40, button);
+    let result = screen.activate_button(&session.view(), 40).unwrap();
+    assert_eq!(
+        result.effects,
+        vec![ScreenEffect::Action(EntityAction::Intent("attack".into()))]
+    );
+    assert_eq!(screen.intent, "attack");
+    session.project.regions[0].map.entities[0]
+        .attributes
+        .set("player_camera", Value::PlayerCamera(PlayerCamera::D3FirstP));
+    let result = screen.activate_button(&session.view(), 40).unwrap();
+    assert!(
+        result.accepted && result.effects.is_empty(),
+        "stale 2D views must not publish a one-shot intent for a 3D actor"
+    );
+    session.project.regions[0].map.entities[0]
+        .attributes
+        .set("player_camera", Value::PlayerCamera(PlayerCamera::D2));
+    session
+        .project
+        .config
+        .push_str("\n[game]\npersistent_intents=true\n");
+    assert!(
+        screen
+            .activate_button(&session.view(), 40)
+            .unwrap()
+            .effects
+            .is_empty()
+    );
+    let key = rules_ui::cooldown_left_attr("intent", "attack");
+    session.project.regions[0].map.entities[0]
+        .attributes
+        .set(&key, Value::Float(1.));
+    let active = screen.elements.activated_widgets.clone();
+    assert!(
+        !screen
+            .activate_button(&session.view(), 40)
+            .unwrap()
+            .accepted
+    );
+    assert_eq!(screen.elements.activated_widgets, active);
+}
+
+#[test]
+fn semantic_camera_and_carried_item_effects_keep_view_and_runtime_requests_explicit() {
+    use eldiron_presentation::ScreenEffect;
+    use rusterix::{EntityAction, Item, PlayerCamera, client::widget::Widget};
+    let mut session = fixture(true);
+    let mut item = Item::new();
+    item.id = 501;
+    item.container = Some(Vec::new());
+    session.project.regions[0].map.entities[0].inventory = vec![Some(item)];
+    let mut screen = GameScreenController::from_screen("Main", &session.view(), layout()).unwrap();
+    let mut container = Widget::new();
+    container.id = 40;
+    container.name = "Bag".into();
+    container.inventory_index = Some(0);
+    container.rect = Rect::new(10., 20., 30., 40.);
+    screen.elements.button_widgets.insert(40, container);
+    let result = screen.activate_button(&session.view(), 40).unwrap();
+    assert_eq!(
+        result.effects,
+        vec![ScreenEffect::ToggleContainer {
+            region: session.project.regions[0].map.id,
+            item: 501,
+            owner: 1,
+            anchor: theframework::paint::Rect::new(10., 20., 30., 40.)
+        }]
+    );
+    screen.intent = "look".into();
+    assert_eq!(
+        screen.activate_button(&session.view(), 40).unwrap().effects,
+        vec![ScreenEffect::Action(EntityAction::ItemClicked(
+            501,
+            0.,
+            Some("look".into()),
+            Some(1)
+        ))]
+    );
+    let mut camera = Widget::new();
+    camera.id = 41;
+    camera.name = "Camera".into();
+    camera.camera = Some(PlayerCamera::D3Iso);
+    camera.camera_target = Some("Widget10".into());
+    camera.player_camera = Some(PlayerCamera::D3FirstP);
+    screen.elements.button_widgets.insert(41, camera);
+    let result = screen.activate_button(&session.view(), 41).unwrap();
+    assert_eq!(
+        result.effects,
+        vec![ScreenEffect::Action(EntityAction::SetPlayerCamera(
+            PlayerCamera::D3FirstP
+        ))]
+    );
+    assert_eq!(
+        screen
+            .elements
+            .game_widgets
+            .values()
+            .find(|w| w.name == "Widget10")
+            .unwrap()
+            .camera,
+        PlayerCamera::D3Iso
+    );
+    assert_eq!(
+        screen
+            .elements
+            .game_widgets
+            .values()
+            .find(|w| w.name == "Widget11")
+            .unwrap()
+            .camera,
+        PlayerCamera::D2
+    );
+}

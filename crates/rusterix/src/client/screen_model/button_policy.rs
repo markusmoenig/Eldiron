@@ -20,6 +20,30 @@ pub fn topmost_button_at(
         .map(|(id, _)| *id)
         .max()
 }
+pub fn is_2d_camera(camera: &PlayerCamera) -> bool {
+    matches!(
+        camera,
+        PlayerCamera::D2 | PlayerCamera::D2Grid | PlayerCamera::D2Iso | PlayerCamera::D2IsoGrid
+    )
+}
+pub fn immediate_2d_intent_camera(camera: Option<PlayerCamera>, persistent: bool) -> bool {
+    !persistent && camera.as_ref().is_some_and(is_2d_camera)
+}
+/// A stale 2D camera must not turn a 3D/persistent targeting selection into a
+/// one-shot server intent while the player and view update on adjacent frames.
+pub fn immediate_2d_intents(
+    player: Option<PlayerCamera>,
+    widget: Option<PlayerCamera>,
+    persistent: bool,
+) -> bool {
+    if persistent
+        || player.as_ref().is_some_and(|c| !is_2d_camera(c))
+        || widget.as_ref().is_some_and(|c| !is_2d_camera(c))
+    {
+        return false;
+    }
+    immediate_2d_intent_camera(player.or(widget), persistent)
+}
 pub fn is_targeting_button(widget: &Widget) -> bool {
     widget.command_slot.is_some()
         || matches!(

@@ -1,7 +1,9 @@
 //! Application-owned native screen/controller state. It borrows CPU runtime
 //! views; a host supplies scene/image services and owns its surface and clock.
 mod choice;
+mod commands;
 mod fonts;
+pub use commands::{ScreenActivation, ScreenEffect};
 mod input;
 mod paint;
 use crate::{GameSceneInput, SceneViews, ViewId, ViewImage, screen::*};

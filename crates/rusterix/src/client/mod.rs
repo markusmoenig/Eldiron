@@ -938,10 +938,7 @@ impl Client {
     }
 
     fn is_2d_camera(camera: &PlayerCamera) -> bool {
-        matches!(
-            camera,
-            PlayerCamera::D2 | PlayerCamera::D2Iso | PlayerCamera::D2IsoGrid | PlayerCamera::D2Grid
-        )
+        screen_model::is_2d_camera(camera)
     }
 
     fn set_game_widget_camera_mode(&mut self, target: Option<&str>, camera: PlayerCamera) {
@@ -5533,41 +5530,12 @@ impl Client {
         )
     }
 
-    fn is_immediate_2d_intent_camera(camera: Option<PlayerCamera>, click_intents_2d: bool) -> bool {
-        matches!(
-            camera,
-            Some(
-                PlayerCamera::D2
-                    | PlayerCamera::D2Iso
-                    | PlayerCamera::D2IsoGrid
-                    | PlayerCamera::D2Grid
-            )
-        ) && !click_intents_2d
-    }
-
     fn is_immediate_2d_intent_mode(
         player_camera: Option<PlayerCamera>,
         widget_camera: Option<PlayerCamera>,
         click_intents_2d: bool,
     ) -> bool {
-        if click_intents_2d {
-            return false;
-        }
-
-        // Camera changes originate in the player script and can reach the
-        // runtime map and game widget on adjacent frames. If either side is
-        // already 3D, never let a stale 2D value turn targeting into a one-shot.
-        if player_camera
-            .as_ref()
-            .is_some_and(|camera| !Self::is_2d_camera(camera))
-            || widget_camera
-                .as_ref()
-                .is_some_and(|camera| !Self::is_2d_camera(camera))
-        {
-            return false;
-        }
-
-        Self::is_immediate_2d_intent_camera(player_camera.or(widget_camera), click_intents_2d)
+        screen_model::immediate_2d_intents(player_camera, widget_camera, click_intents_2d)
     }
 
     fn is_movement_action(action: &EntityAction) -> bool {
@@ -11242,23 +11210,23 @@ mod tests {
 
     #[test]
     fn one_shot_intents_are_only_immediate_in_2d_without_click_targeting() {
-        assert!(Client::is_immediate_2d_intent_camera(
+        assert!(screen_model::immediate_2d_intent_camera(
             Some(PlayerCamera::D2),
             false
         ));
-        assert!(Client::is_immediate_2d_intent_camera(
+        assert!(screen_model::immediate_2d_intent_camera(
             Some(PlayerCamera::D2Grid),
             false
         ));
-        assert!(!Client::is_immediate_2d_intent_camera(
+        assert!(!screen_model::immediate_2d_intent_camera(
             Some(PlayerCamera::D3FirstP),
             false
         ));
-        assert!(!Client::is_immediate_2d_intent_camera(
+        assert!(!screen_model::immediate_2d_intent_camera(
             Some(PlayerCamera::D3FirstPGrid),
             false
         ));
-        assert!(!Client::is_immediate_2d_intent_camera(
+        assert!(!screen_model::immediate_2d_intent_camera(
             Some(PlayerCamera::D2),
             true
         ));
