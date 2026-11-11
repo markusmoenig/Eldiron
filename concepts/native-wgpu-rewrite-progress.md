@@ -371,3 +371,23 @@ Verification passed:
 - `/private/tmp/eldiron-native-input-boundaries.log`: all five independent dependency boundaries passed.
 
 The first regression run found that default forward deletion could leave a combining accent behind; the wrapper now deletes the full grapheme, and the regression passes. Initial failing logs were overwritten by the corrected focused runs and are not additional acceptance evidence. Overall Goal remains active; this is an implementation checkpoint, not an M2/M6 completion claim.
+
+## Widget-free application host checkpoint (2026-11-11)
+
+Separated `GpuApplication`, `HostContext`, timing and `GpuPresenter` from the optional TheUI adapter. The generic contract receives logical/physical host metrics and a shared `ImageRegistry`; it owns neither `UiSession` nor a root framebuffer. `platform-winit` now enables the renderer/window integration without enabling widgets, dialogs, Pixels or Softbuffer. The optional `UiApplicationAdapter` owns its `UiSession` and `UiImageCache`; its frame resources borrow the same registry used by scene/custom application paints. Existing standalone `UiImages` remains a compatibility resource adapter. Full UI source-cache budgeting and retirement are still outstanding.
+
+Generic applications may sleep indefinitely when no update is requested. The compatibility UI adapter retains its explicit 50 ms timer/file-service wake policy. Physical function-key identities (F1–F35), separate forward Delete/Backspace and page keys survive normalization. Wheel line units are passed unchanged to neutral applications; conversion to the old UI wheel convention lives only in its adapter. Native IME allow/candidate rectangles and cursor visibility/style come from host state, with cached platform updates to avoid repeated platform-state feedback. Foreign hosts receive the same logical-coordinate contract and apply density once.
+
+Verification passed:
+
+- `/private/tmp/eldiron-generic-host-tests.log`: 31 widget-free framework tests, including fractional/invalid host metrics, idle/animation scheduling and physical input identities.
+- `/private/tmp/eldiron-generic-host-smoke.log`: the new `native_gpu_window` example presented at least three real native WGPU frames with a focused Parley editor, no UI session, no CPU framebuffer and no readback. The demo's idle mode requests no timer wake.
+- `/private/tmp/eldiron-ui-host-adapter-smoke.log`: the existing native UI example, migrated to `UiApplicationAdapter`, presented at least three frames with laid-out widgets and empty root bitmap storage.
+- `/private/tmp/eldiron-generic-host-metal.log`: an actual widget-free application presented on a Rust-created CAMetalLayer surface without Winit/UI features, deferred while suspended, recreated the surface/device resources at another density and preserved its edited content without repeating initialization. This verifies the host contract; complete Swift document/window/lifecycle FFI integration remains outstanding.
+- `/private/tmp/eldiron-generic-host-ui.log`: 111 framework library tests, four command-UI tests and thirteen UI tests passed. The new adapter test shares the host image-registry domain, reuses unchanged source uploads and rebuilds device-bound handles while retaining the UI tree.
+- `/private/tmp/eldiron-generic-host-presentation.log`: all 26 presentation tests passed, including sixteen actual GPU fixtures.
+- `/private/tmp/eldiron-generic-host-apps.log`: all four application compatibility builds passed. Canonical graphical/Creator launchers have not yet switched from their legacy runners.
+- `/private/tmp/eldiron-generic-host-{web,ios}.log`: widget-free Winit browser compilation and widget-free foreign-host iOS-simulator compilation passed. This is not browser/iOS runtime acceptance.
+- `/private/tmp/eldiron-generic-host-boundaries.log`: seven independent boundaries passed, adding renderer-without-window/widgets and native-window-without-widgets/Pixels/Softbuffer checks.
+
+Next: complete common screen command/control routing and shared graphical application ownership, then adopt the native host in the canonical clients and Creator while finishing the remaining UI/scene/platform gates. Overall Goal remains active.

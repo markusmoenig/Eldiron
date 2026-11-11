@@ -62,6 +62,8 @@ pub enum InputEvent {
     RelativeMotion {
         delta: [f32; 2],
     },
+    /// Positive wheel movement uses line units when `precise` is false,
+    /// logical pixel units when true. Applications choose their line height.
     Scroll {
         delta: [f32; 2],
         precise: bool,

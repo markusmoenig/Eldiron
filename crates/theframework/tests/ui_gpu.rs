@@ -383,7 +383,10 @@ fn shared_ui_presenter_draws_into_a_foreign_metal_layer() {
     label.set_text("Rust WGPU · CAMetalLayer".into());
     label.set_text_size(18.);
     session.ui.canvas.set_widget(label);
-    let list = session.paint(&mut presenter.images).unwrap();
+    let mut cache = theframework::render_wgpu::UiImageCache::default();
+    let list = session
+        .paint(&mut cache.frame(&mut presenter.images))
+        .unwrap();
     assert_eq!(
         presenter.present(&list, 1., [0., 0., 0., 1.]).unwrap(),
         PresentResult::Presented
@@ -1117,4 +1120,98 @@ fn node_canvas_paints_live_gpu_previews_and_routes_terminal_dragging() {
             .node_index_at(&Vec2::new(41, 31)),
         Some(0)
     );
+}
+
+#[test]
+#[ignore = "requires native GPU; run with --ignored"]
+fn optional_ui_adapter_uses_host_registry_and_rebuilds_only_device_resources() {
+    use theframework::{
+        paint::{PaintList, Rect, Sampling},
+        platform::*,
+        render_wgpu::UiFrameImages,
+        theui::paint::UiImageResources,
+    };
+    struct App {
+        initializations: usize,
+        source: TheRGBABuffer,
+    }
+    impl UiApplication for App {
+        fn initialize(&mut self, ui: &mut UiSession, _: &mut UiFrameImages<'_>) -> Result<()> {
+            self.initializations += 1;
+            let mut label = TheText::new(TheId::named("retained-document"));
+            label.set_text("Persistent UI".into());
+            ui.ui.canvas.set_widget(label);
+            Ok(())
+        }
+        fn frame(
+            &mut self,
+            ui: &mut UiSession,
+            images: &mut UiFrameImages<'_>,
+        ) -> Result<PaintList> {
+            let mut list = ui.paint(images).map_err(|e| RenderError(e.to_string()))?;
+            let handle = images
+                .image("test-source", &self.source, false)
+                .map_err(|e| RenderError(e.to_string()))?;
+            assert_eq!(handle.owner, images.registry.owner_id());
+            list.image(handle, Rect::new(8., 60., 20., 20.), Sampling::Nearest);
+            Ok(list)
+        }
+    }
+    let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut images = ImageRegistry::new(gpu.clone());
+    let source = TheRGBABuffer::from(vec![255, 0, 0, 255], 1, 1);
+    let mut app = UiApplicationAdapter::new(App {
+        initializations: 0,
+        source,
+    });
+    let mut host = HostContext::new((240, 100));
+    app.initialize(&mut host, &mut images).unwrap();
+    let output = GpuImage::new(&gpu, ImageDescriptor::rgba(240, 100)).unwrap();
+    let mut renderer = PaintRenderer::new(gpu.clone()).unwrap();
+    let first = app.frame(&mut host, &mut images).unwrap();
+    renderer
+        .render(
+            &first,
+            &images,
+            &output.view,
+            output.descriptor.format,
+            (240, 100),
+            1.,
+            [0.; 4],
+        )
+        .unwrap();
+    let uploads = gpu.transfers().uploaded_bytes;
+    let second = app.frame(&mut host, &mut images).unwrap();
+    renderer
+        .render(
+            &second,
+            &images,
+            &output.view,
+            output.descriptor.format,
+            (240, 100),
+            1.,
+            [0.; 4],
+        )
+        .unwrap();
+    assert_eq!(gpu.transfers().uploaded_bytes, uploads);
+    let old_owner = images.owner_id();
+    let mut replacement = ImageRegistry::new(gpu.clone());
+    app.gpu_recreated(&mut host, &mut replacement).unwrap();
+    let third = app.frame(&mut host, &mut replacement).unwrap();
+    assert!(third.ops.iter().any(|op| matches!(op,PaintOp::Image { image,.. } if image.owner != old_owner && image.owner == replacement.owner_id())));
+    renderer
+        .render(
+            &third,
+            &replacement,
+            &output.view,
+            output.descriptor.format,
+            (240, 100),
+            1.,
+            [0.; 4],
+        )
+        .unwrap();
+    assert_eq!(app.application.initializations, 1);
+    assert!(app.session.ui.get_widget("retained-document").is_some());
+    assert!(app.session.ui.canvas.buffer.pixels().is_empty());
+    assert_eq!(gpu.transfers().readback_bytes, 0);
 }

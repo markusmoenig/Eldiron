@@ -38,6 +38,8 @@ def main():
     check("eldiron-runtime", GPU | TEXT_UI, no_widget_ui=True)
     check("eldiron-client-terminal", GPU | TEXT_UI, no_widget_ui=True)
     check("theframework", GPU, features="ui-paint")
+    check("theframework", {"winit", "pixels", "softbuffer"}, features="render-wgpu", no_widget_ui=True)
+    check("theframework", {"pixels", "softbuffer"}, features="platform-winit", no_widget_ui=True)
 
 
 if __name__ == "__main__":

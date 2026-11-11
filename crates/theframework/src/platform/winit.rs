@@ -18,9 +18,15 @@ use web_time::{Duration, Instant};
 enum HostEvent {
     Ready(u64, Result<GpuPresenter<'static>>),
 }
+#[derive(Clone, Copy, PartialEq)]
+struct WindowState {
+    text_input: Option<crate::paint::Rect>,
+    cursor: crate::thecontext::TheCursorIcon,
+    visible: bool,
+}
 struct Host {
     app: Box<dyn GpuApplication>,
-    ui: UiSession,
+    context: HostContext,
     window: Option<Arc<Window>>,
     presenter: Option<GpuPresenter<'static>>,
     proxy: EventLoopProxy<HostEvent>,
@@ -32,15 +38,51 @@ struct Host {
     occluded: bool,
     dirty: bool,
     next_present: Instant,
-    next_update: Instant,
+    next_update: Option<Instant>,
     last_update: Instant,
     pointer: [f32; 2],
     mods: Modifiers,
     ime_enabled: bool,
     touch: Option<u64>,
     error: Option<RenderError>,
+    applied: Option<WindowState>,
+    focused: bool,
 }
 impl Host {
+    fn sync_window_state(&mut self) {
+        let Some(window) = &self.window else {
+            return;
+        };
+        let state = WindowState {
+            text_input: self.context.text_input.filter(|r| {
+                self.focused && [r.x, r.y, r.width, r.height].iter().all(|v| v.is_finite())
+            }),
+            cursor: self.context.cursor,
+            visible: self.context.cursor_visible,
+        };
+        let old = self.applied;
+        if old.is_none_or(|old| old.text_input.is_some() != state.text_input.is_some()) {
+            window.set_ime_allowed(state.text_input.is_some());
+        }
+        if old.is_none_or(|old| old.text_input != state.text_input) {
+            if let Some(area) = state.text_input {
+                window.set_ime_cursor_area(
+                    ::winit::dpi::LogicalPosition::new(area.x as f64, area.y as f64),
+                    ::winit::dpi::LogicalSize::new(
+                        area.width.max(1.) as f64,
+                        area.height.max(1.) as f64,
+                    ),
+                );
+            }
+        }
+        if old.is_none_or(|old| old.visible != state.visible) {
+            window.set_cursor_visible(state.visible);
+        }
+        if old.is_none_or(|old| old.cursor != state.cursor) {
+            window.set_cursor(cursor(state.cursor));
+        }
+        self.applied = Some(state);
+    }
     fn fail(&mut self, event_loop: &ActiveEventLoop, error: RenderError) {
         log::error!("GPU host: {error}");
         self.error = Some(error);
@@ -73,8 +115,10 @@ impl Host {
         if !self.initialized {
             return;
         }
-        let response = self.app.input(&event, &mut self.ui);
+        let response = self.app.input(&event, &mut self.context);
         self.dirty |= response.redraw;
+        self.next_update = Some(Instant::now());
+        self.sync_window_state();
     }
     fn resize(&mut self, size: PhysicalSize<u32>) {
         let density = self
@@ -82,7 +126,10 @@ impl Host {
             .as_ref()
             .map(|w| w.scale_factor() as f32)
             .unwrap_or(1.);
-        self.ui.resize((size.width, size.height), density);
+        self.context.resize((size.width, size.height), density);
+        if self.initialized {
+            self.app.resize(&mut self.context);
+        }
         if let Some(p) = &mut self.presenter {
             p.surface.resize(size.width, size.height);
         }
@@ -102,10 +149,13 @@ impl Host {
         }
         match self
             .app
-            .frame(&mut self.ui, &mut p.images)
-            .and_then(|list| p.present(&list, self.ui.context.scale_factor, [0., 0., 0., 1.]))
+            .frame(&mut self.context, &mut p.images)
+            .and_then(|list| p.present(&list, self.context.density, [0., 0., 0., 1.]))
         {
-            Ok(PresentResult::Presented) => self.dirty = false,
+            Ok(PresentResult::Presented) => {
+                self.dirty = false;
+                self.sync_window_state();
+            }
             Ok(PresentResult::Deferred) => {
                 self.dirty = true;
             }
@@ -120,6 +170,7 @@ impl Host {
 impl ApplicationHandler<HostEvent> for Host {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         self.suspended = false;
+        self.applied = None;
         if self.window.is_none() {
             let (size_x, size_y) = self.app.initial_size();
             let attributes = Window::default_attributes()
@@ -145,7 +196,7 @@ impl ApplicationHandler<HostEvent> for Host {
                             }
                         }
                     }
-                    window.set_ime_allowed(true);
+                    window.set_ime_allowed(false);
                     self.window = Some(Arc::new(window));
                 }
                 Err(error) => {
@@ -164,17 +215,17 @@ impl ApplicationHandler<HostEvent> for Host {
         }
         self.resume_pending = true;
         if self.initialized && self.presenter.is_some() {
-            self.app.resumed(&mut self.ui);
+            self.app.resumed(&mut self.context);
             self.resume_pending = false;
         }
         self.dirty = true;
-        self.next_update = Instant::now();
+        self.next_update = Some(Instant::now());
     }
     fn suspended(&mut self, _: &ActiveEventLoop) {
         self.suspended = true;
         self.route(InputEvent::Focus(false));
         if self.initialized {
-            self.app.suspended(&mut self.ui);
+            self.app.suspended(&mut self.context);
         }
         self.presenter = None;
         self.pending = false;
@@ -193,18 +244,20 @@ impl ApplicationHandler<HostEvent> for Host {
                 match result {
                     Ok(mut presenter) => {
                         let result = if self.initialized {
-                            self.app.gpu_recreated(&mut self.ui, &mut presenter.images)
+                            self.app
+                                .gpu_recreated(&mut self.context, &mut presenter.images)
                         } else {
-                            self.app.initialize(&mut self.ui, &mut presenter.images)
+                            self.app
+                                .initialize(&mut self.context, &mut presenter.images)
                         };
                         if let Err(error) = result {
                             self.fail(event_loop, error);
                             return;
                         }
                         self.initialized = true;
-                        self.ui.context.ui.relayout = true;
+                        self.app.resize(&mut self.context);
                         if self.resume_pending {
-                            self.app.resumed(&mut self.ui);
+                            self.app.resumed(&mut self.context);
                             self.resume_pending = false;
                         }
                         if let Some(window) = &self.window {
@@ -225,7 +278,7 @@ impl ApplicationHandler<HostEvent> for Host {
         }
         match event {
             WindowEvent::CloseRequested => {
-                if self.app.close_requested(&mut self.ui) {
+                if self.app.close_requested(&mut self.context) {
                     event_loop.exit();
                 }
             }
@@ -243,6 +296,7 @@ impl ApplicationHandler<HostEvent> for Host {
                 }
             }
             WindowEvent::Focused(focused) => {
+                self.focused = focused;
                 self.route(InputEvent::Focus(focused));
                 if !focused {
                     self.mods = Modifiers::default();
@@ -251,7 +305,7 @@ impl ApplicationHandler<HostEvent> for Host {
                 }
             }
             WindowEvent::CursorMoved { position, .. } => {
-                let scale = self.ui.context.scale_factor;
+                let scale = self.context.density;
                 self.pointer = [position.x as f32 / scale, position.y as f32 / scale];
                 self.route(InputEvent::PointerMoved {
                     position: self.pointer,
@@ -274,11 +328,11 @@ impl ApplicationHandler<HostEvent> for Host {
             }
             WindowEvent::MouseWheel { delta, .. } => {
                 let (delta, precise) = match delta {
-                    MouseScrollDelta::LineDelta(x, y) => ([x * 20., y * 20.], false),
+                    MouseScrollDelta::LineDelta(x, y) => ([x, y], false),
                     MouseScrollDelta::PixelDelta(p) => (
                         [
-                            p.x as f32 / self.ui.context.scale_factor,
-                            p.y as f32 / self.ui.context.scale_factor,
+                            p.x as f32 / self.context.density,
+                            p.y as f32 / self.context.density,
                         ],
                         true,
                     ),
@@ -343,7 +397,7 @@ impl ApplicationHandler<HostEvent> for Host {
             },
             WindowEvent::DroppedFile(path) => self.route(InputEvent::FileDropped(path)),
             WindowEvent::Touch(touch) => {
-                let scale = self.ui.context.scale_factor;
+                let scale = self.context.density;
                 let position = [
                     touch.location.x as f32 / scale,
                     touch.location.y as f32 / scale,
@@ -389,19 +443,16 @@ impl ApplicationHandler<HostEvent> for Host {
             return;
         }
         let now = Instant::now();
-        if now >= self.next_update {
-            crate::platform_services::service_files(&mut self.ui.context.ui);
-            let request = self.app.update(&mut self.ui, now - self.last_update);
+        if self.next_update.is_some_and(|next| now >= next) {
+            let request = self.app.update(&mut self.context, now - self.last_update);
             self.last_update = now;
-            self.dirty |= request.redraw || self.ui.ui.needs_paint(&self.ui.context);
-            // UI requesters, tooltip deadlines and editing timers remain responsive.
-            self.next_update = now
-                + request
-                    .wake_after
-                    .unwrap_or(Duration::from_millis(50))
-                    .min(Duration::from_millis(50));
+            self.dirty |= request.redraw;
+            self.next_update = request
+                .wake_after
+                .map(|delay| now + delay.max(Duration::from_millis(1)));
+            self.sync_window_state();
         }
-        for request in self.ui.requests.drain(..) {
+        for request in self.context.requests.drain(..) {
             match request {
                 HostRequest::Exit => event_loop.exit(),
                 HostRequest::Title(title) => {
@@ -421,12 +472,26 @@ impl ApplicationHandler<HostEvent> for Host {
                 window.request_redraw();
             }
         }
-        event_loop.set_control_flow(ControlFlow::WaitUntil(if self.dirty && can_present {
-            self.next_update
-                .min(self.next_present.max(now + Duration::from_millis(1)))
-        } else {
-            self.next_update
-        }));
+        let wake = next_wake(
+            self.next_update,
+            self.dirty && can_present,
+            self.next_present,
+            now,
+        );
+        event_loop.set_control_flow(wake.map_or(ControlFlow::Wait, ControlFlow::WaitUntil));
+    }
+}
+fn next_wake(
+    update: Option<Instant>,
+    present: bool,
+    next_present: Instant,
+    now: Instant,
+) -> Option<Instant> {
+    if present {
+        let next = next_present.max(now + Duration::from_millis(1));
+        Some(update.map_or(next, |update| update.min(next)))
+    } else {
+        update
     }
 }
 fn named(key: NamedKey) -> Option<crate::TheKeyCode> {
@@ -485,6 +550,41 @@ fn physical(key: WinitPhysical) -> PhysicalKey {
             KeyCode::Digit7 => P::Digit(7),
             KeyCode::Digit8 => P::Digit(8),
             KeyCode::Digit9 => P::Digit(9),
+            KeyCode::F1 => P::Function(1),
+            KeyCode::F2 => P::Function(2),
+            KeyCode::F3 => P::Function(3),
+            KeyCode::F4 => P::Function(4),
+            KeyCode::F5 => P::Function(5),
+            KeyCode::F6 => P::Function(6),
+            KeyCode::F7 => P::Function(7),
+            KeyCode::F8 => P::Function(8),
+            KeyCode::F9 => P::Function(9),
+            KeyCode::F10 => P::Function(10),
+            KeyCode::F11 => P::Function(11),
+            KeyCode::F12 => P::Function(12),
+            KeyCode::F13 => P::Function(13),
+            KeyCode::F14 => P::Function(14),
+            KeyCode::F15 => P::Function(15),
+            KeyCode::F16 => P::Function(16),
+            KeyCode::F17 => P::Function(17),
+            KeyCode::F18 => P::Function(18),
+            KeyCode::F19 => P::Function(19),
+            KeyCode::F20 => P::Function(20),
+            KeyCode::F21 => P::Function(21),
+            KeyCode::F22 => P::Function(22),
+            KeyCode::F23 => P::Function(23),
+            KeyCode::F24 => P::Function(24),
+            KeyCode::F25 => P::Function(25),
+            KeyCode::F26 => P::Function(26),
+            KeyCode::F27 => P::Function(27),
+            KeyCode::F28 => P::Function(28),
+            KeyCode::F29 => P::Function(29),
+            KeyCode::F30 => P::Function(30),
+            KeyCode::F31 => P::Function(31),
+            KeyCode::F32 => P::Function(32),
+            KeyCode::F33 => P::Function(33),
+            KeyCode::F34 => P::Function(34),
+            KeyCode::F35 => P::Function(35),
             KeyCode::Escape => P::Escape,
             KeyCode::Enter => P::Enter,
             KeyCode::Space => P::Space,
@@ -512,6 +612,46 @@ fn physical(key: WinitPhysical) -> PhysicalKey {
         WinitPhysical::Unidentified(_) => P::Other(u32::MAX),
     }
 }
+fn cursor(icon: crate::thecontext::TheCursorIcon) -> ::winit::window::CursorIcon {
+    use crate::thecontext::TheCursorIcon as C;
+    use ::winit::window::CursorIcon as W;
+    match icon {
+        C::Default => W::Default,
+        C::Crosshair => W::Crosshair,
+        C::Hand => W::Pointer,
+        C::Arrow => W::Default,
+        C::Text => W::Text,
+        C::Wait => W::Wait,
+        C::Help => W::Help,
+        C::Progress => W::Progress,
+        C::NotAllowed => W::NotAllowed,
+        C::ContextMenu => W::ContextMenu,
+        C::Cell => W::Cell,
+        C::VerticalText => W::VerticalText,
+        C::Alias => W::Alias,
+        C::Copy => W::Copy,
+        C::NoDrop => W::NoDrop,
+        C::Grab => W::Grab,
+        C::Grabbing => W::Grabbing,
+        C::AllScroll => W::AllScroll,
+        C::ZoomIn => W::ZoomIn,
+        C::ZoomOut => W::ZoomOut,
+        C::EResize => W::EResize,
+        C::NResize => W::NResize,
+        C::NEResize => W::NeResize,
+        C::NWResize => W::NwResize,
+        C::SResize => W::SResize,
+        C::SEResize => W::SeResize,
+        C::SWResize => W::SwResize,
+        C::WResize => W::WResize,
+        C::EWResize => W::EwResize,
+        C::NSResize => W::NsResize,
+        C::NESWResize => W::NeswResize,
+        C::NWSEResize => W::NwseResize,
+        C::ColResize => W::ColResize,
+        C::RowResize => W::RowResize,
+    }
+}
 pub fn run(app: Box<dyn GpuApplication>) -> Result<()> {
     let event_loop = EventLoop::<HostEvent>::with_user_event()
         .build()
@@ -522,7 +662,7 @@ pub fn run(app: Box<dyn GpuApplication>) -> Result<()> {
     #[allow(unused_mut)]
     let mut host = Host {
         app,
-        ui: UiSession::new((size.0 as usize, size.1 as usize), 1.),
+        context: HostContext::new(size),
         window: None,
         presenter: None,
         proxy,
@@ -534,13 +674,15 @@ pub fn run(app: Box<dyn GpuApplication>) -> Result<()> {
         occluded: false,
         dirty: true,
         next_present: now,
-        next_update: now,
+        next_update: Some(now),
         last_update: now,
         pointer: [0.; 2],
         mods: Modifiers::default(),
         ime_enabled: false,
         touch: None,
         error: None,
+        applied: None,
+        focused: true,
     };
     #[cfg(not(target_arch = "wasm32"))]
     {
@@ -557,5 +699,34 @@ pub fn run(app: Box<dyn GpuApplication>) -> Result<()> {
         use ::winit::platform::web::EventLoopExtWebSys;
         event_loop.spawn_app(host);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn idle_hosts_sleep_until_input_and_animation_keeps_its_deadline() {
+        let now = Instant::now();
+        assert_eq!(next_wake(None, false, now, now), None);
+        let update = now + Duration::from_millis(33);
+        assert_eq!(next_wake(Some(update), false, now, now), Some(update));
+        assert_eq!(
+            next_wake(None, true, now, now),
+            Some(now + Duration::from_millis(1))
+        );
+        let present = now + Duration::from_millis(8);
+        assert_eq!(next_wake(Some(update), true, present, now), Some(present));
+    }
+    #[test]
+    fn physical_commands_include_forward_delete_pages_and_function_keys() {
+        let key = |code| physical(WinitPhysical::Code(code));
+        assert_eq!(key(KeyCode::Delete), PhysicalKey::Delete);
+        assert_eq!(key(KeyCode::Backspace), PhysicalKey::Backspace);
+        assert_eq!(key(KeyCode::PageUp), PhysicalKey::PageUp);
+        assert_eq!(key(KeyCode::PageDown), PhysicalKey::PageDown);
+        assert_eq!(key(KeyCode::F1), PhysicalKey::Function(1));
+        assert_eq!(key(KeyCode::F12), PhysicalKey::Function(12));
+        assert_eq!(key(KeyCode::F35), PhysicalKey::Function(35));
     }
 }

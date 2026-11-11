@@ -93,7 +93,7 @@ wasm-bindgen-futures = "0.4"
 web-sys = { version = "0.3", features = ["Gpu", "GpuTextureFormat", "Navigator", "Performance", "Window", "Document", "HtmlElement", "HtmlCanvasElement", "Node"] }
 
 [features]
-platform-winit = ["desktop-dialogs", "dep:winit", "ui", "render-wgpu"]
+platform-winit = ["dep:winit", "render-wgpu"]
 ui-paint = ["ui", "text"]
 paint = []
 text = ["paint", "dep:parley", "dep:swash"]
@@ -112,7 +112,11 @@ rayon = []
 
 [[example]]
 name = "native_gpu_ui"
-required-features = ["platform-winit"]
+required-features = ["platform-winit", "ui"]
 
 [target.'cfg(target_os = "macos")'.dev-dependencies]
 objc2-quartz-core = { version = "0.3.2", default-features = false, features = ["std", "CALayer", "CAMetalLayer", "objc2-metal", "objc2-core-foundation"] }
+
+[[example]]
+name = "native_gpu_window"
+required-features = ["platform-winit"]

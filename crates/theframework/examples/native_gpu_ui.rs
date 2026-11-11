@@ -1,18 +1,22 @@
-//! Run with --no-default-features --features platform-winit; --smoke exits after
+//! Run with --no-default-features --features platform-winit,ui; --smoke exits after
 //! real surface presentations. This application has no raster drawing callback.
-use theframework::{platform::*, prelude::*, render_wgpu::UiImages};
+use theframework::{platform::*, prelude::*, render_wgpu::UiFrameImages};
 struct Demo {
     frames: usize,
     smoke: bool,
 }
-impl GpuApplication for Demo {
+impl UiApplication for Demo {
     fn title(&self) -> String {
         "Eldiron native WGPU UI".into()
     }
     fn initial_size(&self) -> (u32, u32) {
         (800, 420)
     }
-    fn initialize(&mut self, ui: &mut UiSession, _: &mut UiImages) -> renderkit::Result<()> {
+    fn initialize(
+        &mut self,
+        ui: &mut UiSession,
+        _: &mut UiFrameImages<'_>,
+    ) -> renderkit::Result<()> {
         let mut layout = TheVLayout::new(TheId::named("native-root"));
         let mut title = TheText::new(TheId::named("heading"));
         title.set_text("Eldiron · native WGPU".into());
@@ -34,7 +38,7 @@ impl GpuApplication for Demo {
     fn frame(
         &mut self,
         ui: &mut UiSession,
-        images: &mut UiImages,
+        images: &mut UiFrameImages<'_>,
     ) -> renderkit::Result<theframework::paint::PaintList> {
         let list = ui
             .paint(images)
@@ -65,9 +69,9 @@ impl GpuApplication for Demo {
     }
 }
 fn main() {
-    theframework::platform::winit::run(Box::new(Demo {
+    theframework::platform::winit::run(Box::new(UiApplicationAdapter::new(Demo {
         frames: 0,
         smoke: std::env::args().any(|a| a == "--smoke"),
-    }))
+    })))
     .unwrap();
 }
