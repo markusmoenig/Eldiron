@@ -68,6 +68,11 @@ Lie is a dedicated rest pose, independent of death or unconsciousness. A rest
 pose stays active until the character leaves the furniture. Other character
 appearances need matching animations to display the posture correctly.
 
+Bed use selects the settled Lie pose immediately, without playing or blending
+through the standing-to-lying rotation. Standing up also switches directly back
+to the standing pose. Sitting retains its animated transition. The Lie motion
+remains editable in MZ; furniture uses its final pose through `avatar_pose_only`.
+
 The runtime exposes ordinary attributes that nodes and future rules can inspect:
 
 - `posture`: `standing`, `sitting` or `lying`.

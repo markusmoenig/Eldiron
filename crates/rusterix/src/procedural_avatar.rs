@@ -579,6 +579,11 @@ impl Appearance {
         }
     }
     fn animation_seconds(c: &Compiled, entity: &Entity, animation: &str, seconds: f32) -> f32 {
+        if entity.attributes.get_bool_default("avatar_pose_only", false)
+            && let Some(motion) = Self::motion(c, animation)
+        {
+            return motion.duration;
+        }
         if animation == "attack" {
             if let Some(m) = Self::motion(c, animation) {
                 return seconds * m.duration / attack_duration(entity);
@@ -1191,6 +1196,7 @@ fn raster_sprite_frame(
 }
 
 struct Transition {
+    pose_only: bool,
     token: (String, i32, u64),
     from: Option<Vec<denrim_materials::geometry::rig::Pose>>,
     last: Vec<denrim_materials::geometry::rig::Pose>,
@@ -1428,6 +1434,7 @@ impl Runtime {
     ) -> Result<AnimationSample, String> {
         let (animation, mut time) = self.phase(id, entity);
         let (c, variant) = model.compiled_for(entity, assets)?;
+        let pose_only = entity.attributes.get_bool_default("avatar_pose_only", false);
         if animation == "walk" {
             let duration = Appearance::motion(&c, &animation).map_or(1., |m| m.duration);
             let stride = entity
@@ -1489,7 +1496,9 @@ impl Runtime {
             entity.attributes.get_int_default("avatar_attack_serial", 0),
             fingerprint(&(variant, model.signature)),
         );
-        if let Some(motion) = Appearance::motion(&c, &animation) {
+        if !pose_only
+            && let Some(motion) = Appearance::motion(&c, &animation)
+        {
             let sample = Appearance::animation_seconds(&c, entity, &animation, time);
             let cursor = self
                 .event_cursors
@@ -1518,20 +1527,29 @@ impl Runtime {
             self.time
         };
         let state = self.transitions.entry(id).or_insert_with(|| Transition {
+            pose_only,
             token: token.clone(),
             from: None,
             last: pose.clone(),
             started: now,
         });
         if state.token != token {
-            state.from = (state.token.2 == token.2 && state.last.len() == pose.len())
-                .then(|| state.last.clone());
+            state.from = (!pose_only
+                && !state.pose_only
+                && state.token.2 == token.2
+                && state.last.len() == pose.len())
+            .then(|| state.last.clone());
             state.token = token;
             state.started = now;
         }
-        let duration = entity
-            .attributes
-            .get_float_default("avatar_blend_time", 0.12);
+        state.pose_only = pose_only;
+        let duration = if pose_only {
+            0.
+        } else {
+            entity
+                .attributes
+                .get_float_default("avatar_blend_time", 0.12)
+        };
         let duration = if duration.is_finite() {
             duration.clamp(0., 1.)
         } else {
@@ -1711,6 +1729,54 @@ impl Runtime {
 mod tests {
     use super::*;
     use crate::{Item, Value};
+    #[test]
+    fn bed_pose_is_immediate_in_iso_and_3d_without_changing_sitting() {
+        let (assets, model, mut entity) = fixture();
+        let (compiled, _) = model.compiled_for(&entity, &assets).unwrap();
+        let rig = compiled.evaluation.mesh.rig.as_ref().unwrap();
+        let lie = Appearance::motion(&compiled, "lie").unwrap();
+        let expected = rig.sample(Some(lie), lie.duration).unwrap();
+        for iso in [true, false] {
+            let mut runtime = Runtime::default();
+            let id = GeoId::Character(1);
+            entity.set_attribute("avatar_animation", Value::Str("Idle".into()));
+            entity.set_attribute("avatar_pose_only", Value::Bool(false));
+            runtime.sample(id, &entity, &model, &assets, iso).unwrap();
+            entity.set_attribute("avatar_animation", Value::Str("Lie".into()));
+            entity.set_attribute("avatar_pose_only", Value::Bool(true));
+            let first = runtime.sample(id, &entity, &model, &assets, iso).unwrap();
+            assert_eq!(
+                first.joints, expected,
+                "first frame must already be lying down"
+            );
+            runtime.time = 1.;
+            assert_eq!(
+                runtime
+                    .sample(id, &entity, &model, &assets, iso)
+                    .unwrap()
+                    .joints,
+                expected
+            );
+            entity.set_attribute("avatar_animation", Value::Str("Idle".into()));
+            entity.set_attribute("avatar_pose_only", Value::Bool(false));
+            let standing = runtime.sample(id, &entity, &model, &assets, iso).unwrap();
+            assert_eq!(
+                standing.joints,
+                rig.sample(Appearance::motion(&compiled, "idle"), 0.)
+                    .unwrap(),
+                "standing must not blend backwards from the bed pose"
+            );
+            entity.set_attribute("avatar_animation", Value::Str("Sit".into()));
+            let start = runtime.sample(id, &entity, &model, &assets, iso).unwrap();
+            runtime.time = 2.;
+            let end = runtime.sample(id, &entity, &model, &assets, iso).unwrap();
+            assert_ne!(
+                start.joints, end.joints,
+                "sitting should retain its animation"
+            );
+        }
+    }
+
     #[test]
     fn isometric_mz_character_uses_directional_walk_poses_without_outlines() {
         let (assets, model, mut entity) = fixture();

@@ -65,6 +65,7 @@ pub fn stand(entity: &mut Entity) {
     entity.set_attribute("furniture_id", Value::Int64(-1));
     entity.set_attribute("furniture_slot", Value::Str(String::new()));
     entity.set_attribute("avatar_animation", Value::Str("Idle".into()));
+    entity.set_attribute("avatar_pose_only", Value::Bool(false));
     entity.action = EntityAction::Off;
     entity.mark_all_dirty();
 }
@@ -115,6 +116,7 @@ pub fn use_item(
     actor.action = EntityAction::Off;
     actor.set_attribute("posture", Value::Str(place.posture.into()));
     actor.set_attribute("resting", Value::Bool(true));
+    actor.set_attribute("avatar_pose_only", Value::Bool(place.posture == "lying"));
     actor.set_attribute("furniture_id", Value::UInt(item.id));
     actor.set_attribute("furniture_slot", Value::Str(place.slot));
     actor.set_attribute(
@@ -172,6 +174,10 @@ mod tests {
             let start = actor.position;
             assert_eq!(use_item(&mut actor, &i, &[], &a), Some(Ok(())));
             assert_eq!(actor.attributes.get_str("posture"), Some(posture));
+            assert_eq!(
+                actor.attributes.get_bool_default("avatar_pose_only", false),
+                posture == "lying"
+            );
             let mut other = Entity::default();
             other.id = 2;
             assert!(
@@ -182,6 +188,7 @@ mod tests {
             assert_eq!(use_item(&mut actor, &i, &[], &a), Some(Ok(())));
             assert_eq!(actor.position, start);
             assert!(!is_resting(&actor));
+            assert!(!actor.attributes.get_bool_default("avatar_pose_only", true));
             assert_eq!(actor.attributes.get_str("posture"), Some("standing"));
         }
     }
