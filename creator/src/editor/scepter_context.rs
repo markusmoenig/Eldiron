@@ -43,12 +43,21 @@ impl Tracking {
 }
 impl Editor {
     pub(super) fn scepter_view(&self, ui: &mut TheUI) -> Json {
-        let cameras = EDITCAMERA.read().unwrap();
+        // Publish owned observations rather than retaining one global guard
+        // while acquiring another. Tool operations take these locks in the
+        // opposite order when switching cameras.
+        let camera_parameters = {
+            let cameras = EDITCAMERA.read().unwrap();
+            json!({"iso_scale":cameras.iso_camera.scale,"iso_azimuth":cameras.iso_camera.azimuth_deg,"iso_elevation":cameras.iso_camera.elevation_deg,"orbit_distance":cameras.orbit_camera.distance})
+        };
         let viewport = ui.get_widget("PolyView").map(|w| {
             let d = w.dim();
             json!({"x":d.x,"y":d.y,"width":d.width,"height":d.height})
         });
-        let tools = TOOLLIST.read().unwrap();
+        let tool = {
+            let tools = TOOLLIST.read().unwrap();
+            json!({"command":tools.current_game_tool_command_id(),"editor_mode":tools.editor_mode,"editor_index":tools.curr_editor_tool})
+        };
         let map = self.project.get_map(&self.server_ctx);
         let region = self
             .project
@@ -58,8 +67,8 @@ impl Editor {
         json!({"session":self.scepter_session(),"region":region.map(|r|json!({"id":r.id,"name":r.name,"map":r.map.id})),
             "project_context":format!("{:?}",self.server_ctx.pc),"map_context":format!("{:?}",self.server_ctx.get_map_context()),
             "view":match self.server_ctx.editor_view_mode{EditorViewMode::D2=>if self.project.get_map(&self.server_ctx).is_some_and(|m|m.camera==rusterix::MapCamera::TwoDIso){"2d_iso"}else{"2d"},EditorViewMode::Iso=>"iso",EditorViewMode::Orbit=>"orbit",EditorViewMode::FirstP=>"firstp"},
-            "tool":{"command":tools.current_game_tool_command_id(),"editor_mode":tools.editor_mode,"editor_index":tools.curr_editor_tool},
-            "selected_tile":self.server_ctx.curr_tile_id,"viewport":viewport,"camera_parameters":{"iso_scale":cameras.iso_camera.scale,"iso_azimuth":cameras.iso_camera.azimuth_deg,"iso_elevation":cameras.iso_camera.elevation_deg,"orbit_distance":cameras.orbit_camera.distance},
+            "tool":tool,
+            "selected_tile":self.server_ctx.curr_tile_id,"viewport":viewport,"camera_parameters":camera_parameters,
             "camera":region.map(|r|json!({"position":r.editing_position_3d.into_array(),"center":r.editing_look_at_3d.into_array(),"offset":r.map.offset.into_array(),"grid_size":r.map.grid_size})),
             "selection":map.map(|m|json!({"vertices":m.selected_vertices,"linedefs":m.selected_linedefs,"sectors":m.selected_sectors,"geometry":m.selected_geometry_objects,"faces":m.selected_geometry_faces,"geometry_vertices":m.selected_geometry_vertices,"entity":m.selected_entity_item})),
             "cursor":map.map(|m|json!({"grid":m.curr_grid_pos.map(|p|p.into_array()),"world":m.curr_grid_pos_3d.map(|p|p.into_array())}))})
