@@ -599,3 +599,104 @@ fn native_text_fields_preserve_ime_bindings_focus_and_clipboard_ownership() {
     assert_eq!(controller.focused_input, None);
     assert_eq!(controller.elements.text_input_widgets[&20].text, "Other");
 }
+
+#[test]
+fn native_dropdown_capture_precedes_fields_and_commits_keyboard_selection_once() {
+    use rusterix::client::widget::choice::{ChoiceWidget, ChoiceWidgetKind};
+    use theframework::platform::*;
+    let session = fixture(false);
+    let mut fonts = GameFonts::default();
+    let mut screen = GameScreenController::from_screen("Main", &session.view(), layout()).unwrap();
+    screen.elements.choice_widgets.insert(
+        30,
+        ChoiceWidget::from_ui(
+            "ClassChoice".into(),
+            30,
+            Rect::new(208., 130., 176., 32.),
+            ChoiceWidgetKind::Dropdown,
+            &"bind='class'\noptions=['Warrior','Mage','Rogue']"
+                .parse()
+                .unwrap(),
+        )
+        .unwrap(),
+    );
+    screen.elements.set_binding("class", "warrior");
+    screen
+        .prepare(&session.view(), &mut fonts, ContentRevision(1), 0)
+        .unwrap();
+    let pointer = |x, y, pressed| InputEvent::PointerButton {
+        button: PointerButton::Primary,
+        pressed,
+        position: [x, y],
+    };
+    let key = |physical| InputEvent::Key {
+        physical,
+        logical: LogicalKey::Other,
+        pressed: true,
+        repeat: false,
+    };
+    screen.focus_input(&mut fonts, Some(3));
+    assert!(
+        screen
+            .choice_input_event(&mut fonts, &pointer(220., 140., true))
+            .consumed
+    );
+    assert_eq!(screen.focused_input, None);
+    assert_eq!(screen.choice_controller.open_id(), Some(30));
+    assert!(
+        screen
+            .choice_input_event(&mut fonts, &pointer(220., 140., false))
+            .consumed
+    );
+    assert!(
+        screen
+            .choice_input_event(&mut fonts, &key(PhysicalKey::Down))
+            .consumed
+    );
+    screen
+        .prepare(&session.view(), &mut fonts, ContentRevision(1), 1)
+        .unwrap();
+    assert_eq!(screen.elements.choice_widgets[&30].selected, 1);
+    assert_eq!(screen.elements.ui_state["class"], "warrior");
+    assert!(
+        screen
+            .choice_input_event(&mut fonts, &InputEvent::Text("ignored".into()))
+            .consumed
+    );
+    assert!(
+        screen
+            .choice_input_event(&mut fonts, &key(PhysicalKey::Enter))
+            .consumed
+    );
+    assert_eq!(screen.elements.ui_state["class"], "mage");
+    assert_eq!(screen.choice_controller.open_id(), None);
+    screen.choice_input_event(&mut fonts, &pointer(220., 140., true));
+    screen.choice_input_event(&mut fonts, &pointer(220., 140., false));
+    // Outside popup and over the Start button: dismiss without click-through.
+    assert!(
+        screen
+            .choice_input_event(&mut fonts, &pointer(30., 200., true))
+            .consumed
+    );
+    assert_eq!(screen.choice_controller.open_id(), None);
+    assert!(
+        screen
+            .choice_input_event(&mut fonts, &pointer(30., 200., false))
+            .consumed
+    );
+    assert!(
+        !screen
+            .choice_input_event(&mut fonts, &pointer(30., 200., false))
+            .consumed
+    );
+    screen.choice_input_event(&mut fonts, &pointer(220., 140., true));
+    screen.choice_input_event(&mut fonts, &key(PhysicalKey::Down));
+    assert!(
+        screen
+            .choice_input_event(&mut fonts, &InputEvent::Focus(false))
+            .redraw
+    );
+    assert_eq!(screen.elements.ui_state["class"], "mage");
+    assert_eq!(screen.elements.choice_widgets[&30].selected, 1);
+    assert_eq!(screen.choice_controller.open_id(), None);
+}

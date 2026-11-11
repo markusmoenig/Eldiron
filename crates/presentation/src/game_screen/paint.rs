@@ -237,7 +237,7 @@ impl GameScreenController {
         let mut choices = ordered(&model.choice_widgets);
         if let Some(index) = choices
             .iter()
-            .position(|id| Some(*id) == self.open_dropdown)
+            .position(|id| Some(*id) == self.choice_controller.open_id())
         {
             let id = choices.remove(index);
             choices.push(id);

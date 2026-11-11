@@ -1,5 +1,6 @@
 //! Application-owned native screen/controller state. It borrows CPU runtime
 //! views; a host supplies scene/image services and owns its surface and clock.
+mod choice;
 mod fonts;
 mod input;
 mod paint;
@@ -43,7 +44,7 @@ pub struct GameScreenController {
     pub cursor: [f32; 2],
     pub focused_input: Option<u32>,
     pub pressed_button: Option<u32>,
-    pub open_dropdown: Option<u32>,
+    pub choice_controller: screen_model::ChoiceController,
     pub intent: String,
     pub hovered_item: Option<u32>,
     sources: ContentSources,
@@ -94,7 +95,7 @@ impl GameScreenController {
             cursor: [0.; 2],
             focused_input: None,
             pressed_button: None,
-            open_dropdown: None,
+            choice_controller: screen_model::ChoiceController::default(),
             intent: String::new(),
             hovered_item: None,
             sources: ContentSources::default(),
@@ -161,6 +162,11 @@ impl GameScreenController {
         }
         self.animation_frame = animation_frame;
         self.prepare_inputs(fonts);
+        self.choice_controller.prepare(
+            &mut self.elements.choice_widgets,
+            &self.elements.widgets_to_hide,
+            &self.elements.ui_state,
+        );
         let map = world.map.unwrap_or(&self.empty_map);
         self.messages.resize_with(
             self.elements.messages_widgets.len(),

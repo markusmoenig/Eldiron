@@ -365,6 +365,8 @@ impl ApplicationHandler<HostEvent> for Host {
                     repeat: event.repeat,
                 });
                 if event.state == ElementState::Pressed
+                    && self.focused
+                    && self.context.text_input.is_some()
                     && !self.ime_enabled
                     && !self.mods.super_key
                     && (!self.mods.control || self.mods.alt)
@@ -386,14 +388,17 @@ impl ApplicationHandler<HostEvent> for Host {
                         cursor: None,
                     });
                 }
-                Ime::Preedit(text, cursor) => self.route(InputEvent::Composition { text, cursor }),
-                Ime::Commit(text) => {
+                Ime::Preedit(text, cursor) if self.focused && self.context.text_input.is_some() => {
+                    self.route(InputEvent::Composition { text, cursor })
+                }
+                Ime::Commit(text) if self.focused && self.context.text_input.is_some() => {
                     self.route(InputEvent::Composition {
                         text: String::new(),
                         cursor: None,
                     });
                     self.route(InputEvent::Text(text));
                 }
+                Ime::Preedit(..) | Ime::Commit(..) => {}
             },
             WindowEvent::DroppedFile(path) => self.route(InputEvent::FileDropped(path)),
             WindowEvent::Touch(touch) => {

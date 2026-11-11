@@ -482,7 +482,7 @@ pub struct Client {
     text_widgets: FxHashMap<Uuid, TextWidget>,
     text_input_widgets: FxHashMap<u32, TextInputWidget>,
     choice_widgets: FxHashMap<u32, ChoiceWidget>,
-    open_choice_dropdown: Option<u32>,
+    choice_controller: ChoiceController,
     deco_widgets: FxHashMap<Uuid, DecoWidget>,
     screen_widget: Option<ScreenWidget>,
 
@@ -1020,7 +1020,7 @@ impl Client {
             text_widgets: FxHashMap::default(),
             text_input_widgets: FxHashMap::default(),
             choice_widgets: FxHashMap::default(),
-            open_choice_dropdown: None,
+            choice_controller: ChoiceController::default(),
             deco_widgets: FxHashMap::default(),
             screen_widget: None,
 
@@ -2507,7 +2507,7 @@ impl Client {
         self.text_widgets.clear();
         self.text_input_widgets.clear();
         self.choice_widgets.clear();
-        self.open_choice_dropdown = None;
+        self.choice_controller = ChoiceController::default();
         self.deco_widgets.clear();
         self.messages_widgets.clear();
         self.screen_widget = None;
@@ -2563,58 +2563,27 @@ impl Client {
             if screen_model::widget_name_is_hidden(&widget.name, hidden) {
                 continue;
             }
-            widget.sync_value(ui_state.get(&widget.binding).map(String::as_str));
+            if Some(id) != open_dropdown {
+                widget.sync_value(ui_state.get(&widget.binding).map(String::as_str));
+            }
             widget.draw(buffer, assets, draw2d, cursor);
         }
     }
 
     fn interact_choice_widgets(&mut self, point: Vec2<f32>) -> bool {
-        if let Some(open_id) = self.open_choice_dropdown {
-            let result = self.choice_widgets.get_mut(&open_id).map(|widget| {
-                let binding = widget.binding.clone();
-                let interaction = widget.interact(point);
-                (binding, interaction, widget.open)
-            });
-            self.open_choice_dropdown = result
-                .as_ref()
-                .and_then(|(_, _, open)| open.then_some(open_id));
-            if let Some((binding, ChoiceInteraction::Selected(value), _)) = result {
-                self.set_ui_state(&binding, &value);
-            }
-            // An open menu owns the next click, including an outside click that
-            // simply dismisses it.
-            return true;
+        let outcome = self.choice_controller.pointer(
+            &mut self.choice_widgets,
+            &self.widgets_to_hide,
+            &self.ui_state,
+            point,
+        );
+        if let Some((binding, value)) = outcome.selection {
+            self.set_ui_state(&binding, &value);
         }
-
-        let mut ids = self.choice_widgets.keys().copied().collect::<Vec<_>>();
-        ids.sort_unstable_by(|left, right| right.cmp(left));
-        for id in ids {
-            let Some(widget) = self.choice_widgets.get(&id) else {
-                continue;
-            };
-            if screen_model::widget_name_is_hidden(&widget.name, &self.widgets_to_hide)
-                || !widget.contains_interactive_point(point)
-            {
-                continue;
-            }
-            let (binding, interaction, is_dropdown, open) = {
-                let widget = self.choice_widgets.get_mut(&id).unwrap();
-                (
-                    widget.binding.clone(),
-                    widget.interact(point),
-                    widget.kind == ChoiceWidgetKind::Dropdown,
-                    widget.open,
-                )
-            };
-            if is_dropdown && open {
-                self.open_choice_dropdown = Some(id);
-            }
-            if let ChoiceInteraction::Selected(value) = interaction {
-                self.set_ui_state(&binding, &value);
-            }
-            return true;
+        if outcome.consumed {
+            self.focused_text_input = None;
         }
-        false
+        outcome.consumed
     }
 
     fn init_region_fallback(&mut self, assets: &Assets, scene_handler: &mut SceneHandler) {
@@ -3241,7 +3210,7 @@ impl Client {
 
         Self::draw_choice_widgets(
             &mut self.choice_widgets,
-            self.open_choice_dropdown,
+            self.choice_controller.open_id(),
             &mut self.target,
             assets,
             &self.draw2d,
@@ -3944,7 +3913,7 @@ impl Client {
 
         Self::draw_choice_widgets(
             &mut self.choice_widgets,
-            self.open_choice_dropdown,
+            self.choice_controller.open_id(),
             &mut self.overlay,
             assets,
             &self.draw2d,
@@ -4915,7 +4884,7 @@ impl Client {
             || self.inventory_panel_open
             || self.equipment_panel_open
             || self.preferences_panel_open
-            || self.open_choice_dropdown.is_some();
+            || self.choice_controller.open_id().is_some();
         if let Some(panel) = self.open_container_panel {
             self.open_container_panel_positions
                 .insert((panel.item_id, panel.owner_entity_id), panel.position);
@@ -4926,11 +4895,7 @@ impl Client {
         self.open_container_title_rect = None;
         self.open_container_close_rect = None;
         self.dragging_container_panel = false;
-        if let Some(id) = self.open_choice_dropdown.take()
-            && let Some(widget) = self.choice_widgets.get_mut(&id)
-        {
-            widget.open = false;
-        }
+        self.choice_controller.cancel(&mut self.choice_widgets);
         self.close_inventory_panel();
         self.close_equipment_panel();
         self.close_preferences_panel();
@@ -7470,6 +7435,7 @@ impl Client {
         }
         self.clear_item_drag();
         self.pressed_widget = None;
+        self.choice_controller.pointer_up();
 
         self.activated_widgets = self.permanently_activated_widgets.clone();
 
@@ -7502,6 +7468,36 @@ impl Client {
         }
 
         if is_escape && self.close_floaters() {
+            return EntityAction::Off;
+        }
+
+        if self.choice_controller.open_id().is_some()
+            && matches!(event.as_str(), "key_down" | "key_up")
+        {
+            if event == "key_down"
+                && let Value::Str(key) = &value
+            {
+                let navigation = match key.trim().to_ascii_lowercase().as_str() {
+                    "up" | "arrowup" => Some(ChoiceNavigation::Previous),
+                    "down" | "arrowdown" => Some(ChoiceNavigation::Next),
+                    "home" => Some(ChoiceNavigation::First),
+                    "end" => Some(ChoiceNavigation::Last),
+                    "enter" | "return" | "space" => Some(ChoiceNavigation::Accept),
+                    "tab" | "escape" | "esc" => Some(ChoiceNavigation::Cancel),
+                    _ => None,
+                };
+                if let Some(navigation) = navigation {
+                    let outcome = self.choice_controller.navigate(
+                        &mut self.choice_widgets,
+                        &self.widgets_to_hide,
+                        &self.ui_state,
+                        navigation,
+                    );
+                    if let Some((binding, value)) = outcome.selection {
+                        self.set_ui_state(&binding, &value);
+                    }
+                }
+            }
             return EntityAction::Off;
         }
 
