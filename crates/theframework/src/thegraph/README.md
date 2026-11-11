@@ -157,3 +157,40 @@ node names or the project model. Future screen/attribute catalogs can use these
 same interfaces. Creator uses named event fields and Filter / Say authoring,
 while this standalone example retains explicit bindings as an API demonstration.
 Neither host currently executes a gameplay graph.
+
+
+## Native bound views and text ownership
+
+The reference example descriptions above do not describe the native text path.
+`TheGraphView` uses an application-retained `Arc<Mutex<GraphViewState>>`, native
+paint commands and `GraphTextSession`. Text layout/editing uses Parley; Swash
+supplies glyph images for GPU atlas blits. No graph framebuffer or Fontdue
+measurement is involved in that path. Each visible view needs its own controller;
+authoritative application data, save and document history stay with the host.
+
+`GraphCommitted` carries an immutable binding/serial/edit payload. Consume an
+ordered `pending_through(serial)` prefix outside the model lock and acknowledge
+it after adoption. A Save/Play barrier can checkpoint text without ending the
+session, preserving IME, selection and local undo. Persist completed edits rather
+than copying the working document while another gesture is unfinished. Explicit
+document replacement changes the binding, including replacement with the same
+node/row IDs; reject queued commands and callbacks from the old binding. The host
+must drain/acknowledge completed commands and provide pending-command budgets.
+
+List text focus resolves authored `row_ids` and column IDs. Reordering either
+preserves the editing session, native callback identity, draft and history.
+Removed or ambiguous cells revoke the target instead of editing a replacement
+at the same numeric index. `GraphTextFocus::cell` is its last resolved projection;
+use `resolved_cell(document)` when inspecting externally modified source before
+the next prepare/input. Commits and cancellation update only that identified
+cell while retaining other current row values. Keep authored row/column IDs
+stable when projecting a schema.
+
+Legacy lists with missing/ambiguous IDs use a conservative transient table guard:
+ordinary edits remain supported without inventing serialized IDs, but external
+changes to other cells/structure revoke focus. The guard retains one shared
+snapshot of that legacy table while focused; it is not a global document-memory
+budget. Identified tables avoid that copy. Native list hit/IME/paint share the
+resolved address, and paint resolves it once per list rather than per cell.
+Folding is a completed reversible `ReplaceNode` edit, so serial-based storage
+retains authored fold state too.

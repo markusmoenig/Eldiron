@@ -11,18 +11,18 @@ use crate::{
     },
 };
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct Target {
     node: GraphId,
     row: GraphId,
-    cell: Option<(usize, usize)>,
+    cell: Option<super::text::GraphCellKey>,
 }
 impl From<&GraphTextFocus> for Target {
     fn from(focus: &GraphTextFocus) -> Self {
         Self {
             node: focus.node,
             row: focus.row,
-            cell: focus.cell,
+            cell: focus.cell_key(),
         }
     }
 }
@@ -59,6 +59,7 @@ impl GraphTextSession {
         fonts: &mut TextSystem,
         active: bool,
     ) -> bool {
+        graph.refresh_text_focus(doc);
         let Some(focus) = graph.text_focus().cloned() else {
             self.reset();
             return false;
@@ -72,7 +73,7 @@ impl GraphTextSession {
             return false;
         };
         let target = (graph.text_epoch, Target::from(&focus));
-        if self.target != Some(target) || self.view.is_none() {
+        if self.target.as_ref() != Some(&target) || self.view.is_none() {
             // Multiline storage preserves exact authored text (including CRLF).
             // Input uses the existing single-line graph filtering policy;
             // loaded source is not rewritten. Enter submits the inline draft.
@@ -299,8 +300,8 @@ fn layout(graph: &GraphEditor, doc: &GraphDocument, focus: &GraphTextFocus) -> O
     let metrics = doc.metrics();
     let row = &node.rows[index];
     let rect = node.row_rect(index, &metrics);
-    let (rect, size) = match (&row.value, focus.cell) {
-        (GraphControlValue::Text(_), None) => (
+    let (rect, size) = match (&row.value, focus.cell_in(&row.value)) {
+        (GraphControlValue::Text(_), None) if focus.cell.is_none() => (
             GraphRect {
                 origin: [rect.origin[0] + 9., rect.origin[1] + 4.],
                 size: [rect.size[0] - 18., 22.],
@@ -372,7 +373,7 @@ impl GraphPainter for GraphTextPainter<'_, '_> {
         size: f32,
         theme: &GraphTheme,
     ) -> bool {
-        if self.session.target.map(|(_, target)| target) != Some(Target::from(focus)) {
+        if self.session.target.as_ref().map(|(_, target)| target) != Some(&Target::from(focus)) {
             return false;
         }
         let Some(view) = &mut self.session.view else {

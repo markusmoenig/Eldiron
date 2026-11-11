@@ -322,7 +322,10 @@ impl GraphEditor {
             .map(|n| n.id);
         if let Some(id) = fold {
             if let Some(node) = doc.nodes.iter_mut().find(|node| node.id == id) {
+                let before = node.clone();
                 node.folded = !node.folded;
+                let after = node.clone();
+                self.record_edit(GraphEdit::ReplaceNode { before, after });
             }
             self.selected = Some(id);
             self.gesture = None;
@@ -356,6 +359,7 @@ impl GraphEditor {
                             node: n.id,
                             row: r.id,
                             cell: None,
+                            cell_identity: None,
                             original: value.clone(),
                             caret,
                             anchor: caret,
@@ -383,6 +387,9 @@ impl GraphEditor {
                                 node: n.id,
                                 row: r.id,
                                 cell: Some((row_index, column)),
+                                cell_identity: Some(super::text::GraphCellIdentity::capture(
+                                    &r.value, row_index, column,
+                                )),
                                 original: value.clone(),
                                 caret,
                                 anchor: caret,

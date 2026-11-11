@@ -303,6 +303,10 @@ impl GraphEditor {
                     continue;
                 }
                 if let GraphControlValue::List { columns, rows, .. } = &row.value {
+                    let row_focus = self
+                        .text_focus()
+                        .filter(|focus| focus.node == n.id && focus.row == row.id);
+                    let focused_cell = row_focus.and_then(|focus| focus.cell_in(&row.value));
                     let count = columns.len().max(1);
                     let cell_width = rect.size[0] * LIST_DELETE_FRACTION / count as f32;
                     let cell_size = metrics.cell_size * z;
@@ -340,11 +344,7 @@ impl GraphEditor {
                                 origin: [cell_rect.origin[0], y + 2.],
                                 size: [cell_rect.size[0], metrics.list_row - 4.],
                             };
-                            let focus = self.text_focus().filter(|focus| {
-                                focus.node == n.id
-                                    && focus.row == row.id
-                                    && focus.cell == Some((index, column))
-                            });
+                            let focus = row_focus.filter(|_| focused_cell == Some((index, column)));
                             let native = matches!(cell, GraphControlValue::Text(_))
                                 && focus.is_some_and(|focus| {
                                     painter.focused_text(focus, screen(cell_rect), cell_size, theme)
@@ -363,11 +363,7 @@ impl GraphEditor {
                                     theme.text,
                                 );
                             }
-                            if self.text_focus().is_some_and(|focus| {
-                                focus.node == n.id
-                                    && focus.row == row.id
-                                    && focus.cell == Some((index, column))
-                            }) {
+                            if focused_cell == Some((index, column)) {
                                 painter.round_rect(
                                     screen(GraphRect {
                                         origin: [

@@ -948,6 +948,20 @@ fn clicking_the_title_chevron_folds_a_node() {
     assert!(doc.nodes[0].folded, "the title chevron folds the node");
     editor.pointer_down(&mut doc, point, &BasicGraphControls);
     assert!(!doc.nodes[0].folded, "and unfolds it again");
+    let edits = editor.take_edits();
+    assert_eq!(
+        edits.len(),
+        2,
+        "each authored fold is a reversible completed edit"
+    );
+    edits[1].apply(&mut doc, false);
+    assert!(doc.nodes[0].folded);
+    edits[0].apply(&mut doc, false);
+    assert!(!doc.nodes[0].folded);
+    edits[0].apply(&mut doc, true);
+    assert!(doc.nodes[0].folded);
+    edits[1].apply(&mut doc, true);
+    assert!(!doc.nodes[0].folded);
 }
 
 #[test]

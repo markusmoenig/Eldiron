@@ -14,12 +14,124 @@ pub enum GraphTextInput {
     Commit,
     Cancel,
 }
+/// Stable authoring addresses for identified list cells; legacy tables without
+/// row IDs conservatively retain a structural guard until their next load.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum GraphCellKey {
+    Named(GraphId, String),
+    Indexed(usize, usize),
+}
+#[derive(Clone, Debug)]
+pub(super) struct LegacyCellGuard {
+    row: usize,
+    column: usize,
+    columns: Vec<String>,
+    rows: Vec<Vec<GraphControlValue>>,
+    row_ids: Vec<GraphId>,
+}
+#[derive(Clone, Debug)]
+pub(super) enum GraphCellIdentity {
+    Named { row: GraphId, column: String },
+    Indexed(std::sync::Arc<LegacyCellGuard>),
+}
+impl GraphCellIdentity {
+    pub(super) fn capture(value: &GraphControlValue, row: usize, column: usize) -> Self {
+        let GraphControlValue::List {
+            columns,
+            rows,
+            row_ids,
+        } = value
+        else {
+            unreachable!()
+        };
+        if let Some(id) = row_ids
+            .get(row)
+            .filter(|id| row_ids.iter().filter(|other| *other == *id).count() == 1)
+            && columns
+                .iter()
+                .filter(|other| other.id == columns[column].id)
+                .count()
+                == 1
+        {
+            return Self::Named {
+                row: *id,
+                column: columns[column].id.clone(),
+            };
+        }
+        Self::Indexed(std::sync::Arc::new(LegacyCellGuard {
+            row,
+            column,
+            columns: columns.iter().map(|column| column.id.clone()).collect(),
+            rows: rows.clone(),
+            row_ids: row_ids.clone(),
+        }))
+    }
+    fn key(&self) -> GraphCellKey {
+        match self {
+            Self::Named { row, column } => GraphCellKey::Named(*row, column.clone()),
+            Self::Indexed(guard) => GraphCellKey::Indexed(guard.row, guard.column),
+        }
+    }
+    fn resolve(&self, value: &GraphControlValue) -> Option<(usize, usize)> {
+        let GraphControlValue::List {
+            columns,
+            rows,
+            row_ids,
+        } = value
+        else {
+            return None;
+        };
+        match self {
+            Self::Named { row, column } => {
+                let mut matching_rows = row_ids.iter().enumerate().filter(|(_, id)| *id == row);
+                let r = matching_rows.next()?.0;
+                if matching_rows.next().is_some() {
+                    return None;
+                }
+                let mut matching_columns =
+                    columns.iter().enumerate().filter(|(_, c)| &c.id == column);
+                let c = matching_columns.next()?.0;
+                if matching_columns.next().is_some() {
+                    return None;
+                }
+                rows.get(r)?.get(c)?;
+                Some((r, c))
+            }
+            Self::Indexed(guard) => {
+                if &guard.row_ids != row_ids
+                    || guard.rows.len() != rows.len()
+                    || !guard
+                        .columns
+                        .iter()
+                        .eq(columns.iter().map(|column| &column.id))
+                {
+                    return None;
+                }
+                for (r, (before, after)) in guard.rows.iter().zip(rows).enumerate() {
+                    if before.len() != after.len() {
+                        return None;
+                    }
+                    for (c, (before, after)) in before.iter().zip(after).enumerate() {
+                        if (r, c) != (guard.row, guard.column) && before != after {
+                            return None;
+                        }
+                    }
+                }
+                rows.get(guard.row)?.get(guard.column)?;
+                Some((guard.row, guard.column))
+            }
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct GraphTextFocus {
     pub node: GraphId,
     pub row: GraphId,
-    /// For a list row, the `(row, column)` cell being edited.
+    /// Last resolved `(row, column)` projection for a list field. Use
+    /// `resolved_cell` after external source edits, before the next input/prepare.
     pub cell: Option<(usize, usize)>,
+    pub(super) cell_identity: Option<GraphCellIdentity>,
     pub(crate) original: String,
     pub(crate) caret: usize,
     pub(crate) anchor: usize,
@@ -37,8 +149,9 @@ pub(super) fn focused_text<'a>(
         .rows
         .iter_mut()
         .find(|r| r.id == focus.row)?;
-    match (&mut row.value, focus.cell) {
-        (GraphControlValue::Text(value), None) => Some(value),
+    let cell = focus.cell_in(&row.value);
+    match (&mut row.value, cell) {
+        (GraphControlValue::Text(value), None) if focus.cell.is_none() => Some(value),
         (GraphControlValue::List { rows, .. }, Some((r, c))) => {
             match rows.get_mut(r)?.get_mut(c)? {
                 GraphControlValue::Text(value) => Some(value),
@@ -49,6 +162,26 @@ pub(super) fn focused_text<'a>(
     }
 }
 impl GraphTextFocus {
+    pub(super) fn cell_key(&self) -> Option<GraphCellKey> {
+        self.cell_identity.as_ref().map(GraphCellIdentity::key)
+    }
+    pub(super) fn cell_in(&self, value: &GraphControlValue) -> Option<(usize, usize)> {
+        self.cell_identity
+            .as_ref()
+            .and_then(|identity| identity.resolve(value))
+    }
+    /// Resolve a list cell by authored row/column identity in the current source.
+    /// None also covers plain text rows and invalidated/removed list cells.
+    pub fn resolved_cell(&self, doc: &GraphDocument) -> Option<(usize, usize)> {
+        let row = doc
+            .nodes
+            .iter()
+            .find(|node| node.id == self.node)?
+            .rows
+            .iter()
+            .find(|row| row.id == self.row)?;
+        self.cell_in(&row.value)
+    }
     /// The committed draft addressed by this graph focus, without preedit.
     pub fn value<'a>(&self, doc: &'a GraphDocument) -> Option<&'a str> {
         let row = doc
@@ -58,8 +191,8 @@ impl GraphTextFocus {
             .rows
             .iter()
             .find(|r| r.id == self.row)?;
-        match (&row.value, self.cell) {
-            (GraphControlValue::Text(text), None) => Some(text),
+        match (&row.value, self.cell_in(&row.value)) {
+            (GraphControlValue::Text(text), None) if self.cell.is_none() => Some(text),
             (GraphControlValue::List { rows, .. }, Some((row, column))) => {
                 match rows.get(row)?.get(column)? {
                     GraphControlValue::Text(text) => Some(text),
@@ -164,10 +297,32 @@ impl GraphEditor {
     pub fn text_focus(&self) -> Option<&GraphTextFocus> {
         self.text_focus.as_ref()
     }
+    /// Keep the transient index projection current without changing the draft's
+    /// epoch. If its authored cell was removed/ambiguous, revoke the old target.
+    pub(super) fn refresh_text_focus(&mut self, doc: &GraphDocument) -> bool {
+        let Some(focus) = self.text_focus.as_mut() else {
+            return false;
+        };
+        if focus.value(doc).is_none() {
+            self.text_focus = None;
+            #[cfg(feature = "text")]
+            {
+                self.text_epoch = next_text_epoch();
+            }
+            return false;
+        }
+        if focus.cell.is_some() {
+            focus.cell = focus.resolved_cell(doc);
+        }
+        true
+    }
     /// Commit a document transaction without ending the native editing session.
     /// Save/Play barriers use committed source text, leaving preedit and local
     /// selection/history with the view. The next edit starts at this baseline.
     pub fn checkpoint_text(&mut self, doc: &mut GraphDocument) {
+        if !self.refresh_text_focus(doc) {
+            return;
+        }
         let Some(focus) = self.text_focus.clone() else {
             return;
         };
@@ -217,7 +372,7 @@ impl GraphEditor {
     }
     /// Returns true when keyboard input was captured, including commit/cancel.
     pub fn text_input(&mut self, doc: &mut GraphDocument, input: GraphTextInput) -> bool {
-        if self.text_focus.is_none() {
+        if !self.refresh_text_focus(doc) {
             return false;
         }
         match input {
@@ -260,8 +415,11 @@ fn focused_values(
         .find(|row| row.id == focus.row)?;
     let after = row.value.clone();
     let mut before = after.clone();
-    match (&mut before, focus.cell) {
-        (GraphControlValue::Text(value), None) => *value = focus.original.clone(),
+    let cell = focus.cell_in(&before);
+    match (&mut before, cell) {
+        (GraphControlValue::Text(value), None) if focus.cell.is_none() => {
+            *value = focus.original.clone()
+        }
         (GraphControlValue::List { rows, .. }, Some((r, c))) => {
             match rows.get_mut(r).and_then(|row| row.get_mut(c)) {
                 Some(GraphControlValue::Text(value)) => *value = focus.original.clone(),

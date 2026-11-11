@@ -608,3 +608,44 @@ fn graph_save_checkpoint_collects_a_serial_prefix_without_losing_ime_or_replayin
     assert_eq!(f.model.lock().unwrap().last_serial(), 0);
     assert!(f.model.lock().unwrap().pending_commits().next().is_none());
 }
+
+#[test]
+fn native_graph_folds_publish_once_and_survive_owner_acknowledgement_and_reversible_storage() {
+    let mut f = Fixture::new();
+    let source = f.model.lock().unwrap().document().clone();
+    let dim = *f.ui.get_widget("graph").unwrap().dim();
+    let node = &source.nodes[0];
+    let handle = node.fold_handle(&source.metrics());
+    let local = f.model.lock().unwrap().editor().viewport.to_screen([
+        handle.origin[0] + handle.size[0] * 0.5,
+        handle.origin[1] + handle.size[1] * 0.5,
+    ]);
+    let position = [dim.x as f32 + local[0], dim.y as f32 + local[1]];
+    f.send(InputEvent::PointerButton {
+        button: PointerButton::Primary,
+        pressed: true,
+        position,
+    });
+    f.send(InputEvent::PointerButton {
+        button: PointerButton::Primary,
+        pressed: false,
+        position,
+    });
+    let commits = f.commits();
+    assert_eq!(commits.len(), 1);
+    let (binding, edits) = &commits[0];
+    assert_eq!(edits.len(), 1);
+    let mut authoritative = source.clone();
+    edits[0].apply(&mut authoritative, true);
+    assert!(authoritative.nodes[0].folded);
+    let mut model = f.model.lock().unwrap();
+    assert_eq!(model.document(), &authoritative);
+    let serial = model.last_serial();
+    assert!(model.acknowledge(*binding, serial));
+    assert!(model.publish_edits().is_none());
+    drop(model);
+    f.paint();
+    assert!(f.commits().is_empty());
+    edits[0].apply(&mut authoritative, false);
+    assert_eq!(authoritative, source);
+}

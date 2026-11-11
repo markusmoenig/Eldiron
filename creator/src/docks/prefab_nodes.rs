@@ -299,6 +299,9 @@ impl PrefabNodePane {
         ctx.ui.redraw_all = true;
     }
     fn store(&mut self, project: &mut Project, ctx: &mut TheContext) {
+        // The explicit reference controller persists through the asset owner;
+        // completed controller payloads must not accumulate in a second queue.
+        self.editor.take_edits();
         self.store_error = None;
         if self.doc == self.committed {
             return;

@@ -754,3 +754,270 @@ fn recreating_graph_editor_with_identical_authored_ids_invalidates_the_old_nativ
     );
     assert_eq!(f.doc, before);
 }
+
+fn cell_fixture(identified: bool) -> Fixture {
+    let mut f = Fixture::new("unused");
+    f.graph.finish_text(&mut f.doc, false);
+    f.doc.nodes[0].rows[0].value = GraphControlValue::List {
+        columns: ["first", "second"]
+            .into_iter()
+            .map(|id| GraphListColumn {
+                id: id.into(),
+                label: id.into(),
+                control: GraphControlValue::Text(String::new()),
+            })
+            .collect(),
+        row_ids: if identified {
+            vec![uuid::Uuid::new_v4(), uuid::Uuid::new_v4()]
+        } else {
+            Vec::new()
+        },
+        rows: [["OneA", "OneB"], ["TwoA", "TwoB"]]
+            .into_iter()
+            .map(|row| {
+                row.into_iter()
+                    .map(|value| GraphControlValue::Text(value.into()))
+                    .collect()
+            })
+            .collect(),
+    };
+    let rect = f.doc.nodes[0].row_rect(0, &f.doc.metrics());
+    let point = f.graph.viewport.to_screen([
+        rect.origin[0] + 12.,
+        rect.origin[1] + f.doc.metrics().list_header + f.doc.metrics().list_row + 10.,
+    ]);
+    f.session
+        .pointer_down(
+            &mut f.graph,
+            &mut f.doc,
+            &mut f.fonts,
+            point,
+            &BasicGraphControls,
+        )
+        .unwrap();
+    f.session.input(
+        &mut f.graph,
+        &mut f.doc,
+        &mut f.fonts,
+        &InputEvent::PointerButton {
+            button: PointerButton::Primary,
+            pressed: false,
+            position: point,
+        },
+        true,
+    );
+    assert_eq!(f.graph.text_focus().unwrap().cell, Some((1, 0)));
+    f
+}
+
+#[test]
+fn identified_graph_cells_keep_ime_history_and_transaction_targets_across_row_and_column_reordering()
+ {
+    let mut f = cell_fixture(true);
+    f.command(EditorCommand::SelectAll);
+    f.input(InputEvent::Text("draft".into()));
+    let target = f.state().target;
+    let old_area = f.state().area;
+    f.input(InputEvent::CompositionFor {
+        target,
+        text: "日本".into(),
+        cursor: None,
+    });
+    let GraphControlValue::List {
+        columns,
+        rows,
+        row_ids,
+    } = &mut f.doc.nodes[0].rows[0].value
+    else {
+        unreachable!()
+    };
+    columns.swap(0, 1);
+    rows.swap(0, 1);
+    row_ids.swap(0, 1);
+    for row in rows.iter_mut() {
+        row.swap(0, 1);
+    }
+    rows[1][0] = GraphControlValue::Text("Unrelated current field".into());
+    f.paint();
+    assert_eq!(f.graph.text_focus().unwrap().cell, Some((0, 1)));
+    assert_eq!(
+        f.state().target,
+        target,
+        "layout reordering preserves the same native callback identity"
+    );
+    assert_ne!(f.state().area, old_area);
+    assert_eq!(f.text(), "draft");
+    assert!(f.graph.take_edits().is_empty());
+    assert_eq!(
+        f.input(key(PhysicalKey::Enter)).action,
+        None,
+        "preedit owns Enter after reordering"
+    );
+    f.input(InputEvent::TextFor {
+        target,
+        text: "日本".into(),
+    });
+    assert_eq!(f.text(), "draft日本");
+    f.command(EditorCommand::Undo);
+    assert_eq!(f.text(), "draft");
+    f.command(EditorCommand::Redo);
+    assert_eq!(f.text(), "draft日本");
+    let mut before = f.doc.clone();
+    let GraphControlValue::List { rows, .. } = &mut before.nodes[0].rows[0].value else {
+        unreachable!()
+    };
+    rows[0][1] = GraphControlValue::Text("TwoA".into());
+    f.input(key(PhysicalKey::Enter));
+    let after = f.doc.clone();
+    let edits = f.graph.take_edits();
+    assert_eq!(edits.len(), 1);
+    edits[0].apply(&mut f.doc, false);
+    assert_eq!(
+        f.doc, before,
+        "undo restores the identified cell and preserves other current fields"
+    );
+    edits[0].apply(&mut f.doc, true);
+    assert_eq!(f.doc, after);
+}
+
+#[test]
+fn removed_or_ambiguous_graph_cells_revoke_ime_and_clipboard_without_editing_a_replacement() {
+    for case in 0..8 {
+        let mut f = cell_fixture(case < 5);
+        f.command(EditorCommand::SelectAll);
+        let target = f.state().target;
+        let Some(EditorClipboard::Read { request }) = f.command(EditorCommand::Paste).clipboard
+        else {
+            panic!("paste request")
+        };
+        f.input(InputEvent::CompositionFor {
+            target,
+            text: "未確定".into(),
+            cursor: None,
+        });
+        let value = &mut f.doc.nodes[0].rows[0].value;
+        if case == 4 {
+            *value = GraphControlValue::Text("Replacement scalar".into());
+        } else {
+            let GraphControlValue::List {
+                rows,
+                columns,
+                row_ids,
+            } = value
+            else {
+                unreachable!()
+            };
+            match case {
+                0 => {
+                    rows.remove(1);
+                    row_ids.remove(1);
+                }
+                1 => {
+                    columns.remove(0);
+                    for row in rows {
+                        row.remove(0);
+                    }
+                }
+                2 => {
+                    row_ids[0] = row_ids[1];
+                }
+                3 => {
+                    columns[1].id = columns[0].id.clone();
+                }
+                5 => {
+                    rows.swap(0, 1);
+                }
+                6 => {
+                    rows.insert(0, vec![GraphControlValue::Text("Inserted".into()); 2]);
+                }
+                7 => {
+                    rows[0][0] = GraphControlValue::Text("New legacy source".into());
+                }
+                _ => unreachable!(),
+            }
+        }
+        let replaced = f.doc.clone();
+        f.paint();
+        assert!(f.graph.text_focus().is_none(), "case {case}");
+        assert!(
+            f.session
+                .input_state(&mut f.graph, &f.doc, &mut f.fonts, true)
+                .is_none()
+        );
+        assert!(
+            !f.input(InputEvent::TextFor {
+                target,
+                text: "stale".into()
+            })
+            .changed
+        );
+        assert!(
+            !f.input(InputEvent::CompositionFor {
+                target,
+                text: "stale".into(),
+                cursor: None
+            })
+            .changed
+        );
+        assert!(
+            !f.input(InputEvent::Clipboard {
+                request,
+                result: ClipboardResult::Text(Some("stale".into()))
+            })
+            .changed
+        );
+        assert_eq!(f.doc, replaced, "case {case}");
+        assert!(f.graph.take_edits().is_empty());
+    }
+}
+
+#[test]
+fn legacy_list_cell_edits_roundtrip_without_inventing_serialized_row_ids() {
+    let mut f = cell_fixture(false);
+    let before = f.doc.clone();
+    let target = f.state().target;
+    f.command(EditorCommand::SelectAll);
+    f.input(InputEvent::Text("e\u{301}日本".into()));
+    f.paint();
+    assert_eq!(f.state().target, target);
+    f.command(EditorCommand::Undo);
+    assert_eq!(f.text(), "TwoA");
+    f.command(EditorCommand::Redo);
+    assert_eq!(f.text(), "e\u{301}日本");
+    f.input(key(PhysicalKey::Enter));
+    let GraphControlValue::List { row_ids, .. } = &f.doc.nodes[0].rows[0].value else {
+        unreachable!()
+    };
+    assert!(row_ids.is_empty());
+    let edits = f.graph.take_edits();
+    assert_eq!(edits.len(), 1);
+    edits[0].apply(&mut f.doc, false);
+    assert_eq!(f.doc, before);
+}
+
+#[test]
+fn reference_graph_text_input_and_cancel_follow_authored_cell_addresses() {
+    let mut f = cell_fixture(true);
+    f.graph.text_input(&mut f.doc, GraphTextInput::SelectAll);
+    f.graph
+        .text_input(&mut f.doc, GraphTextInput::Insert("draft".into()));
+    let GraphControlValue::List { rows, row_ids, .. } = &mut f.doc.nodes[0].rows[0].value else {
+        unreachable!()
+    };
+    rows.swap(0, 1);
+    row_ids.swap(0, 1);
+    rows[1][1] = GraphControlValue::Text("External field".into());
+    assert!(
+        f.graph
+            .text_input(&mut f.doc, GraphTextInput::Insert("!".into()))
+    );
+    assert_eq!(f.graph.text_focus().unwrap().cell, Some((0, 0)));
+    assert_eq!(f.text(), "draft!");
+    f.graph.text_input(&mut f.doc, GraphTextInput::Cancel);
+    let GraphControlValue::List { rows, .. } = &f.doc.nodes[0].rows[0].value else {
+        unreachable!()
+    };
+    assert_eq!(rows[0][0], GraphControlValue::Text("TwoA".into()));
+    assert_eq!(rows[1][1], GraphControlValue::Text("External field".into()));
+    assert!(f.graph.take_edits().is_empty());
+}
