@@ -1,7 +1,7 @@
 //! Neutral editing controller built on Parley's cursor, bidi, selection and IME
 //! engine. It emits clipboard requests; no window, widgets, GPU or system access.
 use super::{
-    EditorPolicy, EditorTab,
+    EditorPolicy, EditorTab, EditorUndo,
     policy::{self, EditPlan},
 };
 use crate::{
@@ -216,6 +216,11 @@ impl EditorController {
             self.cancel_composition(fonts);
             self.clipboard = None;
             self.input_target = crate::platform::TextInputTarget::new();
+        }
+        if self.policy.undo != policy.undo {
+            self.undo.clear();
+            self.redo.clear();
+            self.history_bytes = 0;
         }
         self.policy = policy;
     }
@@ -487,6 +492,10 @@ impl EditorController {
         true
     }
     fn record_change(&mut self, before: Snapshot, after: Snapshot) {
+        if self.policy.undo == EditorUndo::External {
+            self.clipboard = None;
+            return;
+        }
         self.history_bytes -= self.redo.iter().map(|c| c.bytes).sum::<usize>();
         self.redo.clear();
         let bytes = before.text.capacity() + after.text.capacity() + std::mem::size_of::<Change>();
@@ -538,7 +547,7 @@ impl EditorController {
         changed
     }
     pub fn undo(&mut self, fonts: &mut TextSystem) -> bool {
-        if self.policy.read_only {
+        if self.policy.read_only || self.policy.undo == EditorUndo::External {
             return false;
         }
         self.commit_edit_group();
@@ -552,7 +561,7 @@ impl EditorController {
         true
     }
     pub fn redo(&mut self, fonts: &mut TextSystem) -> bool {
-        if self.policy.read_only {
+        if self.policy.read_only || self.policy.undo == EditorUndo::External {
             return false;
         }
         self.commit_edit_group();
@@ -728,6 +737,11 @@ impl EditorController {
     }
     pub fn execute(&mut self, fonts: &mut TextSystem, command: EditorCommand) -> EditorResponse {
         if !self.focused {
+            return EditorResponse::default();
+        }
+        if self.policy.undo == EditorUndo::External
+            && matches!(command, EditorCommand::Undo | EditorCommand::Redo)
+        {
             return EditorResponse::default();
         }
         if self.policy.read_only

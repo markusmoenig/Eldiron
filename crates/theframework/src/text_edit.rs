@@ -3,7 +3,7 @@
 #[cfg(feature = "text")]
 mod policy;
 #[cfg(feature = "text")]
-pub use policy::{EditorPolicy, EditorTab};
+pub use policy::{EditorPolicy, EditorTab, EditorUndo};
 #[cfg(feature = "text")]
 mod controller;
 #[cfg(feature = "text")]

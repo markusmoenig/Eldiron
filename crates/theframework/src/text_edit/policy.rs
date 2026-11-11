@@ -8,8 +8,16 @@ pub enum EditorTab {
     Spaces(usize),
 }
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum EditorUndo {
+    #[default]
+    Internal,
+    /// A document/application transaction owner handles Undo/Redo shortcuts.
+    External,
+}
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct EditorPolicy {
     pub read_only: bool,
+    pub undo: EditorUndo,
     pub tab: EditorTab,
     pub auto_indent: bool,
     pub auto_brackets: bool,

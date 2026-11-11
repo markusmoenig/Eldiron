@@ -962,3 +962,31 @@ fn saved_state_projection_uses_committed_ime_state_and_bounds_malformed_position
     assert_eq!(editor.text(), "");
     assert_eq!(editor.selection_bytes(), (0, 0));
 }
+
+#[test]
+fn external_undo_policy_leaves_document_transactions_and_shortcuts_with_the_application() {
+    let (mut fonts, mut editor) = fixture(true, "A東京Z");
+    editor.set_policy(
+        &mut fonts,
+        EditorPolicy {
+            undo: EditorUndo::External,
+            ..Default::default()
+        },
+    );
+    assert!(text(&mut editor, &mut fonts, "!").changed);
+    assert_eq!(editor.history_bytes(), 0);
+    let undo = shortcut(&mut editor, &mut fonts, b'z');
+    assert!(!undo.input.consumed && !undo.changed);
+    assert_eq!(editor.text(), "A東京Z!");
+    assert!(!editor.undo(&mut fonts));
+    editor.execute(&mut fonts, EditorCommand::SelectAll);
+    assert!(
+        matches!(editor.execute(&mut fonts,EditorCommand::Copy).clipboard,Some(EditorClipboard::Write { text,.. }) if text == "A東京Z!")
+    );
+    editor.select_bytes(&mut fonts, editor.text().len(), editor.text().len());
+    editor.set_policy(&mut fonts, EditorPolicy::default());
+    assert!(text(&mut editor, &mut fonts, "?").changed);
+    assert!(editor.undo(&mut fonts));
+    assert_eq!(editor.text(), "A東京Z!");
+    assert!(!editor.undo(&mut fonts));
+}
