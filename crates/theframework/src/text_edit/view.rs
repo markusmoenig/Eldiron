@@ -1,6 +1,6 @@
 //! Logical viewport and paint adapter for the neutral editor. The containing
 //! widget supplies chrome, focus order, clipboard services and blink scheduling.
-use super::{EditorController, EditorResponse};
+use super::{EditorController, EditorHit, EditorResponse};
 use crate::{
     paint::{Color, PaintList, PaintOp, Rect, Transform},
     platform::{InputEvent, Modifiers, PhysicalKey, PointerButton},
@@ -23,6 +23,14 @@ struct DecorationCache {
     source: Arc<EditorDecorations>,
     runs: Vec<(Arc<crate::paint::GlyphRun>, Option<Color>)>,
     whitespace: Vec<Rect>,
+}
+#[derive(Clone, Copy)]
+struct SelectionMove {
+    origin: EditorHit,
+    selection: (usize, usize),
+    press: [f32; 2],
+    target: Option<EditorHit>,
+    active: bool,
 }
 #[derive(Clone, Copy)]
 pub struct EditorColors {
@@ -49,6 +57,8 @@ pub struct EditorView {
     scroll: [f32; 2],
     pointer: Option<[f32; 2]>,
     dragging: bool,
+    selection_drag_move: bool,
+    moving: Option<SelectionMove>,
     modifiers: Modifiers,
     center_y: bool,
     auto_reveal: bool,
@@ -62,6 +72,8 @@ impl EditorView {
             scroll: [0.; 2],
             pointer: None,
             dragging: false,
+            selection_drag_move: false,
+            moving: None,
             modifiers: Modifiers::default(),
             center_y: false,
             auto_reveal: true,
@@ -112,6 +124,16 @@ impl EditorView {
     }
     /// Disable automatic following for logs/readonly views. Explicit caret
     /// reveal, pointer drags and Page navigation remain available to the owner.
+    pub fn set_selection_drag_move(&mut self, enabled: bool) {
+        self.selection_drag_move = enabled;
+        if !enabled {
+            self.moving = None;
+        }
+    }
+    fn move_is_current(&self, moving: SelectionMove) -> bool {
+        self.editor.hit_is_current(moving.origin)
+            && self.editor.selection_bytes() == moving.selection
+    }
     pub fn set_auto_reveal(&mut self, enabled: bool) {
         self.auto_reveal = enabled;
     }
@@ -174,6 +196,9 @@ impl EditorView {
             .editor
             .caret(fonts)
             .unwrap_or_else(|| self.editor.ime_area(fonts));
+        self.reveal_rect(fonts, caret);
+    }
+    fn reveal_rect(&mut self, fonts: &mut TextSystem, caret: Rect) {
         if caret.x < self.scroll[0] {
             self.scroll[0] = caret.x;
         }
@@ -189,6 +214,10 @@ impl EditorView {
         self.clamp_scroll(fonts);
     }
     pub fn set_focused(&mut self, fonts: &mut TextSystem, focused: bool) {
+        if !focused {
+            self.moving = None;
+            self.dragging = false;
+        }
         if self.editor.is_focused() == focused {
             return;
         }
@@ -208,6 +237,30 @@ impl EditorView {
         self.pointer = Some(position);
         self.editor.set_focused(fonts, true);
         let local = self.local_point(fonts, position);
+        self.moving = None;
+        if self.selection_drag_move
+            && !self.editor.policy().read_only
+            && !self.editor.is_composing()
+            && !self.modifiers.shift
+            && clicks == 1
+            && self
+                .editor
+                .selection(fonts)
+                .iter()
+                .any(|rect| rect.contains(local))
+        {
+            if let Some(hit) = self.editor.hit_test(fonts, local) {
+                self.moving = Some(SelectionMove {
+                    origin: hit,
+                    selection: self.editor.selection_bytes(),
+                    press: position,
+                    target: Some(hit),
+                    active: false,
+                });
+                self.dragging = false;
+                return true;
+            }
+        }
         if self.modifiers.shift && clicks <= 1 {
             self.editor.point(fonts, local, true);
         } else {
@@ -218,6 +271,32 @@ impl EditorView {
         true
     }
     pub fn input(&mut self, fonts: &mut TextSystem, event: &InputEvent) -> EditorResponse {
+        if self.moving.is_some()
+            && matches!(
+                event,
+                InputEvent::Key {
+                    pressed: true,
+                    physical: PhysicalKey::Escape,
+                    ..
+                }
+            )
+        {
+            self.moving = None;
+            self.dragging = false;
+            return EditorResponse::handled(false);
+        }
+        if matches!(
+            event,
+            InputEvent::Key { pressed: true, .. }
+                | InputEvent::Text(_)
+                | InputEvent::TextFor { .. }
+                | InputEvent::Composition { .. }
+                | InputEvent::CompositionFor { .. }
+                | InputEvent::Clipboard { .. }
+                | InputEvent::Focus(false)
+        ) {
+            self.moving = None;
+        }
         match event {
             InputEvent::Modifiers(modifiers) => {
                 self.modifiers = *modifiers;
@@ -228,6 +307,27 @@ impl EditorView {
             }
             InputEvent::PointerMoved { position } => {
                 self.pointer = Some(*position);
+                if let Some(mut moving) = self.moving {
+                    if !self.move_is_current(moving) {
+                        self.moving = None;
+                        return EditorResponse::handled(false);
+                    }
+                    let distance = (position[0] - moving.press[0]).powi(2)
+                        + (position[1] - moving.press[1]).powi(2);
+                    moving.active |= distance >= 9.;
+                    if moving.active {
+                        let local = self.local_point(fonts, *position);
+                        moving.target = self.editor.hit_test(fonts, local);
+                        if let Some(rect) = moving
+                            .target
+                            .and_then(|hit| self.editor.hit_geometry(fonts, hit))
+                        {
+                            self.reveal_rect(fonts, rect);
+                        }
+                    }
+                    self.moving = Some(moving);
+                    return EditorResponse::handled(false);
+                }
                 if self.dragging {
                     let local = self.local_point(fonts, *position);
                     self.editor.point(fonts, local, true);
@@ -249,6 +349,24 @@ impl EditorView {
                     if self.pointer_down(fonts, *position, 1) {
                         return EditorResponse::handled(false);
                     }
+                } else if let Some(moving) = self.moving.take() {
+                    if !self.move_is_current(moving) {
+                        return EditorResponse::handled(false);
+                    }
+                    let changed = if moving.active {
+                        // A host can coalesce motion before the final release.
+                        // Resolve that release against the current viewport.
+                        let local = self.local_point(fonts, *position);
+                        self.editor
+                            .hit_test(fonts, local)
+                            .is_some_and(|hit| self.editor.move_selection_to(fonts, hit))
+                    } else {
+                        let local = self.local_point(fonts, *position);
+                        self.editor.point(fonts, local, false);
+                        false
+                    };
+                    self.reveal_caret(fonts);
+                    return EditorResponse::handled(changed);
                 } else if self.dragging {
                     self.dragging = false;
                     return EditorResponse::handled(false);
@@ -489,7 +607,16 @@ impl EditorView {
                 colors.composition,
             );
         }
-        if self.editor.accepts_text_input() && caret_visible {
+        let moving = self
+            .moving
+            .filter(|moving| moving.active && self.move_is_current(*moving));
+        if let Some(rect) = moving
+            .and_then(|moving| moving.target)
+            .and_then(|hit| self.editor.hit_geometry(fonts, hit))
+        {
+            list.rect(rect, 0., colors.caret);
+        }
+        if moving.is_none() && self.editor.accepts_text_input() && caret_visible {
             if let Some(caret) = self.editor.caret(fonts) {
                 list.rect(caret, 0., colors.caret);
             }
@@ -673,6 +800,88 @@ mod tests {
         assert!(view.ime_area(&mut fonts).is_none());
         assert!(!view.input(&mut fonts, &key).input.consumed);
         assert!(!view.dragging);
+    }
+    fn point_for(view: &mut EditorView, fonts: &mut TextSystem, byte: usize) -> [f32; 2] {
+        view.editor.select_bytes(fonts, byte, byte);
+        let caret = view.editor.caret(fonts).unwrap();
+        let origin = view.origin(fonts);
+        [caret.x + origin[0], caret.y + origin[1] + caret.height / 2.]
+    }
+    fn release(
+        view: &mut EditorView,
+        fonts: &mut TextSystem,
+        position: [f32; 2],
+    ) -> EditorResponse {
+        view.input(
+            fonts,
+            &InputEvent::PointerButton {
+                button: PointerButton::Primary,
+                pressed: false,
+                position,
+            },
+        )
+    }
+    #[test]
+    fn selected_text_moves_only_on_release_and_one_undo_restores_the_backward_selection() {
+        let source = "A東京e\u{301} Z";
+        let (mut fonts, mut view) = fixture(true, source, Rect::new(20., 10., 300., 80.));
+        view.set_focused(&mut fonts, true);
+        view.set_selection_drag_move(true);
+        let mut press = point_for(&mut view, &mut fonts, 1);
+        press[0] += 2.;
+        let end = point_for(&mut view, &mut fonts, source.len());
+        let inside = point_for(&mut view, &mut fonts, 4);
+        let selected_end = "A東京e\u{301}".len();
+        view.editor.select_bytes(&mut fonts, selected_end, 1);
+        assert!(view.pointer_down(&mut fonts, press, 1));
+        assert_eq!(view.editor.selection_bytes(), (selected_end, 1));
+        view.input(&mut fonts, &InputEvent::PointerMoved { position: inside });
+        assert_eq!(view.editor.text(), source);
+        assert!(view.moving.unwrap().active);
+        assert!(release(&mut view, &mut fonts, end).changed);
+        assert_eq!(view.editor.text(), "A Z東京e\u{301}");
+        assert!(view.editor.undo(&mut fonts));
+        assert_eq!(view.editor.text(), source);
+        assert_eq!(view.editor.selection_bytes(), (selected_end, 1));
+        // A click inside the selection still positions the caret normally.
+        view.pointer_down(&mut fonts, press, 1);
+        assert!(!release(&mut view, &mut fonts, press).changed);
+        assert_eq!(view.editor.selection_bytes(), (1, 1));
+    }
+    #[test]
+    fn escape_scope_loss_and_document_replacement_cancel_pending_moves() {
+        let source = "A東京 Z";
+        let (mut fonts, mut view) = fixture(true, source, Rect::new(20., 10., 300., 80.));
+        view.set_focused(&mut fonts, true);
+        view.set_selection_drag_move(true);
+        let mut press = point_for(&mut view, &mut fonts, 1);
+        press[0] += 2.;
+        let end = point_for(&mut view, &mut fonts, source.len());
+        view.editor.select_bytes(&mut fonts, 1, 7);
+        view.pointer_down(&mut fonts, press, 1);
+        view.input(&mut fonts, &InputEvent::PointerMoved { position: end });
+        let response = view.input(
+            &mut fonts,
+            &InputEvent::Key {
+                physical: PhysicalKey::Escape,
+                logical: LogicalKey::Other,
+                pressed: true,
+                repeat: false,
+            },
+        );
+        assert!(response.input.consumed);
+        assert!(response.action.is_none());
+        assert!(!release(&mut view, &mut fonts, end).changed);
+        assert_eq!(view.editor.selection_bytes(), (1, 7));
+        view.pointer_down(&mut fonts, press, 1);
+        view.set_focused(&mut fonts, false);
+        assert!(!release(&mut view, &mut fonts, end).changed);
+        assert_eq!(view.editor.text(), source);
+        view.set_focused(&mut fonts, true);
+        view.pointer_down(&mut fonts, press, 1);
+        view.editor.set_text(&mut fonts, "replacement");
+        assert!(!release(&mut view, &mut fonts, end).changed);
+        assert_eq!(view.editor.text(), "replacement");
     }
     #[test]
     fn double_and_triple_click_share_word_and_hard_line_geometry() {

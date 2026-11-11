@@ -709,3 +709,72 @@ fn multiline_loaded_controls_survive_edits_and_code_zoom_is_not_a_document_edit(
         format!("!{source}")
     );
 }
+
+#[test]
+fn multiline_drag_move_updates_the_saved_document_once_and_undo_restores_selection() {
+    let source = "A東京e\u{301} Z";
+    let (mut ui, mut ctx, id) = code_fixture(source, false);
+    let caret = |ui: &mut TheUI, ctx: &mut TheContext, index| {
+        ui.get_text_area_edit("Code")
+            .unwrap()
+            .goto_char_by_index(index);
+        ui.prepare_paint_layout(ctx);
+        let state = ui
+            .get_widget_id(id.uuid)
+            .unwrap()
+            .editor_input_state(ctx)
+            .unwrap();
+        state.area
+    };
+    let start_area = caret(&mut ui, &mut ctx, 1);
+    let end_area = caret(&mut ui, &mut ctx, 6);
+    // Parley's native candidate rectangle includes three glyphs of context
+    // on either side, clipped at the start of the line. Use its right edge
+    // to recover the insertion position without treating context as a caret.
+    let context = end_area.width / 2.;
+    let press = [
+        start_area.x + start_area.width - context + 2.,
+        start_area.y + start_area.height / 2.,
+    ];
+    let end = [end_area.x + context, end_area.y + end_area.height / 2.];
+    let mut selected = ui.get_text_area_edit("Code").unwrap().get_state();
+    selected.select(1, 4);
+    TheTextAreaEditTrait::set_state(ui.get_text_area_edit("Code").unwrap(), selected);
+    ui.prepare_paint_layout(&mut ctx);
+    let receiver = ui.add_state_listener("Drag move".into());
+    ui.touch_down(press[0], press[1], &mut ctx);
+    ui.touch_dragged(end[0], end[1], &mut ctx);
+    ui.process_events(&mut ctx);
+    assert_eq!(ui.get_text_area_edit("Code").unwrap().text(), source);
+    assert!(
+        !receiver
+            .try_iter()
+            .any(|event| matches!(event, TheEvent::ValueChanged(..)))
+    );
+    ui.touch_up(end[0], end[1], &mut ctx);
+    ui.process_events(&mut ctx);
+    assert_eq!(
+        ui.get_text_area_edit("Code").unwrap().text(),
+        "A Z東京e\u{301}"
+    );
+    assert_eq!(
+        receiver
+            .try_iter()
+            .filter(|event| matches!(event, TheEvent::ValueChanged(value, _) if value==&id))
+            .count(),
+        1
+    );
+    assert_eq!(
+        ui.get_text_area_edit("Code")
+            .unwrap()
+            .get_state()
+            .rows
+            .join("\n"),
+        "A Z東京e\u{301}"
+    );
+    assert!(ctx.ui.editor_clipboard.is_empty());
+    ui.undo(&mut ctx);
+    let restored = ui.get_text_area_edit("Code").unwrap().get_state();
+    assert_eq!(restored.rows.join("\n"), source);
+    assert_eq!((restored.selection.start, restored.selection.end), (1, 4));
+}

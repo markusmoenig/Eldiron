@@ -55,6 +55,19 @@ pub enum EditorAction {
     Cancel,
     FocusNext { backwards: bool },
 }
+/// A shaped, extended-grapheme-safe drop position addressed to its editor edit
+/// epoch. Geometry may refresh for fonts/layout; document/focus edits invalidate it.
+#[derive(Clone, Copy, Debug)]
+pub struct EditorHit {
+    cursor: parley::Cursor,
+    target: crate::platform::TextInputTarget,
+    revision: u64,
+}
+impl EditorHit {
+    pub fn index(self) -> usize {
+        self.cursor.index()
+    }
+}
 #[derive(Default)]
 pub struct EditorResponse {
     pub input: InputResponse,
@@ -85,6 +98,7 @@ struct LayoutKey {
 /// bounded undo history. Layout and all hit/caret/IME geometry share Parley.
 pub struct EditorController {
     input_target: crate::platform::TextInputTarget,
+    edit_revision: u64,
     editor: PlainEditor<usize>,
     multiline: bool,
     policy: EditorPolicy,
@@ -108,6 +122,7 @@ impl EditorController {
     pub fn new(multiline: bool) -> Self {
         Self {
             input_target: crate::platform::TextInputTarget::new(),
+            edit_revision: 0,
             editor: PlainEditor::new(14.),
             multiline,
             policy: EditorPolicy::default(),
@@ -317,6 +332,8 @@ impl EditorController {
         }
     }
     fn restore(&mut self, fonts: &mut TextSystem, state: &Snapshot) {
+        self.edit_revision = self.edit_revision.wrapping_add(1);
+
         fonts.editor_driver(&mut self.editor).clear_compose();
         self.editor.set_text(&state.text);
         fonts
@@ -352,6 +369,8 @@ impl EditorController {
             .collect()
     }
     pub fn set_text(&mut self, fonts: &mut TextSystem, text: &str) {
+        self.edit_revision = self.edit_revision.wrapping_add(1);
+
         self.input_target = crate::platform::TextInputTarget::new();
         self.edit_group = None;
         self.cancel_composition(fonts);
@@ -472,6 +491,89 @@ impl EditorController {
             .select_byte_range(anchor, focus);
         self.snap_selection(fonts, false);
     }
+    pub fn hit_is_current(&self, hit: EditorHit) -> bool {
+        hit.target == self.input_target
+            && hit.revision == self.edit_revision
+            && !self.is_composing()
+    }
+    pub fn hit_test(&mut self, fonts: &mut TextSystem, point: [f32; 2]) -> Option<EditorHit> {
+        if self.is_composing() || !point.iter().all(|v| v.is_finite()) {
+            return None;
+        }
+        self.ensure_fonts(fonts);
+        self.update_boundaries();
+        let mut driver = fonts.editor_driver(&mut self.editor);
+        let layout = driver.layout();
+        let cursor = grapheme_cursor(
+            parley::Cursor::from_point(layout, point[0], point[1]),
+            layout,
+            &self.boundaries,
+            false,
+        );
+        Some(EditorHit {
+            cursor,
+            target: self.input_target,
+            revision: self.edit_revision,
+        })
+    }
+    pub fn hit_geometry(&mut self, fonts: &mut TextSystem, hit: EditorHit) -> Option<Rect> {
+        if !self.hit_is_current(hit) {
+            return None;
+        }
+        self.ensure_fonts(fonts);
+        let mut driver = fonts.editor_driver(&mut self.editor);
+        Some(box_rect(hit.cursor.geometry(driver.layout(), 1.)))
+    }
+    /// Move the current selection directly in the document as one transaction;
+    /// no system clipboard or synthetic cut/paste operations participate.
+    pub fn move_selection_to(&mut self, fonts: &mut TextSystem, hit: EditorHit) -> bool {
+        if self.policy.read_only || !self.hit_is_current(hit) {
+            return false;
+        }
+        let (anchor, focus) = self.selection_bytes();
+        let start = anchor.min(focus);
+        let end = anchor.max(focus);
+        let target = hit.index();
+        if start == end || (start..=end).contains(&target) {
+            return false;
+        }
+        let text = self.editor.raw_text()[start..end].to_owned();
+        let (edits, position) = if target < start {
+            (
+                vec![
+                    policy::Edit {
+                        range: target..target,
+                        text,
+                    },
+                    policy::Edit {
+                        range: start..end,
+                        text: String::new(),
+                    },
+                ],
+                target,
+            )
+        } else {
+            (
+                vec![
+                    policy::Edit {
+                        range: start..end,
+                        text: String::new(),
+                    },
+                    policy::Edit {
+                        range: target..target,
+                        text,
+                    },
+                ],
+                target - (end - start),
+            )
+        };
+        let selection = if anchor > focus {
+            (position + end - start, position)
+        } else {
+            (position, position + end - start)
+        };
+        self.apply_edit_plan(fonts, EditPlan { edits, selection })
+    }
     pub fn point(&mut self, fonts: &mut TextSystem, point: [f32; 2], extend: bool) {
         self.cancel_composition(fonts);
         self.ensure_fonts(fonts);
@@ -553,6 +655,7 @@ impl EditorController {
         if before.text == self.editor.raw_text() {
             return false;
         }
+        self.edit_revision = self.edit_revision.wrapping_add(1);
         self.snapshot = None;
         self.boundaries_dirty = true;
         self.snap_selection(fonts, true);
@@ -1083,6 +1186,33 @@ fn visual_grapheme(
     }
     driver.set_selection(selection);
 }
+fn grapheme_cursor(
+    cursor: parley::Cursor,
+    layout: &parley::Layout<usize>,
+    boundaries: &[usize],
+    forward: bool,
+) -> parley::Cursor {
+    let Err(index) = boundaries.binary_search(&cursor.index()) else {
+        return cursor;
+    };
+    let before = boundaries[index.saturating_sub(1)];
+    let after = boundaries[index.min(boundaries.len() - 1)];
+    let left = parley::Cursor::from_byte_index(layout, before, parley::Affinity::Downstream);
+    let right = parley::Cursor::from_byte_index(layout, after, parley::Affinity::Upstream);
+    if forward {
+        return right;
+    }
+    let origin = cursor.geometry(layout, 0.);
+    let distance = |candidate: parley::Cursor| {
+        let rect = candidate.geometry(layout, 0.);
+        (rect.x0 - origin.x0).powi(2) + (rect.y0 - origin.y0).powi(2)
+    };
+    if distance(left) <= distance(right) {
+        left
+    } else {
+        right
+    }
+}
 fn normalize_selection(
     driver: &mut PlainEditorDriver<'_, usize>,
     boundaries: &[usize],
@@ -1092,27 +1222,9 @@ fn normalize_selection(
     let layout = driver.layout();
     let mut changed = false;
     let corrected = selection.map_cursors(|cursor| {
-        let Err(index) = boundaries.binary_search(&cursor.index()) else {
-            return cursor;
-        };
-        changed = true;
-        let before = boundaries[index.saturating_sub(1)];
-        let after = boundaries[index.min(boundaries.len() - 1)];
-        let left = parley::Cursor::from_byte_index(layout, before, parley::Affinity::Downstream);
-        let right = parley::Cursor::from_byte_index(layout, after, parley::Affinity::Upstream);
-        if forward {
-            return right;
-        }
-        let origin = cursor.geometry(layout, 0.);
-        let distance = |candidate: parley::Cursor| {
-            let rect = candidate.geometry(layout, 0.);
-            (rect.x0 - origin.x0).powi(2) + (rect.y0 - origin.y0).powi(2)
-        };
-        if distance(left) <= distance(right) {
-            left
-        } else {
-            right
-        }
+        let snapped = grapheme_cursor(cursor, layout, boundaries, forward);
+        changed |= snapped != cursor;
+        snapped
     });
     if changed {
         driver.set_selection(corrected);

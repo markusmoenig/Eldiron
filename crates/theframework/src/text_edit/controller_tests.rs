@@ -1070,3 +1070,60 @@ fn code_comment_can_toggle_an_empty_current_line_without_synthesizing_a_key() {
     editor.undo(&mut fonts);
     assert_eq!(editor.text(), "# ");
 }
+
+#[test]
+fn selected_text_moves_use_shaped_hits_and_one_undo_record_without_clipboard() {
+    let source = "A東京e\u{301} Z";
+    let (mut fonts, mut editor) = fixture(false, source);
+    editor.select_bytes(&mut fonts, 10, 1);
+    let before = editor.caret(&mut fonts);
+    let caret = editor.layout(&mut fonts).caret(source.len());
+    let hit = editor
+        .hit_test(&mut fonts, [caret.x + 0.1, caret.y + caret.height * 0.5])
+        .unwrap();
+    assert_eq!(hit.index(), source.len());
+    assert!(editor.move_selection_to(&mut fonts, hit));
+    assert_eq!(editor.text(), "A Z東京e\u{301}");
+    assert_eq!(editor.selection_bytes(), (source.len(), 3));
+    assert!(!editor.hit_is_current(hit));
+    assert!(editor.undo(&mut fonts));
+    assert_eq!(editor.text(), source);
+    assert_eq!(editor.selection_bytes(), (10, 1));
+    assert_eq!(editor.caret(&mut fonts), before);
+    let caret = editor.layout(&mut fonts).caret(0);
+    let hit = editor
+        .hit_test(&mut fonts, [caret.x, caret.y + caret.height * 0.5])
+        .unwrap();
+    assert!(editor.move_selection_to(&mut fonts, hit));
+    assert_eq!(editor.text(), "東京e\u{301}A Z");
+    assert_eq!(editor.selection_bytes(), (9, 0));
+}
+#[test]
+fn drop_hits_remain_grapheme_safe_across_fonts_and_expire_on_document_or_focus_change() {
+    let source = "கொe\u{301}A";
+    let (mut fonts, mut editor) = fixture(false, source);
+    let boundaries = source
+        .grapheme_indices(true)
+        .map(|(index, _)| index)
+        .chain(std::iter::once(source.len()))
+        .collect::<Vec<_>>();
+    let width = editor.layout(&mut fonts).full_width();
+    let height = editor.layout(&mut fonts).height();
+    for step in 0..100 {
+        let hit = editor
+            .hit_test(&mut fonts, [width * step as f32 / 99., height * 0.5])
+            .unwrap();
+        assert!(boundaries.contains(&hit.index()));
+    }
+    let hit = editor.hit_test(&mut fonts, [width, height * 0.5]).unwrap();
+    fonts.register_font(include_bytes!("../../embedded/fonts/SourceCodePro-Bold.ttf").to_vec());
+    assert!(editor.hit_geometry(&mut fonts, hit).is_some());
+    assert!(editor.hit_is_current(hit));
+    editor.input(&mut fonts, &InputEvent::Focus(false));
+    assert!(!editor.hit_is_current(hit));
+    editor.set_focused(&mut fonts, true);
+    let hit = editor.hit_test(&mut fonts, [width, height * 0.5]).unwrap();
+    editor.set_text(&mut fonts, "replacement");
+    assert!(!editor.move_selection_to(&mut fonts, hit));
+    assert_eq!(editor.text(), "replacement");
+}

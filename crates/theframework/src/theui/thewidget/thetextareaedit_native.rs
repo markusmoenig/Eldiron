@@ -163,6 +163,8 @@ impl TheTextAreaEdit {
             },
         );
         self.native.view.set_auto_reveal(self.auto_scroll_to_cursor);
+        self.native.view.set_selection_drag_move(!self.readonly);
+
         self.native.view.set_focused(
             &mut ctx.text,
             self.native.active && !self.is_disabled && ctx.ui.has_focus(&self.id),
@@ -658,7 +660,7 @@ impl TheTextAreaEdit {
                             .on_event(&TheEvent::MouseUp(Vec2::zero()), ctx);
                     }
                     _ => {
-                        self.native.view.input(
+                        let response = self.native.view.input(
                             &mut ctx.text,
                             &InputEvent::PointerButton {
                                 button: PointerButton::Primary,
@@ -666,6 +668,7 @@ impl TheTextAreaEdit {
                                 position,
                             },
                         );
+                        self.apply_native_area_response(&response, ctx);
                     }
                 }
                 self.is_hscrollbar_clicked = false;
