@@ -46,11 +46,21 @@ impl GraphCommit {
     pub fn new(binding: u64, serial: u64, edits: Vec<GraphEdit>) -> Self {
         use std::sync::atomic::{AtomicU64, Ordering};
         static NEXT_SEQUENCE: AtomicU64 = AtomicU64::new(1);
-        let sequence = NEXT_SEQUENCE
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |sequence| {
-                sequence.checked_add(1)
-            })
-            .expect("graph commit sequence exhausted");
+        let mut sequence = NEXT_SEQUENCE.load(Ordering::Relaxed);
+        loop {
+            let next = sequence
+                .checked_add(1)
+                .expect("graph commit sequence exhausted");
+            match NEXT_SEQUENCE.compare_exchange_weak(
+                sequence,
+                next,
+                Ordering::Relaxed,
+                Ordering::Relaxed,
+            ) {
+                Ok(_) => break,
+                Err(actual) => sequence = actual,
+            }
+        }
         Self {
             binding,
             serial,

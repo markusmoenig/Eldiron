@@ -1,5 +1,7 @@
 //! Independent prefab part branches, compiled into ordinary runtime assets.
 //! Meshes, paint ownership, attachments and component IDs remain stable.
+mod authoring;
+pub use authoring::*;
 mod change;
 pub use change::{PrefabGraphChange, sync_prefab_placements};
 
@@ -377,6 +379,34 @@ impl PrefabGraphs {
     }
     pub fn compile(&self, base: &BlockPropAsset) -> Result<BlockPropAsset, String> {
         self.compile_with_modules(base, &modules())
+    }
+    /// Preserve newly compiled component/target identities in editable source.
+    /// Compilation errors leave both this graph and the supplied asset unchanged.
+    pub fn compile_for_authoring(
+        &mut self,
+        base: &BlockPropAsset,
+    ) -> Result<BlockPropAsset, String> {
+        let asset = self.compile(base)?;
+        for component in &asset.components {
+            if component.kind == "Door"
+                && !self
+                    .door_components
+                    .iter()
+                    .any(|seed| seed.id == component.id)
+            {
+                self.door_components.push(component.clone());
+            }
+        }
+        for target in &asset.interaction_targets {
+            if target
+                .component_id
+                .is_some_and(|id| self.door_components.iter().any(|seed| seed.id == id))
+                && !self.door_targets.iter().any(|seed| seed.id == target.id)
+            {
+                self.door_targets.push(target.clone());
+            }
+        }
+        Ok(asset)
     }
     /// Register new authoring capabilities through modules, retaining transactional compilation.
     pub fn compile_with_modules(

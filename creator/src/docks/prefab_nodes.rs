@@ -109,6 +109,8 @@ pub struct PrefabNodePane {
     store_error: Option<String>,
     #[cfg(feature = "native-ui")]
     native: Option<native::NativePrefabState>,
+    #[cfg(feature = "native-ui")]
+    native_workspace: native::NativePrefabWorkspace,
     opened: HashSet<(Uuid, Uuid)>,
 }
 impl PrefabNodePane {
@@ -123,6 +125,8 @@ impl PrefabNodePane {
             store_error: None,
             #[cfg(feature = "native-ui")]
             native: None,
+            #[cfg(feature = "native-ui")]
+            native_workspace: Default::default(),
             opened: HashSet::new(),
         }
     }
@@ -172,7 +176,14 @@ impl PrefabNodePane {
             .find(|b| Some(b.part_id) == part)
             .map(|b| b.graph.clone())
             .unwrap_or_default();
-        if self.asset != Some(asset) || self.part != part || self.committed != doc {
+        #[cfg(feature = "native-ui")]
+        let native_loaded =
+            ctx.ui.command_paint && self.load_native_source(project, asset, part, ui, ctx);
+        #[cfg(not(feature = "native-ui"))]
+        let native_loaded = false;
+        if !native_loaded
+            && (self.asset != Some(asset) || self.part != part || self.committed != doc)
+        {
             self.asset = Some(asset);
             self.part = part;
             self.doc = doc;
@@ -303,6 +314,10 @@ impl PrefabNodePane {
         // completed controller payloads must not accumulate in a second queue.
         self.editor.take_edits();
         self.store_error = None;
+        #[cfg(feature = "native-ui")]
+        if ctx.ui.command_paint && self.store_native_document(project, ctx) {
+            return;
+        }
         if self.doc == self.committed {
             return;
         }
@@ -319,27 +334,8 @@ impl PrefabNodePane {
         let Some(base) = project.block_props.get(&asset_id) else {
             return;
         };
-        match graphs.compile(base) {
+        match graphs.compile_for_authoring(base) {
             Ok(asset) => {
-                for component in &asset.components {
-                    if component.kind == "Door"
-                        && !graphs
-                            .door_components
-                            .iter()
-                            .any(|seed| seed.id == component.id)
-                    {
-                        graphs.door_components.push(component.clone());
-                    }
-                }
-                for target in &asset.interaction_targets {
-                    if target
-                        .component_id
-                        .is_some_and(|id| graphs.door_components.iter().any(|seed| seed.id == id))
-                        && !graphs.door_targets.iter().any(|seed| seed.id == target.id)
-                    {
-                        graphs.door_targets.push(target.clone());
-                    }
-                }
                 let Some(change) = PrefabGraphChange::capture(project, asset_id, graphs, asset)
                 else {
                     return;
