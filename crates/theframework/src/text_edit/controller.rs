@@ -365,7 +365,12 @@ impl EditorController {
     fn clean(&self, value: &str) -> String {
         value
             .chars()
-            .filter(|c| !c.is_control() || self.multiline && matches!(c, '\n' | '\r' | '\t'))
+            .filter(|c| {
+                !c.is_control()
+                    || self.multiline
+                        && !self.policy.single_line_input
+                        && matches!(c, '\n' | '\r' | '\t')
+            })
             .collect()
     }
     pub fn set_text(&mut self, fonts: &mut TextSystem, text: &str) {
@@ -1034,7 +1039,7 @@ impl EditorController {
             return EditorResponse::handled(false);
         }
         if key == PhysicalKey::Enter {
-            if self.multiline && !self.policy.submit_on_enter {
+            if self.multiline && !self.policy.single_line_input {
                 let plan = policy::newline(
                     self.editor.raw_text(),
                     self.selection_bytes(),

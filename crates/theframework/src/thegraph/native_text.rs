@@ -74,12 +74,13 @@ impl GraphTextSession {
         let target = (graph.text_epoch, Target::from(&focus));
         if self.target != Some(target) || self.view.is_none() {
             // Multiline storage preserves exact authored text (including CRLF).
-            // Enter submits the inline draft; paste/loaded text is not rewritten.
+            // Input uses the existing single-line graph filtering policy;
+            // loaded source is not rewritten. Enter submits the inline draft.
             let mut view = EditorView::new(true);
             view.editor.set_policy(
                 fonts,
                 EditorPolicy {
-                    submit_on_enter: true,
+                    single_line_input: true,
                     ..Default::default()
                 },
             );

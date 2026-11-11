@@ -4978,7 +4978,25 @@ impl Editor {
         restored
     }
 
-    fn deactivate_project_for_switch(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+    fn commit_authoring_views(&mut self, ctx: &mut TheContext) -> Result<bool, String> {
+        DOCKMANAGER
+            .write()
+            .unwrap()
+            .commit_pending_edits(ctx, &mut self.project)
+    }
+    fn deactivate_project_for_switch(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        discard: bool,
+    ) -> bool {
+        if !discard && let Err(message) = self.commit_authoring_views(ctx) {
+            ctx.ui.send(TheEvent::SetStatusText(
+                TheId::empty(),
+                format!("Unable to switch projects: {message}"),
+            ));
+            return false;
+        }
         self.procedural_material.reset(ui, ctx);
         self.geometry_editor
             .finish_drag(&mut self.project, ctx, false);
@@ -5039,6 +5057,7 @@ impl Editor {
             rusterix.client.scene.chunks.clear();
             rusterix.set_dirty();
         }
+        true
     }
 
     fn rebuild_project_tabs(&self, ui: &mut TheUI) {
@@ -5334,7 +5353,7 @@ impl Editor {
         ctx: &mut TheContext,
         update_server_icons: &mut bool,
         redraw: &mut bool,
-    ) {
+    ) -> bool {
         if project_path.is_none()
             && let Err(error) = crate::procedural_material::starters::install(&mut project)
         {
@@ -5345,7 +5364,9 @@ impl Editor {
         }
         Self::sanitize_loaded_project(&mut project);
 
-        self.deactivate_project_for_switch(ui, ctx);
+        if !self.deactivate_project_for_switch(ui, ctx, false) {
+            return false;
+        }
         let new_index = if self.replace_next_project_load_in_active_tab {
             self.sessions[self.active_session] = ProjectSession {
                 id: Uuid::new_v4(),
@@ -5372,6 +5393,7 @@ impl Editor {
         self.sync_editor_from_active_session();
         self.activate_loaded_project(ui, ctx, update_server_icons, redraw);
         self.rebuild_project_tabs(ui);
+        true
     }
 
     /// Cheap on unchanged recipes; dependency contents are hashed only after edits.
@@ -5587,7 +5609,10 @@ impl Editor {
             return;
         }
 
-        self.deactivate_project_for_switch(ui, ctx);
+        if !self.deactivate_project_for_switch(ui, ctx, false) {
+            self.rebuild_project_tabs(ui);
+            return;
+        }
         self.active_session = index;
         self.sync_editor_from_active_session();
         self.activate_loaded_project(ui, ctx, update_server_icons, redraw);
@@ -5654,7 +5679,7 @@ impl Editor {
             return;
         }
 
-        self.deactivate_project_for_switch(ui, ctx);
+        self.deactivate_project_for_switch(ui, ctx, true);
         self.sessions.remove(self.active_session);
 
         if self.sessions.is_empty() {
@@ -9008,18 +9033,19 @@ impl TheTrait for Editor {
                 self.example_project_cache
                     .insert(manifest_id, project.clone());
                 ui.clear_dialog();
-                self.open_project_as_session(
+                if self.open_project_as_session(
                     project,
                     None,
                     ui,
                     ctx,
                     &mut update_server_icons,
                     &mut redraw,
-                );
-                ctx.ui.send(TheEvent::SetStatusText(
-                    TheId::empty(),
-                    fl!("status_example_initialized"),
-                ));
+                ) {
+                    ctx.ui.send(TheEvent::SetStatusText(
+                        TheId::empty(),
+                        fl!("status_example_initialized"),
+                    ));
+                }
             } else {
                 ctx.ui.send(TheEvent::SetStatusText(
                     TheId::empty(),
@@ -9317,7 +9343,10 @@ impl TheTrait for Editor {
                     rusterix.client.builder_d2.draw_grid = self.server_ctx.show_editor_grid;
 
                     if running_game_mode {
-                        rusterix.resize_client_surface((dim.width.max(1) as u32, dim.height.max(1) as u32));
+                        rusterix.resize_client_surface((
+                            dim.width.max(1) as u32,
+                            dim.height.max(1) as u32,
+                        ));
                         let game_messages = if self.server_ctx.text_game_mode {
                             Vec::new()
                         } else {
@@ -10582,18 +10611,19 @@ impl TheTrait for Editor {
                         for p in paths {
                             match Self::load_project_from_path(&p) {
                                 Ok(loaded) => {
-                                    self.open_project_as_session(
+                                    if self.open_project_as_session(
                                         loaded,
                                         Some(p.clone()),
                                         ui,
                                         ctx,
                                         &mut update_server_icons,
                                         &mut redraw,
-                                    );
-                                    ctx.ui.send(TheEvent::SetStatusText(
-                                        TheId::empty(),
-                                        "Project loaded successfully.".to_string(),
-                                    ));
+                                    ) {
+                                        ctx.ui.send(TheEvent::SetStatusText(
+                                            TheId::empty(),
+                                            "Project loaded successfully.".to_string(),
+                                        ));
+                                    }
                                 }
                                 Err(error) => {
                                     self.replace_next_project_load_in_active_tab = false;
@@ -10605,6 +10635,13 @@ impl TheTrait for Editor {
                             }
                         }
                     } else if id.name == "Save As" {
+                        if let Err(message) = self.commit_authoring_views(ctx) {
+                            ctx.ui.send(TheEvent::SetStatusText(
+                                TheId::empty(),
+                                format!("Unable to save project: {message}"),
+                            ));
+                            continue;
+                        }
                         for p in paths {
                             let p = Self::ensure_project_extension(p);
                             self.persist_active_region_view_state();
@@ -10678,12 +10715,16 @@ impl TheTrait for Editor {
                         redraw = true;
                     } else if id.name == "GameInput" {
                         self.server_ctx.game_input_mode = state == TheWidgetState::Clicked;
-                    } else if matches!(id.name.as_str(), "New Project 2D" | "New Project 2D Iso" | "New Project 3D")
-                        && state == TheWidgetState::Clicked
+                    } else if matches!(
+                        id.name.as_str(),
+                        "New Project 2D" | "New Project 2D Iso" | "New Project 3D"
+                    ) && state == TheWidgetState::Clicked
                     {
                         let dimension = match id.name.as_str() {
                             "New Project 3D" => crate::project_templates::ProjectDimension::ThreeD,
-                            "New Project 2D Iso" => crate::project_templates::ProjectDimension::TwoDIso,
+                            "New Project 2D Iso" => {
+                                crate::project_templates::ProjectDimension::TwoDIso
+                            }
                             _ => crate::project_templates::ProjectDimension::TwoD,
                         };
                         ui.clear_dialog();
@@ -10741,18 +10782,19 @@ impl TheTrait for Editor {
                                 self.example_project_cache.get(&manifest_id).cloned()
                             {
                                 ui.clear_dialog();
-                                self.open_project_as_session(
+                                if self.open_project_as_session(
                                     project,
                                     None,
                                     ui,
                                     ctx,
                                     &mut update_server_icons,
                                     &mut redraw,
-                                );
-                                ctx.ui.send(TheEvent::SetStatusText(
-                                    TheId::empty(),
-                                    fl!("status_example_initialized"),
-                                ));
+                                ) {
+                                    ctx.ui.send(TheEvent::SetStatusText(
+                                        TheId::empty(),
+                                        fl!("status_example_initialized"),
+                                    ));
+                                }
                             } else if self.example_project_loader_rx.is_none()
                                 && let Some(choice) = self
                                     .example_projects
@@ -10932,6 +10974,13 @@ impl TheTrait for Editor {
                         ctx.ui.clear_hover();
                         redraw = true;
                     } else if id.name == "Save" {
+                        if let Err(message) = self.commit_authoring_views(ctx) {
+                            ctx.ui.send(TheEvent::SetStatusText(
+                                TheId::empty(),
+                                format!("Unable to save project: {message}"),
+                            ));
+                            continue;
+                        }
                         if let Some(path) = self.project_path.clone() {
                             let path = Self::ensure_project_extension(path);
                             self.persist_active_region_view_state();
@@ -10983,6 +11032,15 @@ impl TheTrait for Editor {
                     }
                     // Server
                     else if id.name == "Play" {
+                        if let Err(message) = self.commit_authoring_views(ctx) {
+                            ctx.ui.send(TheEvent::SetStatusText(
+                                TheId::empty(),
+                                format!("Unable to start project: {message}"),
+                            ));
+                            update_server_icons = true;
+                            redraw = true;
+                            continue;
+                        }
                         // Stop suspends routing without deselecting the user's
                         // toolbar preference. Restore it for each run/resume.
                         self.server_ctx.game_input_mode = ui
@@ -11938,11 +11996,17 @@ mod tests {
             // Exercise the actual camera event, chunk queue, GPU upload and first
             // completed draw. Three updates consume the event, build, then present
             // the replacement chunks; measuring only the handler hides the stall.
-            for (switch, target) in [2usize, 1, 3, 1, 4, 1, 2, 3, 4, 1, 3].into_iter().enumerate() {
+            for (switch, target) in [2usize, 1, 3, 1, 4, 1, 2, 3, 4, 1, 3]
+                .into_iter()
+                .enumerate()
+            {
                 let start = std::time::Instant::now();
                 TOOLLIST.write().unwrap().handle_event(
                     &TheEvent::IndexChanged(TheId::named("Editor View Switch"), target),
-                    &mut ui, &mut ctx, &mut editor.project, &mut editor.server_ctx,
+                    &mut ui,
+                    &mut ctx,
+                    &mut editor.project,
+                    &mut editor.server_ctx,
                 );
                 let event_ms = start.elapsed().as_secs_f64() * 1000.;
                 let mut worst_frame_ms = 0f64;
@@ -11952,15 +12016,29 @@ mod tests {
                     ui.update(&mut ctx);
                     editor.update_ui(&mut ui, &mut ctx);
                     ui.draw(&mut frame, &mut ctx);
-                    worst_frame_ms = worst_frame_ms.max(frame_start.elapsed().as_secs_f64()*1000.);
+                    worst_frame_ms =
+                        worst_frame_ms.max(frame_start.elapsed().as_secs_f64() * 1000.);
                 }
                 if target >= 2 {
-                    assert!(!SCENEMANAGER.read().unwrap().is_busy(), "benchmark must finish terrain generation");
+                    assert!(
+                        !SCENEMANAGER.read().unwrap().is_busy(),
+                        "benchmark must finish terrain generation"
+                    );
                 }
-                assert_eq!(editor.server_ctx.editor_view_mode, EditorViewMode::from_toolbar_index(target as i32));
-                println!("Creator camera switch={} target={} event={event_ms:.2}ms ready={:.2}ms worst_frame={worst_frame_ms:.2}ms",
-                    switch+1, target, start.elapsed().as_secs_f64()*1000.);
-                println!("Creator camera atlas={:?}", RUSTERIX.read().unwrap().scene_handler.vm.atlas_dims());
+                assert_eq!(
+                    editor.server_ctx.editor_view_mode,
+                    EditorViewMode::from_toolbar_index(target as i32)
+                );
+                println!(
+                    "Creator camera switch={} target={} event={event_ms:.2}ms ready={:.2}ms worst_frame={worst_frame_ms:.2}ms",
+                    switch + 1,
+                    target,
+                    start.elapsed().as_secs_f64() * 1000.
+                );
+                println!(
+                    "Creator camera atlas={:?}",
+                    RUSTERIX.read().unwrap().scene_handler.vm.atlas_dims()
+                );
             }
             return;
         }
@@ -12258,16 +12336,32 @@ mod tests {
             }
             return;
         }
-        let props_bench=std::env::var_os("ELDIRON_BENCH_PROPS").is_some();
+        let props_bench = std::env::var_os("ELDIRON_BENCH_PROPS").is_some();
         if props_bench {
-            let started=std::time::Instant::now();
-            let mut tools=TOOLLIST.write().unwrap();
-            let id=tools.get_game_tool_uuid_by_command_id("tool.blocks").unwrap();
-            tools.set_tool(id,&mut ui,&mut ctx,&mut editor.project,&mut editor.server_ctx);
+            let started = std::time::Instant::now();
+            let mut tools = TOOLLIST.write().unwrap();
+            let id = tools
+                .get_game_tool_uuid_by_command_id("tool.blocks")
+                .unwrap();
+            tools.set_tool(
+                id,
+                &mut ui,
+                &mut ctx,
+                &mut editor.project,
+                &mut editor.server_ctx,
+            );
             drop(tools);
-            ctx.ui.send(TheEvent::IndexChanged(TheId::named("Blocks Dock Categories Tabbar"),5));
-            ui.update(&mut ctx);editor.update_tracker.force_redraw();editor.update_ui(&mut ui,&mut ctx);
-            println!("Creator Props activate={:.2}ms",started.elapsed().as_secs_f64()*1000.);
+            ctx.ui.send(TheEvent::IndexChanged(
+                TheId::named("Blocks Dock Categories Tabbar"),
+                5,
+            ));
+            ui.update(&mut ctx);
+            editor.update_tracker.force_redraw();
+            editor.update_ui(&mut ui, &mut ctx);
+            println!(
+                "Creator Props activate={:.2}ms",
+                started.elapsed().as_secs_f64() * 1000.
+            );
         }
         let initial_offset = editor.project.regions[0].map.offset;
         let initial_position_3d = editor.project.regions[0].editing_position_3d;
@@ -12283,7 +12377,9 @@ mod tests {
         let input = std::env::var_os("ELDIRON_BENCH_INPUT").is_some();
         let view_id = ui.get_render_view("PolyView").unwrap().id().clone();
         println!("Creator benchmark pid={} input={input}", std::process::id());
-        let modes = if props_bench {vec!["props_scroll"]}else if std::env::var_os("ELDIRON_BENCH_MINIMAP").is_some() {
+        let modes = if props_bench {
+            vec!["props_scroll"]
+        } else if std::env::var_os("ELDIRON_BENCH_MINIMAP").is_some() {
             vec!["minimap"]
         } else {
             vec!["hover", "pan", "zoom"]
@@ -12312,13 +12408,36 @@ mod tests {
                 }
                 editor.server_ctx.hover_cursor = Some(Vec2::new(12. + i as f32 * 0.1, 12.));
                 editor.update_tracker = crate::misc::UpdateTracker::new();
-                if mode=="props_scroll" {
-                    let dim = *ui.get_widget("Blocks Dock Board 5").expect("MZ browser").dim();
-                    ui.hover((dim.x + dim.width/2) as f32, (dim.y + dim.height/2) as f32, &mut ctx);
-                    let before = ui.get_icon_grid_view("Blocks Dock Board 5").unwrap().visible_items();
-                    let routed = ui.mouse_wheel((0, if i%80<40 {-120} else {120}), &mut ctx);
-                    let after = ui.get_icon_grid_view("Blocks Dock Board 5").unwrap().visible_items();
-                    if i%40==0 { println!("Props real scroll frame={i} target={:?} dim={dim:?} routed={routed} before={before:?} after={after:?}", ui.get_widget_at_coord(Vec2::new(dim.x+dim.width/2, dim.y+dim.height/2)).map(|w|w.id().name.clone())); }
+                if mode == "props_scroll" {
+                    let dim = *ui
+                        .get_widget("Blocks Dock Board 5")
+                        .expect("MZ browser")
+                        .dim();
+                    ui.hover(
+                        (dim.x + dim.width / 2) as f32,
+                        (dim.y + dim.height / 2) as f32,
+                        &mut ctx,
+                    );
+                    let before = ui
+                        .get_icon_grid_view("Blocks Dock Board 5")
+                        .unwrap()
+                        .visible_items();
+                    let routed =
+                        ui.mouse_wheel((0, if i % 80 < 40 { -120 } else { 120 }), &mut ctx);
+                    let after = ui
+                        .get_icon_grid_view("Blocks Dock Board 5")
+                        .unwrap()
+                        .visible_items();
+                    if i % 40 == 0 {
+                        println!(
+                            "Props real scroll frame={i} target={:?} dim={dim:?} routed={routed} before={before:?} after={after:?}",
+                            ui.get_widget_at_coord(Vec2::new(
+                                dim.x + dim.width / 2,
+                                dim.y + dim.height / 2
+                            ))
+                            .map(|w| w.id().name.clone())
+                        );
+                    }
                 } else if mode == "minimap" {
                     ctx.ui.send(TheEvent::RenderViewHoverChanged(
                         view_id.clone(),
@@ -12349,7 +12468,12 @@ mod tests {
                 ui.update(&mut ctx);
                 editor.update_ui(&mut ui, &mut ctx);
                 update.push(start.elapsed().as_secs_f64() * 1000.);
-                if mode=="props_scroll" && *update.last().unwrap()>100. { println!("Props slow update frame={i} elapsed={:.2}ms",update.last().unwrap()); }
+                if mode == "props_scroll" && *update.last().unwrap() > 100. {
+                    println!(
+                        "Props slow update frame={i} elapsed={:.2}ms",
+                        update.last().unwrap()
+                    );
+                }
                 if mode == "minimap" {
                     // Include the queued marker refresh in navigation timing.
                     let marker_start = std::time::Instant::now();
@@ -12438,7 +12562,11 @@ mod tests {
         use crate::project_templates::ProjectDimension;
         for (dimension, camera, map_camera) in [
             (ProjectDimension::TwoD, PlayerCamera::D2, MapCamera::TwoD),
-            (ProjectDimension::TwoDIso, PlayerCamera::D2Iso, MapCamera::TwoDIso),
+            (
+                ProjectDimension::TwoDIso,
+                PlayerCamera::D2Iso,
+                MapCamera::TwoDIso,
+            ),
             (
                 ProjectDimension::ThreeD,
                 PlayerCamera::D3Iso,
@@ -12499,8 +12627,10 @@ mod tests {
                     assert_eq!(bounds.size(), Vec2::new(1.0, 1.0));
                     assert!(cell.properties.get_bool_default("rect", false));
                     let iso = matches!(dimension, ProjectDimension::TwoDIso);
-                    assert_eq!(cell.layer, Some(if iso {0} else {1}));
-                    if iso {assert!(cell.properties.get_bool_default("iso_walkable",false));}
+                    assert_eq!(cell.layer, Some(if iso { 0 } else { 1 }));
+                    if iso {
+                        assert!(cell.properties.get_bool_default("iso_walkable", false));
+                    }
                     let Some(rusterix::PixelSource::TileId(id)) =
                         cell.properties.get_default_source()
                     else {
@@ -12510,7 +12640,7 @@ mod tests {
                     assert!(!tile.blocking);
                     assert!(matches!(tile.alias.as_str(), "Grass" | "Street"));
                     if matches!(dimension, ProjectDimension::TwoDIso) {
-                        assert!(tile.isometric.as_ref().is_some_and(|s|s.ground));
+                        assert!(tile.isometric.as_ref().is_some_and(|s| s.ground));
                     }
                 }
             }

@@ -262,6 +262,25 @@ impl DockManager {
         server_ctx: &mut ServerContext,
     ) -> bool {
         let mut redraw = false;
+        #[cfg(feature = "native-ui")]
+        if matches!(
+            event,
+            TheEvent::GraphCommitted(_, _)
+                | TheEvent::GraphCommand(_, _, _)
+                | TheEvent::GraphInteractionStarted(_, _)
+                | TheEvent::GraphDrop(_, _, _, _)
+        ) {
+            // The source binding selects its owner; the active dock/tool may
+            // have changed between native input and application dispatch.
+            for dock in self
+                .docks
+                .values_mut()
+                .chain(self.editor_docks.values_mut())
+            {
+                redraw |= dock.handle_event(event, ui, ctx, project, server_ctx);
+            }
+            return redraw;
+        }
 
         if let Some((_, dock)) = self.docks.get_index_mut(self.index) {
             redraw = dock.handle_event(event, ui, ctx, project, server_ctx);
@@ -274,6 +293,32 @@ impl DockManager {
         }
 
         redraw
+    }
+
+    /// Commit every project-owned authoring view, including hidden editor docks.
+    /// Keep applying independent drafts if one view reports a validation error.
+    pub fn commit_pending_edits(
+        &mut self,
+        ctx: &mut TheContext,
+        project: &mut Project,
+    ) -> Result<bool, String> {
+        let mut changed = false;
+        let mut error = None;
+        for dock in self
+            .docks
+            .values_mut()
+            .chain(self.editor_docks.values_mut())
+        {
+            match dock.commit_pending_edits(ctx, project) {
+                Ok(applied) => changed |= applied,
+                Err(message) => {
+                    if error.is_none() {
+                        error = Some(message);
+                    }
+                }
+            }
+        }
+        error.map_or(Ok(changed), Err)
     }
 
     /// Poll dock-owned workers without relying on their wake-up event being
@@ -893,5 +938,164 @@ mod tests {
     fn prefabs_dock_exposes_the_shared_action_list() {
         let manager = DockManager::new();
         assert!(manager.docks["Prefabs"].supports_actions());
+    }
+}
+
+#[cfg(all(test, feature = "native-ui"))]
+mod native_graph_owner_tests {
+    use super::*;
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+    struct Probe {
+        owner: bool,
+        fail: bool,
+        calls: Arc<AtomicUsize>,
+    }
+    impl Dock for Probe {
+        fn new() -> Self {
+            Self {
+                owner: false,
+                fail: false,
+                calls: Arc::new(AtomicUsize::new(0)),
+            }
+        }
+        fn setup(&mut self, _: &mut TheContext) -> TheCanvas {
+            TheCanvas::new()
+        }
+        fn handle_event(
+            &mut self,
+            event: &TheEvent,
+            _: &mut TheUI,
+            _: &mut TheContext,
+            _: &mut Project,
+            _: &mut ServerContext,
+        ) -> bool {
+            let addressed = match event {
+                TheEvent::GraphCommitted(id, commit) => id.name == "owner" && commit.binding == 99,
+                TheEvent::GraphCommand(id, binding, _)
+                | TheEvent::GraphInteractionStarted(id, binding)
+                | TheEvent::GraphDrop(id, binding, _, _) => id.name == "owner" && *binding == 99,
+                _ => false,
+            };
+            if self.owner && addressed {
+                self.calls.fetch_add(1, Ordering::Relaxed);
+                true
+            } else {
+                false
+            }
+        }
+        fn commit_pending_edits(
+            &mut self,
+            _: &mut TheContext,
+            project: &mut Project,
+        ) -> Result<bool, String> {
+            self.calls.fetch_add(1, Ordering::Relaxed);
+            if self.fail {
+                Err("invalid draft".into())
+            } else {
+                project.config.push_str("\n# independent draft applied");
+                Ok(true)
+            }
+        }
+    }
+    fn manager() -> DockManager {
+        DockManager {
+            state: DockManagerState::Minimized,
+            docks: IndexMap::new(),
+            editor_canvases: IndexMap::new(),
+            editor_docks: IndexMap::new(),
+            dock: "Active".into(),
+            index: 0,
+            editor_index: None,
+            normal_split_ratio: crate::DEFAULT_VLAYOUT_RATIO,
+            supports_undo: false,
+            auto_text_play_prev_dock: None,
+            auto_text_play_active: false,
+            prefab_return_context: None,
+            prefab_return_orbit: None,
+            prefab_return_preview_post: None,
+        }
+    }
+    #[test]
+    fn addressed_graph_notifications_reach_the_inactive_owner_once() {
+        use theframework::{text_edit::EditorCommand, thegraph::GraphCommit};
+        let mut manager = manager();
+        let active = Arc::new(AtomicUsize::new(0));
+        let hidden = Arc::new(AtomicUsize::new(0));
+        manager.docks.insert(
+            "Active".into(),
+            Box::new(Probe {
+                owner: false,
+                fail: false,
+                calls: active.clone(),
+            }),
+        );
+        manager.editor_docks.insert(
+            "Hidden".into(),
+            Box::new(Probe {
+                owner: true,
+                fail: false,
+                calls: hidden.clone(),
+            }),
+        );
+        let id = TheId::named("owner");
+        let events = [
+            TheEvent::GraphCommitted(
+                id.clone(),
+                Arc::new(GraphCommit {
+                    binding: 99,
+                    serial: 1,
+                    edits: Vec::new(),
+                }),
+            ),
+            TheEvent::GraphCommand(id.clone(), 99, EditorCommand::Copy),
+            TheEvent::GraphInteractionStarted(id.clone(), 99),
+            TheEvent::GraphDrop(id, 99, [0.; 2], TheDrop::new(TheId::named("source"))),
+        ];
+        let mut ctx = TheContext::new(32, 32, 1.);
+        let mut ui = TheUI::new();
+        ui.init(&mut ctx);
+        let mut project = Project::default();
+        let mut server = ServerContext::default();
+        for event in events {
+            assert!(manager.handle_event(&event, &mut ui, &mut ctx, &mut project, &mut server));
+        }
+        assert_eq!(active.load(Ordering::Relaxed), 0);
+        assert_eq!(hidden.load(Ordering::Relaxed), 4);
+    }
+    #[test]
+    fn document_barrier_commits_hidden_views_even_when_another_draft_is_invalid() {
+        let mut manager = manager();
+        let failed = Arc::new(AtomicUsize::new(0));
+        let applied = Arc::new(AtomicUsize::new(0));
+        manager.docks.insert(
+            "Active".into(),
+            Box::new(Probe {
+                owner: false,
+                fail: true,
+                calls: failed.clone(),
+            }),
+        );
+        manager.editor_docks.insert(
+            "Hidden".into(),
+            Box::new(Probe {
+                owner: false,
+                fail: false,
+                calls: applied.clone(),
+            }),
+        );
+        let mut ctx = TheContext::new(32, 32, 1.);
+        let mut project = Project::default();
+        assert_eq!(
+            manager
+                .commit_pending_edits(&mut ctx, &mut project)
+                .unwrap_err(),
+            "invalid draft"
+        );
+        assert_eq!(failed.load(Ordering::Relaxed), 1);
+        assert_eq!(applied.load(Ordering::Relaxed), 1);
+        assert!(project.config.ends_with("# independent draft applied"));
     }
 }

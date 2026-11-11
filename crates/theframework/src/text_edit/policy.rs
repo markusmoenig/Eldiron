@@ -17,9 +17,10 @@ pub enum EditorUndo {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct EditorPolicy {
     pub read_only: bool,
-    /// Submit an inline form draft on Enter while preserving existing multiline
-    /// source text. IME composition still owns Enter until it is committed.
-    pub submit_on_enter: bool,
+    /// Form-style insertion/Enter submission while preserving exact externally
+    /// loaded multiline source. Typed/pasted control characters are filtered;
+    /// IME composition still owns Enter until it is committed.
+    pub single_line_input: bool,
     pub undo: EditorUndo,
     pub tab: EditorTab,
     pub auto_indent: bool,

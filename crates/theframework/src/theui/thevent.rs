@@ -76,6 +76,12 @@ pub enum TheEvent {
     /// Committed reversible graph edits. The binding token rejects queued
     /// events after an application installs a different authoring document.
     GraphCommitted(TheId, std::sync::Arc<crate::thegraph::GraphCommit>),
+    /// An owner-addressed gesture start, for application preview/focus services.
+    /// It observes native input without replaying a legacy graph controller.
+    GraphInteractionStarted(TheId, u64),
+    /// Graph/model coordinates are captured at input time, before a later
+    /// viewport pan/zoom; the binding rejects drops for replaced documents.
+    GraphDrop(TheId, u64, [f32; 2], TheDrop),
     /// Graph-level commands stay with the application's document/branch owner;
     /// they must not invoke the platform text clipboard behind the native view.
     #[cfg(feature = "text")]

@@ -4,6 +4,10 @@ use shared::prefab_graph::{self, PrefabGraphs};
 use std::collections::HashSet;
 use theframework::thegraph::*;
 
+#[cfg(feature = "native-ui")]
+#[path = "prefab_nodes_native.rs"]
+mod native;
+
 pub const VIEW: &str = "Prefab Graph View";
 const LIST: &str = "Prefab Graph Branches";
 const TIDY: &str = "Prefab Graph Tidy";
@@ -101,26 +105,24 @@ pub struct PrefabNodePane {
     doc: GraphDocument,
     committed: GraphDocument,
     editor: GraphEditor,
-    resources: GraphRasterResources,
+    resources: Option<GraphRasterResources>,
+    store_error: Option<String>,
+    #[cfg(feature = "native-ui")]
+    native: Option<native::NativePrefabState>,
     opened: HashSet<(Uuid, Uuid)>,
 }
 impl PrefabNodePane {
     pub fn new() -> Self {
-        let font = fontdue::Font::from_bytes(
-            theframework::Embedded::get("fonts/Roboto-Bold.ttf")
-                .unwrap()
-                .data
-                .as_ref(),
-            fontdue::FontSettings::default(),
-        )
-        .unwrap();
         Self {
             asset: None,
             part: None,
             doc: GraphDocument::default(),
             committed: GraphDocument::default(),
             editor: GraphEditor::default(),
-            resources: GraphRasterResources::new(font),
+            resources: None,
+            store_error: None,
+            #[cfg(feature = "native-ui")]
+            native: None,
             opened: HashSet::new(),
         }
     }
@@ -179,6 +181,8 @@ impl PrefabNodePane {
             if part.is_some_and(|part| self.opened.insert((asset, part))) {
                 self.tidy();
             }
+            #[cfg(feature = "native-ui")]
+            self.replace_native_document();
             self.fit(ui);
         }
         if let Some(list) = ui.get_list_layout(LIST) {
@@ -225,15 +229,38 @@ impl PrefabNodePane {
         layout_branch(&mut self.doc, &nodes);
     }
     fn fit(&mut self, ui: &mut TheUI) {
-        if let Some(view) = ui.get_render_view(VIEW) {
+        if let Some(view) = ui.get_widget(VIEW) {
             let d = *view.dim();
             let nodes = self.doc.nodes.iter().map(|n| n.id).collect();
             self.editor
                 .viewport
                 .fit_to_nodes(&self.doc, [d.width as f32, d.height as f32], &nodes);
+            #[cfg(feature = "native-ui")]
+            if let Some(state) = &self.native {
+                let viewport = self.editor.viewport;
+                state.lock().unwrap().edit(|document, editor| {
+                    editor.cancel_gesture(document);
+                    editor.viewport = viewport;
+                });
+            }
         }
     }
+    fn raster_resources() -> GraphRasterResources {
+        let font = fontdue::Font::from_bytes(
+            theframework::Embedded::get("fonts/Roboto-Bold.ttf")
+                .unwrap()
+                .data
+                .as_ref(),
+            fontdue::FontSettings::default(),
+        )
+        .unwrap();
+        GraphRasterResources::new(font)
+    }
     fn render(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+        #[cfg(feature = "native-ui")]
+        if self.render_native(ui, ctx) {
+            return;
+        }
         let Some(view) = ui.get_render_view(VIEW) else {
             return;
         };
@@ -252,8 +279,14 @@ impl PrefabNodePane {
             buffer.pixel_height(),
             buffer.render_scale(),
         );
-        let mut painter =
-            RasterGraphPainter::new(buffer.pixels_mut(), w, h, s, &mut self.resources, &());
+        let mut painter = RasterGraphPainter::new(
+            buffer.pixels_mut(),
+            w,
+            h,
+            s,
+            self.resources.get_or_insert_with(Self::raster_resources),
+            &(),
+        );
         self.editor.paint(
             &self.doc,
             &Context,
@@ -265,6 +298,7 @@ impl PrefabNodePane {
         ctx.ui.redraw_all = true;
     }
     fn store(&mut self, project: &mut Project, ctx: &mut TheContext) {
+        self.store_error = None;
         if self.doc == self.committed {
             return;
         }
@@ -314,6 +348,7 @@ impl PrefabNodePane {
                 ));
             }
             Err(message) => {
+                self.store_error = Some(message.clone());
                 ctx.ui
                     .send(TheEvent::SetStatusText(TheId::empty(), message));
             }
@@ -326,6 +361,24 @@ impl PrefabNodePane {
         ctx: &mut TheContext,
         project: &mut Project,
     ) -> bool {
+        #[cfg(feature = "native-ui")]
+        if let Some(handled) = self.native_event(event, ui, ctx, project) {
+            return handled;
+        }
+        #[cfg(feature = "native-ui")]
+        let native_domain = match self.prepare_native_domain_event(event, ctx, project) {
+            Ok(domain) => domain,
+            Err(message) => {
+                // Keep the current invalid draft visible and restore the branch
+                // selector instead of discarding it during an owner transition.
+                if let Some(asset) = self.asset {
+                    self.load(project, asset, self.part, ui, ctx);
+                }
+                ctx.ui
+                    .send(TheEvent::SetStatusText(TheId::empty(), message));
+                return true;
+            }
+        };
         match event {
             TheEvent::WidgetResized(id, _) if id.name == VIEW => {
                 self.fit(ui);
@@ -448,6 +501,10 @@ impl PrefabNodePane {
                 }
             }
             _ => return false,
+        }
+        #[cfg(feature = "native-ui")]
+        if native_domain {
+            self.replace_native_document();
         }
         self.render(ui, ctx);
         true

@@ -95,7 +95,7 @@ impl TheWidget for TheRenderView {
 
             #[cfg(feature = "text")]
             native_content: None,
-            render_buffer: TheRGBABuffer::new(TheDim::new(0, 0, 20, 20)),
+            render_buffer: TheRGBABuffer::empty(),
             empty_background: None,
             has_content: false,
             wheel_scale: -0.4,
@@ -448,6 +448,12 @@ impl TheRenderViewTrait for TheRenderView {
         {
             self.native_content = None;
         }
+        // Preserve the reference adapter's initial 20px source only when a
+        // consumer explicitly opts into CPU pixels. Native view construction
+        // and image/command publication allocate no mandatory raster storage.
+        if !self.has_content && self.render_buffer.pixels().is_empty() {
+            self.render_buffer = TheRGBABuffer::new(TheDim::sized(20, 20));
+        }
         self.has_content = true;
         self.is_dirty = true;
         &mut self.render_buffer
@@ -467,6 +473,8 @@ mod tests {
         use crate::paint::{PaintList, PaintOp, Rect};
         use std::sync::Arc;
         let mut view = TheRenderView::new(TheId::named("native-view"));
+        assert!(view.render_buffer.pixels().is_empty());
+        assert_eq!(view.render_buffer_mut().pixels().len(), 20 * 20 * 4);
         *view.render_buffer_mut() = TheRGBABuffer::new(TheDim::sized(320, 180));
         view.render_buffer_mut().fill([255, 0, 0, 255]);
         let mut commands = PaintList::default();

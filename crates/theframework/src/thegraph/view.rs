@@ -500,6 +500,9 @@ impl TheWidget for TheGraphView {
                 ctx.ui.set_focus(&self.id);
                 self.active = true;
                 self.dragging = true;
+                let binding = self.state.lock().unwrap().binding;
+                ctx.ui
+                    .send(TheEvent::GraphInteractionStarted(self.id.clone(), binding));
                 let point = [point.x as f32, point.y as f32];
                 let response = {
                     let mut state = self.state.lock().unwrap();
@@ -609,9 +612,20 @@ impl TheWidget for TheGraphView {
                     .send(TheEvent::RenderViewContext(self.id.clone(), *point));
             }
             TheEvent::Drop(point, drop) => {
-                ctx.ui.send(TheEvent::RenderViewDrop(
+                let (binding, position) = {
+                    let state = self.state.lock().unwrap();
+                    (
+                        state.binding,
+                        state
+                            .editor
+                            .viewport
+                            .to_graph([point.x as f32, point.y as f32]),
+                    )
+                };
+                ctx.ui.send(TheEvent::GraphDrop(
                     self.id.clone(),
-                    *point,
+                    binding,
+                    position,
                     drop.clone(),
                 ));
             }

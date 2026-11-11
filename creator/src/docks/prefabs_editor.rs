@@ -2312,8 +2312,14 @@ impl PrefabsEditorDock {
             }
         }
         let prefabs = project.block_props.clone();
-        RUSTERIX.write().unwrap().set_block_props(prefabs.clone());
-        SCENEMANAGER.write().unwrap().set_block_props(prefabs);
+        // Authoring a CPU graph must not construct a renderer/session merely
+        // to synchronize an optional currently assembled presentation owner.
+        if let Some(runtime) = std::sync::LazyLock::get(&RUSTERIX) {
+            runtime.write().unwrap().set_block_props(prefabs.clone());
+        }
+        if let Some(scenes) = std::sync::LazyLock::get(&SCENEMANAGER) {
+            scenes.write().unwrap().set_block_props(prefabs);
+        }
     }
 }
 
@@ -2338,6 +2344,40 @@ impl Dock for PrefabsEditorDock {
             paint_dock: IsoPaintDock::new_prefab(),
             tiles_dock: TilesDock::new_prefab(),
             palette_dock: PaletteDock::new_prefab(),
+        }
+    }
+
+    fn commit_pending_edits(
+        &mut self,
+        ctx: &mut TheContext,
+        project: &mut Project,
+    ) -> Result<bool, String> {
+        #[cfg(feature = "native-ui")]
+        {
+            return self.nodes.commit_native_pending(project, ctx);
+        }
+        #[cfg(not(feature = "native-ui"))]
+        {
+            let _ = (ctx, project);
+            Ok(false)
+        }
+    }
+    fn has_changes(&self) -> bool {
+        #[cfg(feature = "native-ui")]
+        {
+            return self.nodes.has_native_pending();
+        }
+        #[cfg(not(feature = "native-ui"))]
+        {
+            false
+        }
+    }
+    fn reset_for_project_switch(&mut self) {
+        #[cfg(feature = "native-ui")]
+        self.nodes.reset_native_project();
+        #[cfg(not(feature = "native-ui"))]
+        {
+            self.nodes = super::prefab_nodes::PrefabNodePane::new();
         }
     }
 
@@ -2413,6 +2453,32 @@ impl Dock for PrefabsEditorDock {
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
+        #[cfg(feature = "native-ui")]
+        if let TheEvent::GraphInteractionStarted(id, binding) = event
+            && id.name == super::prefab_nodes::VIEW
+        {
+            if let Some(asset) = self.nodes.native_source_asset(*binding) {
+                self.close_door_preview(project, asset, server_ctx);
+                return true;
+            }
+            return false;
+        }
+        #[cfg(feature = "native-ui")]
+        if let TheEvent::GraphDrop(id, binding, _, _) = event
+            && id.name == super::prefab_nodes::VIEW
+        {
+            if let Some(asset) = self.nodes.native_source_asset(*binding) {
+                self.close_door_preview(project, asset, server_ctx);
+                return self.nodes.handle(event, ui, ctx, project);
+            }
+            return false;
+        }
+        #[cfg(feature = "native-ui")]
+        if matches!(event, TheEvent::GraphCommitted(id, _) | TheEvent::GraphCommand(id, _, _)
+            if id.name == super::prefab_nodes::VIEW)
+        {
+            return self.nodes.handle(event, ui, ctx, project);
+        }
         let Some(asset_id) = Self::active_asset_id(server_ctx) else {
             return false;
         };

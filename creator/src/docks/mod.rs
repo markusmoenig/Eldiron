@@ -106,6 +106,17 @@ pub trait Dock: Send + Sync {
         false
     }
 
+    /// Apply completed authoring drafts before Save, Play or owner transitions.
+    /// Errors preserve the current authoring view instead of silently dropping
+    /// invalid source. No implementation may initialize a renderer for this.
+    fn commit_pending_edits(
+        &mut self,
+        _ctx: &mut TheContext,
+        _project: &mut Project,
+    ) -> Result<bool, String> {
+        Ok(false)
+    }
+
     /// Returns true if this dock supports internal undo / redo.
     fn supports_undo(&self) -> bool {
         false

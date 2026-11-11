@@ -373,7 +373,13 @@ fn inline_graph_preserves_authored_multiline_text_and_history_across_layout_chan
     assert_eq!(f.doc, source);
     let target = f.state().target;
     f.command(EditorCommand::SelectAll);
-    f.input(InputEvent::Text("replacement\n東京".into()));
+    let Some(EditorClipboard::Read { request }) = f.command(EditorCommand::Paste).clipboard else {
+        panic!("paste");
+    };
+    f.input(InputEvent::Clipboard {
+        request,
+        result: ClipboardResult::Text(Some("replacement\n東京\t".into())),
+    });
     f.graph.viewport.pan = [91., 53.];
     f.graph.viewport.zoom_at([0., 0.], 1.5);
     f.fonts.register_font_named(
@@ -385,7 +391,7 @@ fn inline_graph_preserves_authored_multiline_text_and_history_across_layout_chan
     f.command(EditorCommand::Undo);
     assert_eq!(f.text(), original);
     f.command(EditorCommand::Redo);
-    assert_eq!(f.text(), "replacement\n東京");
+    assert_eq!(f.text(), "replacement東京");
     let submit = f.input(key(PhysicalKey::Enter));
     assert_eq!(submit.action, Some(EditorAction::Submit));
     let edits = f.graph.take_edits();
