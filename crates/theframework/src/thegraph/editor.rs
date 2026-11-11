@@ -112,6 +112,8 @@ pub struct GraphEditor {
     pub error: Option<String>,
     gesture: Option<Gesture>,
     pub(crate) text_focus: Option<GraphTextFocus>,
+    #[cfg(feature = "text")]
+    pub(crate) text_epoch: u64,
     edits: Vec<GraphEdit>,
     /// When set, only these nodes and their connections draw and respond, so the
     /// canvas can show one branch of a large graph at a time.
@@ -339,7 +341,7 @@ impl GraphEditor {
                             metrics.text_size,
                             controls,
                         );
-                        self.text_focus = Some(GraphTextFocus {
+                        self.begin_text_focus(GraphTextFocus {
                             node: n.id,
                             row: r.id,
                             cell: None,
@@ -366,7 +368,7 @@ impl GraphEditor {
                                 controls,
                             );
                             self.gesture = None;
-                            self.text_focus = Some(GraphTextFocus {
+                            self.begin_text_focus(GraphTextFocus {
                                 node: n.id,
                                 row: r.id,
                                 cell: Some((row_index, column)),

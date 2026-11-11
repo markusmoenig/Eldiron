@@ -8,8 +8,33 @@ pub trait GraphPainter {
         text.chars().count() as f32 * size * 0.6
     }
     fn text(&mut self, rect: GraphRect, text: &str, size: f32, color: GraphColor);
+    /// Fit using this painter's own shaping/measurement service. Controls own
+    /// labels and interaction policy, rather than a second display font metric.
+    fn fitted_text(
+        &mut self,
+        rect: GraphRect,
+        text: &str,
+        width: f32,
+        size: f32,
+        color: GraphColor,
+    ) {
+        let text = fit_text(text, width, size, self);
+        self.text(rect, &text, size, color);
+    }
+
     fn curve(&mut self, points: [Point; 4], width: f32, color: GraphColor);
     fn preview(&mut self, rect: GraphRect, asset: &str);
+    /// Optional native inline editor contribution. Reference painters keep their
+    /// historical text rendering; a native presenter shares its editor layout.
+    fn focused_text(
+        &mut self,
+        _focus: &GraphTextFocus,
+        _rect: GraphRect,
+        _size: f32,
+        _theme: &GraphTheme,
+    ) -> bool {
+        false
+    }
 }
 pub struct GraphTheme {
     pub background: GraphColor,
@@ -190,12 +215,13 @@ impl GraphEditor {
             let title = context.node_title(n).unwrap_or_else(|| n.title.clone());
             let title_size = metrics.title_size * z;
             let title_width = (n.width - 44.) * z;
-            painter.text(
+            painter.fitted_text(
                 screen(GraphRect {
                     origin: [n.position[0] + 16., n.position[1] + 7.],
                     size: [n.width - 30., band],
                 }),
-                &fit_text(&title, title_width, title_size, controls),
+                &title,
+                title_width,
                 title_size,
                 theme.text,
             );
@@ -217,19 +243,15 @@ impl GraphEditor {
             for (i, row) in rows.iter().enumerate() {
                 let rect = n.row_rect(i, &metrics);
                 let row_size = metrics.label_size * z;
-                painter.text(
+                painter.fitted_text(
                     screen(GraphRect {
                         origin: [rect.origin[0], rect.origin[1] + metrics.label_offset()],
                         size: [rect.size[0], metrics.label - 4.],
                     }),
-                    &fit_text(
-                        &context
-                            .parameter_label(n, row)
-                            .unwrap_or_else(|| row.label.clone()),
-                        rect.size[0] * z,
-                        row_size,
-                        controls,
-                    ),
+                    &context
+                        .parameter_label(n, row)
+                        .unwrap_or_else(|| row.label.clone()),
+                    rect.size[0] * z,
                     row_size,
                     theme.muted,
                 );
@@ -248,15 +270,32 @@ impl GraphEditor {
                     let label = context
                         .row_label(n, row)
                         .unwrap_or_else(|| "Bound value".into());
-                    painter.text(
+                    painter.fitted_text(
                         screen(GraphRect {
                             origin: [rect.origin[0] + 9., rect.origin[1] + 4.],
                             size: [rect.size[0] - 18., 22.],
                         }),
-                        &fit_text(&label, (rect.size[0] - 18.) * z, row_size, controls),
+                        &label,
+                        (rect.size[0] - 18.) * z,
                         row_size,
                         theme.active,
                     );
+                    continue;
+                }
+                if matches!(row.value, GraphControlValue::Text(_))
+                    && let Some(focus) = self
+                        .text_focus()
+                        .filter(|f| f.node == n.id && f.row == row.id && f.cell.is_none())
+                    && painter.focused_text(
+                        focus,
+                        screen(GraphRect {
+                            origin: [rect.origin[0] + 9., rect.origin[1] + 4.],
+                            size: [rect.size[0] - 18., 22.],
+                        }),
+                        metrics.text_size * z,
+                        theme,
+                    )
+                {
                     continue;
                 }
                 if controls.paint_scaled(&row.value, screen(rect), z, painter) {
@@ -271,7 +310,7 @@ impl GraphEditor {
                     // closer to the row's top.
                     let text_offset = ((metrics.list_row - 18.) * 0.5).max(0.);
                     for (column, definition) in columns.iter().enumerate() {
-                        painter.text(
+                        painter.fitted_text(
                             screen(GraphRect {
                                 origin: [
                                     rect.origin[0] + cell_width * column as f32 + 6.,
@@ -279,12 +318,8 @@ impl GraphEditor {
                                 ],
                                 size: [cell_width - 10., metrics.list_header - 8.],
                             }),
-                            &fit_text(
-                                &definition.label,
-                                (cell_width - 16.) * z,
-                                header_size,
-                                controls,
-                            ),
+                            &definition.label,
+                            (cell_width - 16.) * z,
                             header_size,
                             theme.muted,
                         );
@@ -304,20 +339,29 @@ impl GraphEditor {
                                 origin: [cell_rect.origin[0], y + 2.],
                                 size: [cell_rect.size[0], metrics.list_row - 4.],
                             };
-                            if controls.paint_scaled(cell, screen(visual_rect), z, painter) {
+                            let focus = self.text_focus().filter(|focus| {
+                                focus.node == n.id
+                                    && focus.row == row.id
+                                    && focus.cell == Some((index, column))
+                            });
+                            let native = matches!(cell, GraphControlValue::Text(_))
+                                && focus.is_some_and(|focus| {
+                                    painter.focused_text(focus, screen(cell_rect), cell_size, theme)
+                                });
+                            if !native
+                                && controls.paint_scaled(cell, screen(visual_rect), z, painter)
+                            {
                                 continue;
                             }
-                            painter.text(
-                                screen(cell_rect),
-                                &fit_text(
+                            if !native {
+                                painter.fitted_text(
+                                    screen(cell_rect),
                                     &controls.label(cell),
                                     (cell_width - 16.) * z,
                                     cell_size,
-                                    controls,
-                                ),
-                                cell_size,
-                                theme.text,
-                            );
+                                    theme.text,
+                                );
+                            }
                             if self.text_focus().is_some_and(|focus| {
                                 focus.node == n.id
                                     && focus.row == row.id
@@ -439,12 +483,13 @@ impl GraphEditor {
                 let label = context
                     .row_label(n, row)
                     .unwrap_or_else(|| controls.label(&row.value));
-                painter.text(
+                painter.fitted_text(
                     screen(GraphRect {
                         origin: [rect.origin[0] + 9., rect.origin[1] + 4.],
                         size: [rect.size[0] - 18., 22.],
                     }),
-                    &fit_text(&label, text_rect.size[0], text_size, controls),
+                    &label,
+                    text_rect.size[0],
                     text_size,
                     theme.text,
                 );
@@ -531,15 +576,34 @@ impl GraphEditor {
     }
 }
 
-/// Trim `text` to fit `width` at `size`, ending with an ellipsis. Long dialogue
-/// lines then show their start instead of widening the node.
-fn fit_text(text: &str, width: f32, size: f32, controls: &dyn GraphControls) -> String {
-    if width <= 0. || controls.text_width(text, size) <= width {
-        return text.to_string();
+/// Shape whole candidates and cut only at extended grapheme boundaries. Binary
+/// search bounds work on long dialogue values without per-character shaping.
+fn fit_text<P: GraphPainter + ?Sized>(
+    text: &str,
+    width: f32,
+    size: f32,
+    painter: &mut P,
+) -> String {
+    use unicode_segmentation::UnicodeSegmentation;
+    if !width.is_finite() || width <= 0. {
+        return String::new();
     }
-    let mut cut = text.to_string();
-    while !cut.is_empty() && controls.text_width(&format!("{cut}…"), size) > width {
-        cut.pop();
+    if painter.text_width(text, size) <= width {
+        return text.to_owned();
     }
-    format!("{cut}…")
+    if painter.text_width("…", size) > width {
+        return String::new();
+    }
+    let mut ends: Vec<_> = text.grapheme_indices(true).map(|(at, _)| at).collect();
+    ends.push(text.len());
+    let (mut low, mut high) = (0, ends.len() - 1);
+    while low < high {
+        let mid = (low + high + 1) / 2;
+        if painter.text_width(&format!("{}…", &text[..ends[mid]]), size) <= width {
+            low = mid;
+        } else {
+            high = mid - 1;
+        }
+    }
+    format!("{}…", &text[..ends[low]])
 }

@@ -152,6 +152,7 @@ impl TheTextAreaEdit {
             &mut ctx.text,
             EditorPolicy {
                 read_only: self.readonly || self.is_disabled,
+                submit_on_enter: false,
                 undo: if self.supports_undo {
                     EditorUndo::Internal
                 } else {

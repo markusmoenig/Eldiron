@@ -483,6 +483,14 @@ impl EditorController {
         let selection = self.editor.raw_selection();
         (selection.anchor().index(), selection.focus().index())
     }
+    /// Selection addressing committed source bytes, excluding transient preedit.
+    pub fn committed_selection_bytes(&self) -> (usize, usize) {
+        let selection = self
+            .composition
+            .as_ref()
+            .map_or(self.editor.raw_selection(), |before| &before.selection);
+        (selection.anchor().index(), selection.focus().index())
+    }
     pub fn select_bytes(&mut self, fonts: &mut TextSystem, anchor: usize, focus: usize) {
         self.cancel_composition(fonts);
         self.ensure_fonts(fonts);
@@ -818,6 +826,9 @@ impl EditorController {
             return EditorResponse::handled(false);
         }
         match event {
+            InputEvent::Clipboard { request, result } => {
+                self.complete_clipboard(fonts, *request, result.clone())
+            }
             InputEvent::Text(text) | InputEvent::TextFor { text, .. } => {
                 let text = self.clean(text);
                 let composing = self.is_composing();
@@ -1023,7 +1034,7 @@ impl EditorController {
             return EditorResponse::handled(false);
         }
         if key == PhysicalKey::Enter {
-            if self.multiline {
+            if self.multiline && !self.policy.submit_on_enter {
                 let plan = policy::newline(
                     self.editor.raw_text(),
                     self.selection_bytes(),

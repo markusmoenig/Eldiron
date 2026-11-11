@@ -26,7 +26,10 @@ pub struct GraphTextFocus {
 }
 /// Mutable access to whichever text a focus points at: a plain Text row, or a
 /// Text cell inside a List row.
-fn focused_text<'a>(doc: &'a mut GraphDocument, focus: &GraphTextFocus) -> Option<&'a mut String> {
+pub(super) fn focused_text<'a>(
+    doc: &'a mut GraphDocument,
+    focus: &GraphTextFocus,
+) -> Option<&'a mut String> {
     let row = doc
         .nodes
         .iter_mut()
@@ -128,6 +131,13 @@ impl GraphTextFocus {
     }
 }
 impl GraphEditor {
+    pub(super) fn begin_text_focus(&mut self, focus: GraphTextFocus) {
+        #[cfg(feature = "text")]
+        {
+            self.text_epoch = next_text_epoch();
+        }
+        self.text_focus = Some(focus);
+    }
     pub fn text_focus(&self) -> Option<&GraphTextFocus> {
         self.text_focus.as_ref()
     }
@@ -135,6 +145,10 @@ impl GraphEditor {
         let Some(focus) = self.text_focus.take() else {
             return;
         };
+        #[cfg(feature = "text")]
+        {
+            self.text_epoch = next_text_epoch();
+        }
         let Some(row) = doc
             .nodes
             .iter_mut()
@@ -191,4 +205,13 @@ impl GraphEditor {
         }
         true
     }
+}
+
+// Distinct editor/documents may retain the same authored node/row IDs. Their
+// native draft epochs must never alias when a host reuses its presentation port.
+#[cfg(feature = "text")]
+fn next_text_epoch() -> u64 {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static NEXT: AtomicU64 = AtomicU64::new(1);
+    NEXT.fetch_add(1, Ordering::Relaxed)
 }

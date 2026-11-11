@@ -37,3 +37,8 @@ mod paint_list;
 pub use paint_list::*;
 
 pub use theframework_core::graph::*;
+
+#[cfg(all(feature = "text", feature = "ui"))]
+mod native_text;
+#[cfg(all(feature = "text", feature = "ui"))]
+pub use native_text::*;
