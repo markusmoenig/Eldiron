@@ -19,13 +19,7 @@ impl TileControls {
     }
 
     pub(super) fn refresh_equipment_names(&mut self, project: &Project) {
-        self.equipment_names.clear();
-        for item in project.items.values() {
-            self.equipment_names
-                .insert(item.id.to_string(), item.name.clone());
-            self.equipment_names
-                .insert(item.name.clone(), item.name.clone());
-        }
+        self.equipment_names = configuration::equipment_names(project);
     }
     pub fn refresh(&mut self, project: &Project) {
         self.refresh_equipment_names(project);

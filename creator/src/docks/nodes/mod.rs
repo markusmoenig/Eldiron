@@ -1,4 +1,5 @@
 mod catalog;
+mod configuration;
 mod entity;
 mod list;
 mod live;

@@ -210,7 +210,7 @@ impl NodesDock {
         self.editor.selected_connection = None;
         Ok(true)
     }
-    /// Show validation feedback without adding a separate values panel.
+    /// Keep rejection feedback until source or derived validation actually changes.
     pub(super) fn refresh_configuration(&mut self, project: &Project) {
         if !self.is_configuration() {
             return;
@@ -218,191 +218,16 @@ impl NodesDock {
         let Some(owner) = &self.owner else {
             return;
         };
-        sync_attribute_types(&mut self.doc);
-        sync_input_choices(&mut self.doc, &self.definitions);
-        let rules = project
-            .rules_source()
-            .unwrap_or_default()
-            .parse::<shared::entity_graph::RulesTable>()
-            .unwrap_or_default();
-        if owner
-            .strip_prefix("entity/character/")
-            .and_then(|id| Uuid::parse_str(id).ok())
-            .is_some_and(|id| project.characters.contains_key(&id))
-        {
-            shared::entity_graph::ensure_character_fields(&mut self.doc, &rules);
-        }
-        let result = shared::entity_graph::project_data(
-            &self.doc,
-            shared::entity_graph::owner_data(project, owner).unwrap_or(""),
-            &rules,
+        let projection = configuration::project_graph(
+            &mut self.doc,
+            &self.committed,
+            owner,
+            &self.definitions,
+            project,
         );
-        self.tiles.refresh_equipment_names(project);
-        let equipment = shared::equipment::EquipmentCatalog::new(project);
-        if let Ok(catalog) = &equipment {
-            for node in &self.doc.nodes {
-                if node.definition.as_deref() != Some("entity_equipment") {
-                    continue;
-                }
-                for row in &node.rows {
-                    if let GraphControlValue::List { rows, .. } = &row.value {
-                        for cells in rows {
-                            if let Some(GraphControlValue::Text(reference)) = cells.first() {
-                                if let Ok(item) = catalog.find(reference) {
-                                    self.tiles
-                                        .equipment_names
-                                        .insert(reference.clone(), item.name.clone());
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        let result = result.and_then(|data| {
-            if project
-                .characters
-                .keys()
-                .any(|id| owner == &shared::entity_graph::character_key(*id))
-            {
-                equipment
-                    .as_ref()
-                    .map_err(Clone::clone)?
-                    .validate_explicit(&data)?;
-            }
-            Ok(data)
-        });
-        let error = result.err();
-        // Rejected-drop feedback stays visible while panning or hovering.
-        if error.is_some() || self.doc != self.committed {
-            self.configuration_error = error.clone();
-        }
-        let Some(root) = self
-            .doc
-            .nodes
-            .iter_mut()
-            .find(|n| matches!(n.definition.as_deref(), Some("entity" | "entity_inputs")))
-        else {
-            return;
-        };
-        let mut fields = vec![(
-            "summary".to_string(),
-            fl!("entity_configuration_status"),
-            error.unwrap_or_else(|| fl!("entity_configuration_ready")),
-        )];
-        // Keep IDs stable across edits for hit testing and history.
-        for (key, label, text) in fields.drain(..) {
-            if let Some(row) = root
-                .rows
-                .iter_mut()
-                .find(|r| r.key.as_deref() == Some(&key))
-            {
-                row.label = label;
-                row.value = GraphControlValue::Label(text);
-            } else {
-                let mut row = GraphRow::new(&label, GraphControlValue::Label(text));
-                row.key = Some(key);
-                root.rows.push(row);
-            }
-        }
-        root.rows.retain(|r| r.key.as_deref() != Some("effective"));
-    }
-}
-
-/// Changing the selected attribute type changes the value control, reusing the
-/// same mouse/text controls as behavior nodes. Keep an existing matching type.
-fn sync_attribute_types(doc: &mut GraphDocument) {
-    for node in &mut doc.nodes {
-        if node.definition.as_deref() != Some("entity_attribute") {
-            continue;
-        }
-        let selected = node
-            .rows
-            .iter()
-            .find(|r| r.key.as_deref() == Some("type"))
-            .and_then(|r| {
-                if let GraphControlValue::Choice { selected, .. } = &r.value {
-                    Some(*selected)
-                } else {
-                    None
-                }
-            });
-        let Some(selected) = selected else {
-            continue;
-        };
-        let Some(row) = node
-            .rows
-            .iter_mut()
-            .find(|r| r.key.as_deref() == Some("value"))
-        else {
-            continue;
-        };
-        let matches = match (&row.value, selected) {
-            (GraphControlValue::Text(_), 0 | 1 | 2)
-            | (GraphControlValue::Toggle(_), 3)
-            | (GraphControlValue::List { .. }, 4) => true,
-            (GraphControlValue::Number { step, .. }, 1) => *step >= 1.,
-            (GraphControlValue::Number { step, .. }, 2) => *step < 1.,
-            _ => false,
-        };
-        if matches {
-            continue;
-        }
-        row.value = match selected {
-            1 | 2 => GraphControlValue::Number {
-                value: 0.,
-                min: -100000.,
-                max: 100000.,
-                step: if selected == 1 { 1. } else { 0.1 },
-            },
-            3 => GraphControlValue::Toggle(false),
-            4 => GraphControlValue::List {
-                row_ids: vec![],
-                columns: vec![GraphListColumn {
-                    id: "value".into(),
-                    label: fl!("entity_value"),
-                    control: GraphControlValue::Text(String::new()),
-                }],
-                rows: vec![],
-            },
-            _ => GraphControlValue::Text(String::new()),
-        };
-    }
-}
-
-fn sync_input_choices(doc: &mut GraphDocument, defs: &GraphDefinitions) {
-    let Some(def) = defs.node("entity_input") else {
-        return;
-    };
-    let Some(GraphControlValue::Choice {
-        options: available, ..
-    }) = def
-        .parameters
-        .iter()
-        .find(|p| p.id == "command")
-        .map(|p| &p.default)
-    else {
-        return;
-    };
-    for node in &mut doc.nodes {
-        if node.definition.as_deref() != Some("entity_input") {
-            continue;
-        }
-        for row in &mut node.rows {
-            if row.key.as_deref() != Some("command") {
-                continue;
-            }
-            if let GraphControlValue::Choice { options, selected } = &mut row.value {
-                let current = options.get(*selected).cloned().unwrap_or_default();
-                *options = available.clone();
-                *selected = options
-                    .iter()
-                    .position(|s| s == &current)
-                    .unwrap_or_else(|| {
-                        options.push(current);
-                        options.len() - 1
-                    });
-            }
+        self.tiles.equipment_names = projection.equipment_names;
+        if projection.error.is_some() || projection.source_changed {
+            self.configuration_error = projection.error;
         }
     }
 }
