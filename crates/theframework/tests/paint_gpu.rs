@@ -339,3 +339,136 @@ fn swash_color_glyphs_use_normalized_atlas_images() {
         .write_image_data(capture.pixels())
         .unwrap();
 }
+
+#[test]
+#[ignore = "requires native GPU; run with --ignored"]
+fn native_editor_viewports_blit_selection_preedit_and_retained_glyphs() {
+    use theframework::{
+        platform::InputEvent,
+        text::TextOptions,
+        text_edit::{EditorColors, EditorView},
+    };
+    let ctx = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let images = ImageRegistry::new(ctx.clone());
+    let output = GpuImage::new(&ctx, ImageDescriptor::rgba(720, 360)).unwrap();
+    let mut renderer = PaintRenderer::new(ctx.clone()).unwrap();
+    let mut fonts = TextSystem::default();
+    fonts.register_font(include_bytes!("../embedded/fonts/Roboto-Bold.ttf").to_vec());
+    let mut field = EditorView::new(false);
+    field
+        .editor
+        .set_text(&mut fonts, "Eldiron — العربية 東京 e\u{301} 👩‍💻");
+    field.prepare(
+        &mut fonts,
+        TextOptions {
+            family: "Roboto",
+            size: 20.,
+            width: None,
+            line_height: None,
+        },
+        Rect::new(20., 16., 440., 40.),
+        true,
+    );
+    field.set_focused(&mut fonts, true);
+    field.editor.select_bytes(&mut fonts, 0, "Eldiron".len());
+    field.reveal_caret(&mut fonts);
+    let mut ime = EditorView::new(false);
+    ime.editor.set_text(&mut fonts, "Player 東京");
+    ime.prepare(
+        &mut fonts,
+        TextOptions {
+            family: "Roboto",
+            size: 20.,
+            width: None,
+            line_height: None,
+        },
+        Rect::new(20., 72., 440., 40.),
+        true,
+    );
+    ime.set_focused(&mut fonts, true);
+    ime.editor.select_bytes(&mut fonts, 7, "Player 東京".len());
+    ime.input(
+        &mut fonts,
+        &InputEvent::Composition {
+            text: "にほん".into(),
+            cursor: Some((3, 6)),
+        },
+    );
+    assert_eq!(ime.editor.text(), "Player 東京");
+    let mut code = EditorView::new(true);
+    code.editor.set_text(
+        &mut fonts,
+        "First line\nSecond line\nThird line\nFourth line\nLast 東京 e\u{301}",
+    );
+    code.prepare(
+        &mut fonts,
+        TextOptions {
+            family: "Roboto",
+            size: 18.,
+            width: Some(440.),
+            line_height: Some(24.),
+        },
+        Rect::new(20., 128., 440., 88.),
+        false,
+    );
+    code.set_focused(&mut fonts, true);
+    assert!(code.scroll()[1] > 0.);
+    let mut list = PaintList::default();
+    list.rect(Rect::new(0., 0., 480., 240.), 0., [0.04, 0.06, 0.09, 1.]);
+    for view in [&mut field, &mut ime, &mut code] {
+        list.rect(view.bounds(), 2., [0.10, 0.14, 0.20, 1.]);
+        view.paint(&mut fonts, &mut list, EditorColors::default(), true);
+    }
+    list.validate().unwrap();
+    for frame in 0..2 {
+        let before = ctx.transfers().uploaded_bytes;
+        let count = renderer.glyphs.rasterizations;
+        renderer
+            .render(
+                &list,
+                &images,
+                &output.view,
+                output.descriptor.format,
+                (720, 360),
+                1.5,
+                [0.; 4],
+            )
+            .unwrap();
+        assert!(renderer.frame_stats().glyph_quads > 20);
+        if frame > 0 {
+            assert_eq!(ctx.transfers().uploaded_bytes, before);
+            assert_eq!(renderer.glyphs.rasterizations, count);
+        }
+        assert_eq!(ctx.transfers().readback_bytes, 0);
+    }
+    let mut capture = ReadbackTicket::capture(&ctx, output).unwrap();
+    ctx.device
+        .poll(wgpu::PollType::Wait {
+            submission_index: None,
+            timeout: Some(std::time::Duration::from_secs(30)),
+        })
+        .unwrap();
+    let result = capture.try_finish(&ctx).unwrap().unwrap();
+    let pixel = |x: usize, y: usize| &result.pixels()[(y * 720 + x) * 4..(y * 720 + x + 1) * 4];
+    assert_eq!(
+        pixel(10, 30),
+        pixel(700, 30),
+        "text must not escape viewport"
+    );
+    assert!(
+        pixel(32, 36)[2] > pixel(700, 36)[2],
+        "selection/chrome must be visible"
+    );
+    let mut encoder = png::Encoder::new(
+        std::fs::File::create("/private/tmp/eldiron-native-editors.png").unwrap(),
+        720,
+        360,
+    );
+    encoder.set_color(png::ColorType::Rgba);
+    encoder.set_depth(png::BitDepth::Eight);
+    encoder
+        .write_header()
+        .unwrap()
+        .write_image_data(result.pixels())
+        .unwrap();
+}

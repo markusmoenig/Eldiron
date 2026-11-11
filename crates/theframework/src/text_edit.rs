@@ -1,7 +1,15 @@
 //! Renderer-independent text editing in grapheme/cursor coordinates. The UI
 //! adapters re-export these exact types, preserving saved undo-state JSON.
+#[cfg(feature = "text")]
+mod controller;
+#[cfg(feature = "text")]
+pub use controller::*;
+#[cfg(feature = "text")]
+mod view;
 use serde::{Deserialize, Serialize};
 use unicode_segmentation::UnicodeSegmentation;
+#[cfg(feature = "text")]
+pub use view::*;
 
 #[derive(Serialize, Deserialize, Default, PartialEq, Clone)]
 pub struct Cursor {

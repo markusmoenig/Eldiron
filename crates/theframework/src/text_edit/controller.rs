@@ -1,0 +1,666 @@
+//! Neutral editing controller built on Parley's cursor, bidi, selection and IME
+//! engine. It emits clipboard requests; no window, widgets, GPU or system access.
+use crate::{
+    paint::Rect,
+    platform::{InputEvent, InputResponse, Modifiers, PhysicalKey},
+    text::{TextLayout, TextOptions, TextSystem},
+};
+use parley::{PlainEditor, PlainEditorDriver, StyleProperty};
+use std::{
+    collections::VecDeque,
+    sync::atomic::{AtomicU64, Ordering},
+};
+static NEXT_CLIPBOARD_REQUEST: AtomicU64 = AtomicU64::new(1);
+use unicode_segmentation::UnicodeSegmentation;
+
+#[derive(Clone, PartialEq, Eq)]
+struct Snapshot {
+    text: String,
+    anchor: usize,
+    focus: usize,
+}
+struct Change {
+    before: Snapshot,
+    after: Snapshot,
+    bytes: usize,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum EditorClipboard {
+    Write { text: String, cut: Option<u64> },
+    Read { request: u64 },
+}
+pub enum ClipboardResult {
+    Written(bool),
+    Text(Option<String>),
+}
+struct PendingClipboard {
+    request: u64,
+    cut: bool,
+    state: Snapshot,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EditorAction {
+    Submit,
+    Cancel,
+    FocusNext { backwards: bool },
+}
+#[derive(Default)]
+pub struct EditorResponse {
+    pub input: InputResponse,
+    pub changed: bool,
+    pub clipboard: Option<EditorClipboard>,
+    pub action: Option<EditorAction>,
+}
+impl EditorResponse {
+    pub(super) fn handled(changed: bool) -> Self {
+        Self {
+            input: InputResponse {
+                consumed: true,
+                redraw: true,
+            },
+            changed,
+            ..Self::default()
+        }
+    }
+}
+#[derive(PartialEq)]
+struct LayoutKey {
+    family: String,
+    size: u32,
+    width: Option<u32>,
+    line_height: Option<u32>,
+}
+/// One editor owns committed content, transient composition, selection and a
+/// bounded undo history. Layout and all hit/caret/IME geometry share Parley.
+pub struct EditorController {
+    editor: PlainEditor<usize>,
+    multiline: bool,
+    focused: bool,
+    modifiers: Modifiers,
+    composition: Option<Snapshot>,
+    undo: VecDeque<Change>,
+    redo: Vec<Change>,
+    history_bytes: usize,
+    history_budget: usize,
+    clipboard: Option<PendingClipboard>,
+    style: Option<LayoutKey>,
+    fonts: Option<(u64, u64)>,
+    snapshot: Option<TextLayout>,
+    snapshots_built: u64,
+}
+impl EditorController {
+    pub fn new(multiline: bool) -> Self {
+        Self {
+            editor: PlainEditor::new(14.),
+            multiline,
+            focused: false,
+            modifiers: Modifiers::default(),
+            composition: None,
+            undo: VecDeque::new(),
+            redo: Vec::new(),
+            history_bytes: 0,
+            history_budget: 8 * 1024 * 1024,
+            clipboard: None,
+            style: None,
+            fonts: None,
+            snapshot: None,
+            snapshots_built: 0,
+        }
+    }
+    pub fn text(&self) -> &str {
+        self.composition
+            .as_ref()
+            .map_or(self.editor.raw_text(), |s| &s.text)
+    }
+    pub fn is_composing(&self) -> bool {
+        self.composition.is_some()
+    }
+    pub fn is_focused(&self) -> bool {
+        self.focused
+    }
+    pub fn snapshots_built(&self) -> u64 {
+        self.snapshots_built
+    }
+    pub fn history_bytes(&self) -> usize {
+        self.history_bytes
+    }
+    fn state(&self) -> Snapshot {
+        let selection = self.editor.raw_selection();
+        Snapshot {
+            text: self.editor.raw_text().into(),
+            anchor: selection.anchor().index(),
+            focus: selection.focus().index(),
+        }
+    }
+    fn restore(&mut self, fonts: &mut TextSystem, state: &Snapshot) {
+        fonts.editor_driver(&mut self.editor).clear_compose();
+        self.editor.set_text(&state.text);
+        fonts
+            .editor_driver(&mut self.editor)
+            .select_byte_range(state.anchor, state.focus);
+        self.snapshot = None;
+    }
+    fn cancel_composition(&mut self, fonts: &mut TextSystem) -> bool {
+        if let Some(before) = self.composition.take() {
+            self.restore(fonts, &before);
+            true
+        } else {
+            false
+        }
+    }
+    pub fn set_focused(&mut self, fonts: &mut TextSystem, focused: bool) {
+        self.focused = focused;
+        if !focused {
+            self.cancel_composition(fonts);
+            self.clipboard = None;
+            self.modifiers = Modifiers::default();
+        }
+    }
+    fn clean(&self, value: &str) -> String {
+        value
+            .chars()
+            .filter(|c| !c.is_control() || self.multiline && matches!(c, '\n' | '\r' | '\t'))
+            .collect()
+    }
+    pub fn set_text(&mut self, fonts: &mut TextSystem, text: &str) {
+        self.cancel_composition(fonts);
+        self.editor.set_text(&self.clean(text));
+        fonts.editor_driver(&mut self.editor).move_to_text_end();
+        self.undo.clear();
+        self.redo.clear();
+        self.history_bytes = 0;
+        self.clipboard = None;
+        self.snapshot = None;
+    }
+    fn ensure_fonts(&mut self, fonts: &mut TextSystem) {
+        let stamp = fonts.font_stamp();
+        if self.fonts != Some(stamp) {
+            self.fonts = Some(stamp);
+            let _ = self.editor.edit_styles();
+            self.snapshot = None;
+        }
+    }
+    pub fn prepare(&mut self, fonts: &mut TextSystem, options: TextOptions<'_>) {
+        self.ensure_fonts(fonts);
+        let size = if options.size.is_finite() && options.size > 0. {
+            options.size
+        } else {
+            14.
+        };
+        let width = self
+            .multiline
+            .then_some(options.width)
+            .flatten()
+            .filter(|w| w.is_finite())
+            .map(|w| w.max(0.));
+        let key = LayoutKey {
+            family: options.family.into(),
+            size: size.to_bits(),
+            width: width.map(f32::to_bits),
+            line_height: options
+                .line_height
+                .filter(|h| h.is_finite() && *h > 0.)
+                .map(f32::to_bits),
+        };
+        if self.style.as_ref() != Some(&key) {
+            let styles = self.editor.edit_styles();
+            styles.insert(StyleProperty::FontFamily(
+                parley::FontFamily::from(options.family).into_owned(),
+            ));
+            styles.insert(StyleProperty::FontSize(size));
+            styles.insert(StyleProperty::LineHeight(
+                options
+                    .line_height
+                    .filter(|h| h.is_finite() && *h > 0.)
+                    .map_or(
+                        parley::LineHeight::FontSizeRelative(1.2),
+                        parley::LineHeight::Absolute,
+                    ),
+            ));
+            self.editor.set_width(width);
+            self.style = Some(key);
+            self.snapshot = None;
+        }
+        let _ = self.layout(fonts);
+    }
+    pub fn layout(&mut self, fonts: &mut TextSystem) -> &TextLayout {
+        self.ensure_fonts(fonts);
+        fonts.editor_driver(&mut self.editor).layout();
+        if self
+            .snapshot
+            .as_ref()
+            .is_none_or(|layout| layout.source.as_ref() != self.editor.raw_text())
+        {
+            self.snapshot = Some(fonts.editor_snapshot(&mut self.editor));
+            self.snapshots_built += 1;
+        }
+        self.snapshot.as_ref().unwrap()
+    }
+    pub fn selection_bytes(&self) -> (usize, usize) {
+        let selection = self.editor.raw_selection();
+        (selection.anchor().index(), selection.focus().index())
+    }
+    pub fn select_bytes(&mut self, fonts: &mut TextSystem, anchor: usize, focus: usize) {
+        self.cancel_composition(fonts);
+        self.ensure_fonts(fonts);
+        fonts
+            .editor_driver(&mut self.editor)
+            .select_byte_range(anchor, focus);
+    }
+    pub fn point(&mut self, fonts: &mut TextSystem, point: [f32; 2], extend: bool) {
+        self.cancel_composition(fonts);
+        self.ensure_fonts(fonts);
+        let mut driver = fonts.editor_driver(&mut self.editor);
+        if extend {
+            driver.extend_selection_to_point(point[0], point[1]);
+        } else {
+            driver.move_to_point(point[0], point[1]);
+        }
+    }
+    /// Multiple-click selection uses the same shaped hit geometry as painting.
+    pub fn point_selection(&mut self, fonts: &mut TextSystem, point: [f32; 2], clicks: u8) {
+        self.cancel_composition(fonts);
+        self.ensure_fonts(fonts);
+        let mut driver = fonts.editor_driver(&mut self.editor);
+        match clicks {
+            0 | 1 => driver.move_to_point(point[0], point[1]),
+            2 => driver.select_word_at_point(point[0], point[1]),
+            _ => driver.select_hard_line_at_point(point[0], point[1]),
+        }
+    }
+    pub fn move_page(&mut self, fonts: &mut TextSystem, height: f32, down: bool, extend: bool) {
+        self.cancel_composition(fonts);
+        let line = self.caret(fonts).map_or(14., |r| r.height).max(1.);
+        let count = (height / line).floor().clamp(1., 10_000.) as usize;
+        let mut driver = fonts.editor_driver(&mut self.editor);
+        for _ in 0..count {
+            match (down, extend) {
+                (true, false) => driver.move_down(),
+                (false, false) => driver.move_up(),
+                (true, true) => driver.select_down(),
+                (false, true) => driver.select_up(),
+            }
+        }
+    }
+    pub fn caret(&mut self, fonts: &mut TextSystem) -> Option<Rect> {
+        self.layout(fonts);
+        self.editor.cursor_geometry(1.).map(box_rect)
+    }
+    pub fn selection(&mut self, fonts: &mut TextSystem) -> Vec<Rect> {
+        self.layout(fonts);
+        self.editor
+            .selection_geometry()
+            .into_iter()
+            .map(|(bounds, _)| box_rect(bounds))
+            .collect()
+    }
+    pub fn composition_geometry(&mut self, fonts: &mut TextSystem) -> Vec<Rect> {
+        self.layout(fonts);
+        let Some(range) = self.editor.raw_compose().clone() else {
+            return Vec::new();
+        };
+        self.snapshot
+            .as_ref()
+            .unwrap()
+            .selection(range.start, range.end)
+    }
+    pub fn ime_area(&mut self, fonts: &mut TextSystem) -> Rect {
+        self.layout(fonts);
+        box_rect(self.editor.ime_cursor_area())
+    }
+    fn transaction(
+        &mut self,
+        fonts: &mut TextSystem,
+        edit: impl FnOnce(&mut PlainEditorDriver<'_, usize>),
+    ) -> bool {
+        self.cancel_composition(fonts);
+        self.ensure_fonts(fonts);
+        let before = self.state();
+        let mut driver = fonts.editor_driver(&mut self.editor);
+        driver.refresh_layout();
+        edit(&mut driver);
+        let after = self.state();
+        if before.text == after.text {
+            return false;
+        }
+        self.history_bytes -= self.redo.iter().map(|c| c.bytes).sum::<usize>();
+        self.redo.clear();
+        let bytes = before.text.len() + after.text.len();
+        self.undo.push_back(Change {
+            before,
+            after,
+            bytes,
+        });
+        self.history_bytes += bytes;
+        while self.history_bytes > self.history_budget {
+            if let Some(change) = self.undo.pop_front() {
+                self.history_bytes -= change.bytes;
+            } else {
+                break;
+            }
+        }
+        self.clipboard = None;
+        self.snapshot = None;
+        true
+    }
+    pub fn undo(&mut self, fonts: &mut TextSystem) -> bool {
+        self.cancel_composition(fonts);
+        let Some(change) = self.undo.pop_back() else {
+            return false;
+        };
+        self.restore(fonts, &change.before);
+        self.redo.push(change);
+        self.clipboard = None;
+        true
+    }
+    pub fn redo(&mut self, fonts: &mut TextSystem) -> bool {
+        self.cancel_composition(fonts);
+        let Some(change) = self.redo.pop() else {
+            return false;
+        };
+        self.restore(fonts, &change.after);
+        self.undo.push_back(change);
+        self.clipboard = None;
+        true
+    }
+    pub fn complete_clipboard(
+        &mut self,
+        fonts: &mut TextSystem,
+        request: u64,
+        result: ClipboardResult,
+    ) -> EditorResponse {
+        let Some(pending) = self.clipboard.take() else {
+            return EditorResponse::default();
+        };
+        if pending.request != request {
+            self.clipboard = Some(pending);
+            return EditorResponse::default();
+        }
+        if !self.focused || self.composition.is_some() || pending.state != self.state() {
+            return EditorResponse::default();
+        }
+        let changed = match result {
+            ClipboardResult::Written(true) if pending.cut => {
+                self.transaction(fonts, |driver| driver.delete_selection())
+            }
+            ClipboardResult::Text(Some(text)) if !pending.cut => {
+                let text = self.clean(&text);
+                self.transaction(fonts, |driver| driver.insert_or_replace_selection(&text))
+            }
+            _ => false,
+        };
+        EditorResponse::handled(changed)
+    }
+    pub fn input(&mut self, fonts: &mut TextSystem, event: &InputEvent) -> EditorResponse {
+        match event {
+            InputEvent::Modifiers(modifiers) => {
+                self.modifiers = *modifiers;
+                return EditorResponse::default();
+            }
+            InputEvent::Focus(false) => {
+                let was = self.focused;
+                self.set_focused(fonts, false);
+                return if was {
+                    EditorResponse::handled(false)
+                } else {
+                    EditorResponse::default()
+                };
+            }
+            _ => {}
+        }
+        if !self.focused {
+            return EditorResponse::default();
+        }
+        self.ensure_fonts(fonts);
+        match event {
+            InputEvent::Text(text) => {
+                let text = self.clean(text);
+                let cancelled = self.cancel_composition(fonts);
+                if text.is_empty() {
+                    return if cancelled {
+                        EditorResponse::handled(false)
+                    } else {
+                        EditorResponse::default()
+                    };
+                }
+                EditorResponse::handled(
+                    self.transaction(fonts, |driver| driver.insert_or_replace_selection(&text)),
+                )
+            }
+            InputEvent::Composition { text, cursor } => {
+                if text.is_empty() {
+                    self.cancel_composition(fonts);
+                    return EditorResponse::handled(false);
+                }
+                if self.composition.is_none() {
+                    self.composition = Some(self.state());
+                }
+                // Platform cursor indices address the original preedit bytes.
+                // Filtering controls in a single-line field also remaps them.
+                let cursor = cursor.map(|(a, b)| {
+                    (
+                        self.clean(&text[..char_boundary(text, a)]).len(),
+                        self.clean(&text[..char_boundary(text, b)]).len(),
+                    )
+                });
+                let text = self.clean(text);
+                if text.is_empty() {
+                    self.cancel_composition(fonts);
+                    return EditorResponse::handled(false);
+                }
+                fonts
+                    .editor_driver(&mut self.editor)
+                    .set_compose(&text, cursor);
+                self.snapshot = None;
+                EditorResponse::handled(false)
+            }
+            InputEvent::Key {
+                physical, pressed, ..
+            } => {
+                if !pressed {
+                    return EditorResponse {
+                        input: InputResponse {
+                            consumed: true,
+                            redraw: false,
+                        },
+                        ..EditorResponse::default()
+                    };
+                }
+                self.key(fonts, *physical)
+            }
+            _ => EditorResponse::default(),
+        }
+    }
+    fn key(&mut self, fonts: &mut TextSystem, key: PhysicalKey) -> EditorResponse {
+        let mods = self.modifiers;
+        let shortcut = mods.control || mods.super_key;
+        if let PhysicalKey::Letter(letter) = key {
+            if shortcut {
+                self.cancel_composition(fonts);
+                match letter.to_ascii_lowercase() {
+                    b'z' => {
+                        return EditorResponse::handled(if mods.shift {
+                            self.redo(fonts)
+                        } else {
+                            self.undo(fonts)
+                        });
+                    }
+                    b'y' => return EditorResponse::handled(self.redo(fonts)),
+                    b'a' => {
+                        fonts.editor_driver(&mut self.editor).select_all();
+                        return EditorResponse::handled(false);
+                    }
+                    b'c' | b'x' => {
+                        let Some(text) = self.editor.selected_text().map(str::to_owned) else {
+                            return EditorResponse::handled(false);
+                        };
+                        let cut = letter.eq_ignore_ascii_case(&b'x');
+                        let request = if cut {
+                            let request = NEXT_CLIPBOARD_REQUEST.fetch_add(1, Ordering::Relaxed);
+                            self.clipboard = Some(PendingClipboard {
+                                request,
+                                cut: true,
+                                state: self.state(),
+                            });
+                            Some(request)
+                        } else {
+                            None
+                        };
+                        return EditorResponse {
+                            clipboard: Some(EditorClipboard::Write { text, cut: request }),
+                            ..EditorResponse::handled(false)
+                        };
+                    }
+                    b'v' => {
+                        let request = NEXT_CLIPBOARD_REQUEST.fetch_add(1, Ordering::Relaxed);
+                        self.clipboard = Some(PendingClipboard {
+                            request,
+                            cut: false,
+                            state: self.state(),
+                        });
+                        return EditorResponse {
+                            clipboard: Some(EditorClipboard::Read { request }),
+                            ..EditorResponse::handled(false)
+                        };
+                    }
+                    _ => {}
+                }
+            }
+        }
+        if key == PhysicalKey::Escape {
+            if self.cancel_composition(fonts) {
+                return EditorResponse::handled(false);
+            }
+            return EditorResponse {
+                action: Some(EditorAction::Cancel),
+                ..EditorResponse::handled(false)
+            };
+        }
+        if self.is_composing() {
+            return EditorResponse::handled(false);
+        }
+        if key == PhysicalKey::Enter {
+            if self.multiline {
+                return EditorResponse::handled(
+                    self.transaction(fonts, |driver| driver.insert_or_replace_selection("\n")),
+                );
+            }
+            return EditorResponse {
+                action: Some(EditorAction::Submit),
+                ..EditorResponse::handled(false)
+            };
+        }
+        if key == PhysicalKey::Tab {
+            return EditorResponse {
+                action: Some(EditorAction::FocusNext {
+                    backwards: mods.shift,
+                }),
+                ..EditorResponse::handled(false)
+            };
+        }
+        match key {
+            PhysicalKey::Backspace => EditorResponse::handled(self.transaction(fonts, |driver| {
+                if mods.control || mods.alt {
+                    driver.backdelete_word();
+                } else if driver.editor.raw_selection().is_collapsed() {
+                    let focus = driver.editor.raw_selection().focus().index();
+                    if let Some((start, _)) = driver.editor.raw_text()[..focus]
+                        .grapheme_indices(true)
+                        .next_back()
+                    {
+                        if let Some(len) = std::num::NonZeroUsize::new(focus - start) {
+                            driver.delete_bytes_before_selection(len);
+                        }
+                    }
+                } else {
+                    driver.delete_selection();
+                }
+            })),
+            PhysicalKey::Delete => EditorResponse::handled(self.transaction(fonts, |driver| {
+                if mods.control || mods.alt {
+                    driver.delete_word();
+                } else if driver.editor.raw_selection().is_collapsed() {
+                    let focus = driver.editor.raw_selection().focus().index();
+                    if let Some(cluster) = driver.editor.raw_text()[focus..].graphemes(true).next()
+                    {
+                        let end = focus + cluster.len();
+                        driver.select_byte_range(focus, end);
+                        driver.delete_selection();
+                    }
+                } else {
+                    driver.delete_selection();
+                }
+            })),
+            PhysicalKey::Left
+            | PhysicalKey::Right
+            | PhysicalKey::Up
+            | PhysicalKey::Down
+            | PhysicalKey::Home
+            | PhysicalKey::End => {
+                let mut driver = fonts.editor_driver(&mut self.editor);
+                match (key, mods.shift) {
+                    (PhysicalKey::Left, false) if mods.super_key => driver.move_to_line_start(),
+                    (PhysicalKey::Right, false) if mods.super_key => driver.move_to_line_end(),
+                    (PhysicalKey::Left, true) if mods.super_key => driver.select_to_line_start(),
+                    (PhysicalKey::Right, true) if mods.super_key => driver.select_to_line_end(),
+                    (PhysicalKey::Left, false) if mods.control || mods.alt => {
+                        driver.move_word_left()
+                    }
+                    (PhysicalKey::Right, false) if mods.control || mods.alt => {
+                        driver.move_word_right()
+                    }
+                    (PhysicalKey::Left, true) if mods.control || mods.alt => {
+                        driver.select_word_left()
+                    }
+                    (PhysicalKey::Right, true) if mods.control || mods.alt => {
+                        driver.select_word_right()
+                    }
+                    (PhysicalKey::Left, false) => driver.move_left(),
+                    (PhysicalKey::Right, false) => driver.move_right(),
+                    (PhysicalKey::Left, true) => driver.select_left(),
+                    (PhysicalKey::Right, true) => driver.select_right(),
+                    (PhysicalKey::Up, false) => driver.move_up(),
+                    (PhysicalKey::Down, false) => driver.move_down(),
+                    (PhysicalKey::Up, true) => driver.select_up(),
+                    (PhysicalKey::Down, true) => driver.select_down(),
+                    (PhysicalKey::Home, false) if shortcut => driver.move_to_text_start(),
+                    (PhysicalKey::End, false) if shortcut => driver.move_to_text_end(),
+                    (PhysicalKey::Home, true) if shortcut => driver.select_to_text_start(),
+                    (PhysicalKey::End, true) if shortcut => driver.select_to_text_end(),
+                    (PhysicalKey::Home, false) => driver.move_to_line_start(),
+                    (PhysicalKey::End, false) => driver.move_to_line_end(),
+                    (PhysicalKey::Home, true) => driver.select_to_line_start(),
+                    (PhysicalKey::End, true) => driver.select_to_line_end(),
+                    _ => {}
+                }
+                EditorResponse::handled(false)
+            }
+            _ => EditorResponse {
+                input: InputResponse {
+                    consumed: true,
+                    redraw: false,
+                },
+                ..EditorResponse::default()
+            },
+        }
+    }
+}
+fn char_boundary(text: &str, mut index: usize) -> usize {
+    index = index.min(text.len());
+    while !text.is_char_boundary(index) {
+        index -= 1;
+    }
+    index
+}
+fn box_rect(bounds: parley::BoundingBox) -> Rect {
+    Rect::new(
+        bounds.x0 as f32,
+        bounds.y0 as f32,
+        (bounds.x1 - bounds.x0) as f32,
+        (bounds.y1 - bounds.y0) as f32,
+    )
+}
+
+#[cfg(test)]
+#[path = "controller_tests.rs"]
+mod tests;

@@ -4,7 +4,14 @@ use parley::{
     Alignment, AlignmentOptions, FontContext, Layout, LayoutContext, PositionedLayoutItem,
     StyleProperty,
 };
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+};
+static NEXT_TEXT_OWNER: AtomicU64 = AtomicU64::new(1);
 use swash::{
     CacheKey, FontRef,
     scale::{Render, ScaleContext, Source, StrikeWith, image::Content},
@@ -38,6 +45,10 @@ pub struct TextLayout {
 impl TextLayout {
     pub fn width(&self) -> f32 {
         self.layout.width()
+    }
+    /// Includes trailing whitespace; editing viewports must keep its caret visible.
+    pub fn full_width(&self) -> f32 {
+        self.layout.full_width()
     }
     pub fn height(&self) -> f32 {
         self.layout.height()
@@ -89,6 +100,7 @@ impl TextLayout {
     }
 }
 pub struct TextSystem {
+    owner: u64,
     fonts: FontContext,
     font_revision: u64,
     layouts: LayoutContext<usize>,
@@ -97,6 +109,7 @@ pub struct TextSystem {
 impl Default for TextSystem {
     fn default() -> Self {
         Self {
+            owner: NEXT_TEXT_OWNER.fetch_add(1, Ordering::Relaxed),
             fonts: FontContext::new(),
             font_revision: 0,
             layouts: LayoutContext::new(),
@@ -105,6 +118,27 @@ impl Default for TextSystem {
     }
 }
 impl TextSystem {
+    /// Stable across moves, distinct across text owners even if registration
+    /// counts match. Retained editors use both ownership and font revision.
+    pub fn font_stamp(&self) -> (u64, u64) {
+        (self.owner, self.font_revision)
+    }
+    pub(crate) fn editor_driver<'a>(
+        &'a mut self,
+        editor: &'a mut parley::PlainEditor<usize>,
+    ) -> parley::PlainEditorDriver<'a, usize> {
+        editor.driver(&mut self.fonts, &mut self.layouts)
+    }
+    pub(crate) fn editor_snapshot(
+        &mut self,
+        editor: &mut parley::PlainEditor<usize>,
+    ) -> TextLayout {
+        let layout = {
+            let mut driver = self.editor_driver(editor);
+            driver.layout().clone()
+        };
+        self.snapshot_layout(editor.raw_text(), layout, &[])
+    }
     pub fn font_revision(&self) -> u64 {
         self.font_revision
     }
@@ -221,6 +255,14 @@ impl TextSystem {
         let mut layout: Layout<usize> = builder.build(text);
         layout.break_all_lines(width);
         layout.align(Alignment::Start, AlignmentOptions::default());
+        self.snapshot_layout(text, layout, styles)
+    }
+    fn snapshot_layout(
+        &mut self,
+        text: &str,
+        layout: Layout<usize>,
+        styles: &[TextStyleSpan],
+    ) -> TextLayout {
         let mut runs = Vec::new();
         let mut styled_runs = Vec::new();
         for line in layout.lines() {

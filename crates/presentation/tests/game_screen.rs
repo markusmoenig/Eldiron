@@ -450,3 +450,152 @@ fn screen_navigation_reuses_project_font_identities_and_swash_gpu_cache() {
         "source-free UI navigation must only use GPU glyph atlases"
     );
 }
+
+#[test]
+fn native_text_fields_preserve_ime_bindings_focus_and_clipboard_ownership() {
+    use theframework::platform::*;
+    use theframework::text_edit::{ClipboardResult, EditorAction, EditorClipboard};
+    let session = fixture(false);
+    let mut fonts = GameFonts::default();
+    let mut controller =
+        GameScreenController::from_screen("Main", &session.view(), layout()).unwrap();
+    controller.elements.text_input_widgets.insert(
+        20,
+        rusterix::client::widget::TextInputWidget {
+            name: "SecondInput".into(),
+            id: 20,
+            rect: Rect::new(16., 130., 180., 36.),
+            binding: "second".into(),
+            text: "Other".into(),
+            font: "Roboto".into(),
+            font_size: 18.,
+            color: [255; 4],
+            background_color: [0, 0, 0, 255],
+            border_color: [255; 4],
+            border_size: 1,
+        },
+    );
+    controller
+        .prepare(&session.view(), &mut fonts, ContentRevision(1), 0)
+        .unwrap();
+    let key = |physical| InputEvent::Key {
+        physical,
+        logical: LogicalKey::Other,
+        pressed: true,
+        repeat: false,
+    };
+    let click = InputEvent::PointerButton {
+        button: PointerButton::Primary,
+        pressed: true,
+        position: [210., 200.],
+    };
+    assert!(
+        controller
+            .text_input_event(&mut fonts, &click)
+            .input
+            .consumed
+    );
+    assert_eq!(controller.focused_input, Some(3));
+    assert!(controller.text_ime_area(&mut fonts).is_some());
+    controller.text_input_event(
+        &mut fonts,
+        &InputEvent::Modifiers(Modifiers {
+            control: true,
+            ..Default::default()
+        }),
+    );
+    controller.text_input_event(&mut fonts, &key(PhysicalKey::Letter(b'a')));
+    controller.text_input_event(&mut fonts, &InputEvent::Modifiers(Modifiers::default()));
+    let old = controller.elements.ui_state.get("start.name").cloned();
+    let response = controller.text_input_event(
+        &mut fonts,
+        &InputEvent::Composition {
+            text: "にほん".into(),
+            cursor: Some((3, 3)),
+        },
+    );
+    assert!(!response.editor.changed);
+    assert_eq!(controller.elements.text_input_widgets[&3].text, "Éowyn");
+    assert_eq!(controller.elements.ui_state.get("start.name").cloned(), old);
+    controller
+        .prepare(&session.view(), &mut fonts, ContentRevision(1), 1)
+        .unwrap();
+    assert!(controller.text_ime_area(&mut fonts).is_some());
+    let mut images = Images(0);
+    controller
+        .paint(&session.view(), &mut fonts, &mut images)
+        .unwrap()
+        .validate()
+        .unwrap();
+    let response = controller.text_input_event(&mut fonts, &InputEvent::Text("日本".into()));
+    assert!(response.editor.changed);
+    assert_eq!(controller.elements.ui_state["start.name"], "日本");
+    controller.text_input_event(
+        &mut fonts,
+        &InputEvent::Modifiers(Modifiers {
+            control: true,
+            ..Default::default()
+        }),
+    );
+    controller.text_input_event(&mut fonts, &key(PhysicalKey::Letter(b'z')));
+    assert_eq!(controller.elements.ui_state["start.name"], "Éowyn");
+    let Some(EditorClipboard::Read { request }) = controller
+        .text_input_event(&mut fonts, &key(PhysicalKey::Letter(b'v')))
+        .editor
+        .clipboard
+    else {
+        panic!("paste request")
+    };
+    controller.text_input_event(&mut fonts, &InputEvent::Modifiers(Modifiers::default()));
+    let response = controller.text_input_event(&mut fonts, &key(PhysicalKey::Tab));
+    assert_eq!(
+        response.editor.action,
+        Some(EditorAction::FocusNext { backwards: false })
+    );
+    assert_eq!(controller.focused_input, Some(20));
+    assert!(
+        !controller
+            .complete_text_clipboard(
+                &mut fonts,
+                3,
+                request,
+                ClipboardResult::Text(Some("late".into()))
+            )
+            .editor
+            .changed
+    );
+    // Shift held before the newly focused field must be retained for traversal.
+    controller.text_input_event(
+        &mut fonts,
+        &InputEvent::Modifiers(Modifiers {
+            shift: true,
+            ..Default::default()
+        }),
+    );
+    controller.text_input_event(&mut fonts, &key(PhysicalKey::Tab));
+    assert_eq!(controller.focused_input, Some(3));
+    controller.text_input_event(&mut fonts, &InputEvent::Modifiers(Modifiers::default()));
+    let response = controller.text_input_event(&mut fonts, &InputEvent::Focus(false));
+    assert!(response.input.redraw);
+    assert_eq!(controller.focused_input, None);
+    assert!(controller.text_ime_area(&mut fonts).is_none());
+    assert!(
+        !controller
+            .text_input_event(&mut fonts, &InputEvent::Text("world".into()))
+            .input
+            .consumed
+    );
+    controller.focus_input(&mut fonts, Some(20));
+    controller
+        .elements
+        .widgets_to_hide
+        .push("SecondInput".into());
+    assert!(
+        !controller
+            .text_input_event(&mut fonts, &InputEvent::Text("hidden".into()))
+            .input
+            .consumed
+    );
+    assert_eq!(controller.focused_input, None);
+    assert_eq!(controller.elements.text_input_widgets[&20].text, "Other");
+}

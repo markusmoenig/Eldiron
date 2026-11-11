@@ -173,7 +173,20 @@ impl GameScreenController {
         for key in ordered(&model.text_input_widgets) {
             let widget = &model.text_input_widgets[&key];
             if !hidden(&widget.name) {
-                p.text_input(widget, self.focused_input == Some(key));
+                p.text_input_chrome(widget, self.focused_input == Some(key));
+                if let Some(input) = self.inputs.get_mut(&key) {
+                    input.paint(
+                        p.text,
+                        p.list,
+                        theframework::text_edit::EditorColors {
+                            text: color(widget.color),
+                            ..Default::default()
+                        },
+                        true,
+                    );
+                } else {
+                    return Err("Prepare native text inputs before painting".into());
+                }
             }
         }
         for key in ordered(&model.button_widgets) {

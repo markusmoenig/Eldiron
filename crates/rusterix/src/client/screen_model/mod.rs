@@ -146,6 +146,22 @@ pub(crate) fn screen_static_layer_render_map(screen: &Map, foreground: bool) -> 
 }
 
 impl ScreenElements {
+    /// User-entered values preserve whitespace. Command placeholder consumers
+    /// may normalize their own values; this does not mutate authored sources.
+    pub fn set_binding(&mut self, binding: &str, value: &str) {
+        if binding.trim().is_empty() {
+            return;
+        }
+        self.ui_state.insert(binding.to_owned(), value.to_owned());
+        sync_bound_button_activation(
+            &self.button_widgets,
+            &self.ui_state,
+            &mut self.activated_widgets,
+            &mut self.permanently_activated_widgets,
+            binding,
+        );
+    }
+
     pub fn render_layer(&self, foreground: bool) -> Map {
         screen_static_layer_render_map(&self.source, foreground)
     }

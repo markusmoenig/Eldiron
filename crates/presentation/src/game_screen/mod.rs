@@ -1,10 +1,12 @@
 //! Application-owned native screen/controller state. It borrows CPU runtime
 //! views; a host supplies scene/image services and owns its surface and clock.
 mod fonts;
+mod input;
 mod paint;
 use crate::{GameSceneInput, SceneViews, ViewId, ViewImage, screen::*};
 use eldiron_runtime::{RegionEvents, RuntimeView};
 pub use fonts::{GameFontVersion, GameFonts};
+pub use input::ScreenTextResponse;
 use renderkit::ImageRegistry;
 use rustc_hash::FxHashMap;
 use rusterix::{
@@ -57,6 +59,8 @@ pub struct GameScreenController {
     view_ids: FxHashMap<Uuid, ViewId>,
     configured_views: FxHashMap<ViewId, ContentRevision>,
     view_images: FxHashMap<Uuid, ViewImage>,
+    inputs: FxHashMap<u32, theframework::text_edit::EditorView>,
+    input_modifiers: theframework::platform::Modifiers,
     pub animation_frame: usize,
 }
 impl GameScreenController {
@@ -106,6 +110,8 @@ impl GameScreenController {
             view_ids: FxHashMap::default(),
             configured_views: FxHashMap::default(),
             view_images: FxHashMap::default(),
+            inputs: FxHashMap::default(),
+            input_modifiers: Default::default(),
             animation_frame: 0,
         })
     }
@@ -154,6 +160,7 @@ impl GameScreenController {
             self.revision = Some(revision);
         }
         self.animation_frame = animation_frame;
+        self.prepare_inputs(fonts);
         let map = world.map.unwrap_or(&self.empty_map);
         self.messages.resize_with(
             self.elements.messages_widgets.len(),

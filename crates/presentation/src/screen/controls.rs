@@ -72,7 +72,7 @@ impl ScreenPainter<'_> {
         }
         self.list.ops.push(PaintOp::PopClip);
     }
-    pub fn text_input(&mut self, widget: &TextInputWidget, focused: bool) {
+    pub fn text_input_chrome(&mut self, widget: &TextInputWidget, focused: bool) {
         self.fill(widget.rect, widget.background_color);
         self.border(
             widget.rect,
@@ -83,23 +83,37 @@ impl ScreenPainter<'_> {
                 widget.border_color
             },
         );
-        let content = if focused {
-            format!("{}_", widget.text)
-        } else {
-            widget.text.clone()
-        };
-        self.label(
-            Rect::new(
+    }
+    /// Stateless preview adapter. Interactive screens retain an EditorView so
+    /// selection, composition, history and glyph layout survive each frame.
+    pub fn text_input(&mut self, widget: &TextInputWidget, focused: bool) {
+        self.text_input_chrome(widget, focused);
+        let mut view = theframework::text_edit::EditorView::new(false);
+        view.editor.set_text(self.text, &widget.text);
+        view.set_focused(self.text, focused);
+        view.prepare(
+            self.text,
+            theframework::text::TextOptions {
+                family: &widget.font,
+                size: widget.font_size,
+                width: None,
+                line_height: None,
+            },
+            rect(Rect::new(
                 widget.rect.x + 8.,
                 widget.rect.y,
                 (widget.rect.width - 16.).max(0.),
                 widget.rect.height,
-            ),
-            &content,
-            &widget.font,
-            widget.font_size,
-            widget.color,
-            Align::Left,
+            )),
+            true,
+        );
+        view.paint(
+            self.text,
+            self.list,
+            theframework::text_edit::EditorColors {
+                text: color(widget.color),
+                ..Default::default()
+            },
             true,
         );
     }
