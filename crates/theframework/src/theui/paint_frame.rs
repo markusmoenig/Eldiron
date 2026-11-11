@@ -4,7 +4,8 @@ use crate::paint::{PaintList, PaintOp, Rect};
 
 impl TheUI {
     pub fn needs_paint(&mut self, ctx: &TheContext) -> bool {
-        self.is_dirty
+        self.paint_font_revision != ctx.text.font_revision()
+            || self.is_dirty
             || ctx.ui.redraw_all
             || ctx.ui.relayout
             || self.canvas.needs_redraw()
@@ -16,6 +17,11 @@ impl TheUI {
     }
 
     pub fn prepare_paint_layout(&mut self, ctx: &mut TheContext) {
+        if self.paint_font_revision != ctx.text.font_revision() {
+            self.paint_font_revision = ctx.text.font_revision();
+            ctx.ui.relayout = true;
+            ctx.ui.redraw_all = true;
+        }
         if !ctx.ui.command_paint {
             ctx.ui.command_paint = true;
             ctx.ui.relayout = true;

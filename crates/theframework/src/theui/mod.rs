@@ -401,6 +401,8 @@ pub struct TheUI {
     pub mouse_coord: Vec2<i32>,
     pub right_mouse_down: bool,
     mouse_capture_id: Option<TheId>,
+    #[cfg(feature = "text")]
+    paint_font_revision: u64,
 }
 
 impl Default for TheUI {
@@ -441,6 +443,8 @@ impl TheUI {
             mouse_coord: Vec2::zero(),
             right_mouse_down: false,
             mouse_capture_id: None,
+            #[cfg(feature = "text")]
+            paint_font_revision: 0,
         }
     }
 

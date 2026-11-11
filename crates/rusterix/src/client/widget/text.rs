@@ -81,6 +81,16 @@ impl TextWidget {
     }
 
     pub fn init(&mut self, assets: &Assets) {
+        let font_name = self.configure(assets);
+        self.font = assets
+            .fonts
+            .get(&font_name)
+            .cloned()
+            .or_else(Self::fallback_font);
+    }
+
+    /// Parse authored style/content without initializing a CPU font rasterizer.
+    pub fn configure(&mut self, assets: &Assets) -> String {
         let mut font_name = String::new();
         if let Ok(config) = assets.config.parse::<toml::Table>() {
             if let Some(locale) = config
@@ -139,11 +149,7 @@ impl TextWidget {
             self.table = table;
         }
 
-        self.font = assets
-            .fonts
-            .get(&font_name)
-            .cloned()
-            .or_else(Self::fallback_font);
+        font_name
     }
 
     pub fn update_draw(

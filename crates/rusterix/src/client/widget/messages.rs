@@ -1,3 +1,4 @@
+mod layout;
 use crate::{
     Assets, Choice, Currencies, Entity, EntityAction, Map, MsgParser, Pixel, Rect, Tile, Value,
     client::{
@@ -7,6 +8,7 @@ use crate::{
 };
 use draw2d::Draw2D;
 use instant::{Duration, Instant};
+pub use layout::{MessageMetrics, MessageViewState};
 use std::collections::VecDeque;
 use theframework::prelude::*;
 
@@ -75,6 +77,7 @@ pub struct MessagesWidget {
     pub(crate) pause_until: Option<Instant>,
     pub(crate) scroll_offset: usize,
     pub(crate) page_start_index: usize,
+    pub(crate) native_metrics: Option<MessageMetrics>,
 }
 
 impl Default for MessagesWidget {
@@ -144,6 +147,7 @@ impl MessagesWidget {
             pause_until: None,
             scroll_offset: 0,
             page_start_index: 0,
+            native_metrics: None,
         }
     }
 
@@ -171,6 +175,16 @@ impl MessagesWidget {
     }
 
     pub fn init(&mut self, assets: &Assets) {
+        let font_name = self.configure(assets);
+        self.font = assets
+            .fonts
+            .get(&font_name)
+            .cloned()
+            .or_else(Self::fallback_font);
+    }
+
+    /// Parse authored style/content without initializing a CPU font rasterizer.
+    pub fn configure(&mut self, assets: &Assets) -> String {
         let mut font_name = String::new();
         if let Ok(config) = assets.config.parse::<toml::Table>() {
             if let Some(locale) = config
@@ -336,11 +350,7 @@ impl MessagesWidget {
             self.table = table;
         }
 
-        self.font = assets
-            .fonts
-            .get(&font_name)
-            .cloned()
-            .or_else(Self::fallback_font);
+        font_name
     }
 
     fn parse_pause_duration(msg: &str, category: &str) -> Option<Duration> {
@@ -431,6 +441,22 @@ impl MessagesWidget {
         messages: Vec<crate::server::Message>,
         choices: Vec<crate::MultipleChoice>,
     ) -> Option<FxHashMap<char, Choice>> {
+        // Selecting the explicit CPU adapter restores its own measurement policy.
+        self.native_metrics = None;
+        self.queue_messages(assets, map, time, &messages, &choices);
+        self.finish_messages()
+    }
+
+    /// Resolve/filter addressed session outputs without measuring or drawing.
+    /// A presenter supplies measurements before revealing the queued batch.
+    pub fn queue_messages(
+        &mut self,
+        assets: &Assets,
+        map: &Map,
+        time: &TheTime,
+        messages: &[crate::server::Message],
+        choices: &[crate::MultipleChoice],
+    ) {
         self.deactivate_inactive_choices(assets, map, time);
         self.advance_pause_timer();
         let mut currencies = None;
@@ -438,7 +464,7 @@ impl MessagesWidget {
         let new_batch_start_index = self.messages.len();
 
         // Append new messages
-        for (sender_entity, sender_item, receiver_id, msg, category) in &messages {
+        for (sender_entity, sender_item, receiver_id, msg, category) in messages {
             if Self::is_pause_category(category) {
                 self.queue_pause(msg, category);
                 continue;
@@ -632,15 +658,6 @@ impl MessagesWidget {
         if starts_new_reveal_batch && !self.pending_messages.is_empty() {
             self.page_start_index = new_batch_start_index;
         }
-        self.reveal_pending_messages();
-        self.purge_old_messages();
-
-        let choice_map = self.active_choice_map();
-        if choice_map.is_empty() {
-            None
-        } else {
-            Some(choice_map)
-        }
     }
 
     fn choice_block_height(&self, font: &fontdue::Font, message: &str) -> f32 {
@@ -655,6 +672,9 @@ impl MessagesWidget {
     }
 
     fn initial_choice_scroll_offset(&self, lines: &[MessageLine]) -> usize {
+        if let Some(metrics) = &self.native_metrics {
+            return self.measured_choice_scroll_offset(lines, metrics);
+        }
         let Some(font) = &self.font else {
             return 0;
         };
@@ -1112,6 +1132,9 @@ impl MessagesWidget {
     }
 
     fn page_is_full(&self, reserve_prompt: bool) -> bool {
+        if let Some(metrics) = &self.native_metrics {
+            return self.measured_page_is_full(reserve_prompt, metrics);
+        }
         let Some(font) = &self.font else {
             return false;
         };
@@ -1260,7 +1283,10 @@ impl MessagesWidget {
     pub fn touch_down(&mut self, coord: Vec2<i32>) -> Option<EntityAction> {
         let point = Vec2::new(coord.x as f32, coord.y as f32);
         let inside = self.rect.contains(point);
-        if self.return_to_choices_rect.contains(point) {
+        if self.return_to_choices_rect.width > 0.
+            && self.return_to_choices_rect.height > 0.
+            && self.return_to_choices_rect.contains(point)
+        {
             self.scroll_offset = 0;
             self.return_to_choices_rect = Rect::default();
             return Some(EntityAction::Off);
@@ -1268,14 +1294,21 @@ impl MessagesWidget {
         let choice_key = self
             .messages
             .iter()
-            .find(|line| line.choice.is_some() && line.rect.contains(point))
+            .find(|line| {
+                inside
+                    && line.choice.is_some()
+                    && line.rect.width > 0.
+                    && line.rect.height > 0.
+                    && line.rect.contains(point)
+            })
             .and_then(|line| line.choice_key);
         if let Some(choice_key) = choice_key
             && let Some(choice) = self.select_active_choice(choice_key)
         {
             return Some(EntityAction::Choice(choice));
         }
-        if self.active_choices.is_empty()
+        if inside
+            && self.active_choices.is_empty()
             && self.command_input_enabled()
             && self.command_input_rect().contains(point)
         {
@@ -1454,7 +1487,7 @@ impl MessagesWidget {
     }
 
     /// Resolves a message
-    fn resolve_msg(&self, msg: &str, map: &Map, assets: &Assets, time: &TheTime) -> String {
+    pub fn resolve_msg(&self, msg: &str, map: &Map, assets: &Assets, time: &TheTime) -> String {
         self.resolver.resolve_with_context(
             self.parser.parse(msg),
             map,

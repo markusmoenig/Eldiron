@@ -11,6 +11,13 @@ use swash::{
     zeno::{Format, Vector},
 };
 
+/// Layout constraints shared by paint, pagination, selection and hit testing.
+pub struct TextOptions<'a> {
+    pub family: &'a str,
+    pub size: f32,
+    pub width: Option<f32>,
+    pub line_height: Option<f32>,
+}
 pub struct TextStyleSpan {
     pub range: std::ops::Range<usize>,
     pub color: crate::paint::Color,
@@ -82,7 +89,8 @@ impl TextLayout {
     }
 }
 pub struct TextSystem {
-    pub fonts: FontContext,
+    fonts: FontContext,
+    font_revision: u64,
     layouts: LayoutContext<usize>,
     faces: HashMap<(u64, u32), Arc<FontFace>>,
 }
@@ -90,30 +98,67 @@ impl Default for TextSystem {
     fn default() -> Self {
         Self {
             fonts: FontContext::new(),
+            font_revision: 0,
             layouts: LayoutContext::new(),
             faces: HashMap::new(),
         }
     }
 }
 impl TextSystem {
+    pub fn font_revision(&self) -> u64 {
+        self.font_revision
+    }
+    fn fonts_changed(&mut self) {
+        self.font_revision = self.font_revision.wrapping_add(1);
+        // Retained layouts keep their Arc faces. The lookup cache must not keep
+        // every superseded project font alive forever.
+        self.faces.clear();
+    }
     pub fn register_font(&mut self, data: Vec<u8>) {
-        self.fonts
+        if !self
+            .fonts
             .collection
-            .register_fonts(parley::fontique::Blob::new(Arc::new(data)), None);
+            .register_fonts(parley::fontique::Blob::new(Arc::new(data)), None)
+            .is_empty()
+        {
+            self.fonts_changed();
+        }
     }
     /// Register an authored asset name independently of the font's internal family name.
     pub fn register_font_named(&mut self, name: &str, data: Vec<u8>) -> bool {
-        !self
+        let data = parley::fontique::Blob::new(Arc::new(data));
+        let info = parley::fontique::FontInfoOverride {
+            family_name: Some(name),
+            ..Default::default()
+        };
+        // Fontique appends faces to existing families. Validate first, then replace
+        // the named asset's faces so invalid bytes cannot erase its prior font.
+        let mut pending = parley::fontique::Collection::new(parley::fontique::CollectionOptions {
+            system_fonts: false,
+            shared: false,
+        });
+        if pending.register_fonts(data.clone(), Some(info)).is_empty() {
+            return false;
+        }
+        if let Some(family) = self.fonts.collection.family_by_name(name) {
+            for font in family.fonts() {
+                self.fonts.collection.unregister_font(
+                    family.id(),
+                    font.width(),
+                    font.style(),
+                    font.weight(),
+                );
+            }
+        }
+        let registered = !self
             .fonts
             .collection
-            .register_fonts(
-                parley::fontique::Blob::new(Arc::new(data)),
-                Some(parley::fontique::FontInfoOverride {
-                    family_name: Some(name),
-                    ..Default::default()
-                }),
-            )
-            .is_empty()
+            .register_fonts(data, Some(info))
+            .is_empty();
+        if registered {
+            self.fonts_changed();
+        }
+        registered
     }
     pub fn layout(
         &mut self,
@@ -132,8 +177,42 @@ impl TextSystem {
         width: Option<f32>,
         styles: &[TextStyleSpan],
     ) -> TextLayout {
+        self.layout_with_options(
+            text,
+            TextOptions {
+                family,
+                size,
+                width,
+                line_height: None,
+            },
+            styles,
+        )
+    }
+    pub fn layout_with_options(
+        &mut self,
+        text: &str,
+        options: TextOptions<'_>,
+        styles: &[TextStyleSpan],
+    ) -> TextLayout {
+        let TextOptions {
+            family,
+            size,
+            width,
+            line_height,
+        } = options;
+        let size = if size.is_finite() && size > 0. {
+            size
+        } else {
+            14.
+        };
+        let width = width.filter(|w| w.is_finite()).map(|w| w.max(0.));
         let mut builder = self.layouts.ranged_builder(&mut self.fonts, text, 1., true);
         builder.push_default(StyleProperty::FontSize(size));
+        if let Some(height) = line_height.filter(|h| h.is_finite() && *h > 0.) {
+            builder.push_default(StyleProperty::LineHeight(parley::LineHeight::Absolute(
+                height,
+            )));
+        }
         builder.push_default(parley::FontFamily::from(family));
         builder.push_default(StyleProperty::Brush(usize::MAX));
         for (i, span) in styles.iter().enumerate() {

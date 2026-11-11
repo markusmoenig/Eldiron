@@ -193,3 +193,44 @@ fn unassigned_widgets_emit_no_geometry_and_time_input_matches_the_track() {
         panic!("time value lost");
     }
 }
+
+#[test]
+fn replacing_a_registered_font_invalidates_idle_ui_and_keeps_invalid_edits_transactional() {
+    let mut ctx = TheContext::new(360, 100, 1.);
+    let mut ui = TheUI::new();
+    ui.init(&mut ctx);
+    let mut row = TheHLayout::new(TheId::named("font-row"));
+    let mut label = TheText::new(TheId::named("font-label"));
+    label.set_text("Font replacement changes these glyphs".into());
+    row.widgets().push(Box::new(label));
+    ui.canvas.set_layout(row);
+    let mut images = RecordingImages::default();
+    ui.paint_commands(&mut ctx, &mut images).unwrap();
+    assert!(
+        !ui.needs_paint(&ctx),
+        "a completed text-only frame can sleep"
+    );
+    let mono = include_bytes!("../embedded/fonts/SourceCodePro-Bold.ttf");
+    assert!(ctx.text.register_font_named("Roboto", mono.to_vec()));
+    assert!(
+        ui.needs_paint(&ctx),
+        "a font revision must wake idle UI even when text is unchanged"
+    );
+    let changed = ui.paint_commands(&mut ctx, &mut images).unwrap();
+    assert!(
+        changed
+            .ops
+            .iter()
+            .any(|op| matches!(op,PaintOp::GlyphRun {run,..} if run.font.data.as_ref()==mono))
+    );
+    assert!(!ui.needs_paint(&ctx));
+    let revision = ctx.text.font_revision();
+    assert!(!ctx.text.register_font_named("Roboto", vec![0, 1, 2, 3]));
+    assert_eq!(ctx.text.font_revision(), revision);
+    assert!(
+        !ui.needs_paint(&ctx),
+        "a rejected font cannot erase or invalidate the prior face"
+    );
+    assert!(ui.canvas.buffer.pixels().is_empty());
+    assert_eq!(images.uploads, 0);
+}

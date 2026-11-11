@@ -76,3 +76,22 @@ brightness, highlight and disabled treatment. A controller supplies explicit
 `ButtonContent` (empty or a resolved image/fit/inset/quantity) for item/portrait
 content. Quantity badges use Swash text. Entity/item source selection and caching
 remain the responsibility of the graphical controller/asset preparation layer.
+
+`MessageLayouts::prepare` queues new addressed outputs, retains Parley paragraph
+layouts, supplies measured pagination blocks to the controller, reveals the
+stream and assigns clipped visible hit rectangles before input. Pass new output
+slices once; use empty slices to reflow after resize, scrolling, input or font
+changes. It owns no authoritative clock, window or GPU resource.
+
+`ScreenPainter::messages` consumes that prepared visual state read-only. Text,
+price columns, continuation/return controls and command prompts are glyph paint;
+only visible portrait source assets are uploaded. Portrait recipes are retained
+with the current/queued stream. The controller has no CPU font or transcript
+bitmap in this path. The legacy explicit CPU adapter retains its own measurement
+policy until launcher/controller migration is complete.
+
+Text asset replacement is transactional: invalid bytes preserve the old face.
+Successful replacement advances the text-service revision, reflows retained
+paragraphs and wakes idle command UI. Parley 0.9's full-dictionary analysis patch
+and its provenance/test limitations are documented in
+[`vendor/parley/ELDIRON-PATCH.md`](../../vendor/parley/ELDIRON-PATCH.md).
