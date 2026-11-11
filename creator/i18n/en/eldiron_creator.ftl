@@ -328,7 +328,7 @@ tool_game = Game Tool (K). Play the game!
 tool_palette = Palette Tool (P). Edit palette entries and apply palette colors.
 tool_iso_paint = Paint Tool (I). Paint terrain in 2D Iso, or surfaces in 3D views.
 tool_linedef = Linedef / Edge Tool (E). Create 2D line definitions and edit 3D geometry edges.
-tool_object = Object Tool (O). Select and move directly editable 3D objects.
+tool_object = Object Tool (O). Select objects and items for authoring. Move directly editable 3D geometry.
 tool_rect = Rect Tool (R). Click to draw the current tile. Shift-click to delete. Alt/Opt-click to pick from the map.
 tool_sector = Sector / Face Tool (F). Select sectors in 2D or faces in 3D.
 tool_vertex = Vertex Tool (V). 'Shift' + Click to create a new vertex.
@@ -634,8 +634,8 @@ status_block_erase = Erase block instances.
 status_block_line = Drag a line of stamps.
 status_block_rect = Drag a filled rectangle of stamps.
 status_block_selected = Block: {$asset_name}
-tool_blocks = Prefab Tool
-status_block_tool_active = Prefab Tool: click/drag to place, R rotate, E erase, H/W/Z size, D damage, [/] level
+tool_blocks = 3D Props
+status_block_tool_active = 3D Props: choose an asset, then click or drag to place. Use the overlay for placement and editing.
 block_asset_instances = blocks
 block_commit_placed = Placed
 block_commit_replaced = Replaced
@@ -1382,7 +1382,7 @@ paint_picker_jitter = Size jitter
 paint_picker_rotate = Rotation
 paint_picker_edit = Edit recipe
 paint_picker_choose = Pick a material or stamp below
-paint_picker_choose_stamp = Choose a stamp in the Organic stamps collection.
+paint_picker_choose_stamp = Choose a stamp in the Organic Stamps collection.
 
 paint_source_title = Paint Source
 paint_stamp_source_title = Stamp Source
@@ -1390,3 +1390,37 @@ paint_source_seed = Variation seed
 paint_source_artwork_size = Artwork size
 paint_source_palette_hint = Source palette color
 paint_picker_in_use = This material is used by paint, stamps, a mesh, a tile output or a ruleset. Replace its references before deleting it.
+
+paint_overlay_advanced = Advanced
+paint_overlay_settings = Settings
+
+# 3D Props viewport overlay
+props_requires_3d = 3D Props requires a 3D camera. Use the Tile Picker in 2D and 2D Iso.
+props_rotate = Rotate
+props_placement = Placement…
+props_edit_recipe = Edit Recipe
+props_edit_prop = Edit Prop
+props_recipe_controls = Recipe Controls…
+props_grid = Grid size
+props_level = Level
+props_height = Height
+props_width = Width expansion
+props_depth = Depth expansion
+props_blocks = Blocks
+props_furniture = Furniture
+props_decoration = Decoration
+props_lighting = Lighting
+props_project = Project Props
+props_meshes = MZ Meshes
+props_mesh_hint = Place linked 3D geometry from this MZ recipe. Edit the recipe explicitly using the viewport overlay.
+props_subdivisions = Map subdivisions
+props_level_height = Level height
+tool_blocks_description = 3D Props (B). Place reusable Props and MZ meshes. Use the viewport overlay to rotate, size or edit the source. Available in 3D cameras.
+
+# Shared MZ item states (2D, isometric and 3D).
+entity_item_state = Item State
+entity_item_active = On / Open
+entity_item_openable = Openable
+entity_item_locked = Locked
+entity_item_required_key = Required Key
+entity_item_state_help = On selects the MZ On output; Off selects Off. Open/Close uses official intents. A matching inventory key unlocks once without consuming the key.

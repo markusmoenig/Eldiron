@@ -675,7 +675,11 @@ impl IsoPaintRenderer {
                 width: crop_width as f32 * world_per_pixel,
                 height: crop_height as f32 * world_per_pixel,
                 sprite_index,
-                flags: 1,
+                // The HDR billboard pass also needs the recipe's emission channel.
+                flags: 1 | (1 << 7) | (((stamp.source_image.as_ref().map(|tile|
+                    tile.sample_paint_surface([0.5,0.5],stamp.variation as usize).1[3])
+                    .unwrap_or_else(||rusterix::material_library::MaterialDefinition::from_id(stamp.material_id).emissive)
+                    .clamp(0.,1.)*255.).round() as u32) << 8),
             });
         }
 
@@ -3633,11 +3637,41 @@ impl IsoPaintRenderer {
         owner_geo_id: Option<scenevm::GeoId>,
         size: f32,
     ) {
+        if let Some(spec) = stamp.source_image.as_deref().and_then(crate::paint_source::Spec::from_tile) {
+            // Evaluate the original artwork at the actual placement size. The picker image
+            // is a thumbnail, never a replacement for the native stamp generator.
+            let mut native = stamp.clone();
+            native.source_image = None;
+            native.source_material_pass = false;
+            native.kind = spec.brush;
+            native.color = spec.colors[0];
+            native.palette_colors = spec.colors;
+            native.material_id = spec.material_id;
+            native.variant = spec.variant;
+            native.variation ^= spec.seed.wrapping_sub(19);
+            if IsoPaintStamp::keeps_upright(&native.kind) { native.rotation = 0.; }
+            let [r,m,o,e] = rusterix::material_library::MaterialDefinition::from_id(spec.material_id).rmoe_values();
+            native.opacity *= o;
+            if stamp.source_material_pass {
+                let mut pixels = TheRGBABuffer::new(*buffer.dim());
+                Self::draw_iso_paint_stamp_shape(&mut pixels,&native,surface_buffer,screen,stamp_depth,owner_geo_id,size);
+                let [rm,oe] = rusterix::Texture::encode_material_bytes(r,m,o,e);
+                for (color,material) in pixels.pixels().chunks_exact(4).zip(buffer.pixels_mut().chunks_exact_mut(4)) {
+                    if color[3]>0 { material.copy_from_slice(&[64+spec.material_id.min(59),rm,oe,color[3]]); }
+                }
+            } else {
+                Self::draw_iso_paint_stamp_shape(buffer,&native,surface_buffer,screen,stamp_depth,owner_geo_id,size);
+            }
+            return;
+        }
         if let Some(tile) = &stamp.source_image
             && let Some(layout) = &tile.paint
         {
             let scale = size / layout.size.max(0.01);
-            let (sin, cos) = stamp.rotation.sin_cos();
+            // Correct previously placed stamps as well as new ones. Only flat
+            // details such as leaves and footprints rotate their whole bitmap.
+            let rotation = if IsoPaintStamp::keeps_upright(&layout.brush) { 0. } else { stamp.rotation };
+            let (sin, cos) = rotation.sin_cos();
             let width = layout.native_size[0] as f32 * scale;
             let height = layout.native_size[1] as f32 * scale;
             let anchor = layout.anchor.map(|v| v * scale);

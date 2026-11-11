@@ -229,7 +229,7 @@ fn default_control(key: &str, rules: &Table) -> GraphControlValue {
                 .and_then(Value::as_bool)
                 .unwrap_or(true),
         ),
-        "player" | "blocking" => GraphControlValue::Toggle(false),
+        "player" | "blocking" | "active" | "openable" | "locked" => GraphControlValue::Toggle(false),
         _ => GraphControlValue::Text(String::new()),
     }
 }
@@ -528,6 +528,12 @@ pub fn builtin_registry() -> ConfigurationRegistry {
         },
         Fields {
             section: "attributes",
+            id: "entity_item_state",
+            title: "Item State",
+            keys: &["active", "openable", "locked", "required_key"],
+        },
+        Fields {
+            section: "attributes",
             id: "entity_equipment",
             title: "Equipment",
             keys: &["start_equipped_items"],
@@ -732,6 +738,7 @@ pub fn import(data: &str, rules: &Table) -> Result<GraphDocument, String> {
                 "avatar" | "size_2d" | "visible" => ("entity_appearance", "Appearance"),
                 "start_equipped_items" => ("entity_equipment", "Equipment"),
                 "radius" | "blocking" => ("entity_body", "Collision"),
+                "active" | "openable" | "locked" | "required_key" => ("entity_item_state", "Item State"),
                 "inventory_slots" | "wealth" => ("entity_inventory", "Inventory"),
                 "player" => ("entity_player", "Player"),
                 _ => ("entity_attribute", "Attribute Override"),
@@ -1374,6 +1381,93 @@ pub fn set_owner_attribute(
     Ok(())
 }
 
+/// Edit a real Input Binding node, preserving the rest of the owner's graph.
+pub fn set_owner_input(
+    project: &mut Project,
+    owner: &str,
+    key: &str,
+    command: &str,
+) -> Result<(), String> {
+    let rules = project
+        .rules_source()?
+        .parse::<Table>()
+        .map_err(|e| e.to_string())?;
+    let previous = owner_data(project, owner).ok_or("Entity owner no longer exists")?;
+    let mut doc = if let Some(saved) = project.node_graphs.get(owner) {
+        serde_json::from_value::<GraphDocument>(saved.clone()).map_err(|e| e.to_string())?
+    } else {
+        import_character(previous, &rules)?
+    };
+    normalize(&mut doc);
+    let source = format!(
+        "[input]\n{} = {}\n",
+        serde_json::to_string(key).map_err(|e| e.to_string())?,
+        serde_json::to_string(command).map_err(|e| e.to_string())?
+    );
+    let single = import(&source, &rules)?;
+    let mut node = single
+        .nodes
+        .into_iter()
+        .find(|n| n.definition.as_deref() == Some("entity_input"))
+        .ok_or("Missing Input Binding")?;
+    if let Some(existing) = doc.nodes.iter_mut().find(|n| {
+        n.definition.as_deref() == Some("entity_input")
+            && n.rows.iter().any(|r| {
+                r.key.as_deref() == Some("key")
+                    && matches!(&r.value,GraphControlValue::Text(v) if v.eq_ignore_ascii_case(key))
+            })
+    }) {
+        for row in &node.rows {
+            if let Some(target) = existing.rows.iter_mut().find(|r| r.key == row.key) {
+                target.value = row.value.clone();
+            }
+        }
+    } else {
+        let mut tail = doc
+            .nodes
+            .iter()
+            .find(|n| n.definition.as_deref() == Some("entity"))
+            .map(|n| n.id)
+            .ok_or("Missing Entity node")?;
+        for _ in 0..doc.nodes.len() {
+            let next = doc.connections.iter().find_map(|c| {
+                (doc.port(c.from)?.0.id == tail)
+                    .then(|| doc.port(c.to).map(|(n, _)| n.id))
+                    .flatten()
+            });
+            if let Some(next) = next {
+                tail = next;
+            } else {
+                break;
+            }
+        }
+        let tail = doc
+            .nodes
+            .iter()
+            .find(|n| n.id == tail)
+            .ok_or("Missing setup node")?;
+        let from = tail
+            .ports
+            .iter()
+            .find(|p| p.direction == PortDirection::Output)
+            .ok_or("Missing setup output")?
+            .id;
+        node.position = [tail.position[0] + tail.width + 40., tail.position[1]];
+        doc.connections.push(GraphConnection {
+            id: Uuid::new_v4(),
+            from,
+            to: node.ports[0].id,
+        });
+        doc.nodes.push(node);
+    }
+    update_owner(project, owner, &doc)?;
+    project.node_graphs.insert(
+        owner.into(),
+        serde_json::to_value(doc).map_err(|e| e.to_string())?,
+    );
+    Ok(())
+}
+
 /// Read-only resolved character values. Provenance distinguishes explicit and
 /// inherited configuration; runtime health and other transient state are separate.
 pub fn effective_character(
@@ -1489,6 +1583,7 @@ fn input_commands(rules: &Table) -> GraphControlValue {
             "intent.talk",
             "intent.open",
             "intent.close",
+            "intent.open_close",
             "intent.drop",
             "ui.actions",
             "ui.spellbook",
@@ -1518,6 +1613,25 @@ mod tests {
             .parse()
             .unwrap()
     }
+    #[test]
+    fn editable_input_updates_preserve_existing_bindings_and_identity() {
+        let mut p=Project::default();
+        let mut player=crate::character::Character::new();let id=player.id;
+        player.name="Player".into();player.data="[attributes]\nplayer=true\nrace='Human'\nclass='Warrior'\n[input]\nw='control.forward'\n".into();
+        p.characters.insert(id,player);
+        let owner=character_key(id);
+        for (key,command) in [("u","intent.use"),("l","intent.look"),("o","intent.open_close")] {set_owner_input(&mut p,&owner,key,command).unwrap();}
+        let table=p.characters[&id].data.parse::<Table>().unwrap();
+        assert_eq!(table["input"]["w"].as_str(),Some("control.forward"));
+        assert_eq!(table["input"]["u"].as_str(),Some("intent.use"));
+        assert_eq!(table["input"]["l"].as_str(),Some("intent.look"));
+        assert_eq!(table["attributes"]["race"].as_str(),Some("Human"));
+        let n=p.node_graphs[&owner]["nodes"].as_array().unwrap().len();
+        set_owner_input(&mut p,&owner,"u","intent.look").unwrap();
+        assert_eq!(p.node_graphs[&owner]["nodes"].as_array().unwrap().len(),n);
+        assert_eq!(p.characters[&id].data.parse::<Table>().unwrap()["input"]["u"].as_str(),Some("intent.look"));
+    }
+
     #[test]
     fn tile_selection_and_legacy_appearance_preserve_configuration() {
         let id = Uuid::new_v4().to_string();

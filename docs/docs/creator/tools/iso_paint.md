@@ -9,13 +9,16 @@ flowers, rubble and other details anchored to those surfaces.
 
 ## Choose artwork in the Tile Picker
 
-Activate Paint to open the normal Tile Picker. On first use, Eldiron adds three
+Activate Paint to open the normal Tile Picker. On first use, Eldiron adds two
 collections to your project:
 
-- **Paint materials**: the existing 15 material families in their four finishes.
-- **Paint brushes**: brick, moss, grass, dirt, cracks, puddles and the other existing procedural patterns.
-- **Organic stamps**: the existing generated grass, rubble, leaves, flowers,
+- **Paint Brushes**: brick, moss, grass, dirt, cracks, puddles and the other existing procedural patterns.
+- **Organic Stamps**: the existing generated grass, rubble, leaves, flowers,
   vines, roots, bushes, trees, candles, footprints and mud, plus flower variants.
+
+These collections stay in the project when you switch tools, so your recipe edits
+remain available. Paint does not add a separate library of gray material swatches;
+edit the brush recipe's material settings instead.
 
 These are editable **MZ recipes**, using the original Paint generators. Their
 source settings and palette bindings are saved inside the recipe. Generated
@@ -25,12 +28,16 @@ Click a material or brush to paint. Click an organic stamp to scatter it.
 Selecting an entry keeps the map open. Other bitmap tiles and MZ materials in
 the Tile Picker can also be used as surface paint.
 
-## Toolbar above the map
+## Overlay controls
 
-The compact toolbar contains the application settings:
+The Paint panel floats over the editor, like the Rect tool controls. It does not
+reduce the map viewport. Clicking or dragging its controls never paints the map
+behind them.
+
+Use these controls for ordinary painting:
 
 - **Paint / Scatter** chooses continuous surface strokes or individual stamps.
-  Scatter requires an entry from **Organic stamps**.
+  Scatter requires an entry from **Organic Stamps**.
 - **Erase** removes paint or stamps. Stamp erasure targets the selected stamp kind.
 - **Pick** samples painted ground colors.
 - **Select** creates a surface selection. **Fill** paints inside it and
@@ -38,31 +45,45 @@ The compact toolbar contains the application settings:
 - **Coat / Replace**, when painting, blends over the existing surface or replaces
   its covered color and material.
 - **Size / Opacity** controls coverage or stamp placement size and transparency.
+  Use the minus/plus buttons, or click a value to type an exact number.
+- **Colors** opens the project palette when you click a swatch. The color slots
+  belong to the selected brush or stamp recipe.
+- **Material / Finish** chooses the familiar Paint material family and finish:
+  stone, dirt, wood, metal, foliage, water, emissive and the other existing families,
+  with natural, matte, polished or wet finishes.
+- **Brush shape** chooses solid, soft, dirt, speckle, jagged, scratch or wash.
 - **Density / Size jitter / Rotation**, when scattering, controls spacing and
-  variation between placed stamps.
-- **Edit recipe** opens the selected MZ material explicitly.
+  variation between placed stamps. Plants, trees, rocks and candles stay upright;
+  whole-image rotation is offered only for flat details such as leaves, mud,
+  roots and footprints.
+- **Settings** contains surface clipping and, for bricks, pattern type, scale,
+  mortar, detail and color variation. Flat stamps also expose rotation here.
+- The eye toggles layer visibility.
+- **Advanced** explicitly opens the full MZ editor.
 
 Click for one stamp, or drag to scatter. Selections constrain strokes, stamp
 placement and erasure. Paint edits support undo and redo.
 
-## Edit a Paint recipe
+## Edit colors and materials directly
 
-1. Select a material or stamp in the Tile Picker.
-2. Click **Edit recipe** above the map.
-3. Select its **Paint Source** or **Stamp Source** operation.
-4. Edit the variation seed and palette color slots. Paint sources expose pattern
-   scale; brick also exposes detail and variation. Stamp sources expose artwork size.
-5. Use the normal MZ material controls for roughness, metallic response, opacity
-   and emission, or extend the graph with other MZ operations.
-6. Return to the map to keep painting.
+1. Select a brush or stamp in the Tile Picker.
+2. Click one of its **Colors** swatches and select a project palette entry.
+3. Choose a **Material** and **Finish**, or change the brush shape.
+4. Keep painting in the map. No formula editing is required.
 
-The source generator remains in the MZ recipe. A recipe edit updates the tile and
-existing strokes or stamps that reference it; it does not relocate them. The
-four embedded source frames provide stable variations rather than an animated
-thumbnail. Reopening Paint preserves your recipe edits.
+These edits update the same MZ recipe, its picker preview and existing linked
+strokes or stamps. They support recipe undo/redo. Size, opacity and scatter
+variation remain placement controls, so changing a color does not move or resize
+existing artwork.
 
-Toolbar **Size** changes placement. **Artwork size** in the recipe regenerates
-the stamp source; it does not change the saved placement size of existing stamps.
+Stock Paint recipes use the original procedural brush and stamp generators at
+the actual brush or placement size. Their picker images are previews; brushes
+do not paint repeated thumbnail patches, and stamps do not enlarge a small
+thumbnail to replace their native detail.
+
+Use **Advanced** to extend the MZ graph or edit its source parameters. Custom
+graph outputs remain authoritative. Ordinary palette and material choices are
+available directly in the overlay.
 
 ## Terrain in 2D Iso
 
@@ -81,11 +102,13 @@ surfaces uses the 3D views.
 
 ## Materials and lighting
 
-Surface paint carries the selected recipe's baked material channels as well as
-its color. **Coat** blends these over the underlying material; **Replace** uses
+Stock brushes retain the original Paint material families and finishes as well
+as their generated color and masks. Custom MZ materials carry their baked material
+channels. **Coat** blends these over the underlying material; **Replace** uses
 the paint's coverage to replace it. Terrain paint and isometric stamps receive
 scene lighting. In 3D, organic stamp billboards use the existing stamp lighting
-pass; their surface material overlay is separate from the billboard's color.
+pass and honor emissive material intensity; their surface material overlay is
+separate from the billboard's color.
 
 ## Related
 

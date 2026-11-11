@@ -37,14 +37,16 @@ The Authoring dock edits player-facing TOML metadata for:
 - selected linedefs
 - selected 3D Geometry Objects
 - selected linked Prefab instances
+- placed characters and items, selected on the map or in the region tree
 - selected character templates
 - selected item templates
 
 Important:
 
 - sectors, linedefs, and Geometry Objects are authored from the current region selection
-- linked Prefab instances edit the shared Prefab asset authoring used by every linked instance
-- characters and items are authored on their templates, not on placed instances
+- linked Prefab instances edit their own authoring; blank descriptions inherit the shared asset description
+- placed characters and items keep their own authoring, without requiring an extra global template
+- character and item templates supply reusable defaults; local descriptions override those defaults
 - character and item configuration belongs in **Entity Nodes**, and gameplay logic in **Behavior Nodes**
 
 So the split is:
@@ -95,6 +97,37 @@ Right now the authoring metadata is already used by:
 - text-style exit and room presentation
 - authored sector description messages in regular gameplay
 - `look` for characters and items in 2D, 3D, and text play when no behavior response supplies a description
+
+## Author a placed door or character
+
+1. Enable the **Authoring** toggle in the tool strip.
+2. Use **Object** mode for a placed item, or the **Entity** tool for a character or item on the map,
+   or select its entry beneath the current region in the project tree.
+3. Edit the displayed TOML in the **Authoring** dock. The dock title identifies
+   the selected placement. You can switch tools while keeping Authoring enabled.
+4. Play, choose **Look**, and click the object. Its description appears above it.
+
+The authoring is stored with that placement, saved in the project and copied when
+that placement is duplicated. It does not add a door to the global Items list or
+change the MZ recipe. Undo/Redo applies separately to each authored target.
+Blank local descriptions inherit template defaults. A placement can override one
+state and leave other states inherited. The template remains useful for shared
+content, but a new template is not required just to describe a particular door.
+
+```toml
+title = "Inn Door"
+description = "Weathered oak planks bound with iron bands."
+
+[state.off]
+description = "The oak door is shut. Its iron handle is worn smooth."
+
+[state.on]
+description = "The door stands open, revealing the quiet inn beyond."
+```
+
+World objects do **not** reveal descriptions or names on hover. Inventory,
+equipment and toolbar UI retain their tooltips. See [Look and World Text](../characters_items/world_text)
+for reading, dismissing and paging descriptions in 2D, iso and 3D.
 
 ## Character And Item Authoring
 

@@ -2131,7 +2131,7 @@ mod tests {
             .map
             .block_prop_instances
             .push(rusterix::BlockPropInstance::new(asset_id));
-        project.regions.push(region);
+        project.regions = vec![region];
 
         assert!(delete_unused_block_prop(&mut project, asset_id).is_err());
         assert!(project.block_props.contains_key(&asset_id));
@@ -2163,7 +2163,7 @@ mod tests {
             .block_prop_instances
             .extend([instance, untouched_instance]);
         project.block_props.insert(asset_id, asset);
-        project.regions.push(region);
+        project.regions = vec![region];
         let mut server_ctx = ServerContext::default();
         server_ctx.curr_region = region_id;
         server_ctx.pc = ProjectContext::Region(region_id);
@@ -2224,7 +2224,7 @@ mod tests {
             .block_prop_instances
             .extend([selected, untouched]);
         project.block_props.insert(asset_id, asset);
-        project.regions.push(region);
+        project.regions = vec![region];
         let mut server_ctx = ServerContext::default();
         server_ctx.curr_region = region_id;
         server_ctx.pc = ProjectContext::Region(region_id);
@@ -2738,14 +2738,10 @@ mod tests {
         );
         assert_eq!(component.properties.get_str("motion"), Some("Slide"));
         assert_eq!(asset.interaction_targets.len(), 2);
-        assert_eq!(
-            asset.find_part(left_part_id).unwrap().pivot,
-            [-2.0, 1.0, 0.0]
-        );
-        assert_eq!(
-            asset.find_part(right_part_id).unwrap().pivot,
-            [2.0, 1.0, 0.0]
-        );
+        for (part_id, expected) in [(left_part_id, [-2., 1., 0.]), (right_part_id, [2., 1., 0.])] {
+            let actual = Vec3::<f32>::from(asset.find_part(part_id).unwrap().pivot);
+            assert!((actual - Vec3::<f32>::from(expected)).magnitude() < 1e-5);
+        }
         assert_eq!(
             asset
                 .find_part(left_part_id)

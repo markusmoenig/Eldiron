@@ -313,5 +313,10 @@ pub mod prelude {
 }
 
 pub mod procedural_avatar;
+pub mod item_state;
 
 pub mod ruleset_material;
+
+pub mod world_text;
+
+pub mod furniture;

@@ -110,6 +110,7 @@ impl IsoPaintSelectionProjection {
 }
 
 pub struct IsoPaintTool {
+    overlay: super::paint_overlay::PaintOverlay,
     id: TheId,
     painting: bool,
     previous_dock: Option<String>,
@@ -232,7 +233,7 @@ impl IsoPaintTool {
         server: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
         let viewport = Self::paint_viewport_size(ui, server)?;
-        if !server.pc.is_prefab() {
+        if !server.pc.is_prefab() && !self.overlay.is_active() {
             Self::sync_live_paint_settings(ui, &mut region.iso_paint);
         }
         self.terrain_radius = if Self::is_stamp_mode(&region.iso_paint) {
@@ -569,7 +570,7 @@ impl IsoPaintTool {
     }
 
     fn sync_live_paint_settings(ui: &mut TheUI, layer: &mut IsoPaintLayer) {
-        if layer.active_source.is_some() || ui.get_widget(super::paint_picker::MODE).is_some() { return; }
+        if layer.active_source.is_some() { return; }
         if let Some(opacity) = ui
             .get_widget_value("3D Paint Tool Opacity")
             .and_then(|value| value.to_f32())
@@ -1225,6 +1226,7 @@ impl Tool for IsoPaintTool {
         Self: Sized,
     {
         Self {
+            overlay: Default::default(),
             id: TheId::named("3D Paint Tool"),
             painting: false,
             previous_dock: None,
@@ -1262,7 +1264,9 @@ impl Tool for IsoPaintTool {
     }
 
     fn handle_event(&mut self,event:&TheEvent,ui:&mut TheUI,ctx:&mut TheContext,project:&mut Project,server:&mut ServerContext)->bool {
-        super::paint_picker::event(event,ui,ctx,project,server)
+        let changed=super::paint_picker::event(event,ui,ctx,project,server);
+        if changed {self.overlay.sync(project,server);}
+        changed
     }
 
     fn tool_event(
@@ -1330,6 +1334,7 @@ impl Tool for IsoPaintTool {
                 }
 
                 super::paint_picker::activate(ui,ctx,project,server_ctx);
+                self.overlay.sync(project,server_ctx);
 
                 ctx.ui.send(TheEvent::SetStatusText(
                     TheId::empty(),
@@ -1340,6 +1345,7 @@ impl Tool for IsoPaintTool {
                 true
             }
             DeActivate => {
+                super::paint_picker::deactivate(ui, ctx);
                 self.reset_stroke();
                 server_ctx.curr_map_tool_type = MapToolType::General;
                 server_ctx.hover_cursor = None;
@@ -1367,11 +1373,12 @@ impl Tool for IsoPaintTool {
         &mut self,
         buffer: &mut TheRGBABuffer,
         map: &mut Map,
-        _ctx: &mut TheContext,
+        ctx: &mut TheContext,
         server: &mut ServerContext,
         _assets: &rusterix::Assets,
     ) {
         if server.editor_view_mode != EditorViewMode::D2 || map.camera != MapCamera::TwoDIso {
+            self.overlay.draw(buffer,ctx);
             return;
         }
         let projection = rusterix::isometric::Projection::editor(
@@ -1415,6 +1422,7 @@ impl Tool for IsoPaintTool {
                 }
             }
         }
+        self.overlay.draw(buffer,ctx);
     }
 
     fn map_event(
@@ -1479,6 +1487,10 @@ impl Tool for IsoPaintTool {
         region: &mut Region,
         server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
+        if self.overlay.map_event(&map_event,ui,ctx,server_ctx) {
+            self.terrain_hover=None; server_ctx.iso_paint_hover_screen=None;
+            return None;
+        }
         if region.map.camera == MapCamera::TwoDIso
             && server_ctx.editor_view_mode == EditorViewMode::D2
         {
@@ -1488,7 +1500,7 @@ impl Tool for IsoPaintTool {
             MapClicked(coord) => {
                 let viewport_size = Self::paint_viewport_size(ui, server_ctx);
                 server_ctx.iso_paint_hover_screen = Some(coord);
-                if !server_ctx.pc.is_prefab() {
+                if !server_ctx.pc.is_prefab() && !self.overlay.is_active() {
                     Self::sync_live_paint_settings(ui, &mut region.iso_paint);
                 }
                 if region.iso_paint.active_operation == "pick" {

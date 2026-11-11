@@ -1,0 +1,20 @@
+{
+  "jamb-left-color": {
+    "color": 18
+  },
+  "jamb-top-color": {
+    "color": 20
+  },
+  "jamb-right-color": {
+    "color": 18
+  },
+  "threshold-color": {
+    "color": 17
+  },
+  "leaf-color": {
+    "color": 19
+  },
+  "handle-color": {
+    "color": 21
+  }
+}

@@ -1,0 +1,1626 @@
+{
+  "version": 1,
+  "label": "Inn / Oak Bed",
+  "output": "furniture",
+  "rows": [
+    {
+      "id": "post--0.53--0.97",
+      "label": "Post  0.53  0.97",
+      "tiles": [
+        {
+          "id": "post--0.53--0.97-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.12,
+              0.84,
+              0.12
+            ]
+          }
+        },
+        {
+          "id": "post--0.53--0.97-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              -0.53,
+              0.42,
+              -0.97
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "post--0.53--0.97-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "bundle": null,
+            "size": 64,
+            "axes": [
+              0,
+              2
+            ],
+            "origin": [
+              0,
+              0
+            ],
+            "span": [
+              1,
+              1
+            ],
+            "parts": [],
+            "preserve_uv": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "post--0.53-0.97",
+      "label": "Post  0.53 0.97",
+      "tiles": [
+        {
+          "id": "post--0.53-0.97-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.12,
+              0.62,
+              0.12
+            ]
+          }
+        },
+        {
+          "id": "post--0.53-0.97-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              -0.53,
+              0.31,
+              0.97
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "post--0.53-0.97-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "bundle": null,
+            "size": 64,
+            "axes": [
+              0,
+              2
+            ],
+            "origin": [
+              0,
+              0
+            ],
+            "span": [
+              1,
+              1
+            ],
+            "parts": [],
+            "preserve_uv": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "post-0.53--0.97",
+      "label": "Post 0.53  0.97",
+      "tiles": [
+        {
+          "id": "post-0.53--0.97-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.12,
+              0.84,
+              0.12
+            ]
+          }
+        },
+        {
+          "id": "post-0.53--0.97-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.53,
+              0.42,
+              -0.97
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "post-0.53--0.97-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "bundle": null,
+            "size": 64,
+            "axes": [
+              0,
+              2
+            ],
+            "origin": [
+              0,
+              0
+            ],
+            "span": [
+              1,
+              1
+            ],
+            "parts": [],
+            "preserve_uv": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "post-0.53-0.97",
+      "label": "Post 0.53 0.97",
+      "tiles": [
+        {
+          "id": "post-0.53-0.97-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.12,
+              0.62,
+              0.12
+            ]
+          }
+        },
+        {
+          "id": "post-0.53-0.97-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.53,
+              0.31,
+              0.97
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "post-0.53-0.97-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "bundle": null,
+            "size": 64,
+            "axes": [
+              0,
+              2
+            ],
+            "origin": [
+              0,
+              0
+            ],
+            "span": [
+              1,
+              1
+            ],
+            "parts": [],
+            "preserve_uv": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "rail--0.52",
+      "label": "Rail  0.52",
+      "tiles": [
+        {
+          "id": "rail--0.52-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.1,
+              0.19,
+              1.94
+            ]
+          }
+        },
+        {
+          "id": "rail--0.52-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              -0.52,
+              0.36,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "rail--0.52-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "bundle": null,
+            "size": 64,
+            "axes": [
+              0,
+              2
+            ],
+            "origin": [
+              0,
+              0
+            ],
+            "span": [
+              1,
+              1
+            ],
+            "parts": [],
+            "preserve_uv": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "rail-0.52",
+      "label": "Rail 0.52",
+      "tiles": [
+        {
+          "id": "rail-0.52-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.1,
+              0.19,
+              1.94
+            ]
+          }
+        },
+        {
+          "id": "rail-0.52-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.52,
+              0.36,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "rail-0.52-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "bundle": null,
+            "size": 64,
+            "axes": [
+              0,
+              2
+            ],
+            "origin": [
+              0,
+              0
+            ],
+            "span": [
+              1,
+              1
+            ],
+            "parts": [],
+            "preserve_uv": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "slat-0",
+      "label": "Slat 0",
+      "tiles": [
+        {
+          "id": "slat-0-0",
+          "op": {
+            "type": "box",
+            "size": [
+              1.0,
+              0.065,
+              0.11
+            ]
+          }
+        },
+        {
+          "id": "slat-0-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0,
+              0.42,
+              -0.85
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "slat-0-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "bundle": null,
+            "size": 64,
+            "axes": [
+              0,
+              2
+            ],
+            "origin": [
+              0,
+              0
+            ],
+            "span": [
+              1,
+              1
+            ],
+            "parts": [],
+            "preserve_uv": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "slat-1",
+      "label": "Slat 1",
+      "tiles": [
+        {
+          "id": "slat-1-0",
+          "op": {
+            "type": "box",
+            "size": [
+              1.0,
+              0.065,
+              0.11
+            ]
+          }
+        },
+        {
+          "id": "slat-1-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0,
+              0.42,
+              -0.42
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "slat-1-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "bundle": null,
+            "size": 64,
+            "axes": [
+              0,
+              2
+            ],
+            "origin": [
+              0,
+              0
+            ],
+            "span": [
+              1,
+              1
+            ],
+            "parts": [],
+            "preserve_uv": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "slat-2",
+      "label": "Slat 2",
+      "tiles": [
+        {
+          "id": "slat-2-0",
+          "op": {
+            "type": "box",
+            "size": [
+              1.0,
+              0.065,
+              0.11
+            ]
+          }
+        },
+        {
+          "id": "slat-2-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0,
+              0.42,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "slat-2-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "bundle": null,
+            "size": 64,
+            "axes": [
+              0,
+              2
+            ],
+            "origin": [
+              0,
+              0
+            ],
+            "span": [
+              1,
+              1
+            ],
+            "parts": [],
+            "preserve_uv": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "slat-3",
+      "label": "Slat 3",
+      "tiles": [
+        {
+          "id": "slat-3-0",
+          "op": {
+            "type": "box",
+            "size": [
+              1.0,
+              0.065,
+              0.11
+            ]
+          }
+        },
+        {
+          "id": "slat-3-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0,
+              0.42,
+              0.42
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "slat-3-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "bundle": null,
+            "size": 64,
+            "axes": [
+              0,
+              2
+            ],
+            "origin": [
+              0,
+              0
+            ],
+            "span": [
+              1,
+              1
+            ],
+            "parts": [],
+            "preserve_uv": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "slat-4",
+      "label": "Slat 4",
+      "tiles": [
+        {
+          "id": "slat-4-0",
+          "op": {
+            "type": "box",
+            "size": [
+              1.0,
+              0.065,
+              0.11
+            ]
+          }
+        },
+        {
+          "id": "slat-4-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0,
+              0.42,
+              0.85
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "slat-4-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "bundle": null,
+            "size": 64,
+            "axes": [
+              0,
+              2
+            ],
+            "origin": [
+              0,
+              0
+            ],
+            "span": [
+              1,
+              1
+            ],
+            "parts": [],
+            "preserve_uv": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "headboard-plank-0",
+      "label": "Headboard Plank 0",
+      "tiles": [
+        {
+          "id": "headboard-plank-0-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.195,
+              0.52,
+              0.09
+            ]
+          }
+        },
+        {
+          "id": "headboard-plank-0-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              -0.4,
+              0.64,
+              -0.98
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "headboard-plank-0-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "bundle": null,
+            "size": 64,
+            "axes": [
+              0,
+              2
+            ],
+            "origin": [
+              0,
+              0
+            ],
+            "span": [
+              1,
+              1
+            ],
+            "parts": [],
+            "preserve_uv": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "headboard-plank-1",
+      "label": "Headboard Plank 1",
+      "tiles": [
+        {
+          "id": "headboard-plank-1-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.195,
+              0.52,
+              0.09
+            ]
+          }
+        },
+        {
+          "id": "headboard-plank-1-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              -0.2,
+              0.64,
+              -0.98
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "headboard-plank-1-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "bundle": null,
+            "size": 64,
+            "axes": [
+              0,
+              2
+            ],
+            "origin": [
+              0,
+              0
+            ],
+            "span": [
+              1,
+              1
+            ],
+            "parts": [],
+            "preserve_uv": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "headboard-plank-2",
+      "label": "Headboard Plank 2",
+      "tiles": [
+        {
+          "id": "headboard-plank-2-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.195,
+              0.52,
+              0.09
+            ]
+          }
+        },
+        {
+          "id": "headboard-plank-2-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0,
+              0.64,
+              -0.98
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "headboard-plank-2-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "bundle": null,
+            "size": 64,
+            "axes": [
+              0,
+              2
+            ],
+            "origin": [
+              0,
+              0
+            ],
+            "span": [
+              1,
+              1
+            ],
+            "parts": [],
+            "preserve_uv": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "headboard-plank-3",
+      "label": "Headboard Plank 3",
+      "tiles": [
+        {
+          "id": "headboard-plank-3-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.195,
+              0.52,
+              0.09
+            ]
+          }
+        },
+        {
+          "id": "headboard-plank-3-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.2,
+              0.64,
+              -0.98
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "headboard-plank-3-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "bundle": null,
+            "size": 64,
+            "axes": [
+              0,
+              2
+            ],
+            "origin": [
+              0,
+              0
+            ],
+            "span": [
+              1,
+              1
+            ],
+            "parts": [],
+            "preserve_uv": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "headboard-plank-4",
+      "label": "Headboard Plank 4",
+      "tiles": [
+        {
+          "id": "headboard-plank-4-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.195,
+              0.52,
+              0.09
+            ]
+          }
+        },
+        {
+          "id": "headboard-plank-4-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.4,
+              0.64,
+              -0.98
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "headboard-plank-4-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "bundle": null,
+            "size": 64,
+            "axes": [
+              0,
+              2
+            ],
+            "origin": [
+              0,
+              0
+            ],
+            "span": [
+              1,
+              1
+            ],
+            "parts": [],
+            "preserve_uv": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "headboard-cap",
+      "label": "Headboard Cap",
+      "tiles": [
+        {
+          "id": "headboard-cap-0",
+          "op": {
+            "type": "box",
+            "size": [
+              1.2,
+              0.065,
+              0.15
+            ]
+          }
+        },
+        {
+          "id": "headboard-cap-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0,
+              0.925,
+              -0.98
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "headboard-cap-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "bundle": null,
+            "size": 64,
+            "axes": [
+              0,
+              2
+            ],
+            "origin": [
+              0,
+              0
+            ],
+            "span": [
+              1,
+              1
+            ],
+            "parts": [],
+            "preserve_uv": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "footboard",
+      "label": "Footboard",
+      "tiles": [
+        {
+          "id": "footboard-0",
+          "op": {
+            "type": "box",
+            "size": [
+              1.06,
+              0.22,
+              0.085
+            ]
+          }
+        },
+        {
+          "id": "footboard-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0,
+              0.48,
+              0.98
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "footboard-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "bundle": null,
+            "size": 64,
+            "axes": [
+              0,
+              2
+            ],
+            "origin": [
+              0,
+              0
+            ],
+            "span": [
+              1,
+              1
+            ],
+            "parts": [],
+            "preserve_uv": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "mattress",
+      "label": "Mattress",
+      "tiles": [
+        {
+          "id": "mattress-0",
+          "op": {
+            "type": "box",
+            "size": [
+              1.02,
+              0.16,
+              1.91
+            ]
+          }
+        },
+        {
+          "id": "mattress-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0,
+              0.535,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "mattress-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/linen",
+            "bundle": null,
+            "size": 64,
+            "axes": [
+              0,
+              2
+            ],
+            "origin": [
+              0,
+              0
+            ],
+            "span": [
+              1,
+              1
+            ],
+            "parts": [],
+            "preserve_uv": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "pillow",
+      "label": "Pillow",
+      "tiles": [
+        {
+          "id": "pillow-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.78,
+              0.11,
+              0.36
+            ]
+          }
+        },
+        {
+          "id": "pillow-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0,
+              0.66,
+              -0.66
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "pillow-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/linen",
+            "bundle": null,
+            "size": 64,
+            "axes": [
+              0,
+              2
+            ],
+            "origin": [
+              0,
+              0
+            ],
+            "span": [
+              1,
+              1
+            ],
+            "parts": [],
+            "preserve_uv": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "pillow-fold",
+      "label": "Pillow Fold",
+      "tiles": [
+        {
+          "id": "pillow-fold-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.72,
+              0.02,
+              0.29
+            ]
+          }
+        },
+        {
+          "id": "pillow-fold-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0,
+              0.722,
+              -0.66
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "pillow-fold-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/linen",
+            "bundle": null,
+            "size": 64,
+            "axes": [
+              0,
+              2
+            ],
+            "origin": [
+              0,
+              0
+            ],
+            "span": [
+              1,
+              1
+            ],
+            "parts": [],
+            "preserve_uv": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "blue-blanket",
+      "label": "Blue Blanket",
+      "tiles": [
+        {
+          "id": "blue-blanket-0",
+          "op": {
+            "type": "box",
+            "size": [
+              1.055,
+              0.035,
+              1.24
+            ]
+          }
+        },
+        {
+          "id": "blue-blanket-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0,
+              0.632,
+              0.26
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "blue-blanket-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/cloth",
+            "bundle": null,
+            "size": 64,
+            "axes": [
+              0,
+              2
+            ],
+            "origin": [
+              0,
+              0
+            ],
+            "span": [
+              1,
+              1
+            ],
+            "parts": [],
+            "preserve_uv": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "folded-blanket",
+      "label": "Folded Blanket",
+      "tiles": [
+        {
+          "id": "folded-blanket-0",
+          "op": {
+            "type": "box",
+            "size": [
+              1.07,
+              0.045,
+              0.15
+            ]
+          }
+        },
+        {
+          "id": "folded-blanket-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0,
+              0.66,
+              -0.29
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "folded-blanket-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/cloth",
+            "bundle": null,
+            "size": 64,
+            "axes": [
+              0,
+              2
+            ],
+            "origin": [
+              0,
+              0
+            ],
+            "span": [
+              1,
+              1
+            ],
+            "parts": [],
+            "preserve_uv": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "blanket-edge--0.54",
+      "label": "Blanket Edge  0.54",
+      "tiles": [
+        {
+          "id": "blanket-edge--0.54-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.025,
+              0.12,
+              1.24
+            ]
+          }
+        },
+        {
+          "id": "blanket-edge--0.54-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              -0.54,
+              0.575,
+              0.26
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "blanket-edge--0.54-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/cloth",
+            "bundle": null,
+            "size": 64,
+            "axes": [
+              0,
+              2
+            ],
+            "origin": [
+              0,
+              0
+            ],
+            "span": [
+              1,
+              1
+            ],
+            "parts": [],
+            "preserve_uv": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "blanket-edge-0.54",
+      "label": "Blanket Edge 0.54",
+      "tiles": [
+        {
+          "id": "blanket-edge-0.54-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.025,
+              0.12,
+              1.24
+            ]
+          }
+        },
+        {
+          "id": "blanket-edge-0.54-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.54,
+              0.575,
+              0.26
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "blanket-edge-0.54-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/cloth",
+            "bundle": null,
+            "size": 64,
+            "axes": [
+              0,
+              2
+            ],
+            "origin": [
+              0,
+              0
+            ],
+            "span": [
+              1,
+              1
+            ],
+            "parts": [],
+            "preserve_uv": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "footprint",
+      "label": "Footprint",
+      "tiles": [
+        {
+          "id": "footprint-0",
+          "op": {
+            "type": "contour",
+            "points": [
+              [
+                -0.6,
+                -1.06
+              ],
+              [
+                0.6,
+                -1.06
+              ],
+              [
+                0.6,
+                1.06
+              ],
+              [
+                -0.6,
+                1.06
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "furniture",
+      "label": "Furniture",
+      "tiles": [
+        {
+          "id": "furniture-0",
+          "op": {
+            "type": "assemble",
+            "rows": [
+              "post--0.53--0.97",
+              "post--0.53-0.97",
+              "post-0.53--0.97",
+              "post-0.53-0.97",
+              "rail--0.52",
+              "rail-0.52",
+              "slat-0",
+              "slat-1",
+              "slat-2",
+              "slat-3",
+              "slat-4",
+              "headboard-plank-0",
+              "headboard-plank-1",
+              "headboard-plank-2",
+              "headboard-plank-3",
+              "headboard-plank-4",
+              "headboard-cap",
+              "footboard",
+              "mattress",
+              "pillow",
+              "pillow-fold",
+              "blue-blanket",
+              "folded-blanket",
+              "blanket-edge--0.54",
+              "blanket-edge-0.54"
+            ]
+          }
+        },
+        {
+          "id": "furniture-1",
+          "op": {
+            "type": "footprint",
+            "row": "footprint"
+          }
+        },
+        {
+          "id": "furniture-2",
+          "op": {
+            "type": "connector",
+            "family": "rest.lie",
+            "translation": [
+              0,
+              0.6,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "id": "inn-bed"
+}

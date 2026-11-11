@@ -554,8 +554,12 @@ impl TheWidget for TheIconGridView {
 
 pub trait TheIconGridViewTrait {
     fn set_items(&mut self, items: Vec<TheIconGridItem>);
+    /// Replace a thumbnail without resetting selection, hover or scroll.
+    fn set_item_icon(&mut self, index: usize, icon: Option<TheRGBABuffer>);
     fn set_selected(&mut self, selected: Option<usize>);
     fn selected(&self) -> Option<usize>;
+    /// Items intersecting the viewport, for demand-driven thumbnail work.
+    fn visible_items(&self) -> std::ops::Range<usize>;
     fn set_cell_size(&mut self, size: i32);
     fn set_icon_size(&mut self, size: i32);
     fn set_icon_padding(&mut self, padding: i32);
@@ -565,6 +569,13 @@ pub trait TheIconGridViewTrait {
 }
 
 impl TheIconGridViewTrait for TheIconGridView {
+    fn set_item_icon(&mut self, index: usize, icon: Option<TheRGBABuffer>) {
+        if let Some(item) = self.items.get_mut(index) {
+            item.icon = icon;
+            self.is_dirty = true;
+        }
+    }
+
     fn set_items(&mut self, items: Vec<TheIconGridItem>) {
         self.items = items;
         self.selected = self
@@ -583,6 +594,22 @@ impl TheIconGridViewTrait for TheIconGridView {
 
     fn selected(&self) -> Option<usize> {
         self.selected
+    }
+
+    fn visible_items(&self) -> std::ops::Range<usize> {
+        if !self.dim.is_valid() {
+            return 0..0;
+        }
+        let m = self.metrics();
+        let step = m.cell_size.saturating_add(self.gap).max(1);
+        let first = (self.scroll_offset.saturating_sub(self.padding).max(0) / step) as usize;
+        let bottom = self
+            .scroll_offset
+            .saturating_add(self.dim.height)
+            .saturating_sub(self.padding)
+            .max(0);
+        let last = bottom.saturating_add(step - 1) / step;
+        (first * m.columns).min(self.items.len())..(last as usize * m.columns).min(self.items.len())
     }
 
     fn set_cell_size(&mut self, size: i32) {
@@ -622,6 +649,23 @@ impl TheIconGridViewTrait for TheIconGridView {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn completed_thumbnails_preserve_scrolled_position_hover_and_selection() {
+        let mut grid = TheIconGridView::new(TheId::named("Meshes"));
+        grid.items = (0..100)
+            .map(|i| TheIconGridItem::new(i.to_string()))
+            .collect();
+        grid.dim = TheDim::sized(300, 150);
+        grid.selected = Some(0);
+        grid.hovered = Some(22);
+        grid.scroll_offset = 400;
+        grid.set_item_icon(22, Some(TheRGBABuffer::new(TheDim::sized(72, 72))));
+        assert_eq!(grid.scroll_offset, 400);
+        assert_eq!(grid.selected, Some(0));
+        assert_eq!(grid.hovered, Some(22));
+        assert!(grid.items[22].icon.is_some());
+    }
 
     #[test]
     fn columns_follow_available_width_and_overflow_enables_scrolling() {

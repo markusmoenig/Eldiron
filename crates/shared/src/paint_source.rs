@@ -36,6 +36,12 @@ pub const STAMPS: [&str; 11] = [
     "candles",
     "footprints",
 ];
+fn default_pattern() -> String {
+    "bricks".into()
+}
+fn default_mortar() -> f32 {
+    0.08
+}
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Spec {
@@ -49,6 +55,10 @@ pub struct Spec {
     pub material_id: u8,
     pub colors: Vec<[u8; 4]>,
     pub palette: Vec<Option<u16>>,
+    #[serde(default = "default_pattern")]
+    pub pattern: String,
+    #[serde(default = "default_mortar")]
+    pub mortar: f32,
     pub scale: f32,
     pub detail: f32,
     pub variation: f32,
@@ -118,6 +128,8 @@ impl Spec {
             material_id: 0,
             colors,
             palette: vec![],
+            pattern: default_pattern(),
+            mortar: default_mortar(),
             scale: 1.,
             detail: 0.65,
             variation: 0.6,
@@ -129,6 +141,11 @@ impl Spec {
             .as_deref()?
             .strip_prefix(PREFIX)
             .and_then(|s| serde_json::from_str(s).ok())
+    }
+    pub fn from_tile(tile: &rusterix::Tile) -> Option<Self> {
+        let spec: Self = serde_json::from_str(tile.paint.as_ref()?.generator.as_deref()?).ok()?;
+        spec.validate().ok()?;
+        Some(spec)
     }
     pub fn from_asset(asset: &EditableMaterialAsset) -> Option<Self> {
         asset
@@ -146,6 +163,9 @@ impl Spec {
             || self.stamp && !STAMPS.contains(&self.brush.as_str())
             || !self.size.is_finite()
             || !(0.1..=8.).contains(&self.size)
+            || !["tiles", "bricks", "arch"].contains(&self.pattern.as_str())
+            || !self.mortar.is_finite()
+            || !(0. ..=0.4).contains(&self.mortar)
             || !self.scale.is_finite()
             || !(0.25..=4.).contains(&self.scale)
             || !self.detail.is_finite()
@@ -186,6 +206,7 @@ impl Spec {
             ([64; 2], [32.; 2])
         };
         rusterix::map::tile::PaintAssetLayout {
+            generator: serde_json::to_string(self).ok(),
             brush: self.brush.clone(),
             stamp: self.stamp,
             shape: self.shape.clone(),
@@ -214,6 +235,8 @@ impl Spec {
         let mut pattern = crate::iso_paint::IsoPaintLayer::default();
         pattern.active_color = self.colors[0];
         pattern.active_palette_colors = self.colors.clone();
+        pattern.active_pattern_kind = self.pattern.clone();
+        pattern.active_pattern_mortar = self.mortar;
         pattern.active_pattern_scale = self.scale;
         pattern.active_pattern_detail = self.detail;
         pattern.active_pattern_variation = self.variation;
@@ -284,6 +307,7 @@ impl Spec {
             serde_json::to_string(self).map_err(|e| e.to_string())?
         ));
         let layout = rusterix::map::tile::PaintAssetLayout {
+            generator: serde_json::to_string(self).ok(),
             brush: self.brush.clone(),
             stamp: self.stamp,
             shape: self.shape.clone(),

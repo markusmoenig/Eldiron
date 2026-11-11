@@ -505,6 +505,55 @@ mod scaled_geometry_projection_tests {
     }
 
     #[test]
+    fn iso_render_filter_preserves_shared_edges_named_areas_terrain_and_real_meshes() {
+        let mut map = Map::default();
+        let vertices =
+            [(0., 0.), (1., 0.), (1., 1.), (0., 1.)].map(|(x, z)| map.add_vertex_at(x, z));
+        let edges = (0..4)
+            .map(|i| map.create_linedef_manual(vertices[i], vertices[(i + 1) % 4]))
+            .collect::<Vec<_>>();
+        let id = Uuid::new_v4();
+        let mut tile = rusterix::Tile::from_texture(rusterix::Texture::from_color([255; 4]));
+        tile.isometric = Some(rusterix::isometric::SpriteLayout::default());
+        let mut sprite = rusterix::Sector::new(1, edges.clone());
+        sprite.layer = Some(1);
+        sprite
+            .properties
+            .set("source", Value::Source(PixelSource::TileId(id)));
+        let mut area = rusterix::Sector::new(2, vec![edges[0]]);
+        area.name = "Meadow".into();
+        map.find_vertex_mut(vertices[2])
+            .unwrap()
+            .properties
+            .set("terrain_control", Value::Bool(true));
+        map.sectors = vec![sprite, area];
+        for edge in &mut map.linedefs {
+            edge.sector_ids = if edge.id == edges[0] {
+                vec![1, 2]
+            } else {
+                vec![1]
+            };
+        }
+        map.geometry_objects.push(rusterix::GeometryObject::box_(
+            "3D mesh",
+            Vec3::zero(),
+            Vec3::one(),
+        ));
+        map.properties.set("terrain_enabled", Value::Bool(true));
+        let original = map.clone();
+        filter_iso_placements_for_3d(&mut map, &indexmap::IndexMap::from([(id, tile)]));
+        assert_eq!(map.sectors.len(), 1);
+        assert_eq!(map.sectors[0].name, "Meadow");
+        assert_eq!(map.linedefs.len(), 1);
+        assert_eq!(map.linedefs[0].sector_ids, vec![2]);
+        assert!(map.find_vertex(vertices[2]).is_some());
+        assert!(map.find_vertex(vertices[3]).is_none());
+        assert_eq!(map.geometry_objects, original.geometry_objects);
+        assert_eq!(original.sectors.len(), 2);
+        assert!(map.properties.get_bool_default("terrain_enabled", false));
+    }
+
+    #[test]
     fn scale_projection_reuses_uvs_at_fitted_cap_seams() {
         let mut object = rusterix::GeometryObject::new("Triangulated fitted cap");
         object.vertices = vec![
@@ -702,6 +751,86 @@ pub fn is_valid_python_variable(name: &str) -> bool {
     }
 }
 
+/// Sprite placements are a 2D view representation, not 3D geometry. Prune their
+/// private footprint rings before terrain/chunk bounds are built for a 3D camera.
+pub(crate) fn filter_iso_placements_for_3d(
+    map: &mut Map,
+    tiles: &indexmap::IndexMap<Uuid, rusterix::Tile>,
+) {
+    let removed = map
+        .sectors
+        .iter()
+        .filter(|s| {
+            s.layer.is_some()
+                && s.properties
+                    .get_default_source()
+                    .is_some_and(|source| match source {
+                        PixelSource::TileId(id) => {
+                            tiles.get(id).is_some_and(|t| t.isometric.is_some())
+                        }
+                        _ => false,
+                    })
+        })
+        .map(|s| s.id)
+        .collect::<std::collections::HashSet<_>>();
+    if removed.is_empty() {
+        return;
+    }
+    let candidate_edges = map
+        .sectors
+        .iter()
+        .filter(|s| removed.contains(&s.id))
+        .flat_map(|s| s.linedefs.iter().copied())
+        .collect::<std::collections::HashSet<_>>();
+    let retained_edges = map
+        .sectors
+        .iter()
+        .filter(|s| !removed.contains(&s.id))
+        .flat_map(|s| s.linedefs.iter().copied())
+        .collect::<std::collections::HashSet<_>>();
+    let edges = map
+        .linedefs
+        .iter()
+        .filter(|l| candidate_edges.contains(&l.id) && !retained_edges.contains(&l.id))
+        .map(|l| l.id)
+        .collect::<std::collections::HashSet<_>>();
+    let candidate_vertices = map
+        .linedefs
+        .iter()
+        .filter(|l| edges.contains(&l.id))
+        .flat_map(|l| [l.start_vertex, l.end_vertex])
+        .collect::<std::collections::HashSet<_>>();
+    let retained_vertices = map
+        .linedefs
+        .iter()
+        .filter(|l| !edges.contains(&l.id))
+        .flat_map(|l| [l.start_vertex, l.end_vertex])
+        .collect::<std::collections::HashSet<_>>();
+    let vertices = map
+        .vertices
+        .iter()
+        .filter(|v| {
+            candidate_vertices.contains(&v.id)
+                && !retained_vertices.contains(&v.id)
+                && !v.properties.get_bool_default("terrain_control", false)
+        })
+        .map(|v| v.id)
+        .collect::<Vec<_>>();
+    let vertices = vertices
+        .into_iter()
+        .collect::<std::collections::HashSet<_>>();
+    map.sectors.retain(|s| !removed.contains(&s.id));
+    map.linedefs.retain(|l| !edges.contains(&l.id));
+    for line in &mut map.linedefs {
+        line.sector_ids.retain(|id| !removed.contains(id));
+    }
+    map.vertices.retain(|v| !vertices.contains(&v.id));
+    map.surfaces.retain(|_, s| !removed.contains(&s.sector_id));
+    map.selected_sectors.retain(|id| !removed.contains(id));
+    map.selected_linedefs.retain(|id| !edges.contains(id));
+    map.selected_vertices.retain(|id| !vertices.contains(id));
+}
+
 /// Renders the current map in the scenemanager depending on the current viewmode.
 pub fn scenemanager_render_map(project: &Project, server_ctx: &ServerContext) {
     // Screens should not trigger SceneManager SetMap updates.
@@ -731,6 +860,7 @@ pub fn scenemanager_render_map(project: &Project, server_ctx: &ServerContext) {
         if let Some(id) = server_ctx.pc.id() {
             if let Some(region) = project.get_region(&id) {
                 let mut map = region.map.clone();
+                filter_iso_placements_for_3d(&mut map, &project.tiles);
                 // Keep editor-only preview filters in sync with region config for 3D builds.
                 apply_region_config(&mut map, region.config.clone());
                 SCENEMANAGER.write().unwrap().set_map(map);

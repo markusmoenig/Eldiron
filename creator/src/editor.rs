@@ -9099,6 +9099,7 @@ impl TheTrait for Editor {
                 self.server_ctx.background_progress = None;
             }
 
+            profile.lap("scene_chunks");
             self.build_values.set(
                 "no_rect_geo",
                 Value::Bool(self.server_ctx.no_rect_geo_on_map),
@@ -9316,6 +9317,7 @@ impl TheTrait for Editor {
                     rusterix.client.builder_d2.draw_grid = self.server_ctx.show_editor_grid;
 
                     if running_game_mode {
+                        rusterix.resize_client_surface((dim.width.max(1) as u32, dim.height.max(1) as u32));
                         let game_messages = if self.server_ctx.text_game_mode {
                             Vec::new()
                         } else {
@@ -9645,6 +9647,7 @@ impl TheTrait for Editor {
                                     rusterix.scene_handler.vm.set_active_vm(active_vm);
                                     self.iso_paint_render_cache = Default::default();
                                 }
+                                profile.lap("camera_paint");
                                 rusterix.draw_d3_with_editor_background(
                                     &region.map,
                                     render_view.render_buffer_mut().pixels_mut(),
@@ -10132,16 +10135,27 @@ impl TheTrait for Editor {
                     } else if id.name == "Mark Rusterix Dirty" {
                         RUSTERIX.write().unwrap().set_dirty();
                         redraw = true;
-                    } else if id.name == "Render SceneManager Map" {
+                    } else if id.name == "Render SceneManager Map"
+                        || id.name == "Switch SceneManager Camera"
+                    {
                         if self.server_ctx.pc.is_region() {
                             if self.server_ctx.editor_view_mode == EditorViewMode::D2
                                 && self.server_ctx.profile_view.is_some()
                             {
                             } else {
-                                crate::utils::editor_scene_full_rebuild(
-                                    &self.project,
-                                    &self.server_ctx,
-                                );
+                                if id.name == "Switch SceneManager Camera" {
+                                    // Projection changes require different chunks, not
+                                    // rematerializing every texture/Prefab in the project.
+                                    crate::utils::scenemanager_render_map(
+                                        &self.project,
+                                        &self.server_ctx,
+                                    );
+                                } else {
+                                    crate::utils::editor_scene_full_rebuild(
+                                        &self.project,
+                                        &self.server_ctx,
+                                    );
+                                }
                                 if self.server_ctx.editor_view_mode != EditorViewMode::D2 {
                                     TOOLLIST.write().unwrap().update_geometry_overlay_3d(
                                         &mut self.project,
@@ -11841,7 +11855,12 @@ mod tests {
                 &mut editor.server_ctx,
             );
         }
-        if std::env::var("ELDIRON_BENCH_VIEW").is_ok_and(|v| v == "3d") {
+        if std::env::var_os("ELDIRON_BENCH_CAMERA_SWITCHES").is_some() {
+            ctx.ui.send(TheEvent::IndexChanged(
+                TheId::named("Editor View Switch"),
+                1,
+            ));
+        } else if std::env::var("ELDIRON_BENCH_VIEW").is_ok_and(|v| v == "3d") {
             ctx.ui.send(TheEvent::IndexChanged(
                 TheId::named("Editor View Switch"),
                 3,
@@ -11915,6 +11934,36 @@ mod tests {
             "Creator load first_10_frames={:.2}ms",
             stage.elapsed().as_secs_f64() * 1000.
         );
+        if std::env::var_os("ELDIRON_BENCH_CAMERA_SWITCHES").is_some() {
+            // Exercise the actual camera event, chunk queue, GPU upload and first
+            // completed draw. Three updates consume the event, build, then present
+            // the replacement chunks; measuring only the handler hides the stall.
+            for (switch, target) in [2usize, 1, 3, 1, 4, 1, 2, 3, 4, 1, 3].into_iter().enumerate() {
+                let start = std::time::Instant::now();
+                TOOLLIST.write().unwrap().handle_event(
+                    &TheEvent::IndexChanged(TheId::named("Editor View Switch"), target),
+                    &mut ui, &mut ctx, &mut editor.project, &mut editor.server_ctx,
+                );
+                let event_ms = start.elapsed().as_secs_f64() * 1000.;
+                let mut worst_frame_ms = 0f64;
+                for _ in 0..3 {
+                    let frame_start = std::time::Instant::now();
+                    editor.update_tracker = crate::misc::UpdateTracker::new();
+                    ui.update(&mut ctx);
+                    editor.update_ui(&mut ui, &mut ctx);
+                    ui.draw(&mut frame, &mut ctx);
+                    worst_frame_ms = worst_frame_ms.max(frame_start.elapsed().as_secs_f64()*1000.);
+                }
+                if target >= 2 {
+                    assert!(!SCENEMANAGER.read().unwrap().is_busy(), "benchmark must finish terrain generation");
+                }
+                assert_eq!(editor.server_ctx.editor_view_mode, EditorViewMode::from_toolbar_index(target as i32));
+                println!("Creator camera switch={} target={} event={event_ms:.2}ms ready={:.2}ms worst_frame={worst_frame_ms:.2}ms",
+                    switch+1, target, start.elapsed().as_secs_f64()*1000.);
+                println!("Creator camera atlas={:?}", RUSTERIX.read().unwrap().scene_handler.vm.atlas_dims());
+            }
+            return;
+        }
         if std::env::var_os("ELDIRON_BENCH_RECT_PAINT").is_some() {
             let view_id = ui.get_render_view("PolyView").unwrap().id().clone();
             let size = {
@@ -12209,6 +12258,17 @@ mod tests {
             }
             return;
         }
+        let props_bench=std::env::var_os("ELDIRON_BENCH_PROPS").is_some();
+        if props_bench {
+            let started=std::time::Instant::now();
+            let mut tools=TOOLLIST.write().unwrap();
+            let id=tools.get_game_tool_uuid_by_command_id("tool.blocks").unwrap();
+            tools.set_tool(id,&mut ui,&mut ctx,&mut editor.project,&mut editor.server_ctx);
+            drop(tools);
+            ctx.ui.send(TheEvent::IndexChanged(TheId::named("Blocks Dock Categories Tabbar"),5));
+            ui.update(&mut ctx);editor.update_tracker.force_redraw();editor.update_ui(&mut ui,&mut ctx);
+            println!("Creator Props activate={:.2}ms",started.elapsed().as_secs_f64()*1000.);
+        }
         let initial_offset = editor.project.regions[0].map.offset;
         let initial_position_3d = editor.project.regions[0].editing_position_3d;
         let initial_look_at_3d = editor.project.regions[0].editing_look_at_3d;
@@ -12223,7 +12283,7 @@ mod tests {
         let input = std::env::var_os("ELDIRON_BENCH_INPUT").is_some();
         let view_id = ui.get_render_view("PolyView").unwrap().id().clone();
         println!("Creator benchmark pid={} input={input}", std::process::id());
-        let modes = if std::env::var_os("ELDIRON_BENCH_MINIMAP").is_some() {
+        let modes = if props_bench {vec!["props_scroll"]}else if std::env::var_os("ELDIRON_BENCH_MINIMAP").is_some() {
             vec!["minimap"]
         } else {
             vec!["hover", "pan", "zoom"]
@@ -12252,7 +12312,14 @@ mod tests {
                 }
                 editor.server_ctx.hover_cursor = Some(Vec2::new(12. + i as f32 * 0.1, 12.));
                 editor.update_tracker = crate::misc::UpdateTracker::new();
-                if mode == "minimap" {
+                if mode=="props_scroll" {
+                    let dim = *ui.get_widget("Blocks Dock Board 5").expect("MZ browser").dim();
+                    ui.hover((dim.x + dim.width/2) as f32, (dim.y + dim.height/2) as f32, &mut ctx);
+                    let before = ui.get_icon_grid_view("Blocks Dock Board 5").unwrap().visible_items();
+                    let routed = ui.mouse_wheel((0, if i%80<40 {-120} else {120}), &mut ctx);
+                    let after = ui.get_icon_grid_view("Blocks Dock Board 5").unwrap().visible_items();
+                    if i%40==0 { println!("Props real scroll frame={i} target={:?} dim={dim:?} routed={routed} before={before:?} after={after:?}", ui.get_widget_at_coord(Vec2::new(dim.x+dim.width/2, dim.y+dim.height/2)).map(|w|w.id().name.clone())); }
+                } else if mode == "minimap" {
                     ctx.ui.send(TheEvent::RenderViewHoverChanged(
                         view_id.clone(),
                         Vec2::new(500, 300),
@@ -12282,6 +12349,7 @@ mod tests {
                 ui.update(&mut ctx);
                 editor.update_ui(&mut ui, &mut ctx);
                 update.push(start.elapsed().as_secs_f64() * 1000.);
+                if mode=="props_scroll" && *update.last().unwrap()>100. { println!("Props slow update frame={i} elapsed={:.2}ms",update.last().unwrap()); }
                 if mode == "minimap" {
                     // Include the queued marker refresh in navigation timing.
                     let marker_start = std::time::Instant::now();

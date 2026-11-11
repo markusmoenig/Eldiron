@@ -3551,7 +3551,12 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let is_paint_stamp = (in.flags & 1u) != 0u;
     var lit = select(texel.rgb, srgb_to_linear(texel.rgb), is_paint_stamp);
     if (is_paint_stamp) {
+        let albedo = lit;
         lit *= paint_stamp_environment(in.world_pos);
+        if ((in.flags & 128u) != 0u) {
+            let emission = f32((in.flags >> 8u) & 255u) / 255.0;
+            lit += albedo * emission;
+        }
     }
 
     let fog_density = max(UBO.fog_color_density.w, 0.0);

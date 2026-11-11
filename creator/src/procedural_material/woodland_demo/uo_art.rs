@@ -755,22 +755,29 @@ fn palette(p: &mut Project) {
     p.palette_source_name = "Guildhall 256 — Eric Johnson (Lospec)".into();
     p.ensure_palette_materials_len();
 }
+pub(super) fn player_template(p: &Project) -> Uuid {
+    *p.characters.iter().find(|(_, c)| {
+        c.data.parse::<toml::Table>().ok()
+            .and_then(|t| t.get("attributes")?.get("player")?.as_bool()) == Some(true)
+    }).expect("Art study must contain a Player character template").0
+}
 fn scene(mut p: Project) -> (Project, Uuid) {
-    let character = source_tile(&p, "character");
-    let actor_recipe = p.isometric_bakes[&character].recipe;
-    let actor_source = p.procedural_appearances[&actor_recipe].clone();
-    let actor_bake = p.isometric_bakes[&character].clone();
-    p.tiles.retain(|id, _| *id == character);
+    let character = player_template(&p);
+    p.tiles.clear();
     p.procedural_appearances.clear();
-    p.procedural_appearances.insert(actor_recipe, actor_source);
     p.isometric_bakes.clear();
-    p.isometric_bakes.insert(
-        character,
-        shared::isometric::Bake {
-            signature: 0,
-            ..actor_bake
-        },
-    );
+    // Use the same ruleset-backed character setup as the ordinary starters.
+    // Explicit tile artwork and an empty outfit suppress those inherited defaults.
+    let player = p.characters.get_mut(&character).unwrap();
+    let mut data = player.data.parse::<toml::Table>().unwrap();
+    let attributes = data.get_mut("attributes").unwrap().as_table_mut().unwrap();
+    attributes.remove("tile_id");
+    attributes.remove("start_equipped_items");
+    attributes.insert("race".into(), toml::Value::String("Human".into()));
+    attributes.insert("class".into(), toml::Value::String("Warrior".into()));
+    attributes.insert("visible".into(), toml::Value::Boolean(true));
+    player.data = toml::to_string_pretty(&data).unwrap();
+    p.node_graphs.shift_remove(&shared::entity_graph::character_key(character));
     p.procedural_materials.clear();
     p.procedural_material_cache_keys.clear();
     p.material_compositions.clear();
@@ -1331,6 +1338,8 @@ fn scene(mut p: Project) -> (Project, Uuid) {
         .replace("Terrain Playground", "Wayfarer's Rest")
         .replace("MZ Iso Room", "Wayfarer's Rest")
         .replace("MZ Clearing", "Wayfarer's Rest");
+    p.sync_ruleset_items().unwrap();
+    shared::entity_graph::synchronize(&mut p).unwrap();
     (p, character)
 }
 fn render(
@@ -1358,16 +1367,26 @@ pub(crate) fn render_at_hour(
     map.entities.clear();
     let mut actor = rusterix::Entity::new();
     actor.position = position;
-    actor.set_attribute(
-        "source",
-        Value::Source(rusterix::PixelSource::TileId(character)),
-    );
-    actor.set_attribute("player", Value::Bool(true));
+    rusterix::server::data::apply_entity_data(&mut actor, &p.characters[&character].data);
     map.entities.push(actor);
-    let mut assets = rusterix::Assets::default();
-    assets.set_tiles(p.tiles.clone());
-    assets.palette = p.palette.clone();
-    shared::iso_paint_terrain::sync(&mut assets, map.id, &mut p.regions[0].iso_paint.clone());
+    for instance in p.regions[0].items.values() {
+        let mut item = rusterix::Item::new();
+        item.id = map.items.len() as u32 + 1;
+        item.creator_id = instance.id;
+        item.position = instance.position;
+        if let Some(template) = p.items.get(&instance.item_id) {
+            rusterix::server::data::apply_item_data(&mut item, &template.data);
+            item.set_attribute("class_name", Value::Str(template.name.clone()));
+            item.set_attribute("creator_template_id", Value::Str(template.id.to_string()));
+        }
+        rusterix::server::data::apply_item_data(&mut item, &instance.data);
+        map.items.push(item);
+    }
+    let mut runtime = rusterix::Rusterix::new_without_audio();
+    shared::rusterix_utils::sync_editor_visual_assets(&mut runtime, p);
+    shared::rusterix_utils::sync_display_templates(&mut runtime.assets, p, false);
+    let assets = &mut runtime.assets;
+    shared::iso_paint_terrain::sync(assets, map.id, &mut p.regions[0].iso_paint.clone());
     let mut image = TheRGBABuffer::new(TheDim::sized(1280, 900));
     let mut projection = rusterix::isometric::Projection {
         origin: Vec2::zero(),
@@ -1382,20 +1401,22 @@ pub(crate) fn render_at_hour(
     );
     settings.apply_hour(hour);
     let mut scene = rusterix::SceneHandler::default();
+    scene.preview_character_setup = true;
     scene.base_settings = settings.clone();
     scene.settings = settings.clone();
-    scene.build_dynamics_2d(&map, 0, &assets, &Default::default());
-    let particles = scene.isometric_particles(&map, &assets, 0);
+    scene.build_dynamics_2d(&map, 0, assets, &Default::default());
+    let avatars = scene.isometric_avatars(&map, assets, 0);
+    let particles = scene.isometric_particles(&map, assets, 0);
     let lighting =
         rusterix::isometric::lighting::Lighting::new(&settings, scene.vm.vm.lights.values(), 0);
     rusterix::isometric::draw_scene_gpu_cached(
         &map,
-        &assets,
+        assets,
         &mut image,
         projection,
         0.,
         None,
-        &Default::default(),
+        &avatars,
         None,
         &lighting,
         &mut scene.vm,
@@ -1423,6 +1444,10 @@ fn runtime_review(project: &Project, out: &Path) {
     runtime
         .server
         .local_player_teleport_pos(Vec2::new(8.5, 11.));
+    if let Some(door) = running.regions[0].map.items.iter().find(|i| i.attributes.get_bool_default("openable", false)) {
+        runtime.server.local_player_action(rusterix::EntityAction::ItemClicked(door.id, 0., Some("open".into()), None));
+        for _ in 0..20 { tick(&mut runtime, &mut running); }
+    }
     for _ in 0..20 {
         tick(&mut runtime, &mut running);
     }
@@ -1676,7 +1701,7 @@ fn review_uo_art_study() {
     }
     assert!(shared::isometric::synchronize(&mut project).is_empty());
     std::fs::write(file, shared::project_io::encode_project(&project).unwrap()).unwrap();
-    let actor = source_tile(&project, "character");
+    let actor = player_template(&project);
     render(
         &project,
         actor,
@@ -1756,7 +1781,7 @@ fn finish_uo_roof_ends() {
     assert_eq!(project.procedural_materials, material_sources, "Finishing the roof must retain the existing material recipes");
     std::fs::write(&file, shared::project_io::encode_project(&project).unwrap()).unwrap();
     let project = shared::project_io::decode_project(&std::fs::read(file).unwrap()).unwrap();
-    let actor = source_tile(&project, "character");
+    let actor = player_template(&project);
     for (name, hour) in [("courtyard", 12.), ("night", 23.)] {
         render_at_hour(&project, actor, &out, name, Vec3::new(9., 0., 12.3), 42., Vec2::new(9.5, 9.5), hour);
     }
@@ -1793,7 +1818,7 @@ fn capture_uo_gpu_lighting() {
         hearth.isometric.as_ref().unwrap().surfaces[0].effects[0].light,
         0.18
     );
-    let actor = source_tile(&p, "character");
+    let actor = player_template(&p);
     for (name, hour) in [
         ("courtyard", 12.),
         ("morning", 8.),

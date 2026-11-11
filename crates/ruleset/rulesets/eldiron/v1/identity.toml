@@ -54,6 +54,32 @@ distance = 2
 [intents.use.ui]
 icon = "use"
 
+[intents.open]
+name = "Open"
+distance = 2
+allowed_target_kinds = ["item", "prefab"]
+
+[intents.open.ui]
+icon = "open"
+
+[intents.close]
+name = "Close"
+distance = 2
+allowed_target_kinds = ["item", "prefab"]
+
+[intents.close.ui]
+icon = "close"
+
+# A targeting affordance: the server resolves the target's current state to an
+# explicit Open or Close intent before validating rules and emitting node events.
+[intents.open_close]
+name = "Open/Close"
+distance = 2
+allowed_target_kinds = ["item", "prefab"]
+
+[intents.open_close.ui]
+icon = "open"
+
 [intents.take]
 name = "Take"
 

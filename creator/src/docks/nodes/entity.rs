@@ -55,6 +55,7 @@ pub(super) fn title(id: &str) -> String {
         "entity_body" => fl!("entity_body"),
         "entity_inventory" => fl!("entity_inventory"),
         "entity_equipment" => fl!("entity_equipment"),
+        "entity_item_state" => fl!("entity_item_state"),
         "entity_player" => fl!("entity_player"),
         "entity_attribute" => fl!("entity_attribute"),
         "entity_input" => fl!("entity_input"),
@@ -76,6 +77,10 @@ pub(super) fn label(key: &str) -> String {
         "visible" => fl!("entity_visible"),
         "radius" => fl!("entity_radius"),
         "blocking" => fl!("entity_blocking"),
+        "active" => fl!("entity_item_active"),
+        "openable" => fl!("entity_item_openable"),
+        "locked" => fl!("entity_item_locked"),
+        "required_key" => fl!("entity_item_required_key"),
         "inventory_slots" => fl!("entity_slots"),
         "start_equipped_items" => fl!("entity_equipment_items"),
         "item" => fl!("entity_equipment_item"),
@@ -110,6 +115,7 @@ pub(super) fn help(id: &str) -> String {
         "entity_input" => fl!("entity_input_help"),
         "entity_attribute" => fl!("entity_attribute_help"),
         "entity_equipment" => fl!("entity_equipment_help"),
+        "entity_item_state" => fl!("entity_item_state_help"),
         _ => fl!("entity_configuration_help"),
     }
 }

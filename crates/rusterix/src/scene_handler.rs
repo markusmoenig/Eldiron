@@ -2342,6 +2342,27 @@ impl SceneHandler {
         };
 
         for sector in &map.sectors {
+            // Sprite-only placements do not emit in a 3D view. More generally,
+            // do not sample terrain or clone tile frames for surfaces with no emission.
+            if sector.layer.is_some()
+                && sector
+                    .properties
+                    .get_default_source()
+                    .and_then(|s| s.tile_ref_from_tile_list(assets))
+                    .is_some_and(|t| t.isometric.is_some())
+            {
+                continue;
+            }
+            let emits = sector
+                .properties
+                .get_default_source()
+                .into_iter()
+                .chain(sector.properties.get_source("ceiling_source"))
+                .filter_map(|s| s.tile_ref_from_tile_list(assets))
+                .any(|t| t.particle_emitter.is_some() || t.light_emitter.is_some());
+            if !emits {
+                continue;
+            }
             if let Some(center) = sector.center(map) {
                 let floor_y = top_floor_y_by_sector
                     .get(&sector.id)
@@ -2355,7 +2376,7 @@ impl SceneHandler {
                     });
 
                 if let Some(source) = sector.properties.get_default_source()
-                    && let Some(tile) = source.tile_from_tile_list(assets)
+                    && let Some(tile) = source.tile_ref_from_tile_list(assets)
                 {
                     spawn_3d(
                         &mut self.tile_emitters_3d,
@@ -2371,7 +2392,7 @@ impl SceneHandler {
                 }
 
                 if let Some(source) = sector.properties.get_source("ceiling_source")
-                    && let Some(tile) = source.tile_from_tile_list(assets)
+                    && let Some(tile) = source.tile_ref_from_tile_list(assets)
                 {
                     spawn_3d(
                         &mut self.tile_emitters_3d,
@@ -2396,6 +2417,14 @@ impl SceneHandler {
         }
 
         for linedef in &map.linedefs {
+            if !["row1_source", "row2_source", "row3_source", "row4_source"]
+                .iter()
+                .filter_map(|key| linedef.properties.get_source(key))
+                .filter_map(|s| s.tile_ref_from_tile_list(assets))
+                .any(|t| t.particle_emitter.is_some() || t.light_emitter.is_some())
+            {
+                continue;
+            }
             if let (Some(start), Some(end)) = (
                 map.find_vertex(linedef.start_vertex),
                 map.find_vertex(linedef.end_vertex),
@@ -2434,7 +2463,7 @@ impl SceneHandler {
                 let emitter_count = ((span_len / 0.8).ceil() as usize).clamp(2, 8);
                 for (ordinal, (source_key, slot)) in active_rows.iter().enumerate() {
                     if let Some(Value::Source(source)) = linedef.properties.get(*source_key)
-                        && let Some(tile) = source.tile_from_tile_list(assets)
+                        && let Some(tile) = source.tile_ref_from_tile_list(assets)
                     {
                         let band_t = (ordinal as f32 + 0.5) / active_count;
                         for emitter_index in 0..emitter_count {
@@ -2529,7 +2558,7 @@ impl SceneHandler {
 
             if item.attributes.get_bool_default("visible", false)
                 && let Some(Value::Source(source)) = item.attributes.get("source")
-                && let Some(tile) = source.tile_from_tile_list(assets)
+                && let Some(tile) = source.tile_ref_from_tile_list(assets)
             {
                 spawn_3d(
                     &mut self.tile_emitters_3d,
@@ -2548,7 +2577,7 @@ impl SceneHandler {
         for entity in &map.entities {
             if entity.attributes.get_bool_default("visible", false)
                 && let Some(Value::Source(source)) = entity.attributes.get("source")
-                && let Some(tile) = source.tile_from_tile_list(assets)
+                && let Some(tile) = source.tile_ref_from_tile_list(assets)
             {
                 spawn_3d(
                     &mut self.tile_emitters_3d,
@@ -3522,6 +3551,14 @@ impl SceneHandler {
     }
 
     pub fn build_atlas(&mut self, tiles: &IndexMap<Uuid, Tile>, editor: bool) {
+        self.build_atlas_for_view(tiles, editor, false);
+    }
+    pub(crate) fn build_atlas_for_view(
+        &mut self,
+        tiles: &IndexMap<Uuid, Tile>,
+        editor: bool,
+        omit_iso_sprites: bool,
+    ) {
         self.procedural_avatars.reset_uploads();
         let active = self.vm.active_vm_index();
         self.vm.set_active_vm(0);
@@ -3535,9 +3572,8 @@ impl SceneHandler {
         });
 
         for (id, tile) in tiles {
-            let mut b = vec![];
-            for t in &tile.textures {
-                b.push(t.data.to_vec());
+            if tile.textures.is_empty() || omit_iso_sprites && tile.is_isometric_sprite() {
+                continue;
             }
             self.vm.execute(Atom::AddTile {
                 id: *id,
@@ -4282,6 +4318,14 @@ impl SceneHandler {
                 result.insert(index, sprite);
             }
         }
+        for (index, item) in map.items.iter().enumerate() {
+            if item.attributes.get_bool_default("visible", true)
+                && item.attributes.get("source").is_none()
+                && let Some(sprite) = self.procedural_avatars.isometric_item_sprite(item, assets)
+            {
+                result.insert(crate::isometric::item_sprite_key(index), sprite);
+            }
+        }
         result
     }
 
@@ -4459,7 +4503,19 @@ impl SceneHandler {
                     active_avatar_geo.insert(geo_id);
                     rendered_avatar = true;
                 }
+                let iso_sprite_source = entity
+                    .attributes
+                    .get("source")
+                    .and_then(|v| {
+                        if let Value::Source(source) = v {
+                            source.tile_ref_from_tile_list(assets)
+                        } else {
+                            None
+                        }
+                    })
+                    .is_some_and(Tile::is_isometric_sprite);
                 if !rendered_avatar
+                    && !iso_sprite_source
                     && let Some(avatar) =
                         AvatarRuntimeBuilder::find_avatar_for_entity(entity, assets)
                 {
@@ -4510,11 +4566,12 @@ impl SceneHandler {
 
                 if !rendered_avatar {
                     if let Some(Value::Source(source)) = entity.attributes.get("source")
-                        && let Some(tile) = source.tile_from_tile_list(assets)
+                        && !iso_sprite_source
+                        && let Some(tile_id) = source.tile_id_from_tile_list(assets)
                     {
                         let dynamic = DynamicObject::billboard_tile(
                             geo_id,
-                            tile.id,
+                            tile_id,
                             center3,
                             character_axes.0,
                             character_axes.1,
@@ -4551,6 +4608,8 @@ impl SceneHandler {
 
         // Items
         for (item_index, item) in map.items.iter().enumerate() {
+            if camera.id() == "iso" && crate::isometric::item_cutaway(map,item) { continue; }
+
             // Skip items that are bound to a profile/host sector; they are rendered as billboards for gates/doors.
             let is_profile_bound = matches!(
                 item.attributes.get("profile_host_sector_id"),
@@ -4620,7 +4679,10 @@ impl SceneHandler {
                     item,
                     assets,
                     geo_id,
-                    Vec3::new(item.position.x, ground_y + 0.01, item.position.z),
+                    Vec3::new(item.position.x,
+                        if crate::procedural_avatar::Runtime::resolve_item(item, assets)
+                            .is_some_and(|m| m.footprint.is_some()) { item.position.y } else { ground_y + 0.01 },
+                        item.position.z),
                 )
             {
                 active_avatar_geo.insert(geo_id);

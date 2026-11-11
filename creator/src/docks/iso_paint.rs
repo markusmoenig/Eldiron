@@ -2599,7 +2599,7 @@ impl IsoPaintDock {
         },
     ];
 
-    fn material_preset_labels() -> Vec<String> {
+    pub(crate) fn material_preset_labels() -> Vec<String> {
         vec![
             fl!("material_preset_default"),
             fl!("material_preset_stone"),
@@ -2619,7 +2619,7 @@ impl IsoPaintDock {
         ]
     }
 
-    fn material_finish_labels() -> Vec<String> {
+    pub(crate) fn material_finish_labels() -> Vec<String> {
         vec![
             fl!("material_finish_natural"),
             fl!("material_finish_matte"),

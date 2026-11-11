@@ -309,7 +309,7 @@ action_remap_tile_desc = Remapea los colores de la baldosa a la paleta
 tool_game = Herramienta de juego (K). Si el servidor está en marcha, los eventos de entrada se envían al juego.
 tool_iso_paint = Herramienta 3D Paint (I). Pinta directamente sobre superficies 3D en vistas isométrica, orbital y en primera persona.
 tool_linedef = Herramienta de linedef / arista (E). Crear definiciones de línea 2D y editar aristas de geometría 3D.
-tool_object = Herramienta de objeto (O). Selecciona y mueve objetos 3D editables directamente.
+tool_object = Herramienta de objeto (O). Selecciona objetos y objetos de juego para editar sus descripciones. Mueve geometría 3D editable.
 tool_rect = Herramienta de rectángulo (R). Clic para dibujar la baldosa actual. Shift-clic para borrar. Alt/Opt-clic para tomarla del mapa.
 tool_sector = Herramienta de sector / cara (F). Selecciona sectores en 2D o caras en 3D.
 tool_vertex = Herramienta de vértice (V). 'Shift' + clic para crear un nuevo vértice.
@@ -631,8 +631,8 @@ status_block_erase = Borra instancias de bloque.
 status_block_line = Arrastra una línea de estampas.
 status_block_rect = Arrastra un rectángulo relleno de estampas.
 status_block_selected = Bloque: {$asset_name}
-tool_blocks = Herramienta de Prefabs
-status_block_tool_active = Herramienta de Prefabs: clic/arrastrar para colocar, R rotar, E borrar, H/W/Z tamaño, D daño, [/] nivel
+tool_blocks = Objetos 3D
+status_block_tool_active = Objetos 3D: selecciona un recurso y haz clic o arrastra para colocarlo. Usa el panel superpuesto para editar.
 block_asset_instances = bloques
 block_commit_placed = Colocado
 block_commit_replaced = Reemplazado
@@ -1022,7 +1022,7 @@ paint_picker_jitter = Variación
 paint_picker_rotate = Rotación
 paint_picker_edit = Editar receta
 paint_picker_choose = Elige un material o sello abajo
-paint_picker_choose_stamp = Elige un sello de la colección Organic stamps.
+paint_picker_choose_stamp = Elige un sello de la colección Organic Stamps.
 
 paint_source_title = Fuente de pintura
 paint_stamp_source_title = Fuente del sello
@@ -1030,3 +1030,37 @@ paint_source_seed = Semilla de variación
 paint_source_artwork_size = Tamaño del diseño
 paint_source_palette_hint = Color de paleta de la fuente
 paint_picker_in_use = Este material se usa en pintura, sellos, una malla, una salida de tile o un conjunto de reglas. Sustituye sus referencias antes de eliminarlo.
+
+paint_overlay_advanced = Avanzado
+paint_overlay_settings = Ajustes
+
+# 3D Props viewport overlay
+props_requires_3d = Objetos 3D requiere una cámara 3D. Usa el selector de tiles en 2D y 2D Iso.
+props_rotate = Girar
+props_placement = Colocación…
+props_edit_recipe = Editar receta
+props_edit_prop = Editar objeto
+props_recipe_controls = Controles de receta…
+props_grid = Tamaño de cuadrícula
+props_level = Nivel
+props_height = Altura
+props_width = Ampliación de ancho
+props_depth = Ampliación de profundidad
+props_blocks = Bloques
+props_furniture = Muebles
+props_decoration = Decoración
+props_lighting = Iluminación
+props_project = Objetos del proyecto
+props_meshes = Mallas MZ
+props_mesh_hint = Coloca geometría 3D vinculada a esta receta MZ. Edita la receta desde el panel superpuesto.
+props_subdivisions = Subdivisiones del mapa
+props_level_height = Altura de nivel
+tool_blocks_description = Objetos 3D (B). Coloca objetos reutilizables y mallas MZ. Gira, ajusta el tamaño o edita la fuente en el panel superpuesto. Disponible con cámaras 3D.
+
+# Shared MZ item states (2D, isometric and 3D).
+entity_item_state = Estado del objeto
+entity_item_active = Activado / Abierto
+entity_item_openable = Se puede abrir
+entity_item_locked = Cerrado con llave
+entity_item_required_key = Llave requerida
+entity_item_state_help = Activado selecciona la salida MZ On; desactivado selecciona Off. Abrir/Cerrar usa las intenciones oficiales. Una llave del inventario desbloquea una vez y no se consume.

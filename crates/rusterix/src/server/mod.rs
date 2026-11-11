@@ -104,6 +104,7 @@ pub struct Server {
     pub items: FxHashMap<u32, Vec<Item>>,
     pub messages: FxHashMap<u32, Vec<Message>>,
     pub says: FxHashMap<u32, Vec<Say>>,
+    world_texts: FxHashMap<u32, Vec<(u32, crate::world_text::WorldText)>>,
     pub open_container_requests: FxHashMap<u32, Vec<OpenContainerRequest>>,
     pub multiple_choice: FxHashMap<u32, Vec<MultipleChoice>>,
     pub audio_commands: FxHashMap<u32, Vec<AudioCommand>>,
@@ -151,6 +152,7 @@ impl Server {
             items: FxHashMap::default(),
             messages: FxHashMap::default(),
             says: FxHashMap::default(),
+            world_texts: FxHashMap::default(),
             open_container_requests: FxHashMap::default(),
             multiple_choice: FxHashMap::default(),
             audio_commands: FxHashMap::default(),
@@ -316,6 +318,11 @@ impl Server {
         } else {
             vec![]
         }
+    }
+
+    /// Drain private world text for a region; the client checks the recipient.
+    pub fn get_world_texts(&mut self, region_id: &Uuid) -> Vec<(u32, crate::world_text::WorldText)> {
+        self.region_id_map.get(region_id).and_then(|id| self.world_texts.remove(id)).unwrap_or_default()
     }
 
     /// Get says for a given region and clear them.
@@ -540,6 +547,23 @@ impl Server {
                                 vec![(sender_entity, sender_item, receiver_id, message, category)];
                             self.messages.insert(id, messages);
                         }
+                    }
+                    RegionMessage::WorldText(id, receiver, text) => {
+                        // Text clients and journals retain the same description; graphical
+                        // clients render the structured anchor instead of a message widget.
+                        let (entity, item) = match &text.anchor {
+                            crate::world_text::TextAnchor::Entity(id) => (Some(*id), None),
+                            crate::world_text::TextAnchor::Item(id) => (None, Some(*id)),
+                            _ => (None, None),
+                        };
+                        self.messages.entry(id).or_default().push((
+                            entity, item, receiver, text.text.clone(), "look".into(),
+                        ));
+                        let pending = self.world_texts.entry(id).or_default();
+                        if pending.len() >= 64 {
+                            pending.remove(0);
+                        }
+                        pending.push((receiver, text));
                     }
                     RegionMessage::Say(id, sender_entity, sender_item, message, category) => {
                         if let Some(says) = self.says.get_mut(&id) {
@@ -1023,6 +1047,7 @@ impl Server {
         self.items.clear();
         self.messages.clear();
         self.says.clear();
+        self.world_texts.clear();
         self.open_container_requests.clear();
         self.audio_commands.clear();
         self.world_render = RuntimeRenderState::default();

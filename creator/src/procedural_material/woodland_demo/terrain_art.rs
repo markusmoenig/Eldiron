@@ -229,7 +229,7 @@ fn update_unending_night_terrain_art() {
     )
     .unwrap();
     check_surfaces(&project);
-    let character = source_tile(&project, "character");
+    let character = uo_art::player_template(&project);
     if std::env::var_os("ELDIRON_TERRAIN_REVIEW_CANDIDATE").is_none() {
         for (name, unit, center, hour) in [
             ("terrain-day", 36., [15., 15.], 11.),

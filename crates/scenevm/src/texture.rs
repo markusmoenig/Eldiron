@@ -28,7 +28,7 @@ fn mip_level_count(width: u32, height: u32) -> u32 {
     (32 - max_dim.leading_zeros()).max(1)
 }
 
-#[cfg(feature = "gpu")]
+#[cfg(all(feature = "gpu", test))]
 fn downsample_rgba8_box(src: &[u8], src_w: u32, src_h: u32) -> (Vec<u8>, u32, u32) {
     let dst_w = (src_w / 2).max(1);
     let dst_h = (src_h / 2).max(1);
@@ -80,6 +80,42 @@ fn downsample_rgba8_box(src: &[u8], src_w: u32, src_h: u32) -> (Vec<u8>, u32, u3
     }
 
     (dst, dst_w, dst_h)
+}
+
+#[cfg(feature = "gpu")]
+fn mip_pipeline(device: &wgpu::Device) -> wgpu::ComputePipeline {
+    // SceneVMs and their atlases share a device. Keep the tiny filter pipeline
+    // across texture reallocations without sharing resources between devices.
+    thread_local! {
+        static CACHE: std::cell::RefCell<Vec<(wgpu::Device, wgpu::ComputePipeline)>> = const { std::cell::RefCell::new(Vec::new()) };
+    }
+    CACHE.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        if let Some((_, pipeline)) = cache.iter().find(|(owner, _)| owner == device) {
+            return pipeline.clone();
+        }
+        let pipeline = {
+            let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("scenevm-texture-mips"),
+                source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!(
+                    "texture_mips.wgsl"
+                ))),
+            });
+            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: Some("scenevm-texture-mips"),
+                layout: None,
+                module: &shader,
+                entry_point: Some("main"),
+                compilation_options: Default::default(),
+                cache: None,
+            })
+        };
+        if cache.len() >= 4 {
+            cache.remove(0);
+        }
+        cache.push((device.clone(), pipeline.clone()));
+        pipeline
+    })
 }
 
 impl Texture {
@@ -192,42 +228,72 @@ impl Texture {
     #[cfg(feature = "gpu")]
     pub fn upload_to_gpu_with(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
         self.ensure_gpu_with(device);
-        let g = self.gpu.as_ref().expect("Texture GPU not allocated");
-        let mut level_data = self.data.clone();
-        let mut level_w = self.width;
-        let mut level_h = self.height;
+        let g = self.gpu.as_mut().expect("Texture GPU not allocated");
+        // Upload mip 0 once. Generating the rest on the CPU cloned and filtered
+        // both large atlases on the UI thread whenever a camera needed them.
+        queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &g.texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            &self.data,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(self.width * 4),
+                rows_per_image: Some(self.height),
+            },
+            wgpu::Extent3d {
+                width: self.width,
+                height: self.height,
+                depth_or_array_layers: 1,
+            },
+        );
         let levels = mip_level_count(self.width, self.height);
-
-        for mip in 0..levels {
-            let bytes_per_row = level_w * 4;
-            queue.write_texture(
-                wgpu::TexelCopyTextureInfo {
-                    texture: &g.texture,
-                    mip_level: mip,
-                    origin: wgpu::Origin3d::ZERO,
-                    aspect: wgpu::TextureAspect::All,
-                },
-                &level_data,
-                wgpu::TexelCopyBufferLayout {
-                    offset: 0,
-                    bytes_per_row: Some(bytes_per_row),
-                    rows_per_image: Some(level_h),
-                },
-                wgpu::Extent3d {
-                    width: level_w,
-                    height: level_h,
-                    depth_or_array_layers: 1,
-                },
-            );
-
-            if level_w == 1 && level_h == 1 {
-                break;
-            }
-            let (next_data, next_w, next_h) = downsample_rgba8_box(&level_data, level_w, level_h);
-            level_data = next_data;
-            level_w = next_w;
-            level_h = next_h;
+        if levels <= 1 {
+            return;
         }
+        let pipeline = mip_pipeline(device);
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("scenevm-texture-mips"),
+        });
+        let layout = pipeline.get_bind_group_layout(0);
+        let mip_view = |mip| {
+            g.texture.create_view(&wgpu::TextureViewDescriptor {
+                base_mip_level: mip,
+                mip_level_count: Some(1),
+                ..Default::default()
+            })
+        };
+        for mip in 1..levels {
+            let src = mip_view(mip - 1);
+            let dst = mip_view(mip);
+            let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("scenevm-texture-mip-level"),
+                layout: &layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(&src),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::TextureView(&dst),
+                    },
+                ],
+            });
+            // Each pass provides the dependency between adjacent mip levels.
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor::default());
+            pass.set_pipeline(&pipeline);
+            pass.set_bind_group(0, &group, &[]);
+            pass.dispatch_workgroups(
+                (self.width >> mip).max(1).div_ceil(8),
+                (self.height >> mip).max(1).div_ceil(8),
+                1,
+            );
+        }
+        queue.submit(Some(encoder.finish()));
     }
 
     /// Download the GPU texture into `self.data` using raw handles.
@@ -506,6 +572,89 @@ impl Texture {
                 dst[d_off..d_end].copy_from_slice(&self.data[s_off..s_end]);
             } else {
                 break; // Out-of-bounds safety guard
+            }
+        }
+    }
+}
+
+#[cfg(all(test, feature = "gpu", not(target_arch = "wasm32")))]
+mod mip_tests {
+    use super::*;
+
+    #[test]
+    #[ignore = "requires a native GPU adapter"]
+    fn gpu_mips_match_alpha_weighted_cpu_filter_after_repeated_uploads() {
+        let scene = crate::SceneVM::new(16, 16);
+        let gpu = scene.gpu.as_ref().expect("native GPU");
+        for (width, height) in [(1, 1), (1, 17), (17, 1), (15, 9), (64, 32)] {
+            let mut texture = Texture::new(width, height);
+            for seed in [13usize, 97] {
+                for (i, pixel) in texture.data.chunks_exact_mut(4).enumerate() {
+                    pixel.copy_from_slice(&[
+                        ((i * 31 + seed) % 256) as u8,
+                        ((i * 17 + seed * 2) % 256) as u8,
+                        ((i * 7 + seed * 3) % 256) as u8,
+                        if i % 3 == 0 {
+                            0
+                        } else {
+                            ((i * 43 + seed) % 256) as u8
+                        },
+                    ]);
+                }
+                texture.upload_to_gpu_with(&gpu.device, &gpu.queue);
+                let mut expected = texture.data.clone();
+                let (mut w, mut h) = (width, height);
+                let g = texture.gpu.as_ref().unwrap();
+                for mip in 0..mip_level_count(width, height) {
+                    let mut encoder = gpu.device.create_command_encoder(&Default::default());
+                    encoder.copy_texture_to_buffer(
+                        wgpu::TexelCopyTextureInfo {
+                            texture: &g.texture,
+                            mip_level: mip,
+                            origin: wgpu::Origin3d::ZERO,
+                            aspect: wgpu::TextureAspect::All,
+                        },
+                        wgpu::TexelCopyBufferInfo {
+                            buffer: &g.readback,
+                            layout: wgpu::TexelCopyBufferLayout {
+                                offset: 0,
+                                bytes_per_row: Some(g.padded_bytes_per_row),
+                                rows_per_image: Some(h),
+                            },
+                        },
+                        wgpu::Extent3d {
+                            width: w,
+                            height: h,
+                            depth_or_array_layers: 1,
+                        },
+                    );
+                    let submission = gpu.queue.submit(Some(encoder.finish()));
+                    let slice = g.readback.slice(..);
+                    let (tx, rx) = std::sync::mpsc::sync_channel(1);
+                    slice.map_async(wgpu::MapMode::Read, move |r| {
+                        tx.send(r).unwrap();
+                    });
+                    gpu.device
+                        .poll(wgpu::PollType::Wait {
+                            submission_index: Some(submission),
+                            timeout: None,
+                        })
+                        .unwrap();
+                    rx.recv().unwrap().unwrap();
+                    let bytes = slice.get_mapped_range();
+                    let actual = bytes
+                        .chunks(g.padded_bytes_per_row as usize)
+                        .take(h as usize)
+                        .flat_map(|row| row[..w as usize * 4].iter().copied())
+                        .collect::<Vec<_>>();
+                    assert_eq!(
+                        actual, expected,
+                        "{width}x{height} mip {mip}, upload seed {seed}"
+                    );
+                    drop(bytes);
+                    g.readback.unmap();
+                    (expected, w, h) = downsample_rgba8_box(&expected, w, h);
+                }
             }
         }
     }

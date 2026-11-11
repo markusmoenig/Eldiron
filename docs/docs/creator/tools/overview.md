@@ -14,7 +14,7 @@ Some tools are specifically designed for **map editing** and display a common **
 - **Sector / Face Tool**
 - **Rect Tool**
 - **Terrain Tool**
-- **Prefab Tool**
+- **3D Props Tool**
 - **Paint Tool**
 
 The tool strip also contains **mode toggles** below the main map tools:
@@ -62,7 +62,7 @@ See [Camera Actions](../actions#camera-actions) for the complete per-camera cont
 ![Current map HUD showing grid snap steps and a tile assignment slot.](/img/creator/map-hud.png)
 
 - The **upper-left corner** of the HUD shows the **current map position**. In 3D views it falls back to the selected geometry position when the cursor is not hovering geometry and displays enough decimal precision for the smallest grid snap steps.
-- The numbers **1 ... 6** represent **grid snap steps**:
+- In 2D, 2D Iso and 3D geometry tools, the numbers **1 ... 6** represent **grid snap steps**:
   - **1** = one world unit
   - **2** = half a world unit
   - **3** = one quarter of a world unit
@@ -83,7 +83,7 @@ In 3D geometry views you can also use:
 - `V`: Vertex Tool
 - `E`: Linedef / Edge Tool
 - `F`: Sector / Face Tool
-- `B`: one-shot Box Select in Orbit mode; Prefab Tool in Iso and First Person
+- `B`: one-shot Box Select in Orbit mode; 3D Props Tool in Iso and First Person
 - `M`: Move object gizmo
 - `S`: Size object gizmo
 
@@ -117,21 +117,9 @@ World materials, MZ appearances and UI use this one project palette. For world
 tiles, **Make Proc** opens the [procedural material editor](/docs/building_maps/procedural_materials);
 the Rect tool's Compose mode edits layered material shapes on the map.
 
-With the [Paint Tool](iso_paint), the lower picker area shows the **Paint** dock instead:
+With the [Paint Tool](iso_paint), **Paint Brushes** and **Organic Stamps** are editable MZ recipes in the Tile Picker. Brush operations, palette colors, material finishes and pattern settings live in the floating viewport overlay.
 
-- visual brush presets
-- draw/erase/pick and Surface/No Clip controls
-- project palette color slots
-- material, finish, shape, and pattern settings for surface-space paint strokes
-
-With the [Prefab Tool](blocks), the lower picker area shows the **Prefabs** dock instead:
-
-- rendered previews for project Prefabs and built-in construction stamps
-- Place / Replace / Erase operation controls
-- Clean / Damaged stamping controls
-- Line / Rect drag-stamping controls
-- compact selected-asset state and shortcut guidance
-- practical stamps such as floor+wall, floor+corner, floor+doorway, stairs, ceilings, faceted columns, and solids
+With the [3D Props Tool](blocks), the lower area shows the **Prefabs** browser: rendered previews for built-in stamps, linked project Props and static **MZ Meshes**. The floating viewport overlay contains placement operations, rotation, grid/size settings and explicit editing controls. Selecting a thumbnail keeps the map open.
 
 ## Direct 3D Geometry Editing
 
@@ -187,11 +175,13 @@ For the full workflow, see [Palette Tool](palette).
 
 ## Prefabs And Block Building
 
-The **Prefab Tool** browses and places reusable linked project Prefabs and also retains the built-in construction-stamp workflow for rooms, corridors, dungeon layouts, houses, and blockouts.
+The **3D Props Tool** browses and places reusable linked project Prefabs and also retains the built-in construction-stamp workflow for rooms, corridors, dungeon layouts, houses, and blockouts.
 
 Project Prefabs are UUID-backed shared sources: editing the source updates linked instances, while each placement keeps its own transform and runtime state. Built-in construction stamps still use the dedicated block grid, click/line/rectangle placement, whole-instance replace/erase, clean or damaged variants, rotation, stack levels, and component-aware sizing.
 
-For the full workflow, see [Prefab Tool](blocks).
+Static MZ mesh recipes can also be placed directly from **MZ Meshes**, without a Prefab wrapper. Placement, source editing and published controls are in the viewport overlay; the lower dock is the asset browser. Use the Tile Picker in 2D and 2D Iso.
+
+For the full workflow, see [3D Props Tool](blocks).
 
 ## Paint Mode
 

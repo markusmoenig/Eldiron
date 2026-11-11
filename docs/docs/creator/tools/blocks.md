@@ -1,15 +1,15 @@
 ---
-title: "Prefab Tool"
+title: "3D Props Tool"
 sidebar_position: 7
 ---
 
-The **Prefab Tool** browses and places reusable linked Prefabs and retains Eldiron's modular construction-stamp workflow.
+The **3D Props Tool** browses and places linked Prefabs, static MZ mesh recipes and modular construction stamps. It is available in the 3D cameras (3D Iso, Orbit and First Person). In 2D and 2D Iso, use the Tile Picker and Rect tool.
 
-Outside Orbit mode, its 3D keyboard shortcut is **`B`**. In Orbit, `B` is reserved for one-shot Box Select, so activate the Prefab Tool from the left toolbar.
+Outside Orbit mode, its 3D keyboard shortcut is **`B`**. In Orbit, `B` is reserved for one-shot Box Select, so activate the 3D Props Tool from the left toolbar.
 
 ## What It Does
 
-The Prefab Tool lets you:
+The 3D Props Tool lets you:
 
 - choose project Prefabs and built-in construction stamps from the **Prefabs** dock
 - place project Prefabs as lightweight linked instances
@@ -23,7 +23,7 @@ The Prefab Tool lets you:
 - make component-aware height and width adjustments before stamping
 - stamp clean or damaged geometry variants
 
-Project Prefab placements remain linked to their shared UUID-backed source. Built-in construction stamps currently become ordinary editable Geometry Objects; you can continue editing them with the Object, Face, Edge, and Vertex tools.
+MZ mesh placements remain linked to their recipe without requiring a Prefab. Project Prefab placements remain linked to their shared UUID-backed source. Built-in construction stamps currently become ordinary editable Geometry Objects; you can continue editing them with the Object, Face, Edge, and Vertex tools.
 
 ## Reusable Prefabs
 
@@ -38,7 +38,7 @@ This distinction is important:
 | One stable project UUID | Its own stable instance UUID plus the source UUID |
 | A source edit updates every linked placement | Moving one instance does not move or edit the others |
 
-Built-in construction stamps and project Prefabs share the Prefab Tool, but they have different results. A project Prefab is placed as a linked instance. A built-in floor, wall, stair, doorway, or similar stamp is baked into ordinary editable Geometry Objects.
+Built-in construction stamps and project Prefabs share the 3D Props Tool, but they have different results. A project Prefab is placed as a linked instance. A built-in floor, wall, stair, doorway, or similar stamp is baked into ordinary editable Geometry Objects.
 
 ### Create A Project Prefab
 
@@ -61,7 +61,7 @@ New assets receive an automatic name such as `Prefab 1`. To rename one, open its
 
 ### Place A Project Prefab
 
-1. Activate the **Prefab Tool**.
+1. Activate the **3D Props Tool**.
 2. Select the project Prefab in the **Prefabs** dock.
 3. Move the pointer over the desired 3D placement surface.
 4. Click to place a linked instance.
@@ -72,7 +72,7 @@ To reposition an existing linked instance, select any visible part of it with th
 
 ### Open And Close The Isolated Editor
 
-Select a project Prefab in the Prefabs dock and use the top-right **Edit / Maximize Dock** control (`Cmd/Ctrl + [`) to open it. Built-in construction stamps are not project source assets and cannot be opened this way.
+Select a project Prefab in the browser, then click **Edit Prop** in the viewport overlay to open it. Selecting its thumbnail only selects it for placement. The top-right **Edit / Maximize Dock** control (`Cmd/Ctrl + [`) also opens the source. Editing a built-in construction stamp first creates an editable project Prefab from it.
 
 The isolated editor:
 
@@ -83,7 +83,7 @@ The isolated editor:
 - writes changes back to the same Prefab UUID
 - provides Prefab-specific hierarchy, pivot, Door, paint, tile, palette, and support-surface controls
 
-Use **Restore Dock** (`Cmd/Ctrl + ]`) to return to the normal region layout. Eldiron restores the previous region and camera context and returns to the Prefab Tool.
+Use **Restore Dock** (`Cmd/Ctrl + ]`) to return to the normal region layout. Eldiron restores the previous region and camera context and returns to the 3D Props Tool.
 
 Advanced source editing happens in this isolated editor. A linked instance in a region can be positioned, made unique, or unpacked, but its shared Geometry Objects are not edited directly in place.
 
@@ -249,36 +249,67 @@ The table does not need separate parts unless a section must move independently 
 
 ### Current Boundaries
 
-- Project Prefabs currently use directly authored Geometry Objects. Procedural Recipe-backed Prefab sources are planned but are not yet part of this editor workflow.
+- Project Prefab parts may use authored Geometry Objects or MZ recipes applied to source geometry. Static standalone MZ recipes can also be placed directly from **MZ Meshes**, without creating Prefab assets.
+- Direct MZ placement currently accepts static mesh recipes. Rigs, particle-effect recipes and recipes requiring selection input belong to their existing character/item or Apply MZ Recipe workflows.
+- Direct static MZ meshes do not add runtime state behavior. Author existing Door components in the Prefab editor.
 - Built-in construction stamps are editable baked geometry, not linked project Prefabs.
 - Linked source geometry is edited in the isolated editor rather than directly inside a region.
 - **Update Prefab Source** is a destructive source rebuild for Prefab-specific semantics; it is not the normal way to save incremental source edits.
 - **Unpack Prefab** removes Prefab behavior and support relationships from those placements.
 - Stable UUIDs make project assets suitable for future library, packaging, import/export, and database sharing, but those sharing workflows are not yet exposed by the Creator UI.
 
-## Prefabs Dock
+## Browser And Viewport Overlay
 
-When the Prefab Tool is active, the lower dock switches to **Prefabs**.
+Activating **3D Props** opens the lower browser. Categories separate **Blocks**, **Furniture**, **Decoration**, **Lighting**, **Project Props** and **MZ Meshes**. The browser contains thumbnails; placement settings live in the floating viewport overlay.
 
-The dock combines project Prefabs with the built-in block library. Its rendered previews select the asset to place, while the compact state area describes the current construction placement settings:
+MZ recipe names appear first. A background worker generates thumbnails for the visible rows and prioritizes the selected recipe; scrolling requests the newly visible rows. Scrolling and selection stay available while previews arrive, and updating a thumbnail preserves the current scroll position. A selected recipe finishes preparing in the background before its placement preview becomes available.
 
-- **Block**: the selected block stamp
-- **Size**: the grid footprint and whether the block reacts to height, width, both, or neither
-- **State**: current cell size, stack level, rotation, and clean/damaged mode
-- **Shape**: remembered height and width expansion values
-- **Mouse / Keys / Resize**: the main placement shortcuts
+Selecting a thumbnail keeps the map open. Move over the map to see the placement ghost, then click once or drag a line/rectangle stroke. To edit the source, explicitly choose **Edit Prop** or **Edit Recipe** in the overlay.
 
-For built-in construction stamps, the placement toolbar contains:
+| Overlay control | Effect |
+| --- | --- |
+| Place / Replace / Erase | Add geometry, replace stamped content at the target cells, or erase it |
+| Line / Rect | Choose the repetition pattern while dragging |
+| Rotate | Turn the next placement by 90°; existing placements stay in place |
+| Placement… | Set block-grid size and level; project Props and MZ meshes also expose the normal map subdivisions |
+| Height / Width expansion / Depth expansion | Available in Placement for resizable construction stamps and auto-sized Prefabs |
+| Clean / Damaged | Available for construction stamps |
+| Edit Prop | Explicitly open the isolated source editor |
+| Duplicate / Delete Prefab | Manage project Prefab sources; deletion refuses sources with live placements |
+| Edit Recipe | Explicitly open the selected MZ mesh's recipe |
+| Recipe Controls… | Change the recipe's published inputs without opening the full MZ editor |
 
-- **Place / Replace / Erase**: choose the edit operation
-- **Clean / Damaged**: choose whether newly stamped blocks are intact or deterministically damaged
-- **Line / Rect**: choose the drag stroke shape
+Overlay gestures are captured through release, including a release outside the panel. Rotating or changing a setting does not place an object on the map.
 
-The operation controls are left-aligned. The **Clean / Damaged** and **Line / Rect** controls are grouped on the right.
+### Place An MZ Fence Without A Prefab
+
+1. Create or import a mesh with the MZ recipe browser, for example **Fence**. It appears in **MZ Meshes** once it is a valid static mesh recipe.
+2. Select it in **3D Props → MZ Meshes**. Selection keeps the map visible.
+3. Set rotation and placement snapping in the overlay, then click to place it.
+4. Open **Recipe Controls…**. Change **Post count** or **Spacing**. Published numeric, integer and palette inputs use normal editor controls. Calculated fields are displayed as values.
+5. The saved recipe updates and its placed geometry rebuilds. The calculated fence length follows count and spacing. Each placement retains its own transform and stable face identities, including individual face material overrides.
+6. Save and reopen the project. Placements still reference that same MZ recipe. No Prefab wrapper was created.
+
+These controls edit the shared source, so all linked placements follow. For a separately reusable variant, duplicate the recipe in the MZ recipe browser and place that variant. Use the geometry selection tools to move existing objects.
+
+A recipe requiring a selected frame, such as **Pitched roof**, uses **Apply MZ Recipe** on selected geometry. It is intentionally absent from the standalone placement category.
+
+### Try Doors, Lights And Stacking
+
+- **Hinged door:** create a leaf as a project Prefab, choose **Edit Prop**, set its hinge pivot and connect the existing Door node. Place two copies; each keeps its own open/closed state.
+- **Wall light:** select **Lighting → Wall Torch**, then point at a valid wall. Mounting, attached particles and the live light are retained. Invalid mounting surfaces are rejected.
+- **Tabletop decoration:** place a furniture Prefab with a support surface, then place a small Any Surface decoration on that surface. Existing snapping, capacity and occupancy checks remain active.
+- **Parameterized mesh:** use the fence example above; its construction inputs stay in MZ rather than becoming placement-only scale values.
+
+## Switching Between 2D Iso And 3D
+
+2D Iso tiles are baked sprite art. Their sprite sheets and placement footprints are excluded from 3D editor rendering. Switching cameras does not convert them into 3D objects. The shared terrain, its material layers and sculpting, authored Geometry Objects and linked 3D Props remain available. To use an MZ construction in 3D, place its actual mesh recipe through **3D Props → MZ Meshes**.
+
+The source Iso tiles and map placements are retained when switching views. Returning to 2D Iso shows them again. The **3D Props** tool button is dimmed and inactive in both 2D cameras.
 
 ## Placement Grid
 
-The Prefab Tool uses its own block grid for construction stamps in 3D views. While placing these stamps, this grid replaces the normal edit grid.
+The 3D Props Tool uses its own block grid for construction stamps in 3D views. While placing these stamps, this grid replaces the normal edit grid.
 
 Placement and preview are projected onto the active block-grid plane. This keeps stamps aligned even when the camera is zoomed in or the cursor is over existing geometry.
 
@@ -330,13 +361,13 @@ The 3D overlay previews the whole pending stroke before mouse-up. Erase strokes 
 
 Use **Clean / Damaged** to choose whether newly stamped geometry should be intact or chipped.
 
-When **Damaged** is active, the Prefab Tool applies deterministic damage while stamping. The damage is baked into the placed Geometry Objects and stored with a seed, so undo, redo, save/load, and copy/paste do not regenerate a different result.
+When **Damaged** is active, the 3D Props Tool applies deterministic damage while stamping. The damage is baked into the placed Geometry Objects and stored with a seed, so undo, redo, save/load, and copy/paste do not regenerate a different result.
 
 Damage only affects newly stamped blocks. Existing blocks are not changed when you toggle the mode.
 
 ## Component-Aware Sizing
 
-The Prefab Tool remembers height and width settings for built-in construction stamps. These settings are applied intelligently per component:
+The 3D Props Tool remembers height and width settings for built-in construction stamps. These settings are applied intelligently per component:
 
 - floors ignore height changes
 - walls, posts, columns, ceilings, and lintels react to height changes
@@ -349,7 +380,7 @@ This means **make higher** affects wall-like pieces but not floor slabs. **Make 
 
 When the 3D view has focus:
 
-- **B**: activate the Prefab Tool in Iso and First Person; in Orbit, arm Box Select instead
+- **B**: activate the 3D Props Tool in Iso and First Person; in Orbit, arm Box Select instead
 - **R**: rotate the selected block 90 degrees
 - **E**: toggle Place / Erase
 - **D**: toggle Clean / Damaged stamping

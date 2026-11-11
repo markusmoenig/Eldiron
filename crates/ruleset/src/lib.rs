@@ -475,6 +475,8 @@ pub fn bundled_icon_material_assets_for_ruleset(
         icon!("ui_actions", "icon"),
         icon!("look", "icon"),
         icon!("use", "icon"),
+        icon!("open", "icon"),
+        icon!("close", "icon"),
         icon!("training_sword", "sword"),
         icon!("round_shield", "shield"),
         icon!("hand_axe", "axe"),
@@ -5975,7 +5977,7 @@ fn validate_relation_and_intent_rules(report: &mut RulesetValidationReport, root
         }
     }
 
-    let allowed_target_kinds = BTreeSet::from(["entity".to_string(), "item".to_string()]);
+    let allowed_target_kinds = BTreeSet::from(["entity".to_string(), "item".to_string(), "prefab".to_string()]);
     if let Some(intents) = ruleset_table_at_path(root, &["intents"]) {
         for (intent, value) in intents {
             let Some(table) = value.as_table() else {

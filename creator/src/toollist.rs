@@ -49,6 +49,7 @@ pub struct ToolList {
     /// Full-screen Prefab editing uses the normal geometry implementations,
     /// but exposes only the tools that make sense inside an isolated asset.
     pub prefab_mode: bool,
+    props_3d_available: bool,
     last_3d_hover_pick_at: Option<Instant>,
     last_3d_overlay_update_at: Option<Instant>,
     prefab_preview_wire_rgb: [f32; 3],
@@ -1036,8 +1037,10 @@ impl ToolList {
 
         let mut bbox = sector.bounding_box(map);
         if Self::sector_affects_terrain(sector) {
-            let radius = sector.properties
-                .get_float_default("terrain_shape_blend", 0.).max(4.);
+            let radius = sector
+                .properties
+                .get_float_default("terrain_shape_blend", 0.)
+                .max(4.);
             bbox.expand(Vec2::broadcast(radius * 2.));
         }
         Self::add_bbox_dirty_chunks(bbox, chunks);
@@ -1061,7 +1064,9 @@ impl ToolList {
                 .properties
                 .get_float_default(
                     "terrain_shape_blend",
-                    linedef.properties.get_float_default("terrain_tile_falloff", 1.0),
+                    linedef
+                        .properties
+                        .get_float_default("terrain_tile_falloff", 1.0),
                 )
                 .max(0.0);
             bbox.expand(Vec2::broadcast((width + falloff + 8.0) * 2.0));
@@ -1324,9 +1329,14 @@ impl ToolList {
                 _ => {
                     affected_vertices.insert(vertex_id);
                     for map in [old_map, new_map] {
-                        affected_linedefs.extend(map.linedefs.iter()
-                            .filter(|l| l.start_vertex == vertex_id || l.end_vertex == vertex_id)
-                            .map(|l| l.id));
+                        affected_linedefs.extend(
+                            map.linedefs
+                                .iter()
+                                .filter(|l| {
+                                    l.start_vertex == vertex_id || l.end_vertex == vertex_id
+                                })
+                                .map(|l| l.id),
+                        );
                     }
                     affected_sectors.extend(old_topology.sectors_for_vertices([vertex_id]));
                     affected_sectors.extend(new_topology.sectors_for_vertices([vertex_id]));
@@ -1980,6 +1990,7 @@ impl ToolList {
             curr_editor_tool: 0,
             editor_mode: false,
             prefab_mode: false,
+            props_3d_available: false,
             last_3d_hover_pick_at: None,
             last_3d_overlay_update_at: None,
             prefab_preview_wire_rgb: [83.0 / 255.0, 151.0 / 255.0, 207.0 / 255.0],
@@ -2219,6 +2230,9 @@ impl ToolList {
 
                 b.set_icon_name(tool.icon_name());
                 b.set_status_text(&Self::status_text_with_accel(tool.info(), tool.accel()));
+                if command_id == Some("tool.blocks") {
+                    b.set_disabled(!self.props_3d_available);
+                }
                 if command_id == Some("tool.game") {
                     b.set_custom_color(Some(TheColor::from_u8(35, 78, 57, 255)));
                 }
@@ -2612,6 +2626,15 @@ impl ToolList {
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
+        self.sync_props_availability(ui, ctx, project, server_ctx);
+        if !self.editor_mode
+            && self.current_game_tool_is("tool.blocks")
+            && self
+                .get_current_tool()
+                .handle_event(event, ui, ctx, project, server_ctx)
+        {
+            return true;
+        }
         if self.handle_editor_display_event(event, ui, ctx, project, server_ctx) {
             return true;
         }
@@ -2890,6 +2913,7 @@ impl ToolList {
                         }
                     }
 
+                    self.sync_props_availability(ui, ctx, project, server_ctx);
                     if let Some(editing_pos_buffer) = server_ctx.editing_pos_buffer {
                         if let Some(region) = project.get_region_ctx_mut(server_ctx) {
                             region.editing_position_3d = editing_pos_buffer;
@@ -2903,7 +2927,7 @@ impl ToolList {
 
                     if old != new {
                         ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Render SceneManager Map"),
+                            TheId::named("Switch SceneManager Camera"),
                             TheValue::Empty,
                         ));
                     } else if new {
@@ -3025,7 +3049,7 @@ impl ToolList {
                     && !server_ctx.game_input_mode
                     && !server_ctx.text_game_mode
                     && !self.editor_mode
-                    && self.get_current_tool().id().name == "Prefab Tool"
+                    && self.current_game_tool_is("tool.blocks")
                     && matches!(
                         c,
                         'r' | 'R' | 'e' | 'E' | 'h' | 'H' | 'w' | 'W' | '[' | '{' | ']' | '}'
@@ -4474,6 +4498,22 @@ impl ToolList {
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
+        self.props_3d_available = server_ctx.editor_view_mode.is_3d();
+        if !self.props_3d_available
+            && self.get_game_tool_uuid_by_command_id("tool.blocks") == Some(tool_id)
+        {
+            ctx.ui.send(TheEvent::SetStatusText(
+                TheId::empty(),
+                fl!("props_requires_3d"),
+            ));
+            ctx.ui
+                .set_widget_state("3D Props Tool".into(), TheWidgetState::None);
+            ctx.ui.set_widget_state(
+                self.game_tools[self.curr_game_tool].id().name,
+                TheWidgetState::Selected,
+            );
+            return false;
+        }
         let mut redraw = false;
         let mut switched_tool = false;
         let layout_name = "Game Tool Params";
@@ -4725,8 +4765,34 @@ impl ToolList {
         self.palette_mode
     }
 
+    fn sync_props_availability(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        server: &mut ServerContext,
+    ) {
+        let available = server.editor_view_mode.is_3d();
+        if self.props_3d_available != available {
+            self.props_3d_available = available;
+            if available {
+                ui.set_enabled("3D Props Tool", ctx);
+            } else {
+                ui.set_disabled("3D Props Tool", ctx);
+            }
+        }
+        if !available && self.current_game_tool_is("tool.blocks") && !self.editor_mode {
+            if let Some(id) = self.get_game_tool_uuid_by_command_id("tool.rect") {
+                self.set_tool(id, ui, ctx, project, server);
+            }
+        }
+    }
+
     pub fn game_tool_is_available(&self, command_id: &str) -> bool {
         if self.editor_mode || !self.game_tool_command_ids.contains_key(command_id) {
+            return false;
+        }
+        if command_id == "tool.blocks" && !self.props_3d_available {
             return false;
         }
         if matches!(command_id, "tool.tile_picker" | "tool.effects") {
@@ -4833,7 +4899,16 @@ impl ToolList {
         };
         let thickness = 0.15;
 
-        if let Some(map) = project.get_map(server_ctx) {
+        if let Some(source_map) = project.get_map(server_ctx) {
+            let filtered;
+            let map = if source_map.sectors.iter().any(|s| s.layer.is_some()) {
+                let mut map = source_map.clone();
+                crate::utils::filter_iso_placements_for_3d(&mut map, &project.tiles);
+                filtered = map;
+                &filtered
+            } else {
+                source_map
+            };
             let mut visible_sector_ids: FxHashSet<u32> = FxHashSet::default();
             let mut visible_linedef_ids: FxHashSet<u32> = FxHashSet::default();
             let mut visible_vertex_ids: FxHashSet<u32> = FxHashSet::default();
@@ -4900,6 +4975,77 @@ impl ToolList {
             } else {
                 0.012
             };
+            if block_grid_active
+                && let Some(template) = server_ctx.block_recipe_template.as_ref()
+                && let Some(hit) = crate::blocks::block_grid_plane_hit(server_ctx)
+                    .or(server_ctx.hover_cursor_3d)
+                    .or(server_ctx.hover_surface_hit_pos)
+            {
+                let cell = Vec3::new(
+                    (hit.x / grid_step).floor() as i32,
+                    server_ctx.block_grid_level,
+                    (hit.z / grid_step).floor() as i32,
+                );
+                let cells = server_ctx.block_drag_start_cell.map_or_else(
+                    || vec![cell],
+                    |start| {
+                        crate::blocks::block_stroke_cells(
+                            start,
+                            server_ctx.block_drag_end_cell.unwrap_or(start),
+                            server_ctx.block_stroke_mode,
+                        )
+                    },
+                );
+                let base = server_ctx
+                    .block_drag_base_y
+                    .or_else(|| crate::blocks::block_surface_base_y(server_ctx, grid_base_y))
+                    .unwrap_or(grid_base_y);
+                let mut ghost = template.clone();
+                for (cell_index, cell) in cells
+                    .iter()
+                    .take((50_000 / template.vertices.len().max(1)).clamp(1, 128))
+                    .enumerate()
+                {
+                    ghost.transform = crate::tools::props_recipe::placement_transform(
+                        *cell,
+                        base,
+                        grid_step,
+                        server_ctx.block_rotation_quarters,
+                    );
+                    let vertices = ghost
+                        .vertices
+                        .iter()
+                        .map(|v| ghost.transform_point(*v))
+                        .collect::<Vec<_>>();
+                    let mut edges = std::collections::HashSet::new();
+                    for face in &ghost.faces {
+                        for (a, b) in face
+                            .indices
+                            .iter()
+                            .zip(face.indices.iter().cycle().skip(1))
+                            .take(face.indices.len())
+                        {
+                            let edge = ((*a).min(*b), (*a).max(*b));
+                            if edges.insert(edge)
+                                && let Some((a, b)) = vertices.get(*a).zip(vertices.get(*b))
+                            {
+                                rusterix.scene_handler.overlay_3d.add_hardware_line_3d(
+                                    GeoId::Unknown(
+                                        0xE320_0000u32
+                                            .wrapping_add((cell_index as u32) << 16)
+                                            .wrapping_add(edges.len() as u32),
+                                    ),
+                                    *a + cam_forward * -0.006,
+                                    *b + cam_forward * -0.006,
+                                    prefab_preview_color,
+                                    15,
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+
             if block_grid_active
                 && let Some(asset_id) = server_ctx.curr_block_asset_id
                 && let Some(asset) = crate::blocks::block_asset(asset_id)

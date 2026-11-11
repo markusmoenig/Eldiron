@@ -53,4 +53,10 @@ Connect **Set Tile** to an event or another action to change a sprite during pla
 
 Set Tile changes the entity's sprite. It does not place a tile on the map and has no X, Y or Layer settings. Those position values belong to Entered Tile and Left Tile events.
 
+For an item with an MZ **State Switch**, use **Set Attribute → active** with a
+Boolean value, or Toggle Attribute, to select its On/Off mesh and footprint in
+both iso and 3D. Existing sprite items keep their `on_tile_id` / `off_tile_id`
+behavior. The lifecycle **State** node (Alive/Dead) has a different purpose.
+See [Doors and MZ Item States](doors) for official Open/Close intents and keys.
+
 Hold **Shift** and drag a stroke across connections to cut them. One Undo restores all wires cut by that stroke. You can also click a connection and press Delete.

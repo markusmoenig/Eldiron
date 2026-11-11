@@ -187,6 +187,12 @@ pub enum Operation {
     Assemble {
         rows: Vec<String>,
     },
+    /// Two presentations of the same item, selected by its authoritative `active` flag.
+    /// Both branches remain in this editable recipe, including their footprints.
+    StateSwitch {
+        off: String,
+        on: String,
+    },
     AssignMaterial {
         row: String,
     },
@@ -229,6 +235,7 @@ impl Operation {
             Self::Repeat { .. } => "Repeat",
             Self::Reference { .. } => "Row",
             Self::Assemble { .. } => "Assemble",
+            Self::StateSwitch { .. } => "State Switch (Off / On)",
             Self::AssignMaterial { .. } => "Material",
             Self::Material { .. } => "PBR Material",
             Self::Grip { .. } => "Grip",
@@ -256,6 +263,7 @@ impl Operation {
                 vec![row]
             }
             Self::Assemble { rows } => rows.iter().map(String::as_str).collect(),
+            Self::StateSwitch { off, on } => vec![off, on],
             _ => vec![],
         }
     }
@@ -403,6 +411,36 @@ impl Document {
     }
     pub fn evaluate(&self) -> Result<Evaluation> {
         self.evaluate_with_inputs(&BTreeMap::new())
+    }
+    pub fn has_states(&self) -> bool {
+        self.rows
+            .iter()
+            .flat_map(|r| &r.tiles)
+            .any(|t| match &t.op {
+                Operation::StateSwitch { .. } => true,
+                Operation::Group { document, .. } | Operation::Asset { document, .. } => {
+                    document.has_states()
+                }
+                _ => false,
+            })
+    }
+    /// Resolve a runtime presentation without modifying the authored graph.
+    pub fn for_state(&self, active: bool) -> Self {
+        let mut doc = self.clone();
+        for tile in doc.rows.iter_mut().flat_map(|r| &mut r.tiles) {
+            match &mut tile.op {
+                Operation::StateSwitch { off, on } => {
+                    tile.op = Operation::Reference {
+                        row: if active { on.clone() } else { off.clone() },
+                    };
+                }
+                Operation::Group { document, .. } | Operation::Asset { document, .. } => {
+                    **document = document.for_state(active);
+                }
+                _ => {}
+            }
+        }
+        doc
     }
     pub fn evaluate_with_inputs(&self, inputs: &BTreeMap<String, Mesh>) -> Result<Evaluation> {
         self.evaluate_at(0, &mut 0, inputs)
@@ -934,6 +972,13 @@ fn evaluate_tile(
             Value::Mesh(m)
         }
         Operation::Reference { row } => reference(row)?,
+        Operation::StateSwitch { off, on } => {
+            let value = reference(off)?;
+            if !matches!(value, Value::Mesh(_)) || !matches!(reference(on)?, Value::Mesh(_)) {
+                return Err(fail("State Switch needs two mesh rows"));
+            }
+            value
+        }
         Operation::Repeat {
             count,
             translation,

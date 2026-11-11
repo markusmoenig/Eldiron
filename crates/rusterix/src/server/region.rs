@@ -105,7 +105,9 @@ fn sync_avatar_animation(entity: &mut Entity, moved: bool) {
         .get_float_default("avatar_attack_left", 0.0)
         > 0.0;
     let is_casting = entity.attributes.get_bool_default("spell_casting", false);
-    let desired_anim = if is_casting {
+    let desired_anim = if crate::furniture::is_resting(entity) {
+        if entity.attributes.get_str("posture") == Some("sitting") { "Sit" } else { "Lie" }
+    } else if is_casting {
         "Cast"
     } else if is_attacking {
         "Attack"
@@ -131,7 +133,9 @@ fn sync_avatar_animation_without_motion_sample(entity: &mut Entity) {
     let current_anim = entity
         .attributes
         .get_str_default("avatar_animation", String::new());
-    let desired_anim = if is_casting {
+    let desired_anim = if crate::furniture::is_resting(entity) {
+        Some(if entity.attributes.get_str("posture") == Some("sitting") { "Sit" } else { "Lie" })
+    } else if is_casting {
         Some("Cast")
     } else if is_attacking {
         Some("Attack")
@@ -4003,6 +4007,21 @@ mod ruleset_progression_tests {
     }
 
     #[test]
+    fn placed_look_authoring_overrides_template_and_inherits_missing_states() {
+        let mut ctx = RegionCtx::default();
+        ctx.item_authoring_data.insert("Door".into(), r#"description = "Shared door.""#.into());
+        let mut item = Item::new();
+        item.set_attribute("class_name",Value::Str("Door".into()));
+        item.set_attribute("_authoring", Value::Str(concat!("[state.off]\n", r#"description = "A scratched oak door.""#).into()));
+        assert_eq!(item_look_description(&ctx,&item).as_deref(),Some("A scratched oak door."));
+        item.set_attribute("active",Value::Bool(true));
+        assert_eq!(item_look_description(&ctx,&item).as_deref(),Some("Shared door."));
+        let mut other = item.clone();
+        other.set_attribute("_authoring",Value::Str(String::new()));
+        assert_eq!(item_look_description(&ctx,&other).as_deref(),Some("Shared door."));
+    }
+
+    #[test]
     fn item_inline_look_message_uses_active_state() {
         let mut item = Item::new();
         item.set_attribute("on_look_off", Value::Str("The torch is dark.".to_string()));
@@ -4583,8 +4602,8 @@ mod ruleset_progression_tests {
         ));
         assert!(matches!(
             from_receiver.try_recv(),
-            Ok(RegionMessage::Message(_, _, _, 1, message, _))
-                if message == "An old table covered in knife marks."
+            Ok(RegionMessage::WorldText(_, 1, text))
+                if text.text == "An old table covered in knife marks." && text.anchor == crate::world_text::TextAnchor::Prefab(instance_id)
         ));
     }
 
@@ -5065,7 +5084,7 @@ impl RegionInstance {
         let requested_open = match verb.trim().to_ascii_lowercase().as_str() {
             "open" => true,
             "close" => false,
-            "use" => !currently_open,
+            "use" | "open_close" => !currently_open,
             _ => return false,
         };
         if requested_open == currently_open {
@@ -5086,15 +5105,7 @@ impl RegionInstance {
                 .runtime_state
                 .get_bool_default(&unlocked_key, false);
         if unlock {
-            let has_key = actor.iter_inventory().any(|(_, item)| {
-                ["name", "class_name", "source_id", "ruleset_id"]
-                    .iter()
-                    .any(|key| {
-                        item.attributes
-                            .get_str(key)
-                            .is_some_and(|value| value.eq_ignore_ascii_case(required_item))
-                    })
-            });
+            let has_key = crate::item_state::has_key(actor, required_item);
             if !has_key {
                 let message = component
                     .properties
@@ -5204,8 +5215,14 @@ impl RegionInstance {
                     .max(0.0),
             )
         });
+        let canonical_intent = if raw_intent.trim().eq_ignore_ascii_case("open_close") {
+            let open=target_id.and_then(|id|asset.find_interaction_target(id))
+                .and_then(|target|target.component_id)
+                .and_then(|id|crate::block_prop_door_is_open(&asset,&instance,id)).unwrap_or(false);
+            if open { "close" } else { "open" }
+        } else { raw_intent.trim() };
         let Some(resolved_intent) =
-            resolve_ruleset_invocation_intent(ctx, actor_id, raw_intent.trim())
+            resolve_ruleset_invocation_intent(ctx, actor_id, canonical_intent)
         else {
             return false;
         };
@@ -5280,7 +5297,7 @@ impl RegionInstance {
             "look" => {
                 let message = prefab_look_description(&asset, &instance)
                     .unwrap_or_else(|| asset.name.clone());
-                send_message(ctx, actor_id, message, "system");
+                send_look(ctx, actor_id, crate::world_text::TextAnchor::Prefab(instance_id), message);
                 true
             }
             "use" | "open" | "close" => target_id.is_some_and(|target_id| {
@@ -5360,6 +5377,13 @@ impl RegionInstance {
 
         for other in ctx.map.items.iter() {
             if !other.attributes.get_bool_default("visible", false) {
+                continue;
+            }
+
+            if let Some(hit) = crate::item_state::intersects(other, &ctx.assets, test_position,
+                entity.position.y, entity_height, radius)
+            {
+                blocking_collision |= hit && other.attributes.get_bool_default("blocking", false);
                 continue;
             }
 
@@ -5520,10 +5544,7 @@ impl RegionInstance {
         let actor_radius = actor.attributes.get_float_default("radius", 0.5).max(0.0);
 
         if let Some(item) = ctx.map.items.iter().find(|i| i.id == item_id) {
-            let item_radius = item.attributes.get_float_default("radius", 0.5).max(0.0);
-            return Some(
-                (actor_pos.distance(item.get_pos_xz()) - actor_radius - item_radius).max(0.0),
-            );
+            return Some(crate::item_state::distance(item,&ctx.assets,actor));
         }
 
         if let Some(owner_id) = owner_entity_id
@@ -8242,6 +8263,23 @@ impl RegionInstance {
                     continue;
                 }
 
+                if let Some(hit) = crate::item_state::intersects(other, &ctx.assets, new_position,
+                    entity.position.y, entity_height, radius)
+                {
+                    if hit && other.attributes.get_bool_default("blocking", false) {
+                        // Try each movement axis before stopping. The same footprint is
+                        // used for mesh and tile movement; opening never leaves a circle behind.
+                        let slide_x = Vec2::new(new_position.x, position.y);
+                        let slide_z = Vec2::new(position.x, new_position.y);
+                        new_position = [slide_x, slide_z].into_iter().find(|p|
+                            crate::item_state::intersects(other, &ctx.assets, *p, entity.position.y,
+                                entity_height, radius) == Some(false)).unwrap_or(position);
+                        dynamic_collision = true;
+                        pushed = true;
+                    }
+                    continue;
+                }
+
                 let other_pos = other.get_pos_xz();
                 let other_radius = other.attributes.get_float_default("radius", 0.5) - 0.01;
                 let combined_radius = radius + other_radius;
@@ -9652,6 +9690,17 @@ impl RegionInstance {
                     // }
                 }
                 UserAction(entity_id, action) => {
+                    // Off is also used for mouse/key release, which must preserve rest.
+                    if (Self::is_movement_input_action(&action) && action != EntityAction::Off)
+                        || matches!(action, TerrainClicked(_) | StepTo(..))
+                    {
+                        with_regionctx(self.id, |ctx| {
+                            if let Some(actor) = ctx.map.entities.iter_mut().find(|e| e.id == entity_id) {
+                                crate::furniture::stand(actor);
+                            }
+                        });
+                    }
+
                     if Self::action_requests_simulation_step(&action) {
                         with_regionctx(self.id, |ctx: &mut RegionCtx| {
                             if let Some(entity) = ctx
@@ -9954,25 +10003,12 @@ impl RegionInstance {
                                     }
                                 }
 
-                                // Optional character-level shortcuts for common intents.
-                                if !handled_shortcut
-                                    && intent_lower == "look"
-                                    && let Some(target) =
-                                        ctx.map.entities.iter().find(|e| e.id == clicked_entity_id)
+                                if !handled_shortcut && intent_lower == "look"
+                                    && let Some(target) = ctx.map.entities.iter().find(|e| e.id == clicked_entity_id)
+                                    && let Some(msg) = entity_look_description(ctx, target)
                                 {
-                                    if let Some(msg) = target.attributes.get_str("on_look") {
-                                        let msg = msg.trim();
-                                        if !msg.is_empty() {
-                                            send_message(ctx, entity_id, msg.to_string(), "system");
-                                            handled_shortcut = true;
-                                        }
-                                    }
-                                    if !handled_shortcut
-                                        && let Some(msg) = entity_look_description(ctx, target)
-                                    {
-                                        send_message(ctx, entity_id, msg, "system");
-                                        handled_shortcut = true;
-                                    }
+                                    send_look(ctx, entity_id, crate::world_text::TextAnchor::Entity(clicked_entity_id), msg);
+                                    handled_shortcut = true;
                                 }
 
                                 if !handled_shortcut
@@ -10064,6 +10100,9 @@ impl RegionInstance {
                                 else {
                                     return;
                                 };
+                                let intent = ctx.map.items.iter().find(|i| i.id == clicked_item_id)
+                                    .map(|i| crate::item_state::canonical_intent(i, &intent))
+                                    .unwrap_or(intent);
                                 let intent_lower = intent.to_ascii_lowercase();
                                 let mut handled_shortcut = false;
                                 let keep_intent = ctx
@@ -10247,10 +10286,6 @@ impl RegionInstance {
                                     }
                                 } else if let Some(attrs) = item_attrs {
                                     if intent_lower == "look" {
-                                        if let Some(msg) = item_inline_look_message(attrs) {
-                                            send_message(ctx, entity_id, msg, "system");
-                                            handled_shortcut = true;
-                                        }
                                         if !handled_shortcut
                                             && let Some(item) = ctx
                                                 .map
@@ -10277,7 +10312,7 @@ impl RegionInstance {
                                                 })
                                             && let Some(msg) = item_look_description(ctx, item)
                                         {
-                                            send_message(ctx, entity_id, msg, "system");
+                                            send_look(ctx, entity_id, crate::world_text::TextAnchor::Item(clicked_item_id), msg);
                                             handled_shortcut = true;
                                         }
                                     } else if intent_lower == "use" {
@@ -10343,6 +10378,15 @@ impl RegionInstance {
                                     handled_shortcut = true;
                                 }
 
+                                if !handled_shortcut {
+                                    let actor = ctx.map.entities.iter().find(|e| e.id == entity_id).cloned();
+                                    if let Some(actor) = actor {
+                                        handled_shortcut = apply_item_state_intent(ctx, &actor, clicked_item_id, &intent_lower);
+                                    }
+                                }
+                                if !handled_shortcut && intent_lower == "use" {
+                                    handled_shortcut = apply_furniture_intent(ctx,entity_id,clicked_item_id);
+                                }
                                 if !handled_shortcut {
                                     // Send default script-driven intent events.
                                     ctx.to_execute_entity.push((
@@ -11114,6 +11158,17 @@ impl RegionInstance {
             // Avatar presentation is real-time state. It must advance even when
             // hybrid/turn-based simulation does not grant this entity a movement step.
             advance_avatar_attack_timer(entity, redraw_dt);
+            if crate::furniture::is_resting(entity) {
+                if entity.get_mode() == "dead" || !matches!(entity.action, EntityAction::Off) {
+                    let action = entity.action.clone();
+                    crate::furniture::stand(entity);
+                    entity.action = action;
+                } else {
+                    sync_avatar_animation_without_motion_sample(entity);
+                    continue;
+                }
+            }
+
             if sim_dt <= 0.0 {
                 sync_avatar_animation_without_motion_sample(entity);
                 continue;
@@ -13790,7 +13845,7 @@ impl RegionInstance {
             if let Some(i_id) = get_item_at(ctx, position) {
                 value.x = i_id as f32;
                 if let Some(item) = ctx.map.items.iter().find(|item| item.id == i_id) {
-                    value.y = entity.get_pos_xz().distance(item.get_pos_xz());
+                    value.y = crate::item_state::distance(item,&ctx.assets,entity);
                 }
                 target_item_id = Some(i_id);
                 found_target = true;
@@ -13802,6 +13857,8 @@ impl RegionInstance {
             entity.set_attribute("intent", Value::Str(String::new()));
             return;
         };
+        let intent = target_item_id.and_then(|id| ctx.map.items.iter().find(|i| i.id == id))
+            .map(|i| crate::item_state::canonical_intent(i, &intent)).unwrap_or(intent);
         if intent != intent_raw {
             entity.set_attribute("intent", Value::Str(intent.clone()));
         }
@@ -13896,40 +13953,12 @@ impl RegionInstance {
         }
 
         if intent_lower == "look" {
-            if let Some(target_entity) = target_entity {
-                if let Some(msg) = target_entity.attributes.get_str("on_look") {
-                    let msg = msg.trim();
-                    if !msg.is_empty() {
-                        send_message(ctx, entity.id, msg.to_string(), "system");
-                        if !keep_intent {
-                            entity.set_attribute("intent", Value::Str(String::new()));
-                        }
-                        return;
-                    }
-                }
-                if let Some(msg) = entity_look_description(ctx, target_entity) {
-                    send_message(ctx, entity.id, msg, "system");
-                    if !keep_intent {
-                        entity.set_attribute("intent", Value::Str(String::new()));
-                    }
-                    return;
-                }
-            }
-            if let Some(target_item) = target_item {
-                if let Some(msg) = item_inline_look_message(&target_item.attributes) {
-                    send_message(ctx, entity.id, msg, "system");
-                    if !keep_intent {
-                        entity.set_attribute("intent", Value::Str(String::new()));
-                    }
-                    return;
-                }
-                if let Some(msg) = item_look_description(ctx, target_item) {
-                    send_message(ctx, entity.id, msg, "system");
-                    if !keep_intent {
-                        entity.set_attribute("intent", Value::Str(String::new()));
-                    }
-                    return;
-                }
+            let result = target_entity.and_then(|target| entity_look_description(ctx, target).map(|msg| (crate::world_text::TextAnchor::Entity(target.id), msg)))
+                .or_else(|| target_item.and_then(|target| item_look_description(ctx, target).map(|msg| (crate::world_text::TextAnchor::Item(target.id), msg))));
+            if let Some((anchor, msg)) = result {
+                send_look(ctx, entity.id, anchor, msg);
+                if !keep_intent { entity.set_attribute("intent", Value::Str(String::new())); }
+                return;
             }
         }
 
@@ -13989,6 +14018,20 @@ impl RegionInstance {
             return;
         }
 
+        if let Some(item_id) = target_item_id
+            && apply_item_state_intent(ctx, entity, item_id, &intent_lower)
+        {
+            queue_intent_cooldown(ctx, entity.id, &intent_lower, rules.cooldown_seconds);
+            if !keep_intent { entity.set_attribute("intent", Value::Str(String::new())); }
+            return;
+        }
+        if intent_lower == "use" && let Some(item) = target_item_id.and_then(|id| ctx.map.items.iter().find(|i| i.id == id).cloned())
+            && !ctx.assets.node_behaviors.as_ref().is_some_and(|a| a.owns_item_intent(ctx,&item))
+            && let Some(result) = crate::furniture::use_item(entity,&item,&ctx.map.entities,&ctx.assets)
+        {
+            if let Err(message) = result { send_message(ctx,entity.id,message,"system"); }
+            return;
+        }
         value.string = Some(intent.clone());
 
         ctx.to_execute_entity
@@ -14985,6 +15028,21 @@ fn deal_damage(id: u32, dict: PyObjectRef, vm: &VirtualMachine) {
 }
 
 */
+
+/// A Look result is private to its observer and follows its world target.
+fn send_look(ctx: &RegionCtx, receiver: u32, anchor: crate::world_text::TextAnchor, text: String) {
+    if !text.trim().is_empty() {
+        ctx.from_sender
+            .get()
+            .unwrap()
+            .send(RegionMessage::WorldText(
+                ctx.region_id,
+                receiver,
+                crate::world_text::WorldText { anchor, text },
+            ))
+            .unwrap();
+    }
+}
 
 /// Send a message to the entity.
 fn send_message(ctx: &RegionCtx, id: u32, message: String, role: &str) {
@@ -18892,6 +18950,113 @@ pub(crate) fn execute_ruleset_action_with_target(
 /// action the ruleset binds to it and execute it through the shared action
 /// pipeline instead. Returns `true` when the intent was resolved and must not be
 /// queued as a script intent event.
+/// All camera modes reach this after official intent validation. Item nodes can
+/// replace the default policy, while writing the same authoritative active flag.
+fn apply_furniture_intent(ctx: &mut RegionCtx, actor_id: u32, item_id: u32) -> bool {
+    let Some(item) = ctx.map.items.iter().find(|i| i.id == item_id).cloned() else { return false; };
+    if ctx.assets.node_behaviors.as_ref().is_some_and(|a| a.owns_item_intent(ctx,&item)) { return false; }
+    let Some(mut actor) = ctx.map.entities.iter().find(|e| e.id == actor_id).cloned() else { return false; };
+    let rules = intent_rule_config(ctx,actor_id,"use");
+    let distance = crate::item_state::distance(&item,&ctx.assets,&actor);
+    if distance > intent_distance_limit(ctx,actor_id,"use",&rules) || !intent_allowed(ctx,&rules,distance,Some(&actor),None,Some(&item),None) { return false; }
+    let result = crate::furniture::use_item(&mut actor,&item,&ctx.map.entities,&ctx.assets);
+    match result {
+        Some(Ok(())) => {
+            if let Some(current) = ctx.map.entities.iter_mut().find(|e| e.id == actor_id) { *current = actor; }
+            true
+        }
+        Some(Err(message)) => { send_message(ctx,actor_id,message,"system"); true }
+        None => false,
+    }
+}
+
+fn apply_item_state_intent(ctx: &mut RegionCtx, actor: &Entity, item_id: u32, intent: &str) -> bool {
+    if !matches!(intent, "open" | "close") { return false; }
+    let Some(index) = ctx.map.items.iter().position(|i| i.id == item_id) else { return false; };
+    let item = &ctx.map.items[index];
+    if !item.attributes.get_bool_default("openable", false) { return false; }
+    let rules = intent_rule_config(ctx, actor.id, intent);
+    let distance = crate::item_state::distance(item, &ctx.assets, actor);
+    if distance > intent_distance_limit(ctx, actor.id, intent, &rules)
+        || !intent_allowed(ctx, &rules, distance, Some(actor), None, Some(item), None)
+    {
+        let message = if distance > intent_distance_limit(ctx, actor.id, intent, &rules) {
+            "{system.too_far_away}".into()
+        } else { rules.deny_message.unwrap_or_else(|| "{system.cant_do_that}".into()) };
+        send_message(ctx, actor.id, message, "warning");
+        return true;
+    }
+    if ctx.assets.node_behaviors.as_ref().is_some_and(|a| a.owns_item_intent(ctx, item)) { return false; }
+    if intent == "close" && item.attributes.get_bool_default("active", false) {
+        let mut closed = item.clone();
+        closed.set_attribute("active", Value::Bool(false));
+        if ctx.map.entities.iter().filter(|e| e.get_mode() != "dead")
+            .any(|e| crate::item_state::actor_intersects(&closed, &ctx.assets, e))
+        {
+            send_message(ctx, actor.id, "{system.door_obstructed}".into(), "warning");
+            return true;
+        }
+    }
+    match crate::item_state::request(&mut ctx.map.items[index], actor, intent) {
+        Some(Ok(true)) => {
+            let active = ctx.map.items[index].attributes.get_bool_default("active", false);
+            ctx.to_execute_item.push((item_id, "active".into(), VMValue::from_bool(active)));
+            true
+        }
+        Some(Ok(false)) => true,
+        Some(Err(message)) => { send_message(ctx, actor.id, message, "warning"); true }
+        None => false,
+    }
+}
+
+#[cfg(test)]
+mod item_state_intent_tests {
+    use super::*;
+    #[test]
+    fn item_state_close_refuses_to_trap_a_character() {
+        let mut ctx=RegionCtx::default(); let (sender,_receiver)=unbounded(); let _=ctx.from_sender.set(sender);
+        ctx.set_rules(eldiron_ruleset::latest_official_ruleset().parse().unwrap()).unwrap();
+        let source=include_str!("../../../../creator/embedded/meshes/recipes/hinged-door.mzgeometry.json");
+        ctx.assets.procedural_avatars.insert("door".into(),std::sync::Arc::new(
+            crate::procedural_avatar::Appearance::new(source,&[],55).unwrap()));
+        let mut door=Item::new(); door.id=10; door.position=Vec3::zero();
+        for (key,value) in [("openable",Value::Bool(true)),("active",Value::Bool(true)),
+            ("appearance_geometry",Value::Str("door".into()))] {door.set_attribute(key,value);}
+        ctx.map.items.push(door);
+        let mut actor=Entity::default(); actor.id=1; actor.position=Vec3::new(0.6,0.09,0.);
+        ctx.map.entities.push(actor.clone());
+        assert!(apply_item_state_intent(&mut ctx,&actor,10,"close"));
+        assert!(ctx.map.items[0].attributes.get_bool_default("active",false));
+        actor.position.z=1.; ctx.map.entities[0]=actor.clone();
+        assert!(apply_item_state_intent(&mut ctx,&actor,10,"close"));
+        assert!(!ctx.map.items[0].attributes.get_bool_default("active",true));
+    }
+    #[test]
+    fn item_state_transitions_obey_official_intent_rules_and_range() {
+        let mut ctx=RegionCtx::default();
+        let (sender,_receiver)=unbounded(); let _=ctx.from_sender.set(sender);
+        ctx.set_rules(eldiron_ruleset::latest_official_ruleset().parse().unwrap()).unwrap();
+        let mut door=Item::new(); door.id=10; door.position=Vec3::zero();
+        door.set_attribute("openable",Value::Bool(true)); door.set_attribute("active",Value::Bool(false));
+        ctx.map.items.push(door);
+        let mut actor=Entity::default(); actor.id=1; actor.position=Vec3::new(0.,0.,1.);
+        assert!(apply_item_state_intent(&mut ctx,&actor,10,"open"));
+        assert!(ctx.map.items[0].attributes.get_bool_default("active",false));
+        assert!(apply_item_state_intent(&mut ctx,&actor,10,"close"));
+        assert!(!ctx.map.items[0].attributes.get_bool_default("active",true));
+        actor.position.z=8.;
+        assert!(apply_item_state_intent(&mut ctx,&actor,10,"open"));
+        assert!(!ctx.map.items[0].attributes.get_bool_default("active",true));
+        actor.position.z=1.;
+        let mut rules=eldiron_ruleset::latest_official_ruleset().parse::<toml::Table>().unwrap();
+        rules.get_mut("intents").unwrap().get_mut("open").unwrap().as_table_mut().unwrap()
+            .insert("allowed".into(),toml::Value::String("false".into()));
+        ctx.set_rules(rules).unwrap();
+        apply_item_state_intent(&mut ctx,&actor,10,"open");
+        assert!(!ctx.map.items[0].attributes.get_bool_default("active",true));
+    }
+}
+
 pub(crate) fn execute_intent_in_node_mode(
     ctx: &mut RegionCtx,
     actor_id: u32,
@@ -21307,7 +21472,7 @@ fn intent_allowed(
     target_item: Option<&Item>,
     target_kind_override: Option<&str>,
 ) -> bool {
-    if let Some(allowed) = structured_intent_allowed(
+    if let Some(false) = structured_intent_allowed(
         ctx,
         rules,
         subject,
@@ -21315,7 +21480,7 @@ fn intent_allowed(
         target_item,
         target_kind_override,
     ) {
-        return allowed;
+        return false;
     }
 
     if let Some(expr) = rules.allowed.as_deref() {
@@ -21507,10 +21672,18 @@ fn authored_state_text_from_data(
 }
 
 fn entity_look_description(ctx: &RegionCtx, entity: &Entity) -> Option<String> {
-    let class_name = entity.get_attr_string("class_name")?;
-    let data = ctx.entity_authoring_data.get(&class_name)?;
     let mode = entity.get_attr_string("mode");
-    authored_description_from_data(data, mode.as_deref(), None)
+    let local = entity.attributes.get_str("_authoring").unwrap_or("");
+    authored_description_from_data(local, mode.as_deref(), None)
+        .or_else(|| {
+            let name = entity.get_attr_string("class_name")?;
+            authored_description_from_data(
+                ctx.entity_authoring_data.get(&name)?,
+                mode.as_deref(),
+                None,
+            )
+        })
+        .or_else(|| entity.attributes.get_str("on_look").map(str::to_owned))
 }
 
 fn prefab_look_description(
@@ -21520,29 +21693,43 @@ fn prefab_look_description(
     let state = instance
         .runtime_state
         .get_str("state")
-        .map(str::trim)
-        .filter(|state| !state.is_empty());
-    authored_description_from_data(&asset.authoring, None, state)
+        .filter(|s| !s.trim().is_empty());
+    authored_description_from_data(
+        instance.overrides.get_str("authoring").unwrap_or(""),
+        None,
+        state,
+    )
+    .or_else(|| authored_description_from_data(&asset.authoring, None, state))
 }
 
 fn item_look_description(ctx: &RegionCtx, item: &Item) -> Option<String> {
-    if let Some(message) = item_inline_look_message(&item.attributes) {
-        return Some(message);
-    }
-
-    let class_name = item.get_attr_string("class_name")?;
-    let data = ctx.item_authoring_data.get(&class_name)?;
     let state = item
         .get_attr_string("state")
-        .filter(|value| !value.trim().is_empty())
-        .or_else(|| {
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| {
             if item.attributes.get_bool_default("active", false) {
-                Some("on".to_string())
+                "on"
             } else {
-                Some("off".to_string())
+                "off"
             }
+            .into()
         });
-    authored_description_from_data(data, None, state.as_deref())
+    authored_description_from_data(
+        item.attributes.get_str("_authoring").unwrap_or(""),
+        None,
+        Some(&state),
+    )
+    .or_else(|| item_inline_look_message(&item.attributes))
+    .or_else(|| {
+        let name = item.get_attr_string("class_name")?;
+        authored_description_from_data(ctx.item_authoring_data.get(&name)?, None, Some(&state))
+    })
+    .or_else(|| {
+        item.attributes
+            .get_str("description")
+            .filter(|s| !s.trim().is_empty())
+            .map(str::to_owned)
+    })
 }
 
 fn item_inline_look_message(attributes: &ValueContainer) -> Option<String> {
@@ -21562,19 +21749,32 @@ fn item_inline_look_message(attributes: &ValueContainer) -> Option<String> {
 }
 
 fn item_use_message(ctx: &RegionCtx, item: &Item) -> Option<String> {
-    let class_name = item.get_attr_string("class_name")?;
-    let data = ctx.item_authoring_data.get(&class_name)?;
     let state = item
         .get_attr_string("state")
-        .filter(|value| !value.trim().is_empty())
-        .or_else(|| {
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| {
             if item.attributes.get_bool_default("active", false) {
-                Some("on".to_string())
+                "on"
             } else {
-                Some("off".to_string())
+                "off"
             }
+            .into()
         });
-    authored_state_text_from_data(data, None, state.as_deref(), "on_use")
+    authored_state_text_from_data(
+        item.attributes.get_str("_authoring").unwrap_or(""),
+        None,
+        Some(&state),
+        "on_use",
+    )
+    .or_else(|| {
+        let name = item.get_attr_string("class_name")?;
+        authored_state_text_from_data(
+            ctx.item_authoring_data.get(&name)?,
+            None,
+            Some(&state),
+            "on_use",
+        )
+    })
 }
 
 fn combat_message_template(ctx: &RegionCtx, key: &str) -> Option<String> {

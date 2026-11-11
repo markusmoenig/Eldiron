@@ -15,6 +15,8 @@ use scenevm::GeoId;
 pub struct BlockTool {
     id: TheId,
     hud: Hud,
+    overlay: super::props_overlay::PropsOverlay,
+    recipe_revision: Option<(Option<Uuid>, u64, u64, ThePalette, String)>,
     previous_dock: Option<String>,
     drag_start_cell: Option<Vec3<i32>>,
     drag_end_cell: Option<Vec3<i32>>,
@@ -59,7 +61,7 @@ impl BlockTool {
         let id = server_ctx
             .curr_block_asset_id
             .unwrap_or_else(default_block_asset_id);
-        let asset = block_asset(id).or_else(|| block_asset(default_block_asset_id()))?;
+        let asset = block_asset(id)?;
         server_ctx.curr_block_asset_id = Some(asset.id);
         server_ctx.curr_block_asset_name = Some(asset.name.to_string());
         Some(asset)
@@ -821,6 +823,19 @@ impl BlockTool {
                         &palette,
                     ));
                 }
+            } else if let Some(template) = server_ctx.block_recipe_template.as_ref().filter(|o| {
+                shared::geometry_recipe::Binding::read(o).is_some_and(|b| b.asset == asset_id)
+            }) {
+                asset_name = template.name.clone();
+                for cell in &cells {
+                    created.push(super::props_recipe::placed(
+                        template,
+                        *cell,
+                        base_y,
+                        cell_size,
+                        server_ctx.block_rotation_quarters,
+                    ));
+                }
             } else {
                 asset_name = server_ctx
                     .curr_block_asset_name
@@ -960,8 +975,10 @@ impl Tool for BlockTool {
         Self: Sized,
     {
         Self {
-            id: TheId::named("Prefab Tool"),
+            id: TheId::named("3D Props Tool"),
             hud: Hud::new(HudMode::Prefab),
+            overlay: Default::default(),
+            recipe_revision: None,
             previous_dock: None,
             drag_start_cell: None,
             drag_end_cell: None,
@@ -978,7 +995,7 @@ impl Tool for BlockTool {
     }
 
     fn info(&self) -> String {
-        fl!("tool_blocks")
+        fl!("tool_blocks_description")
     }
 
     fn icon_name(&self) -> String {
@@ -999,6 +1016,13 @@ impl Tool for BlockTool {
     ) -> bool {
         match tool_event {
             Activate => {
+                if !server_ctx.editor_view_mode.is_3d() {
+                    ctx.ui.send(TheEvent::SetStatusText(
+                        TheId::empty(),
+                        fl!("props_requires_3d"),
+                    ));
+                    return false;
+                }
                 server_ctx.block_tool_active = true;
                 server_ctx.curr_map_tool_type = MapToolType::General;
                 server_ctx
@@ -1025,6 +1049,11 @@ impl Tool for BlockTool {
                     project,
                     server_ctx,
                 );
+                if let Err(error) = super::props_recipe::prepare(project, server_ctx) {
+                    server_ctx.block_recipe_template = None;
+                    ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
+                }
+                self.overlay.sync(project, server_ctx);
                 ctx.ui.send(TheEvent::SetStatusText(
                     TheId::empty(),
                     fl!("status_block_tool_active"),
@@ -1070,6 +1099,10 @@ impl Tool for BlockTool {
         map: &mut Map,
         server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
+        if self.overlay.map_event(&map_event, ui, ctx, server_ctx) {
+            self.clear_drag(server_ctx);
+            return None;
+        }
         if self
             .hud
             .handle_map_event_before_delegate(&map_event, map, ui, ctx, server_ctx)
@@ -1330,6 +1363,117 @@ impl Tool for BlockTool {
         }
     }
 
+    fn handle_event(
+        &mut self,
+        event: &TheEvent,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        server: &mut ServerContext,
+    ) -> bool {
+        if !server.block_tool_active {
+            return false;
+        }
+        let mut handled = false;
+        if matches!(event,TheEvent::Custom(id,_) if id.name=="Props Edit") {
+            ctx.ui.send(TheEvent::StateChanged(
+                TheId::named("Dock Edit Maximize"),
+                TheWidgetState::Clicked,
+            ));
+            handled = true;
+        }
+        if let TheEvent::ValueChanged(id, value) = event {
+            if let Some(value) = value.to_f32().or_else(|| value.to_i32().map(|n| n as f32)) {
+                handled = true;
+                match id.name.as_str() {
+                    "Props Rotation" => {
+                        server.block_rotation_quarters = (value.round() as i32).rem_euclid(4)
+                    }
+                    "Props Grid" => server.block_grid_cell_size = value.clamp(0.05, 16.),
+                    "Props Subdivisions" => {
+                        if let Some(map) = project.get_map_mut(server) {
+                            map.subdivisions = value.round().clamp(1., 16.);
+                        }
+                    }
+                    "Props Level" => {
+                        server.block_grid_level = (value.round() as i32).clamp(-128, 128)
+                    }
+                    "Props Height" => server.block_height_cells = value.clamp(0.05, 16.),
+                    "Props Width" => server.block_span_extra_cells = value.clamp(0., 16.),
+                    "Props Depth" => server.block_depth_extra_cells = value.clamp(0., 16.),
+                    key if key.starts_with("Props Recipe ") => {
+                        let args = key
+                            .trim_start_matches("Props Recipe ")
+                            .split_whitespace()
+                            .collect::<Vec<_>>();
+                        if let Some((asset, index)) = args
+                            .first()
+                            .and_then(|s| Uuid::parse_str(s).ok())
+                            .zip(args.get(1).and_then(|s| s.parse::<usize>().ok()))
+                            && server.curr_block_asset_id == Some(asset)
+                        {
+                            let before = project.clone();
+                            match super::props_recipe::set_control(project, asset, index, value) {
+                                Ok(()) => {
+                                    shared::geometry_recipe::synchronize(project);
+                                    crate::editor::UNDOMANAGER.write().unwrap().add_undo(
+                                        ProjectUndoAtom::ProjectEdit(
+                                            fl!("props_recipe_controls"),
+                                            Box::new(before),
+                                            Box::new(project.clone()),
+                                        ),
+                                        ctx,
+                                    );
+                                    crate::utils::editor_scene_full_rebuild(project, server);
+                                    ctx.ui.send(TheEvent::Custom(
+                                        TheId::named(crate::docks::blocks::BLOCKS_DOCK_SYNC_EVENT),
+                                        TheValue::Empty,
+                                    ));
+                                }
+                                Err(error) => {
+                                    ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error))
+                                }
+                            }
+                        }
+                    }
+                    _ => handled = false,
+                }
+                if handled {
+                    self.clear_drag(server);
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Update Geometry Overlay 3D"),
+                        TheValue::Empty,
+                    ));
+                }
+            }
+        }
+        let revision = (
+            server.curr_block_asset_id,
+            project.procedural_appearances.revision(),
+            project.procedural_materials.revision(),
+            project.palette.clone(),
+            project.config.clone(),
+        );
+        if self.recipe_revision.as_ref() != Some(&revision) {
+            if let Err(error) = super::props_recipe::prepare(project, server) {
+                server.block_recipe_template = None;
+                ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
+            }
+            self.recipe_revision = Some(revision);
+            self.overlay.sync(project, server);
+            self.overlay.refresh_fields(ui);
+            ctx.ui.redraw_all = true;
+        }
+        if handled
+            || matches!(event,TheEvent::Custom(id,_) if id.name=="Props Selection Changed" || id.name==crate::docks::blocks::BLOCKS_DOCK_SYNC_EVENT)
+        {
+            self.overlay.sync(project, server);
+            self.overlay.refresh_fields(ui);
+            ctx.ui.redraw_all = true;
+        }
+        handled
+    }
+
     fn draw_hud(
         &mut self,
         buffer: &mut TheRGBABuffer,
@@ -1339,6 +1483,7 @@ impl Tool for BlockTool {
         assets: &rusterix::Assets,
     ) {
         self.hud.draw(buffer, map, ctx, server_ctx, None, assets);
+        self.overlay.draw(buffer, ctx, server_ctx);
     }
 }
 

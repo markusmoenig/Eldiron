@@ -2907,7 +2907,7 @@ pub fn block_tool_horizontal_grid_step(
 ) -> f32 {
     if let Some(asset_id) = asset_id
         && block_asset(asset_id).is_none()
-        && prefab_assets.contains_key(&asset_id)
+        && (prefab_assets.contains_key(&asset_id) || server_ctx.block_recipe_template.is_some())
     {
         return ServerContext::edit_grid_step(map.subdivisions).max(0.01);
     }
@@ -3210,7 +3210,15 @@ mod tests {
         );
         assert_eq!(top.properties.get_str("prefab_material_slot"), Some("TOP"));
         assert_eq!(leg.properties.get_str("prefab_material_slot"), Some("LEGS"));
-        let migrated_top = &project.regions[0].map.geometry_objects[0];
+        let migrated_top = project
+            .regions
+            .last()
+            .unwrap()
+            .map
+            .geometry_objects
+            .iter()
+            .find(|o| o.name == "Table 1")
+            .unwrap();
         assert!(
             migrated_top
                 .faces
@@ -3428,7 +3436,7 @@ mod tests {
             vapor.emitter.emission_shape,
             rusterix::ParticleEmissionShape::Surface
         );
-        let instance = &project.regions[0].map.block_prop_instances[0];
+        let instance = &project.regions.last().unwrap().map.block_prop_instances[0];
         assert_eq!(
             instance
                 .overrides

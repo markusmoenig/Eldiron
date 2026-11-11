@@ -1,0 +1,73 @@
+# Eldiron-authored door intent icon: editable palette-bound MZ shapes.
+project 1
+result from material "icon"
+material "icon" called "Close door"
+  mode pbr
+  tiling raw
+  default roughness to 0.65
+  default metallic to 0
+  default opacity to 0
+  default emission strength to 0
+  row "jamb-left" called "jamb left"
+    use "Rounded Rectangle" id "jamb-left-shape"
+      set "center" to -0.31 0
+      set "halfSize" to 0.035 0.38
+      set "radius" to 0.012
+    use "Color" id "jamb-left-color"
+  row "jamb-top" called "jamb top"
+    use "Rounded Rectangle" id "jamb-top-shape"
+      set "center" to 0 -0.35
+      set "halfSize" to 0.31 0.035
+      set "radius" to 0.012
+    use "Color" id "jamb-top-color"
+  row "jamb-right" called "jamb right"
+    use "Rounded Rectangle" id "jamb-right-shape"
+      set "center" to 0.31 0
+      set "halfSize" to 0.035 0.38
+      set "radius" to 0.012
+    use "Color" id "jamb-right-color"
+  row "threshold" called "threshold"
+    use "Rounded Rectangle" id "threshold-shape"
+      set "center" to 0 0.36
+      set "halfSize" to 0.31 0.025
+      set "radius" to 0.012
+    use "Color" id "threshold-color"
+  row "leaf" called "leaf"
+    use "Rounded Rectangle" id "leaf-shape"
+      set "center" to 0.05 0
+      set "halfSize" to 0.21 0.3
+      set "radius" to 0.012
+    use "Color" id "leaf-color"
+  row "handle" called "handle"
+    use "Rounded Rectangle" id "handle-shape"
+      set "center" to 0.19 0.04
+      set "halfSize" to 0.025 0.025
+      set "radius" to 0.012
+    use "Color" id "handle-color"
+  row "layer-0" called "Door artwork"
+    use "Alpha Over" id "layer-0"
+      input from row "jamb-left" xyz
+      set "foreground" from row "jamb-top" xyzw
+  row "layer-1" called "Door artwork"
+    use "Alpha Over" id "layer-1"
+      input from row "layer-0" xyz
+      set "foreground" from row "jamb-right" xyzw
+  row "layer-2" called "Door artwork"
+    use "Alpha Over" id "layer-2"
+      input from row "layer-1" xyz
+      set "foreground" from row "threshold" xyzw
+  row "layer-3" called "Door artwork"
+    use "Alpha Over" id "layer-3"
+      input from row "layer-2" xyz
+      set "foreground" from row "leaf" xyzw
+  row "layer-4" called "Door artwork"
+    use "Alpha Over" id "layer-4"
+      input from row "layer-3" xyz
+      set "foreground" from row "handle" xyzw
+  row "pixel-alpha" called "Crisp 32px silhouette"
+    use "Compare/Select" id "pixel-alpha"
+      input from row "layer-4" www
+      set "comparison" to 2
+      set "reference" to 0.5 0.5 0.5
+  output base color from row "layer-4" xyz
+  output opacity from row "pixel-alpha" x

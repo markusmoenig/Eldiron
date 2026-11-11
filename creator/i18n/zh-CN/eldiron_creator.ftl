@@ -315,7 +315,7 @@ action_remap_tile_desc = 将图块的颜色映射到调色板
 tool_game = 游戏工具 (K)。服务器运行时输入事件会发送到游戏
 tool_iso_paint = 3D Paint 工具 (I)。直接在等距、轨道和第一人称视图中的 3D 表面上绘制。
 tool_linedef = 线段 / 边工具（E）。创建 2D 线段定义并编辑 3D 几何边
-tool_object = 对象工具（O）。选择并移动可直接编辑的 3D 对象。
+tool_object = 对象工具（O）。选择对象和物品以编辑描述。移动可直接编辑的 3D 几何体。
 tool_rect = 矩形工具 (R)。点击绘制当前图块，按住 Shift 点击删除。按住 Alt/Opt 点击可从地图拾取图块
 tool_sector = 区域 / 面工具（F）。在 2D 中选择区域，在 3D 中选择面。
 tool_vertex = 顶点工具 (V)。按住 'Shift' + 单击可创建新顶点。
@@ -637,8 +637,8 @@ status_block_erase = 擦除方块实例。
 status_block_line = 拖拽一行印章。
 status_block_rect = 拖拽一个填充矩形印章。
 status_block_selected = 方块：{$asset_name}
-tool_blocks = 预制体工具
-status_block_tool_active = 预制体工具：单击/拖拽放置，R 旋转，E 擦除，H/W/Z 调整大小，D 损坏，[/] 层级
+tool_blocks = 3D 道具
+status_block_tool_active = 3D 道具：选择资源后单击或拖动放置。通过悬浮工具栏设置和编辑。
 block_asset_instances = 方块
 block_commit_placed = 已放置
 block_commit_replaced = 已替换
@@ -1002,7 +1002,7 @@ paint_picker_jitter = 大小变化
 paint_picker_rotate = 旋转
 paint_picker_edit = 编辑配方
 paint_picker_choose = 在下方选择材质或印章
-paint_picker_choose_stamp = 请在 Organic stamps 集合中选择印章。
+paint_picker_choose_stamp = 请在 Organic Stamps 集合中选择印章。
 
 paint_source_title = 绘画源
 paint_stamp_source_title = 印章源
@@ -1010,3 +1010,37 @@ paint_source_seed = 变化种子
 paint_source_artwork_size = 图案大小
 paint_source_palette_hint = 源调色板颜色
 paint_picker_in_use = 此材质正在被绘画、印章、网格、图块输出或规则集使用。删除前请替换这些引用。
+
+paint_overlay_advanced = 高级
+paint_overlay_settings = 设置
+
+# 3D Props viewport overlay
+props_requires_3d = 3D 道具需要 3D 摄像机。在 2D 和 2D 等距模式中请使用图块选择器。
+props_rotate = 旋转
+props_placement = 放置设置…
+props_edit_recipe = 编辑配方
+props_edit_prop = 编辑道具
+props_recipe_controls = 配方参数…
+props_grid = 网格大小
+props_level = 层级
+props_height = 高度
+props_width = 宽度扩展
+props_depth = 深度扩展
+props_blocks = 方块
+props_furniture = 家具
+props_decoration = 装饰
+props_lighting = 照明
+props_project = 项目道具
+props_meshes = MZ 网格
+props_mesh_hint = 从此 MZ 配方放置关联的 3D 几何体。通过视口悬浮工具栏编辑配方。
+props_subdivisions = 地图细分
+props_level_height = 层级高度
+tool_blocks_description = 3D 道具 (B)。放置可复用道具和 MZ 网格。使用视口悬浮工具栏旋转、调整大小或编辑源资源。仅适用于 3D 摄像机。
+
+# Shared MZ item states (2D, isometric and 3D).
+entity_item_state = 物品状态
+entity_item_active = 开启 / 打开
+entity_item_openable = 可打开
+entity_item_locked = 已锁定
+entity_item_required_key = 所需钥匙
+entity_item_state_help = 开启使用 MZ 的 On 输出，关闭使用 Off 输出。打开/关闭遵循正式意图规则。背包中匹配的钥匙可解锁一次，且不会被消耗。

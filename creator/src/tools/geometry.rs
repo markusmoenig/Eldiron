@@ -3030,6 +3030,14 @@ impl Tool for GeometryTool {
                     return None;
                 }
 
+                if super::entity::select_placed_content(_ui, ctx, map, server_ctx, coord) {
+                    self.drag = None;
+                    self.rectangle_start = None;
+                    self.rectangle_undo_map = None;
+                    self.rectangle_mode = false;
+                    return None;
+                }
+
                 self.undo_map = None;
                 self.drag = None;
                 self.rectangle_start = None;

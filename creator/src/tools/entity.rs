@@ -1114,6 +1114,34 @@ impl EntityTool {
         map: &Map,
         coord: Vec2<i32>,
     ) -> Option<Hit> {
+        if map.camera == rusterix::MapCamera::TwoDIso {
+            let dim = *ui.get_render_view("PolyView")?.dim();
+            let projection = rusterix::isometric::Projection::editor(
+                map,
+                Vec2::new(dim.width as f32, dim.height as f32),
+            );
+            let mut runtime = RUSTERIX.write().unwrap();
+            let runtime = &mut *runtime;
+            let sprites = runtime.scene_handler.isometric_avatars(
+                map,
+                &runtime.assets,
+                runtime.client.animation_frame,
+            );
+            if let Some(index) = rusterix::isometric::pick_item_index(
+                map,
+                &runtime.assets,
+                projection,
+                coord.map(|v| v as f32),
+                &sprites,
+            ) && let Some(item) = map.items.get(index)
+            {
+                return Some(Hit {
+                    target: DragTarget::Item(item.creator_id),
+                    name: item.attributes.get_str_default("name", "Item".into()),
+                    pos: item.get_pos_xz(),
+                });
+            }
+        }
         if server_ctx.editor_view_mode == EditorViewMode::D2 {
             return None;
         }
@@ -1304,4 +1332,43 @@ impl Hit {
         };
         format!("{prefix}: {}", self.name)
     }
+}
+
+/// Object mode selects the same placed content as Entity mode, using rendered silhouettes.
+pub(crate) fn select_placed_content(
+    ui: &mut TheUI,
+    ctx: &mut TheContext,
+    map: &mut Map,
+    server_ctx: &mut ServerContext,
+    coord: Vec2<i32>,
+) -> bool {
+    let tool = EntityTool::new();
+    let hit = tool
+        .pick_rendered_hit_for_coord(ui, server_ctx, map, coord)
+        .or_else(|| {
+            (server_ctx.editor_view_mode == EditorViewMode::D2
+                && map.camera != rusterix::MapCamera::TwoDIso)
+                .then(|| {
+                    tool.map_pos_unsnapped(ui, server_ctx, map, coord)
+                        .and_then(|pos| tool.pick_hit_2d(map, pos))
+                })
+                .flatten()
+        });
+    let Some(hit) = hit else {
+        return false;
+    };
+    let id = hit.id();
+    map.clear_selection();
+    map.selected_entity_item = Some(id);
+    tool.select_in_tree(ui, server_ctx, id);
+    ctx.ui.send(TheEvent::Custom(
+        TheId::named_with_id("Select Map Entity", id),
+        TheValue::Empty,
+    ));
+    ctx.ui.send(TheEvent::Custom(
+        TheId::named("Map Selection Changed"),
+        TheValue::Empty,
+    ));
+    RUSTERIX.write().unwrap().set_overlay_dirty();
+    true
 }

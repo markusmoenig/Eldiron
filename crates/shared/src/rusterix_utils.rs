@@ -1154,6 +1154,19 @@ pub fn start_server(
             .region_sources
             .insert(region.map.id, region_source);
     }
+    // Prepare MZ geometry before taking the region snapshot. Item footprints
+    // are authoritative collision data as well as visual appearance resources.
+    rusterix.assets.avatars.clear();
+    insert_bundled_ruleset_avatars(&mut rusterix.assets, project);
+    for avatar in &mut project.avatars.values() {
+        rusterix
+            .assets
+            .avatars
+            .insert(avatar.name.clone(), avatar.clone());
+    }
+    insert_bundled_ruleset_textures(&mut rusterix.assets, project);
+    sync_procedural_avatar_assets(&mut rusterix.assets, project);
+
     let region_assets = rusterix::server::assets::RegionAssets::for_regions(&mut rusterix.assets);
     // Create the regions without cloning textures and behavior graphs per map.
     for region in &project.regions {
@@ -1165,18 +1178,6 @@ pub fn start_server(
             region_config,
         );
     }
-
-    // Create the avatars
-    rusterix.assets.avatars.clear();
-    insert_bundled_ruleset_avatars(&mut rusterix.assets, project);
-    for avatar in &mut project.avatars.values() {
-        rusterix
-            .assets
-            .avatars
-            .insert(avatar.name.clone(), avatar.clone());
-    }
-    insert_bundled_ruleset_textures(&mut rusterix.assets, project);
-    sync_procedural_avatar_assets(&mut rusterix.assets, project);
 
     // Wait for the region to be created
     #[cfg(not(target_arch = "wasm32"))]
@@ -1407,6 +1408,7 @@ pub fn insert_content_into_maps_mode(project: &mut Project, debug: bool) {
             }
             // Resolve instance configuration before race/class derivation and startup.
             rusterix::server::data::apply_entity_data(&mut entity, &instance.data);
+            entity.set_attribute("_authoring", Value::Str(instance.authoring.clone()));
             entity.set_attribute("_entity_configuration", Value::Str(instance.data.clone()));
             let template_data = project
                 .characters
@@ -1451,6 +1453,7 @@ pub fn insert_content_into_maps_mode(project: &mut Project, debug: bool) {
                 rusterix::server::data::apply_item_data(&mut item, &item_template.data);
             }
             rusterix::server::data::apply_item_data(&mut item, &instance.data);
+            item.set_attribute("_authoring", Value::Str(instance.authoring.clone()));
             item.set_attribute("_entity_configuration", Value::Str(instance.data.clone()));
             region.map.items.push(item);
         }

@@ -11,6 +11,7 @@ pub struct TheToolListButton {
     icon_name: String,
     custom_color: Option<TheColor>,
     is_dirty: bool,
+    is_disabled: bool,
 }
 
 impl TheWidget for TheToolListButton {
@@ -32,6 +33,7 @@ impl TheWidget for TheToolListButton {
             icon_name: String::new(),
             custom_color: None,
             is_dirty: false,
+            is_disabled: false,
         }
     }
 
@@ -40,6 +42,9 @@ impl TheWidget for TheToolListButton {
     }
 
     fn on_event(&mut self, event: &TheEvent, ctx: &mut TheContext) -> bool {
+        if self.is_disabled {
+            return false;
+        }
         let mut redraw = false;
         // println!("event ({}): {:?}", self.widget_id.name, event);
         match event {
@@ -106,8 +111,22 @@ impl TheWidget for TheToolListButton {
         self.is_dirty = true;
     }
 
+    fn disabled(&self) -> bool {
+        self.is_disabled
+    }
+
+    fn set_disabled(&mut self, disabled: bool) {
+        if self.is_disabled != disabled {
+            self.is_disabled = disabled;
+            if disabled {
+                self.state = TheWidgetState::None;
+            }
+            self.is_dirty = true;
+        }
+    }
+
     fn supports_hover(&mut self) -> bool {
-        true
+        !self.is_disabled
     }
 
     fn needs_redraw(&mut self) -> bool {
@@ -134,15 +153,19 @@ impl TheWidget for TheToolListButton {
             self.dim.width,
             self.dim.height,
         );
-        let hovered = self.state == TheWidgetState::None && self.id().equals(&ctx.ui.hover);
-        let (paint_role, border_role) = if self.state == TheWidgetState::Selected {
+        let hovered = !self.is_disabled
+            && self.state == TheWidgetState::None
+            && self.id().equals(&ctx.ui.hover);
+        let (paint_role, border_role) = if self.is_disabled {
+            (TrayButtonDisabled, ToolListButtonNormalBorder)
+        } else if self.state == TheWidgetState::Selected {
             (ControlPressed, ToolListButtonSelectedBorder)
         } else if hovered {
             (ControlHover, ToolListButtonHoverBorder)
         } else {
             (ControlNormal, ToolListButtonNormalBorder)
         };
-        let paint = if let Some(color) = &self.custom_color {
+        let paint = if let Some(color) = &self.custom_color.clone().filter(|_| !self.is_disabled) {
             let brightness = if self.state == TheWidgetState::Selected {
                 1.65
             } else if hovered {
@@ -158,7 +181,11 @@ impl TheWidget for TheToolListButton {
         } else {
             style.theme().paint(paint_role, rect)
         };
-        let border = *style.theme().color(border_role);
+        let border = if self.is_disabled {
+            *style.theme().color_disabled(border_role)
+        } else {
+            *style.theme().color(border_role)
+        };
         let radius = style.theme().metric(ControlCornerRadius);
         let inner = ThePixelRect::new(
             rect.x.saturating_add(1),
@@ -188,9 +215,20 @@ impl TheWidget for TheToolListButton {
                     && icon_x + icon_width <= width as i32
                     && icon_y + icon_height <= height as i32
                 {
+                    let muted;
+                    let pixels = if self.is_disabled {
+                        muted = icon
+                            .pixels()
+                            .chunks_exact(4)
+                            .flat_map(|p| [p[0], p[1], p[2], (p[3] as f32 * 0.28) as u8])
+                            .collect::<Vec<_>>();
+                        muted.as_slice()
+                    } else {
+                        icon.pixels()
+                    };
                     ctx.draw.blend_slice(
                         buffer.draw_target(),
-                        icon.pixels(),
+                        pixels,
                         &(
                             icon_x as usize,
                             icon_y as usize,
@@ -231,6 +269,33 @@ impl TheToolListButtonTrait for TheToolListButton {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn disabled_tool_buttons_dim_the_icon_and_ignore_pointer_input() {
+        let mut ctx = TheContext::new(46, 43, 1.);
+        let mut icon = TheRGBABuffer::new(TheDim::sized(10, 10));
+        icon.fill([255, 255, 255, 255]);
+        ctx.ui.add_icon("tool".into(), icon);
+        let mut button = TheToolListButton::new(TheId::named("Props"));
+        button.set_icon_name("tool".into());
+        button.set_dim(TheDim::sized(46, 43), &mut ctx);
+        let mut style: Box<dyn TheStyle> =
+            Box::new(TheClassicStyle::with_theme(Box::new(TheBrownTheme::new())));
+        let mut enabled = TheRGBABuffer::new(TheDim::sized(46, 43));
+        button.draw(&mut enabled, &mut style, &mut ctx);
+        button.set_disabled(true);
+        assert!(button.disabled());
+        assert!(!button.supports_hover());
+        assert!(!button.on_event(&TheEvent::MouseDown(Vec2::new(20, 20)), &mut ctx));
+        assert_eq!(button.state(), TheWidgetState::None);
+        let mut disabled = TheRGBABuffer::new(TheDim::sized(46, 43));
+        button.draw(&mut disabled, &mut style, &mut ctx);
+        let center = (21 * 46 + 23) * 4;
+        assert!(disabled.pixels()[center] < enabled.pixels()[center] / 2);
+        button.set_disabled(false);
+        assert!(button.on_event(&TheEvent::MouseDown(Vec2::new(20, 20)), &mut ctx));
+        assert_eq!(button.state(), TheWidgetState::Selected);
+    }
 
     #[test]
     fn procedural_chrome_clips_when_widget_extends_outside_buffer() {

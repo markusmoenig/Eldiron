@@ -105,11 +105,16 @@ impl TheLayout for TheTabLayout {
             return true;
         }
 
-        // if self.widgets.is_empty() {
-        //     return false;
-        // }
-
-        false
+        // Child interactions (including scrolling) must invalidate the tab's
+        // composited canvas even when the tab bar itself has not changed.
+        let index = self
+            .tabbar
+            .as_tabbar()
+            .and_then(|tabbar| tabbar.selection_index())
+            .unwrap_or(0) as usize;
+        self.canvas
+            .get_mut(index)
+            .is_some_and(|canvas| canvas.needs_redraw())
     }
 
     fn dim(&self) -> &TheDim {

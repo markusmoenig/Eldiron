@@ -28,6 +28,14 @@ struct GraphBehavior {
 }
 
 impl BehaviorAssets {
+    /// Authored Intent branches take precedence over native item defaults.
+    pub(crate) fn owns_item_intent(&self, ctx: &RegionCtx, item: &crate::Item) -> bool {
+        let class = item.attributes.get_str("class_name").unwrap_or(&item.item_type);
+        self.graph_keys(ctx, &EventOwner::Item(item.creator_id), class).iter().any(|key| {
+            self.graphs.get(key).and_then(|g| Registry::shared().compile(g).ok())
+                .is_some_and(|p| p.events.get("intent").is_some_and(|roots| !roots.is_empty()))
+        })
+    }
     /// Graph keys addressing this owner, most specific first: a region instance
     /// graph, then the character or item template graph.
     fn graph_keys(&self, ctx: &RegionCtx, owner: &EventOwner, class: &str) -> Vec<String> {
@@ -1225,7 +1233,7 @@ impl WorldServices for RegionServices<'_> {
             return Err("The target no longer exists".into());
         };
         let item = item.trim();
-        Ok(entity.iter_inventory().any(|(_, carried)| {
+        Ok(crate::item_state::has_key(entity, item) || entity.iter_inventory().any(|(_, carried)| {
             let name = carried.attributes.get_str("name").unwrap_or_default();
             let class_name = carried.attributes.get_str("class_name").unwrap_or_default();
             item.is_empty()

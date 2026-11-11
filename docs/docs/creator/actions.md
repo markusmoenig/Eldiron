@@ -558,7 +558,7 @@ Options: none.
 
 # Prefab Actions
 
-Prefab creation and source management are contextual Object-mode actions. The Prefab Tool and Prefabs dock are used for browsing and placement rather than duplicating these source actions in a second toolbar.
+Prefab creation and source management are contextual Object-mode actions. The 3D Props Tool and Prefabs dock are used for browsing and placement rather than duplicating these source actions in a second toolbar.
 
 ### Create Linked Prefab
 

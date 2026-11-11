@@ -26,7 +26,7 @@ pub fn node_available(pc: ProjectContext, key: &str) -> bool {
                 key,
                 "entity_player" | "entity_input" | "entity_inputs" | "entity_equipment"
             ))
-            || (matches!(pc, ProjectContext::ItemData(_)) && key == "entity_ruleset_item");
+            || (matches!(pc, ProjectContext::ItemData(_)) && matches!(key, "entity_ruleset_item" | "entity_item_state"));
     }
     match key {
         "event" | "on_event" | "filter" | "time_range" => true,

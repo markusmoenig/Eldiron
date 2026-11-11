@@ -334,6 +334,11 @@ pub struct IsoPaintStamp {
 }
 
 impl IsoPaintStamp {
+    /// Upright artwork may vary in shape and size, but must not spin in screen space.
+    pub fn keeps_upright(kind: &str) -> bool {
+        matches!(kind, "grass" | "grass_stamp" | "flowers" | "vines" | "bushes" | "tree" | "candles" | "rubble")
+    }
+
     pub fn new(
         kind: String,
         point: IsoPaintPoint,
@@ -354,9 +359,10 @@ impl IsoPaintStamp {
         let size = (size * size_scale).max(0.01);
         let radius = (size * 5.0).round().max(5.0) as i32;
         let height = (size * 13.0).round().max(13.0) as i32;
-        let rotation = ((variation & 0xffff) as f32 / 65535.0 - 0.5)
-            * std::f32::consts::TAU
-            * rotation_jitter.clamp(0.0, 1.0);
+        let rotation = if Self::keeps_upright(&kind) { 0. } else {
+            ((variation & 0xffff) as f32 / 65535.0 - 0.5)
+                * std::f32::consts::TAU * rotation_jitter.clamp(0.0, 1.0)
+        };
         Self {
             source: None,
             source_image: None,
@@ -1149,6 +1155,8 @@ impl IsoPaintLayer {
             seed ^= (center[0] as u32).wrapping_mul(0x9e37_79b9);
             seed ^= (center[1] as u32).wrapping_mul(0x85eb_ca6b);
         }
+        let native_source = self.native_source();
+        if let Some(spec)=&native_source {seed ^= spec.seed.wrapping_sub(19);}
         let brush = self.active_brush.clone();
         let shape = self.active_brush_shape.clone();
         let color = self.active_color;
@@ -1169,7 +1177,7 @@ impl IsoPaintLayer {
                 }
                 let local =
                     brush_local_offset(transform, [(x - center[0]) as f32, (y - center[1]) as f32]);
-                let mut color = if self.active_source.is_some() {
+                let mut color = if self.active_source.is_some() && native_source.is_none() {
                     let alpha = iso_paint_brush::shape_alpha(&shape,local[0].round() as i32,local[1].round() as i32,radius,255,seed);
                     if alpha == 0 { continue; }
                     [255,255,255,alpha]
@@ -1179,7 +1187,7 @@ impl IsoPaintLayer {
                 };
                 let coverage = color[3];
                 self.active_source_material = None;
-                if let Some(source) = self.active_source.and_then(|id| self.source_images.get(&id)) {
+                if let Some(source) = self.active_source.and_then(|id| self.source_images.get(&id)).filter(|_|native_source.is_none()) {
                     let (sampled, material) = source.sample_paint_surface([x as f32 / 64., y as f32 / 64.], seed as usize);
                     color[0..3].copy_from_slice(&sampled[0..3]);
                     color[3] = ((color[3] as u16 * sampled[3] as u16) / 255) as u8;
@@ -1301,6 +1309,7 @@ impl IsoPaintLayer {
         self.active_size = stroke.size;
         self.active_opacity = stroke.opacity;
 
+        self.apply_source_settings();
         let clip_owner = Self::is_surface_clip(&stroke.clip)
             .then(|| stroke.points.first().and_then(|point| point.owner.clone()))
             .flatten();
@@ -1353,6 +1362,7 @@ impl IsoPaintLayer {
         let Some(selection) = self.active_selection().cloned() else {
             return;
         };
+        let native_source = self.native_source();
         let brush = self.active_brush.clone();
         let shape = self.active_brush_shape.clone();
         let color = self.active_color;
@@ -1361,7 +1371,7 @@ impl IsoPaintLayer {
             .round()
             .clamp(2.0, 96.0) as i32;
         let selection_bits = selection.id.as_u128();
-        let selection_seed = selection_bits as u32
+        let selection_seed = native_source.as_ref().map_or(0,|spec|spec.seed.wrapping_sub(19)) ^ selection_bits as u32
             ^ (selection_bits >> 32) as u32
             ^ (selection_bits >> 64) as u32
             ^ (selection_bits >> 96) as u32;
@@ -1382,7 +1392,7 @@ impl IsoPaintLayer {
                 let x = chunk.origin[0] + (index % ISO_PAINT_BAKED_CHUNK_SIZE as usize) as i32;
                 let y = chunk.origin[1] + (index / ISO_PAINT_BAKED_CHUNK_SIZE as usize) as i32;
                 self.active_source_material = None;
-                let mut sampled_color = if let Some(source) = self.active_source.and_then(|id|self.source_images.get(&id)) {
+                let mut sampled_color = if let Some(source) = self.active_source.and_then(|id|self.source_images.get(&id)).filter(|_|native_source.is_none()) {
                     let (color, material) = source.sample_paint_surface([x as f32/64.,y as f32/64.],selection_seed as usize);
                     self.active_source_material = Some(rusterix::Texture::encode_material_bytes(material[0],material[1],material[2],material[3]));
                     color
@@ -1580,7 +1590,28 @@ impl IsoPaintLayer {
             .saturating_add(1)
     }
 
+    pub fn native_source(&self) -> Option<crate::paint_source::Spec> {
+        crate::paint_source::Spec::from_tile(self.source_images.get(&self.active_source?)?)
+    }
+
+    /// Keep the original brush evaluation, including masks, local detail and material semantics.
+    /// The recipe supplies its settings; placement size and opacity stay on the stroke.
+    pub fn apply_source_settings(&mut self) {
+        let Some(spec) = self.native_source() else { return; };
+        self.active_brush = spec.brush;
+        self.active_brush_shape = spec.shape;
+        self.active_color = spec.colors[0];
+        self.active_palette_colors = spec.colors;
+        self.active_material_id = spec.material_id;
+        self.active_pattern_kind = spec.pattern;
+        self.active_pattern_mortar = spec.mortar;
+        self.active_pattern_scale = spec.scale;
+        self.active_pattern_detail = spec.detail;
+        self.active_pattern_variation = spec.variation;
+    }
+
     pub fn begin_stroke(&mut self, first_point: IsoPaintPoint) -> Uuid {
+        self.apply_source_settings();
         let clip_owner = first_point.owner.clone();
         self.paint_baked_at_point(&first_point, clip_owner.as_ref());
         let origin = self.chunk_origin_for_screen(first_point.screen);
@@ -1620,6 +1651,7 @@ impl IsoPaintLayer {
     }
 
     pub fn fill_active_selection(&mut self) -> bool {
+        self.apply_source_settings();
         let Some(selection) = self.active_selection().cloned() else {
             return false;
         };
@@ -1682,6 +1714,7 @@ impl IsoPaintLayer {
     }
 
     pub fn add_stamp(&mut self, point: IsoPaintPoint) -> Uuid {
+        self.apply_source_settings();
         let origin = self.chunk_origin_for_screen(point.screen);
         let key = Self::chunk_key(origin);
         let mut stamp = IsoPaintStamp::new(

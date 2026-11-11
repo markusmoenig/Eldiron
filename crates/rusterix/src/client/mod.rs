@@ -9,6 +9,8 @@ pub mod resolver;
 pub mod rules_ui;
 pub mod text_command;
 pub mod widget;
+mod world_text;
+mod intent_cursor;
 
 use instant::{Duration, Instant};
 use scenevm::GeoId;
@@ -784,6 +786,7 @@ pub struct Client {
     pub draw2d: Draw2D,
     draw_debug_timing: ClientDrawDebugTiming,
 
+    world_texts: Vec<world_text::Passage>,
     pub messages_to_draw: FxHashMap<u32, (Vec2<f32>, String, usize, String, TheTime)>,
 
     // Name of player entity templates
@@ -859,6 +862,7 @@ pub struct Client {
 
     // Intent
     intent: String,
+    selected_targeting_intent: Option<String>,
     key_down_intent: Option<String>,
     click_intents_2d: bool,
 
@@ -1006,6 +1010,7 @@ impl Client {
     /// Clear all active say bubbles currently rendered above entities/items.
     pub fn clear_say_messages(&mut self) {
         self.messages_to_draw.clear();
+        self.world_texts.clear();
     }
 
     fn say_table_from_widget(widget: &GameWidget) -> Option<toml::value::Table> {
@@ -1243,6 +1248,16 @@ impl Client {
     ) -> Option<String> {
         Self::resolved_widget_binding(widget, assets, entity, ui_state)
             .and_then(|binding| binding.intent_payload())
+    }
+
+    fn contextual_open_close_command(command: Option<String>, hovered: Option<u32>, map: &Map) -> Option<String> {
+        if command.as_deref()==Some("intent.open_close")
+            && let Some(item)=hovered.and_then(|id|map.items.iter().find(|i|i.id==id))
+            && item.attributes.get_bool_default("openable",false)
+        {
+            return Some(format!("intent.{}",crate::item_state::canonical_intent(item,"open_close")));
+        }
+        command
     }
 
     fn command_for_slot(
@@ -1513,6 +1528,7 @@ impl Client {
             messages_font_color: [229, 229, 1, 255],
 
             messages_to_draw: FxHashMap::default(),
+            world_texts: Vec::new(),
 
             player_entities: Vec::new(),
 
@@ -1565,6 +1581,7 @@ impl Client {
             client_action: Arc::new(Mutex::new(ClientAction::default())),
             currencies: Currencies::default(),
             intent: String::new(),
+            selected_targeting_intent: None,
             key_down_intent: None,
             click_intents_2d: false,
 
@@ -2795,6 +2812,7 @@ impl Client {
         let mut commands = vec![];
         self.first_game_draw = true;
         self.intent = String::new();
+        self.selected_targeting_intent = None;
         self.game_started = false;
         self.ui_state.clear();
         self.focused_text_input = None;
@@ -3456,6 +3474,7 @@ impl Client {
         F: FnMut(&mut GameWidget, &mut SceneHandler) -> bool,
         G: FnMut(&mut GameWidget, &mut SceneHandler),
     {
+        let messages = messages.into_iter().filter(|m| m.4 != "look").collect::<Vec<_>>();
         let debug_enabled = self.frame_timings_enabled();
         let debug_total_started = Instant::now();
         let debug_setup_started = Instant::now();
@@ -3488,6 +3507,7 @@ impl Client {
         if let Some(leader) = Self::resolve_party_entity(map, Some("leader")) {
             self.intent = self
                 .selected_slot_intent(map, assets)
+                .or_else(|| self.selected_targeting_intent.clone())
                 .unwrap_or_else(|| leader.get_attr_string("intent").unwrap_or_default());
             self.current_sector = leader
                 .get_attr_string("sector")
@@ -3664,7 +3684,7 @@ impl Client {
             debug_game_composite += stage_started.elapsed();
         }
         let stage_started = Instant::now();
-        self.draw_hovered_world_item_pile(map);
+        // World objects reveal their descriptions only through an explicit Look.
 
         // Negative-layer deco widgets sit between the game view and screen-rendered
         // controls, so they can dim the game without dimming command icons.
@@ -3926,6 +3946,7 @@ impl Client {
                 ));
                 let resolved_command =
                     Self::resolved_widget_command(widget, assets, entity, &self.ui_state);
+                let resolved_command=Self::contextual_open_close_command(resolved_command,self.hovered_item_id,map);
                 debug_button_resolve += button_stage_started.elapsed();
 
                 let button_stage_started = Instant::now();
@@ -4024,6 +4045,7 @@ impl Client {
         }
         self.draw_dragged_action_preview(map, assets);
 
+        self.draw_world_texts(map, assets);
         self.draw_hover_tooltip(map, assets);
 
         // Draw the cursor (centered on cursor_pos)
@@ -4049,6 +4071,7 @@ impl Client {
                 }
             }
         }
+        self.draw_intent_cursor(map, assets, false);
         debug_misc += stage_started.elapsed();
 
         if debug_enabled {
@@ -4115,16 +4138,9 @@ impl Client {
             self.upscale_factor = 1.0;
             // "none" mode: center without scaling
             buffer.fill(bg_color);
-            if self.first_game_draw {
-                let dim = buffer.dim();
-                if dim.width > self.viewport.x {
-                    self.target_offset.x = (dim.width - self.viewport.x) / 2;
-                }
-                if dim.height > self.viewport.y {
-                    self.target_offset.y = (dim.height - self.viewport.y) / 2;
-                }
-                self.first_game_draw = false;
-            }
+            let dim = buffer.dim();
+            self.target_offset = Vec2::new(((dim.width - self.viewport.x) / 2).max(0), ((dim.height - self.viewport.y) / 2).max(0));
+            self.first_game_draw = false;
             buffer.copy_into(self.target_offset.x, self.target_offset.y, &self.target);
         }
     }
@@ -4304,6 +4320,7 @@ impl Client {
         width: u32,
         height: u32,
     ) -> &TheRGBABuffer {
+        let messages = messages.into_iter().filter(|m| m.4 != "look").collect::<Vec<_>>();
         let w = width.max(1) as i32;
         let h = height.max(1) as i32;
         let dim = self.overlay.dim();
@@ -4317,6 +4334,7 @@ impl Client {
         if let Some(leader) = Self::resolve_party_entity(map, Some("leader")) {
             self.intent = self
                 .selected_slot_intent(map, assets)
+                .or_else(|| self.selected_targeting_intent.clone())
                 .unwrap_or_else(|| leader.get_attr_string("intent").unwrap_or_default());
             self.current_sector = leader
                 .get_attr_string("sector")
@@ -4627,6 +4645,7 @@ impl Client {
                 ));
                 let resolved_command =
                     Self::resolved_widget_command(widget, assets, entity, &self.ui_state);
+                let resolved_command=Self::contextual_open_close_command(resolved_command,self.hovered_item_id,map);
                 let command_state = resolved_command
                     .as_deref()
                     .map(|command| rules_ui::command_state(assets, entity, command));
@@ -4723,6 +4742,7 @@ impl Client {
         std::mem::swap(&mut self.target, &mut self.overlay);
 
         std::mem::swap(&mut self.target, &mut self.overlay);
+        self.draw_world_texts(map, assets);
         self.draw_hover_tooltip(map, assets);
         std::mem::swap(&mut self.target, &mut self.overlay);
 
@@ -4748,6 +4768,7 @@ impl Client {
             );
         }
 
+        self.draw_intent_cursor(map, assets, true);
         &self.overlay
     }
 
@@ -6434,6 +6455,7 @@ impl Client {
             return;
         }
         self.intent.clear();
+        self.selected_targeting_intent = None;
         self.activated_widgets.retain(|id| {
             self.button_widgets
                 .get(id)
@@ -6504,6 +6526,7 @@ impl Client {
 
     fn activate_walk_button(&mut self, button_id: u32) {
         self.intent.clear();
+        self.selected_targeting_intent = Some(String::new());
         self.activated_widgets.retain(|id| {
             *id != button_id
                 && self
@@ -6588,7 +6611,7 @@ impl Client {
         let Some(widget) = self
             .game_widgets
             .values()
-            .find(|widget| widget.rect.contains(point) && !Self::is_2d_camera(&widget.camera))
+            .find(|widget| widget.rect.contains(point) && (!Self::is_2d_camera(&widget.camera) || widget.camera.is_isometric_2d()))
         else {
             return false;
         };
@@ -6601,6 +6624,17 @@ impl Client {
 
         let dx = p.x as f32 - widget.rect.x;
         let dy = p.y as f32 - widget.rect.y;
+        if widget.camera.is_isometric_2d() {
+            if let Some(projection) = widget.isometric_projection {
+                let sprites = scene_handler.isometric_avatars(map, assets, self.animation_frame);
+                self.hovered_item_id = crate::isometric::pick_item(map, assets, projection, Vec2::new(dx,dy), &sprites);
+                if let Some(item) = self.hovered_item_id.and_then(|id| map.items.iter().find(|i| i.id==id)) {
+                    self.hovered_world_pos = Some(item.position);
+                    self.hover_distance = Self::item_click_distance(map,item.id);
+                }
+            }
+            return self.hovered_item_id.is_some();
+        }
         let screen_uv = Vec2::new(dx / widget.rect.width, dy / widget.rect.height);
         let Some((geoid, world_pos, distance)) = scene_handler.vm.pick_geo_id_at_uv(
             widget.rect.width as u32,
@@ -6835,12 +6869,27 @@ impl Client {
             return;
         }
 
+        if self.button_widgets.values().any(|widget| {
+            !Self::widget_name_is_hidden(&widget.name, &self.widgets_to_hide)
+                && widget.rect.contains(Vec2::new(p.x as f32, p.y as f32))
+        }) {
+            return;
+        }
+
         for (_, widget) in self.game_widgets.iter() {
             if widget.rect.contains(Vec2::new(p.x as f32, p.y as f32)) {
                 let dx = p.x as f32 - widget.rect.x;
                 let dy = p.y as f32 - widget.rect.y;
 
                 if Self::is_2d_camera(&widget.camera) {
+                    if widget.camera.is_isometric_2d() && let Some(projection) = widget.isometric_projection {
+                        let sprites = scene_handler.isometric_avatars(map, assets, self.animation_frame);
+                        if let Some(item) = crate::isometric::pick_item(map, assets, projection, Vec2::new(dx,dy), &sprites) {
+                            self.hovered_item_id = Some(item);
+                            pending_cursor_target = Some((false,true));
+                            continue;
+                        }
+                    }
                     let ground = widget.screen_to_ground(Vec2::new(dx, dy));
                     let gx = ground.x;
                     let gy = ground.y;
@@ -6994,6 +7043,7 @@ impl Client {
         // Transform screen coordinates to viewport coordinates
         let p = self.screen_to_viewport(coord);
         let point = Vec2::new(p.x as f32, p.y as f32);
+        if self.interact_world_text(point) { return None; }
 
         if self
             .preferences_tooltips_choice
@@ -7405,7 +7455,14 @@ impl Client {
             }
         }
 
-        if active_intent.is_some() {
+        // The game viewport can extend underneath the toolbar. Its buttons own
+        // their clicks, including intent selectors which emit no server action.
+        let hit_button = self.button_widgets.values().any(|widget| {
+            !Self::widget_name_is_hidden(&widget.name, &self.widgets_to_hide)
+                && widget.rect.contains(point)
+        });
+
+        if active_intent.is_some() && !hit_button {
             for widget in self.avatar_widgets.values() {
                 let hidden = self.widgets_to_hide.iter().any(|pattern| {
                     if pattern.ends_with('*') {
@@ -7461,7 +7518,8 @@ impl Client {
             }
         }
 
-        let clicked_3d_game_widget = self.refresh_3d_pick_at(p, map, assets, scene_handler);
+        let clicked_3d_game_widget =
+            !hit_button && self.refresh_3d_pick_at(p, map, assets, scene_handler);
 
         if clicked_3d_game_widget && let Some(hit) = self.hovered_block_prop_target {
             let explicit_intent = self.get_current_intent_for_action();
@@ -7513,7 +7571,7 @@ impl Client {
 
         // If we hovered over an item in 3D, send an explicit ItemClicked intent or start a drag
         if clicked_3d_game_widget && let Some(item_id) = self.hovered_item_id {
-            if self.has_drag_drop_targets() {
+            if self.has_drag_drop_targets() && self.get_current_intent_for_action().is_none() {
                 self.dragging_item_id = Some(item_id);
                 self.dragging_item_owner_entity_id = None;
                 self.dragging_item_from_world = true;
@@ -7548,7 +7606,9 @@ impl Client {
         }
 
         for (id, widget) in self.button_widgets.iter() {
-            if widget.rect.contains(Vec2::new(p.x as f32, p.y as f32)) {
+            if !Self::widget_name_is_hidden(&widget.name, &self.widgets_to_hide)
+                && widget.rect.contains(point)
+            {
                 self.pressed_widget = Some(*id);
                 self.activated_widgets.push(*id);
 
@@ -7605,9 +7665,11 @@ impl Client {
                             let payload = intent;
                             if payload.trim().is_empty() {
                                 self.intent.clear();
+                                self.selected_targeting_intent = Some(String::new());
                                 selected_walk_button_id = Some(*id);
                             } else {
                                 self.intent = payload.clone();
+                                self.selected_targeting_intent = Some(payload.clone());
                                 selected_targeting_button_id = Some(*id);
                                 if immediate_2d_intent {
                                     action = Some(EntityAction::Intent(payload));
@@ -7617,6 +7679,7 @@ impl Client {
                         ClientCommandBinding::RulesAction(rules_action) => {
                             let payload = format!("action:{}", rules_action);
                             self.intent = payload.clone();
+                            self.selected_targeting_intent = Some(payload.clone());
                             selected_targeting_button_id = Some(*id);
                             if immediate_2d_intent {
                                 action = Some(EntityAction::Intent(payload));
@@ -7717,7 +7780,7 @@ impl Client {
         }
 
         // Test against clicks on interactive messages (multiple choice)
-        if action.is_none() {
+        if !hit_button && action.is_none() {
             for widget in self.messages_widgets.iter_mut() {
                 if let Some(action) = widget.touch_down(p) {
                     return Some(action);
@@ -7726,7 +7789,7 @@ impl Client {
         }
 
         // Test against clicks on the map
-        if action.is_none() {
+        if !hit_button && action.is_none() {
             let player_pos = Self::resolve_party_entity(map, Some("leader"))
                 .or_else(|| map.entities.iter().find(|entity| entity.is_player()))
                 .map(|entity| entity.get_pos_xz())
@@ -7749,6 +7812,7 @@ impl Client {
                         // When drag-drop targets exist, prefer starting an item drag before
                         // the broader entity click path consumes the cell.
                         if self.has_drag_drop_targets()
+                            && self.get_current_intent_for_action().is_none()
                             && let Some(item) = map.items.iter().rev().find(|item| {
                                 tile_pos == Self::quantize_2d_tile_pos(item.get_pos_xz())
                             })
@@ -8208,6 +8272,11 @@ impl Client {
             self.key_down_intent = None;
         }
 
+        if is_escape && !self.world_texts.is_empty() {
+            self.world_texts.clear();
+            return EntityAction::Off;
+        }
+
         if is_escape && self.close_floaters() {
             return EntityAction::Off;
         }
@@ -8505,6 +8574,7 @@ impl Client {
 
         // Keep fallback intent state in sync with keyboard shortcuts.
         self.intent = selected_intent.unwrap_or_else(|| intent_name.to_string());
+        self.selected_targeting_intent = Some(self.intent.clone());
 
         let Some(button_id) = selected_button_id else {
             return;
@@ -10846,98 +10916,6 @@ impl Client {
         }
 
         drew
-    }
-
-    fn draw_hovered_world_item_pile(&mut self, map: &Map) {
-        let Some(item_id) = self.hovered_item_id else {
-            return;
-        };
-        if self.dragging_item_id.is_some() || self.dragging_container_panel {
-            return;
-        }
-        let Some(item) = map.items.iter().find(|item| item.id == item_id) else {
-            return;
-        };
-        let tile_pos = Self::quantize_2d_tile_pos(item.get_pos_xz());
-        let pile_count = map
-            .items
-            .iter()
-            .filter(|item| Self::quantize_2d_tile_pos(item.get_pos_xz()) == tile_pos)
-            .count();
-
-        let point = Vec2::new(self.cursor_pos.x as f32, self.cursor_pos.y as f32);
-        let Some(tile_rect) = self.game_widgets.values().find_map(|widget| {
-            if !Self::is_2d_camera(&widget.camera) || !widget.rect.contains(point) {
-                return None;
-            }
-            Some(Rect::new(
-                widget.rect.x + (tile_pos.x - widget.top_left.x) * widget.grid_size,
-                widget.rect.y + (tile_pos.y - widget.top_left.y) * widget.grid_size,
-                widget.grid_size,
-                widget.grid_size,
-            ))
-        }) else {
-            return;
-        };
-
-        Self::draw_drag_target_highlight(&mut self.target, &self.draw2d, tile_rect);
-
-        if pile_count <= 1 {
-            return;
-        }
-        let badge_size = 18.0_f32.min(tile_rect.width.max(12.0));
-        let badge_rect = Rect::new(
-            tile_rect.x + tile_rect.width - badge_size,
-            tile_rect.y,
-            badge_size,
-            badge_size,
-        );
-        let stride = self.target.stride();
-        let safe = (
-            0_isize,
-            0_isize,
-            self.target.dim().width as isize,
-            self.target.dim().height as isize,
-        );
-        let rect = (
-            badge_rect.x.round() as isize,
-            badge_rect.y.round() as isize,
-            badge_rect.width.round().max(1.0) as isize,
-            badge_rect.height.round().max(1.0) as isize,
-        );
-        self.draw2d.blend_rect_safe(
-            self.target.pixels_mut(),
-            &rect,
-            stride,
-            &[20, 24, 30, 220],
-            &safe,
-        );
-        self.draw2d.rect_outline_thickness(
-            self.target.pixels_mut(),
-            &(
-                badge_rect.x.round().max(0.0) as usize,
-                badge_rect.y.round().max(0.0) as usize,
-                badge_rect.width.round().max(1.0) as usize,
-                badge_rect.height.round().max(1.0) as usize,
-            ),
-            stride,
-            &[255, 236, 132, 255],
-            1,
-        );
-        if let Some(font) = self.messages_font.as_ref() {
-            self.draw2d.text_rect_blend_safe(
-                self.target.pixels_mut(),
-                &rect,
-                stride,
-                font,
-                self.messages_font_size.clamp(10.0, 13.0),
-                &pile_count.to_string(),
-                &[245, 238, 220, 255],
-                draw2d::TheHorizontalAlign::Center,
-                draw2d::TheVerticalAlign::Center,
-                &safe,
-            );
-        }
     }
 
     fn draw_drag_drop_highlights(&mut self, map: &Map) {
@@ -13659,30 +13637,6 @@ impl Client {
             }
         }
 
-        if let Some(item_id) = self.hovered_item_id
-            && let Some(item) = map.items.iter().find(|item| item.id == item_id)
-        {
-            let mut description = rules_ui::describe_item(item, assets);
-            let tile_pos = Self::quantize_2d_tile_pos(item.get_pos_xz());
-            let pile_count = map
-                .items
-                .iter()
-                .filter(|item| Self::quantize_2d_tile_pos(item.get_pos_xz()) == tile_pos)
-                .count();
-            if pile_count > 1 {
-                description
-                    .lines
-                    .push(format!("Pile: {} items", pile_count));
-            }
-            return Some((
-                description,
-                Rect::new(self.cursor_pos.x as f32, self.cursor_pos.y as f32, 1.0, 1.0),
-                None,
-                format!("world_item:{}", item.id),
-                Duration::from_millis(650),
-                false,
-            ));
-        }
 
         None
     }
@@ -14198,6 +14152,82 @@ mod tests {
         );
         assert_eq!(client.get_current_intent().as_deref(), Some("use"));
         assert!(client.activated_widgets.contains(&1));
+    }
+
+    #[test]
+    fn toolbar_buttons_consume_clicks_over_the_game_viewport() {
+        let map = Map::default();
+        let assets = Assets::default();
+        let mut scene = SceneHandler::default();
+        for camera in [
+            PlayerCamera::D2,
+            PlayerCamera::D2Iso,
+            PlayerCamera::D3FirstP,
+        ] {
+            let mut client = Client::new();
+            client.click_intents_2d = true;
+            client.active_player_camera = Some(camera.clone());
+            let mut game = GameWidget::new();
+            game.set_camera_mode(camera.clone());
+            game.rect = Rect::new(0., 0., 320., 240.);
+            client.game_widgets.insert(Uuid::new_v4(), game);
+            client.button_widgets.insert(
+                1,
+                Widget {
+                    name: "Intent".into(),
+                    id: 1,
+                    rect: Rect::new(0., 0., 64., 64.),
+                    ..Default::default()
+                },
+            );
+            client.hovered_item_id = Some(986);
+            client.touch_hover(Vec2::new(16, 16), &map, &assets, &mut scene);
+            assert_eq!(client.hovered_item_id, None);
+            for intent in ["open_close", "use", "look", ""] {
+                client.button_widgets.get_mut(&1).unwrap().command =
+                    Some(format!("intent.{intent}"));
+                // Picking the world behind a button must not run, even when a
+                // previous pointer position had an entity under it.
+                client.hovered_entity_id = Some(987);
+                assert_eq!(
+                    client.touch_down(Vec2::new(16, 16), &map, &assets, &mut scene),
+                    None,
+                    "{camera:?}: {intent} clicked through to the map"
+                );
+                assert_eq!(
+                    client.get_current_intent().as_deref(),
+                    (!intent.is_empty()).then_some(intent)
+                );
+                assert_eq!(client.hovered_entity_id, Some(987));
+                assert_eq!(client.touch_up(Vec2::new(16, 16), &map, &assets), None);
+            }
+            // A button without a command also owns its rectangle.
+            client.button_widgets.get_mut(&1).unwrap().command = None;
+            assert_eq!(
+                client.touch_down(Vec2::new(16, 16), &map, &assets, &mut scene),
+                None
+            );
+            if camera == PlayerCamera::D2 {
+                // Hidden UI must not block genuine world clicks.
+                client.widgets_to_hide.push("Intent".into());
+                assert!(matches!(
+                    client.touch_down(Vec2::new(16, 16), &map, &assets, &mut scene),
+                    Some(EntityAction::TerrainClicked(_))
+                ));
+            }
+        }
+    }
+
+    #[test]
+    fn world_items_do_not_have_automatic_hover_descriptions() {
+        let mut map = Map::default();
+        let mut item = Item::new();
+        item.id = 12;
+        item.set_attribute("description", Value::Str("Hidden until Look.".into()));
+        map.items.push(item);
+        let mut client = Client::new();
+        client.hovered_item_id = Some(12);
+        assert!(client.hover_description(&map, &Assets::default()).is_none());
     }
 
     #[test]

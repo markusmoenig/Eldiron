@@ -188,6 +188,8 @@ pub struct AvatarSprite {
     pub pixels: std::sync::Arc<Vec<u8>>,
     pub surface: Option<std::sync::Arc<surface::SurfaceFrame>>,
 }
+/// Items and characters share the same sprite/surface/shadow path, with disjoint keys.
+pub fn item_sprite_key(index: usize) -> usize { index | (1usize << (usize::BITS - 1)) }
 
 #[derive(Default)]
 pub struct GroundCache {
@@ -313,7 +315,60 @@ impl<'a> Draw<'a> {
     }
 }
 
+/// A presentation-only cutaway; identity, collision and intent picking remain active.
+/// The area is an existing named interior sector (or its stable Creator UUID).
+pub fn item_cutaway(map: &Map, item: &crate::Item) -> bool {
+    let Some(area) = item
+        .attributes
+        .get_str("iso_cutaway_area")
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    else {
+        return false;
+    };
+    map.entities.iter().filter(|e| e.is_player()).any(|player| {
+        map.sectors.iter().any(|sector| {
+            sector.properties.get_bool_default("iso_interior", false)
+                && (sector.name == area || sector.creator_id.to_string() == area)
+                && sector.is_inside(map, player.get_pos_xz())
+        })
+    })
+}
+
 /// Draws native map tile sectors, item sprites, and directional character sprites.
+/// Hit test the actual item silhouette, using the renderer's image placement.
+pub fn pick_item(map: &Map, assets: &Assets, projection: Projection, screen: Vec2<f32>,
+    sprites: &std::collections::HashMap<usize, AvatarSprite>) -> Option<u32> {
+    pick_item_index(map, assets, projection, screen, sprites).map(|index| map.items[index].id)
+}
+
+/// Editor selections use a placement index, since preview items may all have runtime ID zero.
+pub fn pick_item_index(map: &Map, assets: &Assets, projection: Projection, screen: Vec2<f32>,
+    sprites: &std::collections::HashMap<usize, AvatarSprite>) -> Option<usize> {
+    let mut hits = Vec::new();
+    for (index, item) in map.items.iter().enumerate() {
+        if !item.attributes.get_bool_default("visible", true) { continue; }
+        let tile = item.attributes.get("source").and_then(|v| match v {
+            Value::Source(source) => source.render_tile_id(assets).and_then(|id| assets.tiles.get(&id)),
+            _ => None,
+        });
+        let avatar = sprites.get(&item_sprite_key(index));
+        let draw = Draw { tile, avatar, stamp: None,
+            scale: item.attributes.get_float_default(if avatar.is_some() {"appearance_scale"} else {"size_2d"}, 1.),
+            pos: item.get_pos_xz(), height: item.position.y, frame: 0, opacity: 1., tie: 0,
+            support: None, radius: 0., floor: None };
+        let Some(image) = draw.image() else { continue; };
+        let (at, scale) = draw.image_placement(&image, projection);
+        let p = (screen-at)/scale;
+        if p.x >= 0. && p.y >= 0. && p.x < image.width as f32 && p.y < image.height as f32
+            && image.data[(p.y as usize * image.width + p.x as usize)*4+3] > 32
+        {
+            hits.push((item.position.z-item.position.x+item.position.y*0.01, index));
+        }
+    }
+    hits.into_iter().max_by(|a,b| a.0.total_cmp(&b.0)).map(|(_,id)|id)
+}
+
 /// Each connecting part is its own tile. Props and characters share one painter order.
 pub fn draw(
     map: &Map,
@@ -622,8 +677,27 @@ fn draw_scene_impl(
             }
         }
     }
-    for item in &map.items {
+    for (index, item) in map.items.iter().enumerate() {
         if !item.attributes.get_bool_default("visible", true) {
+            continue;
+        }
+        if item_cutaway(map,item) {
+            // Cutaway objects still cast their physical mesh shadows, like hidden walls.
+            if let Some(surface) = avatars.get(&item_sprite_key(index)).and_then(|a| a.surface.as_ref())
+                && let Some(mesh) = surface.shadow_mesh.as_ref()
+            {
+                mesh_instances.push((mesh,item.position,item.attributes.get_float_default("appearance_scale",1.)));
+            }
+            continue;
+        }
+        if let Some(sprite) = avatars.get(&item_sprite_key(index)) {
+            upright.push(Draw {
+                tile: None, avatar: Some(sprite), stamp: None,
+                scale: item.attributes.get_float_default("appearance_scale", 1.),
+                pos: item.get_pos_xz(), height: item.position.y, frame: 0, opacity: 1.,
+                tie: (1 << 32) + item.id as u64, support: None,
+                radius: item.attributes.get_float_default("radius", 0.15).max(0.), floor: None,
+            });
             continue;
         }
         let Some(Value::Source(source)) = item.attributes.get("source") else {
@@ -1846,6 +1920,7 @@ mod tests {
                     position: [0., 0.],
                     raster_key: 1,
                     sprite: std::sync::Arc::new(paint::StampSprite {
+                        surface: None,
                         texture: Texture::new(pink.repeat(6 * 14), 6, 14),
                         anchor: [3., 14.],
                     }),
@@ -2497,6 +2572,44 @@ mod tests {
             boot_pixels(&actual) < 6 * 22,
             "higher terrain must still cover the actor"
         );
+    }
+
+    #[test]
+    fn editor_item_picking_distinguishes_placements_with_the_same_runtime_id() {
+        let mut a=Assets::default();
+        let mut tile=Tile::default();
+        tile.textures=vec![Texture::new([255,255,255,255].repeat(16),4,4)];
+        tile.isometric=Some(SpriteLayout { bitmap:true, anchor:[2,4],pixels_per_unit:4.,directions:1,frames_per_direction:1,..Default::default() });
+        let id=tile.id;
+        a.tiles.insert(id,tile);
+        let mut map=Map::default();
+        for x in [0.,4.] {
+            let mut item=crate::Item::default();
+            item.id=0;item.creator_id=theframework::prelude::Uuid::new_v4();
+            item.position=Vec3::new(x,0.,0.);
+            item.set_attribute("source",Value::Source(crate::PixelSource::TileId(id)));
+            map.items.push(item);
+        }
+        let projection=Projection { origin:Vec2::new(100.,100.),unit:32. };
+        let p=projection.screen(Vec2::new(4.,0.),0.)-Vec2::new(0.,8.);
+        assert_eq!(pick_item_index(&map,&a,projection,p,&Default::default()),Some(1));
+        assert_ne!(map.items[0].creator_id,map.items[1].creator_id);
+    }
+
+    #[test]
+    fn door_cutaway_is_limited_to_its_authored_room() {
+        let mut map=Map::default();
+        add_contact_surface(&mut map,Uuid::new_v4(),0.,0.,0.,true);
+        let first=map.sectors.last_mut().unwrap();first.name="Inn".into();first.properties.set("iso_interior",Value::Bool(true));
+        add_contact_surface(&mut map,Uuid::new_v4(),3.,0.,0.,true);
+        let second=map.sectors.last_mut().unwrap();second.name="Other room".into();second.properties.set("iso_interior",Value::Bool(true));
+        let mut player=crate::Entity::default();player.set_attribute("player",Value::Bool(true));
+        player.position=Vec3::new(3.5,0.,0.5);map.entities.push(player);
+        let mut door=crate::Item::new();door.set_attribute("iso_cutaway_area",Value::Str("Inn".into()));door.set_attribute("blocking",Value::Bool(true));
+        assert!(!item_cutaway(&map,&door));
+        map.entities[0].position.x=0.5;assert!(item_cutaway(&map,&door));
+        map.entities[0].position.x=-1.;assert!(!item_cutaway(&map,&door));
+        assert!(door.attributes.get_bool_default("blocking",false));
     }
 
     #[test]

@@ -1,0 +1,262 @@
+{
+  "version": 1,
+  "label": "Inn / Oak Bench",
+  "output": "furniture",
+  "rows": [
+    {
+      "id": "seat",
+      "label": "Seat",
+      "tiles": [
+        {
+          "id": "seat-0",
+          "op": {
+            "type": "box",
+            "size": [
+              1.65,
+              0.1,
+              0.42
+            ]
+          }
+        },
+        {
+          "id": "seat-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0,
+              0.47,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "seat-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "bundle": null,
+            "size": 64,
+            "axes": [
+              0,
+              2
+            ],
+            "origin": [
+              0,
+              0
+            ],
+            "span": [
+              1,
+              1
+            ],
+            "parts": [],
+            "preserve_uv": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "leg--0.58",
+      "label": "Leg  0.58",
+      "tiles": [
+        {
+          "id": "leg--0.58-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.12,
+              0.46,
+              0.35
+            ]
+          }
+        },
+        {
+          "id": "leg--0.58-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              -0.58,
+              0.23,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "leg--0.58-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "bundle": null,
+            "size": 64,
+            "axes": [
+              0,
+              2
+            ],
+            "origin": [
+              0,
+              0
+            ],
+            "span": [
+              1,
+              1
+            ],
+            "parts": [],
+            "preserve_uv": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "leg-0.58",
+      "label": "Leg 0.58",
+      "tiles": [
+        {
+          "id": "leg-0.58-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.12,
+              0.46,
+              0.35
+            ]
+          }
+        },
+        {
+          "id": "leg-0.58-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.58,
+              0.23,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "leg-0.58-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "bundle": null,
+            "size": 64,
+            "axes": [
+              0,
+              2
+            ],
+            "origin": [
+              0,
+              0
+            ],
+            "span": [
+              1,
+              1
+            ],
+            "parts": [],
+            "preserve_uv": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "footprint",
+      "label": "Footprint",
+      "tiles": [
+        {
+          "id": "footprint-0",
+          "op": {
+            "type": "contour",
+            "points": [
+              [
+                -0.825,
+                -0.21
+              ],
+              [
+                0.825,
+                -0.21
+              ],
+              [
+                0.825,
+                0.21
+              ],
+              [
+                -0.825,
+                0.21
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "furniture",
+      "label": "Furniture",
+      "tiles": [
+        {
+          "id": "furniture-0",
+          "op": {
+            "type": "assemble",
+            "rows": [
+              "seat",
+              "leg--0.58",
+              "leg-0.58"
+            ]
+          }
+        },
+        {
+          "id": "furniture-1",
+          "op": {
+            "type": "footprint",
+            "row": "footprint"
+          }
+        },
+        {
+          "id": "furniture-2",
+          "op": {
+            "type": "connector",
+            "family": "rest.sit",
+            "translation": [
+              0,
+              0.05,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "id": "inn-bench"
+}

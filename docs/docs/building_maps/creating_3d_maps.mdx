@@ -28,7 +28,7 @@ The 3D workflow is direct and mesh-like while using the same tool vocabulary as 
 
 The 3D shortcut resolver is context-aware: selected-geometry commands such as vertex fill with **F**, edge-loop selection with **L**, object rotation with **R**, and tile application with **T** keep priority over tool switching. Defaults can be changed from **Game / Shortcuts**.
 
-In **Orbit** mode, press **B** to arm a one-shot Box Select, then drag a rectangle in the active Object, Face, Edge, or Vertex mode. Hold **Shift** while dragging to add to the current selection, or **Alt/Option** to remove from it; press **Escape** to cancel. Box Select is an Orbit-only shortcut because macOS primary dragging on empty space or the ViewCube is used for orbiting. Outside Orbit, **B** retains its normal Prefab Tool shortcut.
+In **Orbit** mode, press **B** to arm a one-shot Box Select, then drag a rectangle in the active Object, Face, Edge, or Vertex mode. Hold **Shift** while dragging to add to the current selection, or **Alt/Option** to remove from it; press **Escape** to cancel. Box Select is an Orbit-only shortcut because macOS primary dragging on empty space or the ViewCube is used for orbiting. Outside Orbit, **B** retains its normal 3D Props Tool shortcut.
 
 The Orbit ViewCube follows the camera. Click one of its visible faces to align the camera to that axis; in the macOS primary-drag path, click-dragging the cube or empty viewport space orbits instead.
 
@@ -187,7 +187,7 @@ Use **Edit Face Texture** on selected faces, or on a selected object, to adjust 
 
 Select one or more Geometry Objects in Object mode and run **Create Linked Prefab** to create a reusable source asset and replace the selection with a linked instance. Use **Create Prefab Copy** when the source asset should be created without replacing the original geometry. Every Prefab has a stable UUID; linked instances share source geometry and paint while keeping independent placement and runtime state.
 
-The **Prefab Tool** opens the **Prefabs** dock for browsing and placing linked assets. Select a project Prefab, then use the top-right **Edit / Maximize Dock** control (`Cmd/Ctrl + [`) to open the isolated Prefab editor. There, the normal Object, Face, Edge, Vertex, camera, undo, and 3D Paint tools edit the shared source. The lower editor panel contains the hierarchical Prefab / part / Geometry Object tree, part properties, pivots, and Prefab-specific controls. Use **Restore Dock** (`Cmd/Ctrl + ]`) to return to the normal split layout.
+The **3D Props Tool** opens the **Prefabs** dock for browsing and placing linked assets. Select a project Prefab, then use the top-right **Edit / Maximize Dock** control (`Cmd/Ctrl + [`) to open the isolated Prefab editor. There, the normal Object, Face, Edge, Vertex, camera, undo, and 3D Paint tools edit the shared source. The lower editor panel contains the hierarchical Prefab / part / Geometry Object tree, part properties, pivots, and Prefab-specific controls. Use **Restore Dock** (`Cmd/Ctrl + ]`) to return to the normal split layout.
 
 Use **Make Prefab Unique** when one linked instance needs its own source, or **Unpack Prefab** to convert an instance back into ordinary Geometry Objects. **Update Prefab Source** replaces the shared source from selected Geometry Objects without changing its UUID or existing links.
 

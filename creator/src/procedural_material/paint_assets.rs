@@ -2,24 +2,188 @@
 use super::*;
 use rusterix::material_library::MaterialDefinition;
 use shared::paint_source::Spec;
-pub(crate) fn install(project: &mut Project) -> Result<(), String> {
-    let mut entries = vec![];
-    for family in 0..15 {
-        for finish in 0..4 {
-            let mut spec = Spec::new("material", false);
-            spec.material_id = family * 4 + finish;
-            spec.colors = vec![[132, 132, 128, 255]];
-            entries.push((
-                format!(
-                    "Paint / {} / {}",
-                    rusterix::material_library::MATERIAL_PRESET_NAMES[family as usize],
-                    rusterix::material_library::MATERIAL_FINISH_NAMES[finish as usize]
-                ),
-                "Paint materials",
-                spec,
-            ));
+fn normalize_collections(project: &mut Project) {
+    project.tile_collections.retain(|_, collection| {
+        collection.name != "Paint materials" && collection.name != "Paint Materials"
+    });
+    for collection in project.tile_collections.values_mut() {
+        match collection.name.as_str() {
+            "Paint brushes" => collection.name = "Paint Brushes".into(),
+            "Organic stamps" => collection.name = "Organic Stamps".into(),
+            _ => {}
         }
     }
+}
+
+fn native_template(id: Uuid, name: &str, spec: &Spec) -> Result<EditableMaterialAsset, String> {
+    let [rough, metal, opacity, emission] =
+        MaterialDefinition::from_id(spec.material_id).rmoe_values();
+    let recipe = format!(
+        "project 1\nmaterial \"surface\" called \"{name}\"\n  mode pbr\n  tiling repeat\n  default roughness to {rough}\n  default metallic to {metal}\n  default emission to {emission} {emission} {emission}\n  row \"artwork\" called \"Paint Source\"\n    use \"Image / Tile Source\" id \"paint-source\"\n  output base color from row \"artwork\" xyz\n  output opacity from row \"artwork\" w\n"
+    );
+    let header = denrim_materials::tilelang::source(denrim_materials::metadata::Kernel::Color)
+        .split("image =")
+        .next()
+        .unwrap()
+        .lines()
+        .map(|line| format!("        {line}\n"))
+        .collect::<String>();
+    let recipe = recipe.replace(
+        "output opacity from row \"artwork\" w",
+        "output opacity from row \"alpha\" x",
+    ) + &format!(
+        "  row \"alpha\" called \"Opacity\"\n    use \"Color\" id \"paint-alpha\"\n      set \"color\" from row \"artwork\" wwww\n      source\n{header}        image = color * {opacity}\n      end source\n"
+    );
+    EditableMaterialAsset::parse(&id.to_string(), &recipe, "surface").map_err(|e| e.to_string())
+}
+
+fn native_layout(
+    asset: &EditableMaterialAsset,
+    spec: &Spec,
+) -> rusterix::map::tile::PaintAssetLayout {
+    let mut layout = spec.layout();
+    let equivalent = (|| {
+        let id = Uuid::parse_str(&asset.root.id).ok()?;
+        let image = asset
+            .root
+            .project
+            .materials
+            .iter()
+            .flat_map(|m| &m.rows)
+            .flat_map(|r| &r.tiles)
+            .find(|t| t.id == "paint-source")?
+            .image
+            .clone()?;
+        let expected = image_source::set(
+            &native_template(id, "", spec).ok()?,
+            "paint-source",
+            Some(image),
+        )
+        .ok()?;
+        let normalize = |mut m: denrim_materials::format::Material| {
+            m.label.clear();
+            m.position = None;
+            for row in &mut m.rows {
+                row.label.clear();
+                for tile in &mut row.tiles {
+                    tile.image = None;
+                    if let Some(code) = tile.code.take() {
+                        tile.code = Some(
+                            code.lines()
+                                .map(str::trim)
+                                .collect::<Vec<_>>()
+                                .join("\n")
+                                .trim()
+                                .to_owned(),
+                        );
+                    }
+                }
+            }
+            denrim_materials::format::write(&denrim_materials::format::Project {
+                result: None,
+                materials: vec![m],
+            })
+        };
+        let actual = asset
+            .root
+            .project
+            .materials
+            .iter()
+            .find(|m| m.id == asset.selected_material)?
+            .clone();
+        Some(normalize(actual) == normalize(expected.root.project.materials[0].clone()))
+    })()
+    .unwrap_or(false);
+    if !equivalent {
+        layout.generator = None;
+    }
+    layout
+}
+
+pub(crate) fn selected_spec(project: &Project, id: Uuid) -> Option<Spec> {
+    Spec::from_asset(&EditableMaterialAsset::reopen(project.procedural_materials.get(&id)?).ok()?)
+}
+
+/// Publish simple Paint controls back into the same MZ recipe and refresh its native cache.
+pub(crate) fn update_spec(
+    project: &mut Project,
+    id: Uuid,
+    mut spec: Spec,
+) -> Result<(String, String), String> {
+    spec.resolve_palette(&project.palette);
+    spec.validate()?;
+    let before = project
+        .procedural_materials
+        .get(&id)
+        .ok_or("Paint recipe is missing")?
+        .clone();
+    let mut asset = EditableMaterialAsset::reopen(&before).map_err(|e| e.to_string())?;
+    let old = Spec::from_asset(&asset).ok_or("Select a Paint recipe")?;
+    let operation = asset
+        .root
+        .project
+        .materials
+        .iter()
+        .flat_map(|m| &m.rows)
+        .flat_map(|r| &r.tiles)
+        .find(|t| t.image.as_ref().and_then(Spec::from_image).is_some())
+        .map(|t| t.id.clone())
+        .ok_or("Paint source is missing")?;
+    let (image, _, mut textures) = spec.render()?;
+    asset = image_source::set(&asset, &operation, Some(image))?;
+    if old.material_id != spec.material_id {
+        let expected = native_template(id, "", &spec)?;
+        let mat = asset
+            .root
+            .project
+            .materials
+            .iter_mut()
+            .find(|m| m.id == asset.selected_material)
+            .ok_or("Material is missing")?;
+        mat.defaults = expected.root.project.materials[0].defaults.clone();
+        if let Some(alpha) = mat
+            .rows
+            .iter_mut()
+            .flat_map(|r| &mut r.tiles)
+            .find(|t| t.id == "paint-alpha")
+        {
+            alpha.code = expected.root.project.materials[0].rows[1].tiles[0]
+                .code
+                .clone();
+        }
+    }
+    asset.validate().map_err(|e| e.to_string())?;
+    let layout = native_layout(&asset, &spec);
+    let bundle = asset.save().map_err(|e| e.to_string())?;
+    if let Some(tile) = project.tiles.get_mut(&id) {
+        if layout.generator.is_some() {
+            let [r, m, o, e] = MaterialDefinition::from_id(spec.material_id).rmoe_values();
+            for texture in &mut textures {
+                for pixel in texture.data.chunks_exact_mut(4) {
+                    pixel[3] = (pixel[3] as f32 * o).round() as u8;
+                }
+                texture.set_materials_all(r, m, o, e);
+            }
+            tile.textures = textures;
+            tile.baked_material_data = tile.textures.iter().map(|t| t.material_bytes()).collect();
+            project.procedural_material_cache_keys.insert(
+                id,
+                pixel_style::bake_key(&bundle, pixel_style::density(&project.config)),
+            );
+        } else {
+            project.procedural_material_cache_keys.shift_remove(&id);
+        }
+        tile.paint = Some(layout);
+    }
+    project.procedural_materials.insert(id, bundle.clone());
+    Ok((before, bundle))
+}
+
+pub(crate) fn install(project: &mut Project) -> Result<(), String> {
+    normalize_collections(project);
+    let mut color = Spec::new("material", false);
+    color.colors = vec![[132, 132, 128, 255]];
+    let mut entries = vec![("Paint / Color".into(), "Paint Brushes", color)];
     for brush in shared::paint_source::BRUSHES {
         if matches!(
             brush,
@@ -38,7 +202,7 @@ pub(crate) fn install(project: &mut Project) -> Result<(), String> {
             "roots" => 12,
             _ => 8,
         };
-        entries.push((format!("Paint / {brush}"), "Paint brushes", spec));
+        entries.push((format!("Paint / {brush}"), "Paint Brushes", spec));
     }
     for brush in shared::paint_source::STAMPS {
         let mut spec = Spec::new(brush, true);
@@ -50,13 +214,13 @@ pub(crate) fn install(project: &mut Project) -> Result<(), String> {
             "roots" => 12,
             _ => 8,
         };
-        entries.push((format!("Stamp / {brush}"), "Organic stamps", spec));
+        entries.push((format!("Stamp / {brush}"), "Organic Stamps", spec));
     }
     for variant in ["daisies", "poppies", "bluebells"] {
         let mut spec = Spec::new("flowers", true);
         spec.variant = variant.into();
         spec.material_id = 44;
-        entries.push((format!("Stamp / {variant}"), "Organic stamps", spec));
+        entries.push((format!("Stamp / {variant}"), "Organic Stamps", spec));
     }
     let mut artwork: std::collections::HashMap<
         String,
@@ -109,24 +273,7 @@ pub(crate) fn install(project: &mut Project) -> Result<(), String> {
         ));
         let mat = MaterialDefinition::from_id(spec.material_id);
         let [rough, metal, opacity, emission] = mat.rmoe_values();
-        let recipe = format!(
-            "project 1\nmaterial \"surface\" called \"{name}\"\n  mode pbr\n  tiling repeat\n  default roughness to {rough}\n  default metallic to {metal}\n  default emission to {emission} {emission} {emission}\n  row \"artwork\" called \"Paint Source\"\n    use \"Image / Tile Source\" id \"paint-source\"\n  output base color from row \"artwork\" xyz\n  output opacity from row \"artwork\" w\n"
-        );
-        let header = denrim_materials::tilelang::source(denrim_materials::metadata::Kernel::Color)
-            .split("image =")
-            .next()
-            .unwrap()
-            .lines()
-            .map(|line| format!("        {line}\n"))
-            .collect::<String>();
-        let recipe = recipe.replace(
-            "output opacity from row \"artwork\" w",
-            "output opacity from row \"alpha\" x",
-        ) + &format!(
-            "  row \"alpha\" called \"Opacity\"\n    use \"Color\" id \"paint-alpha\"\n      set \"color\" from row \"artwork\" wwww\n      source\n{header}        image = color * {opacity}\n      end source\n"
-        );
-        let asset = EditableMaterialAsset::parse(&id.to_string(), &recipe, "surface")
-            .map_err(|e| e.to_string())?;
+        let asset = native_template(id, &name, &spec)?;
         let mut asset = image_source::set(&asset, "paint-source", Some(image))?;
         // Four images are stable variants, not an animation in the painter.
         composition::surface_pages::apply(
@@ -179,6 +326,7 @@ pub(crate) fn install(project: &mut Project) -> Result<(), String> {
             });
         project.add_source_to_collection(&collection_id, rusterix::TileSource::SingleTile(id));
     }
+    synchronize(project);
     Ok(())
 }
 pub(super) fn decorate(view: &mut MaterialEditorView, asset: &EditableMaterialAsset) {
@@ -378,6 +526,7 @@ pub(super) fn edit_palette(
     image_source::set(asset, operation, Some(spec.render()?.0))
 }
 pub(crate) fn synchronize(project: &mut Project) {
+    normalize_collections(project);
     let updates: Vec<_> = project
         .procedural_materials
         .iter()
@@ -403,7 +552,7 @@ pub(crate) fn synchronize(project: &mut Project) {
             } else {
                 None
             };
-            Some((*id, spec.layout(), replacement))
+            Some((*id, native_layout(&a, &spec), replacement))
         })
         .collect();
     for (id, layout, replacement) in updates {
@@ -424,181 +573,218 @@ mod tests {
     fn picker_recipes_preserve_native_art_and_edits_drive_persistent_paint_and_stamps() {
         let mut p = Project::default();
         install(&mut p).unwrap();
-        assert_eq!(p.tiles.values().filter(|t| t.paint.is_some()).count(), 85);
-        let tree = p
-            .tiles
-            .values()
-            .find(|tile| tile.alias == "Stamp / tree")
-            .unwrap();
-        let tree_recipe = EditableMaterialAsset::reopen(&p.procedural_materials[&tree.id]).unwrap();
-        let foliage = Spec::from_asset(&tree_recipe).unwrap().colors[1];
-        assert!(
-            foliage[1] > foliage[0] && foliage[1] > foliage[2],
-            "tree palette must retain green foliage"
-        );
-        let flower = p
-            .tiles
-            .iter()
-            .find(|(_, t)| t.alias == "Stamp / flowers")
-            .map(|(id, _)| *id)
-            .unwrap();
-        let paint = p
-            .tiles
-            .iter()
-            .find(|(_, t)| t.alias == "Paint / stone / natural")
-            .map(|(id, _)| *id)
-            .unwrap();
-        let stable = p.procedural_materials.clone();
+        assert_eq!(p.tile_collections.len(), 2);
         assert!(composition::prepare_project(&mut p).is_empty());
-        assert_eq!(
-            p.procedural_materials, stable,
-            "opening the new library must preserve valid native caches"
+        assert!(
+            p.tiles.values().filter(|t| t.paint.is_some()).all(|t| t
+                .paint
+                .as_ref()
+                .unwrap()
+                .generator
+                .is_some()),
+            "stock recipes must retain their native evaluation path"
         );
-        let before = p.procedural_materials[&flower].clone();
-        let asset = EditableMaterialAsset::reopen(&before).unwrap();
-        let spec = Spec::from_asset(&asset).unwrap();
-        let mut native = IsoPaintStamp::new(
-            spec.brush.clone(),
-            IsoPaintPoint::new([0; 2], None, None),
-            spec.colors[0],
-            vec![],
-            spec.colors.clone(),
-            spec.material_id,
-            spec.size,
-            1.,
-            spec.variant.clone(),
-            0.,
-            0.,
-        );
-        native.variation = spec.seed;
-        let (original, anchor) =
-            shared::iso_paint_render::IsoPaintRenderer::iso_paint_native_stamp_raster(&native);
-        assert_eq!(p.tiles[&flower].textures[0].data, original.pixels());
-        assert_eq!(
-            p.tiles[&flower].paint.as_ref().unwrap().anchor,
-            anchor.map(|v| v as f32)
-        );
-        let modified = super::super::edited_for_project(
-            &asset,
-            MaterialEditorCommand::SetNumber {
-                operation: "paint-source".into(),
-                parameter: "@paint-seed:0".into(),
-                value: 731.,
-            },
-            &p,
-        )
-        .unwrap();
-        assert_ne!(
-            modified.root.project.materials[0].rows[0].tiles[0].image,
-            asset.root.project.materials[0].rows[0].tiles[0].image
-        );
-        p.procedural_materials
-            .insert(flower, modified.save().unwrap());
-        let edited_before_install = p.procedural_materials[&flower].clone();
-        install(&mut p).unwrap();
-        assert_eq!(
-            p.procedural_materials[&flower], edited_before_install,
-            "opening Paint must preserve recipe edits"
-        );
-        let mut region = shared::region::Region::new();
-        region.map.camera = rusterix::MapCamera::TwoDIso;
-        let mut server = ServerContext::default();
-        server.pc = ProjectContext::Region(region.id);
-        server.curr_region = region.id;
-        server.curr_map_tool_type = MapToolType::IsoPaint;
-        p.regions = vec![region];
-        let (mut ui, mut ctx) = super::super::tests::workspace_ui(1500, 950);
-        let mut toolbar = TheHLayout::new(TheId::named("Game Tool Params"));
-        toolbar.limiter_mut().set_max_height(30);
-        let mut top = TheCanvas::new();
-        top.set_layout(toolbar);
-        ui.canvas.set_top(top);
-        assert!(paint_picker::pick(paint, &mut p, &server));
-        paint_picker::toolbar(&mut ui, &mut ctx, &mut p, &server);
-        assert!(ui.get_widget("Paint Picker Edit").is_some());
-        assert!(ui.get_widget("Paint Picker Density").is_none());
-        let layer = &mut p.regions[0].iso_paint;
-        let point = IsoPaintPoint::new(
-            [10, 10],
-            Some(Vec3::zero()),
+        let at = IsoPaintPoint::new(
+            [42, 48],
+            Some(Vec3::new(0.5, 0., 0.5)),
             Some(IsoPaintOwner::Terrain { x: 0, z: 0 }),
         )
         .with_surface_uv(Some(Vec2::new(0.5, 0.5)))
         .with_paint_geo(Some(rusterix::isometric::paint::TERRAIN_PAINT_GEO));
-        layer.begin_stroke(point.clone());
-        let mut replace = IsoPaintLayer::default();
-        replace.active_source = Some(paint);
-        replace.active_material_mode = "replace".into();
-        replace.active_brush_shape = "solid".into();
-        replace.source_images.insert(
-            paint,
-            std::sync::Arc::new(rusterix::Tile::from_texture(rusterix::Texture::alloc(1, 1))),
+        // Compare every stock brush and stamp against the original implementation at multiple
+        // real brush sizes. Thumbnail equality alone cannot detect a rendering regression.
+        for (id, tile) in &p.tiles {
+            let Some(spec) = Spec::from_tile(tile) else {
+                continue;
+            };
+            for size in [0.7, 1.9, 3.1] {
+                let mut linked = IsoPaintLayer::default();
+                linked.active_source = Some(*id);
+                linked
+                    .source_images
+                    .insert(*id, std::sync::Arc::new(tile.clone()));
+                linked.apply_source_settings();
+                linked.active_size = size;
+                linked.active_opacity = spec.opacity;
+                linked.active_stamp_size_jitter = 0.;
+                linked.active_stamp_rotation_jitter = 0.;
+                let mut original = linked.clone();
+                original.active_source = None;
+                if spec.stamp {
+                    let a = linked.add_stamp(at.clone());
+                    let b = original.add_stamp(at.clone());
+                    let find = |layer: &IsoPaintLayer, id| {
+                        layer
+                            .chunks
+                            .values()
+                            .flat_map(|c| &c.stamps)
+                            .find(|s| s.id == id)
+                            .unwrap()
+                            .clone()
+                    };
+                    let mut first = find(&linked, a);
+                    let mut second = find(&original, b);
+                    second.variant = spec.variant.clone();
+                    first.variant = spec.variant.clone();
+                    let a =
+                        shared::iso_paint_render::IsoPaintRenderer::iso_paint_native_stamp_raster(
+                            &first,
+                        );
+                    let b =
+                        shared::iso_paint_render::IsoPaintRenderer::iso_paint_native_stamp_raster(
+                            &second,
+                        );
+                    assert_eq!(
+                        a.0.pixels(),
+                        b.0.pixels(),
+                        "native stamp parity: {} at {size}",
+                        tile.alias
+                    );
+                    assert_eq!(a.1, b.1);
+                    let mut tilted = first.clone();
+                    tilted.rotation = 2.3;
+                    if IsoPaintStamp::keeps_upright(&spec.brush) {
+                        assert_eq!(shared::iso_paint_render::IsoPaintRenderer::iso_paint_native_stamp_raster(&tilted).0.pixels(),a.0.pixels());
+                    }
+                    assert!(
+                        shared::iso_paint_render::IsoPaintRenderer::terrain_stamp_sprite(&first)
+                            .surface
+                            .is_some()
+                    );
+                } else {
+                    linked.begin_stroke(at.clone());
+                    original.begin_stroke(at.clone());
+                    assert_eq!(
+                        linked.baked_chunks, original.baked_chunks,
+                        "native brush color/material parity: {} at {size}",
+                        tile.alias
+                    );
+                }
+            }
+        }
+        let flower = *p
+            .tiles
+            .iter()
+            .find(|(_, t)| t.alias == "Stamp / flowers")
+            .unwrap()
+            .0;
+        let paint = *p
+            .tiles
+            .iter()
+            .find(|(_, t)| t.alias == "Paint / moss")
+            .unwrap()
+            .0;
+        let mut region = shared::region::Region::new();
+        region.map.camera = rusterix::MapCamera::TwoDIso;
+        let mut server = ServerContext::default();
+        server.curr_region = region.id;
+        server.pc = ProjectContext::Region(region.id);
+        server.curr_map_tool_type = MapToolType::IsoPaint;
+        p.regions = vec![region];
+        let (mut ui, mut ctx) = super::super::tests::workspace_ui(1500, 950);
+        let map_canvas = crate::mapeditor::MapEditor::new().init_ui(&mut ui, &mut ctx, &mut p);
+        ui.canvas.set_center(map_canvas);
+        let mut tool = crate::tools::iso_paint::IsoPaintTool::new();
+        tool.handle_event(
+            &TheEvent::Custom(TheId::named("Tile Picked"), TheValue::Id(paint)),
+            &mut ui,
+            &mut ctx,
+            &mut p,
+            &mut server,
         );
-        replace.begin_stroke(point.clone());
+        ui.draw(&mut vec![0; 1500 * 950 * 4], &mut ctx);
         assert!(
-            replace.baked_chunks.values().any(|c| c
-                .material_rgba
-                .chunks_exact(4)
-                .zip(c.color_rgba.chunks_exact(4))
-                .any(|(m, c)| (128..=187).contains(&m[0]) && m[3] == 255 && c[3] == 0)),
-            "a transparent MZ Replace must retain its full brush coverage"
+            ui.get_hlayout("Game Tool Params").is_none(),
+            "Paint must not take a strip out of the map viewport"
+        );
+        let mut buffer = TheRGBABuffer::new(TheDim::sized(1000, 700));
+        tool.draw_hud(
+            &mut buffer,
+            &mut p.regions[0].map,
+            &mut ctx,
+            &mut server,
+            &rusterix::Assets::default(),
+        );
+        let before = p.regions[0].iso_paint.clone();
+        tool.region_map_event(
+            MapEvent::MapClicked(Vec2::new(10, 30)),
+            &mut ui,
+            &mut ctx,
+            &mut p.regions[0],
+            &mut server,
+        );
+        tool.region_map_event(
+            MapEvent::MapDragged(Vec2::new(800, 500)),
+            &mut ui,
+            &mut ctx,
+            &mut p.regions[0],
+            &mut server,
+        );
+        tool.region_map_event(
+            MapEvent::MapUp(Vec2::new(800, 500)),
+            &mut ui,
+            &mut ctx,
+            &mut p.regions[0],
+            &mut server,
         );
         assert_eq!(
-            layer.chunks.values().next().unwrap().strokes[0].source,
-            Some(paint)
+            p.regions[0].iso_paint, before,
+            "overlay clicks and drags must never paint behind the panel"
         );
-        assert!(layer.baked_chunks.values().any(|c| {
-            c.material_rgba
-                .chunks_exact(4)
-                .any(|v| (64..=123).contains(&v[0]) && v[3] > 0)
-        }));
+        p.regions[0].iso_paint.begin_stroke(at.clone());
         assert!(paint_picker::pick(flower, &mut p, &server));
-        paint_picker::toolbar(&mut ui, &mut ctx, &mut p, &server);
-        assert!(ui.get_widget("Paint Picker Density").is_some());
-        let layer = &mut p.regions[0].iso_paint;
-        layer.add_stamp(point);
-        let stamp = layer
-            .chunks
-            .values()
-            .flat_map(|c| &c.stamps)
-            .next()
-            .unwrap();
-        assert_eq!(stamp.source, Some(flower));
-        let sprite = shared::iso_paint_render::IsoPaintRenderer::terrain_stamp_sprite(stamp);
-        assert!(sprite.texture.data.chunks_exact(4).any(|p| p[3] > 0));
-        assert!(sprite.surface.is_some());
-        let bytes = shared::project_io::encode_project(&p).unwrap();
-        let mut p = shared::project_io::decode_project(&bytes).unwrap();
-        let mut assets = rusterix::Assets::new();
+        p.regions[0].iso_paint.add_stamp(at);
+        let mut spec = selected_spec(&p, paint).unwrap();
+        spec.colors = vec![[240, 20, 30, 255]; spec.colors.len()];
+        spec.palette = vec![None; spec.colors.len()];
+        spec.material_id = 18;
+        let (old, edited) = update_spec(&mut p, paint, spec).unwrap();
+        assert_ne!(old, edited);
+        let mut assets = rusterix::Assets::default();
         assets.set_tiles(p.tiles.clone());
-        let layer = &mut p.regions[0].iso_paint;
-        layer.refresh_sources(&assets);
+        p.regions[0].iso_paint.refresh_sources(&assets);
         assert!(
-            layer
-                .chunks
-                .values()
-                .flat_map(|c| &c.stamps)
-                .all(|s| s.source_image.is_some())
-        );
-        let old = layer.baked_chunks.clone();
-        let mut tiles = assets.tiles.clone();
-        let tile = tiles.get_mut(&paint).unwrap();
-        for texture in &mut tile.textures {
-            texture.fill([240, 20, 30, 255]);
-            texture.set_materials_all(0.2, 0.8, 1., 0.4);
-        }
-        tile.baked_material_data = tile.textures.iter().map(|t| t.material_bytes()).collect();
-        assets.set_tiles(tiles);
-        layer.refresh_sources(&assets);
-        assert_ne!(
-            layer.baked_chunks, old,
-            "recipe edits must replay existing strokes"
-        );
-        assert!(layer.baked_chunks.values().any(|c| {
-            c.color_rgba
+            p.regions[0].iso_paint.baked_chunks.values().any(|c| c
+                .material_rgba
                 .chunks_exact(4)
-                .any(|p| p[0] == 240 && p[1] == 20 && p[3] > 0)
-        }));
+                .any(|m| m[0] == 254 && m[1] == 18 && m[3] > 0)),
+            "native material semantics must survive direct recipe edits"
+        );
+        assert!(
+            p.regions[0].iso_paint.baked_chunks.values().any(|c| c
+                .color_rgba
+                .chunks_exact(4)
+                .any(|c| c[0] > c[1] * 2 && c[3] > 0)),
+            "color edits must update existing native strokes"
+        );
+        install(&mut p).unwrap();
+        assert_eq!(p.procedural_materials[&paint], edited);
+        let bytes = shared::project_io::encode_project(&p).unwrap();
+        let mut reopened = shared::project_io::decode_project(&bytes).unwrap();
+        reopened.regions[0].iso_paint.refresh_sources(&assets);
+        assert_eq!(
+            reopened.regions[0].iso_paint.baked_chunks,
+            p.regions[0].iso_paint.baked_chunks
+        );
+        // Extending the MZ graph must keep evaluating that graph, rather than silently
+        // replacing its outputs with the built-in generator.
+        let original = EditableMaterialAsset::reopen(&p.procedural_materials[&paint]).unwrap();
+        let custom = super::super::edited_for_project(
+            &original,
+            MaterialEditorCommand::SetNumber {
+                operation: "@surface".into(),
+                parameter: "roughness:0".into(),
+                value: 0.123,
+            },
+            &p,
+        )
+        .unwrap();
+        p.procedural_materials.insert(paint, custom.save().unwrap());
+        synchronize(&mut p);
+        assert!(
+            p.tiles[&paint].paint.as_ref().unwrap().generator.is_none(),
+            "custom MZ outputs must stay authoritative"
+        );
     }
 
     #[test]
@@ -678,15 +864,13 @@ mod tests {
         );
         let (mut ui, mut ctx) = super::super::tests::workspace_ui(1660, 960);
         ui.set_theme(Box::new(TheBrownTheme::new()), &mut ctx);
+        crate::hud::set_theme(&TheBrownTheme::new());
         ui.init(&mut ctx);
         ui.get_stack_layout("Game Output Stack")
             .unwrap()
             .set_index(0);
-        let mut toolrow = TheHLayout::new(TheId::named("Game Tool Params"));
-        toolrow.limiter_mut().set_max_height(30);
-        let mut top = TheCanvas::new();
-        top.set_layout(toolrow);
-        ui.canvas.set_top(top);
+        let map_canvas = crate::mapeditor::MapEditor::new().init_ui(&mut ui, &mut ctx, &mut p);
+        ui.canvas.set_center(map_canvas);
         let mut dock = TilesDock::new();
         let bottom = dock.setup(&mut ctx);
         ui.canvas.set_bottom(bottom);
@@ -694,10 +878,18 @@ mod tests {
             .unwrap()
             .limiter_mut()
             .set_max_height(230);
+        // Exercise the real tool-switch path and mounted map toolbar, not a
+        // manually assembled row that could hide missing editor integration.
+        let mut tools = crate::toollist::ToolList::new();
+        let paint_tool = tools
+            .get_game_tool_uuid_by_command_id("tool.iso_paint")
+            .unwrap();
+        tools.set_tool(paint_tool, &mut ui, &mut ctx, &mut p, &mut server);
+        assert!(ui.get_hlayout("Game Tool Params").is_none());
         let collection = p
             .tile_collections
             .values()
-            .find(|c| c.name == "Organic stamps")
+            .find(|c| c.name == "Organic Stamps")
             .unwrap()
             .id;
         dock.activate(&mut ui, &mut ctx, &p, &mut server);
@@ -711,9 +903,14 @@ mod tests {
             &mut p,
             &mut server,
         );
-        paint_picker::pick(flower, &mut p, &server);
+        tools.handle_event(
+            &TheEvent::Custom(TheId::named("Tile Picked"), TheValue::Id(flower)),
+            &mut ui,
+            &mut ctx,
+            &mut p,
+            &mut server,
+        );
         server.curr_tile_id = Some(flower);
-        paint_picker::toolbar(&mut ui, &mut ctx, &mut p, &server);
         let mut pixels = vec![0; 1660 * 960 * 4];
         ui.draw(&mut pixels, &mut ctx);
         dock.handle_event(
@@ -734,12 +931,134 @@ mod tests {
         let view = ui.get_render_view("PolyView").unwrap();
         let dim = *view.dim();
         *view.render_buffer_mut() = image.scaled(dim.width, dim.height);
+        let mut assets = rusterix::Assets::default();
+        assets.set_tiles(p.tiles.clone());
+        tools.draw_hud(
+            view.render_buffer_mut(),
+            &mut p.regions[0].map,
+            &mut ctx,
+            &mut server,
+            &assets,
+        );
         ui.draw(&mut pixels, &mut ctx);
         std::fs::write(
-            out.join("paint-picker-toolbar.png"),
-            TheRGBABuffer::from(pixels, 1660, 960).to_png().unwrap(),
+            out.join("paint-overlay.png"),
+            TheRGBABuffer::from(pixels.clone(), 1660, 960)
+                .to_png()
+                .unwrap(),
         )
         .unwrap();
+        // Click the real overlay swatch, then the normal palette widget. Route the
+        // resulting native UI event through ToolList, as the running editor does.
+        let events = ui.add_state_listener("Paint Overlay Review".into());
+        ui.update(&mut ctx);
+        for _ in events.try_iter() {}
+        let swatch = Vec2::new(16 + 82 + 36 + 15, 34 + 105 + 14);
+        tools.get_current_tool().region_map_event(
+            MapEvent::MapClicked(swatch),
+            &mut ui,
+            &mut ctx,
+            &mut p.regions[0],
+            &mut server,
+        );
+        tools.get_current_tool().region_map_event(
+            MapEvent::MapUp(swatch),
+            &mut ui,
+            &mut ctx,
+            &mut p.regions[0],
+            &mut server,
+        );
+        ui.draw(&mut pixels, &mut ctx);
+        std::fs::write(
+            out.join("paint-overlay-colors.png"),
+            TheRGBABuffer::from(pixels.clone(), 1660, 960)
+                .to_png()
+                .unwrap(),
+        )
+        .unwrap();
+        let dim = *ui.get_widget("Paint Overlay Palette 1").unwrap().dim();
+        let target = shared::palette::closest(
+            &TheColor::from_u8(225, 85, 140, 255),
+            &p.palette
+                .colors
+                .iter()
+                .map(|c| c.clone().unwrap_or_default())
+                .collect::<Vec<_>>(),
+        )
+        .unwrap();
+        let cell = ((dim.width - 20 - 15) / 16).min((dim.height - 16 - 15) / 16);
+        let click = Vec2::new(
+            dim.x + 10 + (target as i32 % 16) * (cell + 1) + cell / 2,
+            dim.y + 8 + (target as i32 / 16) * (cell + 1) + cell / 2,
+        );
+        ui.touch_down(click.x as f32, click.y as f32, &mut ctx);
+        ui.touch_up(click.x as f32, click.y as f32, &mut ctx);
+        ui.update(&mut ctx);
+        let palette_events:Vec<_>=events.try_iter().filter(|e|matches!(e,TheEvent::PaletteIndexChanged(id,_) if id.name=="Paint Overlay Palette 1")).collect();
+        assert_eq!(
+            palette_events.len(),
+            1,
+            "palette must expose a real, usable control"
+        );
+        for event in palette_events {
+            tools.handle_event(&event, &mut ui, &mut ctx, &mut p, &mut server);
+        }
+        assert_eq!(
+            selected_spec(&p, flower).unwrap().palette[1],
+            Some(target as u16)
+        );
+        tools.handle_event(
+            &TheEvent::ContextMenuSelected(
+                TheId::named("Paint Overlay Choices"),
+                TheId::named("Paint Overlay Choice Finish 1"),
+            ),
+            &mut ui,
+            &mut ctx,
+            &mut p,
+            &mut server,
+        );
+        assert_eq!(selected_spec(&p, flower).unwrap().material_id, 45);
+        assert!(
+            Spec::from_tile(&p.tiles[&flower]).is_some(),
+            "routine controls must preserve native generation"
+        );
+        let candle = asset(&p, "Stamp / candles");
+        paint_picker::pick(candle, &mut p, &server);
+        let mut point = IsoPaintPoint::new(
+            [0; 2],
+            Some(Vec3::new(19., 0., 18.)),
+            Some(IsoPaintOwner::Terrain { x: 0, z: 0 }),
+        );
+        point.surface_uv = Some([19., 18.]);
+        point.paint_geo = Some(rusterix::isometric::paint::TERRAIN_PAINT_GEO);
+        point.viewport_size = Some([1280, 900]);
+        point.camera_scale = Some(900. / 64.);
+        p.regions[0].iso_paint.add_stamp(point);
+        let stamp = p.regions[0]
+            .iso_paint
+            .chunks
+            .values()
+            .flat_map(|c| &c.stamps)
+            .find(|s| s.source == Some(candle))
+            .unwrap();
+        let surface = shared::iso_paint_render::IsoPaintRenderer::terrain_stamp_sprite(stamp)
+            .surface
+            .unwrap();
+        assert!(
+            (0..surface.data.len() / 8)
+                .any(|i| surface.sample(i).is_some_and(|s| s.emission > 0.9)),
+            "emissive materials must reach the live iso lighting pass"
+        );
+        super::super::woodland_demo::uo_art::render_at_hour(
+            &p,
+            player,
+            &out,
+            "paint-materials-night",
+            Vec3::new(16., 0., 16.),
+            48.,
+            Vec2::new(21., 19.),
+            0.,
+        );
         let source = EditableMaterialAsset::reopen(&p.procedural_materials[&flower]).unwrap();
         let changed = edit(&source, "paint-source", "@paint-seed:0", 1129., &p).unwrap();
         let instance = wgpu::Instance::default();

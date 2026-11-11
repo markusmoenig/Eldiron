@@ -4,15 +4,15 @@ use rusterix::prelude::*;
 use theframework::prelude::*;
 
 #[derive(Clone, Copy)]
-struct HudColors {
-    background: RGBA,
-    panel: RGBA,
-    text: RGBA,
-    selected_text: RGBA,
-    accent: RGBA,
-    border: RGBA,
-    hover: RGBA,
-    selected: RGBA,
+pub(crate) struct HudColors {
+    pub(crate) background: RGBA,
+    pub(crate) panel: RGBA,
+    pub(crate) text: RGBA,
+    pub(crate) selected_text: RGBA,
+    pub(crate) accent: RGBA,
+    pub(crate) border: RGBA,
+    pub(crate) hover: RGBA,
+    pub(crate) selected: RGBA,
 }
 
 static HUD_COLORS: LazyLock<RwLock<HudColors>> = LazyLock::new(|| {
@@ -42,6 +42,10 @@ pub(crate) fn set_theme(theme: &dyn TheTheme) {
     };
     colors.background[3] = 235;
     colors.panel[3] = 240;
+}
+
+pub(crate) fn colors() -> HudColors {
+    *HUD_COLORS.read().unwrap()
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -691,7 +695,7 @@ impl Hud {
         }
 
         // Show Subdivs
-        if (map.camera == MapCamera::TwoD
+        if (matches!(map.camera, MapCamera::TwoD | MapCamera::TwoDIso)
             || server_ctx.get_map_context() == MapContext::Screen
             || server_ctx.editor_view_mode != EditorViewMode::D2)
             && self.mode != HudMode::Terrain
@@ -1215,6 +1219,39 @@ mod tests {
         let object_id = object.id;
         map.geometry_objects.push(object);
         (map, object_id)
+    }
+
+    #[test]
+    #[ignore = "native HUD drawing and pointer dispatch"]
+    fn iso_geometry_tools_show_and_apply_the_shared_subdivision_toolbar() {
+        let mut map = Map::default();
+        map.camera = MapCamera::TwoDIso;
+        let mut server = ServerContext::default();
+        server.editor_view_mode = EditorViewMode::D2;
+        let mut ctx = TheContext::new(900, 500, 1.);
+        let mut ui = TheUI::new();
+        let mut buffer = TheRGBABuffer::new(TheDim::sized(900, 500));
+        for mode in [HudMode::Vertex, HudMode::Linedef, HudMode::Sector] {
+            let mut hud = Hud::new(mode);
+            hud.draw(
+                &mut buffer,
+                &mut map,
+                &mut ctx,
+                &mut server,
+                None,
+                &rusterix::Assets::default(),
+            );
+            assert_eq!(hud.subdiv_rects.len(), Hud::GRID_SUBDIVISIONS.len());
+            let at = Vec2::new(hud.subdiv_rects[2].x + 5, 5);
+            assert!(hud.handle_map_event_before_delegate(
+                &MapEvent::MapClicked(at),
+                &mut map,
+                &mut ui,
+                &mut ctx,
+                &mut server
+            ));
+            assert_eq!(map.subdivisions, 4.);
+        }
     }
 
     #[test]

@@ -1,0 +1,179 @@
+[ui]
+role = "action_bar"
+fill_width = true
+slot_size = 44
+spacing = 2
+padding = 5
+edge_padding = 14
+group_spacing = 12
+
+# Built-in Inventory used when no role = "inventory" widget exists.
+[ui.inventory]
+columns = 8
+rows = 5
+cell_size = 48
+spacing = 4
+padding = 10
+title_height = 38
+tab_height = 30
+footer_height = 34
+sort_width = 132
+title = "Inventory"
+font = "Roboto-Bold"
+font_size = 14
+title_font_size = 20
+categories = [
+  { label = "All", value = "all" },
+  { label = "Equipment", value = "equipment" },
+  { label = "Consumables", value = "consumables" },
+  { label = "Materials", value = "materials" },
+  { label = "Misc", value = "misc" },
+]
+sort_options = [
+  { label = "Newest", value = "newest" },
+  { label = "Name", value = "name" },
+  { label = "Value", value = "value" },
+  { label = "Quantity", value = "quantity" },
+]
+background_color = "#080a09f2"
+title_background_color = "#0c0e0ef6"
+border_color = "#5f5339"
+text_color = "#ded6be"
+muted_text_color = "#9c9582"
+slot_background_color = "#0a0d0de6"
+slot_border_color = "#4d432f"
+selected_slot_color = "#d1b65e"
+tab_background_color = "#0a0d0de6"
+tab_selected_color = "#161d1ef5"
+dropdown_background_color = "#101311f5"
+dropdown_panel_color = "#090b0af8"
+
+# Built-in Equipment reads its slot ids from the active ruleset.
+[ui.equipment]
+slot_size = 52
+spacing = 8
+padding = 10
+column_gap = 12
+label_width = 70
+avatar_width = 150
+avatar_height = 292
+avatar_scale = 1
+title = "Equipment"
+font = "Roboto-Bold"
+font_size = 13
+title_font_size = 20
+background_color = "#080a09f2"
+title_background_color = "#0c0e0ef6"
+border_color = "#5f5339"
+text_color = "#ded6be"
+muted_text_color = "#9c9582"
+slot_background_color = "#0a0d0de6"
+slot_border_color = "#4d432f"
+occupied_slot_color = "#d1b65e"
+
+# Built-in Spellbook used when no role = "spellbook" widget exists.
+[ui.spellbook]
+columns = 6
+rows = 4
+cell_size = 52
+spacing = 4
+padding = 10
+icon_inset = 6
+show_names = false
+show_tabs = true
+show_details = true
+detail_width = 260
+detail_gap = 12
+tab_height = 30
+title = "Spellbook"
+font = "Roboto-Bold"
+title_font = "Roboto-Bold"
+font_size = 14
+title_font_size = 20
+small_font_size = 12
+title_background_color = "#0c0e0ef6"
+text_color = "#ded6be"
+muted_text_color = "#9c9582"
+detail_background_color = "#080b0be6"
+tab_background_color = "#0a0d0de6"
+tab_selected_color = "#161d1ef5"
+separator_color = "#4d432f"
+
+[ui.preferences]
+width = 290
+padding = 10
+row_height = 32
+title = "Preferences"
+font = "Roboto-Bold"
+font_size = 13
+title_font_size = 18
+background_color = "#080a09f2"
+title_background_color = "#0c0e0ef6"
+border_color = "#5f5339"
+text_color = "#ded6be"
+muted_text_color = "#9c9582"
+
+[[ui.groups]]
+align = "left"
+buttons = [
+  { command = "ui.preferences" },
+  { command = "ui.equipment" },
+  { command = "ui.inventory" },
+  { command = "ui.spellbook" },
+]
+
+[[ui.groups]]
+align = "center"
+buttons = [
+  { command_slot = "main.0" },
+  { command_slot = "main.1" },
+  { command_slot = "main.2" },
+  { command_slot = "main.3" },
+  { command_slot = "main.4" },
+  { command_slot = "main.5" },
+  { command_slot = "main.6" },
+  { command_slot = "main.7" },
+  { command_slot = "main.8" },
+  { command_slot = "main.9" },
+]
+
+[[ui.groups]]
+align = "right"
+buttons = [
+  { command = "intent.open_close" },
+  { command = "intent.use" },
+  { command = "intent.look" },
+]
+
+[layout]
+anchor = "bottom_center"
+x = 0
+y = 0
+
+[frame]
+background_color = "#00000000"
+border_size = 0
+tile = "b6517950-b060-4af5-8bbb-000000000001"
+slice = 4
+
+[top_separator]
+size = 1
+inset = 0
+offset = -2
+color = "#5f5949"
+
+[slot]
+background_color = "#00000000"
+border_size = 0
+icon_inset = 6
+normal_tile = "b6517950-b060-4af5-8bbb-000000000002"
+hover_tile = "b6517950-b060-4af5-8bbb-000000000003"
+slice = 3
+
+[slot.frame]
+normal_tile = "b6517950-b060-4af5-8bbb-000000000004"
+hover_tile = "b6517950-b060-4af5-8bbb-000000000004"
+selected_tile = "b6517950-b060-4af5-8bbb-000000000005"
+pressed_tile = "b6517950-b060-4af5-8bbb-000000000005"
+disabled_tile = "b6517950-b060-4af5-8bbb-000000000006"
+slice = 3

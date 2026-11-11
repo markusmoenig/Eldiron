@@ -1,7 +1,6 @@
 use crate::blocks::{
     BLOCK_COLUMN_SEGMENTS, BLOCK_OPERATION_ERASE, BLOCK_OPERATION_PLACE, BLOCK_STROKE_LINE,
-    BLOCK_STROKE_RECT, BlockAsset, adjusted_rotated_bounds, asset_supports_depth,
-    asset_supports_height, asset_supports_width, block_asset, block_asset_default_color,
+    BLOCK_STROKE_RECT, BlockAsset, adjusted_rotated_bounds, block_asset, block_asset_default_color,
     block_asset_default_sizing, block_assets, block_component_kind, bundled_prefab,
     bundled_prefabs, component_uses_cylinder, cylinder_vertices_and_faces, default_block_asset_id,
     ensure_block_asset_default_palette, ensure_prefab_default_surfaces,
@@ -12,11 +11,27 @@ use crate::editor::{RUSTERIX, SCENEMANAGER, UNDOMANAGER};
 use crate::prelude::*;
 use rusterix::D3Camera;
 use std::collections::HashMap;
+use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicU64, Ordering},
+    mpsc,
+};
+
+enum MeshPreviewResult {
+    Catalog(Vec<(Uuid, String, String)>),
+    Preview(
+        Uuid,
+        rusterix::GeometryObject,
+        IndexMap<Uuid, rusterix::Tile>,
+        TheRGBABuffer,
+    ),
+    Rejected(Uuid),
+}
+
 use vek::Vec4;
 
 const BLOCKS_DOCK_BOARD: &str = "Blocks Dock Board";
 const BLOCKS_DOCK_TABS: &str = "Blocks Dock Categories";
-const BLOCKS_DOCK_INSPECTOR: &str = "Blocks Dock Inspector";
 const BLOCKS_DOCK_OPERATION: &str = "Blocks Dock Operation";
 const BLOCKS_DOCK_STROKE: &str = "Blocks Dock Stroke";
 const BLOCKS_DOCK_DAMAGE: &str = "Blocks Dock Damage";
@@ -168,21 +183,39 @@ impl BlocksDockPreviews {
     }
 
     fn render_prop_preview(asset: &rusterix::BlockPropAsset, size: i32) -> TheRGBABuffer {
-        const SSAA: usize = 2;
-
-        let width = size.max(32) as usize;
-        let height = size.max(32) as usize;
-        let render_width = width * SSAA;
-        let render_height = height * SSAA;
         let mut catalog = IndexMap::default();
         catalog.insert(asset.id, asset.clone());
         let instance = rusterix::BlockPropInstance::new(asset.id);
         let resolution = rusterix::resolve_block_prop_geometry(&[instance], &catalog);
+        Self::render_objects_preview(
+            &resolution.geometry_objects,
+            size,
+            &rusterix::Assets::default(),
+        )
+    }
+    fn render_objects_preview(
+        objects: &[rusterix::GeometryObject],
+        size: i32,
+        assets: &rusterix::Assets,
+    ) -> TheRGBABuffer {
+        Self::render_scene_preview(objects, size, size, assets)
+    }
+    fn render_scene_preview(
+        objects: &[rusterix::GeometryObject],
+        width: i32,
+        height: i32,
+        assets: &rusterix::Assets,
+    ) -> TheRGBABuffer {
+        const SSAA: usize = 2;
+        let width = width.max(32) as usize;
+        let height = height.max(32) as usize;
+        let render_width = width * SSAA;
+        let render_height = height * SSAA;
         let mut scene = rusterix::Scene::empty();
         let mut min = Vec3::broadcast(f32::INFINITY);
         let mut max = Vec3::broadcast(f32::NEG_INFINITY);
 
-        for object in &resolution.geometry_objects {
+        for object in objects {
             let vertices = object
                 .vertices
                 .iter()
@@ -197,38 +230,55 @@ impl BlocksDockPreviews {
                     [world.x, world.y, world.z, 1.0]
                 })
                 .collect::<Vec<_>>();
-            let mut indices = Vec::new();
             for face in &object.faces {
-                let Some(first) = face.indices.first().copied() else {
+                if face.indices.len() < 3 {
                     continue;
-                };
-                for edge in face.indices[1..].windows(2) {
-                    indices.push((first, edge[0], edge[1]));
                 }
-            }
-            if vertices.is_empty() || indices.is_empty() {
-                continue;
-            }
-            let vertex_count = vertices.len();
-            let preview_color = object
-                .faces
-                .iter()
-                .find_map(|face| match face.tile.as_ref() {
-                    Some(rusterix::PixelSource::Pixel(color)) => Some(*color),
-                    Some(rusterix::PixelSource::Color(color)) => Some(color.to_u8_array()),
-                    _ => None,
-                })
-                .unwrap_or_else(|| prefab_object_default_color(object));
-            let mut batch =
-                rusterix::Batch3D::new(vertices, indices, vec![[0.0, 0.0]; vertex_count])
-                    .source(rusterix::PixelSource::Pixel(preview_color))
+                let vertices = face
+                    .indices
+                    .iter()
+                    .filter_map(|i| vertices.get(*i).copied())
+                    .collect::<Vec<_>>();
+                if vertices.len() != face.indices.len() {
+                    continue;
+                }
+                let indices = (1..vertices.len() - 1).map(|i| (0, i, i + 1)).collect();
+                let uvs = if face.uvs.len() == vertices.len() {
+                    face.uvs.iter().map(|uv| [uv.x, uv.y]).collect()
+                } else {
+                    vec![[0., 0.]; vertices.len()]
+                };
+                let source = face
+                    .tile
+                    .as_ref()
+                    .filter(|source| match source {
+                        rusterix::PixelSource::TileId(id) => assets.tiles.contains_key(id),
+                        rusterix::PixelSource::Pixel(_) | rusterix::PixelSource::Color(_) => true,
+                        _ => false,
+                    })
+                    .cloned()
+                    .unwrap_or_else(|| {
+                        rusterix::PixelSource::Pixel(prefab_object_default_color(object))
+                    });
+                let source = match source {
+                    rusterix::PixelSource::TileId(id) => {
+                        rusterix::PixelSource::StaticTileIndex(assets.tile_indices[&id])
+                    }
+                    rusterix::PixelSource::Color(color) => {
+                        rusterix::PixelSource::Pixel(color.to_u8_array())
+                    }
+                    source => source,
+                };
+                let mut batch = rusterix::Batch3D::new(vertices, indices, uvs)
+                    .source(source)
                     .cull_mode(rusterix::CullMode::Off);
-            batch.ambient_color = Vec3::new(0.42, 0.44, 0.48);
-            scene.d3_static.push(batch);
+                batch.ambient_color = Vec3::new(0.42, 0.44, 0.48);
+                scene.d3_static.push(batch);
+            }
         }
 
         if scene.d3_static.is_empty() {
-            return TheRGBABuffer::new(TheDim::sized(size, size));
+            return TheRGBABuffer::new(TheDim::sized(width as i32, height as i32));
         }
         scene.compute_static_normals();
         let center = (min + max) * 0.5;
@@ -259,7 +309,7 @@ impl BlocksDockPreviews {
             render_width,
             render_height,
             64,
-            &rusterix::Assets::default(),
+            assets,
         );
         let pixels = Self::downsample_rgba_box(&pixels, render_width, render_height, SSAA);
         TheRGBABuffer::from(pixels, width as u32, height as u32)
@@ -300,15 +350,17 @@ enum BlockCatalogTab {
     Decoration,
     Lighting,
     User,
+    Meshes,
 }
 
 impl BlockCatalogTab {
-    const ALL: [Self; 5] = [
+    const ALL: [Self; 6] = [
         Self::Blocks,
         Self::Furniture,
         Self::Decoration,
         Self::Lighting,
         Self::User,
+        Self::Meshes,
     ];
 
     fn from_index(index: usize) -> Self {
@@ -322,13 +374,14 @@ impl BlockCatalogTab {
             .unwrap_or(0)
     }
 
-    fn label(self) -> &'static str {
+    fn label(self) -> String {
         match self {
-            Self::Blocks => "Blocks",
-            Self::Furniture => "Furniture",
-            Self::Decoration => "Decoration",
-            Self::Lighting => "Lighting",
-            Self::User => "User",
+            Self::Blocks => fl!("props_blocks"),
+            Self::Furniture => fl!("props_furniture"),
+            Self::Decoration => fl!("props_decoration"),
+            Self::Lighting => fl!("props_lighting"),
+            Self::User => fl!("props_project"),
+            Self::Meshes => fl!("props_meshes"),
         }
     }
 }
@@ -339,6 +392,16 @@ pub struct BlocksDock {
     project_assets: Vec<rusterix::BlockPropAsset>,
     bundled_overrides: HashMap<Uuid, rusterix::BlockPropAsset>,
     preview_cache: HashMap<(Uuid, i32), TheRGBABuffer>,
+    mesh_assets: Vec<(Uuid, String, String)>,
+    mesh_revision: Option<(u64, u64, ThePalette, String)>,
+    mesh_previews: HashMap<Uuid, TheRGBABuffer>,
+    mesh_templates: HashMap<Uuid, rusterix::GeometryObject>,
+    mesh_textures: HashMap<Uuid, IndexMap<Uuid, rusterix::Tile>>,
+    mesh_worker: Option<Mutex<mpsc::Receiver<MeshPreviewResult>>>,
+    mesh_cancel: Arc<AtomicU64>,
+    mesh_requests: Option<mpsc::Sender<Vec<Uuid>>>,
+    mesh_requested: std::collections::HashSet<Uuid>,
+    mesh_requested_selection: Option<Uuid>,
 }
 
 impl BlocksDock {
@@ -388,7 +451,16 @@ impl BlocksDock {
             .iter()
             .filter(move |_| tab == BlockCatalogTab::User)
             .map(|asset| asset.id);
-        built_in_blocks.chain(bundled).chain(user).collect()
+        let meshes = self
+            .mesh_assets
+            .iter()
+            .filter(move |_| tab == BlockCatalogTab::Meshes)
+            .map(|a| a.0);
+        built_in_blocks
+            .chain(bundled)
+            .chain(user)
+            .chain(meshes)
+            .collect()
     }
 
     fn selected_index(&self, tab: BlockCatalogTab) -> Option<usize> {
@@ -397,7 +469,167 @@ impl BlocksDock {
             .position(|asset_id| *asset_id == self.selected)
     }
 
+    fn sync_mesh_previews(&mut self, project: &Project) {
+        let revision = (
+            project.procedural_appearances.revision(),
+            project.procedural_materials.revision(),
+            project.palette.clone(),
+            project.config.clone(),
+        );
+        if self.mesh_revision.as_ref() == Some(&revision) {
+            return;
+        }
+        self.mesh_revision = Some(revision);
+        let previous = std::mem::take(&mut self.mesh_templates);
+        let previous_textures = std::mem::take(&mut self.mesh_textures);
+        let previous_icons = self.mesh_previews.clone();
+        let generation = self.mesh_cancel.fetch_add(1, Ordering::Relaxed) + 1;
+        let cancel = self.mesh_cancel.clone();
+        let mut host = crate::tools::props_recipe::preview_snapshot(project);
+        let (send, receive) = mpsc::sync_channel(2);
+        let (requests, jobs) = mpsc::channel::<Vec<Uuid>>();
+        self.mesh_worker = Some(Mutex::new(receive));
+        self.mesh_requests = Some(requests);
+        self.mesh_requested.clear();
+        self.mesh_requested_selection = None;
+        std::thread::spawn(move || {
+            // Preview baking must not monopolize the editor's global Rayon pool.
+            let pool = rayon::ThreadPoolBuilder::new()
+                .num_threads(2)
+                .build()
+                .unwrap();
+            for textures in previous_textures.into_values() {
+                host.tiles.extend(textures);
+            }
+            let entries = crate::tools::props_recipe::candidates(&host);
+            let ids = entries
+                .iter()
+                .map(|a| a.0)
+                .collect::<std::collections::HashSet<_>>();
+            if cancel.load(Ordering::Relaxed) != generation
+                || send.send(MeshPreviewResult::Catalog(entries)).is_err()
+            {
+                return;
+            }
+            // Only visible rows and explicit selections get evaluated. Names can
+            // be scrolled immediately, even while an expensive recipe is baking.
+            let mut pending = std::collections::VecDeque::new();
+            let mut completed = std::collections::HashSet::new();
+            loop {
+                if pending.is_empty() {
+                    let Ok(batch) = jobs.recv() else {
+                        return;
+                    };
+                    pending = batch.into();
+                }
+                // A scroll/selection takes priority before the next recipe.
+                for newer in jobs.try_iter() {
+                    pending = newer.into();
+                }
+                if let Some(id) = pending.pop_front() {
+                    if !completed.insert(id) {
+                        continue;
+                    }
+                    if cancel.load(Ordering::Relaxed) != generation {
+                        return;
+                    }
+                    if !ids.contains(&id) {
+                        continue;
+                    }
+                    let result = pool.install(|| {
+                        crate::tools::props_recipe::template(&mut host, id, previous.get(&id))
+                    });
+                    let result = if let Ok(object) = result
+                        && !object.faces.is_empty()
+                    {
+                        // Clone each material once, not once per triangle.
+                        let textures = object
+                            .faces
+                            .iter()
+                            .filter_map(|f| match f.tile.as_ref() {
+                                Some(rusterix::PixelSource::TileId(id)) => Some(*id),
+                                _ => None,
+                            })
+                            .collect::<std::collections::HashSet<_>>()
+                            .into_iter()
+                            .filter_map(|id| host.tiles.get(&id).map(|t| (id, t.clone())))
+                            .collect::<IndexMap<_, _>>();
+                        let mut assets = rusterix::Assets::default();
+                        assets.set_tiles(textures.clone());
+                        let icon = if previous.get(&id) == Some(&object)
+                            && previous_icons.contains_key(&id)
+                        {
+                            previous_icons[&id].clone()
+                        } else {
+                            pool.install(|| {
+                                BlocksDockPreviews::render_objects_preview(
+                                    std::slice::from_ref(&object),
+                                    Self::PREVIEW_SIZE,
+                                    &assets,
+                                )
+                            })
+                        };
+                        MeshPreviewResult::Preview(id, object, textures, icon)
+                    } else {
+                        MeshPreviewResult::Rejected(id)
+                    };
+                    if cancel.load(Ordering::Relaxed) != generation || send.send(result).is_err() {
+                        return;
+                    }
+                }
+            }
+        });
+    }
+
+    fn request_visible_meshes(&mut self, ui: &mut TheUI, server: &ServerContext) {
+        let mut wanted = vec![];
+        if server.block_recipe_pending
+            && let Some(id) = server.curr_block_asset_id
+        {
+            wanted.push(id);
+        }
+        if self.active_tab == BlockCatalogTab::Meshes
+            && let Some(board) = ui.get_icon_grid_view(&Self::board_name(BlockCatalogTab::Meshes))
+        {
+            wanted.extend(self.mesh_assets[board.visible_items()].iter().map(|a| a.0));
+        }
+        wanted.retain(|id| !self.mesh_templates.contains_key(id));
+        let next = wanted
+            .iter()
+            .copied()
+            .collect::<std::collections::HashSet<_>>();
+        let selected = server
+            .block_recipe_pending
+            .then_some(server.curr_block_asset_id)
+            .flatten();
+        if next != self.mesh_requested || selected != self.mesh_requested_selection {
+            self.mesh_requested_selection = selected;
+            self.mesh_requested = next;
+            if let Some(requests) = &self.mesh_requests {
+                let _ = requests.send(wanted);
+            }
+        }
+    }
+
+    fn install_mesh_textures(
+        project: &mut Project,
+        server: &ServerContext,
+        textures: &IndexMap<Uuid, rusterix::Tile>,
+    ) {
+        let mut added = false;
+        for (id, tile) in textures {
+            if !project.tiles.contains_key(id) {
+                project.tiles.insert(*id, tile.clone());
+                added = true;
+            }
+        }
+        if added {
+            crate::utils::editor_scene_refresh_material_textures(project, server);
+        }
+    }
+
     fn sync_project_assets(&mut self, project: &Project) {
+        self.sync_mesh_previews(project);
         let bundled_overrides = project
             .block_props
             .iter()
@@ -421,7 +653,13 @@ impl BlocksDock {
         let asset_ids = self.catalog_ids(tab);
         let mut items = Vec::with_capacity(asset_ids.len());
         for asset_id in asset_ids {
-            if let Some(asset) = block_asset(asset_id) {
+            if let Some((id, label, _)) = self.mesh_assets.iter().find(|a| a.0 == asset_id) {
+                items.push(TheIconGridItem {
+                    label: label.clone(),
+                    status: fl!("props_mesh_hint"),
+                    icon: self.mesh_previews.get(id).cloned(),
+                });
+            } else if let Some(asset) = block_asset(asset_id) {
                 let icon = self
                     .preview_cache
                     .entry((asset.id, Self::PREVIEW_SIZE))
@@ -489,6 +727,7 @@ impl BlocksDock {
         if block_asset(selected).is_some()
             || bundled_prefab(selected).is_some()
             || project.block_props.contains_key(&selected)
+            || project.procedural_appearances.contains_key(&selected)
         {
             self.selected = selected;
         } else {
@@ -503,13 +742,13 @@ impl BlocksDock {
                     .block_props
                     .get(&self.selected)
                     .map(|asset| asset.name.clone())
+            })
+            .or_else(|| {
+                self.mesh_assets
+                    .iter()
+                    .find(|a| a.0 == self.selected)
+                    .map(|a| a.1.clone())
             });
-    }
-
-    fn text(value: impl Into<String>) -> Box<dyn TheWidget> {
-        let mut text = TheText::new(TheId::empty());
-        text.set_text(value.into());
-        Box::new(text)
     }
 
     fn sync_widgets(
@@ -519,15 +758,17 @@ impl BlocksDock {
         project: &Project,
         server_ctx: &mut ServerContext,
     ) {
-        self.ensure_selection(project, server_ctx);
         self.sync_project_assets(project);
+        self.ensure_selection(project, server_ctx);
 
         for tab in BlockCatalogTab::ALL {
             let selected = self.selected_index(tab);
             let items = self.icon_items(tab);
             if let Some(board) = ui.get_icon_grid_view(&Self::board_name(tab)) {
                 board.set_items(items);
-                board.set_selected(selected);
+                if board.selected() != selected {
+                    board.set_selected(selected);
+                }
             }
         }
         let tab_layout_name = BLOCKS_DOCK_TABS.to_string();
@@ -536,185 +777,7 @@ impl BlocksDock {
         {
             tab_layout.set_index(self.active_tab.index());
         }
-        if let Some(widget) = ui.get_widget(BLOCKS_DOCK_OPERATION)
-            && let Some(group) = widget.as_group_button()
-        {
-            group.set_index(
-                server_ctx
-                    .block_operation
-                    .clamp(BLOCK_OPERATION_PLACE, BLOCK_OPERATION_ERASE),
-            );
-        }
-        if let Some(widget) = ui.get_widget(BLOCKS_DOCK_STROKE)
-            && let Some(group) = widget.as_group_button()
-        {
-            group.set_index(
-                server_ctx
-                    .block_stroke_mode
-                    .clamp(BLOCK_STROKE_LINE, BLOCK_STROKE_RECT),
-            );
-        }
-        if let Some(widget) = ui.get_widget(BLOCKS_DOCK_DAMAGE)
-            && let Some(group) = widget.as_group_button()
-        {
-            group.set_index(if server_ctx.block_damage_enabled {
-                1
-            } else {
-                0
-            });
-        }
-        if block_asset(self.selected).is_some()
-            || bundled_prefab(self.selected).is_some()
-            || project.block_props.contains_key(&self.selected)
-        {
-            ui.set_enabled(BLOCKS_DOCK_DUPLICATE, ctx);
-        } else {
-            ui.set_disabled(BLOCKS_DOCK_DUPLICATE, ctx);
-        }
-        if project.block_props.contains_key(&self.selected) {
-            ui.set_enabled(BLOCKS_DOCK_DELETE, ctx);
-        } else {
-            ui.set_disabled(BLOCKS_DOCK_DELETE, ctx);
-        }
-
-        if let Some(layout) = ui.get_text_layout(BLOCKS_DOCK_INSPECTOR) {
-            layout.clear();
-            if let Some(asset) = block_asset(self.selected) {
-                let adjusts = match (
-                    asset_supports_height(asset),
-                    asset_supports_width(asset),
-                    asset_supports_depth(asset),
-                ) {
-                    (true, true, true) => fl!("block_adjust_height_width_depth"),
-                    (true, true, false) => fl!("block_adjust_height_width"),
-                    (true, false, true) => fl!("block_adjust_height_depth"),
-                    (false, true, true) => fl!("block_adjust_width_depth"),
-                    (true, false, false) => fl!("block_adjust_height"),
-                    (false, true, false) => fl!("block_adjust_width"),
-                    (false, false, true) => fl!("block_adjust_depth"),
-                    (false, false, false) => fl!("block_adjust_fixed"),
-                };
-                layout.add_pair(
-                    fl!("block_label_block"),
-                    Self::text(localized_block_asset_name(asset)),
-                );
-                layout.add_pair(
-                    fl!("size"),
-                    Self::text(format!(
-                        "{} x {} x {}, {}",
-                        asset.footprint.x, asset.footprint.y, asset.footprint.z, adjusts
-                    )),
-                );
-                layout.add_pair(
-                    fl!("block_label_state"),
-                    Self::text(format!(
-                        "{} {:.2}, {}{}, {}{}, {}",
-                        fl!("block_label_cell_short"),
-                        server_ctx.block_grid_cell_size.max(0.05),
-                        fl!("block_label_level_short"),
-                        server_ctx.block_grid_level,
-                        fl!("block_label_rotation_short"),
-                        server_ctx.block_rotation_quarters.rem_euclid(4) * 90,
-                        if server_ctx.block_damage_enabled {
-                            fl!("block_damage_damaged")
-                        } else {
-                            fl!("block_damage_clean")
-                        }
-                    )),
-                );
-                layout.add_pair(
-                    fl!("block_label_shape"),
-                    Self::text(format!(
-                        "{}{}, {}+{}, {}+{}",
-                        fl!("block_label_height_short"),
-                        server_ctx.block_height_cells.max(0.01),
-                        fl!("block_label_width_short"),
-                        server_ctx.block_span_extra_cells.max(0.0),
-                        fl!("block_label_depth_short"),
-                        server_ctx.block_depth_extra_cells.max(0.0)
-                    )),
-                );
-                layout.add_pair(
-                    fl!("block_label_mouse"),
-                    Self::text(fl!("block_help_mouse")),
-                );
-                layout.add_pair(fl!("block_label_keys"), Self::text(fl!("block_help_keys")));
-                layout.add_pair(
-                    fl!("block_label_resize"),
-                    Self::text(fl!("block_help_resize")),
-                );
-            } else if let Some(asset) = project
-                .block_props
-                .get(&self.selected)
-                .or_else(|| bundled_prefab(self.selected))
-            {
-                let object_count = asset
-                    .parts
-                    .iter()
-                    .map(|part| part.geometry_source.geometry_objects().len())
-                    .sum::<usize>();
-                layout.add_pair(fl!("name"), Self::text(asset.name.clone()));
-                layout.add_pair(
-                    fl!("prefab_label_source"),
-                    Self::text(
-                        bundled_prefab(asset.id)
-                            .map(|bundled| {
-                                if !project.block_props.contains_key(&asset.id) {
-                                    "Bundled · editable copy created on use".to_string()
-                                } else if bundled == asset {
-                                    "Bundled project copy".to_string()
-                                } else {
-                                    "Modified bundled Prefab".to_string()
-                                }
-                            })
-                            .unwrap_or_else(|| fl!("prefab_project_source")),
-                    ),
-                );
-                layout.add_pair(
-                    fl!("prefab_label_geometry"),
-                    Self::text(fl!(
-                        "prefab_geometry_summary",
-                        part_count = asset.parts.len(),
-                        object_count = object_count
-                    )),
-                );
-                layout.add_pair(
-                    fl!("prefab_label_semantics"),
-                    Self::text(fl!(
-                        "prefab_semantics_summary",
-                        surface_count = asset.support_surfaces.len(),
-                        interaction_count = asset.interaction_targets.len()
-                    )),
-                );
-                layout.add_pair(
-                    fl!("prefab_label_placement"),
-                    Self::text(fl!("prefab_linked_placement")),
-                );
-                if prefab_uses_auto_sizing(asset) {
-                    layout.add_pair(
-                        fl!("block_label_shape"),
-                        Self::text(format!(
-                            "{}{}, {}+{}, {}+{}",
-                            fl!("block_label_height_short"),
-                            server_ctx.block_height_cells.max(0.01),
-                            fl!("block_label_width_short"),
-                            server_ctx.block_span_extra_cells.max(0.0),
-                            fl!("block_label_depth_short"),
-                            server_ctx.block_depth_extra_cells.max(0.0)
-                        )),
-                    );
-                    layout.add_pair(
-                        fl!("block_label_resize"),
-                        Self::text(fl!("block_help_resize")),
-                    );
-                }
-                layout.add_pair(
-                    fl!("prefab_label_shortcut"),
-                    Self::text(fl!("prefab_rotate_shortcut")),
-                );
-            }
-            ctx.ui.relayout = true;
-        }
+        ctx.ui.redraw_all = true;
     }
 
     fn update_overlay(ctx: &mut TheContext) {
@@ -884,6 +947,163 @@ mod tests {
     use super::*;
 
     #[test]
+    fn mesh_browser_routes_real_wheel_input_while_previews_are_stalled() {
+        let mut project = Project::default();
+        let mut server = ServerContext::default();
+        let mut dock = BlocksDock::new();
+        let mut ui = TheUI::new();
+        let mut ctx = TheContext::new(440, 240, 1.);
+        ui.init(&mut ctx);
+        ui.canvas.root = true;
+        ui.canvas.set_center(dock.setup(&mut ctx));
+        ui.canvas.set_dim(TheDim::sized(440, 240), &mut ctx);
+        ui.canvas.layout(440, 240, &mut ctx);
+        dock.active_tab = BlockCatalogTab::Meshes;
+        ui.get_layout(BLOCKS_DOCK_TABS)
+            .unwrap()
+            .as_tab_layout()
+            .unwrap()
+            .set_index(5);
+        dock.mesh_revision = Some((
+            project.procedural_appearances.revision(),
+            project.procedural_materials.revision(),
+            project.palette.clone(),
+            project.config.clone(),
+        ));
+        let (send, receive) = mpsc::sync_channel(2);
+        let (requests, jobs) = mpsc::channel();
+        dock.mesh_worker = Some(Mutex::new(receive));
+        dock.mesh_requests = Some(requests);
+        let ids = (0..120).map(|_| Uuid::new_v4()).collect::<Vec<_>>();
+        send.send(MeshPreviewResult::Catalog(
+            ids.iter()
+                .enumerate()
+                .map(|(i, id)| (*id, format!("Mesh {i:03}"), String::new()))
+                .collect(),
+        ))
+        .unwrap();
+        dock.poll_background(&mut ui, &mut ctx, &mut project, &mut server);
+        let first = jobs.try_recv().unwrap();
+        assert!(
+            first.len() < ids.len() / 2,
+            "do not enqueue the complete project"
+        );
+        let mut frame = vec![0; 440 * 240 * 4];
+        ui.draw(&mut frame, &mut ctx);
+        let name = BlocksDock::board_name(BlockCatalogTab::Meshes);
+        let dim = *ui.get_widget(&name).unwrap().dim();
+        ui.hover((dim.x + 40) as f32, (dim.y + 40) as f32, &mut ctx);
+        assert!(
+            ui.mouse_wheel((0, -240), &mut ctx),
+            "real input must reach the active tab"
+        );
+        let scrolled = ui.get_icon_grid_view(&name).unwrap().visible_items();
+        assert!(scrolled.start > 0);
+        dock.poll_background(&mut ui, &mut ctx, &mut project, &mut server);
+        let requested = jobs.try_recv().unwrap();
+        assert!(requested.contains(&ids[scrolled.start]));
+        assert!(
+            !requested.contains(&ids[0]),
+            "discard off-screen work on scroll"
+        );
+        let selected = ids[scrolled.end - 1];
+        project.procedural_appearances.insert(
+            selected,
+            include_str!("../../embedded/meshes/recipes/fence.mzgeometry.json").into(),
+        );
+        dock.mesh_revision = Some((
+            project.procedural_appearances.revision(),
+            project.procedural_materials.revision(),
+            project.palette.clone(),
+            project.config.clone(),
+        ));
+        dock.handle_event(
+            &TheEvent::IndexChanged(TheId::named(&name), scrolled.end - 1),
+            &mut ui,
+            &mut ctx,
+            &mut project,
+            &mut server,
+        );
+        assert_eq!(server.curr_block_asset_id, Some(selected));
+        assert!(server.block_recipe_pending);
+        assert!(
+            server.block_recipe_template.is_none(),
+            "selection must not evaluate on the UI thread"
+        );
+        crate::tools::props_recipe::prepare(&mut project, &mut server).unwrap();
+        assert!(server.block_recipe_template.is_none());
+        dock.poll_background(&mut ui, &mut ctx, &mut project, &mut server);
+        assert_eq!(jobs.try_recv().unwrap()[0], selected);
+        server.block_recipe_pending = false;
+        let id = ids[scrolled.start];
+        send.send(MeshPreviewResult::Preview(
+            id,
+            rusterix::GeometryObject::new("Mesh"),
+            IndexMap::new(),
+            TheRGBABuffer::new(TheDim::sized(72, 72)),
+        ))
+        .unwrap();
+        dock.poll_background(&mut ui, &mut ctx, &mut project, &mut server);
+        assert_eq!(
+            ui.get_icon_grid_view(&name).unwrap().visible_items(),
+            scrolled
+        );
+        ui.draw(&mut frame, &mut ctx);
+        assert!(ui.mouse_wheel((0, 120), &mut ctx));
+        assert!(ui.get_icon_grid_view(&name).unwrap().visible_items().start < scrolled.start);
+        dock.reset_for_project_switch();
+    }
+
+    #[test]
+    #[ignore = "native GPU atlas inspection"]
+    fn three_d_atlas_skips_iso_sprite_sheets_and_keeps_shared_materials() {
+        let mut runtime = rusterix::Rusterix::new_without_audio();
+        let sprite_id = Uuid::new_v4();
+        let ground_id = Uuid::new_v4();
+        let bitmap_id = Uuid::new_v4();
+        let mut sprite =
+            rusterix::Tile::from_texture(rusterix::Texture::from_color([120, 130, 140, 255]));
+        sprite.id = sprite_id;
+        sprite.isometric = Some(rusterix::isometric::SpriteLayout::default());
+        let mut ground = sprite.clone();
+        ground.id = ground_id;
+        ground.isometric.as_mut().unwrap().ground = true;
+        let mut bitmap = ground.clone();
+        bitmap.id = bitmap_id;
+        bitmap.isometric.as_mut().unwrap().bitmap = true;
+        runtime.refresh_tile_textures_cpu(IndexMap::from([
+            (sprite_id, sprite),
+            (ground_id, ground),
+            (bitmap_id, bitmap),
+        ]));
+        let map = Map::default();
+        let mut pixels = vec![0; 64 * 64 * 4];
+        runtime.draw_d3(&map, &mut pixels, 64, 64);
+        let vm = runtime.scene_handler.vm.active_vm();
+        assert!(vm.get_tile_data(sprite_id).is_none());
+        assert!(vm.get_tile_data(bitmap_id).is_none());
+        assert!(vm.get_tile_data(ground_id).is_some());
+        assert!(runtime.assets.tiles.contains_key(&sprite_id));
+        runtime.draw_d2(&map, &mut pixels, 64, 64);
+        assert!(
+            runtime
+                .scene_handler
+                .vm
+                .active_vm()
+                .get_tile_data(sprite_id)
+                .is_some()
+        );
+        assert!(
+            runtime
+                .scene_handler
+                .vm
+                .active_vm()
+                .get_tile_data(bitmap_id)
+                .is_some()
+        );
+    }
+
+    #[test]
     fn prefab_catalog_separates_built_in_categories_from_user_assets() {
         let mut dock = <BlocksDock as Dock>::new();
         let user = rusterix::BlockPropAsset::new("My Prefab");
@@ -917,6 +1137,350 @@ mod tests {
         assert!(lighting_ids.contains(&torch_id));
         assert_eq!(user_ids, vec![user_id]);
     }
+    #[test]
+    #[ignore = "native Props UI review; generated project and screenshots stay ignored"]
+    fn capture_3d_props_overlay_and_recipe_placement() {
+        use crate::tools::MapEvent;
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap();
+        let out = root.join("generated/props");
+        std::fs::create_dir_all(&out).unwrap();
+        let mut project = Project::default();
+        let id = Uuid::new_v4();
+        project.procedural_appearances.insert(
+            id,
+            include_str!("../../embedded/meshes/recipes/fence.mzgeometry.json").into(),
+        );
+        let region = &mut project.regions[0];
+        region.name = "3D Props Review".into();
+        region.map.camera = MapCamera::ThreeDIso;
+        let mut floor = rusterix::GeometryObject::box_from_bounds(
+            "Floor",
+            Vec3::new(-2., -0.2, -2.),
+            Vec3::new(10., 0., 7.),
+        );
+        for f in &mut floor.faces {
+            f.tile = Some(rusterix::PixelSource::Pixel([76, 79, 71, 255]));
+        }
+        let mut wall = rusterix::GeometryObject::box_from_bounds(
+            "Mounting wall",
+            Vec3::new(0., 0., 0.),
+            Vec3::new(5., 3., 0.25),
+        );
+        for f in &mut wall.faces {
+            f.tile = Some(rusterix::PixelSource::Pixel([153, 142, 125, 255]));
+        }
+        region.map.geometry_objects = vec![floor, wall];
+        // Ordinary authored door, using the existing component and pivot machinery.
+        let mut leaf = rusterix::GeometryObject::box_from_bounds(
+            "Door Leaf",
+            Vec3::zero(),
+            Vec3::new(1.2, 2.3, 0.12),
+        );
+        for f in &mut leaf.faces {
+            f.tile = Some(rusterix::PixelSource::Pixel([104, 63, 38, 255]));
+        }
+        let door = rusterix::BlockPropAsset::new_authored("Hinged Door", vec![leaf]);
+        let door_id = door.id;
+        let part_id = door.parts[0].id;
+        project.block_props.insert(door_id, door);
+        let component =
+            crate::block_props::configure_prefab_door(&mut project, door_id, part_id, 95.).unwrap();
+        let mut closed = rusterix::BlockPropInstance::new(door_id);
+        closed.world_transform[3] = [5., 0., 0., 1.];
+        let mut open = rusterix::BlockPropInstance::new(door_id);
+        open.world_transform[3] = [7., 0., 0., 1.];
+        rusterix::set_block_prop_door_open(&mut open, component, true);
+        assert_eq!(
+            rusterix::block_prop_door_is_open(&project.block_props[&door_id], &closed, component),
+            Some(false)
+        );
+        assert_eq!(
+            rusterix::block_prop_door_is_open(&project.block_props[&door_id], &open, component),
+            Some(true)
+        );
+        project.regions[0]
+            .map
+            .block_prop_instances
+            .extend([closed, open]);
+        let table = bundled_prefabs()
+            .iter()
+            .find(|a| a.category == "Furniture" && !a.support_surfaces.is_empty())
+            .unwrap()
+            .clone();
+        let torch = bundled_prefabs()
+            .iter()
+            .find(|a| a.name == "Wall Torch")
+            .unwrap()
+            .clone();
+        let table_id = table.id;
+        let torch_id = torch.id;
+        assert!(!torch.light_effects.is_empty());
+        assert!(!torch.particle_effects.is_empty());
+        project.block_props.insert(table_id, table);
+        project.block_props.insert(torch_id, torch);
+        let mut table = rusterix::BlockPropInstance::new(table_id);
+        table.world_transform[3] = [2., 0., 3., 1.];
+        let mut torch = rusterix::BlockPropInstance::new(torch_id);
+        torch.world_transform[3] = [2., 1., 0.3, 1.];
+        project.regions[0]
+            .map
+            .block_prop_instances
+            .extend([table, torch]);
+        let mut server = ServerContext::default();
+        server.curr_region = project.regions[0].id;
+        server.pc = ProjectContext::Region(server.curr_region);
+        let mut ui = TheUI::new();
+        let mut ctx = TheContext::new(1440, 960, 1.);
+        ui.set_theme(Box::new(TheBrownTheme::new()), &mut ctx);
+        crate::hud::set_theme(&TheBrownTheme::new());
+        ui.init(&mut ctx);
+        let map_canvas =
+            crate::mapeditor::MapEditor::new().init_ui(&mut ui, &mut ctx, &mut project);
+        let mut dock = BlocksDock::new();
+        let bottom = dock.setup(&mut ctx);
+        let mut split = TheSharedVLayout::new(TheId::named("Props Review Split"));
+        split.add_canvas(map_canvas);
+        split.add_canvas(bottom);
+        split.set_shared_ratio(0.75);
+        split.set_mode(TheSharedVLayoutMode::Shared);
+        let mut center = TheCanvas::new();
+        center.set_layout(split);
+        ui.canvas.set_center(center);
+        let mut tools = crate::toollist::ToolList::new();
+        let props = tools
+            .get_game_tool_uuid_by_command_id("tool.blocks")
+            .unwrap();
+        // The 2D and 2D Iso cameras cannot activate 3D Props.
+        assert!(!tools.set_tool(props, &mut ui, &mut ctx, &mut project, &mut server));
+        assert!(!server.block_tool_active);
+        server.editor_view_mode = EditorViewMode::Orbit;
+        assert!(tools.set_tool(props, &mut ui, &mut ctx, &mut project, &mut server));
+        dock.activate(&mut ui, &mut ctx, &project, &mut server);
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        server.curr_block_asset_id = Some(id);
+        server.block_recipe_pending = true;
+        while !dock.mesh_templates.contains_key(&id) && std::time::Instant::now() < deadline {
+            dock.poll_background(&mut ui, &mut ctx, &mut project, &mut server);
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        assert!(dock.mesh_templates.contains_key(&id));
+        assert!(ui.get_text_layout("Blocks Dock Inspector").is_none());
+        assert!(ui.get_widget("Blocks Dock Operation").is_none());
+        let index = dock
+            .catalog_ids(BlockCatalogTab::Meshes)
+            .iter()
+            .position(|i| *i == id)
+            .unwrap();
+        dock.handle_event(
+            &TheEvent::IndexChanged(
+                TheId::named(&BlocksDock::board_name(BlockCatalogTab::Meshes)),
+                index,
+            ),
+            &mut ui,
+            &mut ctx,
+            &mut project,
+            &mut server,
+        );
+        tools.handle_event(
+            &TheEvent::Custom(TheId::named("Props Selection Changed"), TheValue::Empty),
+            &mut ui,
+            &mut ctx,
+            &mut project,
+            &mut server,
+        );
+        assert_eq!(server.curr_block_asset_id, Some(id));
+        assert!(server.pc.is_region());
+        let mut pixels = vec![0; 1440 * 960 * 4];
+        ui.draw(&mut pixels, &mut ctx);
+        let mut assets = rusterix::Assets::default();
+        assets.set_tiles(project.tiles.clone());
+        assets.set_block_props(project.block_props.clone());
+        let mut buffer = TheRGBABuffer::new(TheDim::sized(1000, 650));
+        tools.get_current_tool().draw_hud(
+            &mut buffer,
+            &mut project.regions[0].map,
+            &mut ctx,
+            &mut server,
+            &assets,
+        );
+        let events = ui.add_state_listener("Props Review".into());
+        ui.update(&mut ctx);
+        for _ in events.try_iter() {}
+        // The whole overlay gesture, including a release outside it, is consumed.
+        server.hover_cursor_3d = Some(Vec3::new(3., 0., 4.));
+        let count = project.regions[0].map.geometry_objects.len();
+        let at = Vec2::new(70, 144);
+        assert!(
+            tools
+                .get_current_tool()
+                .map_event(
+                    MapEvent::MapClicked(at),
+                    &mut ui,
+                    &mut ctx,
+                    &mut project.regions[0].map,
+                    &mut server
+                )
+                .is_none()
+        );
+        assert!(
+            tools
+                .get_current_tool()
+                .map_event(
+                    MapEvent::MapDragged(Vec2::new(650, 450)),
+                    &mut ui,
+                    &mut ctx,
+                    &mut project.regions[0].map,
+                    &mut server
+                )
+                .is_none()
+        );
+        assert!(
+            tools
+                .get_current_tool()
+                .map_event(
+                    MapEvent::MapUp(Vec2::new(650, 450)),
+                    &mut ui,
+                    &mut ctx,
+                    &mut project.regions[0].map,
+                    &mut server
+                )
+                .is_none()
+        );
+        ui.update(&mut ctx);
+        let rotation = events
+            .try_iter()
+            .filter(|e| matches!(e,TheEvent::ValueChanged(id,_) if id.name=="Props Rotation"))
+            .collect::<Vec<_>>();
+        assert_eq!(rotation.len(), 1);
+        for event in rotation {
+            tools.handle_event(&event, &mut ui, &mut ctx, &mut project, &mut server);
+        }
+        assert_eq!(server.block_rotation_quarters, 1);
+        assert_eq!(project.regions[0].map.geometry_objects.len(), count);
+        // Map click places linked geometry without opening an editor or adding a Prefab.
+        let prefabs = project.block_props.len();
+        tools.get_current_tool().map_event(
+            MapEvent::MapClicked(Vec2::new(650, 450)),
+            &mut ui,
+            &mut ctx,
+            &mut project.regions[0].map,
+            &mut server,
+        );
+        let undo = tools.get_current_tool().map_event(
+            MapEvent::MapUp(Vec2::new(650, 450)),
+            &mut ui,
+            &mut ctx,
+            &mut project.regions[0].map,
+            &mut server,
+        );
+        assert!(matches!(undo, Some(ProjectUndoAtom::MapEdit(..))));
+        assert_eq!(project.block_props.len(), prefabs);
+        assert_eq!(project.regions[0].map.geometry_objects.len(), count + 1);
+        let object = project.regions[0].map.geometry_objects.last().unwrap();
+        let transform = object.transform;
+        assert_eq!(
+            shared::geometry_recipe::Binding::read(object)
+                .unwrap()
+                .asset,
+            id
+        );
+        let doc = denrim_materials::geometry::Document::parse(&project.procedural_appearances[&id])
+            .unwrap();
+        let controls = crate::tools::props_recipe::published(&doc);
+        let index = controls
+            .iter()
+            .position(|p| p.control.id == "count")
+            .unwrap();
+        tools.handle_event(
+            &TheEvent::ValueChanged(
+                TheId::named(&format!("Props Recipe {id} {index}")),
+                TheValue::Int(7),
+            ),
+            &mut ui,
+            &mut ctx,
+            &mut project,
+            &mut server,
+        );
+        assert_eq!(
+            project.regions[0]
+                .map
+                .geometry_objects
+                .last()
+                .unwrap()
+                .transform,
+            transform
+        );
+        let changed =
+            denrim_materials::geometry::Document::parse(&project.procedural_appearances[&id])
+                .unwrap();
+        assert_eq!(
+            crate::tools::props_recipe::published(&changed)[index]
+                .control
+                .value,
+            7.
+        );
+
+        std::fs::write(
+            out.join("Props3D.eldiron"),
+            shared::project_io::encode_project(&project).unwrap(),
+        )
+        .unwrap();
+        // Render the actual native geometry and mount the actual browser and overlay.
+        let mut scene = project.regions[0].map.geometry_objects.clone();
+        scene.extend(
+            rusterix::resolve_block_prop_geometry(
+                &project.regions[0].map.block_prop_instances,
+                &project.block_props,
+            )
+            .geometry_objects,
+        );
+        assets.set_tiles(project.tiles.clone());
+        let view = ui.get_render_view("PolyView").unwrap();
+        let dim = *view.dim();
+        *view.render_buffer_mut() =
+            BlocksDockPreviews::render_scene_preview(&scene, dim.width, dim.height, &assets);
+        tools.draw_hud(
+            view.render_buffer_mut(),
+            &mut project.regions[0].map,
+            &mut ctx,
+            &mut server,
+            &assets,
+        );
+        ui.draw(&mut pixels, &mut ctx);
+        std::fs::write(
+            out.join("props-overlay.png"),
+            TheRGBABuffer::from(pixels.clone(), 1440, 960)
+                .to_png()
+                .unwrap(),
+        )
+        .unwrap();
+        tools.get_current_tool().map_event(
+            MapEvent::MapClicked(Vec2::new(300, 178)),
+            &mut ui,
+            &mut ctx,
+            &mut project.regions[0].map,
+            &mut server,
+        );
+        tools.get_current_tool().map_event(
+            MapEvent::MapUp(Vec2::new(300, 178)),
+            &mut ui,
+            &mut ctx,
+            &mut project.regions[0].map,
+            &mut server,
+        );
+        ui.draw(&mut pixels, &mut ctx);
+        assert!(
+            ui.get_widget(&format!("Props Recipe {id} {index}"))
+                .is_some()
+        );
+        std::fs::write(
+            out.join("props-controls.png"),
+            TheRGBABuffer::from(pixels, 1440, 960).to_png().unwrap(),
+        )
+        .unwrap();
+    }
 }
 
 impl Dock for BlocksDock {
@@ -930,60 +1494,21 @@ impl Dock for BlocksDock {
             project_assets: Vec::new(),
             bundled_overrides: HashMap::new(),
             preview_cache: HashMap::new(),
+            mesh_assets: vec![],
+            mesh_revision: None,
+            mesh_previews: HashMap::new(),
+            mesh_templates: HashMap::new(),
+            mesh_textures: HashMap::new(),
+            mesh_worker: None,
+            mesh_cancel: Arc::new(AtomicU64::new(0)),
+            mesh_requests: None,
+            mesh_requested: Default::default(),
+            mesh_requested_selection: None,
         }
     }
 
     fn setup(&mut self, _ctx: &mut TheContext) -> TheCanvas {
         let mut canvas = TheCanvas::new();
-
-        let mut toolbar_canvas = TheCanvas::default();
-        toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
-        let mut toolbar = TheHLayout::new(TheId::named("Blocks Dock Toolbar"));
-        toolbar.set_background_color(None);
-        toolbar.set_margin(Vec4::new(10, 1, 6, 1));
-        toolbar.set_padding(5);
-
-        let mut operation_group = TheGroupButton::new(TheId::named(BLOCKS_DOCK_OPERATION));
-        operation_group.add_text_status(fl!("block_operation_place"), fl!("status_block_place"));
-        operation_group
-            .add_text_status(fl!("block_operation_replace"), fl!("status_block_replace"));
-        operation_group.add_text_status(fl!("block_operation_erase"), fl!("status_block_erase"));
-        operation_group.set_item_width(70);
-        operation_group.set_index(BLOCK_OPERATION_PLACE);
-        toolbar.add_widget(Box::new(operation_group));
-
-        let mut damage_group = TheGroupButton::new(TheId::named(BLOCKS_DOCK_DAMAGE));
-        damage_group.add_text_status(fl!("block_damage_clean"), fl!("status_block_damage_clean"));
-        damage_group.add_text_status(
-            fl!("block_damage_damaged"),
-            fl!("status_block_damage_damaged"),
-        );
-        damage_group.set_item_width(78);
-        damage_group.set_index(0);
-        toolbar.add_widget(Box::new(damage_group));
-
-        let mut stroke_group = TheGroupButton::new(TheId::named(BLOCKS_DOCK_STROKE));
-        stroke_group.add_text_status(fl!("block_stroke_line"), fl!("status_block_line"));
-        stroke_group.add_text_status(fl!("block_stroke_rect"), fl!("status_block_rect"));
-        stroke_group.set_item_width(68);
-        stroke_group.set_index(BLOCK_STROKE_LINE);
-        toolbar.add_widget(Box::new(stroke_group));
-
-        toolbar.add_widget(Box::new(TheSpacer::new(TheId::empty())));
-        let mut duplicate = TheTraybarButton::new(TheId::named(BLOCKS_DOCK_DUPLICATE));
-        duplicate.set_text(fl!("prefab_duplicate"));
-        duplicate.set_status_text(&fl!("status_prefab_duplicate"));
-        duplicate.set_disabled(true);
-        toolbar.add_widget(Box::new(duplicate));
-        let mut delete = TheTraybarButton::new(TheId::named(BLOCKS_DOCK_DELETE));
-        delete.set_text(fl!("prefab_delete"));
-        delete.set_status_text(&fl!("status_prefab_delete"));
-        delete.set_disabled(true);
-        toolbar.add_widget(Box::new(delete));
-
-        toolbar.set_reverse_index(Some(3));
-        toolbar_canvas.set_layout(toolbar);
-        canvas.set_top(toolbar_canvas);
 
         let mut center = TheCanvas::new();
 
@@ -993,6 +1518,7 @@ impl Dock for BlocksDock {
             let mut board = TheIconGridView::new(TheId::named(&Self::board_name(tab)));
             board.set_cell_size(88);
             board.set_icon_size(Self::PREVIEW_SIZE);
+            board.set_show_labels(tab == BlockCatalogTab::Meshes);
             board.set_icon_padding(6);
             board.set_spacing(8);
             board.set_content_padding(10);
@@ -1000,20 +1526,6 @@ impl Dock for BlocksDock {
             tabs.add_canvas(tab.label().to_string(), board_canvas);
         }
         center.set_layout(tabs);
-
-        let mut inspector_canvas = TheCanvas::new();
-        inspector_canvas.limiter_mut().set_min_width(360);
-        inspector_canvas.limiter_mut().set_max_width(360);
-        let mut inspector = TheTextLayout::new(TheId::named(BLOCKS_DOCK_INSPECTOR));
-        inspector.limiter_mut().set_min_width(360);
-        inspector.limiter_mut().set_max_width(360);
-        inspector.set_margin(Vec4::new(10, 8, 10, 8));
-        inspector.set_padding(6);
-        inspector.set_text_margin(10);
-        inspector.set_fixed_text_width(92);
-        inspector.set_text_align(TheHorizontalAlign::Right);
-        inspector_canvas.set_layout(inspector);
-        center.set_right(inspector_canvas);
 
         canvas.set_center(center);
         canvas
@@ -1034,10 +1546,137 @@ impl Dock for BlocksDock {
                 .unwrap_or(BlockCatalogTab::Blocks)
         } else if let Some(asset) = bundled_prefab(self.selected) {
             Self::bundled_asset_tab(asset)
+        } else if project.procedural_appearances.contains_key(&self.selected) {
+            BlockCatalogTab::Meshes
         } else {
             BlockCatalogTab::User
         };
+        if self.active_tab == BlockCatalogTab::Meshes {
+            server_ctx.block_recipe_template = self.mesh_templates.get(&self.selected).cloned();
+            server_ctx.block_recipe_pending = server_ctx.block_recipe_template.is_none();
+        }
         self.sync_widgets(ui, ctx, project, server_ctx);
+    }
+
+    fn reset_for_project_switch(&mut self) {
+        self.mesh_cancel.fetch_add(1, Ordering::Relaxed);
+        self.mesh_worker = None;
+        self.mesh_requests = None;
+        self.mesh_requested.clear();
+        self.mesh_requested_selection = None;
+        self.mesh_revision = None;
+        self.mesh_assets.clear();
+        self.mesh_templates.clear();
+        self.mesh_textures.clear();
+        self.mesh_previews.clear();
+        self.project_assets.clear();
+        self.bundled_overrides.clear();
+        self.preview_cache.clear();
+    }
+    fn poll_background(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        server: &mut ServerContext,
+    ) -> bool {
+        self.sync_mesh_previews(project);
+        let mut results = vec![];
+        let mut finished = false;
+        if let Some(receive) = &self.mesh_worker {
+            let receive = receive.lock().unwrap();
+            // Bounded delivery keeps a large completed catalog from monopolizing a frame.
+            for _ in 0..4 {
+                match receive.try_recv() {
+                    Ok(result) => results.push(result),
+                    Err(mpsc::TryRecvError::Disconnected) => {
+                        finished = true;
+                        break;
+                    }
+                    Err(mpsc::TryRecvError::Empty) => break,
+                }
+            }
+        }
+        if finished {
+            self.mesh_worker = None;
+        }
+        let changed = !results.is_empty();
+        for result in results {
+            match result {
+                MeshPreviewResult::Catalog(entries) => {
+                    self.mesh_assets = entries;
+                    if server.curr_block_asset_id.is_some_and(|id| {
+                        project.procedural_appearances.contains_key(&id)
+                            && !self.mesh_assets.iter().any(|a| a.0 == id)
+                    }) {
+                        self.selected = default_block_asset_id();
+                        server.curr_block_asset_id = Some(self.selected);
+                        server.block_recipe_pending = false;
+                        server.block_recipe_template = None;
+                    }
+                    self.ensure_selection(project, server);
+                    let items = self.icon_items(BlockCatalogTab::Meshes);
+                    let selected = self.selected_index(BlockCatalogTab::Meshes);
+                    if let Some(board) =
+                        ui.get_icon_grid_view(&Self::board_name(BlockCatalogTab::Meshes))
+                    {
+                        board.set_items(items);
+                        if board.selected() != selected {
+                            board.set_selected(selected);
+                        }
+                    }
+                }
+                MeshPreviewResult::Preview(id, object, textures, icon) => {
+                    if let Some(index) = self.mesh_assets.iter().position(|a| a.0 == id)
+                        && let Some(board) =
+                            ui.get_icon_grid_view(&Self::board_name(BlockCatalogTab::Meshes))
+                    {
+                        board.set_item_icon(index, Some(icon.clone()));
+                    }
+                    if server.curr_block_asset_id == Some(id) && server.block_recipe_pending {
+                        server.block_recipe_pending = false;
+                        server.block_recipe_template = Some(object.clone());
+                        Self::install_mesh_textures(project, server, &textures);
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Props Selection Changed"),
+                            TheValue::Empty,
+                        ));
+                    }
+                    self.mesh_templates.insert(id, object);
+                    self.mesh_textures.insert(id, textures);
+                    self.mesh_previews.insert(id, icon);
+                }
+                MeshPreviewResult::Rejected(id) => {
+                    self.mesh_assets.retain(|a| a.0 != id);
+                    if server.curr_block_asset_id == Some(id) {
+                        server.block_recipe_pending = false;
+                        server.block_recipe_template = None;
+                        self.selected = default_block_asset_id();
+                        server.curr_block_asset_id = Some(self.selected);
+                        self.ensure_selection(project, server);
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Props Selection Changed"),
+                            TheValue::Empty,
+                        ));
+                    }
+                    let selected = self.selected_index(BlockCatalogTab::Meshes);
+                    let items = self.icon_items(BlockCatalogTab::Meshes);
+                    if let Some(board) =
+                        ui.get_icon_grid_view(&Self::board_name(BlockCatalogTab::Meshes))
+                    {
+                        board.set_items(items);
+                        if board.selected() != selected {
+                            board.set_selected(selected);
+                        }
+                    }
+                }
+            }
+        }
+        self.request_visible_meshes(ui, server);
+        if changed {
+            ctx.ui.redraw_all = true;
+        }
+        changed
     }
 
     fn handle_event(
@@ -1114,7 +1753,28 @@ impl Dock for BlocksDock {
                             .get(&asset_id)
                             .map(|asset| asset.name.clone())
                     });
+                if let Some((_, label, _)) = self.mesh_assets.iter().find(|a| a.0 == asset_id) {
+                    server_ctx.curr_block_asset_name = Some(label.clone());
+                }
+                server_ctx.block_recipe_pending =
+                    tab == BlockCatalogTab::Meshes && !self.mesh_templates.contains_key(&asset_id);
+                server_ctx.block_recipe_template = self.mesh_templates.get(&asset_id).cloned();
+                if let Some(textures) = self.mesh_textures.get(&asset_id) {
+                    Self::install_mesh_textures(project, server_ctx, textures);
+                }
+                if !server_ctx.block_recipe_pending && server_ctx.block_recipe_template.is_none() {
+                    if let Err(error) = crate::tools::props_recipe::prepare(project, server_ctx) {
+                        server_ctx.block_recipe_template = None;
+                        ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
+                    } else if server_ctx.block_recipe_template.is_some() {
+                        crate::utils::editor_scene_refresh_material_textures(project, server_ctx);
+                    }
+                }
                 self.sync_widgets(ui, ctx, project, server_ctx);
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Props Selection Changed"),
+                    TheValue::Empty,
+                ));
                 if let Some(asset) = block_asset(asset_id) {
                     let asset_name = localized_block_asset_name(asset);
                     ctx.ui.send(TheEvent::SetStatusText(

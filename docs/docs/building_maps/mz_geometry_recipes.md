@@ -14,6 +14,12 @@ For the current reusable part and 2D Iso workflow, see the [illustrated Material
 are implemented and have focused test and native-preview coverage. Reusable mesh recipe authoring, controls, footprints and iso connector placement are documented in the tutorials. This is not an automatic 2D-map
 to 3D conversion system.
 
+## Place A Static Recipe In 3D
+
+Choose **3D Props → MZ Meshes** to place a project mesh recipe directly. Selecting the thumbnail keeps the map open and shows a placement ghost. The viewport overlay provides **Placement…**, **Edit Recipe** and **Recipe Controls…**. Published controls edit the shared MZ construction; calculated controls remain read-only. Saved placements retain their own transforms and face material overrides when the recipe rebuilds.
+
+A Prefab is optional for this path. Use the isolated Prefab editor for authored part hierarchies, mounting/support definitions and existing Door components. Recipes requiring selection input still use **Apply MZ Recipe** on selected objects or faces. See [3D Props](../creator/tools/blocks) for a fence walkthrough and examples.
+
 ## Apply a recipe
 
 1. Select objects or faces in a 3D region or Prefab source.

@@ -377,9 +377,10 @@ state changes likewise remain gameplay data, not material nodes.
 
 The Paint tool shares the Tile Picker with Rect. Activate **Paint** to add its
 existing procedural materials, brush patterns and organic stamps as editable MZ
-recipes. Choose artwork in **Paint materials**, **Paint brushes** or
-**Organic stamps**, then apply it with the toolbar above the map. Selecting a
-recipe keeps the map open; **Edit recipe** opens its MZ editor.
+recipes. Choose artwork in **Paint Brushes** or **Organic Stamps**, then apply it with the floating Paint overlay. Selecting a
+recipe keeps the map open. Change palette colors, material family and finish
+right in the overlay; these controls update the recipe for you. **Advanced** opens
+its MZ editor.
 
 The **Paint Source** and **Stamp Source** operations retain the native procedural
 generators and expose their palette and variation settings. The generated images

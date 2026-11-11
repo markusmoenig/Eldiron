@@ -18,6 +18,22 @@ roof, prop and planting placements remain unnamed sectors, so they do not fill
 the region tree with gameplay areas. Their art-study labels live in placement
 metadata, and each source part remains identifiable in the Tile Picker.
 
+The player uses the normal **Characters → Player** template and a placed region
+instance. Its **Human** race and **Warrior** class inherit the official ruleset's
+avatar, animation, equipment and character defaults, just like the starters.
+Change these through the character's setup nodes. There is no custom character
+tile or Set Tile override in this project; use the Characters tree to place
+characters, rather than painting character artwork with Rect.
+
+The **Inn Door** is also an ordinary Item. Its single MZ recipe contains a
+planked Closed leaf, a hinged Open row and a State Switch. The bottom toolbar
+provides **Open/Close, Use, Look** through official intents. The door starts
+unlocked; its Item State node can enable a lock using the supplied **Inn Key**.
+See the [door/state tutorial](../../../../../docs/docs/characters_items/doors.md)
+for keys, behavior nodes and the shared iso/3D collision workflow. The focused
+installer/review helper is `unending_night_door`; its outputs belong in
+`generated/mz-item-states/`.
+
 ## Palette and references
 
 **Guildhall 256**, created by **Eric Johnson**:

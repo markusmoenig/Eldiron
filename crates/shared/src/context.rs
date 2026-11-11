@@ -476,6 +476,9 @@ pub struct ServerContext {
     pub curr_block_asset_id: Option<Uuid>,
     /// The selected block asset display name.
     pub curr_block_asset_name: Option<String>,
+    /// Derived static MZ geometry for the 3D Props ghost and placement. Never serialized.
+    pub block_recipe_template: Option<rusterix::GeometryObject>,
+    pub block_recipe_pending: bool,
     /// Whether the Block tool is currently active.
     pub block_tool_active: bool,
     /// Effect selected in the maximized Prefab Effects editor.
@@ -744,6 +747,8 @@ impl ServerContext {
 
             curr_block_asset_id: None,
             curr_block_asset_name: None,
+            block_recipe_template: None,
+            block_recipe_pending: false,
             block_tool_active: false,
             selected_prefab_effect_id: None,
             block_grid_cell_size: 1.0,
@@ -1248,7 +1253,9 @@ impl ServerContext {
                                 rusterix::isometric::editor::projected_segment(
                                     map,
                                     rusterix::isometric::Projection::editor(map, screen_size)
-                                        .at_height(map.properties.get_float_default("iso_edit_height", 0.)),
+                                        .at_height(
+                                            map.properties.get_float_default("iso_edit_height", 0.),
+                                        ),
                                     start_vertex,
                                     end_vertex,
                                 )
@@ -1266,7 +1273,8 @@ impl ServerContext {
                                 } else {
                                     0.
                                 };
-                                (screen_pos - (segment[0] + t * delta)).magnitude() <= hover_threshold
+                                (screen_pos - (segment[0] + t * delta)).magnitude()
+                                    <= hover_threshold
                             }) {
                                 selection.1 = Some(linedef.id);
                                 break;
@@ -1738,8 +1746,8 @@ mod tests {
         v.z = 3.;
         v.properties.set("terrain_control", Value::Bool(true));
         v.properties.set("smoothness", Value::Float(1.));
-        let vertices = [[-2., -1.], [2., -1.], [2., 1.], [-2., 1.]]
-            .map(|p| map.add_vertex_at(p[0], p[1]));
+        let vertices =
+            [[-2., -1.], [2., -1.], [2., 1.], [-2., 1.]].map(|p| map.add_vertex_at(p[0], p[1]));
         for i in 0..4 {
             map.create_linedef_manual(vertices[i], vertices[(i + 1) % 4]);
         }
@@ -1748,10 +1756,20 @@ mod tests {
         let size = Vec2::new(900., 700.);
         for point in [Vec2::zero(), Vec2::new(0., -0.75), Vec2::new(0., 0.75)] {
             let screen = ServerContext::map_grid_to_local(size, point, &map);
-            assert_eq!(context.geometry_at_for_tool(size, screen, &map, MapToolType::Sector).2, Some(id));
+            assert_eq!(
+                context
+                    .geometry_at_for_tool(size, screen, &map, MapToolType::Sector)
+                    .2,
+                Some(id)
+            );
         }
         let outside = ServerContext::map_grid_to_local(size, Vec2::new(0., 1.5), &map);
-        assert_eq!(context.geometry_at_for_tool(size, outside, &map, MapToolType::Sector).2, None);
+        assert_eq!(
+            context
+                .geometry_at_for_tool(size, outside, &map, MapToolType::Sector)
+                .2,
+            None
+        );
     }
 
     #[test]
@@ -1760,8 +1778,8 @@ mod tests {
         let mut map = Map::default();
         map.camera = MapCamera::TwoDIso;
         map.grid_size = 32.;
-        let vertices = [[0., 0.], [4., 0.], [4., 4.], [0., 4.]]
-            .map(|p| map.add_vertex_at(p[0], p[1]));
+        let vertices =
+            [[0., 0.], [4., 0.], [4., 4.], [0., 4.]].map(|p| map.add_vertex_at(p[0], p[1]));
         for i in 0..4 {
             map.create_linedef_manual(vertices[i], vertices[(i + 1) % 4]);
         }
@@ -1774,8 +1792,18 @@ mod tests {
         let size = Vec2::new(800., 600.);
         let corner = ServerContext::map_grid_to_local(size, Vec2::zero(), &map);
         let center = ServerContext::map_grid_to_local(size, Vec2::new(2., 2.), &map);
-        assert_eq!(context.geometry_at_for_tool(size, corner, &map, MapToolType::Vertex).0, None);
-        assert_eq!(context.geometry_at_for_tool(size, center, &map, MapToolType::Sector).2, Some(id));
+        assert_eq!(
+            context
+                .geometry_at_for_tool(size, corner, &map, MapToolType::Vertex)
+                .0,
+            None
+        );
+        assert_eq!(
+            context
+                .geometry_at_for_tool(size, center, &map, MapToolType::Sector)
+                .2,
+            Some(id)
+        );
         let a = Vec2::new(390., 160.);
         let b = Vec2::new(670., 440.);
         let selection = context.geometry_in_screen_rectangle(size, a, b, &map);
@@ -1783,7 +1811,12 @@ mod tests {
         assert!(selection.1.is_empty());
         assert_eq!(selection.2, vec![id]);
         map.find_sector_mut(id).unwrap().name.clear();
-        assert!(context.geometry_in_screen_rectangle(size, a, b, &map).2.is_empty());
+        assert!(
+            context
+                .geometry_in_screen_rectangle(size, a, b, &map)
+                .2
+                .is_empty()
+        );
     }
 
     #[test]

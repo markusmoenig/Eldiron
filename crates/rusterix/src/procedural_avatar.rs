@@ -69,6 +69,10 @@ pub struct Appearance {
     pub signature: u64,
     pub has_effects: bool,
     document: Document,
+    pub(crate) state_on: Option<Arc<Appearance>>,
+    pub(crate) footprint: Option<denrim_materials::geometry::footprint::Shape<[f32; 3]>>,
+    pub(crate) bounds: ([f32; 3], [f32; 3]),
+    pub(crate) connectors: Vec<denrim_materials::geometry::connectors::Connector>,
     equipment: Vec<(String, String, String)>,
     compiled: Mutex<FxHashMap<u64, Arc<Compiled>>>,
     sprites: Mutex<FxHashMap<(u64, String, u32, i32, u64, bool), crate::isometric::AvatarSprite>>,
@@ -96,18 +100,24 @@ impl Appearance {
         equipment: &[(&str, &str, &str)],
         signature: u64,
     ) -> Result<Self, String> {
-        let document = Document::parse(source).map_err(|e| e.to_string())?;
-        let has_effects = !document
-            .evaluate()
-            .map_err(|e| e.to_string())?
-            .mesh
-            .effects
-            .is_empty();
+        let mut document = Document::parse(source).map_err(|e| e.to_string())?;
+        let state_on = if document.has_states() {
+            let on = serde_json::to_string(&document.for_state(true)).map_err(|e| e.to_string())?;
+            document = document.for_state(false);
+            Some(Arc::new(Self::new(&on, equipment, fingerprint(&(signature, true)))?))
+        } else { None };
+        let mesh = document.evaluate().map_err(|e| e.to_string())?.mesh;
+        let has_effects = !mesh.effects.is_empty();
+        let bounds = mesh.bounds();
         Ok(Self {
             source: source.into(),
             signature,
             has_effects,
             document,
+            state_on,
+            footprint: mesh.footprint,
+            connectors: mesh.connectors,
+            bounds,
             equipment: equipment
                 .iter()
                 .map(|(a, b, c)| (a.to_string(), b.to_string(), c.to_string()))
@@ -684,13 +694,13 @@ impl Appearance {
         } else {
             (seconds * FPS).floor()
         } as u32;
-        let yaw = (entity
+        let yaw = entity.attributes.get_float("appearance_yaw").unwrap_or_else(|| (entity
             .orientation
             .x
             .atan2(entity.orientation.y)
             .to_degrees()
             / 45.)
-            .round() as i32;
+            .round() * 45.).rem_euclid(360.);
         let textures = fingerprint(&(
             c.materials
                 .iter()
@@ -707,7 +717,7 @@ impl Appearance {
             mask,
             animation.into(),
             frame,
-            yaw.rem_euclid(8),
+            yaw.to_bits() as i32,
             textures,
             isometric,
         );
@@ -728,7 +738,7 @@ impl Appearance {
         let pixels = raster_sprite_frame(
             &mesh,
             &c,
-            yaw as f32 * 45.,
+            yaw,
             &assets.palette,
             surface_seconds,
             isometric,
@@ -1262,9 +1272,23 @@ impl Runtime {
                     .map(String::as_str)
             })
             .or_else(|| item.attributes.get_str("appearance_geometry"))?;
-        assets
+        let model = assets
             .procedural_avatars
-            .get(name.strip_prefix("ruleset:geometry/").unwrap_or(name))
+            .get(name.strip_prefix("ruleset:geometry/").unwrap_or(name))?;
+        Some(if item.attributes.get_bool_default("active", false) {
+            model.state_on.as_ref().unwrap_or(model)
+        } else { model })
+    }
+    pub fn item_entity(item: &crate::Item) -> Entity {
+        let degrees = item.attributes.get_float_default("appearance_yaw", 0.);
+        let yaw = degrees.to_radians();
+        let mut entity = Entity { orientation: vek::Vec2::new(yaw.sin(), yaw.cos()), ..Default::default() };
+        entity.set_attribute("appearance_yaw", crate::Value::Float(degrees));
+        entity
+    }
+    pub fn isometric_item_sprite(&mut self, item: &crate::Item, assets: &Assets) -> Option<crate::isometric::AvatarSprite> {
+        let model = Self::resolve_item(item, assets)?;
+        model.sprite_camera(&Self::item_entity(item), assets, "idle", 0., self.time, None, true).ok()
     }
     /// A separately authored Off model owns its effects too (for example smoke).
     pub fn item_effects_enabled(item: &crate::Item) -> bool {
@@ -1326,7 +1350,7 @@ impl Runtime {
         let Some(model) = Self::resolve_item(item, assets) else {
             return false;
         };
-        let entity = Entity::default();
+        let entity = Self::item_entity(item);
         let height = match model.compile(0, assets) {
             Ok(c) => c.height,
             Err(_) => return false,
@@ -1337,7 +1361,7 @@ impl Runtime {
             assets,
             id,
             feet,
-            height,
+            height * item.attributes.get_float_default("appearance_scale", 1.),
             "idle",
             0.,
             self.time,

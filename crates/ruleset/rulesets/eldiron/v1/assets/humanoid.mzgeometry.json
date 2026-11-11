@@ -90230,6 +90230,412 @@
           }
         }
       ]
+    },
+    {
+      "id": "sit",
+      "label": "Sit",
+      "tiles": [
+        {
+          "id": "sit-0",
+          "op": {
+            "type": "motion",
+            "rig": "body",
+            "duration": 0.65,
+            "looping": false,
+            "tracks": [
+              {
+                "joint": "pelvis",
+                "keys": [
+                  {
+                    "time": 0,
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ]
+                  },
+                  {
+                    "time": 1,
+                    "translation": [
+                      0,
+                      -0.35,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ]
+                  }
+                ]
+              },
+              {
+                "joint": "left-hip",
+                "keys": [
+                  {
+                    "time": 0,
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ]
+                  },
+                  {
+                    "time": 1,
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      -90,
+                      0,
+                      0
+                    ]
+                  }
+                ]
+              },
+              {
+                "joint": "left-knee",
+                "keys": [
+                  {
+                    "time": 0,
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ]
+                  },
+                  {
+                    "time": 1,
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      90,
+                      0,
+                      0
+                    ]
+                  }
+                ]
+              },
+              {
+                "joint": "left-shoulder",
+                "keys": [
+                  {
+                    "time": 0,
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ]
+                  },
+                  {
+                    "time": 1,
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      -25,
+                      0,
+                      0
+                    ]
+                  }
+                ]
+              },
+              {
+                "joint": "left-elbow",
+                "keys": [
+                  {
+                    "time": 0,
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ]
+                  },
+                  {
+                    "time": 1,
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      -45,
+                      0,
+                      0
+                    ]
+                  }
+                ]
+              },
+              {
+                "joint": "right-hip",
+                "keys": [
+                  {
+                    "time": 0,
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ]
+                  },
+                  {
+                    "time": 1,
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      -90,
+                      0,
+                      0
+                    ]
+                  }
+                ]
+              },
+              {
+                "joint": "right-knee",
+                "keys": [
+                  {
+                    "time": 0,
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ]
+                  },
+                  {
+                    "time": 1,
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      90,
+                      0,
+                      0
+                    ]
+                  }
+                ]
+              },
+              {
+                "joint": "right-shoulder",
+                "keys": [
+                  {
+                    "time": 0,
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ]
+                  },
+                  {
+                    "time": 1,
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      -25,
+                      0,
+                      0
+                    ]
+                  }
+                ]
+              },
+              {
+                "joint": "right-elbow",
+                "keys": [
+                  {
+                    "time": 0,
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ]
+                  },
+                  {
+                    "time": 1,
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      -45,
+                      0,
+                      0
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "lie",
+      "label": "Lie",
+      "tiles": [
+        {
+          "id": "lie-0",
+          "op": {
+            "type": "motion",
+            "rig": "body",
+            "duration": 0.65,
+            "looping": false,
+            "tracks": [
+              {
+                "joint": "pelvis",
+                "keys": [
+                  {
+                    "time": 0,
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ]
+                  },
+                  {
+                    "time": 1,
+                    "translation": [
+                      0,
+                      -0.78,
+                      0
+                    ],
+                    "rotation": [
+                      -90,
+                      0,
+                      0
+                    ]
+                  }
+                ]
+              },
+              {
+                "joint": "left-elbow",
+                "keys": [
+                  {
+                    "time": 0,
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ]
+                  },
+                  {
+                    "time": 1,
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      12,
+                      0,
+                      0
+                    ]
+                  }
+                ]
+              },
+              {
+                "joint": "right-elbow",
+                "keys": [
+                  {
+                    "time": 0,
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ]
+                  },
+                  {
+                    "time": 1,
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      12,
+                      0,
+                      0
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
     }
   ],
   "output": "human",

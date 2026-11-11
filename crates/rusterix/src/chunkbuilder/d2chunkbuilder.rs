@@ -209,11 +209,11 @@ impl ChunkBuilder for D2ChunkBuilder {
                     if let Some(background) = sector
                         .properties
                         .get_source("underlay_source")
-                        .and_then(|s| s.tile_from_tile_list(assets))
+                        .and_then(|s| s.tile_id_from_tile_list(assets))
                     {
                         vmchunk.add_poly_2d(
                             GeoId::Unknown(0xD2000000 ^ sector.id),
-                            background.id,
+                            background,
                             vertices.clone(),
                             uvs.clone(),
                             geo.1.clone(),
@@ -223,10 +223,10 @@ impl ChunkBuilder for D2ChunkBuilder {
                     }
 
                     if let Some(pixelsource) = source {
-                        if let Some(tile) = pixelsource.tile_from_tile_list(assets) {
+                        if let Some(tile) = pixelsource.tile_id_from_tile_list(assets) {
                             vmchunk.add_poly_2d(
                                 GeoId::Sector(sector.id),
-                                tile.id,
+                                tile,
                                 vertices.clone(),
                                 uvs.clone(),
                                 geo.1.clone(),
@@ -262,7 +262,7 @@ impl ChunkBuilder for D2ChunkBuilder {
                         let repeat = true;
 
                         if let Some(pixelsource) = source {
-                            if let Some(tile) = pixelsource.tile_from_tile_list(assets) {
+                            if let Some(tile) = pixelsource.tile_id_from_tile_list(assets) {
                                 for vertex in &geo.0 {
                                     let local = Vec2::new(vertex[0], vertex[1]);
 
@@ -283,7 +283,7 @@ impl ChunkBuilder for D2ChunkBuilder {
                                     vertices.push([local.x, local.y]);
                                 }
 
-                                if let Some(texture_index) = assets.tile_index(&tile.id) {
+                                if let Some(texture_index) = assets.tile_index(&tile) {
                                     let batch = Batch2D::new(vertices, geo.1.clone(), uvs)
                                         .repeat_mode(if repeat {
                                             crate::RepeatMode::RepeatXY
@@ -324,8 +324,8 @@ impl ChunkBuilder for D2ChunkBuilder {
                         let mut uvs: Vec<[f32; 2]> = vec![];
 
                         if let Some(pixelsource) = source {
-                            if let Some(tile) = pixelsource.tile_from_tile_list(assets) {
-                                if let Some(texture_index) = assets.tile_index(&tile.id) {
+                            if let Some(tile) = pixelsource.tile_id_from_tile_list(assets) {
+                                if let Some(texture_index) = assets.tile_index(&tile) {
                                     for vertex in &geo.0 {
                                         let local = Vec2::new(vertex[0], vertex[1]);
 
@@ -359,8 +359,7 @@ impl ChunkBuilder for D2ChunkBuilder {
                 map.properties.get("default_terrain_tile")
             {
                 pixel_source
-                    .tile_from_tile_list(assets)
-                    .map(|tile| tile.id)
+                    .tile_id_from_tile_list(assets)
                     .unwrap_or(fallback_tile_id)
             } else {
                 fallback_tile_id
@@ -531,7 +530,7 @@ impl ChunkBuilder for D2ChunkBuilder {
                         let has_manual_tile_override = if let Some(overrides) = tile_overrides {
                             overrides
                                 .get(&(tile_x, tile_z))
-                                .and_then(|ps| ps.tile_from_tile_list(assets))
+                                .and_then(|ps| ps.tile_id_from_tile_list(assets))
                                 .is_some()
                         } else {
                             false
@@ -539,7 +538,7 @@ impl ChunkBuilder for D2ChunkBuilder {
                         let has_manual_blend_override = if let Some(overrides) = blend_overrides {
                             overrides
                                 .get(&(tile_x, tile_z))
-                                .and_then(|(_, ps)| ps.tile_from_tile_list(assets))
+                                .and_then(|(_, ps)| ps.tile_id_from_tile_list(assets))
                                 .is_some()
                         } else {
                             false
@@ -584,9 +583,7 @@ impl ChunkBuilder for D2ChunkBuilder {
 
                         let bg_tile = if let Some(overrides) = tile_overrides {
                             if let Some(ps) = overrides.get(&(tile_x, tile_z)) {
-                                ps.tile_from_tile_list(assets)
-                                    .map(|t| t.id)
-                                    .unwrap_or(default_tile_id)
+                                ps.tile_id_from_tile_list(assets).unwrap_or(default_tile_id)
                             } else {
                                 default_tile_id
                             }
@@ -619,8 +616,7 @@ impl ChunkBuilder for D2ChunkBuilder {
                         } else if !has_road_tile && !has_ridge_tile && !has_vertex_tile {
                             blend_tile_id = blend_overrides
                                 .and_then(|m| m.get(&(tile_x, tile_z)))
-                                .and_then(|(_, ps)| ps.tile_from_tile_list(assets))
-                                .map(|tile| tile.id);
+                                .and_then(|(_, ps)| ps.tile_id_from_tile_list(assets));
                             blend_preset =
                                 blend_overrides.and_then(|m| m.get(&(tile_x, tile_z)).map(|v| v.0));
                             if blend_tile_id.is_some() {
@@ -747,7 +743,11 @@ impl ChunkBuilder for D2ChunkBuilder {
                         }
 
                         if let Some(tile_id2) = blend_tile_id {
-                            let tile_id2 = super::terrain_material::resolve(&terrain_outputs, assets, tile_id2);
+                            let tile_id2 = super::terrain_material::resolve(
+                                &terrain_outputs,
+                                assets,
+                                tile_id2,
+                            );
                             vmchunk.add_poly_2d_blended(
                                 GeoId::Terrain(tile_x, tile_z),
                                 primary_tile_id,
@@ -773,6 +773,45 @@ impl ChunkBuilder for D2ChunkBuilder {
                     }
                 }
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod source_tests {
+    use super::*;
+
+    #[test]
+    fn uncached_palette_and_noise_sources_still_produce_two_d_geometry() {
+        let mut assets = Assets::default();
+        assets.palette.colors[0] = Some(theframework::prelude::TheColor::from_u8_array([
+            120, 150, 80, 255,
+        ]));
+        for source in [
+            PixelSource::PaletteIndex(0),
+            PixelSource::Noise(crate::map::pixelsource::NoiseMaterial::default()),
+        ] {
+            let expected = source.tile_from_tile_list(&assets).unwrap().id;
+            let mut map = Map::default();
+            let vertices =
+                [[0., 0.], [1., 0.], [1., 1.], [0., 1.]].map(|p| map.add_vertex_at(p[0], p[1]));
+            for i in 0..4 {
+                map.create_linedef_manual(vertices[i], vertices[(i + 1) % 4]);
+            }
+            let id = map.close_polygon_manual().unwrap();
+            map.find_sector_mut(id)
+                .unwrap()
+                .properties
+                .set("source", Value::Source(source));
+            let mut chunk = Chunk::new(Vec2::zero(), 32);
+            let mut vmchunk = scenevm::Chunk::new(Vec2::zero(), 32);
+            D2ChunkBuilder::new().build(&map, &assets, &mut chunk, &mut vmchunk);
+            assert!(
+                vmchunk
+                    .polys_map
+                    .values()
+                    .any(|poly| poly.id == GeoId::Sector(id) && poly.tile_id == expected)
+            );
         }
     }
 }

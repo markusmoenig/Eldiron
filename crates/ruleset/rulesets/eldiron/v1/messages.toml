@@ -33,6 +33,8 @@ no_effect_key = "spells.no_effect"
 heal_key = "spells.heal"
 
 [messages.system]
+door_locked_key = "system.door_locked"
+door_obstructed_key = "system.door_obstructed"
 look_at_what_key = "system.look_at_what"
 not_seen_here_key = "system.not_seen_here"
 not_seen_target_key = "system.not_seen_target"

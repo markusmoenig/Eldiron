@@ -1,6 +1,6 @@
 use crate::{
     Assets, BBox, BlockPropAsset, Chunk, ChunkBuilder, D2ChunkBuilder, GeometryObjectBuilder, Map,
-    PixelSource, Texture, Tile, Value, ValueContainer, resolve_block_prop_geometry,
+    MapCamera, PixelSource, Texture, Tile, Value, ValueContainer, resolve_block_prop_geometry,
 };
 use indexmap::IndexMap;
 use scenevm::Chunk as VMChunk;
@@ -363,7 +363,11 @@ impl SceneManager {
             let mut chunk = Chunk::new(Vec2::new(coord.0, coord.1), self.chunk_size);
             let mut vmchunk = VMChunk::new(Vec2::new(coord.0, coord.1), self.chunk_size);
 
-            if let Some(cb_d2) = &mut self.chunk_builder_d2 {
+            // Sprite/plan geometry is not consumed by 3D cameras. In particular,
+            // do not regenerate a hidden 2D terrain sheet on a camera switch.
+            if matches!(self.map.camera, MapCamera::TwoD | MapCamera::TwoDIso)
+                && let Some(cb_d2) = &mut self.chunk_builder_d2
+            {
                 cb_d2.build(&self.map, &self.assets, &mut chunk, &mut vmchunk);
             }
 
@@ -433,6 +437,59 @@ impl SceneManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn three_d_cameras_skip_the_sprite_builder_and_two_d_cameras_restore_it() {
+        use std::sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        };
+        #[derive(Clone, Default)]
+        struct CountBuilder(Arc<AtomicUsize>);
+        impl ChunkBuilder for CountBuilder {
+            fn new() -> Self {
+                Self::default()
+            }
+            fn build(&mut self, _: &Map, _: &Assets, _: &mut Chunk, _: &mut VMChunk) {
+                self.0.fetch_add(1, Ordering::Relaxed);
+            }
+            fn boxed_clone(&self) -> Box<dyn ChunkBuilder> {
+                Box::new(self.clone())
+            }
+        }
+        let sprite = CountBuilder::new();
+        let geometry = CountBuilder::new();
+        let mut manager = SceneManager::new();
+        manager.chunk_builder_d2 = Some(Box::new(sprite.clone()));
+        manager.chunk_builder_d3 = Some(Box::new(geometry.clone()));
+        for (step, camera) in [
+            MapCamera::ThreeDIso,
+            MapCamera::ThreeDFirstPerson,
+            MapCamera::TwoD,
+            MapCamera::TwoDIso,
+            MapCamera::ThreeDIso,
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            manager.map.camera = camera;
+            manager.replace_dirty(vec![(0, 0)]);
+            assert_eq!(manager.tick_batch(8), 1);
+            assert_eq!(geometry.0.load(Ordering::Relaxed), step + 1);
+            assert_eq!(
+                sprite.0.load(Ordering::Relaxed),
+                match step {
+                    0 | 1 => 0,
+                    2 => 1,
+                    _ => 2,
+                }
+            );
+            assert!(matches!(
+                manager.receive(),
+                Some(SceneManagerResult::Chunk(..))
+            ));
+        }
+    }
 
     #[test]
     fn baked_texture_sync_preserves_queued_map_work_and_does_not_clear() {

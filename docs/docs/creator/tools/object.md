@@ -16,7 +16,7 @@ It is the main tool for the new 3D editing workflow. Use it to select whole geom
 - **B in Orbit mode, then drag**: Perform a one-shot Box Select. Hold **Shift** to add or **Alt/Option** to remove; press **Escape** to cancel.
 - **Delete**: Delete selected geometry objects.
 
-The same Orbit-only `B` workflow rectangle-selects faces, edges, or vertices when their corresponding tool is active. In Iso and First Person, `B` retains the Prefab Tool accelerator.
+The same Orbit-only `B` workflow rectangle-selects faces, edges, or vertices when their corresponding tool is active. In Iso and First Person, `B` retains the 3D Props Tool accelerator.
 
 ## Object Gizmos
 
@@ -45,7 +45,7 @@ Object movement and resizing use the current grid snap step. When multiple objec
 
 Duplicate remembers the last 3D object offset so repeated duplication can be used for quick blockout placement. After duplicating Geometry Objects, the duplicated objects become the active object-level selection so they can be moved together immediately and undone as one map edit.
 
-Selected Geometry Objects can also become reusable assets through **Create Linked Prefab** or **Create Prefab Copy**. Linked creation replaces the selection with an instance; copy creation keeps the original geometry. See [Prefab Tool](blocks) for placement, source editing, uniqueness, and unpacking.
+Selected Geometry Objects can also become reusable assets through **Create Linked Prefab** or **Create Prefab Copy**. Linked creation replaces the selection with an instance; copy creation keeps the original geometry. See [3D Props Tool](blocks) for placement, source editing, uniqueness, and unpacking.
 
 ## 3D Tool Switching
 
@@ -75,3 +75,16 @@ See the per-tool pages for the shortcuts owned by those modes:
 - **, / .**: Decrease or increase the 3D grid snap subdivision.
 
 The grid snap step is shared by object movement, face extrusion, vertex moves, resize handles, duplication offsets, and surface-detail editing. In 3D views the visible grid subdivision lines match this same snap step.
+
+## Author placed items
+
+Object mode also selects placed items in 2D, 2D Iso and 3D.
+Enable **Authoring**, then click the door or bed on the map to edit
+that placement's descriptions. Isometric item selection uses the rendered sprite
+silhouette and the placement's stable identity, including before the game has
+assigned runtime IDs. It does not require an entry in the global Items list.
+Use the Entity tool when you want to reposition a character or item; Object
+mode's geometry gizmos continue to edit 3D geometry.
+
+UnendingNight includes an authored inn door, bed and benches. See
+[Authoring](../authoring) and [Furniture](../../characters_items/furniture).

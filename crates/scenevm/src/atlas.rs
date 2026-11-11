@@ -62,7 +62,12 @@ pub struct SharedAtlasInner {
     pub tiles_order: Vec<Uuid>,
     pub atlas: Texture,
     pub atlas_material: Texture,
+    /// Packed pixels need uploading; metadata queries must not repaint them.
     pub atlas_dirty: bool,
+    /// Source pixels changed without a layout rebuild (raw-access callers).
+    pub pixels_dirty: bool,
+    #[cfg(test)]
+    pixel_build_count: usize,
     pub layout_dirty: bool,
     pub layout_version: u64,
     pub tiles_index_map: FxHashMap<Uuid, u32>,
@@ -70,6 +75,9 @@ pub struct SharedAtlasInner {
     pub auto_size: bool,
     pub content_version: u64,
     translucency: FxHashMap<Uuid, (u64, bool)>,
+    emission: Option<(u64, u64, Vec<TileEmissiveSummary>)>,
+    #[cfg(test)]
+    emission_build_count: usize,
 }
 
 #[derive(Clone)]
@@ -86,6 +94,9 @@ impl SharedAtlas {
                 atlas: Texture::new(width, height),
                 atlas_material: Texture::new(width, height),
                 atlas_dirty: true,
+                pixels_dirty: true,
+                #[cfg(test)]
+                pixel_build_count: 0,
                 layout_dirty: true,
                 layout_version: 0,
                 tiles_index_map: FxHashMap::default(),
@@ -93,6 +104,9 @@ impl SharedAtlas {
                 auto_size: true,
                 content_version: 0,
                 translucency: FxHashMap::default(),
+                emission: None,
+                #[cfg(test)]
+                emission_build_count: 0,
             })),
         }
     }
@@ -125,6 +139,7 @@ impl SharedAtlas {
             guard.tiles_order.push(id);
         }
         guard.atlas_dirty = true;
+        guard.pixels_dirty = true;
         guard.layout_dirty = true;
         guard.content_version = guard.content_version.wrapping_add(1);
     }
@@ -165,7 +180,16 @@ impl SharedAtlas {
     }
 
     pub fn tile_emissive_summaries(&self) -> Vec<TileEmissiveSummary> {
-        let guard = self.inner.lock().unwrap();
+        let mut guard = self.inner.lock().unwrap();
+        if let Some((content, layout, summaries)) = &guard.emission
+            && (*content, *layout) == (guard.content_version, guard.layout_version)
+        {
+            return summaries.clone();
+        }
+        #[cfg(test)]
+        {
+            guard.emission_build_count += 1;
+        }
         let mut summaries = Vec::new();
         for id in &guard.tiles_order {
             if !guard.tiles_index_map.contains_key(id) {
@@ -176,6 +200,11 @@ impl SharedAtlas {
             };
             summaries.push(summarize_tile_emission(tile));
         }
+        guard.emission = Some((
+            guard.content_version,
+            guard.layout_version,
+            summaries.clone(),
+        ));
         summaries
     }
 
@@ -294,6 +323,7 @@ impl SharedAtlas {
         guard.tiles_order.retain(|tid| tid != id);
         guard.atlas_map.remove(id);
         guard.atlas_dirty = true;
+        guard.pixels_dirty = true;
         guard.layout_dirty = true;
         guard.content_version = guard.content_version.wrapping_add(1);
     }
@@ -307,6 +337,7 @@ impl SharedAtlas {
         fill_default_material_pixels(&mut guard.atlas_material.data);
         guard.atlas_map.clear();
         guard.atlas_dirty = true;
+        guard.pixels_dirty = true;
         guard.layout_dirty = true;
         guard.content_version = guard.content_version.wrapping_add(1);
     }
@@ -316,6 +347,7 @@ impl SharedAtlas {
         let tile = guard.tiles_map.get_mut(id)?;
         let out = f(tile);
         guard.atlas_dirty = true;
+        guard.pixels_dirty = true;
         guard.content_version = guard.content_version.wrapping_add(1);
         // A changed tile may have shared its atlas storage with another identity.
         // Repack to detach changed frames before uploading either color or PBR.
@@ -345,6 +377,7 @@ impl SharedAtlas {
 
     #[cfg(feature = "gpu")]
     pub fn upload_to_gpu_with(&self, device: &wgpu::Device, queue: &wgpu::Queue) {
+        self.ensure_built();
         let mut guard = self.inner.lock().unwrap();
         if guard.atlas_dirty {
             guard.atlas.upload_to_gpu_with(device, queue);
@@ -404,7 +437,7 @@ impl SharedAtlas {
             guard.layout_dirty = false;
             return true;
         }
-        if guard.atlas_dirty {
+        if guard.pixels_dirty {
             repaint_atlas_pixels_inner(&mut guard);
         }
         false
@@ -449,6 +482,7 @@ impl SharedAtlas {
         guard.atlas = Texture::new(width, height);
         guard.atlas_material = Texture::new(width, height);
         guard.atlas_dirty = true;
+        guard.pixels_dirty = true;
         guard.layout_dirty = true;
         guard.atlas_map.clear();
         guard.tiles_index_map.clear();
@@ -458,7 +492,8 @@ impl SharedAtlas {
     }
 
     /// Raw access: content edits must advance `content_version` and set the
-    /// appropriate dirty flags. Prefer `with_tile_mut` for ordinary tile edits.
+    /// `pixels_dirty`/`atlas_dirty` (and `layout_dirty` for layout changes).
+    /// Prefer `with_tile_mut` for ordinary tile edits.
     pub fn inner_arc(&self) -> Arc<Mutex<SharedAtlasInner>> {
         Arc::clone(&self.inner)
     }
@@ -493,6 +528,11 @@ fn frame_identity(tile: &Tile, frame: usize) -> FrameIdentity<'_> {
 }
 
 fn build_atlas_inner(inner: &mut SharedAtlasInner) {
+    #[cfg(test)]
+    {
+        inner.pixel_build_count += 1;
+    }
+    inner.pixels_dirty = false;
     inner.atlas.data.fill(0);
     fill_default_material_pixels(&mut inner.atlas_material.data);
     inner.atlas_map.clear();
@@ -678,6 +718,7 @@ fn auto_resize_atlas_inner(inner: &mut SharedAtlasInner) {
         inner.atlas = Texture::new(side, side);
         inner.atlas_material = Texture::new(side, side);
         inner.atlas_dirty = true;
+        inner.pixels_dirty = true;
         inner.layout_dirty = true;
         inner.atlas_map.clear();
         inner.tiles_index_map.clear();
@@ -686,6 +727,11 @@ fn auto_resize_atlas_inner(inner: &mut SharedAtlasInner) {
 }
 
 fn repaint_atlas_pixels_inner(inner: &mut SharedAtlasInner) {
+    #[cfg(test)]
+    {
+        inner.pixel_build_count += 1;
+    }
+    inner.pixels_dirty = false;
     inner.atlas.data.fill(0);
     fill_default_material_pixels(&mut inner.atlas_material.data);
 
@@ -906,6 +952,11 @@ fn alpha_bleed_colors(src: &[u8], w: u32, h: u32, iterations: u32) -> Vec<u8> {
     if src.is_empty() || w == 0 || h == 0 {
         return src.to_vec();
     }
+    // Opaque terrain/material pages have no edge to bleed. Fully transparent
+    // images have no color donor. Both are common in procedural atlas pages.
+    if !src.chunks_exact(4).any(|p| p[3] == 0) || !src.chunks_exact(4).any(|p| p[3] != 0) {
+        return src.to_vec();
+    }
     let mut out = src.to_vec();
     let mut prev = out.clone();
     let w_us = w as usize;
@@ -1042,6 +1093,101 @@ fn blit_rgba_into_with_border(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn metadata_queries_do_not_repaint_pixels_while_gpu_upload_is_pending() {
+        let atlas = SharedAtlas::new(16, 16);
+        let id = Uuid::new_v4();
+        atlas.add_tile(id, 1, 1, vec![vec![80, 90, 100, 255]], vec![]);
+        assert!(atlas.ensure_built());
+        for _ in 0..6 {
+            assert!(!atlas.ensure_built());
+            assert!(atlas.sdf_uv4(&id, 0).is_some());
+        }
+        {
+            let inner = atlas.inner.lock().unwrap();
+            assert!(inner.atlas_dirty, "GPU upload must still be pending");
+            assert_eq!(inner.pixel_build_count, 1);
+        }
+        atlas.with_tile_mut(&id, |tile| tile.frames[0] = vec![11, 22, 33, 255]);
+        assert!(atlas.ensure_built());
+        assert!(!atlas.ensure_built());
+        let rect = atlas.frame_rect(&id, 0).unwrap();
+        let inner = atlas.inner.lock().unwrap();
+        let offset = (rect.y * inner.atlas.width + rect.x) as usize * 4;
+        assert_eq!(&inner.atlas.data[offset..offset + 4], &[11, 22, 33, 255]);
+        assert_eq!(inner.pixel_build_count, 2);
+        assert!(inner.atlas_dirty);
+    }
+
+    #[test]
+    fn raw_pixel_edits_repaint_once_without_changing_layout() {
+        let atlas = SharedAtlas::new(16, 16);
+        let id = Uuid::new_v4();
+        atlas.add_tile(id, 1, 1, vec![vec![80, 90, 100, 255]], vec![]);
+        atlas.ensure_built();
+        let layout = atlas.layout_version();
+        {
+            let mut inner = atlas.inner.lock().unwrap();
+            inner.tiles_map.get_mut(&id).unwrap().frames[0] = vec![200, 0, 0, 255];
+            inner.pixels_dirty = true;
+            inner.atlas_dirty = true;
+            inner.content_version += 1;
+        }
+        assert!(!atlas.ensure_built());
+        assert!(!atlas.ensure_built());
+        assert_eq!(atlas.layout_version(), layout);
+        let rect = atlas.frame_rect(&id, 0).unwrap();
+        let inner = atlas.inner.lock().unwrap();
+        let offset = (rect.y * inner.atlas.width + rect.x) as usize * 4;
+        assert_eq!(&inner.atlas.data[offset..offset + 4], &[200, 0, 0, 255]);
+        assert_eq!(inner.pixel_build_count, 2);
+    }
+
+    #[test]
+    fn layers_share_emission_analysis_and_edits_refresh_color_and_material() {
+        let atlas = SharedAtlas::new(16, 16);
+        let id = Uuid::new_v4();
+        atlas.add_tile(
+            id,
+            1,
+            1,
+            vec![vec![255, 0, 0, 255]],
+            vec![vec![SEMANTIC_MATERIAL_MARKER, 32, 128, 128]],
+        );
+        atlas.ensure_built();
+        for layer in [atlas.clone(), atlas.clone(), atlas.clone()] {
+            let result = layer.tile_emissive_summaries();
+            assert_eq!(result[0].color_linear, [1., 0., 0.]);
+            assert!(result[0].strength > 0.);
+        }
+        assert_eq!(atlas.inner.lock().unwrap().emission_build_count, 1);
+        atlas.with_tile_mut(&id, |tile| tile.frames[0] = vec![0, 255, 0, 255]);
+        atlas.ensure_built();
+        assert_eq!(
+            atlas.tile_emissive_summaries()[0].color_linear,
+            [0., 1., 0.]
+        );
+        atlas.with_tile_mut(&id, |tile| tile.material_frames[0][1] = 4);
+        atlas.ensure_built();
+        assert_eq!(atlas.tile_emissive_summaries()[0].strength, 0.);
+        assert_eq!(atlas.inner.lock().unwrap().emission_build_count, 3);
+    }
+
+    #[test]
+    fn opaque_and_empty_pages_skip_bleeding_without_changing_edge_colors() {
+        let opaque = [9, 30, 70, 255].repeat(4);
+        let empty = [20, 40, 10, 0].repeat(4);
+        assert_eq!(alpha_bleed_colors(&opaque, 2, 2, 4), opaque);
+        assert_eq!(alpha_bleed_colors(&empty, 2, 2, 4), empty);
+        let edge = vec![200, 100, 50, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        assert_eq!(
+            alpha_bleed_colors(&edge, 2, 2, 4),
+            vec![
+                200, 100, 50, 255, 200, 100, 50, 0, 200, 100, 50, 0, 200, 100, 50, 0
+            ]
+        );
+    }
 
     #[test]
     fn procedural_icons_and_alpha_advance_once_per_normal_tile_tick() {

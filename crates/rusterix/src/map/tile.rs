@@ -391,6 +391,9 @@ pub struct TileUvPages {
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct PaintAssetLayout {
+    /// Derived native generator settings; absent when the MZ graph supplies custom output.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generator: Option<String>,
     pub brush: String,
     pub stamp: bool,
     pub shape: String,
@@ -517,8 +520,8 @@ impl Tile {
     /// Spatial pages and animation must address the same texel for both samples.
     #[inline]
     pub fn sample_surface_2d(&self, uv: [f32; 2], frame: usize) -> ([u8; 4], [f32; 3]) {
-        let (color, material) = self.sample_paint_surface(uv,frame);
-        (color,[material[0],material[1],material[3]])
+        let (color, material) = self.sample_paint_surface(uv, frame);
+        (color, [material[0], material[1], material[3]])
     }
     #[inline]
     pub fn sample_paint_surface(&self, uv: [f32; 2], frame: usize) -> ([u8; 4], [f32; 4]) {
@@ -713,6 +716,13 @@ impl Tile {
             }
         }
         b
+    }
+
+    /// Projection-specific sprite art, as opposed to camera-independent ground materials.
+    pub fn is_isometric_sprite(&self) -> bool {
+        self.isometric
+            .as_ref()
+            .is_some_and(|s| s.bitmap || !s.ground)
     }
 
     /// Checks if the tile is empty

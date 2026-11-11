@@ -2,7 +2,10 @@
 use crate::prelude::*;
 pub const MODE: &str = "Paint Picker Mode";
 const EDIT: &str = "Paint Picker Edit";
-fn layer<'a>(project: &'a mut Project, server: &ServerContext) -> Option<&'a mut IsoPaintLayer> {
+pub(crate) fn layer<'a>(
+    project: &'a mut Project,
+    server: &ServerContext,
+) -> Option<&'a mut IsoPaintLayer> {
     if let ProjectContext::Prefab(id) = server.pc {
         Some(project.block_prop_paint.entry(id).or_default())
     } else {
@@ -29,12 +32,12 @@ pub fn pick(id: Uuid, project: &mut Project, server: &ServerContext) -> bool {
         .insert(id, std::sync::Arc::new(tile.clone()));
     paint.source_revision = None;
     if let Some(layout) = &tile.paint {
-        paint.active_brush = if layout.stamp {
+        paint.active_brush = if layout.stamp || layout.generator.is_some() {
             layout.brush.clone()
         } else {
             "material".into()
         };
-        paint.active_brush_shape = if layout.stamp {
+        paint.active_brush_shape = if layout.stamp || layout.generator.is_some() {
             layout.shape.clone()
         } else {
             "solid".into()
@@ -48,123 +51,54 @@ pub fn pick(id: Uuid, project: &mut Project, server: &ServerContext) -> bool {
         paint.active_brush_shape = "solid".into();
         paint.active_material_mode = "coat".into();
     }
+    paint.apply_source_settings();
     paint.active_operation = "draw".into();
     true
 }
+// Settings are drawn by PaintOverlay in the viewport, not mounted in the app chrome.
 pub fn toolbar(
-    ui: &mut TheUI,
+    _ui: &mut TheUI,
     ctx: &mut TheContext,
     project: &mut Project,
     server: &ServerContext,
 ) {
-    let Some(paint) = layer(project, server) else {
-        return;
-    };
-    let source = paint.active_source;
-    let picked_color = paint.active_color;
-    let stamp = paint.active_material_mode == "stamp";
-    let selected = match paint.active_operation.as_str() {
-        "erase" => 2,
-        "pick" => 3,
-        "select" => 4,
-        _ if stamp => 1,
-        _ => 0,
-    };
-    let size = paint.active_size;
-    let opacity = paint.active_opacity;
-    let density = paint.active_stamp_density;
-    let jitter = paint.active_stamp_size_jitter;
-    let rotation = paint.active_stamp_rotation_jitter;
-    let name = source.and_then(|id| project.tiles.get(&id)).map_or_else(
-        || {
-            format!(
-                "{} #{:02X}{:02X}{:02X}",
-                fl!("iso_paint_color"),
-                picked_color[0],
-                picked_color[1],
-                picked_color[2]
-            )
-        },
-        |t| t.alias.clone(),
-    );
-    let editable = source.is_some_and(|id| project.procedural_materials.contains_key(&id));
-    let Some(bar) = ui.get_hlayout("Game Tool Params") else {
-        return;
-    };
-    bar.clear();
-    bar.set_margin(Vec4::new(5, 1, 5, 1));
-    bar.set_padding(4);
-    let mut modes = TheGroupButton::new(TheId::named(MODE));
-    for text in [
-        fl!("paint_picker_paint"),
-        fl!("paint_picker_scatter"),
-        fl!("iso_paint_operation_erase"),
-        fl!("iso_paint_operation_pick"),
-        fl!("iso_paint_operation_select"),
-    ] {
-        modes.add_text(text);
+    if let Some(paint) = layer(project, server) {
+        paint.apply_source_settings();
     }
-    modes.set_item_width(50);
-    modes.set_index(selected);
-    bar.add_widget(Box::new(modes));
-    if !stamp {
-        let mut blend = TheGroupButton::new(TheId::named("Paint Picker Blend"));
-        blend.add_text(fl!("iso_paint_material_mode_coat"));
-        blend.add_text(fl!("iso_paint_material_mode_replace"));
-        blend.set_item_width(48);
-        blend.set_index(
-            if layer(project, server).is_some_and(|p| p.active_material_mode == "replace") {
-                1
-            } else {
-                0
-            },
-        );
-        bar.add_widget(Box::new(blend));
-    }
-    let mut name_label = TheText::new(TheId::named("Paint Picker Source"));
-    name_label.set_text(name);
-    name_label.limiter_mut().set_max_width(100);
-    bar.add_widget(Box::new(name_label));
-    for (id, label, value, min, max) in [
-        (
-            "Size",
-            fl!("paint_picker_size"),
-            size,
-            0.05,
-            if stamp { 8. } else { 16. },
-        ),
-        ("Opacity", fl!("iso_paint_opacity"), opacity, 0., 1.),
-    ]
-    .into_iter()
-    .chain(stamp.then_some(("Density", fl!("iso_paint_stamp_density"), density, 0., 1.)))
-    .chain(stamp.then_some(("Jitter", fl!("paint_picker_jitter"), jitter, 0., 1.)))
-    .chain(stamp.then_some(("Rotate", fl!("paint_picker_rotate"), rotation, 0., 1.)))
-    {
-        let mut text = TheText::new(TheId::empty());
-        text.set_text(label);
-        text.limiter_mut().set_max_width(55);
-        bar.add_widget(Box::new(text));
-        let mut field = TheTextLineEdit::new(TheId::named(&format!("Paint Picker {id}")));
-        field.set_value(TheValue::Float(value));
-        field.set_range(TheValue::RangeF32(min..=max));
-        field.limiter_mut().set_max_width(44);
-        bar.add_widget(Box::new(field));
-    }
-    if selected == 4 {
-        let mut fill = TheTraybarButton::new(TheId::named("Paint Picker Fill"));
-        fill.set_text(fl!("iso_paint_fill_selection"));
-        bar.add_widget(Box::new(fill));
-        let mut clear = TheTraybarButton::new(TheId::named("Paint Picker Clear"));
-        clear.set_text(fl!("iso_paint_clear_selection"));
-        bar.add_widget(Box::new(clear));
-    }
-    let mut edit = TheTraybarButton::new(TheId::named(EDIT));
-    edit.set_text(fl!("paint_picker_edit"));
-    edit.set_disabled(!editable);
-    bar.add_widget(Box::new(edit));
-    ctx.ui.relayout = true;
     ctx.ui.redraw_all = true;
 }
+
+fn publish(
+    ui: &mut TheUI,
+    ctx: &mut TheContext,
+    project: &mut Project,
+    server: &ServerContext,
+    spec: shared::paint_source::Spec,
+) -> Result<(), String> {
+    let id = layer(project, server)
+        .and_then(|p| p.active_source)
+        .ok_or("Select a Paint recipe")?;
+    let (before, after) = crate::procedural_material::paint_assets::update_spec(project, id, spec)?;
+    if before != after {
+        crate::editor::UNDOMANAGER.write().unwrap().add_undo(
+            ProjectUndoAtom::ProceduralMaterialEdit(id, before, after),
+            ctx,
+        );
+        crate::utils::editor_scene_refresh_material_textures(project, server);
+        let assets = crate::editor::RUSTERIX.read().unwrap();
+        if let Some(paint) = layer(project, server) {
+            paint.refresh_sources(&assets.assets);
+            paint.apply_source_settings();
+        }
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named("Update Tilepicker Textures"),
+            TheValue::Empty,
+        ));
+    }
+    toolbar(ui, ctx, project, server);
+    Ok(())
+}
+
 pub fn activate(
     ui: &mut TheUI,
     ctx: &mut TheContext,
@@ -183,7 +117,7 @@ pub fn activate(
             .find(|(_, t)| {
                 t.paint
                     .as_ref()
-                    .is_some_and(|p| !p.stamp && p.brush == "material" && p.material_id == 0)
+                    .is_some_and(|p| !p.stamp && p.brush == "moss")
             })
             .map(|(id, _)| *id)
     });
@@ -206,13 +140,11 @@ pub fn activate(
     let collection_name = selected
         .and_then(|id| project.tiles.get(&id))
         .and_then(|tile| tile.paint.as_ref())
-        .map_or("Paint materials", |source| {
+        .map_or("Paint Brushes", |source| {
             if source.stamp {
-                "Organic stamps"
-            } else if source.brush == "material" {
-                "Paint materials"
+                "Organic Stamps"
             } else {
-                "Paint brushes"
+                "Paint Brushes"
             }
         });
     let collection = project
@@ -238,8 +170,209 @@ pub fn event(
     if server.curr_map_tool_type != MapToolType::IsoPaint {
         return false;
     }
+    let source = layer(project, server).and_then(|p| p.active_source);
+    let mut spec =
+        source.and_then(|id| crate::procedural_material::paint_assets::selected_spec(project, id));
+    let mut source_edit = false;
     match event {
-        TheEvent::Custom(id, _) if id.name == "Paint Picker Refresh" => {
+        TheEvent::ValueChanged(id, value) if id.name.starts_with("Paint Overlay ") => {
+            let Some(number) = value.to_f32().filter(|v| v.is_finite()) else {
+                return true;
+            };
+            let key = id.name.trim_start_matches("Paint Overlay ");
+            if let Some(spec) = spec.as_mut() {
+                match key {
+                    "Scale" => {
+                        spec.scale = number.clamp(0.25, 4.);
+                        source_edit = true;
+                    }
+                    "Mortar" => {
+                        spec.mortar = number.clamp(0., 0.4);
+                        source_edit = true;
+                    }
+                    "Detail" => {
+                        spec.detail = number.clamp(0., 1.);
+                        source_edit = true;
+                    }
+                    "Variation" => {
+                        spec.variation = number.clamp(0., 1.);
+                        source_edit = true;
+                    }
+                    _ => {}
+                }
+            }
+            if !source_edit {
+                if let Some(paint) = layer(project, server) {
+                    match key {
+                        "Size" => paint.active_size = number.clamp(0.05, 16.),
+                        "Opacity" => paint.active_opacity = number.clamp(0., 1.),
+                        "Density" => paint.active_stamp_density = number.clamp(0., 1.),
+                        "Jitter" => paint.active_stamp_size_jitter = number.clamp(0., 1.),
+                        "Rotate" => paint.active_stamp_rotation_jitter = number.clamp(0., 1.),
+                        _ => {}
+                    }
+                }
+            }
+        }
+        TheEvent::IndexChanged(id, index)
+            if id.name == "Paint Overlay Pattern" || id.name == "Paint Overlay Clip" =>
+        {
+            if id.name == "Paint Overlay Pattern" {
+                if let Some(spec) = spec.as_mut() {
+                    spec.pattern = ["tiles", "bricks", "arch"][(*index).min(2)].into();
+                    source_edit = true;
+                }
+            } else if let Some(paint) = layer(project, server) {
+                paint.active_clip = if *index == 1 { "surface" } else { "none" }.into();
+            }
+        }
+        TheEvent::PaletteIndexChanged(id, index)
+            if id.name.starts_with("Paint Overlay Palette ") =>
+        {
+            if source.unwrap_or_default() != id.uuid {
+                return true;
+            }
+            if let Some(slot) = id
+                .name
+                .trim_start_matches("Paint Overlay Palette ")
+                .parse::<usize>()
+                .ok()
+            {
+                if let Some(spec) = spec.as_mut() {
+                    if slot < spec.colors.len() {
+                        spec.palette.resize(spec.colors.len(), None);
+                        spec.palette[slot] = Some(*index);
+                        source_edit = true;
+                    }
+                } else if source.is_none() {
+                    if let Some(color) = project
+                        .palette
+                        .colors
+                        .get(*index as usize)
+                        .and_then(Option::as_ref)
+                        .map(|c| c.to_u8_array())
+                    {
+                        if let Some(paint) = layer(project, server) {
+                            paint.active_color = color;
+                            paint.active_palette_colors = vec![color];
+                            paint.active_palette_indices = vec![*index];
+                        }
+                    }
+                }
+            }
+            ui.clear_popover(ctx);
+        }
+        TheEvent::ContextMenuSelected(id, item) if id.name == "Paint Overlay Choices" => {
+            let parts: Vec<_> = item.name.split_whitespace().collect();
+            if let Some(index) = parts.last().and_then(|s| s.parse::<usize>().ok()) {
+                let key = parts.get(3).copied().unwrap_or("");
+                if let Some(spec) = spec.as_mut() {
+                    match key {
+                        "Material" => {
+                            spec.material_id = (index.min(14) * 4) as u8 + spec.material_id % 4;
+                            source_edit = true;
+                        }
+                        "Finish" => {
+                            spec.material_id = (spec.material_id / 4) * 4 + index.min(3) as u8;
+                            source_edit = true;
+                        }
+                        "Shape" => {
+                            spec.shape = [
+                                "solid", "soft", "dirt", "speckle", "jagged", "scratch", "wash",
+                            ][index.min(6)]
+                            .into();
+                            source_edit = true;
+                        }
+                        _ => {}
+                    }
+                } else if source.is_none() {
+                    if let Some(paint) = layer(project, server) {
+                        match key {
+                            "Material" => {
+                                paint.active_material_id =
+                                    (index.min(14) * 4) as u8 + paint.active_material_id % 4
+                            }
+                            "Finish" => {
+                                paint.active_material_id =
+                                    (paint.active_material_id / 4) * 4 + index.min(3) as u8
+                            }
+                            "Shape" => {
+                                paint.active_brush_shape = [
+                                    "solid", "soft", "dirt", "speckle", "jagged", "scratch", "wash",
+                                ][index.min(6)]
+                                .into()
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+        TheEvent::Custom(id, TheValue::Text(command)) if id.name == "Paint Overlay Command" => {
+            match command.as_str() {
+                "Edit" => {
+                    if let Some(id) = source {
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Open Procedural Tile"),
+                            TheValue::Id(id),
+                        ));
+                    }
+                }
+                "Fill" | "Clear" => {
+                    return self::event(
+                        &TheEvent::StateChanged(
+                            TheId::named(if command == "Fill" {
+                                "Paint Picker Fill"
+                            } else {
+                                "Paint Picker Clear"
+                            }),
+                            TheWidgetState::Clicked,
+                        ),
+                        ui,
+                        ctx,
+                        project,
+                        server,
+                    );
+                }
+                "Visible" => {
+                    if let Some(p) = layer(project, server) {
+                        p.visible = !p.visible;
+                    }
+                }
+                "Coat" | "Replace" => {
+                    if let Some(p) = layer(project, server) {
+                        p.active_material_mode = command.to_lowercase();
+                    }
+                }
+                _ => {}
+            }
+        }
+        _ => return legacy_event(event, ui, ctx, project, server),
+    }
+    if source_edit {
+        if let Some(spec) = spec {
+            if let Err(error) = publish(ui, ctx, project, server, spec) {
+                ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
+            }
+        }
+    }
+    toolbar(ui, ctx, project, server);
+    true
+}
+
+fn legacy_event(
+    event: &TheEvent,
+    ui: &mut TheUI,
+    ctx: &mut TheContext,
+    project: &mut Project,
+    server: &mut ServerContext,
+) -> bool {
+    match event {
+        TheEvent::Custom(id, _)
+            if id.name == "Paint Picker Refresh"
+                || id.name == "Update Tilepicker Textures"
+                || id.name == "Procedural Tiles Restored" =>
+        {
             toolbar(ui, ctx, project, server);
             return true;
         }
@@ -362,4 +495,8 @@ pub fn event(
         _ => {}
     }
     false
+}
+
+pub fn deactivate(_ui: &mut TheUI, ctx: &mut TheContext) {
+    ctx.ui.redraw_all = true;
 }

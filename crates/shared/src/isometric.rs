@@ -270,6 +270,11 @@ fn material_inputs(
 }
 
 fn discover_models(project: &mut Project) {
+    let item_models = project.items.values().filter_map(|item| item.data.parse::<toml::Table>().ok())
+        .flat_map(|t| ["appearance_geometry", "appearance_geometry_off"].into_iter()
+            .filter_map(|key| t.get("attributes").and_then(|v| v.get(key)).and_then(toml::Value::as_str)
+                .and_then(|s| crate::appearance_assets::asset_id(s).ok())).collect::<Vec<_>>())
+        .collect::<std::collections::HashSet<_>>();
     let selection = crate::rulesets::selected_ruleset_config(&project.config);
     let library =
         crate::rulesets::bundled_appearance_assets_for_ruleset(&selection.id, &selection.version)
@@ -280,10 +285,13 @@ fn discover_models(project: &mut Project) {
         .procedural_appearances
         .iter()
         .filter(|(id, _)| {
-            !library.contains(id) && !project.isometric_bakes.values().any(|b| b.recipe == **id)
+            !library.contains(id) && !item_models.contains(id) && !project.isometric_bakes.values().any(|b| b.recipe == **id)
         })
         .filter_map(|(id, source)| {
             let doc = Document::load(source).ok()?;
+            // Interactive item recipes render through the shared item-state path.
+            // A static Rect tile would discard their identity and behavior.
+            if doc.has_states() { return None; }
             if crate::appearance_assets::resolve_dependencies(project, &doc)
                 .ok()?
                 .evaluate()

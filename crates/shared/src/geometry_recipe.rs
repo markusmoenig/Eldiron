@@ -369,7 +369,12 @@ pub fn generate(
     binding: &Binding,
     previous: Option<&GeometryObject>,
 ) -> Result<GeometryObject, String> {
-    let selection = binding.selection(map)?;
+    let standalone = binding.objects.is_empty() && binding.faces.is_empty();
+    let selection = if standalone {
+        vec![]
+    } else {
+        binding.selection(map)?
+    };
     let source = project
         .procedural_appearances
         .get(&binding.asset)
@@ -422,11 +427,22 @@ pub fn generate(
     {
         return Ok(previous.clone());
     }
-    let (input, x, z) = input_mesh(&selection)?;
-    let mesh = doc
-        .evaluate_with_inputs(&BTreeMap::from([("selection".into(), input)]))
-        .map_err(|e| e.to_string())?
-        .mesh;
+    let (mesh, x, z) = if standalone {
+        (
+            doc.evaluate().map_err(|e| e.to_string())?.mesh,
+            Vec3::unit_x(),
+            Vec3::unit_z(),
+        )
+    } else {
+        let (input, x, z) = input_mesh(&selection)?;
+        (
+            doc.evaluate_with_inputs(&BTreeMap::from([("selection".into(), input)]))
+                .map_err(|e| e.to_string())?
+                .mesh,
+            x,
+            z,
+        )
+    };
     if mesh.rig.is_some() || !mesh.effects.is_empty() {
         return Err("Map geometry recipes must be static; use character/item appearance for rigs and effects".into());
     }
@@ -441,7 +457,9 @@ pub fn generate(
     // The recipe output is fitted in the input's current world/source coordinates.
     // Do not apply a previous drag transform a second time when both frame and
     // generated component were moved together.
-    output.transform = GeometryObject::new("").transform;
+    if !standalone {
+        output.transform = GeometryObject::new("").transform;
+    }
     output.vertices.clear();
     output.faces.clear();
     let mut defaults = BTreeMap::new();

@@ -378,6 +378,14 @@ fn parameters(
                 doc.rows.iter().map(|r| r.label.clone()).collect(),
             ));
         }
+        Operation::StateSwitch { off, on } => {
+            for (key, label, row) in [("off", "Off / Closed", off), ("on", "On / Open", on)] {
+                scalar(key, label, doc.rows.iter().position(|r| &r.id == row).unwrap_or(0) as f32,
+                    0., doc.rows.len().saturating_sub(1) as f32);
+                p.push(property(key, label, vec![key.into()], MaterialPropertyKind::Choice,
+                    doc.rows.iter().map(|r| r.label.clone()).collect()));
+            }
+        }
         Operation::Assemble { rows } => {
             for (i, row) in rows.iter().enumerate() {
                 let id = format!("row{i}");
@@ -648,6 +656,7 @@ pub fn view_selected(
         ("repeat", "Repeat", "Geometry"),
         ("reference", "Row", "Geometry"),
         ("assemble", "Assemble", "Geometry"),
+        ("state_switch", "State Switch (Off / On)", "Geometry"),
         ("material", "PBR Material", "Color"),
         ("assign", "Material", "Color"),
         ("grip", "Grip", "Rigging"),
@@ -912,6 +921,11 @@ pub fn edit_selected(
                 Operation::Reference { row } | Operation::AssignMaterial { row } => {
                     *row = row_id.ok_or("Missing source row")?
                 }
+                Operation::StateSwitch { off, on } => {
+                    let row = row_id.ok_or("Missing state row")?;
+                    match parameter.as_str() { "off" => *off = row, "on" => *on = row,
+                        _ => return Err("Unknown state input".into()) }
+                }
                 Operation::Assemble { rows } => {
                     let i = parameter
                         .strip_prefix("row")
@@ -1039,6 +1053,10 @@ pub fn edit_selected(
                 "reference" => Operation::Reference {
                     row: first_mesh.ok_or("Add a mesh row first")?,
                 },
+                "state_switch" => {
+                    let row = first_mesh.ok_or("Add Off and On mesh rows first")?;
+                    Operation::StateSwitch { off: row.clone(), on: row }
+                }
                 "assemble" => Operation::Assemble {
                     rows: earlier
                         .iter()
@@ -1135,6 +1153,11 @@ pub fn edit_selected(
                 Operation::Reference { row } | Operation::AssignMaterial { row } => {
                     *row = reference.row
                 }
+                Operation::StateSwitch { off, on } => match index {
+                    "0" | "off" => *off = reference.row,
+                    "1" | "on" => *on = reference.row,
+                    _ => return Err("Invalid state input".into()),
+                },
                 Operation::Assemble { rows } | Operation::Skeleton { rows } => {
                     let i = index.parse::<usize>().map_err(|_| "Invalid input")?;
                     *rows.get_mut(i).ok_or("Missing input")? = reference.row;

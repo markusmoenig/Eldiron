@@ -172,7 +172,14 @@ pub fn handle_event(event: &TheEvent, project: &mut Project, ctx: &mut TheContex
             } else {
                 "appearance_geometry"
             };
-            if let Some(source) = attribute(&item.data, key) {
+            let source = attribute(&item.data, key).or_else(|| {
+                let source = attribute(&item.data, "appearance_geometry")?;
+                let asset = shared::appearance_assets::asset_id(&source).ok()?;
+                project.procedural_appearances.get(&asset)
+                    .and_then(|s| Document::parse(s).ok()).filter(Document::has_states)?;
+                Some(source)
+            });
+            if let Some(source) = source {
                 shared::appearance_assets::asset_id(&source).or_else(|_| {
                     shared::appearance_assets::asset_id(&format!("ruleset:geometry/{source}"))
                 })?

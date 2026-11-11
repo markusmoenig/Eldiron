@@ -309,7 +309,7 @@ action_remap_tile_desc = Перекодирует цвета тайла согл
 tool_game = Инструмент игры (K). Если сервер запущен, события ввода отправляются в игру.
 tool_iso_paint = Инструмент 3D Paint (I). Рисуйте прямо на 3D-поверхностях в изометрическом, орбитальном виде и от первого лица.
 tool_linedef = Инструмент линедефов / ребер (E). Создание 2D-линий и редактирование ребер 3D-геометрии.
-tool_object = Инструмент объектов (O). Выбирайте и перемещайте напрямую редактируемые 3D-объекты.
+tool_object = Инструмент объектов (O). Выбирайте объекты и предметы для редактирования описаний. Перемещайте редактируемую 3D-геометрию.
 tool_rect = Инструмент прямоугольников (R). Клик — рисует текущий тайл. Shift-клик — удаляет. Alt/Opt-клик — взять тайл с карты.
 tool_sector = Инструмент секторов / граней (F). Выбирает секторы в 2D или грани в 3D.
 tool_vertex = Инструмент вершин (V). Shift + клик — создать новую вершину.
@@ -632,8 +632,8 @@ status_block_erase = Стирать экземпляры блоков.
 status_block_line = Перетащите линию штампов.
 status_block_rect = Перетащите заполненный прямоугольник штампов.
 status_block_selected = Блок: {$asset_name}
-tool_blocks = Инструмент префабов
-status_block_tool_active = Инструмент префабов: щёлкните/перетащите для размещения, R повернуть, E стереть, H/W/Z размер, D повреждения, [/] уровень
+tool_blocks = 3D-объекты
+status_block_tool_active = 3D-объекты: выберите ресурс, затем щёлкните или протяните для размещения. Настройки — в панели поверх карты.
 block_asset_instances = блоки
 block_commit_placed = Размещено
 block_commit_replaced = Заменено
@@ -1020,7 +1020,7 @@ paint_picker_jitter = Разброс
 paint_picker_rotate = Поворот
 paint_picker_edit = Редактировать рецепт
 paint_picker_choose = Выберите материал или штамп внизу
-paint_picker_choose_stamp = Выберите штамп в коллекции Organic stamps.
+paint_picker_choose_stamp = Выберите штамп в коллекции Organic Stamps.
 
 paint_source_title = Источник краски
 paint_stamp_source_title = Источник штампа
@@ -1028,3 +1028,37 @@ paint_source_seed = Зерно вариации
 paint_source_artwork_size = Размер рисунка
 paint_source_palette_hint = Цвет палитры источника
 paint_picker_in_use = Этот материал используется краской, штампами, мешем, выводом тайла или набором правил. Замените ссылки перед удалением.
+
+paint_overlay_advanced = Подробнее
+paint_overlay_settings = Настройки
+
+# 3D Props viewport overlay
+props_requires_3d = Для 3D-объектов нужна 3D-камера. В 2D и 2D Iso используйте выбор тайлов.
+props_rotate = Повернуть
+props_placement = Размещение…
+props_edit_recipe = Изменить рецепт
+props_edit_prop = Изменить объект
+props_recipe_controls = Параметры рецепта…
+props_grid = Размер сетки
+props_level = Уровень
+props_height = Высота
+props_width = Расширение по ширине
+props_depth = Расширение по глубине
+props_blocks = Блоки
+props_furniture = Мебель
+props_decoration = Декорации
+props_lighting = Освещение
+props_project = Объекты проекта
+props_meshes = Меши MZ
+props_mesh_hint = Размещение 3D-геометрии, связанной с рецептом MZ. Редактируйте рецепт через панель поверх карты.
+props_subdivisions = Деления сетки карты
+props_level_height = Высота уровня
+tool_blocks_description = 3D-объекты (B). Размещение объектов и мешей MZ. Поворот, размер и редактирование источника — в панели поверх карты. Доступно с 3D-камерами.
+
+# Shared MZ item states (2D, isometric and 3D).
+entity_item_state = Состояние предмета
+entity_item_active = Вкл. / Открыто
+entity_item_openable = Можно открыть
+entity_item_locked = Заперто
+entity_item_required_key = Нужный ключ
+entity_item_state_help = Вкл. выбирает выход MZ On, выкл. — Off. Открыть/Закрыть использует официальные намерения. Подходящий ключ в инвентаре отпирает один раз и не расходуется.

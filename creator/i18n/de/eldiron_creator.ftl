@@ -308,7 +308,7 @@ action_remap_tile_desc = Ordnet die Farben der Kachel der Palette zu
 # Tools
 tool_game = Spiel-Tool (K). Wenn der Server läuft, werden Eingabeereignisse an das Spiel gesendet.
 tool_linedef = Linedef- / Kanten-Tool (E). 2D-Liniendefinitionen erstellen und 3D-Geometriekanten bearbeiten.
-tool_object = Objekt-Tool (O). Direkt bearbeitbare 3D-Objekte auswählen und verschieben.
+tool_object = Objekt-Tool (O). Objekte und Gegenstände zum Verfassen auswählen. Direkt bearbeitbare 3D-Geometrie verschieben.
 tool_rect = Rect-Tool (R). Klicken, um die aktuelle Kachel zu zeichnen. Shift-Klick zum Löschen. Alt/Opt-Klick zum Aufnehmen aus der Karte.
 tool_sector = Sektor-/Flächen-Tool (F). Wählt Sektoren in 2D oder Flächen in 3D.
 tool_vertex = Vertex-Tool (V). 'Shift' + Klick erstellt einen neuen Vertex.
@@ -626,8 +626,8 @@ status_block_erase = Blockinstanzen löschen.
 status_block_line = Eine Linie von Stempeln ziehen.
 status_block_rect = Ein gefülltes Rechteck von Stempeln ziehen.
 status_block_selected = Block: {$asset_name}
-tool_blocks = Prefab-Tool
-status_block_tool_active = Prefab-Tool: klicken/ziehen zum Platzieren, R drehen, E löschen, H/W/Z Größe, D Schaden, [/] Ebene
+tool_blocks = 3D-Requisiten
+status_block_tool_active = 3D-Requisiten: Asset wählen, dann klicken oder ziehen. Platzierung und Bearbeitung im Overlay.
 block_asset_instances = Blöcke
 block_commit_placed = Platziert
 block_commit_replaced = Ersetzt
@@ -1017,7 +1017,7 @@ paint_picker_jitter = Größenstreuung
 paint_picker_rotate = Drehung
 paint_picker_edit = Rezept bearbeiten
 paint_picker_choose = Material oder Stempel unten auswählen
-paint_picker_choose_stamp = Einen Stempel in der Sammlung Organic stamps auswählen.
+paint_picker_choose_stamp = Einen Stempel in der Sammlung Organic Stamps auswählen.
 
 paint_source_title = Malquelle
 paint_stamp_source_title = Stempelquelle
@@ -1025,3 +1025,37 @@ paint_source_seed = Variations-Seed
 paint_source_artwork_size = Motivgröße
 paint_source_palette_hint = Palettenfarbe der Quelle
 paint_picker_in_use = Dieses Material wird von Farbe, Stempeln, einem Mesh, einer Kachelausgabe oder einem Regelwerk verwendet. Ersetze die Verweise vor dem Löschen.
+
+paint_overlay_advanced = Erweitert
+paint_overlay_settings = Einstellungen
+
+# 3D Props viewport overlay
+props_requires_3d = 3D-Requisiten benötigen eine 3D-Kamera. In 2D und 2D Iso die Kachelauswahl verwenden.
+props_rotate = Drehen
+props_placement = Platzierung…
+props_edit_recipe = Rezept bearbeiten
+props_edit_prop = Requisite bearbeiten
+props_recipe_controls = Rezeptparameter…
+props_grid = Rastergröße
+props_level = Ebene
+props_height = Höhe
+props_width = Breitenerweiterung
+props_depth = Tiefenerweiterung
+props_blocks = Blöcke
+props_furniture = Möbel
+props_decoration = Dekoration
+props_lighting = Beleuchtung
+props_project = Projekt-Requisiten
+props_meshes = MZ-Meshes
+props_mesh_hint = Verknüpfte 3D-Geometrie aus diesem MZ-Rezept platzieren. Das Rezept über das Overlay bearbeiten.
+props_subdivisions = Kartenunterteilung
+props_level_height = Ebenenhöhe
+tool_blocks_description = 3D-Requisiten (B). Wiederverwendbare Requisiten und MZ-Meshes platzieren. Im Overlay drehen, Größe ändern oder Quelle bearbeiten. Nur mit 3D-Kameras verfügbar.
+
+# Shared MZ item states (2D, isometric and 3D).
+entity_item_state = Gegenstandszustand
+entity_item_active = An / Offen
+entity_item_openable = Kann geöffnet werden
+entity_item_locked = Verschlossen
+entity_item_required_key = Benötigter Schlüssel
+entity_item_state_help = An wählt die MZ-Ausgabe An, Aus die Ausgabe Aus. Öffnen/Schließen nutzt offizielle Intents. Ein passender Inventarschlüssel entriegelt einmalig und wird nicht verbraucht.

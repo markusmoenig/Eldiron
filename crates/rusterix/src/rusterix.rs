@@ -40,6 +40,7 @@ pub struct Rusterix {
     orthographic_bake_work_pixels: Vec<u8>,
     orthographic_bake_overlay_pixels: Vec<u8>,
     deferred_tile_textures: bool,
+    atlas_omits_iso_sprites: bool,
 }
 
 impl Default for Rusterix {
@@ -122,6 +123,7 @@ impl Rusterix {
             orthographic_bake_work_pixels: Vec::new(),
             orthographic_bake_overlay_pixels: Vec::new(),
             deferred_tile_textures: false,
+            atlas_omits_iso_sprites: false,
         }
     }
 
@@ -321,6 +323,8 @@ impl Rusterix {
     /// Process messages from the server to be displayed on the client.
     pub fn process_messages(&mut self, map: &Map, says: Vec<crate::server::Say>) {
         self.client.process_messages(map, says);
+        let world_texts = self.server.get_world_texts(&map.id);
+        self.client.receive_world_texts(map, &self.assets, world_texts);
     }
 
     /*
@@ -447,6 +451,9 @@ impl Rusterix {
 
     /// Build runtime 3D dynamic overlays (characters/items/lights) into SceneVM.
     pub fn build_dynamics_3d(&mut self, map: &Map, animation_frame: usize) {
+        // A projection change can replace the atlas. Do that before publishing
+        // dynamics so clearing the old tile set cannot erase this frame's actors.
+        self.flush_deferred_tile_textures_3d(true);
         let camera = self.client.camera_d3.as_ref();
         self.scene_handler.build_dynamics_3d(
             map,
@@ -526,7 +533,7 @@ impl Rusterix {
         height: usize,
         editor_neutral_background: bool,
     ) {
-        self.flush_deferred_tile_textures(true);
+        self.flush_deferred_tile_textures_3d(true);
         // Baking uses authored sky/material state, while its dedicated path
         // pass deliberately excludes direct sun and point lights. The editor's
         // flat-lighting preview must not alter the persisted transport data.
@@ -786,7 +793,9 @@ impl Rusterix {
 
     /// Draw the client scene.
     pub fn draw_scene(&mut self, map: &Map, pixels: &mut [u8], width: usize, height: usize) {
-        if self.draw_mode == D3 || map.camera != crate::MapCamera::TwoDIso {
+        if self.draw_mode == D3 {
+            self.flush_deferred_tile_textures_3d(true);
+        } else if map.camera != crate::MapCamera::TwoDIso {
             self.flush_deferred_tile_textures(true);
         }
         match self.draw_mode {
@@ -885,6 +894,8 @@ impl Rusterix {
         self.client
             .process_open_container_requests(open_container_requests);
         self.client.process_messages(map, says);
+        let world_texts = self.server.get_world_texts(&map.id);
+        self.client.receive_world_texts(map, &self.assets, world_texts);
         self.orthographic_bake
             .sync_persisted_asset(map.id, map.orthographic_bake.as_ref());
         let lighting = self.orthographic_bake_lighting();
@@ -997,6 +1008,8 @@ impl Rusterix {
         width: u32,
         height: u32,
     ) -> &TheRGBABuffer {
+        let world_texts = self.server.get_world_texts(&map.id);
+        self.client.receive_world_texts(map, &self.assets, world_texts);
         self.apply_runtime_render_state(map, false);
         self.client
             .draw_ui_overlay_only(map, &self.assets, messages, choices, width, height)
@@ -1147,9 +1160,21 @@ impl Rusterix {
     }
 
     fn flush_deferred_tile_textures(&mut self, editor: bool) {
-        if self.deferred_tile_textures {
+        if self.deferred_tile_textures || self.atlas_omits_iso_sprites {
             self.scene_handler.build_atlas(&self.assets.tiles, editor);
             self.deferred_tile_textures = false;
+            self.atlas_omits_iso_sprites = false;
+        }
+    }
+    fn flush_deferred_tile_textures_3d(&mut self, editor: bool) {
+        if self.deferred_tile_textures || !self.atlas_omits_iso_sprites {
+            if !self.atlas_omits_iso_sprites {
+                self.scene_handler.vm.execute(Atom::ClearTiles);
+            }
+            self.scene_handler
+                .build_atlas_for_view(&self.assets.tiles, editor, true);
+            self.deferred_tile_textures = false;
+            self.atlas_omits_iso_sprites = true;
         }
     }
 
@@ -1189,7 +1214,9 @@ impl Rusterix {
 
     fn apply_tiles(&mut self, all_tiles: IndexMap<Uuid, Tile>, editor: bool, clear_scene: bool) {
         self.deferred_tile_textures = false;
-        self.scene_handler.build_atlas(&all_tiles, editor);
+        self.atlas_omits_iso_sprites = editor && self.draw_mode == D3;
+        self.scene_handler
+            .build_atlas_for_view(&all_tiles, editor, self.atlas_omits_iso_sprites);
         self.scene_handler
             .sync_prefab_particle_sprites(&self.assets.block_props);
         self.assets.set_tiles(all_tiles);

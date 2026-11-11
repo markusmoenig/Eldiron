@@ -18,6 +18,7 @@ The separate **Input Mapping** branch starts with an Input Mapping node. Connect
 | Appearance | Avatar, 2D size, and visibility. Visibility is independent of life/activity state. |
 | Equipment | Starting worn/held items. Drag project item headers onto the node; item names are shown and stable references are saved. |
 | Collision | Radius and blocking. |
+| Item State | Initial On/Off state, Openable, Locked and Required Key. MZ State Switch outputs and footprints follow the same state in iso and 3D. |
 | Inventory | Slot count and starting wealth. |
 | Player | Whether the character is available for player selection. It does not spawn the character. |
 | Input Mapping | Starts the input branch. |
@@ -27,6 +28,8 @@ The separate **Input Mapping** branch starts with an Input Mapping node. Connect
 | Ruleset Item | A ruleset item path. Its properties follow the current ruleset; connected configuration nodes supply explicit overrides. |
 
 The Entity node reports configuration errors and indicates whether the graph is valid.
+
+For an interactive MZ item and keyed-door walkthrough, see [Doors and MZ Item States](doors).
 
 Race and class choices come from the active ruleset. Ruleset stats, abilities, permissions, progression, and starting equipment do not need duplicate configuration nodes. Add overrides only for exceptions. Character defaults come from `attributes.defaults` and the selected race and class; custom item defaults come from `item_defaults`. Matching defaults are omitted during import.
 

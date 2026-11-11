@@ -2,6 +2,9 @@
 use crate::prelude::*;
 use rusterix::{GeometryObject, MapCamera, PixelSource, Value};
 
+// The working centered cursor from Hideout, bundled with the Game UI artwork.
+const CURSOR_ID: &str = "77813fc5-bfeb-4b01-a3b7-9dea900b9a89";
+
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum ProjectDimension {
     TwoD,
@@ -23,6 +26,7 @@ pub(crate) fn populate(project: &mut Project, dimension: ProjectDimension) {
     config["game"]["start_region"] = toml_edit::value("Region");
     config["game"]["start_screen"] = toml_edit::value("Game");
     config["game"]["play_screen"] = toml_edit::value("Game");
+    config["viewport"]["cursor_id"] = toml_edit::value(CURSOR_ID);
     if is_3d {
         config["game"]["collision_mode"] = toml_edit::value("mesh");
     }
@@ -113,6 +117,9 @@ pub(crate) fn populate(project: &mut Project, dimension: ProjectDimension) {
     ] {
         data["input"][key] = toml_edit::value(format!("control.{action}"));
     }
+    for (key,intent) in [("u","use"),("l","look"),("o","open_close")] {
+        data["input"][key] = toml_edit::value(format!("intent.{intent}"));
+    }
     player.data = data.to_string();
     let mut instance = Character::new();
     instance.name = player.name.clone();
@@ -126,7 +133,16 @@ pub(crate) fn populate(project: &mut Project, dimension: ProjectDimension) {
     screen.settings = "[layout]\nmode = \"responsive\"\n".into();
     let width = config["viewport"]["width"].as_integer().unwrap_or(960) as f32;
     let height = config["viewport"]["height"].as_integer().unwrap_or(540) as f32;
-    let widget_id = rectangle(&mut screen.map, 0.0, 0.0, width, height);
+    let grid = config["viewport"]["grid_size"]
+        .as_integer()
+        .unwrap_or(32)
+        .max(1) as f32;
+    let (left, top) = rusterix::utils::align_screen_to_grid(width, height, grid);
+    // Screen geometry uses grid units, not pixels. Author the widgets with
+    // pixel precision so their outlines also line up in the screen editor.
+    let subdivisions = screen.map.subdivisions;
+    screen.map.subdivisions = grid * 2.0;
+    let widget_id = rectangle(&mut screen.map, left, top, width / grid, height / grid);
     let widget = screen.map.find_sector_mut(widget_id).unwrap();
     widget.name = "Game".into();
     widget.properties.set(
@@ -135,12 +151,81 @@ pub(crate) fn populate(project: &mut Project, dimension: ProjectDimension) {
             "[ui]\nrole = \"game\"\n\n[camera]\ntype = \"{camera}\"\n"
         )),
     );
+    install_toolbar(project, &mut screen, left, top, width, height, grid);
+    screen.map.subdivisions = subdivisions;
     project.screens.insert(screen.id, screen);
     if is_iso {
         let errors = shared::isometric::synchronize(project);
         debug_assert!(
             errors.is_empty(),
             "Bundled iso starter materials: {errors:?}"
+        );
+    }
+}
+
+/// The same editable action-bar widget and nine-slice artwork as UnendingNight.
+/// Command artwork stays linked to the project's ordinary MZ ruleset recipes.
+fn install_toolbar(
+    project: &mut Project,
+    screen: &mut Screen,
+    left: f32,
+    top: f32,
+    width: f32,
+    height: f32,
+    grid: f32,
+) {
+    let settings = include_str!("../embedded/screens/game-toolbar.toml");
+    let layout: toml::Table = settings.parse().expect("valid bundled toolbar settings");
+    let bar_height = layout["ui"]["slot_size"].as_integer().unwrap() as f32
+        + 2.0 * layout["ui"]["padding"].as_integer().unwrap() as f32;
+    let id = rectangle(
+        &mut screen.map,
+        left,
+        top + (height - bar_height) / grid,
+        width / grid,
+        bar_height / grid,
+    );
+    let toolbar = screen.map.find_sector_mut(id).unwrap();
+    toolbar.name = "Toolbar".into();
+    toolbar
+        .properties
+        .set("source", Value::Source(PixelSource::Off));
+    toolbar.properties.set("data", Value::Str(settings.into()));
+
+    let tiles: Vec<rusterix::Tile> =
+        serde_json::from_str(include_str!("../embedded/screens/game-toolbar-tiles.json"))
+            .expect("valid bundled toolbar artwork");
+    let mut sources = tiles.iter().map(|tile| tile.id).collect::<Vec<_>>();
+    for tile in tiles {
+        project.tiles.insert(tile.id, tile);
+    }
+    sources.extend(
+        [
+            "ui_preferences",
+            "ui_equipment",
+            "ui_inventory",
+            "ui_spellbook",
+            "ui_actions",
+            "look",
+            "use",
+            "open",
+            "close",
+        ]
+        .into_iter()
+        .map(|name| shared::rulesets::material_asset_id(&format!("icon/{name}/on"))),
+    );
+    let mut collection = shared::project::TileCollectionAsset::new("Game UI".into());
+    collection.description =
+        "Editable MZ command icons and the game toolbar's nine-slice artwork".into();
+    let collection_id = collection.id;
+    project.add_tile_collection(collection);
+    for (index, id) in sources.into_iter().enumerate() {
+        let source = rusterix::TileSource::SingleTile(id);
+        project.add_source_to_collection(&collection_id, source);
+        project.set_collection_tile_board_position(
+            &collection_id,
+            source,
+            Vec2::new((index % 7) as i32, (index / 7) as i32),
         );
     }
 }

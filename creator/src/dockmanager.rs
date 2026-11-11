@@ -330,6 +330,16 @@ impl DockManager {
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) {
+        if self.dock == "Prefabs"
+            && let Some(id) = server_ctx.curr_block_asset_id
+            && project.procedural_appearances.contains_key(&id)
+        {
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Open Geometry Recipe"),
+                TheValue::Id(id),
+            ));
+            return;
+        }
         self.remember_normal_split(ui);
         if self.dock == "Prefabs" {
             let mut asset_id = server_ctx.curr_block_asset_id;

@@ -1,0 +1,2116 @@
+{
+  "version": 1,
+  "id": "hinged-plank-door",
+  "label": "Hinged plank door",
+  "output": "states",
+  "grip": null,
+  "rows": [
+    {
+      "id": "iron",
+      "label": "Iron",
+      "tiles": [
+        {
+          "id": "iron-0",
+          "op": {
+            "type": "material",
+            "palette": 8,
+            "roughness": 0.68,
+            "metallic": 0.55
+          }
+        }
+      ]
+    },
+    {
+      "id": "vertical-plank-1",
+      "label": "Vertical Plank 1",
+      "tiles": [
+        {
+          "id": "vertical-plank-1-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.16724050632911394,
+              1.87,
+              0.108
+            ]
+          }
+        },
+        {
+          "id": "vertical-plank-1-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.09,
+              0.935,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "vertical-plank-1-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "size": 128,
+            "axes": [
+              0,
+              1
+            ],
+            "origin": [
+              0.0,
+              0
+            ],
+            "span": [
+              0.35,
+              3.0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "plank-edge-0--1",
+      "label": "Plank Edge 0  1",
+      "tiles": [
+        {
+          "id": "plank-edge-0--1-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.011962025316455694,
+              1.8533035714285715,
+              0.015
+            ]
+          }
+        },
+        {
+          "id": "plank-edge-0--1-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.011962025316455694,
+              0.935,
+              0.058
+            ],
+            "rotation": [
+              0,
+              45,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "plank-edge-0--1-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "size": 128,
+            "axes": [
+              0,
+              1
+            ],
+            "origin": [
+              0.0,
+              0
+            ],
+            "span": [
+              0.35,
+              3.0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "plank-edge-0-1",
+      "label": "Plank Edge 0 1",
+      "tiles": [
+        {
+          "id": "plank-edge-0-1-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.011962025316455694,
+              1.8533035714285715,
+              0.015
+            ]
+          }
+        },
+        {
+          "id": "plank-edge-0-1-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.1680379746835443,
+              0.935,
+              0.058
+            ],
+            "rotation": [
+              0,
+              45,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "plank-edge-0-1-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "size": 128,
+            "axes": [
+              0,
+              1
+            ],
+            "origin": [
+              0.0,
+              0
+            ],
+            "span": [
+              0.35,
+              3.0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "vertical-plank-2",
+      "label": "Vertical Plank 2",
+      "tiles": [
+        {
+          "id": "vertical-plank-2-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.16724050632911394,
+              1.87,
+              0.112
+            ]
+          }
+        },
+        {
+          "id": "vertical-plank-2-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.26999999999999996,
+              0.935,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "vertical-plank-2-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "size": 128,
+            "axes": [
+              0,
+              1
+            ],
+            "origin": [
+              -0.071,
+              0
+            ],
+            "span": [
+              0.35,
+              3.0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "plank-edge-1--1",
+      "label": "Plank Edge 1  1",
+      "tiles": [
+        {
+          "id": "plank-edge-1--1-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.011962025316455694,
+              1.8533035714285715,
+              0.015
+            ]
+          }
+        },
+        {
+          "id": "plank-edge-1--1-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.19196202531645568,
+              0.935,
+              0.058
+            ],
+            "rotation": [
+              0,
+              45,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "plank-edge-1--1-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "size": 128,
+            "axes": [
+              0,
+              1
+            ],
+            "origin": [
+              -0.071,
+              0
+            ],
+            "span": [
+              0.35,
+              3.0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "plank-edge-1-1",
+      "label": "Plank Edge 1 1",
+      "tiles": [
+        {
+          "id": "plank-edge-1-1-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.011962025316455694,
+              1.8533035714285715,
+              0.015
+            ]
+          }
+        },
+        {
+          "id": "plank-edge-1-1-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.3480379746835443,
+              0.935,
+              0.058
+            ],
+            "rotation": [
+              0,
+              45,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "plank-edge-1-1-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "size": 128,
+            "axes": [
+              0,
+              1
+            ],
+            "origin": [
+              -0.071,
+              0
+            ],
+            "span": [
+              0.35,
+              3.0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "vertical-plank-3",
+      "label": "Vertical Plank 3",
+      "tiles": [
+        {
+          "id": "vertical-plank-3-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.16724050632911394,
+              1.87,
+              0.11599999999999999
+            ]
+          }
+        },
+        {
+          "id": "vertical-plank-3-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.44999999999999996,
+              0.935,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "vertical-plank-3-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "size": 128,
+            "axes": [
+              0,
+              1
+            ],
+            "origin": [
+              -0.142,
+              0
+            ],
+            "span": [
+              0.35,
+              3.0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "plank-edge-2--1",
+      "label": "Plank Edge 2  1",
+      "tiles": [
+        {
+          "id": "plank-edge-2--1-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.011962025316455694,
+              1.8533035714285715,
+              0.015
+            ]
+          }
+        },
+        {
+          "id": "plank-edge-2--1-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.37196202531645567,
+              0.935,
+              0.058
+            ],
+            "rotation": [
+              0,
+              45,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "plank-edge-2--1-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "size": 128,
+            "axes": [
+              0,
+              1
+            ],
+            "origin": [
+              -0.142,
+              0
+            ],
+            "span": [
+              0.35,
+              3.0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "plank-edge-2-1",
+      "label": "Plank Edge 2 1",
+      "tiles": [
+        {
+          "id": "plank-edge-2-1-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.011962025316455694,
+              1.8533035714285715,
+              0.015
+            ]
+          }
+        },
+        {
+          "id": "plank-edge-2-1-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.5280379746835443,
+              0.935,
+              0.058
+            ],
+            "rotation": [
+              0,
+              45,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "plank-edge-2-1-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "size": 128,
+            "axes": [
+              0,
+              1
+            ],
+            "origin": [
+              -0.142,
+              0
+            ],
+            "span": [
+              0.35,
+              3.0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "vertical-plank-4",
+      "label": "Vertical Plank 4",
+      "tiles": [
+        {
+          "id": "vertical-plank-4-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.16724050632911394,
+              1.87,
+              0.108
+            ]
+          }
+        },
+        {
+          "id": "vertical-plank-4-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.63,
+              0.935,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "vertical-plank-4-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "size": 128,
+            "axes": [
+              0,
+              1
+            ],
+            "origin": [
+              -0.21299999999999997,
+              0
+            ],
+            "span": [
+              0.35,
+              3.0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "plank-edge-3--1",
+      "label": "Plank Edge 3  1",
+      "tiles": [
+        {
+          "id": "plank-edge-3--1-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.011962025316455694,
+              1.8533035714285715,
+              0.015
+            ]
+          }
+        },
+        {
+          "id": "plank-edge-3--1-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.5519620253164557,
+              0.935,
+              0.058
+            ],
+            "rotation": [
+              0,
+              45,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "plank-edge-3--1-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "size": 128,
+            "axes": [
+              0,
+              1
+            ],
+            "origin": [
+              -0.21299999999999997,
+              0
+            ],
+            "span": [
+              0.35,
+              3.0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "plank-edge-3-1",
+      "label": "Plank Edge 3 1",
+      "tiles": [
+        {
+          "id": "plank-edge-3-1-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.011962025316455694,
+              1.8533035714285715,
+              0.015
+            ]
+          }
+        },
+        {
+          "id": "plank-edge-3-1-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.7080379746835442,
+              0.935,
+              0.058
+            ],
+            "rotation": [
+              0,
+              45,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "plank-edge-3-1-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "size": 128,
+            "axes": [
+              0,
+              1
+            ],
+            "origin": [
+              -0.21299999999999997,
+              0
+            ],
+            "span": [
+              0.35,
+              3.0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "vertical-plank-5",
+      "label": "Vertical Plank 5",
+      "tiles": [
+        {
+          "id": "vertical-plank-5-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.16724050632911394,
+              1.87,
+              0.112
+            ]
+          }
+        },
+        {
+          "id": "vertical-plank-5-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.8099999999999999,
+              0.935,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "vertical-plank-5-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "size": 128,
+            "axes": [
+              0,
+              1
+            ],
+            "origin": [
+              -0.284,
+              0
+            ],
+            "span": [
+              0.35,
+              3.0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "plank-edge-4--1",
+      "label": "Plank Edge 4  1",
+      "tiles": [
+        {
+          "id": "plank-edge-4--1-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.011962025316455694,
+              1.8533035714285715,
+              0.015
+            ]
+          }
+        },
+        {
+          "id": "plank-edge-4--1-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.7319620253164557,
+              0.935,
+              0.058
+            ],
+            "rotation": [
+              0,
+              45,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "plank-edge-4--1-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "size": 128,
+            "axes": [
+              0,
+              1
+            ],
+            "origin": [
+              -0.284,
+              0
+            ],
+            "span": [
+              0.35,
+              3.0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "plank-edge-4-1",
+      "label": "Plank Edge 4 1",
+      "tiles": [
+        {
+          "id": "plank-edge-4-1-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.011962025316455694,
+              1.8533035714285715,
+              0.015
+            ]
+          }
+        },
+        {
+          "id": "plank-edge-4-1-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.8880379746835443,
+              0.935,
+              0.058
+            ],
+            "rotation": [
+              0,
+              45,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "plank-edge-4-1-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "size": 128,
+            "axes": [
+              0,
+              1
+            ],
+            "origin": [
+              -0.284,
+              0
+            ],
+            "span": [
+              0.35,
+              3.0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "vertical-plank-6",
+      "label": "Vertical Plank 6",
+      "tiles": [
+        {
+          "id": "vertical-plank-6-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.16724050632911394,
+              1.87,
+              0.11599999999999999
+            ]
+          }
+        },
+        {
+          "id": "vertical-plank-6-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.99,
+              0.935,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "vertical-plank-6-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "size": 128,
+            "axes": [
+              0,
+              1
+            ],
+            "origin": [
+              -0.355,
+              0
+            ],
+            "span": [
+              0.35,
+              3.0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "plank-edge-5--1",
+      "label": "Plank Edge 5  1",
+      "tiles": [
+        {
+          "id": "plank-edge-5--1-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.011962025316455694,
+              1.8533035714285715,
+              0.015
+            ]
+          }
+        },
+        {
+          "id": "plank-edge-5--1-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.9119620253164556,
+              0.935,
+              0.058
+            ],
+            "rotation": [
+              0,
+              45,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "plank-edge-5--1-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "size": 128,
+            "axes": [
+              0,
+              1
+            ],
+            "origin": [
+              -0.355,
+              0
+            ],
+            "span": [
+              0.35,
+              3.0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "plank-edge-5-1",
+      "label": "Plank Edge 5 1",
+      "tiles": [
+        {
+          "id": "plank-edge-5-1-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.011962025316455694,
+              1.8533035714285715,
+              0.015
+            ]
+          }
+        },
+        {
+          "id": "plank-edge-5-1-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              1.0680379746835442,
+              0.935,
+              0.058
+            ],
+            "rotation": [
+              0,
+              45,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "plank-edge-5-1-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "size": 128,
+            "axes": [
+              0,
+              1
+            ],
+            "origin": [
+              -0.355,
+              0
+            ],
+            "span": [
+              0.35,
+              3.0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "vertical-plank-7",
+      "label": "Vertical Plank 7",
+      "tiles": [
+        {
+          "id": "vertical-plank-7-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.16724050632911394,
+              1.87,
+              0.108
+            ]
+          }
+        },
+        {
+          "id": "vertical-plank-7-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              1.17,
+              0.935,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "vertical-plank-7-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "size": 128,
+            "axes": [
+              0,
+              1
+            ],
+            "origin": [
+              -0.42599999999999993,
+              0
+            ],
+            "span": [
+              0.35,
+              3.0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "plank-edge-6--1",
+      "label": "Plank Edge 6  1",
+      "tiles": [
+        {
+          "id": "plank-edge-6--1-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.011962025316455694,
+              1.8533035714285715,
+              0.015
+            ]
+          }
+        },
+        {
+          "id": "plank-edge-6--1-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              1.0919620253164557,
+              0.935,
+              0.058
+            ],
+            "rotation": [
+              0,
+              45,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "plank-edge-6--1-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "size": 128,
+            "axes": [
+              0,
+              1
+            ],
+            "origin": [
+              -0.42599999999999993,
+              0
+            ],
+            "span": [
+              0.35,
+              3.0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "plank-edge-6-1",
+      "label": "Plank Edge 6 1",
+      "tiles": [
+        {
+          "id": "plank-edge-6-1-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.011962025316455694,
+              1.8533035714285715,
+              0.015
+            ]
+          }
+        },
+        {
+          "id": "plank-edge-6-1-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              1.2480379746835444,
+              0.935,
+              0.058
+            ],
+            "rotation": [
+              0,
+              45,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "plank-edge-6-1-2",
+          "op": {
+            "type": "texture",
+            "source": "ruleset:material/wood",
+            "size": 128,
+            "axes": [
+              0,
+              1
+            ],
+            "origin": [
+              -0.42599999999999993,
+              0
+            ],
+            "span": [
+              0.35,
+              3.0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "iron-strap-0",
+      "label": "Iron Strap 0",
+      "tiles": [
+        {
+          "id": "iron-strap-0-0",
+          "op": {
+            "type": "box",
+            "size": [
+              1.2201265822784808,
+              0.07930803571428571,
+              0.032
+            ]
+          }
+        },
+        {
+          "id": "iron-strap-0-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.63,
+              0.30053571428571424,
+              0.082
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "iron-strap-0-2",
+          "op": {
+            "type": "assign_material",
+            "row": "iron"
+          }
+        }
+      ]
+    },
+    {
+      "id": "strap-0-rivet-0",
+      "label": "Strap 0 Rivet 0",
+      "tiles": [
+        {
+          "id": "strap-0-rivet-0-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.027911392405063292,
+              0.02921875,
+              0.025
+            ]
+          }
+        },
+        {
+          "id": "strap-0-rivet-0-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.10367088607594936,
+              0.30053571428571424,
+              0.111
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "strap-0-rivet-0-2",
+          "op": {
+            "type": "assign_material",
+            "row": "iron"
+          }
+        }
+      ]
+    },
+    {
+      "id": "strap-0-rivet-1",
+      "label": "Strap 0 Rivet 1",
+      "tiles": [
+        {
+          "id": "strap-0-rivet-1-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.027911392405063292,
+              0.02921875,
+              0.025
+            ]
+          }
+        },
+        {
+          "id": "strap-0-rivet-1-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.3748101265822784,
+              0.30053571428571424,
+              0.111
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "strap-0-rivet-1-2",
+          "op": {
+            "type": "assign_material",
+            "row": "iron"
+          }
+        }
+      ]
+    },
+    {
+      "id": "strap-0-rivet-2",
+      "label": "Strap 0 Rivet 2",
+      "tiles": [
+        {
+          "id": "strap-0-rivet-2-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.027911392405063292,
+              0.02921875,
+              0.025
+            ]
+          }
+        },
+        {
+          "id": "strap-0-rivet-2-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.6539240506329113,
+              0.30053571428571424,
+              0.111
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "strap-0-rivet-2-2",
+          "op": {
+            "type": "assign_material",
+            "row": "iron"
+          }
+        }
+      ]
+    },
+    {
+      "id": "strap-0-rivet-3",
+      "label": "Strap 0 Rivet 3",
+      "tiles": [
+        {
+          "id": "strap-0-rivet-3-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.027911392405063292,
+              0.02921875,
+              0.025
+            ]
+          }
+        },
+        {
+          "id": "strap-0-rivet-3-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.941012658227848,
+              0.30053571428571424,
+              0.111
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "strap-0-rivet-3-2",
+          "op": {
+            "type": "assign_material",
+            "row": "iron"
+          }
+        }
+      ]
+    },
+    {
+      "id": "strap-0-rivet-4",
+      "label": "Strap 0 Rivet 4",
+      "tiles": [
+        {
+          "id": "strap-0-rivet-4-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.027911392405063292,
+              0.02921875,
+              0.025
+            ]
+          }
+        },
+        {
+          "id": "strap-0-rivet-4-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              1.1643037974683543,
+              0.30053571428571424,
+              0.111
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "strap-0-rivet-4-2",
+          "op": {
+            "type": "assign_material",
+            "row": "iron"
+          }
+        }
+      ]
+    },
+    {
+      "id": "hinge-0",
+      "label": "Hinge 0",
+      "tiles": [
+        {
+          "id": "hinge-0-0",
+          "op": {
+            "type": "loft",
+            "sections": [
+              {
+                "center": [
+                  0.02392405063291139,
+                  0.20035714285714282,
+                  0
+                ],
+                "radius": [
+                  0.027,
+                  0.027
+                ]
+              },
+              {
+                "center": [
+                  0.02392405063291139,
+                  0.40071428571428563,
+                  0
+                ],
+                "radius": [
+                  0.027,
+                  0.027
+                ]
+              }
+            ],
+            "segments": 8
+          }
+        },
+        {
+          "id": "hinge-0-1",
+          "op": {
+            "type": "assign_material",
+            "row": "iron"
+          }
+        }
+      ]
+    },
+    {
+      "id": "iron-strap-1",
+      "label": "Iron Strap 1",
+      "tiles": [
+        {
+          "id": "iron-strap-1-0",
+          "op": {
+            "type": "box",
+            "size": [
+              1.2201265822784808,
+              0.07930803571428571,
+              0.032
+            ]
+          }
+        },
+        {
+          "id": "iron-strap-1-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.63,
+              1.5611160714285715,
+              0.082
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "iron-strap-1-2",
+          "op": {
+            "type": "assign_material",
+            "row": "iron"
+          }
+        }
+      ]
+    },
+    {
+      "id": "strap-1-rivet-0",
+      "label": "Strap 1 Rivet 0",
+      "tiles": [
+        {
+          "id": "strap-1-rivet-0-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.027911392405063292,
+              0.02921875,
+              0.025
+            ]
+          }
+        },
+        {
+          "id": "strap-1-rivet-0-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.10367088607594936,
+              1.5611160714285715,
+              0.111
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "strap-1-rivet-0-2",
+          "op": {
+            "type": "assign_material",
+            "row": "iron"
+          }
+        }
+      ]
+    },
+    {
+      "id": "strap-1-rivet-1",
+      "label": "Strap 1 Rivet 1",
+      "tiles": [
+        {
+          "id": "strap-1-rivet-1-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.027911392405063292,
+              0.02921875,
+              0.025
+            ]
+          }
+        },
+        {
+          "id": "strap-1-rivet-1-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.3748101265822784,
+              1.5611160714285715,
+              0.111
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "strap-1-rivet-1-2",
+          "op": {
+            "type": "assign_material",
+            "row": "iron"
+          }
+        }
+      ]
+    },
+    {
+      "id": "strap-1-rivet-2",
+      "label": "Strap 1 Rivet 2",
+      "tiles": [
+        {
+          "id": "strap-1-rivet-2-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.027911392405063292,
+              0.02921875,
+              0.025
+            ]
+          }
+        },
+        {
+          "id": "strap-1-rivet-2-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.6539240506329113,
+              1.5611160714285715,
+              0.111
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "strap-1-rivet-2-2",
+          "op": {
+            "type": "assign_material",
+            "row": "iron"
+          }
+        }
+      ]
+    },
+    {
+      "id": "strap-1-rivet-3",
+      "label": "Strap 1 Rivet 3",
+      "tiles": [
+        {
+          "id": "strap-1-rivet-3-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.027911392405063292,
+              0.02921875,
+              0.025
+            ]
+          }
+        },
+        {
+          "id": "strap-1-rivet-3-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.941012658227848,
+              1.5611160714285715,
+              0.111
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "strap-1-rivet-3-2",
+          "op": {
+            "type": "assign_material",
+            "row": "iron"
+          }
+        }
+      ]
+    },
+    {
+      "id": "strap-1-rivet-4",
+      "label": "Strap 1 Rivet 4",
+      "tiles": [
+        {
+          "id": "strap-1-rivet-4-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.027911392405063292,
+              0.02921875,
+              0.025
+            ]
+          }
+        },
+        {
+          "id": "strap-1-rivet-4-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              1.1643037974683543,
+              1.5611160714285715,
+              0.111
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "strap-1-rivet-4-2",
+          "op": {
+            "type": "assign_material",
+            "row": "iron"
+          }
+        }
+      ]
+    },
+    {
+      "id": "hinge-1",
+      "label": "Hinge 1",
+      "tiles": [
+        {
+          "id": "hinge-1-0",
+          "op": {
+            "type": "loft",
+            "sections": [
+              {
+                "center": [
+                  0.02392405063291139,
+                  1.4609374999999998,
+                  0
+                ],
+                "radius": [
+                  0.027,
+                  0.027
+                ]
+              },
+              {
+                "center": [
+                  0.02392405063291139,
+                  1.661294642857143,
+                  0
+                ],
+                "radius": [
+                  0.027,
+                  0.027
+                ]
+              }
+            ],
+            "segments": 8
+          }
+        },
+        {
+          "id": "hinge-1-1",
+          "op": {
+            "type": "assign_material",
+            "row": "iron"
+          }
+        }
+      ]
+    },
+    {
+      "id": "handle-backplate",
+      "label": "Handle Backplate",
+      "tiles": [
+        {
+          "id": "handle-backplate-0",
+          "op": {
+            "type": "box",
+            "size": [
+              0.09569620253164556,
+              0.15861607142857143,
+              0.022
+            ]
+          }
+        },
+        {
+          "id": "handle-backplate-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              1.1005063291139239,
+              0.9016071428571428,
+              0.078
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "handle-backplate-2",
+          "op": {
+            "type": "assign_material",
+            "row": "iron"
+          }
+        }
+      ]
+    },
+    {
+      "id": "ring-handle",
+      "label": "Ring Handle",
+      "tiles": [
+        {
+          "id": "ring-handle-0",
+          "op": {
+            "type": "contour",
+            "points": [
+              [
+                0.045,
+                -0.012
+              ],
+              [
+                0.075,
+                -0.012
+              ],
+              [
+                0.075,
+                0.012
+              ],
+              [
+                0.045,
+                0.012
+              ]
+            ]
+          }
+        },
+        {
+          "id": "ring-handle-1",
+          "op": {
+            "type": "revolve",
+            "segments": 12
+          }
+        },
+        {
+          "id": "ring-handle-2",
+          "op": {
+            "type": "transform",
+            "translation": [
+              1.1005063291139239,
+              0.8682142857142857,
+              0.13
+            ],
+            "rotation": [
+              90,
+              0,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        {
+          "id": "ring-handle-3",
+          "op": {
+            "type": "assign_material",
+            "row": "iron"
+          }
+        }
+      ]
+    },
+    {
+      "id": "leaf-footprint",
+      "label": "Leaf Footprint",
+      "tiles": [
+        {
+          "id": "leaf-footprint-0",
+          "op": {
+            "type": "contour",
+            "points": [
+              [
+                0.0,
+                -0.075
+              ],
+              [
+                1.26,
+                -0.075
+              ],
+              [
+                1.26,
+                0.15
+              ],
+              [
+                0.0,
+                0.15
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "closed",
+      "label": "Closed",
+      "tiles": [
+        {
+          "id": "closed-0",
+          "op": {
+            "type": "assemble",
+            "rows": [
+              "vertical-plank-1",
+              "plank-edge-0--1",
+              "plank-edge-0-1",
+              "vertical-plank-2",
+              "plank-edge-1--1",
+              "plank-edge-1-1",
+              "vertical-plank-3",
+              "plank-edge-2--1",
+              "plank-edge-2-1",
+              "vertical-plank-4",
+              "plank-edge-3--1",
+              "plank-edge-3-1",
+              "vertical-plank-5",
+              "plank-edge-4--1",
+              "plank-edge-4-1",
+              "vertical-plank-6",
+              "plank-edge-5--1",
+              "plank-edge-5-1",
+              "vertical-plank-7",
+              "plank-edge-6--1",
+              "plank-edge-6-1",
+              "iron-strap-0",
+              "strap-0-rivet-0",
+              "strap-0-rivet-1",
+              "strap-0-rivet-2",
+              "strap-0-rivet-3",
+              "strap-0-rivet-4",
+              "hinge-0",
+              "iron-strap-1",
+              "strap-1-rivet-0",
+              "strap-1-rivet-1",
+              "strap-1-rivet-2",
+              "strap-1-rivet-3",
+              "strap-1-rivet-4",
+              "hinge-1",
+              "handle-backplate",
+              "ring-handle"
+            ]
+          }
+        },
+        {
+          "id": "closed-1",
+          "op": {
+            "type": "footprint",
+            "row": "leaf-footprint"
+          }
+        }
+      ]
+    },
+    {
+      "id": "open",
+      "label": "Open",
+      "tiles": [
+        {
+          "id": "open-0",
+          "op": {
+            "type": "reference",
+            "row": "closed"
+          }
+        },
+        {
+          "id": "open-1",
+          "op": {
+            "type": "transform",
+            "translation": [
+              0.0,
+              0.0,
+              0.21
+            ],
+            "rotation": [
+              0,
+              -170,
+              0
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "states",
+      "label": "States",
+      "tiles": [
+        {
+          "id": "states-0",
+          "op": {
+            "type": "state_switch",
+            "off": "closed",
+            "on": "open"
+          }
+        }
+      ]
+    }
+  ]
+}
