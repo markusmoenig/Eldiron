@@ -1,3 +1,5 @@
+mod edit;
+pub use edit::*;
 mod branch;
 mod definitions;
 mod model;

@@ -238,3 +238,15 @@ hover/filter state before the next input. `paint_without_query` paints the same
 chrome/items, leaving query/caret/composition to the common editor. The default
 `paint` path and compact empty-search behavior remain available for reference
 hosts. Preedit stays with the editor, not in the committed filter string.
+
+
+Completed `GraphEdit`/`GraphCommit` data now lives in `theframework_core::graph`
+and remains re-exported at the existing framework path. CPU authoring workspaces
+can consume it without enabling widget UI, windowing, text or GPU dependencies.
+Construct packets with `GraphCommit::new`: the per-binding serial supports
+acknowledgement, and `sequence` supplies a process-wide publication order. When
+retaining multiple source views, merge their pending packets by sequence rather
+than HashMap/source iteration order. This preserves application undo ordering for
+interleaved A/B/A edits even if notifications arrive late. Validate source
+binding/ownership before applying a packet; the edit data itself does not know
+which project an application intends to mutate.

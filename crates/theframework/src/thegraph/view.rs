@@ -98,11 +98,7 @@ impl GraphViewState {
             .serial
             .checked_add(1)
             .expect("graph commit serial exhausted");
-        let commit = Arc::new(GraphCommit {
-            binding: self.binding,
-            serial: self.serial,
-            edits,
-        });
+        let commit = Arc::new(GraphCommit::new(self.binding, self.serial, edits));
         self.pending.push_back(commit.clone());
         Some(commit)
     }

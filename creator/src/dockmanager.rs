@@ -1042,14 +1042,7 @@ mod native_graph_owner_tests {
         );
         let id = TheId::named("owner");
         let events = [
-            TheEvent::GraphCommitted(
-                id.clone(),
-                Arc::new(GraphCommit {
-                    binding: 99,
-                    serial: 1,
-                    edits: Vec::new(),
-                }),
-            ),
+            TheEvent::GraphCommitted(id.clone(), Arc::new(GraphCommit::new(99, 1, Vec::new()))),
             TheEvent::GraphCommand(id.clone(), 99, EditorCommand::Copy),
             TheEvent::GraphInteractionStarted(id.clone(), 99),
             TheEvent::GraphDrop(id, 99, [0.; 2], TheDrop::new(TheId::named("source"))),

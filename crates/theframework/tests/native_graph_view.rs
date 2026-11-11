@@ -779,3 +779,70 @@ fn native_host_control_rejects_stale_sources_and_active_graph_editors_atomically
     assert_eq!(model.last_serial(), 0);
     assert!(model.pending_commits().next().is_none());
 }
+
+#[test]
+fn retained_source_commits_have_one_publication_order_across_interleaved_views() {
+    let f = Fixture::new();
+    let source = f.model.lock().unwrap().document().clone();
+    let mut first = GraphViewState::new("first-source", source.clone());
+    let mut second = GraphViewState::new("second-source", source.clone());
+    let (a, b) = (first.binding(), second.binding());
+    let node = source.nodes[0].id;
+    let row = source.nodes[0].rows[0].id;
+    let original = source.nodes[0].rows[0].value.clone();
+    let a1_value = GraphControlValue::Text("First edit of A".into());
+    let b1_value = GraphControlValue::Text("Edit of B".into());
+    let a2_value = GraphControlValue::Text("Later edit of A".into());
+    let a1 = first
+        .commit_control(a, node, row, &original, a1_value.clone())
+        .unwrap()
+        .unwrap();
+    let b1 = second
+        .commit_control(b, node, row, &original, b1_value.clone())
+        .unwrap()
+        .unwrap();
+    let a2 = first
+        .commit_control(a, node, row, &a1_value, a2_value.clone())
+        .unwrap()
+        .unwrap();
+    assert!(a1.sequence < b1.sequence && b1.sequence < a2.sequence);
+    let mut journal = first.pending_through(a2.serial);
+    journal.extend(second.pending_through(b1.serial));
+    journal.sort_by_key(|commit| commit.sequence);
+    assert_eq!(
+        journal
+            .iter()
+            .map(|commit| (commit.binding, commit.serial))
+            .collect::<Vec<_>>(),
+        vec![(a, 1), (b, 1), (a, 2)]
+    );
+    let (mut a_source, mut b_source) = (source.clone(), source.clone());
+    for commit in &journal {
+        let document = if commit.binding == a {
+            &mut a_source
+        } else {
+            &mut b_source
+        };
+        for edit in &commit.edits {
+            edit.apply(document, true);
+        }
+    }
+    assert_eq!(a_source.nodes[0].rows[0].value, a2_value);
+    assert_eq!(b_source.nodes[0].rows[0].value, b1_value);
+    for commit in journal.iter().rev() {
+        let document = if commit.binding == a {
+            &mut a_source
+        } else {
+            &mut b_source
+        };
+        for edit in commit.edits.iter().rev() {
+            edit.apply(document, false);
+        }
+    }
+    assert_eq!(a_source, source);
+    assert_eq!(b_source, source);
+    assert!(first.acknowledge(a, a2.serial));
+    assert!(second.acknowledge(b, b1.serial));
+    assert!(first.pending_through(a1.serial).is_empty());
+    assert!(second.pending_through(b1.serial).is_empty());
+}
