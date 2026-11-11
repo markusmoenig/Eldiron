@@ -1,5 +1,8 @@
 //! Independent prefab part branches, compiled into ordinary runtime assets.
 //! Meshes, paint ownership, attachments and component IDs remain stable.
+mod change;
+pub use change::{PrefabGraphChange, sync_prefab_placements};
+
 use crate::graph_authoring::*;
 use rusterix::{
     BlockPropAsset, BlockPropComponent, BlockPropInteractionTarget, BlockPropSemanticShape, Value,

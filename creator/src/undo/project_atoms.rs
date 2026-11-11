@@ -16,6 +16,7 @@ pub enum ProjectUndoAtom {
         Box<rusterix::BlockPropAsset>,
         Box<rusterix::BlockPropAsset>,
     ),
+    PrefabGraphEdit(Box<shared::prefab_graph::PrefabGraphChange>),
     TilePickerEdit(Box<Project>, Box<Project>),
     ProceduralMaterialEdit(Uuid, String, String),
     ProceduralAppearanceEdit(Uuid, Option<String>, Option<String>),
@@ -291,6 +292,22 @@ impl ProjectUndoAtom {
         ctx.ui.redraw_all = true;
     }
 
+    fn apply_prefab_graph_state(
+        project: &mut Project,
+        ctx: &mut TheContext,
+        change: &shared::prefab_graph::PrefabGraphChange,
+        forward: bool,
+    ) {
+        if change.apply(project, forward) {
+            crate::block_props::sync_existing_prefab_presentations(project);
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named(crate::docks::blocks::BLOCKS_DOCK_SYNC_EVENT),
+                TheValue::Empty,
+            ));
+            ctx.ui.redraw_all = true;
+        }
+    }
+
     /// Returns the ProjectContext for the MapEdit
     pub fn pc(&self) -> Option<ProjectContext> {
         match self {
@@ -299,6 +316,7 @@ impl ProjectUndoAtom {
             RegionPaintEdit(pc, _, _, _) => Some(*pc),
             PrefabPaintEdit(pc, _, _, _) => Some(*pc),
             PrefabAssetEdit(asset_id, _, _) => Some(ProjectContext::Prefab(*asset_id)),
+            PrefabGraphEdit(change) => Some(ProjectContext::Prefab(change.asset_id())),
             _ => None,
         }
     }
@@ -316,6 +334,7 @@ impl ProjectUndoAtom {
             RegionPaintEdit(_, _, _, _) => "Paint Edit".to_string(),
             PrefabPaintEdit(_, _, _, _) => "Prefab Paint Edit".to_string(),
             PrefabAssetEdit(_, _, _) => "Prefab Effect Preset".to_string(),
+            PrefabGraphEdit(_) => fl!("undo_prefab_parts_edit"),
             TilePickerEdit(_, _) => "Tile Picker Edit".to_string(),
             ProceduralMaterialEdit(..) => "Edit Procedural Material".to_string(),
             ProceduralAppearanceEdit(..) => "Edit Procedural Geometry".to_string(),
@@ -414,6 +433,9 @@ impl ProjectUndoAtom {
             }
             PrefabAssetEdit(asset_id, old, _) => {
                 Self::apply_prefab_asset_state(project, ctx, *asset_id, old);
+            }
+            PrefabGraphEdit(change) => {
+                Self::apply_prefab_graph_state(project, ctx, change, false);
             }
             MapMaterialCompositionCreate(pc, old, new, created) => {
                 project.remove_tile(&created.tile.id);
@@ -1140,6 +1162,9 @@ impl ProjectUndoAtom {
             }
             PrefabAssetEdit(asset_id, _, new) => {
                 Self::apply_prefab_asset_state(project, ctx, *asset_id, new);
+            }
+            PrefabGraphEdit(change) => {
+                Self::apply_prefab_graph_state(project, ctx, change, true);
             }
             MapMaterialCompositionCreate(pc, old, new, created) => {
                 created.install(project);
@@ -2046,6 +2071,68 @@ fn move_region_item_pos(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn prefab_graph_project_undo_is_scoped_and_does_not_require_world_renderers() {
+        use shared::prefab_graph::{PrefabGraphChange, PrefabGraphs};
+        let isolated = std::env::var_os("ELDIRON_NATIVE_PREFAB_ISOLATED").is_some();
+        if isolated {
+            assert!(std::sync::LazyLock::get(&RUSTERIX).is_none());
+            assert!(std::sync::LazyLock::get(&SCENEMANAGER).is_none());
+        }
+        let mut project = Project::default();
+        let mut asset = rusterix::BlockPropAsset::new("Undo scope");
+        asset
+            .parts
+            .push(rusterix::BlockPropPart::new_authored("Before", Vec::new()));
+        let id = asset.id;
+        let mut graphs = PrefabGraphs::import(&asset);
+        project.block_props.insert(id, asset.clone());
+        let row = graphs.branches[0]
+            .graph
+            .nodes
+            .iter_mut()
+            .find(|node| node.definition.as_deref() == Some("prefab_part"))
+            .unwrap()
+            .rows
+            .iter_mut()
+            .find(|row| row.key.as_deref() == Some("name"))
+            .unwrap();
+        row.value = theframework::thegraph::GraphControlValue::Text("After 日本".into());
+        let compiled = graphs.compile(&asset).unwrap();
+        let change = PrefabGraphChange::capture(&project, id, graphs, compiled).unwrap();
+        assert!(change.apply(&mut project, true));
+        let atom = ProjectUndoAtom::PrefabGraphEdit(Box::new(change));
+        assert_eq!(atom.pc(), Some(ProjectContext::Prefab(id)));
+        let mut ui = TheUI::new();
+        let mut ctx = TheContext::new(64, 64, 1.);
+        let mut server_ctx = ServerContext::default();
+        let mut history = crate::undo::project_undo::ProjectUndo::new();
+        history.add(atom);
+        history.mark_saved();
+        project.name = "Unrelated edit".into();
+        project.regions[0].map.name = "Unrelated world edit".into();
+        for forward in [false, true, false, true] {
+            if forward {
+                history.redo(&mut project, &mut ui, &mut ctx, &mut server_ctx);
+            } else {
+                history.undo(&mut project, &mut ui, &mut ctx, &mut server_ctx);
+            }
+            assert_eq!(history.has_unsaved(), !forward);
+            assert_eq!(project.name, "Unrelated edit");
+            assert_eq!(project.regions[0].map.name, "Unrelated world edit");
+            assert_eq!(
+                project.block_props[&id].parts[0].name,
+                if forward { "After 日本" } else { "Before" }
+            );
+            assert_eq!(project.prefab_graphs.contains_key(&id), forward);
+            assert!(ui.canvas.buffer.pixels().is_empty());
+        }
+        if isolated {
+            assert!(std::sync::LazyLock::get(&RUSTERIX).is_none());
+            assert!(std::sync::LazyLock::get(&SCENEMANAGER).is_none());
+        }
+    }
 
     #[test]
     #[ignore = "Requires a native GPU adapter for the editor asset registry"]

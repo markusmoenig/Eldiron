@@ -1,6 +1,6 @@
 //! The prefab authoring pane uses the same canvas, branch list and interaction model as behavior.
 use crate::prelude::*;
-use shared::prefab_graph::{self, PrefabGraphs};
+use shared::prefab_graph::{self, PrefabGraphChange, PrefabGraphs};
 use std::collections::HashSet;
 use theframework::thegraph::*;
 
@@ -176,6 +176,7 @@ impl PrefabNodePane {
             self.asset = Some(asset);
             self.part = part;
             self.doc = doc;
+            self.store_error = None;
             self.committed = self.doc.clone();
             self.editor = GraphEditor::default();
             if part.is_some_and(|part| self.opened.insert((asset, part))) {
@@ -336,11 +337,17 @@ impl PrefabNodePane {
                         graphs.door_targets.push(target.clone());
                     }
                 }
-                let before = project.clone();
-                project.prefab_graphs.insert(asset_id, graphs);
-                project.block_props.insert(asset_id, asset);
-                super::prefabs_editor::PrefabsEditorDock::push_project_undo(before, project, ctx);
-                super::prefabs_editor::PrefabsEditorDock::sync_prefab_runtime(project);
+                let Some(change) = PrefabGraphChange::capture(project, asset_id, graphs, asset)
+                else {
+                    return;
+                };
+                if change.apply(project, true) {
+                    crate::editor::UNDOMANAGER
+                        .write()
+                        .unwrap()
+                        .add_undo(ProjectUndoAtom::PrefabGraphEdit(Box::new(change)), ctx);
+                    crate::block_props::sync_existing_prefab_presentations(project);
+                }
                 self.committed = self.doc.clone();
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named(super::blocks::BLOCKS_DOCK_SYNC_EVENT),

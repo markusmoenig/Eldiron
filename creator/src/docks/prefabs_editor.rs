@@ -1,7 +1,7 @@
 use crate::docks::iso_paint::IsoPaintDock;
 use crate::docks::palette::PaletteDock;
 use crate::docks::tiles::TilesDock;
-use crate::editor::{RUSTERIX, SCENEMANAGER, TOOLLIST, UNDOMANAGER};
+use crate::editor::{RUSTERIX, TOOLLIST, UNDOMANAGER};
 use crate::prelude::*;
 use scenevm::GeoId;
 
@@ -2287,39 +2287,8 @@ impl PrefabsEditorDock {
     }
 
     pub(super) fn sync_prefab_runtime(project: &mut Project) {
-        let block_props = &project.block_props;
-        for region in &mut project.regions {
-            rusterix::sync_block_prop_surface_prop_transforms(
-                &mut region.map.block_prop_instances,
-                &region.map.block_prop_surface_placements,
-                block_props,
-            );
-            rusterix::sync_block_prop_surface_item_positions(
-                &region.map.block_prop_instances,
-                &region.map.block_prop_surface_placements,
-                &mut region.map.items,
-                block_props,
-            );
-            for item in region.items.values_mut() {
-                if let Some(runtime_item) = region
-                    .map
-                    .items
-                    .iter()
-                    .find(|runtime_item| runtime_item.creator_id == item.id)
-                {
-                    item.position = runtime_item.position;
-                }
-            }
-        }
-        let prefabs = project.block_props.clone();
-        // Authoring a CPU graph must not construct a renderer/session merely
-        // to synchronize an optional currently assembled presentation owner.
-        if let Some(runtime) = std::sync::LazyLock::get(&RUSTERIX) {
-            runtime.write().unwrap().set_block_props(prefabs.clone());
-        }
-        if let Some(scenes) = std::sync::LazyLock::get(&SCENEMANAGER) {
-            scenes.write().unwrap().set_block_props(prefabs);
-        }
+        shared::prefab_graph::sync_prefab_placements(project);
+        crate::block_props::sync_existing_prefab_presentations(project);
     }
 }
 

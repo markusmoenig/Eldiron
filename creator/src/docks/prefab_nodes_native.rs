@@ -628,6 +628,35 @@ mod tests {
         assert!(f.pane.resources.is_none());
     }
     #[test]
+    fn native_prefab_external_undo_rebinds_the_source_and_clears_the_obsolete_error() {
+        let mut f = Fixture::new();
+        let before = f.project.clone();
+        f.click("prefab_part", "name");
+        f.command(EditorCommand::SelectAll);
+        f.send(InputEvent::Text("Committed rename".into()));
+        assert!(f.commit().unwrap());
+        f.click("prefab_transform", "pivot_x");
+        f.command(EditorCommand::SelectAll);
+        f.send(InputEvent::Text("invalid".into()));
+        assert!(f.commit().is_err());
+        let old_target = f.state().target;
+        let old_binding = f.model().lock().unwrap().binding();
+        f.project = before;
+        f.pane
+            .load(&f.project, f.asset, Some(f.first), &mut f.ui, &mut f.ctx);
+        assert!(f.pane.store_error.is_none());
+        assert!(!f.pane.has_native_pending());
+        assert_ne!(f.model().lock().unwrap().binding(), old_binding);
+        f.send(InputEvent::TextFor {
+            target: old_target,
+            text: "stale".into(),
+        });
+        f.pump();
+        assert_eq!(f.first_name(), "First");
+        assert_eq!(f.project.block_props[&f.asset].parts[0].pivot[0], 0.);
+    }
+
+    #[test]
     fn native_prefab_drop_is_addressed_and_keeps_its_input_camera_coordinates() {
         let mut f = Fixture::new();
         let before = f.pane.doc.nodes.len();
