@@ -6,8 +6,9 @@ Upstream package checksum: `8fad031076f48f0d4d85ce1aea9b94b4e715a4d636a030a12303
 Upstream VCS revision: `65fd4ad705deabc89b732cf7e8de9245466a2450`.
 Upstream Apache-2.0 / MIT licenses are retained.
 
-The production change is confined to `src/analysis/mod.rs`. The complete diff
-is in `eldiron-complex-segmentation.patch` for review/rebasing.
+The dictionary production change is confined to `src/analysis/mod.rs`; its diff
+is in `eldiron-complex-segmentation.patch`. The additional editing API adapter
+below is isolated in `eldiron-editor-selection.patch` for review/rebasing.
 
 A test-only `eldiron-segmentation-tests` feature in the manifest/lib harness
 isolates the self-contained dictionary contract test. The published package's
@@ -33,3 +34,24 @@ provider through actual shaped text and GPU paint. Parley cursor movement
 also treats line-break opportunities as navigation stops; this patch does not
 redefine those editing semantics. Remove this local patch when
 an upstream release provides equivalent configurable/full segmentation.
+
+## Editing selection API
+
+Two public adapter methods in `src/editing/{editor,selection}.rs` allow the
+framework to retain Parley's selection state rather than reducing it to byte
+indices. `PlainEditorDriver::set_selection` validates UTF-8 endpoints, refreshes
+the selection against the current layout and uses the editor's existing
+selection/generation update path. `Selection::map_cursors` retains bidi affinity,
+preferred horizontal position and word/line drag anchors when applying the
+framework's extended-grapheme cursor policy. Existing Parley methods are unchanged.
+
+The framework, not this patch, filters visual shaping-cluster stops through
+Unicode extended-grapheme boundaries and snaps pointer/vertical endpoints to the
+nearest valid shaped caret. Undo/IME cancellation restores the full selection,
+including which visual side of a bidi boundary it occupied. Actual regressions
+reproduced interior Tamil/combining stops and a bidi undo caret jump before these
+adapters were added. The framework's text-only controller tests verify them; the
+scoped upstream dictionary test command above still covers only analysis data.
+Remove these API extensions when an upstream public API provides equivalent
+selection restoration/mapping. No font rasterizer, glyph generation or shaping
+algorithm is replaced.

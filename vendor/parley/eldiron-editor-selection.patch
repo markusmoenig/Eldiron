@@ -1,0 +1,60 @@
+--- a/src/editing/editor.rs
++++ b/src/editing/editor.rs
+@@ -743,6 +743,29 @@
+         }
+     }
+ 
++    /// Set a selection while preserving cursor affinity and navigation state.
++    ///
++    /// Returns `false` without changing the selection if an endpoint is not a
++    /// UTF-8 boundary in this editor. Cursors are refreshed against its current
++    /// layout before use, including selections restored from an earlier layout.
++    pub fn set_selection(&mut self, selection: Selection) -> bool {
++        if !self
++            .editor
++            .buffer
++            .is_char_boundary(selection.anchor().index())
++            || !self
++                .editor
++                .buffer
++                .is_char_boundary(selection.focus().index())
++        {
++            return false;
++        }
++        self.refresh_layout();
++        self.editor
++            .set_selection(selection.refresh(&self.editor.layout));
++        true
++    }
++
+     /// Select a range of byte indices.
+     ///
+     /// No-op if either index is not a char boundary.
+--- a/src/editing/selection.rs
++++ b/src/editing/selection.rs
+@@ -161,6 +161,25 @@
+             focus,
+             anchor_base,
+             h_pos,
++        }
++    }
++
++    /// Map cursor endpoints while retaining horizontal navigation position and
++    /// word/line drag anchors. Useful for application-level boundary policies.
++    #[must_use]
++    pub fn map_cursors(&self, mut map: impl FnMut(Cursor) -> Cursor) -> Self {
++        let anchor = map(self.anchor);
++        let focus = map(self.focus);
++        let anchor_base = match self.anchor_base {
++            AnchorBase::Cluster => AnchorBase::Cluster,
++            AnchorBase::Word(start, end) => AnchorBase::Word(map(start), map(end)),
++            AnchorBase::Line(start, end) => AnchorBase::Line(map(start), map(end)),
++        };
++        Self {
++            anchor,
++            focus,
++            anchor_base,
++            h_pos: self.h_pos,
+         }
+     }
+ 

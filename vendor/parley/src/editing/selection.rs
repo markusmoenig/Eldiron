@@ -164,6 +164,25 @@ impl Selection {
         }
     }
 
+    /// Map cursor endpoints while retaining horizontal navigation position and
+    /// word/line drag anchors. Useful for application-level boundary policies.
+    #[must_use]
+    pub fn map_cursors(&self, mut map: impl FnMut(Cursor) -> Cursor) -> Self {
+        let anchor = map(self.anchor);
+        let focus = map(self.focus);
+        let anchor_base = match self.anchor_base {
+            AnchorBase::Cluster => AnchorBase::Cluster,
+            AnchorBase::Word(start, end) => AnchorBase::Word(map(start), map(end)),
+            AnchorBase::Line(start, end) => AnchorBase::Line(map(start), map(end)),
+        };
+        Self {
+            anchor,
+            focus,
+            anchor_base,
+            h_pos: self.h_pos,
+        }
+    }
+
     /// Returns the underlying text range of the selection.
     pub fn text_range(&self) -> Range<usize> {
         let start = self.anchor.index().min(self.focus.index());

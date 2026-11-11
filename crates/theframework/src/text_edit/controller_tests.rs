@@ -265,6 +265,7 @@ fn history_is_bounded_and_replacing_redo_keeps_accounting_exact() {
     }
     assert!(editor.undo.is_empty());
     editor.set_text(&mut fonts, "");
+    editor.history_budget = 1024;
     for s in ["A", "B", "C"] {
         text(&mut editor, &mut fonts, s);
     }
@@ -320,4 +321,131 @@ fn clipboard_tokens_do_not_alias_recreated_editors_and_preedit_offsets_follow_fi
     assert_eq!(next.layout(&mut fonts).source.as_ref(), "東京Two!");
     assert_eq!(next.selection_bytes(), (3, 6));
     assert_eq!(next.text(), "Two!");
+}
+
+#[test]
+fn user_arrows_stop_at_extended_grapheme_boundaries() {
+    let source = "A e\u{301} 👨‍👩‍👧‍👦 🇩🇪 கொ 東京 Z";
+    let (mut fonts, mut editor) = fixture(false, source);
+    let mut boundaries: Vec<_> = source.grapheme_indices(true).map(|(i, _)| i).collect();
+    boundaries.push(source.len());
+    for keycode in [PhysicalKey::Left, PhysicalKey::Right] {
+        editor.select_bytes(
+            &mut fonts,
+            if keycode == PhysicalKey::Left {
+                source.len()
+            } else {
+                0
+            },
+            if keycode == PhysicalKey::Left {
+                source.len()
+            } else {
+                0
+            },
+        );
+        for _ in 0..source.chars().count() * 2 {
+            key(&mut editor, &mut fonts, keycode);
+            let (_, focus) = editor.selection_bytes();
+            assert!(
+                boundaries.contains(&focus),
+                "{keycode:?} stopped at {focus}, inside a grapheme in {source:?}"
+            );
+        }
+    }
+}
+#[test]
+fn undo_preserves_the_visual_side_of_a_bidi_boundary() {
+    let (mut fonts, mut editor) = fixture(false, "abc אבג xyz");
+    let width = editor.layout(&mut fonts).width();
+    let mut found = false;
+    for x in 0..=(width * 2.) as usize {
+        editor.point(&mut fonts, [x as f32 * 0.5, 12.], false);
+        let before = editor.caret(&mut fonts).unwrap();
+        let selection = *editor.editor.raw_selection();
+        let (a, b) = editor.selection_bytes();
+        if a != b || a == 0 || a == editor.text().len() {
+            continue;
+        }
+        // Restore-by-index chooses the default side; find a point on the other
+        // side, where losing affinity changes visible caret position.
+        editor.select_bytes(&mut fonts, a, b);
+        let by_index = editor.caret(&mut fonts).unwrap();
+        if (by_index.x - before.x).abs() < 2. {
+            continue;
+        }
+        editor.point(&mut fonts, [x as f32 * 0.5, 12.], false);
+        assert_eq!(*editor.editor.raw_selection(), selection);
+        text(&mut editor, &mut fonts, "!");
+        assert!(editor.undo(&mut fonts));
+        let after = editor.caret(&mut fonts).unwrap();
+        assert!(
+            (after.x - before.x).abs() < 0.1,
+            "bidi undo moved caret from {before:?} to {after:?}"
+        );
+        found = true;
+        break;
+    }
+    assert!(
+        found,
+        "fixture must exercise both sides of a directional boundary"
+    );
+}
+
+#[test]
+fn user_pointer_and_vertical_navigation_do_not_split_graphemes() {
+    let source = "A e\u{301} 👨‍👩‍👧‍👦 🇩🇪 கொ 東京 Z\nABCDEF\nகொ கொ கொ\ne\u{301} e\u{301}";
+    let (mut fonts, mut editor) = fixture(true, source);
+    let mut boundaries: Vec<_> = source.grapheme_indices(true).map(|(i, _)| i).collect();
+    boundaries.push(source.len());
+    let lines = editor.layout(&mut fonts).lines();
+    for line in lines {
+        for x in 0..=(line.advance * 2.) as usize {
+            editor.point(
+                &mut fonts,
+                [x as f32 * 0.5, (line.top + line.bottom) / 2.],
+                false,
+            );
+            let (_, focus) = editor.selection_bytes();
+            assert!(
+                boundaries.contains(&focus),
+                "point stopped at {focus}, inside a grapheme"
+            );
+            for code in [
+                PhysicalKey::Down,
+                PhysicalKey::Up,
+                PhysicalKey::Home,
+                PhysicalKey::End,
+            ] {
+                key(&mut editor, &mut fonts, code);
+                let (_, focus) = editor.selection_bytes();
+                assert!(
+                    boundaries.contains(&focus),
+                    "{code:?} stopped at {focus}, inside a grapheme"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn latin_ligatures_keep_every_user_character_navigable() {
+    let source = "office ffi fl";
+    let (mut fonts, mut editor) = fixture(false, source);
+    editor.select_bytes(&mut fonts, 0, 0);
+    for index in 1..=source.len() {
+        key(&mut editor, &mut fonts, PhysicalKey::Right);
+        assert_eq!(
+            editor.selection_bytes(),
+            (index, index),
+            "ligature skipped a character"
+        );
+    }
+    for index in (0..source.len()).rev() {
+        key(&mut editor, &mut fonts, PhysicalKey::Left);
+        assert_eq!(
+            editor.selection_bytes(),
+            (index, index),
+            "ligature skipped a character"
+        );
+    }
 }

@@ -743,6 +743,29 @@ where
         }
     }
 
+    /// Set a selection while preserving cursor affinity and navigation state.
+    ///
+    /// Returns `false` without changing the selection if an endpoint is not a
+    /// UTF-8 boundary in this editor. Cursors are refreshed against its current
+    /// layout before use, including selections restored from an earlier layout.
+    pub fn set_selection(&mut self, selection: Selection) -> bool {
+        if !self
+            .editor
+            .buffer
+            .is_char_boundary(selection.anchor().index())
+            || !self
+                .editor
+                .buffer
+                .is_char_boundary(selection.focus().index())
+        {
+            return false;
+        }
+        self.refresh_layout();
+        self.editor
+            .set_selection(selection.refresh(&self.editor.layout));
+        true
+    }
+
     /// Select a range of byte indices.
     ///
     /// No-op if either index is not a char boundary.

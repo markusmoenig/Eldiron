@@ -16,8 +16,7 @@ use unicode_segmentation::UnicodeSegmentation;
 #[derive(Clone, PartialEq, Eq)]
 struct Snapshot {
     text: String,
-    anchor: usize,
-    focus: usize,
+    selection: parley::Selection,
 }
 struct Change {
     before: Snapshot,
@@ -87,6 +86,8 @@ pub struct EditorController {
     fonts: Option<(u64, u64)>,
     snapshot: Option<TextLayout>,
     snapshots_built: u64,
+    boundaries: Vec<usize>,
+    boundaries_dirty: bool,
 }
 impl EditorController {
     pub fn new(multiline: bool) -> Self {
@@ -105,6 +106,8 @@ impl EditorController {
             fonts: None,
             snapshot: None,
             snapshots_built: 0,
+            boundaries: vec![0],
+            boundaries_dirty: false,
         }
     }
     pub fn text(&self) -> &str {
@@ -128,8 +131,7 @@ impl EditorController {
         let selection = self.editor.raw_selection();
         Snapshot {
             text: self.editor.raw_text().into(),
-            anchor: selection.anchor().index(),
-            focus: selection.focus().index(),
+            selection: *selection,
         }
     }
     fn restore(&mut self, fonts: &mut TextSystem, state: &Snapshot) {
@@ -137,8 +139,9 @@ impl EditorController {
         self.editor.set_text(&state.text);
         fonts
             .editor_driver(&mut self.editor)
-            .select_byte_range(state.anchor, state.focus);
+            .set_selection(state.selection);
         self.snapshot = None;
+        self.boundaries_dirty = true;
     }
     fn cancel_composition(&mut self, fonts: &mut TextSystem) -> bool {
         if let Some(before) = self.composition.take() {
@@ -166,11 +169,12 @@ impl EditorController {
         self.cancel_composition(fonts);
         self.editor.set_text(&self.clean(text));
         fonts.editor_driver(&mut self.editor).move_to_text_end();
-        self.undo.clear();
-        self.redo.clear();
+        self.undo = VecDeque::new();
+        self.redo = Vec::new();
         self.history_bytes = 0;
         self.clipboard = None;
         self.snapshot = None;
+        self.boundaries_dirty = true;
     }
     fn ensure_fonts(&mut self, fonts: &mut TextSystem) {
         let stamp = fonts.font_stamp();
@@ -178,6 +182,7 @@ impl EditorController {
             self.fonts = Some(stamp);
             let _ = self.editor.edit_styles();
             self.snapshot = None;
+            self.boundaries_dirty = true;
         }
     }
     pub fn prepare(&mut self, fonts: &mut TextSystem, options: TextOptions<'_>) {
@@ -220,12 +225,16 @@ impl EditorController {
             self.editor.set_width(width);
             self.style = Some(key);
             self.snapshot = None;
+            self.boundaries_dirty = true;
         }
         let _ = self.layout(fonts);
     }
     pub fn layout(&mut self, fonts: &mut TextSystem) -> &TextLayout {
         self.ensure_fonts(fonts);
         fonts.editor_driver(&mut self.editor).layout();
+        if !self.is_composing() {
+            self.snap_selection(fonts, false);
+        }
         if self
             .snapshot
             .as_ref()
@@ -235,6 +244,27 @@ impl EditorController {
             self.snapshots_built += 1;
         }
         self.snapshot.as_ref().unwrap()
+    }
+    fn update_boundaries(&mut self) {
+        if self.boundaries_dirty {
+            self.boundaries.clear();
+            self.boundaries.extend(
+                self.editor
+                    .raw_text()
+                    .grapheme_indices(true)
+                    .map(|(i, _)| i),
+            );
+            self.boundaries.push(self.editor.raw_text().len());
+            self.boundaries_dirty = false;
+        }
+    }
+    fn snap_selection(&mut self, fonts: &mut TextSystem, forward: bool) {
+        self.update_boundaries();
+        normalize_selection(
+            &mut fonts.editor_driver(&mut self.editor),
+            &self.boundaries,
+            forward,
+        );
     }
     pub fn selection_bytes(&self) -> (usize, usize) {
         let selection = self.editor.raw_selection();
@@ -246,6 +276,7 @@ impl EditorController {
         fonts
             .editor_driver(&mut self.editor)
             .select_byte_range(anchor, focus);
+        self.snap_selection(fonts, false);
     }
     pub fn point(&mut self, fonts: &mut TextSystem, point: [f32; 2], extend: bool) {
         self.cancel_composition(fonts);
@@ -256,6 +287,7 @@ impl EditorController {
         } else {
             driver.move_to_point(point[0], point[1]);
         }
+        self.snap_selection(fonts, false);
     }
     /// Multiple-click selection uses the same shaped hit geometry as painting.
     pub fn point_selection(&mut self, fonts: &mut TextSystem, point: [f32; 2], clicks: u8) {
@@ -267,6 +299,7 @@ impl EditorController {
             2 => driver.select_word_at_point(point[0], point[1]),
             _ => driver.select_hard_line_at_point(point[0], point[1]),
         }
+        self.snap_selection(fonts, false);
     }
     pub fn move_page(&mut self, fonts: &mut TextSystem, height: f32, down: bool, extend: bool) {
         self.cancel_composition(fonts);
@@ -281,6 +314,7 @@ impl EditorController {
                 (false, true) => driver.select_up(),
             }
         }
+        self.snap_selection(fonts, false);
     }
     pub fn caret(&mut self, fonts: &mut TextSystem) -> Option<Rect> {
         self.layout(fonts);
@@ -319,13 +353,16 @@ impl EditorController {
         let mut driver = fonts.editor_driver(&mut self.editor);
         driver.refresh_layout();
         edit(&mut driver);
-        let after = self.state();
-        if before.text == after.text {
+        if before.text == self.editor.raw_text() {
             return false;
         }
+        self.snapshot = None;
+        self.boundaries_dirty = true;
+        self.snap_selection(fonts, true);
+        let after = self.state();
         self.history_bytes -= self.redo.iter().map(|c| c.bytes).sum::<usize>();
         self.redo.clear();
-        let bytes = before.text.len() + after.text.len();
+        let bytes = before.text.capacity() + after.text.capacity() + std::mem::size_of::<Change>();
         self.undo.push_back(Change {
             before,
             after,
@@ -340,7 +377,6 @@ impl EditorController {
             }
         }
         self.clipboard = None;
-        self.snapshot = None;
         true
     }
     pub fn undo(&mut self, fonts: &mut TextSystem) -> bool {
@@ -452,6 +488,7 @@ impl EditorController {
                     .editor_driver(&mut self.editor)
                     .set_compose(&text, cursor);
                 self.snapshot = None;
+                self.boundaries_dirty = true;
                 EditorResponse::handled(false)
             }
             InputEvent::Key {
@@ -597,6 +634,7 @@ impl EditorController {
             | PhysicalKey::Down
             | PhysicalKey::Home
             | PhysicalKey::End => {
+                self.update_boundaries();
                 let mut driver = fonts.editor_driver(&mut self.editor);
                 match (key, mods.shift) {
                     (PhysicalKey::Left, false) if mods.super_key => driver.move_to_line_start(),
@@ -615,10 +653,18 @@ impl EditorController {
                     (PhysicalKey::Right, true) if mods.control || mods.alt => {
                         driver.select_word_right()
                     }
-                    (PhysicalKey::Left, false) => driver.move_left(),
-                    (PhysicalKey::Right, false) => driver.move_right(),
-                    (PhysicalKey::Left, true) => driver.select_left(),
-                    (PhysicalKey::Right, true) => driver.select_right(),
+                    (PhysicalKey::Left, false) => {
+                        visual_grapheme(&mut driver, &self.boundaries, false, false)
+                    }
+                    (PhysicalKey::Right, false) => {
+                        visual_grapheme(&mut driver, &self.boundaries, true, false)
+                    }
+                    (PhysicalKey::Left, true) => {
+                        visual_grapheme(&mut driver, &self.boundaries, false, true)
+                    }
+                    (PhysicalKey::Right, true) => {
+                        visual_grapheme(&mut driver, &self.boundaries, true, true)
+                    }
                     (PhysicalKey::Up, false) => driver.move_up(),
                     (PhysicalKey::Down, false) => driver.move_down(),
                     (PhysicalKey::Up, true) => driver.select_up(),
@@ -633,6 +679,7 @@ impl EditorController {
                     (PhysicalKey::End, true) => driver.select_to_line_end(),
                     _ => {}
                 }
+                normalize_selection(&mut driver, &self.boundaries, false);
                 EditorResponse::handled(false)
             }
             _ => EditorResponse {
@@ -643,6 +690,73 @@ impl EditorController {
                 ..EditorResponse::default()
             },
         }
+    }
+}
+/// Parley visual clusters can subdivide one extended grapheme. Keep its visual
+/// bidi ordering and affinity while traversing those internal shaping stops.
+fn visual_grapheme(
+    driver: &mut PlainEditorDriver<'_, usize>,
+    boundaries: &[usize],
+    right: bool,
+    extend: bool,
+) {
+    let mut selection = *driver.editor.raw_selection();
+    let limit = driver
+        .editor
+        .raw_text()
+        .len()
+        .saturating_mul(2)
+        .saturating_add(1);
+    let layout = driver.layout();
+    for _ in 0..limit {
+        let next = if right {
+            selection.next_visual(layout, extend)
+        } else {
+            selection.previous_visual(layout, extend)
+        };
+        if next.focus() == selection.focus() {
+            break;
+        }
+        selection = next;
+        if boundaries.binary_search(&selection.focus().index()).is_ok() {
+            break;
+        }
+    }
+    driver.set_selection(selection);
+}
+fn normalize_selection(
+    driver: &mut PlainEditorDriver<'_, usize>,
+    boundaries: &[usize],
+    forward: bool,
+) {
+    let selection = *driver.editor.raw_selection();
+    let layout = driver.layout();
+    let mut changed = false;
+    let corrected = selection.map_cursors(|cursor| {
+        let Err(index) = boundaries.binary_search(&cursor.index()) else {
+            return cursor;
+        };
+        changed = true;
+        let before = boundaries[index.saturating_sub(1)];
+        let after = boundaries[index.min(boundaries.len() - 1)];
+        let left = parley::Cursor::from_byte_index(layout, before, parley::Affinity::Downstream);
+        let right = parley::Cursor::from_byte_index(layout, after, parley::Affinity::Upstream);
+        if forward {
+            return right;
+        }
+        let origin = cursor.geometry(layout, 0.);
+        let distance = |candidate: parley::Cursor| {
+            let rect = candidate.geometry(layout, 0.);
+            (rect.x0 - origin.x0).powi(2) + (rect.y0 - origin.y0).powi(2)
+        };
+        if distance(left) <= distance(right) {
+            left
+        } else {
+            right
+        }
+    });
+    if changed {
+        driver.set_selection(corrected);
     }
 }
 fn char_boundary(text: &str, mut index: usize) -> usize {
