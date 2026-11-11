@@ -1,5 +1,5 @@
 //! Small shared building blocks for declarative authoring graphs.
-use theframework::thegraph::*;
+use theframework_core::graph::*;
 
 pub fn number(value: f32, min: f32, max: f32, step: f32) -> GraphControlValue {
     GraphControlValue::Number {
@@ -75,7 +75,7 @@ pub fn set(node: &mut GraphNode, key: &str, value: GraphControlValue) {
 }
 pub fn connect(doc: &mut GraphDocument, from: &GraphNode, to: &GraphNode) {
     doc.connections.push(GraphConnection {
-        id: theframework::prelude::Uuid::new_v4(),
+        id: theframework_core::Uuid::new_v4(),
         from: from
             .ports
             .iter()

@@ -70,11 +70,10 @@ fn fixture() -> TerminalApp {
     character.data = "[input]\na='intent.attack'\nl='intent.look'\n".into();
     project.characters.insert(character.id, character);
     project.regions = vec![region];
+    let mut runtime = GameSession::new(project);
+    runtime.current_map = "Hall".into();
     TerminalApp {
-        project,
-        assets: Assets::default(),
-        server: Server::default(),
-        current_map: "Hall".into(),
+        runtime,
         session: TextSession::new(),
         screen_messages: vec![],
         auto_attack_target: None,
@@ -106,7 +105,7 @@ fn finish(app: &mut TerminalApp) -> Vec<String> {
 #[test]
 fn legacy_ai_uses_existing_look_and_inventory_without_concept_or_private_source() {
     let mut app = fixture();
-    let original = serde_json::to_value(&app.project).unwrap();
+    let original = serde_json::to_value(&app.runtime.project).unwrap();
     let ordinary = handle_command(&mut app, "look").1;
     assert!(ordinary.join("\n").contains("Entrance Hall"));
     let p = enable(
@@ -123,7 +122,10 @@ fn legacy_ai_uses_existing_look_and_inventory_without_concept_or_private_source(
     );
     let output = finish(&mut app);
     assert!(output.iter().any(|s| ordinary.contains(s)));
-    assert_eq!(serde_json::to_value(&app.project).unwrap(), original);
+    assert_eq!(
+        serde_json::to_value(&app.runtime.project).unwrap(),
+        original
+    );
     let seen = p.seen.lock().unwrap();
     let json = serde_json::to_string(&*seen).unwrap();
     assert!(!json.contains("SECRET_"));
@@ -151,7 +153,7 @@ fn legacy_explicit_commands_errors_and_cancel_bypass_ai() {
 #[test]
 fn legacy_ai_rejects_missing_targets_and_discards_results_after_a_scene_change() {
     let mut app = fixture();
-    let before = serde_json::to_value(&app.project).unwrap();
+    let before = serde_json::to_value(&app.runtime.project).unwrap();
     enable(
         &mut app,
         vec![Ok(
@@ -160,7 +162,7 @@ fn legacy_ai_rejects_missing_targets_and_discards_results_after_a_scene_change()
     );
     input(&mut app, "I would like to attack the hidden actor");
     assert!(finish(&mut app).join("\n").contains("unavailable"));
-    assert_eq!(serde_json::to_value(&app.project).unwrap(), before);
+    assert_eq!(serde_json::to_value(&app.runtime.project).unwrap(), before);
     enable(
         &mut app,
         vec![Ok(json!({"command":{"operation":"wait"},"reply":""}))],
@@ -174,10 +176,10 @@ fn legacy_project_roundtrip_and_plain_text_mode_keep_their_original_format() {
     let mut app = fixture();
     let before = handle_command(&mut app, "inventory");
     assert_eq!(input(&mut app, "inventory"), before);
-    let encoded = serde_json::to_vec(&app.project).unwrap();
+    let encoded = serde_json::to_vec(&app.runtime.project).unwrap();
     assert!(!String::from_utf8_lossy(&encoded).contains("ai_provider"));
     let restored: Project = serde_json::from_slice(&encoded).unwrap();
-    app.project = restored;
+    app.runtime.project = restored;
     assert_eq!(input(&mut app, "inventory"), before);
     assert!(parse_terminal_args(&["client", "--ai-provider=disabled"].map(str::to_string)).is_ok());
 }

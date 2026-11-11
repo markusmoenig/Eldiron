@@ -5,7 +5,6 @@ pub mod audio;
 pub mod avatar;
 #[cfg(feature = "graphics")]
 pub mod avatar_builder;
-#[cfg(feature = "graphics")]
 pub mod batch;
 pub mod camera;
 pub mod chunk;
@@ -17,6 +16,8 @@ pub use client::text_command;
 pub mod collision_world;
 pub mod command;
 pub mod edge;
+pub mod editor_colors;
+pub(crate) mod fingerprint;
 pub mod hitinfo;
 #[path = "client/command.rs"]
 pub mod input_binding;
@@ -32,7 +33,6 @@ pub mod procedural;
 pub mod rasterizer;
 pub mod ray;
 pub mod rect;
-#[cfg(feature = "graphics")]
 pub mod render_settings;
 pub mod rendermode;
 #[cfg(feature = "graphics")]
@@ -131,7 +131,6 @@ pub use crate::orthographic_bake::{
     OrthographicBakeController, OrthographicBakeLighting, OrthographicBakeStatus,
     OrthographicBakeWork,
 };
-#[cfg(feature = "graphics")]
 pub use crate::render_settings::RenderSettings;
 #[cfg(feature = "graphics")]
 pub use crate::rusterix::Rusterix;

@@ -13,7 +13,6 @@ pub mod thecolor;
 pub mod thecontext;
 pub mod thedim;
 pub mod thedraw2d;
-#[cfg(feature = "ui")]
 pub mod thegraph;
 pub mod thenodecanvas;
 pub mod thepalette;
@@ -21,6 +20,7 @@ pub mod thergbabuffer;
 pub mod thesurface;
 pub mod thetime;
 pub mod thetrait;
+pub mod thevalue;
 #[cfg(any(feature = "winit_app", feature = "winit_app_softbuffer"))]
 pub mod thewinitapp;
 #[cfg(any(feature = "winit_app", feature = "winit_app_softbuffer"))]
@@ -118,6 +118,8 @@ pub mod prelude {
     pub use crate::thenodecanvas::{TheNode, TheNodeCanvas, TheNodeTerminal};
     pub use crate::thepalette::ThePalette;
     pub use crate::thetime::TheTime;
+    pub use crate::thevalue::{TheValue, TheValueAssignment, TheValueComparison};
+    pub use theframework_core::{TheId, TheTileMask};
 
     pub use crate::TheKeyCode;
     pub use crate::thetrait::TheTrait;

@@ -61,4 +61,4 @@ web-sys = { version = "0.3", features = ['Window'] }
 [features]
 default = ["graphics"]
 text-ai = ["dep:ureq", "dep:url", "dep:ring", "dep:dirs", "dep:tempfile", "dep:open"]
-graphics = ["rusterix/graphics", "scenevm/gpu"]
+graphics = ["rusterix/graphics", "scenevm/gpu", "theframework/ui"]

@@ -2,30 +2,38 @@
 //!
 //! Hosts own the document and context. The editor emits reversible changes; the painter
 //! consumes read-only observations. All geometry and input use the same viewport transform.
-mod branch;
+#[cfg(feature = "ui")]
 mod controls;
+#[cfg(feature = "ui")]
 mod editor;
-mod model;
+#[cfg(feature = "ui")]
 mod paint;
+#[cfg(feature = "ui")]
 pub use controls::*;
+#[cfg(feature = "ui")]
 pub use editor::*;
-pub use model::*;
+#[cfg(feature = "ui")]
 pub use paint::*;
+#[cfg(feature = "ui")]
 mod raster;
-pub use branch::*;
+#[cfg(feature = "ui")]
 pub use raster::*;
-#[cfg(test)]
+#[cfg(all(test, feature = "ui"))]
 mod tests;
 
+#[cfg(feature = "ui")]
 mod text;
+#[cfg(feature = "ui")]
 pub use text::*;
 
-mod definitions;
-pub use definitions::*;
+#[cfg(feature = "ui")]
 mod picker;
+#[cfg(feature = "ui")]
 pub use picker::*;
 
-#[cfg(feature="text")]
+#[cfg(all(feature = "text", feature = "ui"))]
 mod paint_list;
-#[cfg(feature="text")]
+#[cfg(all(feature = "text", feature = "ui"))]
 pub use paint_list::*;
+
+pub use theframework_core::graph::*;

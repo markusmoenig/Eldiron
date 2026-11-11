@@ -628,7 +628,7 @@ mod tests {
         let id = crate::rulesets::material_asset_id("tunic");
         let original_bundle = project.procedural_materials[&id].clone();
         let mut assets = rusterix::Assets::default();
-        crate::rusterix_utils::sync_procedural_avatar_assets(&mut assets, &project);
+        crate::runtime_assets::sync_procedural_avatar_assets(&mut assets, &project);
         let original_avatar = assets.procedural_avatars["humanoid"].clone();
         let original_map = assets.ruleset_materials["ruleset:material/tunic"]
             .data
@@ -660,7 +660,7 @@ mod tests {
         let mut project = crate::project_io::decode_project(&bytes).unwrap();
         project.sync_ruleset_items().unwrap();
         assert_eq!(project.procedural_materials[&id], edited_bundle);
-        crate::rusterix_utils::sync_procedural_avatar_assets(&mut assets, &project);
+        crate::runtime_assets::sync_procedural_avatar_assets(&mut assets, &project);
         assert_ne!(
             original_map,
             assets.ruleset_materials["ruleset:material/tunic"].data
@@ -672,13 +672,13 @@ mod tests {
 
         // Restoring an earlier bundle produces exactly the earlier map again.
         project.procedural_materials.insert(id, original_bundle);
-        crate::rusterix_utils::sync_procedural_avatar_assets(&mut assets, &project);
+        crate::runtime_assets::sync_procedural_avatar_assets(&mut assets, &project);
         assert_eq!(
             original_map,
             assets.ruleset_materials["ruleset:material/tunic"].data
         );
         project.palette.colors[41] = project.palette.colors[45].clone();
-        crate::rusterix_utils::sync_procedural_avatar_assets(&mut assets, &project);
+        crate::runtime_assets::sync_procedural_avatar_assets(&mut assets, &project);
         assert_ne!(
             original_map,
             assets.ruleset_materials["ruleset:material/tunic"].data

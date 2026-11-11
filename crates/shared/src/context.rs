@@ -865,6 +865,7 @@ impl ServerContext {
     }
 
     /// Checks if the PolyView has focus.
+    #[cfg(feature="graphics")]
     pub fn polyview_has_focus(&self, ctx: &TheContext) -> bool {
         if let Some(focus) = &ctx.ui.focus {
             if focus.name == "PolyView" || (self.pc.is_prefab() && focus.name == "PrefabView") {

@@ -2,7 +2,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     sync::LazyLock,
 };
-use theframework::prelude::{TheColor, ThePalette};
+use theframework_core::{TheColor, ThePalette};
 use toml::{Table, Value};
 
 pub mod behavior;
@@ -428,11 +428,11 @@ pub fn bundled_material_assets_for_ruleset(id: &str, version: &str) -> Vec<Bundl
         mat!("item-stitch"),
     ]
 }
-pub fn material_asset_id(id: &str) -> theframework::prelude::Uuid {
+pub fn material_asset_id(id: &str) -> theframework_core::Uuid {
     let hash = id.bytes().fold(0xcbf29ce484222325u64, |h, b| {
         (h ^ b as u64).wrapping_mul(0x100000001b3)
     });
-    theframework::prelude::Uuid::from_u128((0x52554c454d415453u128 << 64) | hash as u128)
+    theframework_core::Uuid::from_u128((0x52554c454d415453u128 << 64) | hash as u128)
 }
 
 /// Editable, palette-bound item and UI artwork, including torch states.
@@ -522,11 +522,11 @@ pub fn bundled_icon_material_assets_for_ruleset(
     ]
 }
 
-pub fn geometry_asset_id(id: &str) -> theframework::prelude::Uuid {
+pub fn geometry_asset_id(id: &str) -> theframework_core::Uuid {
     let hash = id.bytes().fold(0xcbf29ce484222325u64, |h, b| {
         (h ^ b as u64).wrapping_mul(0x100000001b3)
     });
-    theframework::prelude::Uuid::from_u128((0x4d5a47454f4d4554u128 << 64) | hash as u128)
+    theframework_core::Uuid::from_u128((0x4d5a47454f4d4554u128 << 64) | hash as u128)
 }
 
 /// Editable geometry shared by the 2D sprite and native 3D character renderers.
@@ -4650,7 +4650,7 @@ fn validate_string_reference(
         return;
     };
     // Icon fields may directly reference a project tile by stable UUID.
-    if label == "Icon" && theframework::prelude::Uuid::parse_str(value).is_ok() {
+    if label == "Icon" && theframework_core::Uuid::parse_str(value).is_ok() {
         return;
     }
     if !known.contains(value) {

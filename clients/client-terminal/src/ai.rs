@@ -21,7 +21,7 @@ fn exits(app: &TerminalApp) -> Vec<sg::TextExit> {
                 sg::resolve_text_exits(
                     &r.map,
                     s,
-                    sg::authoring_connection_probe_distance(&app.project.authoring),
+                    sg::authoring_connection_probe_distance(&app.runtime.project.authoring),
                 )
             })
         })
@@ -31,8 +31,8 @@ pub(super) fn scene(app: &TerminalApp) -> Result<Scene, String> {
     let region = app
         .current_region()
         .ok_or("Current region is unavailable.")?;
-    let room =
-        sg::build_text_room(&region.map, &app.project.authoring).ok_or("No local player found.")?;
+    let room = sg::build_text_room(&region.map, &app.runtime.project.authoring)
+        .ok_or("No local player found.")?;
     let player = region
         .map
         .entities
@@ -85,9 +85,9 @@ pub(super) fn scene(app: &TerminalApp) -> Result<Scene, String> {
         inventory: sg::render_player_inventory(&region.map).unwrap_or_default(),
         stats: sg::render_player_stats(
             &region.map,
-            &app.project.authoring,
-            &app.project.config,
-            &app.assets.rules,
+            &app.runtime.project.authoring,
+            &app.runtime.project.config,
+            &app.runtime.assets.rules,
         )
         .unwrap_or_default(),
         people: room.live_entities,
@@ -140,7 +140,7 @@ fn explicit(app: &TerminalApp, input: &str) -> bool {
             | "save"
             | "load"
     ) || current_player_supported_intents(app)
-        .contains(&resolve_intent_alias(&app.project.authoring, &verb))
+        .contains(&resolve_intent_alias(&app.runtime.project.authoring, &verb))
 }
 pub(super) fn input(app: &mut TerminalApp, input: &str) -> (bool, Vec<String>) {
     let input = input.trim();

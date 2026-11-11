@@ -28,6 +28,7 @@ pub mod ruleset_materials;
 pub mod rulesets;
 #[cfg(feature = "graphics")]
 pub mod rusterix_utils;
+pub mod runtime_assets;
 pub mod screen;
 pub mod screen_package;
 pub mod terminal_screen;

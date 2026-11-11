@@ -6,5 +6,7 @@ license.workspace = true
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 vek = "0.17.1"
-[dev-dependencies]
 serde_json = "1"
+uuid = {version="1",features=["v4","serde","js"]}
+rustc-hash="2"
+vectorize="0.2.0"

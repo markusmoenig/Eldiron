@@ -1,13 +1,11 @@
 [workspace]
 
-members = ["crates/renderkit", "crates/theframework-core", "creator", "run-wasm", "crates/ruleset", "crates/shared", "clients/client", "clients/client-wgpu", "clients/client-terminal", "crates/rusterix", "crates/theframework", "crates/scenevm", "crates/scepter", "crates/icon_builder", "crates/character_generator", "crates/materialz"]
+members = ["crates/runtime", "crates/renderkit", "crates/theframework-core", "creator", "run-wasm", "crates/ruleset", "crates/shared", "clients/client", "clients/client-wgpu", "clients/client-terminal", "crates/rusterix", "crates/theframework", "crates/scenevm", "crates/scepter", "crates/icon_builder", "crates/character_generator", "crates/materialz"]
 resolver = "2"
 
 [workspace.dependencies]
 denrim-materials = { path = "crates/materialz", features = ["wgpu"] }
-theframework = { path = "crates/theframework", version = "0.96.0", features = [
-    "ui",
-], default-features = false }
+theframework = { path = "crates/theframework", version = "0.96.0", default-features = false }
 
 rusterix = { path = "crates/rusterix", version = "0.96.0" }
 scenevm = { path = "crates/scenevm", version = "0.96.0" }

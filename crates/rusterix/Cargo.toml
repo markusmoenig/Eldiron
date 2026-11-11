@@ -84,5 +84,5 @@ flate2 = { version = "1", default-features = false, features = ["rust_backend"] 
 
 [features]
 single_thread = []
-graphics = ["scenevm/gpu"]
+graphics = ["scenevm/gpu", "theframework/ui"]
 default = ["graphics"]

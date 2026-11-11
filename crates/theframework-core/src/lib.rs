@@ -9,3 +9,10 @@ pub use thecolor::TheColor;
 pub use thedim::{TheDim, TheDimShrinker};
 pub use thepalette::ThePalette;
 pub use thetime::TheTime;
+
+pub mod graph;
+pub mod theid;
+pub mod thetilemask;
+pub use theid::TheId;
+pub use thetilemask::TheTileMask;
+pub use uuid::Uuid;

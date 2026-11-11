@@ -1,3 +1,4 @@
+#![cfg(feature = "gpu")]
 use renderkit::{GpuContext, ReadbackTicket};
 use scenevm::{Atom, RenderMode, SceneVM, prelude::Vec4, render_output::SceneRenderTarget};
 #[test]

@@ -1274,6 +1274,7 @@ name = "eldiron-client-terminal"
 version = "0.96.0"
 dependencies = [
  "crossterm 0.29.0",
+ "eldiron-runtime",
  "eldiron-shared",
  "ratatui",
  "rusterix",
@@ -1352,9 +1353,20 @@ version = "0.96.0"
 dependencies = [
  "serde",
  "serde_json",
- "theframework",
+ "theframework-core",
  "toml 0.9.11+spec-1.1.0",
  "vek",
+]
+
+[[package]]
+name = "eldiron-runtime"
+version = "0.96.0"
+dependencies = [
+ "eldiron-shared",
+ "rustc-hash 2.1.1",
+ "rusterix",
+ "theframework-core",
+ "toml 0.9.11+spec-1.1.0",
 ]
 
 [[package]]
@@ -5378,8 +5390,11 @@ dependencies = [
 name = "theframework-core"
 version = "0.96.0"
 dependencies = [
+ "rustc-hash 2.1.1",
  "serde",
  "serde_json",
+ "uuid",
+ "vectorize",
  "vek",
 ]
 

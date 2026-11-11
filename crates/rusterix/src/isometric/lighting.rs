@@ -45,7 +45,7 @@ impl Lighting {
                 .filter(|l| l.emitting && l.intensity > 0. && l.end_distance > 0.)
                 .map(|l| {
                     let mut l = l.clone();
-                    let (intensity, range) = scenevm::vm::light_flicker_multipliers(&l, frame);
+                    let (intensity, range) = scenevm::light::light_flicker_multipliers(&l, frame);
                     l.intensity *= intensity;
                     l.end_distance *= range;
                     l.color = l.color.map(|c| c.max(0.).powf(2.2));

@@ -319,7 +319,7 @@ impl Preparation {
             };
             let actor = (entity.creator_id, entity.id);
             let mut hash = FxHasher::default();
-            crate::SceneHandler::hash_character_items(&mut hash, entity);
+            crate::fingerprint::hash_character_items(&mut hash, entity);
             hash.write_usize(Arc::as_ptr(asset) as usize);
             let signature = hash.finish();
             if self

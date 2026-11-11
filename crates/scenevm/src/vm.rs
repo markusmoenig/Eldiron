@@ -14991,47 +14991,14 @@ fn triangle_normal(a: [f32; 3], b: [f32; 3], c: [f32; 3]) -> Option<Vec3<f32>> {
     Some(normal.normalized())
 }
 
-/// Hash for light flickering
-fn hash_u32(mut state: u32) -> u32 {
-    state = (state ^ 61) ^ (state >> 16);
-    state = state.wrapping_add(state << 3);
-    state ^= state >> 4;
-    state = state.wrapping_mul(0x27d4eb2d);
-    state ^= state >> 15;
-    state
-}
-
-/// Smooth, centered torch-style flicker shared by SceneVM's Compute3D and Raster3D paths.
-///
-/// Varying range as well as intensity makes the light edge move across distant surfaces instead
-/// of making flicker visible only when the light is very close to a wall.
-pub fn light_flicker_multipliers(light: &Light, animation_counter: usize) -> (f32, f32) {
-    let amount = light.flicker.clamp(0.0, 1.0);
-    if amount <= 0.0 {
-        return (1.0, 1.0);
-    }
-
-    let position_hash = hash_u32(
-        light.position.x.to_bits()
-            ^ light.position.y.to_bits().rotate_left(11)
-            ^ light.position.z.to_bits().rotate_left(22),
-    );
-    let phase = position_hash as f32 / u32::MAX as f32 * std::f32::consts::TAU;
-    let time = animation_counter as f32 * 0.12;
-    let wave = (time + phase).sin() * 0.55
-        + (time * 1.83 + phase * 1.37).sin() * 0.28
-        + (time * 0.41 + phase * 2.11).sin() * 0.17;
-
-    let intensity = (1.0 + wave * amount * 0.70).max(0.05);
-    let range = (1.0 + wave * amount * 0.22).max(0.25);
-    (intensity, range)
-}
+/// Compatibility reexport; light-data evaluation does not require a GPU VM.
+pub use crate::light::light_flicker_multipliers;
 
 #[cfg(test)]
 mod shader_tests {
     use super::{
         SCENEVM_2D_RASTER_WGSL, SCENEVM_3D_ORGANIC_BILLBOARD_WGSL, SCENEVM_3D_RASTER_WGSL, VM,
-        light_flicker_multipliers, pack_particle_tint_2d, resolved_poly_normals,
+        pack_particle_tint_2d, resolved_poly_normals,
         screen_round_paint_brush_transform,
     };
     use crate::{Chunk, GeoId, Light, Poly3D};
@@ -16916,33 +16883,6 @@ mod shader_tests {
     fn organic_billboard_shader_parses() {
         wgpu::naga::front::wgsl::parse_str(SCENEVM_3D_ORGANIC_BILLBOARD_WGSL)
             .expect("organic billboard WGSL should parse");
-    }
-
-    #[test]
-    fn light_flicker_changes_intensity_and_range_around_authored_values() {
-        let light = Light::new_pointlight(Vec3::new(2.0, 1.0, -3.0)).with_flicker(0.4);
-        let samples = (0..256)
-            .map(|frame| light_flicker_multipliers(&light, frame))
-            .collect::<Vec<_>>();
-        let min_intensity = samples
-            .iter()
-            .map(|sample| sample.0)
-            .fold(f32::INFINITY, f32::min);
-        let max_intensity = samples
-            .iter()
-            .map(|sample| sample.0)
-            .fold(f32::NEG_INFINITY, f32::max);
-        let min_range = samples
-            .iter()
-            .map(|sample| sample.1)
-            .fold(f32::INFINITY, f32::min);
-        let max_range = samples
-            .iter()
-            .map(|sample| sample.1)
-            .fold(f32::NEG_INFINITY, f32::max);
-
-        assert!(min_intensity < 0.9 && max_intensity > 1.1);
-        assert!(min_range < 0.98 && max_range > 1.02);
     }
 
     #[test]

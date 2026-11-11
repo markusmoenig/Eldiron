@@ -1,7 +1,10 @@
 use crate::value::{Value, ValueContainer};
 use crate::value_toml::ValueTomlLoader;
 use rustc_hash::FxHashMap;
-use scenevm::{Atom, RenderMode as SceneVmRenderMode, SceneVM};
+use scenevm::RenderMode as SceneVmRenderMode;
+#[cfg(feature="graphics")]
+use scenevm::{Atom,SceneVM};
+#[cfg(feature="graphics")]
 use vek::Vec4;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -935,6 +938,7 @@ impl RenderSettings {
     }
 
     /// Apply these render settings to a SceneVM instance
+    #[cfg(feature="graphics")]
     pub fn apply_2d(&mut self, vm: &mut SceneVM) {
         vm.vm.tile_background_black_2d = self.tile_background_black_2d;
         vm.vm
@@ -1001,6 +1005,7 @@ impl RenderSettings {
     }
 
     /// Apply these render settings to a SceneVM instance
+    #[cfg(feature="graphics")]
     pub fn apply_3d(&mut self, vm: &mut SceneVM) {
         vm.vm
             .set_entity_pixelization(self.sprite_pixels_2d, self.entity_pixel_size_3d);

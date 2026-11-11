@@ -44,7 +44,7 @@ impl Default for ParticleEmitterDef {
         }
     }
 }
-use theframework::thegraph::*;
+use theframework_core::graph::*;
 
 pub trait ParticleNodeModule {
     fn definition(&self) -> GraphNode;

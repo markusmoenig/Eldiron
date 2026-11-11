@@ -2,13 +2,14 @@ use crossterm::cursor;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use crossterm::execute;
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
+use eldiron_runtime::{GameSession, SessionOptions};
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Alignment, Rect};
 use ratatui::style::{Color, Style};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 use ratatui::{Frame, Terminal as RatatuiTerminal};
 use rusterix::prelude::*;
-use rusterix::{Command, EntityAction, PlayerCamera, ServerState};
+use rusterix::{EntityAction, PlayerCamera};
 use rustyline::error::ReadlineError;
 use rustyline::{DefaultEditor, ExternalPrinter};
 use shared::prelude::{TextSession, TextSessionOutput};
@@ -62,10 +63,7 @@ struct TerminalCliOptions {
 }
 
 struct TerminalApp {
-    project: Project,
-    assets: Assets,
-    server: Server,
-    current_map: String,
+    runtime: GameSession,
     session: TextSession,
     screen_messages: Vec<String>,
     auto_attack_target: Option<u32>,
@@ -94,16 +92,8 @@ impl TerminalApp {
             .map_err(|err| format!("Failed to parse {}: {}", path.display(), err))?;
         project.migrate_default_ruleset();
 
-        let current_map = config_string(&project.config, "game", "start_region", "");
-        if current_map.is_empty() {
-            return Err("Game config is missing [game].start_region".into());
-        }
-
         let mut app = Self {
-            project,
-            assets: Assets::default(),
-            server: Server::default(),
-            current_map,
+            runtime: GameSession::new(project),
             session: TextSession::new(),
             screen_messages: Vec::new(),
             auto_attack_target: None,
@@ -112,8 +102,8 @@ impl TerminalApp {
             ai_session: Uuid::new_v4(),
         };
 
-        app.start_server(false)?;
-        app.create_local_player()?;
+        app.runtime.server.print_log_messages = false;
+        app.runtime.start(SessionOptions::terminal())?;
 
         for _ in 0..3 {
             app.tick();
@@ -126,264 +116,32 @@ impl TerminalApp {
         Ok(app)
     }
 
-    fn start_server(&mut self, debug: bool) -> Result<(), String> {
-        let rules_source = self.project.rules_source()?;
-        shared::entity_graph::synchronize(&mut self.project)
-            .map_err(|error| format!("Entity configuration: {error}"))?;
-        self.server.clear();
-        self.server.debug_mode = debug;
-        self.server.log_changed = true;
-        self.server.print_log_messages = false;
-        self.server_log_cursor = 0;
-
-        insert_content_into_maps_mode(&mut self.project, debug);
-
-        if json_module_has_routines(&self.project.world_module) {
-            if self.project.world_source.is_empty() {
-                if let Some(source) = json_module_build(&self.project.world_module, false) {
-                    self.project.world_source = source;
-                }
-            }
-            if debug {
-                if let Some(source) = json_module_build(&self.project.world_module, true) {
-                    self.project.world_source_debug = source;
-                }
-            }
-        }
-
-        self.assets.rules = rules_source;
-        self.assets.read_rules_metadata();
-        self.assets.locales_src = self.project.locales.clone();
-        self.assets.audio_fx_src = self.project.audio_fx.clone();
-        self.assets.authoring_src = self.project.authoring.clone();
-        self.assets.world_source = if debug && !self.project.world_source_debug.is_empty() {
-            self.project.world_source_debug.clone()
-        } else {
-            self.project.world_source.clone()
-        };
-        self.assets.region_sources.clear();
-        self.assets.read_locales();
-
-        self.assets.entities.clear();
-        self.assets.character_maps.clear();
-        self.assets.entity_tiles.clear();
-        self.assets.entity_authoring.clear();
-        for character in self.project.characters.values_mut() {
-            if json_module_has_routines(&character.module) {
-                if character.source.is_empty() {
-                    if let Some(source) = json_module_build(&character.module, false) {
-                        character.source = source;
-                    }
-                }
-                if debug {
-                    if let Some(source) = json_module_build(&character.module, true) {
-                        character.source_debug = source;
-                    }
-                }
-            }
-            if debug && !character.source_debug.is_empty() {
-                self.assets.entities.insert(
-                    character.name.clone(),
-                    (character.source_debug.clone(), character.data.clone()),
-                );
-            } else {
-                self.assets.entities.insert(
-                    character.name.clone(),
-                    (character.source.clone(), character.data.clone()),
-                );
-            }
-            if !character.map.vertices.is_empty() {
-                self.assets
-                    .character_maps
-                    .insert(character.name.clone(), character.map.clone());
-            }
-            self.assets
-                .entity_authoring
-                .insert(character.name.clone(), character.authoring.clone());
-        }
-
-        self.assets.items.clear();
-        self.assets.item_maps.clear();
-        self.assets.item_tiles.clear();
-        self.assets.item_authoring.clear();
-        for item in self.project.items.values_mut() {
-            if json_module_has_routines(&item.module) {
-                if item.source.is_empty() {
-                    if let Some(source) = json_module_build(&item.module, false) {
-                        item.source = source;
-                    }
-                }
-                if debug {
-                    if let Some(source) = json_module_build(&item.module, true) {
-                        item.source_debug = source;
-                    }
-                }
-            }
-            if debug && !item.source_debug.is_empty() {
-                self.assets.items.insert(
-                    item.name.clone(),
-                    (item.source_debug.clone(), item.data.clone()),
-                );
-            } else {
-                self.assets
-                    .items
-                    .insert(item.name.clone(), (item.source.clone(), item.data.clone()));
-            }
-            if !item.map.vertices.is_empty() {
-                self.assets
-                    .item_maps
-                    .insert(item.name.clone(), item.map.clone());
-            }
-            self.assets
-                .item_authoring
-                .insert(item.name.clone(), item.authoring.clone());
-        }
-
-        self.assets.avatars.clear();
-        match shared::rulesets::bundled_avatars_for_project(&self.project.config) {
-            Ok(avatars) => {
-                for (id, avatar) in avatars {
-                    self.assets.avatars.insert(id.to_string(), avatar);
-                }
-            }
-            Err(err) => eprintln!("Ruleset avatar load error: {}", err),
-        }
-        for avatar in self.project.avatars.values() {
-            self.assets
-                .avatars
-                .insert(avatar.name.clone(), avatar.clone());
-        }
-
-        for region in &mut self.project.regions {
-            if json_module_has_routines(&region.module) {
-                if region.source.is_empty() {
-                    if let Some(source) = json_module_build(&region.module, false) {
-                        region.source = source;
-                    }
-                }
-                if debug {
-                    if let Some(source) = json_module_build(&region.module, true) {
-                        region.source_debug = source;
-                    }
-                }
-            }
-            self.assets.region_sources.insert(
-                region.map.id,
-                if debug && !region.source_debug.is_empty() {
-                    region.source_debug.clone()
-                } else {
-                    region.source.clone()
-                },
-            );
-            let region_config =
-                shared::project::merge_config_toml(&self.project.config, &region.config);
-            self.server.create_region_instance(
-                region.name.clone(),
-                region.map.clone(),
-                &self.assets,
-                region_config,
-            );
-        }
-
-        thread::sleep(Duration::from_millis(10));
-        for region in &self.project.regions {
-            self.server.set_time(&region.map.id, self.project.time);
-        }
-        self.server.set_state(ServerState::Running);
-        Ok(())
-    }
-
-    fn create_local_player(&mut self) -> Result<(), String> {
-        if !config_bool(&self.project.config, "game", "auto_create_player", false) {
-            return Ok(());
-        }
-
-        let region = self
+    fn current_region_index(&self) -> Option<usize> {
+        self.runtime
             .project
             .regions
             .iter()
-            .find(|region| region.map.name == self.current_map)
-            .ok_or_else(|| format!("Start region '{}' not found", self.current_map))?;
-
-        let player_entities = self.player_template_names();
-        let entity = region
-            .map
-            .entities
-            .iter()
-            .find(|entity| {
-                entity
-                    .get_attr_string("class_name")
-                    .map(|class_name| player_entities.contains(&class_name))
-                    .unwrap_or(false)
-            })
-            .cloned()
-            .ok_or_else(|| {
-                format!(
-                    "No auto-created player entity found in start region '{}'",
-                    self.current_map
-                )
-            })?;
-
-        self.server
-            .process_client_commands(vec![Command::CreateEntity(region.map.id, entity)]);
-        Ok(())
-    }
-
-    fn player_template_names(&self) -> Vec<String> {
-        let mut players = Vec::new();
-        for (name, (_, data)) in &self.assets.entities {
-            if let Ok(table) = data.parse::<Table>()
-                && let Some(attributes) = table.get("attributes").and_then(toml::Value::as_table)
-                && attributes
-                    .get("player")
-                    .and_then(toml::Value::as_bool)
-                    .unwrap_or(false)
-            {
-                players.push(name.clone());
-            }
-        }
-        players
-    }
-
-    fn current_region_index(&self) -> Option<usize> {
-        self.project
-            .regions
-            .iter()
-            .position(|region| region.map.name == self.current_map)
+            .position(|region| region.map.name == self.runtime.current_map)
     }
 
     fn current_region(&self) -> Option<&shared::region::Region> {
-        self.project
+        self.runtime
+            .project
             .regions
             .iter()
-            .find(|region| region.map.name == self.current_map)
+            .find(|region| region.map.name == self.runtime.current_map)
     }
 
     fn tick(&mut self) {
-        self.server.system_tick();
-        self.server.redraw_tick();
-
-        if let Some(new_region) = self.server.update(&mut self.assets) {
-            self.current_map = new_region;
-        }
-
-        if let Some(index) = self.current_region_index() {
-            let region_id = self.project.regions[index].map.id;
-            let time = self.server.get_time(&region_id);
-            self.server
-                .apply_entities_items(&mut self.project.regions[index].map);
-            if let Some(time) = time {
-                self.project.time = time;
-            }
-        }
+        self.runtime.tick_once();
     }
 
     fn drain_server_diagnostics(&mut self) -> Vec<String> {
-        if !self.server.log_changed {
+        if !self.runtime.server.log_changed {
             return Vec::new();
         }
 
-        let log = self.server.get_log();
+        let log = self.runtime.server.get_log();
         let start = self.server_log_cursor.min(log.len());
         self.server_log_cursor = log.len();
         log[start..]
@@ -395,11 +153,12 @@ impl TerminalApp {
     }
 
     fn current_time_hour_and_label(&self) -> Option<(u8, String)> {
-        self.project
+        self.runtime
+            .project
             .regions
             .iter()
-            .find(|region| region.map.name == self.current_map)
-            .and_then(|region| self.server.get_time(&region.map.id))
+            .find(|region| region.map.name == self.runtime.current_map)
+            .and_then(|region| self.runtime.server.get_time(&region.map.id))
             .map(|time| {
                 let label = if time.minutes == 0 {
                     let period = if time.hours >= 12 { "PM" } else { "AM" };
@@ -417,22 +176,24 @@ impl TerminalApp {
     }
 
     fn render_room_text(&mut self) -> String {
-        let title_color = authoring_color(&self.project.authoring, "title");
-        let object_color = authoring_color(&self.project.authoring, "objects");
-        let item_color =
-            authoring_color(&self.project.authoring, "items").or_else(|| object_color.clone());
-        let corpse_color =
-            authoring_color(&self.project.authoring, "corpses").or_else(|| object_color.clone());
+        let title_color = authoring_color(&self.runtime.project.authoring, "title");
+        let object_color = authoring_color(&self.runtime.project.authoring, "objects");
+        let item_color = authoring_color(&self.runtime.project.authoring, "items")
+            .or_else(|| object_color.clone());
+        let corpse_color = authoring_color(&self.runtime.project.authoring, "corpses")
+            .or_else(|| object_color.clone());
         let neutral_character_color =
-            authoring_color(&self.project.authoring, "characters").or_else(|| object_color.clone());
-        let character_color_rules = authoring_character_color_rules(&self.project.authoring);
+            authoring_color(&self.runtime.project.authoring, "characters")
+                .or_else(|| object_color.clone());
+        let character_color_rules =
+            authoring_character_color_rules(&self.runtime.project.authoring);
         let Some(region) = self.current_region() else {
-            return format!("Current region '{}' not found.", self.current_map);
+            return format!("Current region '{}' not found.", self.runtime.current_map);
         };
         let Some((_, sector)) = sg::current_player_and_sector(&region.map) else {
             return "No local player found.".into();
         };
-        let Some(room) = sg::build_text_room(&region.map, &self.project.authoring) else {
+        let Some(room) = sg::build_text_room(&region.map, &self.runtime.project.authoring) else {
             return "No room text available.".into();
         };
 
@@ -447,7 +208,7 @@ impl TerminalApp {
         }
 
         if !room.exits.is_empty() {
-            match sg::authoring_exit_presentation(&self.project.authoring) {
+            match sg::authoring_exit_presentation(&self.runtime.project.authoring) {
                 sg::ExitPresentation::List => {
                     lines.push("Exits:".into());
                     for exit in &room.exits {
@@ -521,7 +282,9 @@ impl TerminalApp {
 
     fn move_to_exit(&mut self, exit: &sg::TextExit) -> bool {
         self.auto_attack_target = None;
-        self.server.local_player_teleport_pos(exit.target_center);
+        self.runtime
+            .server
+            .local_player_teleport_pos(exit.target_center);
         self.tick();
         self.current_region().and_then(|region| {
             sg::current_player_and_sector(&region.map).map(|(_, sector)| sector.id)
@@ -532,17 +295,18 @@ impl TerminalApp {
         let Some(index) = self.current_region_index() else {
             return 0;
         };
-        let region_id = self.project.regions[index].map.id;
+        let region_id = self.runtime.project.regions[index].map.id;
         let mut count = 0;
 
         for (_sender_entity, _sender_item, _receiver, message, _category) in
-            self.server.get_messages(&region_id)
+            self.runtime.take_messages(&region_id)
         {
             println!("{}", message);
             count += 1;
         }
 
-        for (_sender_entity, _sender_item, message, _category) in self.server.get_says(&region_id) {
+        for (_sender_entity, _sender_item, message, _category) in self.runtime.take_says(&region_id)
+        {
             println!("{}", message);
             count += 1;
         }
@@ -554,14 +318,14 @@ impl TerminalApp {
         let Some(index) = self.current_region_index() else {
             return 0;
         };
-        let region_id = self.project.regions[index].map.id;
-        let message_count = self.server.get_messages(&region_id).len();
-        let say_count = self.server.get_says(&region_id).len();
+        let region_id = self.runtime.project.regions[index].map.id;
+        let message_count = self.runtime.take_messages(&region_id).len();
+        let say_count = self.runtime.take_says(&region_id).len();
         message_count + say_count
     }
 
     fn process_auto_attack(&mut self) {
-        if authoring_auto_attack_mode(&self.project.authoring) != AutoAttackMode::OnAttack {
+        if authoring_auto_attack_mode(&self.runtime.project.authoring) != AutoAttackMode::OnAttack {
             self.auto_attack_target = None;
             self.session.clear_auto_attack_target();
             return;
@@ -606,27 +370,18 @@ impl TerminalApp {
         }
 
         let distance = player.get_pos_xz().distance(target.get_pos_xz());
-        self.server.local_player_action(EntityAction::EntityClicked(
-            target_id,
-            distance,
-            Some("attack".into()),
-        ));
+        self.runtime
+            .server
+            .local_player_action(EntityAction::EntityClicked(
+                target_id,
+                distance,
+                Some("attack".into()),
+            ));
     }
 }
 
 fn config_table(src: &str) -> Option<Table> {
     src.parse::<Table>().ok()
-}
-
-fn json_module_has_routines(module: &serde_json::Value) -> bool {
-    module
-        .get("routines")
-        .and_then(serde_json::Value::as_array)
-        .is_some_and(|routines| !routines.is_empty())
-}
-
-fn json_module_build(_module: &serde_json::Value, _debug: bool) -> Option<String> {
-    None
 }
 
 fn config_string(src: &str, section: &str, key: &str, default: &str) -> String {
@@ -865,136 +620,6 @@ fn colorize_terminal_text(text: &str, color: Option<&str>) -> String {
         format!("\x1b[{}m{}\x1b[0m", code, text)
     } else {
         text.to_string()
-    }
-}
-
-fn insert_content_into_maps_mode(project: &mut Project, debug: bool) {
-    for region in &mut project.regions {
-        region.map.entities.clear();
-        for instance in region.characters.values_mut() {
-            if json_module_has_routines(&instance.module) {
-                if instance.source.is_empty() {
-                    if let Some(source) = json_module_build(&instance.module, false) {
-                        instance.source = source;
-                    }
-                }
-                if debug {
-                    if let Some(source) = json_module_build(&instance.module, true) {
-                        instance.source_debug = source;
-                    }
-                }
-            }
-            let mut entity = Entity {
-                creator_id: instance.id,
-                position: instance.position,
-                orientation: instance.orientation,
-                ..Default::default()
-            };
-            entity.set_attribute("name", Value::Str(instance.name.clone()));
-            if let Some(character_template) = project.characters.get(&instance.character_id) {
-                entity.set_attribute("name", Value::Str(character_template.name.clone()));
-            }
-            entity.set_attribute(
-                "setup",
-                Value::Str(if debug && !instance.source_debug.is_empty() {
-                    instance.source_debug.clone()
-                } else {
-                    instance.source.clone()
-                }),
-            );
-            if let Some(character) = project.characters.get(&instance.character_id) {
-                entity.set_attribute("class_name", Value::Str(character.name.clone()));
-                apply_entity_data_attributes(&mut entity, &character.data);
-            }
-            apply_entity_data_attributes(&mut entity, &instance.data);
-            region.map.entities.push(entity);
-        }
-
-        region.map.items.clear();
-        for instance in region.items.values_mut() {
-            if json_module_has_routines(&instance.module) {
-                if instance.source.is_empty() {
-                    if let Some(source) = json_module_build(&instance.module, false) {
-                        instance.source = source;
-                    }
-                }
-                if debug {
-                    if let Some(source) = json_module_build(&instance.module, true) {
-                        instance.source_debug = source;
-                    }
-                }
-            }
-            let mut item = Item {
-                creator_id: instance.id,
-                position: instance.position,
-                ..Default::default()
-            };
-            item.set_attribute("name", Value::Str(instance.name.clone()));
-            if let Some(item_template) = project.items.get(&instance.item_id) {
-                item.set_attribute("name", Value::Str(item_template.name.clone()));
-            }
-            item.set_attribute(
-                "setup",
-                Value::Str(if debug && !instance.source_debug.is_empty() {
-                    instance.source_debug.clone()
-                } else {
-                    instance.source.clone()
-                }),
-            );
-            if let Some(item_template) = project.items.get(&instance.item_id) {
-                item.set_attribute("class_name", Value::Str(item_template.name.clone()));
-                apply_item_data_attributes(&mut item, &item_template.data);
-            }
-            apply_item_data_attributes(&mut item, &instance.data);
-            region.map.items.push(item);
-        }
-    }
-}
-
-fn apply_entity_data_attributes(entity: &mut Entity, data: &str) {
-    let Ok(table) = toml::from_str::<Table>(data) else {
-        return;
-    };
-    let Some(attributes) = table.get("attributes").and_then(toml::Value::as_table) else {
-        return;
-    };
-    for (key, value) in attributes {
-        if let Some(value) = source_data_value_to_runtime(value) {
-            entity.set_attribute(key, value);
-        }
-    }
-}
-
-fn apply_item_data_attributes(item: &mut Item, data: &str) {
-    let Ok(table) = toml::from_str::<Table>(data) else {
-        return;
-    };
-    let Some(attributes) = table.get("attributes").and_then(toml::Value::as_table) else {
-        return;
-    };
-    for (key, value) in attributes {
-        if let Some(value) = source_data_value_to_runtime(value) {
-            item.set_attribute(key, value);
-        }
-    }
-}
-
-fn source_data_value_to_runtime(value: &toml::Value) -> Option<Value> {
-    match value {
-        toml::Value::String(value) => Some(Value::Str(value.clone())),
-        toml::Value::Integer(value) if *value >= 0 => Some(Value::UInt(*value as u32)),
-        toml::Value::Integer(value) => Some(Value::Int(*value as i32)),
-        toml::Value::Float(value) => Some(Value::Float(*value as f32)),
-        toml::Value::Boolean(value) => Some(Value::Bool(*value)),
-        toml::Value::Array(values) => {
-            let strings = values
-                .iter()
-                .filter_map(toml::Value::as_str)
-                .map(str::to_string)
-                .collect::<Vec<_>>();
-            (!strings.is_empty()).then_some(Value::StrArray(strings))
-        }
-        _ => None,
     }
 }
 
@@ -2235,18 +1860,19 @@ fn collect_region_output(app: &mut TerminalApp, include_room: bool) -> Vec<Strin
     let Some(index) = app.current_region_index() else {
         return Vec::new();
     };
-    let region_id = app.project.regions[index].map.id;
+    let region_id = app.runtime.project.regions[index].map.id;
     let Some(map) = app.current_region().map(|region| region.map.clone()) else {
         return Vec::new();
     };
+    let events = app.runtime.take_events(&region_id);
     let outputs = app.session.collect(
         &map,
-        &app.project.authoring,
-        app.server.get_messages(&region_id),
-        app.server.get_says(&region_id),
+        &app.runtime.project.authoring,
+        events.messages,
+        events.says,
         app.current_time_hour_and_label().map(|(hour, _)| hour),
         app.current_time_hour_and_label().map(|(_, label)| label),
-        authoring_auto_attack_mode(&app.project.authoring) == AutoAttackMode::OnAttack,
+        authoring_auto_attack_mode(&app.runtime.project.authoring) == AutoAttackMode::OnAttack,
     );
     app.auto_attack_target = app.session.auto_attack_target();
 
@@ -2265,7 +1891,7 @@ fn collect_region_output(app: &mut TerminalApp, include_room: bool) -> Vec<Strin
                     rendered.push(colorize_terminal_category(
                         &text,
                         &category,
-                        &app.project.authoring,
+                        &app.runtime.project.authoring,
                     ));
                     if text.trim() == "You died. Try again!" {
                         saw_death = true;
@@ -2286,7 +1912,7 @@ fn collect_roguelike_screen_output(app: &mut TerminalApp) -> Vec<String> {
     let Some(index) = app.current_region_index() else {
         return Vec::new();
     };
-    let region_id = app.project.regions[index].map.id;
+    let region_id = app.runtime.project.regions[index].map.id;
     let output = if roguelike_text_updates_enabled(app) {
         collect_roguelike_text_updates(app, index, region_id)
     } else {
@@ -2327,14 +1953,14 @@ fn roguelike_message_is_in_history(app: &TerminalApp, message: &str) -> bool {
 fn collect_roguelike_runtime_messages(app: &mut TerminalApp, region_id: Uuid) -> Vec<String> {
     let mut output = Vec::new();
     for (_sender_entity, _sender_item, _receiver, message, category) in
-        app.server.get_messages(&region_id)
+        app.runtime.take_messages(&region_id)
     {
         if should_print_terminal_message(&message, &category) {
             output.push(message);
         }
     }
 
-    for (_sender_entity, _sender_item, message, _category) in app.server.get_says(&region_id) {
+    for (_sender_entity, _sender_item, message, _category) in app.runtime.take_says(&region_id) {
         if !message.trim().is_empty() {
             output.push(message);
         }
@@ -2347,15 +1973,16 @@ fn collect_roguelike_text_updates(
     region_index: usize,
     region_id: Uuid,
 ) -> Vec<String> {
-    let map = app.project.regions[region_index].map.clone();
+    let map = app.runtime.project.regions[region_index].map.clone();
+    let events = app.runtime.take_events(&region_id);
     let outputs = app.session.collect(
         &map,
-        &app.project.authoring,
-        app.server.get_messages(&region_id),
-        app.server.get_says(&region_id),
+        &app.runtime.project.authoring,
+        events.messages,
+        events.says,
         app.current_time_hour_and_label().map(|(hour, _)| hour),
         app.current_time_hour_and_label().map(|(_, label)| label),
-        authoring_auto_attack_mode(&app.project.authoring) == AutoAttackMode::OnAttack,
+        authoring_auto_attack_mode(&app.runtime.project.authoring) == AutoAttackMode::OnAttack,
     );
     app.auto_attack_target = app.session.auto_attack_target();
 
@@ -2384,8 +2011,17 @@ fn collect_roguelike_text_updates(
 }
 
 fn roguelike_text_updates_enabled(app: &TerminalApp) -> bool {
-    config_bool(&app.project.config, "terminal", "text_updates", true)
-        && config_bool(&app.project.config, "game", "terminal_text_updates", true)
+    config_bool(
+        &app.runtime.project.config,
+        "terminal",
+        "text_updates",
+        true,
+    ) && config_bool(
+        &app.runtime.project.config,
+        "game",
+        "terminal_text_updates",
+        true,
+    )
 }
 
 fn roguelike_screen_message(app: &TerminalApp, immediate: Option<&str>) -> Option<String> {
@@ -2401,7 +2037,10 @@ fn roguelike_screen_message(app: &TerminalApp, immediate: Option<&str>) -> Optio
 
 fn trigger_text_intent(app: &mut TerminalApp, intent: &str, query: &str) -> Vec<String> {
     let Some(region) = app.current_region() else {
-        return vec![format!("Current region '{}' not found.", app.current_map)];
+        return vec![format!(
+            "Current region '{}' not found.",
+            app.runtime.current_map
+        )];
     };
     let Some((_player, sector)) = sg::current_player_and_sector(&region.map) else {
         return vec!["No local player found.".into()];
@@ -2421,27 +2060,31 @@ fn dispatch_text_intent(
 ) -> Vec<String> {
     match target {
         sg::TextTarget::Entity { id, distance } => {
-            app.server.local_player_action(EntityAction::EntityClicked(
-                id,
-                if intent.trim().eq_ignore_ascii_case("look") {
-                    0.0
-                } else {
-                    distance
-                },
-                Some(intent.trim().to_string()),
-            ));
+            app.runtime
+                .server
+                .local_player_action(EntityAction::EntityClicked(
+                    id,
+                    if intent.trim().eq_ignore_ascii_case("look") {
+                        0.0
+                    } else {
+                        distance
+                    },
+                    Some(intent.trim().to_string()),
+                ));
         }
         sg::TextTarget::Item { id, distance } => {
-            app.server.local_player_action(EntityAction::ItemClicked(
-                id,
-                if intent.trim().eq_ignore_ascii_case("look") {
-                    0.0
-                } else {
-                    distance
-                },
-                Some(intent.trim().to_string()),
-                None,
-            ));
+            app.runtime
+                .server
+                .local_player_action(EntityAction::ItemClicked(
+                    id,
+                    if intent.trim().eq_ignore_ascii_case("look") {
+                        0.0
+                    } else {
+                        distance
+                    },
+                    Some(intent.trim().to_string()),
+                    None,
+                ));
         }
     }
 
@@ -2456,7 +2099,7 @@ fn dispatch_text_intent(
 
 fn current_player_supported_intents(app: &TerminalApp) -> BTreeSet<String> {
     app.current_region()
-        .map(|region| sg::current_player_supported_intents(&app.project, &region.map))
+        .map(|region| sg::current_player_supported_intents(&app.runtime.project, &region.map))
         .unwrap_or_default()
 }
 
@@ -2477,12 +2120,15 @@ fn tick_duration(project: &Project) -> Duration {
 fn after_text_movement(app: &mut TerminalApp) -> Vec<String> {
     let mut output = Vec::new();
     if let Some(map) = app.current_region().map(|region| region.map.clone()) {
-        for entry in app.session.after_movement(&map, &app.project.authoring) {
+        for entry in app
+            .session
+            .after_movement(&map, &app.runtime.project.authoring)
+        {
             match entry {
                 TextSessionOutput::RenderRoom => output.push(app.render_room_text()),
                 TextSessionOutput::Plain(text) => output.push(text),
                 TextSessionOutput::Message { text, category } => output.push(
-                    colorize_terminal_category(&text, &category, &app.project.authoring),
+                    colorize_terminal_category(&text, &category, &app.runtime.project.authoring),
                 ),
             }
         }
@@ -2513,7 +2159,7 @@ fn handle_command(app: &mut TerminalApp, input: &str) -> (bool, Vec<String>) {
                     let exits = sg::resolve_text_exits(
                         &region.map,
                         sector,
-                        sg::authoring_connection_probe_distance(&app.project.authoring),
+                        sg::authoring_connection_probe_distance(&app.runtime.project.authoring),
                     );
                     if let Some(exit) = exits.into_iter().find(|exit| exit.direction == direction) {
                         moved = app.move_to_exit(&exit);
@@ -2534,33 +2180,37 @@ fn handle_command(app: &mut TerminalApp, input: &str) -> (bool, Vec<String>) {
         }
         "forward" | "f" => {
             app.auto_attack_target = None;
-            app.server.local_player_action(EntityAction::Forward);
+            app.runtime
+                .server
+                .local_player_action(EntityAction::Forward);
             app.tick();
-            app.server.local_player_action(EntityAction::Off);
+            app.runtime.server.local_player_action(EntityAction::Off);
             app.tick();
             output.extend(collect_region_output(app, true));
         }
         "backward" | "b" => {
             app.auto_attack_target = None;
-            app.server.local_player_action(EntityAction::Backward);
+            app.runtime
+                .server
+                .local_player_action(EntityAction::Backward);
             app.tick();
-            app.server.local_player_action(EntityAction::Off);
+            app.runtime.server.local_player_action(EntityAction::Off);
             app.tick();
             output.extend(collect_region_output(app, true));
         }
         "left" => {
             app.auto_attack_target = None;
-            app.server.local_player_action(EntityAction::Left);
+            app.runtime.server.local_player_action(EntityAction::Left);
             app.tick();
-            app.server.local_player_action(EntityAction::Off);
+            app.runtime.server.local_player_action(EntityAction::Off);
             app.tick();
             output.extend(collect_region_output(app, true));
         }
         "right" => {
             app.auto_attack_target = None;
-            app.server.local_player_action(EntityAction::Right);
+            app.runtime.server.local_player_action(EntityAction::Right);
             app.tick();
-            app.server.local_player_action(EntityAction::Off);
+            app.runtime.server.local_player_action(EntityAction::Off);
             app.tick();
             output.extend(collect_region_output(app, true));
         }
@@ -2572,7 +2222,10 @@ fn handle_command(app: &mut TerminalApp, input: &str) -> (bool, Vec<String>) {
                     output.push("No local player found.".into());
                 }
             } else {
-                output.push(format!("Current region '{}' not found.", app.current_map));
+                output.push(format!(
+                    "Current region '{}' not found.",
+                    app.runtime.current_map
+                ));
             }
         }
         "help" => output.push(
@@ -2603,7 +2256,7 @@ fn handle_command(app: &mut TerminalApp, input: &str) -> (bool, Vec<String>) {
                         let exits = sg::resolve_text_exits(
                             &region.map,
                             sector,
-                            sg::authoring_connection_probe_distance(&app.project.authoring),
+                            sg::authoring_connection_probe_distance(&app.runtime.project.authoring),
                         );
                         if let Some(exit) = exits.into_iter().find(|exit| {
                             exit.direction == target
@@ -2633,7 +2286,8 @@ fn handle_command(app: &mut TerminalApp, input: &str) -> (bool, Vec<String>) {
                 if !intent.is_empty() && !target.is_empty() {
                     output.extend(trigger_text_intent(app, intent, target));
                 } else if !intent.is_empty() {
-                    app.server
+                    app.runtime
+                        .server
                         .local_player_action(EntityAction::Intent(intent.to_string()));
                     app.tick();
                     output.extend(collect_region_output(app, true));
@@ -2644,8 +2298,10 @@ fn handle_command(app: &mut TerminalApp, input: &str) -> (bool, Vec<String>) {
         }
         _ => {
             let mut parts = input.splitn(2, char::is_whitespace);
-            let verb =
-                resolve_intent_alias(&app.project.authoring, parts.next().unwrap_or("").trim());
+            let verb = resolve_intent_alias(
+                &app.runtime.project.authoring,
+                parts.next().unwrap_or("").trim(),
+            );
             let target = parts.next().map(str::trim).unwrap_or("");
             let supported_intents = current_player_supported_intents(app);
             if !verb.is_empty() && !target.is_empty() && supported_intents.contains(&verb) {
@@ -2708,7 +2364,7 @@ fn run_blocking_cli(mut app: TerminalApp) {
         }
     }
 
-    app.server.stop();
+    app.runtime.stop();
 }
 
 fn run_realtime_cli(mut app: TerminalApp) {
@@ -2758,7 +2414,7 @@ fn run_realtime_cli(mut app: TerminalApp) {
         }
     });
 
-    let tick_dt = tick_duration(&app.project);
+    let tick_dt = tick_duration(&app.runtime.project);
     let mut next_tick = Instant::now() + tick_dt;
     let mut keep_running = true;
 
@@ -2797,7 +2453,7 @@ fn run_realtime_cli(mut app: TerminalApp) {
     }
 
     clear_terminal_prompt_line();
-    app.server.stop();
+    app.runtime.stop();
 }
 
 fn clear_terminal_prompt_line() {
@@ -2815,7 +2471,8 @@ fn run_terminal_app(app: TerminalApp, mode: TerminalPlayMode) {
 }
 
 fn run_roguelike_terminal_app(mut app: TerminalApp) {
-    app.server
+    app.runtime
+        .server
         .local_player_action(EntityAction::SetPlayerCamera(PlayerCamera::D2Grid));
     app.tick();
     if std::io::stdin().is_terminal() && std::io::stdout().is_terminal() {
@@ -2868,7 +2525,7 @@ fn run_roguelike_line_terminal_app(mut app: TerminalApp) {
         println!("{}", render_roguelike_view(&app));
     }
 
-    app.server.stop();
+    app.runtime.stop();
 }
 
 fn run_roguelike_raw_terminal_app(mut app: TerminalApp) {
@@ -2892,12 +2549,12 @@ fn run_roguelike_raw_terminal_app(mut app: TerminalApp) {
         Err(err) => {
             let _ = terminal::disable_raw_mode();
             eprintln!("Failed to initialize terminal UI: {}", err);
-            app.server.stop();
+            app.runtime.stop();
             return;
         }
     };
 
-    let tick_duration = tick_duration(&app.project);
+    let tick_duration = tick_duration(&app.runtime.project);
     let mut last_view = render_roguelike_view(&app);
     let startup_message = diagnostic_message(app.drain_server_diagnostics());
     if let Some(message) = &startup_message {
@@ -2913,7 +2570,7 @@ fn run_roguelike_raw_terminal_app(mut app: TerminalApp) {
     ) {
         restore_roguelike_terminal(&mut terminal);
         eprintln!("Failed to draw terminal view: {}", err);
-        app.server.stop();
+        app.runtime.stop();
         return;
     }
 
@@ -2944,7 +2601,7 @@ fn run_roguelike_raw_terminal_app(mut app: TerminalApp) {
                     ) {
                         restore_roguelike_terminal(&mut terminal);
                         eprintln!("Failed to draw terminal view: {}", err);
-                        app.server.stop();
+                        app.runtime.stop();
                         return;
                     }
                     last_view = render_roguelike_view(&app);
@@ -2953,7 +2610,7 @@ fn run_roguelike_raw_terminal_app(mut app: TerminalApp) {
                 Err(err) => {
                     restore_roguelike_terminal(&mut terminal);
                     eprintln!("Input error: {}", err);
-                    app.server.stop();
+                    app.runtime.stop();
                     return;
                 }
             },
@@ -2975,7 +2632,7 @@ fn run_roguelike_raw_terminal_app(mut app: TerminalApp) {
                     ) {
                         restore_roguelike_terminal(&mut terminal);
                         eprintln!("Failed to draw terminal view: {}", err);
-                        app.server.stop();
+                        app.runtime.stop();
                         return;
                     }
                     last_view = view;
@@ -2984,14 +2641,14 @@ fn run_roguelike_raw_terminal_app(mut app: TerminalApp) {
             Err(err) => {
                 restore_roguelike_terminal(&mut terminal);
                 eprintln!("Input poll error: {}", err);
-                app.server.stop();
+                app.runtime.stop();
                 return;
             }
         }
     }
 
     restore_roguelike_terminal(&mut terminal);
-    app.server.stop();
+    app.runtime.stop();
 }
 
 fn restore_roguelike_terminal(terminal: &mut RatatuiTerminal<CrosstermBackend<io::Stdout>>) {
@@ -3020,8 +2677,11 @@ fn render_roguelike_tui_frame(
     let area = frame.area();
     let Some(region) = app.current_region() else {
         frame.render_widget(
-            Paragraph::new(format!("Current region '{}' not found.", app.current_map))
-                .block(Block::default().borders(Borders::ALL).title("Eldiron")),
+            Paragraph::new(format!(
+                "Current region '{}' not found.",
+                app.runtime.current_map
+            ))
+            .block(Block::default().borders(Borders::ALL).title("Eldiron")),
             area,
         );
         return;
@@ -3034,7 +2694,9 @@ fn render_roguelike_tui_frame(
         input_prompt: input_prompt.map(str::to_string),
     };
 
-    let Some(layout) = shared::terminal_screen::project_terminal_screen_layout(&app.project) else {
+    let Some(layout) =
+        shared::terminal_screen::project_terminal_screen_layout(&app.runtime.project)
+    else {
         frame.render_widget(
             Paragraph::new(shared::terminal_screen::render_roguelike_view(
                 region,
@@ -3058,7 +2720,7 @@ fn render_roguelike_tui_frame(
             widget,
             region,
             &screen_frame,
-            &app.assets.rules,
+            &app.runtime.assets.rules,
         );
     }
 }
@@ -3414,7 +3076,8 @@ fn unwrap_roguelike_command(command: &str) -> &str {
 
 fn set_roguelike_player_intent(app: &mut TerminalApp, intent: &str) -> String {
     let intent = intent.trim();
-    app.server
+    app.runtime
+        .server
         .local_player_action(EntityAction::Intent(intent.to_string()));
     app.tick();
     let output = collect_roguelike_screen_output(app);
@@ -3429,7 +3092,8 @@ fn set_roguelike_player_intent(app: &mut TerminalApp, intent: &str) -> String {
 }
 
 fn apply_roguelike_text_command(app: &mut TerminalApp, command: &str) -> String {
-    app.server
+    app.runtime
+        .server
         .local_player_action(EntityAction::TextCommand(command.trim().to_string()));
     app.tick();
     collect_roguelike_screen_output(app).join("\n")
@@ -3446,7 +3110,7 @@ fn active_player_input_map(app: &TerminalApp) -> BTreeMap<String, String> {
     let Some(class_name) = player.get_attr_string("class_name") else {
         return bindings;
     };
-    let Some((_, data)) = app.assets.entities.get(&class_name) else {
+    let Some((_, data)) = app.runtime.assets.entities.get(&class_name) else {
         return bindings;
     };
     let Ok(table) = data.parse::<Table>() else {
@@ -3492,10 +3156,10 @@ fn apply_roguelike_player_action(app: &mut TerminalApp, action: EntityAction) ->
     }
 
     app.auto_attack_target = None;
-    app.server.local_player_action(action);
+    app.runtime.server.local_player_action(action);
     app.tick();
     if !had_intent {
-        app.server.local_player_action(EntityAction::Off);
+        app.runtime.server.local_player_action(EntityAction::Off);
     }
     for _ in 0..20 {
         thread::sleep(Duration::from_millis(16));
@@ -3544,10 +3208,10 @@ fn render_roguelike_view(app: &TerminalApp) -> String {
 
 fn render_roguelike_view_with_message(app: &TerminalApp, message: Option<&str>) -> String {
     let Some(region) = app.current_region() else {
-        return format!("Current region '{}' not found.", app.current_map);
+        return format!("Current region '{}' not found.", app.runtime.current_map);
     };
     shared::terminal_screen::render_roguelike_screen(
-        &app.project,
+        &app.runtime.project,
         region,
         &TerminalScreenFrame {
             header: String::new(),
@@ -3582,14 +3246,14 @@ fn is_roguelike_blocked(terrain: &[Vec<char>], x: i32, y: i32) -> bool {
 }
 
 fn run_text_terminal_app(mut app: TerminalApp) {
-    let welcome = authoring_startup_welcome(&app.project.authoring);
+    let welcome = authoring_startup_welcome(&app.runtime.project.authoring);
     let printed_startup = welcome.is_some();
 
     if let Some(welcome) = welcome {
         println!("{}", welcome);
     }
 
-    match authoring_startup_display(&app.project.authoring) {
+    match authoring_startup_display(&app.runtime.project.authoring) {
         StartupDisplay::None => {}
         StartupDisplay::Description => {
             let startup_messages = app.print_pending_messages();
@@ -3610,7 +3274,7 @@ fn run_text_terminal_app(mut app: TerminalApp) {
             if let Some(map) = app.current_region().map(|region| region.map.clone()) {
                 for entry in app.session.startup(
                     &map,
-                    &app.project.authoring,
+                    &app.runtime.project.authoring,
                     app.current_time_hour_and_label().map(|(hour, _)| hour),
                 ) {
                     match entry {
@@ -3622,7 +3286,7 @@ fn run_text_terminal_app(mut app: TerminalApp) {
                                 colorize_terminal_category(
                                     &text,
                                     &category,
-                                    &app.project.authoring
+                                    &app.runtime.project.authoring
                                 )
                             )
                         }
@@ -3731,7 +3395,7 @@ mod tests {
         assert!(sword.contains("1d6 + 1"));
         assert!(sword.contains("STR=12 gives +3 every 4"));
         assert!(sword.contains("visual_template: sword_diagonal"));
-        assert!(sword.contains("blade_color_index: 10"));
+        assert!(sword.contains("blade_color_index: 20"));
 
         let bow_attrs = shared::rulesets::RulesetAttributeMap::from([("DEX".into(), 12.0)]);
         let bow = format_rules_item(&rules, "hunting_bow", &bow_attrs).unwrap();
@@ -3881,7 +3545,7 @@ fn main() {
     let mode = match cli_options
         .mode
         .map(Ok)
-        .unwrap_or_else(|| config_terminal_mode(&app.project.config))
+        .unwrap_or_else(|| config_terminal_mode(&app.runtime.project.config))
     {
         Ok(mode) => mode,
         Err(err) => {
@@ -3893,7 +3557,7 @@ fn main() {
     if mode == TerminalPlayMode::Text {
         if let Err(error) = ai::configure(&mut app, cli_options.ai_provider.as_deref()) {
             eprintln!("{error}");
-            app.server.stop();
+            app.runtime.stop();
             std::process::exit(1);
         }
     } else if cli_options
@@ -3902,7 +3566,7 @@ fn main() {
         .is_some_and(|p| p != "disabled")
     {
         eprintln!("AI interpretation is available in text mode only.");
-        app.server.stop();
+        app.runtime.stop();
         std::process::exit(1);
     }
     run_terminal_app(app, mode);

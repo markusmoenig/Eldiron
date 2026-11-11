@@ -3,8 +3,8 @@
 use crate::ResolvedRuleset;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
-use theframework::prelude::Uuid;
-use theframework::thegraph::*;
+use theframework_core::Uuid;
+use theframework_core::graph::*;
 use toml::{Table, Value};
 
 pub const OWNER: &str = "rules/game";

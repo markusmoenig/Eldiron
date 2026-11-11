@@ -1,6 +1,6 @@
 //! Authoring overlays for the sprite iso view. Picking shares the same geometry filter.
 use super::{Projection, line, terrain_rectangle_guide};
-use crate::scene_handler::{EDITOR_CURSOR_COLOR, EDITOR_GEOMETRY_COLOR, EDITOR_SELECTION_COLOR};
+use crate::editor_colors::{EDITOR_CURSOR_COLOR, EDITOR_GEOMETRY_COLOR, EDITOR_SELECTION_COLOR};
 use crate::{Map, MapToolType};
 use rustc_hash::{FxHashMap, FxHashSet};
 use theframework::prelude::*;

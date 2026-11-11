@@ -41,3 +41,26 @@ fn image_data_validates_storage_without_ui_dimensions() {
     assert_eq!(&image.pixels()[4..], &[1, 2, 3, 4]);
     assert_eq!((image.width(), image.height()), (2, 1));
 }
+
+#[test]
+fn identity_and_graph_values_keep_their_persisted_schema() {
+    let id = TheId::named_with_id_and_reference("Owner", Uuid::from_u128(1), Uuid::from_u128(2));
+    assert_eq!(
+        serde_json::to_value(id).unwrap(),
+        json!({"name":"Owner","uuid":"00000000-0000-0000-0000-000000000001","references":"00000000-0000-0000-0000-000000000002"})
+    );
+    let value = graph::GraphControlValue::Custom {
+        kind: "appearance".into(),
+        data: json!({"id":"material-1","revision":7}),
+    };
+    let saved = json!({"Custom":{"kind":"appearance","data":{"id":"material-1","revision":7}}});
+    assert_eq!(serde_json::to_value(&value).unwrap(), saved);
+    assert_eq!(
+        serde_json::from_value::<graph::GraphControlValue>(saved).unwrap(),
+        value
+    );
+    let document = graph::GraphDocument::default();
+    let bytes = serde_json::to_vec(&document).unwrap();
+    let restored: graph::GraphDocument = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(restored, document);
+}
