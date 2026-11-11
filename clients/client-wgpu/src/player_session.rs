@@ -97,11 +97,24 @@ pub struct PlayerTransition {
     pub player: Option<PlayerStartInfo>,
     pub screen: Option<String>,
 }
+/// Input orchestration diagnostics, independent of rendering. Submitted actions
+/// include accepted startup queue entries; flushing that queue does not recount
+/// them as new input. Coalesced movement states may not all reach the server.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PlayerInputStats {
+    pub submitted_actions: u64,
+    pub pending_actions: usize,
+    pub held_controls: usize,
+}
 pub struct PlayerSession {
     pub runtime: GameSession,
     pub settings: PlayerSettings,
     controls: ClientAction,
     pending_actions: VecDeque<EntityAction>,
+    held_controls: Vec<String>,
+    last_control_action: EntityAction,
+    isometric_controls: bool,
+    submitted_actions: u64,
 }
 impl PlayerSession {
     pub fn new(project: Project, debug: bool) -> Result<Self, String> {
@@ -119,6 +132,10 @@ impl PlayerSession {
             settings,
             controls: ClientAction::default(),
             pending_actions: VecDeque::new(),
+            held_controls: Vec::new(),
+            last_control_action: EntityAction::Off,
+            isometric_controls: false,
+            submitted_actions: 0,
         })
     }
     pub fn auto_start(&mut self, showing_game: bool) -> Result<PlayerTransition, String> {
@@ -140,6 +157,8 @@ impl PlayerSession {
     ) -> Result<Option<PlayerStartInfo>, String> {
         let player = self.runtime.start_player(options)?;
         if let Some(info) = &player {
+            self.held_controls.clear();
+            self.last_control_action = EntityAction::Off;
             self.controls
                 .init(info.template.clone(), &self.runtime.assets);
             if let Some(input) = &info.input_bindings {
@@ -214,6 +233,7 @@ impl PlayerSession {
                 self.runtime.action(pending);
             }
             self.runtime.action(action);
+            self.submitted_actions = self.submitted_actions.saturating_add(1);
             return Ok(());
         }
         if movement_state(&action) && self.pending_actions.back().is_some_and(movement_state) {
@@ -225,7 +245,15 @@ impl PlayerSession {
             );
         }
         self.pending_actions.push_back(action);
+        self.submitted_actions = self.submitted_actions.saturating_add(1);
         Ok(())
+    }
+    pub fn input_stats(&self) -> PlayerInputStats {
+        PlayerInputStats {
+            submitted_actions: self.submitted_actions,
+            pending_actions: self.pending_actions.len(),
+            held_controls: self.held_controls.len(),
+        }
     }
     pub fn pending_action_count(&self) -> usize {
         self.pending_actions.len()
@@ -233,25 +261,56 @@ impl PlayerSession {
     pub fn binding_for_key(&self, key: &str) -> Option<ClientCommandBinding> {
         self.controls.binding_for_key(key)
     }
-    /// Movement aggregation stays shared with the existing client input model.
-    /// Non-control bindings are dispatched through the graphical screen/HUD.
+    /// Accepted physical controls are retained in press order. Rebuilding the
+    /// existing reducer from those sources preserves aliases and last-pressed
+    /// priority when one of several keys mapped to the same action is released.
+    /// Only changed movement states produce actions; explicit Stop always does.
     pub fn control_key(&mut self, key: &str, pressed: bool) -> Option<EntityAction> {
-        if !matches!(
-            self.controls.binding_for_key(key),
-            Some(ClientCommandBinding::Control(_))
-        ) {
+        let Some(ClientCommandBinding::Control(action)) = self.controls.binding_for_key(key) else {
+            return None;
+        };
+        if pressed && action == EntityAction::Off {
+            return Some(self.cancel_controls());
+        }
+        let key = key.to_ascii_lowercase();
+        if pressed {
+            if self.held_controls.contains(&key) {
+                return None;
+            }
+            self.held_controls.push(key);
+        } else {
+            let index = self.held_controls.iter().position(|held| held == &key)?;
+            self.held_controls.remove(index);
+        }
+        self.reduce_controls()
+    }
+    fn reduce_controls(&mut self) -> Option<EntityAction> {
+        let mut action = self.controls.release_all();
+        for key in &self.held_controls {
+            action = self
+                .controls
+                .user_event("key_down".into(), Value::Str(key.clone()));
+        }
+        if action == self.last_control_action {
             return None;
         }
-        Some(self.controls.user_event(
-            if pressed { "key_down" } else { "key_up" }.into(),
-            Value::Str(key.into()),
-        ))
+        self.last_control_action = action.clone();
+        Some(action)
     }
     pub fn cancel_controls(&mut self) -> EntityAction {
+        self.held_controls.clear();
+        self.last_control_action = EntityAction::Off;
         self.controls.release_all()
     }
-    pub fn set_isometric_controls(&mut self, isometric: bool) {
+    /// A camera convention change re-reduces the same held sources without
+    /// inventing presses, so an isometric diagonal cannot remain a cardinal.
+    pub fn set_isometric_controls(&mut self, isometric: bool) -> Option<EntityAction> {
+        if self.isometric_controls == isometric {
+            return None;
+        }
+        self.isometric_controls = isometric;
         self.controls.set_isometric(isometric);
+        self.reduce_controls()
     }
 }
 
@@ -297,16 +356,26 @@ fn control_focus_release_keeps_bindings_and_does_not_emit_ui_or_intent_commands(
         settings: PlayerSettings::parse("").unwrap(),
         controls: ClientAction::default(),
         pending_actions: VecDeque::new(),
+        held_controls: Vec::new(),
+        last_control_action: EntityAction::Off,
+        isometric_controls: false,
+        submitted_actions: 0,
     };
     state.controls.set_input_data(
         "[input]\nw='forward'\na='strafe_left'\ni='ui.inventory'\nf='intent.attack'",
     );
+    assert_eq!(
+        state.control_key("w", false),
+        None,
+        "a release without an accepted press is not gameplay input"
+    );
     assert_eq!(state.control_key("w", true), Some(EntityAction::Forward));
-    assert_eq!(state.control_key("a", true), Some(EntityAction::Forward));
+    assert_eq!(state.control_key("a", true), None);
     assert_eq!(state.control_key("f", true), None);
     assert_eq!(state.control_key("i", true), None);
     assert_eq!(state.cancel_controls(), EntityAction::Off);
-    assert_eq!(state.control_key("a", false), Some(EntityAction::Off));
+    assert_eq!(state.control_key("a", false), None);
+    assert_eq!(state.input_stats().held_controls, 0);
     assert_eq!(state.control_key("w", true), Some(EntityAction::Forward));
     assert_eq!(state.control_key("w", false), Some(EntityAction::Off));
     assert!(matches!(
@@ -389,4 +458,48 @@ fn real_starter_defers_menu_registration_and_starts_once_with_shared_runtime() {
             .contains_key(&state.runtime.current_map)
     );
     state.runtime.stop();
+}
+
+#[cfg(test)]
+#[test]
+fn physical_control_aliases_keep_other_sources_held_and_restore_remaining_press_order() {
+    let mut state = PlayerSession {
+        runtime: GameSession::new(Project::new()),
+        settings: PlayerSettings::parse("").unwrap(),
+        controls: ClientAction::default(),
+        pending_actions: VecDeque::new(),
+        held_controls: Vec::new(),
+        last_control_action: EntityAction::Off,
+        isometric_controls: false,
+        submitted_actions: 0,
+    };
+    state
+        .controls
+        .set_input_data("[input]\nw='forward'\nup='forward'\ns='backward'\na='left'\nspace='none'");
+    assert_eq!(state.control_key("w", true), Some(EntityAction::Forward));
+    assert_eq!(state.control_key("up", true), None);
+    assert_eq!(state.control_key("w", false), None);
+    assert_eq!(state.input_stats().held_controls, 1);
+    assert_eq!(state.control_key("up", false), Some(EntityAction::Off));
+    assert_eq!(state.control_key("w", true), Some(EntityAction::Forward));
+    assert_eq!(state.control_key("s", true), Some(EntityAction::Backward));
+    assert_eq!(state.control_key("up", true), Some(EntityAction::Forward));
+    assert_eq!(state.control_key("up", false), Some(EntityAction::Backward));
+    assert_eq!(state.control_key("s", false), Some(EntityAction::Forward));
+    assert_eq!(
+        state.control_key("w", true),
+        None,
+        "duplicate press is not a new source"
+    );
+    assert_eq!(state.control_key("a", true), Some(EntityAction::Left));
+    assert_eq!(
+        state.set_isometric_controls(true),
+        Some(EntityAction::ForwardLeft)
+    );
+    assert_eq!(state.control_key("a", false), Some(EntityAction::Forward));
+    assert_eq!(state.set_isometric_controls(false), None);
+    assert_eq!(state.control_key("space", true), Some(EntityAction::Off));
+    assert_eq!(state.input_stats().held_controls, 0);
+    assert_eq!(state.control_key("w", false), None);
+    assert_eq!(state.control_key("space", false), None);
 }

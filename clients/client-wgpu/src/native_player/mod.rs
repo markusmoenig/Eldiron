@@ -302,6 +302,10 @@ impl PlayerApplication {
         if result.cancel_controls {
             let action = self.player.cancel_controls();
             self.player.submit_action(action)?;
+            // The interaction's stop was submitted before its own effects (for
+            // example a held movement button). Do not append another Off while
+            // synchronizing the same capture transition afterward.
+            self.controls_captured = self.screen.captures_world_input();
         }
         if let Some(text) = &result.text {
             self.clipboard(text, host);
@@ -342,10 +346,12 @@ impl PlayerApplication {
                 if let Some(key) = binding_key(physical, &logical) {
                     if let Some(binding) = self.player.binding_for_key(&key) {
                         response.consumed = true;
-                        if !repeat {
-                            if let Some(action) = self.player.control_key(&key, pressed) {
-                                self.player.submit_action(action)?;
-                            } else if pressed {
+                        if !repeat && pressed {
+                            if matches!(binding, ClientCommandBinding::Control(_)) {
+                                if let Some(action) = self.player.control_key(&key, true) {
+                                    self.player.submit_action(action)?;
+                                }
+                            } else {
                                 let activation = self
                                     .screen
                                     .activate_binding(&self.player.runtime.view(), binding)?;
@@ -372,7 +378,9 @@ impl PlayerApplication {
         self.player.advance(elapsed);
         let isometric=self.player.runtime.view().map.and_then(|map|map.entities.iter().find(|e|e.is_player()))
             .is_some_and(|e|matches!(e.attributes.get("player_camera"),Some(rusterix::Value::PlayerCamera(camera)) if camera.is_isometric_2d()));
-        self.player.set_isometric_controls(isometric);
+        if let Some(action) = self.player.set_isometric_controls(isometric) {
+            self.player.submit_action(action)?;
+        }
         let current = self.player.runtime.view().map.map(|m| m.id);
         // Every addressed region batch is drained once, including off-screen
         // regions. Services can decide which audio/world-text outputs to retain.

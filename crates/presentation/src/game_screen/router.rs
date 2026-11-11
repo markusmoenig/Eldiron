@@ -48,6 +48,7 @@ impl GameScreenController {
                 self.pointer_capture,
                 Some(
                     PointerCapture::Button(_)
+                        | PointerCapture::HeldButton
                         | PointerCapture::Text
                         | PointerCapture::Choice
                         | PointerCapture::Message

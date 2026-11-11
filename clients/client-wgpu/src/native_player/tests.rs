@@ -241,8 +241,8 @@ fn assembled_player_keeps_runtime_edits_and_clock_across_gpu_replacement() {
         &mut host,
     );
     assert_eq!(
-        app.player.control_key("a", false),
-        Some(rusterix::EntityAction::Off),
+        app.player.input_stats().held_controls,
+        0,
         "a modifier must not leave W held after release"
     );
     app.input(&InputEvent::Modifiers(Modifiers::default()), &mut host);
@@ -274,12 +274,81 @@ fn assembled_player_keeps_runtime_edits_and_clock_across_gpu_replacement() {
     app.update(&mut host, Duration::ZERO);
     assert!(app.screen.captures_world_input());
     assert_eq!(
-        app.player.control_key("a", false),
-        Some(rusterix::EntityAction::Off),
+        app.player.input_stats().held_controls,
+        0,
         "an arriving modal must release movement even without another input event"
     );
     app.input(&key(PhysicalKey::Space), &mut host);
     assert!(!app.screen.captures_world_input());
+    let forward = app
+        .screen
+        .elements
+        .button_widgets
+        .values()
+        .find(|button| {
+            matches!(
+                button.command_binding(),
+                Some(ClientCommandBinding::Control(
+                    rusterix::EntityAction::Forward
+                ))
+            )
+        })
+        .unwrap()
+        .rect;
+    let pointer = app.viewport().host_rect(Rect::new(
+        forward.x + forward.width / 2.,
+        forward.y + forward.height / 2.,
+        1.,
+        1.,
+    ));
+    let before = app.player.input_stats().submitted_actions;
+    app.input(
+        &InputEvent::PointerButton {
+            button: PointerButton::Primary,
+            pressed: true,
+            position: [pointer.x, pointer.y],
+        },
+        &mut host,
+    );
+    assert!(app.screen.captures_world_input());
+    assert_eq!(
+        app.player.input_stats().submitted_actions,
+        before + 2,
+        "press stops previous controls, then starts its held action without a second capture stop"
+    );
+    app.input(&key(PhysicalKey::Letter(b'w')), &mut host);
+    assert_eq!(
+        app.player.input_stats().held_controls,
+        0,
+        "a held mouse control captures keyboard movement"
+    );
+    app.input(
+        &InputEvent::Key {
+            physical: PhysicalKey::Letter(b'w'),
+            logical: LogicalKey::Other,
+            pressed: false,
+            repeat: false,
+        },
+        &mut host,
+    );
+    assert_eq!(
+        app.player.input_stats().submitted_actions,
+        before + 2,
+        "an unaccepted keyboard release cannot interrupt a held mouse control"
+    );
+    app.input(
+        &InputEvent::PointerButton {
+            button: PointerButton::Primary,
+            pressed: false,
+            position: [-10., -10.],
+        },
+        &mut host,
+    );
+    assert_eq!(
+        app.player.input_stats().submitted_actions,
+        before + 3,
+        "outside release stops its held mouse control exactly once"
+    );
     let expected_geometry = app
         .screen
         .view_images()
@@ -304,6 +373,7 @@ fn assembled_player_keeps_runtime_edits_and_clock_across_gpu_replacement() {
         .collect::<Vec<_>>();
     let time = app.player.runtime.project.time;
     let fonts = app.fonts.version();
+    let input_before_recreation = app.player.input_stats();
     let gpu2 = futures::executor::block_on(GpuContext::headless()).unwrap();
     let mut images2 = ImageRegistry::new(gpu2.clone());
     let mut renderer2 = PaintRenderer::new(gpu2.clone()).unwrap();
@@ -312,6 +382,11 @@ fn assembled_player_keeps_runtime_edits_and_clock_across_gpu_replacement() {
     render(&mut app, &mut host, &mut images2, &mut renderer2, &target2);
     assert_eq!(app.player.runtime.project.time, time);
     assert_eq!(app.fonts.version(), fonts);
+    assert_eq!(
+        app.player.input_stats(),
+        input_before_recreation,
+        "GPU recreation cannot replay input"
+    );
     assert_eq!(app.screen.elements.ui_state["start.name"], "Clæria 東京!");
     assert!(app.player.runtime.server.has_local_player());
     assert!(old.iter().all(|o| images2.get(o.image).is_none()));
