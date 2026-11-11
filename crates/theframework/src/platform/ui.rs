@@ -273,9 +273,13 @@ impl<A: UiApplication> GpuApplication for UiApplicationAdapter<A> {
         request
     }
     fn frame(&mut self, host: &mut HostContext, images: &mut ImageRegistry) -> Result<PaintList> {
-        let list = self
-            .application
-            .frame(&mut self.session, &mut self.images.frame(images))?;
+        let mut resources = self.images.frame(images);
+        let list = self.application.frame(&mut self.session, &mut resources)?;
+        // This sees the assembled application list, including retained view and
+        // overlay contributions; individual UI subtrees must not retire images.
+        resources
+            .finish_frame(&list)
+            .map_err(|e| RenderError(e.to_string()))?;
         self.platform_state(host);
         Ok(list)
     }

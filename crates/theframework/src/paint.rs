@@ -301,6 +301,17 @@ impl PaintList {
             tint: [1.; 4],
         });
     }
+    /// All externally supplied image references, including image effects and
+    /// meshes. A compositor may pin these before retiring presentation caches.
+    pub fn image_handles(&self) -> impl Iterator<Item = ImageHandle> + '_ {
+        self.ops.iter().filter_map(|op| match op {
+            PaintOp::Image { image, .. }
+            | PaintOp::FilteredImage { image, .. }
+            | PaintOp::ImageOutline { image, .. }
+            | PaintOp::ImageMesh { image, .. } => Some(*image),
+            _ => None,
+        })
+    }
     pub fn validate(&self) -> Result<(), &'static str> {
         let mut scopes = Vec::new();
         for op in &self.ops {

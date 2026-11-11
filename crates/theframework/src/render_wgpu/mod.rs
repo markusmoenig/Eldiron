@@ -7,4 +7,4 @@ pub use renderer::{FrameStats, PaintRenderer};
 #[cfg(feature = "ui")]
 mod ui_images;
 #[cfg(feature = "ui")]
-pub use ui_images::{UiFrameImages, UiImageCache, UiImages};
+pub use ui_images::{UiFrameImages, UiImageCache, UiImageCacheStats, UiImages};

@@ -695,3 +695,19 @@ Evidence:
 - Reference render-view test passes without the native text/paint feature. All four applications plus Creator `native-render` compile. `/private/tmp/eldiron-native-view-commands-reference.log`, `/private/tmp/eldiron-native-view-commands-apps.log`.
 
 This establishes a contribution boundary, not a completed NodesDock conversion. Graph inline/overlay editors still need the common editor/input ownership contract before claiming native graph parity. Full Creator host/viewport adoption remains active work. Cache budgets and frame resource pinning also remain required: publishing immutable lists alone does not keep an evicted image handle resident.
+
+### Source-image retention and complete-frame pinning (2026-11-12)
+
+The UI source-image cache now retains superseded versions until the complete application paint list is known. `PaintList::image_handles` includes ordinary images, filtered images, image outlines and image meshes, including nested opacity/clip scopes. `UiApplicationAdapter` finalizes once after the application's full frame callback, so independent UI/viewport/overlay contributors may safely refer to different versions of the same source in one frame. Individual UI subtrees do not retire resources. Finalization validates scopes and residency before changing cache state; rejected lists leave residency intact.
+
+Default retention targets are 64 MiB of normalized RGBA16F texels and 512 images. LRU eviction applies to unreferenced entries; retained lists pin sources even without new image requests. Superseded unreferenced versions retire immediately at that boundary. An active frame larger than the retention target stays valid and reports its pinned working set/over-budget status; this is explicitly a retention budget, **not a hard cap on all GPU memory or transient frame preparation**. Statistics expose source hits/uploads, retirement, resident texel bytes and pinned working sets. Dimension changes invalidate obsolete textures even when the producer did not set its content-change flag. Explicit teardown clears resources; registry replacement resets only device-domain cache state.
+
+Offscreen callers using `UiImages`/`UiFrameImages` directly must call `finish_frame` with the final combined list before rendering. Finalize a newer frame only after encoding/submitting the prior frame, or include the prior frame's references; independently queued not-yet-encoded frames still require explicit leases. Completed WGPU submissions retain their own bindings/resources. General scene/glyph/scratch budgets, global working-set admission, batching and independently queued-frame leases remain separate work.
+
+Verification:
+
+- Five new actual-GPU resource tests pass: same-frame red/blue versions and captured pixels after registry retirement, LRU byte/count limits, retained-list pins, reported oversized working sets, all image-effect/mesh variants, atomic invalid/stale-list rejection, dimensions/failed source replacement, domain replacement/clear, and actual application-adapter finalization after custom contributions. `/private/tmp/eldiron-ui-image-cache-gpu.log` covers the first four; `/private/tmp/eldiron-ui-image-cache-full-gpu.log` covers all five.
+- Full framework library/input/command tests pass; explicit GPU suites pass (6 ordered-paint, 14 UI, 5 resource tests), including detached foreign CAMetalLayer presentation and editor state across GPU replacement. `/private/tmp/eldiron-ui-image-cache-framework.log`, `/private/tmp/eldiron-ui-image-cache-full-gpu.log`.
+- All four applications plus Creator `native-render`, framework browser WebGPU and iOS compile; all seven renderer-boundary checks pass. `/private/tmp/eldiron-ui-image-cache-{apps,web,ios,boundaries}.log`.
+
+The graph contribution port and source lifetime boundary are available. Actual Creator graph controllers/inline editors and canonical application cutover remain active; no M0–M9 milestone is declared complete by this checkpoint.
