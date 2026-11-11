@@ -6,3 +6,6 @@ pub mod screen;
 
 mod game_views;
 pub use game_views::*;
+
+mod game_screen;
+pub use game_screen::{GameFontVersion, GameFonts, GameScreenController};

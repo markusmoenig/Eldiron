@@ -30,6 +30,10 @@ pub struct ContentArtwork {
 
 #[derive(Clone, Copy)]
 pub enum ContentRecipe<'a> {
+    Portrait {
+        entity: &'a Entity,
+        frame: usize,
+    },
     Avatar {
         entity: &'a Entity,
         settings: AvatarSourceSettings<'a>,
@@ -53,6 +57,13 @@ impl ContentRecipe<'_> {
     pub fn fingerprint(&self) -> u64 {
         let mut h = rustc_hash::FxHasher::default();
         match *self {
+            Self::Portrait { entity, frame } => {
+                3u8.hash(&mut h);
+                frame.hash(&mut h);
+                if let Some(source) = entity.attributes.get("portrait_tile_id") {
+                    crate::fingerprint::hash_serialized(&mut h, source);
+                }
+            }
             Self::Avatar { entity, settings }
             | Self::Profile {
                 entity, settings, ..
@@ -109,6 +120,15 @@ impl ContentRecipe<'_> {
 
     pub fn build(&self, assets: &Assets) -> Option<ContentArtwork> {
         match *self {
+            Self::Portrait { entity, frame } => {
+                let tile = Widget::portrait_tile_for_entity(entity, assets)?;
+                let texture = tile.textures.get(tile.frame_index(frame))?.clone();
+                Some(ContentArtwork {
+                    texture,
+                    fit: SourceFit::Stretch,
+                    avatar: false,
+                })
+            }
             Self::Item { item, frame } => {
                 let (texture, fit) = Widget::item_source_texture(assets, item, frame)?;
                 Some(ContentArtwork {

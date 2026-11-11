@@ -818,195 +818,11 @@ impl Client {
         })
     }
 
-    fn deactivate_matches(widget: &Widget, token: &str) -> bool {
-        let t = token.trim();
-        if t.is_empty() {
-            return false;
-        }
-        if widget.name.eq_ignore_ascii_case(t) {
-            return true;
-        }
-        if let Some(group) = &widget.group {
-            return group.trim().eq_ignore_ascii_case(t);
-        }
-        false
-    }
-
     fn shortcut_labels_for_binding(&self, binding: &ClientCommandBinding) -> Vec<String> {
         self.client_action
             .lock()
             .map(|action| action.shortcut_labels_for_binding(binding))
             .unwrap_or_default()
-    }
-
-    fn resolved_widget_command(
-        widget: &Widget,
-        assets: &Assets,
-        entity: Option<&Entity>,
-        ui_state: &FxHashMap<String, String>,
-    ) -> Option<String> {
-        if let Some(slot) = widget.command_slot.as_deref() {
-            return Self::command_for_slot(slot, assets, entity, ui_state);
-        }
-        widget
-            .command
-            .clone()
-            .or_else(|| {
-                widget
-                    .command_binding()
-                    .map(|binding| binding.command_string())
-            })
-            .map(|command| Self::resolve_ui_placeholders(&command, ui_state))
-    }
-
-    fn resolve_ui_placeholders(input: &str, ui_state: &FxHashMap<String, String>) -> String {
-        let mut out = String::with_capacity(input.len());
-        let mut rest = input;
-
-        while let Some(start) = rest.find("{UI.") {
-            out.push_str(&rest[..start]);
-            let after = &rest[start + 4..];
-            let Some(end) = after.find('}') else {
-                out.push_str(&rest[start..]);
-                return out;
-            };
-            let key = after[..end].trim();
-            out.push_str(ui_state.get(key).map(String::as_str).unwrap_or_default());
-            rest = &after[end + 1..];
-        }
-
-        out.push_str(rest);
-        out
-    }
-
-    fn resolved_widget_binding(
-        widget: &Widget,
-        assets: &Assets,
-        entity: Option<&Entity>,
-        ui_state: &FxHashMap<String, String>,
-    ) -> Option<ClientCommandBinding> {
-        Self::resolved_widget_command(widget, assets, entity, ui_state)
-            .as_deref()
-            .and_then(parse_client_command)
-    }
-
-    fn resolved_widget_intent_payload(
-        widget: &Widget,
-        assets: &Assets,
-        entity: Option<&Entity>,
-        ui_state: &FxHashMap<String, String>,
-    ) -> Option<String> {
-        Self::resolved_widget_binding(widget, assets, entity, ui_state)
-            .and_then(|binding| binding.intent_payload())
-    }
-
-    fn contextual_open_close_command(
-        command: Option<String>,
-        hovered: Option<u32>,
-        map: &Map,
-    ) -> Option<String> {
-        if command.as_deref() == Some("intent.open_close")
-            && let Some(item) = hovered.and_then(|id| map.items.iter().find(|i| i.id == id))
-            && item.attributes.get_bool_default("openable", false)
-        {
-            return Some(format!(
-                "intent.{}",
-                crate::item_state::canonical_intent(item, "open_close")
-            ));
-        }
-        command
-    }
-
-    fn command_for_slot(
-        slot: &str,
-        assets: &Assets,
-        entity: Option<&Entity>,
-        ui_state: &FxHashMap<String, String>,
-    ) -> Option<String> {
-        let slot = slot.trim();
-        if slot.is_empty() {
-            return None;
-        }
-
-        let suffix = Self::slot_attr_suffix(slot);
-        if let Some(command) = entity
-            .and_then(|entity| {
-                entity
-                    .attributes
-                    .get_str(&format!("command_slot_{}", suffix))
-                    .or_else(|| {
-                        entity
-                            .attributes
-                            .get_str(&format!("action_slot_{}", suffix))
-                    })
-            })
-            .map(str::trim)
-            .filter(|command| !command.is_empty())
-        {
-            return Self::normalize_slot_command(command);
-        }
-
-        let (group, index) = Self::split_command_slot(slot)?;
-        let rules = assets.rules_table()?;
-        let class = entity
-            .and_then(|entity| {
-                entity
-                    .get_attr_string("class")
-                    .or_else(|| entity.get_attr_string("class_name"))
-            })
-            .or_else(|| ui_state.get("start.class").cloned())
-            .or_else(|| {
-                eldiron_ruleset::resolve_identity_defaults(&rules)
-                    .ok()
-                    .and_then(|identity| identity.class)
-            })?;
-
-        let command = rules
-            .get("classes")?
-            .as_table()?
-            .get(class.trim())?
-            .as_table()?
-            .get("action_bar")?
-            .as_table()?
-            .get(group)?
-            .as_array()?
-            .get(index)?
-            .as_str()?;
-        Self::normalize_slot_command(command)
-    }
-
-    fn split_command_slot(slot: &str) -> Option<(&str, usize)> {
-        let (group, index) = slot.rsplit_once('.')?;
-        let group = group.trim();
-        let index = index.trim().parse::<usize>().ok()?;
-        (!group.is_empty()).then_some((group, index))
-    }
-
-    fn slot_attr_suffix(slot: &str) -> String {
-        let mut suffix = String::new();
-        for ch in slot.chars() {
-            if ch.is_ascii_alphanumeric() {
-                suffix.push(ch.to_ascii_lowercase());
-            } else {
-                suffix.push('_');
-            }
-        }
-        while suffix.contains("__") {
-            suffix = suffix.replace("__", "_");
-        }
-        suffix.trim_matches('_').to_string()
-    }
-
-    fn normalize_slot_command(command: &str) -> Option<String> {
-        let command = command.trim();
-        if command.is_empty() {
-            return None;
-        }
-        if parse_client_command(command).is_some() {
-            Some(command.to_string())
-        } else {
-            Some(format!("rules.{}", command))
-        }
     }
 
     fn add_shortcut_line(description: &mut RulesDescription, shortcuts: Vec<String>) {
@@ -2307,38 +2123,6 @@ impl Client {
         default.to_string()
     }
 
-    fn button_visual_state(
-        hovered: bool,
-        selected: bool,
-        pressed: bool,
-        command_state: Option<&CommandState>,
-    ) -> ButtonVisualState {
-        if command_state.is_some_and(|state| !state.enabled) {
-            return ButtonVisualState::Disabled;
-        }
-
-        if pressed {
-            return ButtonVisualState::Pressed;
-        }
-
-        if selected {
-            return ButtonVisualState::Selected;
-        }
-
-        if hovered {
-            return ButtonVisualState::Hover;
-        }
-
-        ButtonVisualState::Normal
-    }
-
-    fn command_is_walk(command: Option<&str>) -> bool {
-        matches!(
-            command.and_then(parse_client_command),
-            Some(ClientCommandBinding::Intent(intent)) if intent.trim().is_empty()
-        )
-    }
-
     /// Setup the client with the given assets.
     pub fn setup(&mut self, assets: &mut Assets, scene_handler: &mut SceneHandler) -> Vec<Command> {
         let mut commands = vec![];
@@ -2753,15 +2537,6 @@ impl Client {
         self.actions_panel_detail_scroll = 0.0;
     }
 
-    fn widget_name_is_hidden(name: &str, hidden: &[String]) -> bool {
-        hidden.iter().any(|pattern| {
-            pattern
-                .strip_suffix('*')
-                .map(|prefix| name.starts_with(prefix))
-                .unwrap_or_else(|| name == pattern)
-        })
-    }
-
     fn draw_choice_widgets(
         widgets: &mut FxHashMap<u32, ChoiceWidget>,
         open_dropdown: Option<u32>,
@@ -2785,7 +2560,7 @@ impl Client {
             let Some(widget) = widgets.get_mut(&id) else {
                 continue;
             };
-            if Self::widget_name_is_hidden(&widget.name, hidden) {
+            if screen_model::widget_name_is_hidden(&widget.name, hidden) {
                 continue;
             }
             widget.sync_value(ui_state.get(&widget.binding).map(String::as_str));
@@ -2817,7 +2592,7 @@ impl Client {
             let Some(widget) = self.choice_widgets.get(&id) else {
                 continue;
             };
-            if Self::widget_name_is_hidden(&widget.name, &self.widgets_to_hide)
+            if screen_model::widget_name_is_hidden(&widget.name, &self.widgets_to_hide)
                 || !widget.contains_interactive_point(point)
             {
                 continue;
@@ -2958,7 +2733,7 @@ impl Client {
 
         // Preserve selected slot targeting until the user chooses a target.
         self.current_sector.clear();
-        if let Some(leader) = Self::resolve_party_entity(map, Some("leader")) {
+        if let Some(leader) = screen_model::resolve_party_entity(map, Some("leader")) {
             self.intent = self
                 .selected_slot_intent(map, assets)
                 .or_else(|| self.selected_targeting_intent.clone())
@@ -3165,10 +2940,15 @@ impl Client {
                 screen_widget.grid_size = self.grid_size;
 
                 // Add the current intent to the activated widgets
-                let leader = Self::resolve_party_entity(map, Some("leader"));
+                let leader = screen_model::resolve_party_entity(map, Some("leader"));
                 for w in self.button_widgets.iter() {
-                    if Self::resolved_widget_intent_payload(w.1, assets, leader, &self.ui_state)
-                        .as_deref()
+                    if screen_model::resolved_widget_intent_payload(
+                        w.1,
+                        assets,
+                        leader,
+                        &self.ui_state,
+                    )
+                    .as_deref()
                         == Some(self.intent.as_str())
                     {
                         screen_widget.builder_d2.activated_widgets.push(*w.0);
@@ -3252,7 +3032,7 @@ impl Client {
             });
 
             if !hide {
-                let entity = Self::resolve_party_entity(map, widget.party.as_deref());
+                let entity = screen_model::resolve_party_entity(map, widget.party.as_deref());
                 widget.update_draw(&mut self.target, assets, entity, &self.draw2d);
             }
         }
@@ -3270,7 +3050,7 @@ impl Client {
             });
 
             if !hide {
-                let entity = Self::resolve_party_entity(map, widget.party.as_deref());
+                let entity = screen_model::resolve_party_entity(map, widget.party.as_deref());
                 widget.update_draw(&mut self.target, assets, entity, &self.draw2d);
             }
         }
@@ -3288,7 +3068,7 @@ impl Client {
             });
 
             if !hide {
-                let entity = Self::resolve_party_entity(map, widget.party.as_deref());
+                let entity = screen_model::resolve_party_entity(map, widget.party.as_deref());
                 widget.update_draw(
                     &mut self.target,
                     assets,
@@ -3393,14 +3173,14 @@ impl Client {
 
             if !hide {
                 let button_stage_started = Instant::now();
-                let entity = Self::resolve_party_entity(map, widget.party.as_deref());
+                let entity = screen_model::resolve_party_entity(map, widget.party.as_deref());
                 let hovered = widget.rect.contains(Vec2::new(
                     self.cursor_pos.x as f32,
                     self.cursor_pos.y as f32,
                 ));
                 let resolved_command =
-                    Self::resolved_widget_command(widget, assets, entity, &self.ui_state);
-                let resolved_command = Self::contextual_open_close_command(
+                    screen_model::resolved_widget_command(widget, assets, entity, &self.ui_state);
+                let resolved_command = screen_model::contextual_open_close_command(
                     resolved_command,
                     self.hovered_item_id,
                     map,
@@ -3415,8 +3195,8 @@ impl Client {
 
                 let selected = self.activated_widgets.contains(&widget.id)
                     || (self.intent.trim().is_empty()
-                        && Self::command_is_walk(resolved_command.as_deref()));
-                let visual_state = Self::button_visual_state(
+                        && screen_model::command_is_walk(resolved_command.as_deref()));
+                let visual_state = screen_model::button_visual_state(
                     hovered,
                     selected,
                     self.pressed_widget == Some(widget.id),
@@ -3795,7 +3575,7 @@ impl Client {
         let say_config = self.config.clone();
         let say_fallback_color = self.messages_font_color;
 
-        if let Some(leader) = Self::resolve_party_entity(map, Some("leader")) {
+        if let Some(leader) = screen_model::resolve_party_entity(map, Some("leader")) {
             self.intent = self
                 .selected_slot_intent(map, assets)
                 .or_else(|| self.selected_targeting_intent.clone())
@@ -3830,9 +3610,9 @@ impl Client {
             screen_widget.builder_d2.activated_widgets = self.activated_widgets.clone();
             screen_widget.grid_size = self.grid_size;
 
-            let leader = Self::resolve_party_entity(map, Some("leader"));
+            let leader = screen_model::resolve_party_entity(map, Some("leader"));
             for w in self.button_widgets.iter() {
-                if Self::resolved_widget_intent_payload(w.1, assets, leader, &self.ui_state)
+                if screen_model::resolved_widget_intent_payload(w.1, assets, leader, &self.ui_state)
                     .as_deref()
                     == Some(self.intent.as_str())
                 {
@@ -3976,7 +3756,7 @@ impl Client {
             });
 
             if !hide {
-                let entity = Self::resolve_party_entity(map, widget.party.as_deref());
+                let entity = screen_model::resolve_party_entity(map, widget.party.as_deref());
                 widget.update_draw(&mut self.overlay, assets, entity, &self.draw2d);
             }
         }
@@ -3992,7 +3772,7 @@ impl Client {
             });
 
             if !hide {
-                let entity = Self::resolve_party_entity(map, widget.party.as_deref());
+                let entity = screen_model::resolve_party_entity(map, widget.party.as_deref());
                 widget.update_draw(&mut self.overlay, assets, entity, &self.draw2d);
             }
         }
@@ -4008,7 +3788,7 @@ impl Client {
             });
 
             if !hide {
-                let entity = Self::resolve_party_entity(map, widget.party.as_deref());
+                let entity = screen_model::resolve_party_entity(map, widget.party.as_deref());
                 widget.update_draw(
                     &mut self.overlay,
                     assets,
@@ -4102,14 +3882,14 @@ impl Client {
             });
 
             if !hide {
-                let entity = Self::resolve_party_entity(map, widget.party.as_deref());
+                let entity = screen_model::resolve_party_entity(map, widget.party.as_deref());
                 let hovered = widget.rect.contains(Vec2::new(
                     self.cursor_pos.x as f32,
                     self.cursor_pos.y as f32,
                 ));
                 let resolved_command =
-                    Self::resolved_widget_command(widget, assets, entity, &self.ui_state);
-                let resolved_command = Self::contextual_open_close_command(
+                    screen_model::resolved_widget_command(widget, assets, entity, &self.ui_state);
+                let resolved_command = screen_model::contextual_open_close_command(
                     resolved_command,
                     self.hovered_item_id,
                     map,
@@ -4119,8 +3899,8 @@ impl Client {
                     .map(|command| rules_ui::command_state(assets, entity, command));
                 let selected = self.activated_widgets.contains(&widget.id)
                     || (self.intent.trim().is_empty()
-                        && Self::command_is_walk(resolved_command.as_deref()));
-                let visual_state = Self::button_visual_state(
+                        && screen_model::command_is_walk(resolved_command.as_deref()));
+                let visual_state = screen_model::button_visual_state(
                     hovered,
                     selected,
                     self.pressed_widget == Some(widget.id),
@@ -4637,7 +4417,7 @@ impl Client {
         if !self.equipment_panel_open {
             return None;
         }
-        let actor = Self::resolve_party_entity(map, None)?;
+        let actor = screen_model::resolve_party_entity(map, None)?;
         let config = self.active_equipment_panel_config();
         let (left, right) = Self::equipment_panel_slot_columns(&config, assets);
         let row_count = left.len().max(right.len()).max(1);
@@ -4890,7 +4670,7 @@ impl Client {
         if !self.inventory_panel_open {
             return None;
         }
-        let actor = Self::resolve_party_entity(map, None)?;
+        let actor = screen_model::resolve_party_entity(map, None)?;
         let config = self.active_inventory_panel_config();
         let content_width = config.columns as f32 * config.cell_size
             + config.columns.saturating_sub(1) as f32 * config.spacing;
@@ -5113,7 +4893,7 @@ impl Client {
         assets: &Assets,
         command: &str,
     ) -> Option<EntityAction> {
-        let actor = Self::resolve_party_entity(map, None);
+        let actor = screen_model::resolve_party_entity(map, None);
         let state = rules_ui::command_state(assets, actor, command);
         if !state.enabled {
             return None;
@@ -5164,7 +4944,7 @@ impl Client {
         if !self.actions_panel_open {
             return None;
         }
-        let actor = Self::resolve_party_entity(map, None);
+        let actor = screen_model::resolve_party_entity(map, None);
         let actor_class = actor.and_then(|actor| {
             actor
                 .get_attr_string("class")
@@ -5632,66 +5412,8 @@ impl Client {
         }
     }
 
-    fn party_members<'a>(map: &'a Map) -> Vec<&'a Entity> {
-        let mut members: Vec<&Entity> = map
-            .entities
-            .iter()
-            .filter(|entity| {
-                entity.is_player()
-                    || entity.attributes.get_int("party_index").is_some()
-                    || entity.attributes.get_bool_default("party_member", false)
-                    || entity
-                        .attributes
-                        .get_str("party_role")
-                        .is_some_and(|role| !role.trim().is_empty())
-            })
-            .collect();
-
-        if members.is_empty() {
-            if let Some(player) = map.entities.iter().find(|entity| entity.is_player()) {
-                members.push(player);
-            }
-        }
-
-        members.sort_by_key(|entity| {
-            (
-                entity
-                    .attributes
-                    .get_int("party_index")
-                    .unwrap_or_else(|| if entity.is_player() { 0 } else { i32::MAX / 2 }),
-                entity.id,
-            )
-        });
-        members
-    }
-
-    fn resolve_party_entity<'a>(map: &'a Map, binding: Option<&str>) -> Option<&'a Entity> {
-        let binding = binding.map(str::trim).filter(|value| !value.is_empty());
-        let members = Self::party_members(map);
-
-        match binding {
-            None | Some("leader") | Some("player") => members.first().copied(),
-            Some(value) => {
-                if let Some(index) = value.strip_prefix("party.")
-                    && let Ok(index) = index.parse::<usize>()
-                {
-                    return members.get(index).copied();
-                }
-
-                members
-                    .iter()
-                    .copied()
-                    .find(|entity| {
-                        entity.attributes.get_str("party_role") == Some(value)
-                            || entity.attributes.get_str("name") == Some(value)
-                    })
-                    .or_else(|| members.first().copied())
-            }
-        }
-    }
-
     fn item_click_distance(map: &Map, item_id: u32) -> f32 {
-        let Some(player_pos) = Self::resolve_party_entity(map, Some("leader"))
+        let Some(player_pos) = screen_model::resolve_party_entity(map, Some("leader"))
             .or_else(|| map.entities.iter().find(|entity| entity.is_player()))
             .map(|entity| entity.get_pos_xz())
         else {
@@ -6317,7 +6039,9 @@ impl Client {
                 }
 
                 let mut has_item = false;
-                if let Some(entity) = Self::resolve_party_entity(map, widget.party.as_deref()) {
+                if let Some(entity) =
+                    screen_model::resolve_party_entity(map, widget.party.as_deref())
+                {
                     if let Some(inventory_index) = widget.inventory_index {
                         has_item = entity
                             .inventory
@@ -6346,7 +6070,7 @@ impl Client {
         }
 
         if self.button_widgets.values().any(|widget| {
-            !Self::widget_name_is_hidden(&widget.name, &self.widgets_to_hide)
+            !screen_model::widget_name_is_hidden(&widget.name, &self.widgets_to_hide)
                 && widget.rect.contains(Vec2::new(p.x as f32, p.y as f32))
         }) {
             return;
@@ -6638,7 +6362,7 @@ impl Client {
             .cloned()
         {
             if let Some(item_id) = slot.item_id
-                && let Some(actor) = Self::resolve_party_entity(map, None)
+                && let Some(actor) = screen_model::resolve_party_entity(map, None)
             {
                 self.dragging_item_id = Some(item_id);
                 self.dragging_item_owner_entity_id = Some(actor.id);
@@ -6738,7 +6462,7 @@ impl Client {
             .cloned()
         {
             if let Some(item_id) = slot.item_id
-                && let Some(actor) = Self::resolve_party_entity(map, None)
+                && let Some(actor) = screen_model::resolve_party_entity(map, None)
             {
                 self.inventory_panel_selected_item = Some(item_id);
                 self.dragging_item_id = Some(item_id);
@@ -6945,7 +6669,7 @@ impl Client {
         // The game viewport can extend underneath the toolbar. Its buttons own
         // their clicks, including intent selectors which emit no server action.
         let hit_button = self.button_widgets.values().any(|widget| {
-            !Self::widget_name_is_hidden(&widget.name, &self.widgets_to_hide)
+            !screen_model::widget_name_is_hidden(&widget.name, &self.widgets_to_hide)
                 && widget.rect.contains(point)
         });
 
@@ -6962,7 +6686,9 @@ impl Client {
                 if hidden || !widget.rect.contains(Vec2::new(p.x as f32, p.y as f32)) {
                     continue;
                 }
-                if let Some(entity) = Self::resolve_party_entity(map, widget.party.as_deref()) {
+                if let Some(entity) =
+                    screen_model::resolve_party_entity(map, widget.party.as_deref())
+                {
                     self.consume_one_shot_2d_intent();
                     return Some(EntityAction::EntityClicked(
                         entity.id,
@@ -6994,7 +6720,9 @@ impl Client {
                 {
                     continue;
                 }
-                if let Some(entity) = Self::resolve_party_entity(map, widget.party.as_deref()) {
+                if let Some(entity) =
+                    screen_model::resolve_party_entity(map, widget.party.as_deref())
+                {
                     self.consume_one_shot_2d_intent();
                     return Some(EntityAction::EntityClicked(
                         entity.id,
@@ -7093,7 +6821,7 @@ impl Client {
         }
 
         for (id, widget) in self.button_widgets.iter() {
-            if !Self::widget_name_is_hidden(&widget.name, &self.widgets_to_hide)
+            if !screen_model::widget_name_is_hidden(&widget.name, &self.widgets_to_hide)
                 && widget.rect.contains(point)
             {
                 self.pressed_widget = Some(*id);
@@ -7112,7 +6840,9 @@ impl Client {
                 }
 
                 if widget.drag_drop {
-                    if let Some(entity) = Self::resolve_party_entity(map, widget.party.as_deref()) {
+                    if let Some(entity) =
+                        screen_model::resolve_party_entity(map, widget.party.as_deref())
+                    {
                         if let Some(inventory_index) = &widget.inventory_index
                             && let Some(item) = entity
                                 .inventory
@@ -7140,10 +6870,14 @@ impl Client {
                 // Command buttons work in both 2D and 3D. Control commands become
                 // immediate movement/camera input; intent and rules commands set the
                 // active targeting state and become one-shot actions in classic 2D.
-                let command_entity = Self::resolve_party_entity(map, widget.party.as_deref());
-                if let Some(binding) =
-                    Self::resolved_widget_binding(widget, assets, command_entity, &self.ui_state)
-                {
+                let command_entity =
+                    screen_model::resolve_party_entity(map, widget.party.as_deref());
+                if let Some(binding) = screen_model::resolved_widget_binding(
+                    widget,
+                    assets,
+                    command_entity,
+                    &self.ui_state,
+                ) {
                     match binding {
                         ClientCommandBinding::Control(act) => {
                             action = Some(act);
@@ -7192,7 +6926,9 @@ impl Client {
                         self.widgets_to_hide.retain(|x| x != s);
                     }
                 }
-                if let Some(entity) = Self::resolve_party_entity(map, widget.party.as_deref()) {
+                if let Some(entity) =
+                    screen_model::resolve_party_entity(map, widget.party.as_deref())
+                {
                     if let Some(inventory_index) = &widget.inventory_index
                         && let Some(item) = entity
                             .inventory
@@ -7234,7 +6970,7 @@ impl Client {
                 if !widget.deactivate.is_empty() {
                     for widget_to_deactivate in &widget.deactivate {
                         for (id, widget) in self.button_widgets.iter() {
-                            if Self::deactivate_matches(widget, widget_to_deactivate) {
+                            if screen_model::deactivate_matches(widget, widget_to_deactivate) {
                                 self.activated_widgets.retain(|x| x != id);
                                 self.permanently_activated_widgets.retain(|x| x != id);
                             }
@@ -7277,7 +7013,7 @@ impl Client {
 
         // Test against clicks on the map
         if !hit_button && action.is_none() {
-            let player_pos = Self::resolve_party_entity(map, Some("leader"))
+            let player_pos = screen_model::resolve_party_entity(map, Some("leader"))
                 .or_else(|| map.entities.iter().find(|entity| entity.is_player()))
                 .map(|entity| entity.get_pos_xz())
                 .unwrap_or(Vec2::zero());
@@ -7548,7 +7284,7 @@ impl Client {
                     && let Some(target_index) = slot.inventory_index
                 {
                     let target_entity_id =
-                        Self::resolve_party_entity(map, None).map(|entity| entity.id);
+                        screen_model::resolve_party_entity(map, None).map(|entity| entity.id);
                     action = Some(if let Some(source) = dragged_container_source {
                         EntityAction::MoveContainerItem {
                             item_id,
@@ -7580,7 +7316,7 @@ impl Client {
                         .is_some_and(|slot| slot.trim().eq_ignore_ascii_case(&target.slot))
                 {
                     let target_entity_id =
-                        Self::resolve_party_entity(map, None).map(|entity| entity.id);
+                        screen_model::resolve_party_entity(map, None).map(|entity| entity.id);
                     action = Some(if let Some(source) = dragged_container_source {
                         EntityAction::MoveContainerItem {
                             item_id,
@@ -7630,8 +7366,9 @@ impl Client {
                     {
                         continue;
                     }
-                    let target_entity_id = Self::resolve_party_entity(map, widget.party.as_deref())
-                        .map(|entity| entity.id);
+                    let target_entity_id =
+                        screen_model::resolve_party_entity(map, widget.party.as_deref())
+                            .map(|entity| entity.id);
                     if let Some(target_index) = widget.inventory_index {
                         action = Some(if let Some(source) = dragged_container_source {
                             EntityAction::MoveContainerItem {
@@ -7688,7 +7425,7 @@ impl Client {
                             continue;
                         }
                         let target_entity_id =
-                            Self::resolve_party_entity(map, widget.party.as_deref())
+                            screen_model::resolve_party_entity(map, widget.party.as_deref())
                                 .map(|entity| entity.id);
                         action = Some(if let Some(source) = dragged_container_source {
                             EntityAction::MoveContainerItem {
@@ -8084,7 +7821,7 @@ impl Client {
         if !deactivate_names.is_empty() {
             for widget_to_deactivate in &deactivate_names {
                 for (id, widget) in self.button_widgets.iter() {
-                    if Self::deactivate_matches(widget, widget_to_deactivate) {
+                    if screen_model::deactivate_matches(widget, widget_to_deactivate) {
                         self.activated_widgets.retain(|x| x != id);
                         self.permanently_activated_widgets.retain(|x| x != id);
                     }
@@ -8389,8 +8126,8 @@ impl Client {
         self.activated_widgets.iter().rev().find_map(|id| {
             let widget = self.button_widgets.get(id)?;
             widget.command_slot.as_ref()?;
-            let entity = Self::resolve_party_entity(map, widget.party.as_deref());
-            Self::resolved_widget_intent_payload(widget, assets, entity, &self.ui_state)
+            let entity = screen_model::resolve_party_entity(map, widget.party.as_deref());
+            screen_model::resolved_widget_intent_payload(widget, assets, entity, &self.ui_state)
                 .filter(|intent| !intent.is_empty())
         })
     }
@@ -8677,7 +8414,7 @@ impl Client {
             size,
             size,
         );
-        let actor = Self::resolve_party_entity(map, None);
+        let actor = screen_model::resolve_party_entity(map, None);
         let mut icon = Widget::new();
         icon.rect = rect;
         icon.command = Some(command.to_string());
@@ -8904,7 +8641,7 @@ impl Client {
             self.inventory_panel_slots.clear();
             return;
         };
-        let Some(actor) = Self::resolve_party_entity(map, None) else {
+        let Some(actor) = screen_model::resolve_party_entity(map, None) else {
             self.close_inventory_panel();
             return;
         };
@@ -9199,7 +8936,7 @@ impl Client {
             self.equipment_panel_slots.clear();
             return;
         };
-        let Some(actor) = Self::resolve_party_entity(map, None) else {
+        let Some(actor) = screen_model::resolve_party_entity(map, None) else {
             self.close_equipment_panel();
             return;
         };
@@ -9829,7 +9566,7 @@ impl Client {
             );
         }
 
-        let actor = Self::resolve_party_entity(map, None);
+        let actor = screen_model::resolve_party_entity(map, None);
         let title = if config.title.trim().is_empty() {
             self.actions_panel_content.title()
         } else {
@@ -11058,7 +10795,7 @@ impl Client {
             .equipment_panel_slots
             .iter()
             .find(|slot| slot.rect.contains(point))
-            && let Some(actor) = Self::resolve_party_entity(map, None)
+            && let Some(actor) = screen_model::resolve_party_entity(map, None)
             && let Some(item) = actor.get_equipped_item(&slot.slot)
         {
             return Some((
@@ -11084,7 +10821,7 @@ impl Client {
             .iter()
             .find(|slot| slot.rect.contains(point))
             && let Some(index) = slot.inventory_index
-            && let Some(actor) = Self::resolve_party_entity(map, None)
+            && let Some(actor) = screen_model::resolve_party_entity(map, None)
             && let Some(item) = actor.inventory.get(index).and_then(|item| item.as_ref())
         {
             return Some((
@@ -11114,7 +10851,7 @@ impl Client {
             if self.active_catalog_panel_config().show_details {
                 return None;
             }
-            let actor = Self::resolve_party_entity(map, None);
+            let actor = screen_model::resolve_party_entity(map, None);
             let description = rules_ui::describe_command(assets, actor, &entry.command);
             let state = rules_ui::command_state(assets, actor, &entry.command);
             return Some((
@@ -11166,7 +10903,7 @@ impl Client {
             if !widget.rect.contains(Vec2::new(p.x as f32, p.y as f32)) {
                 continue;
             }
-            let entity = Self::resolve_party_entity(map, widget.party.as_deref());
+            let entity = screen_model::resolve_party_entity(map, widget.party.as_deref());
             if let Some(entity) = entity {
                 if let Some(inventory_index) = widget.inventory_index
                     && let Some(item) = entity
@@ -11204,7 +10941,7 @@ impl Client {
                 }
             }
             if let Some(command) =
-                Self::resolved_widget_command(widget, assets, entity, &self.ui_state)
+                screen_model::resolved_widget_command(widget, assets, entity, &self.ui_state)
                 && let Some(binding) = parse_client_command(&command)
             {
                 let shortcuts = self.shortcut_labels_for_binding(&binding);
@@ -11291,13 +11028,13 @@ mod tests {
         .to_string();
         let ui_state = FxHashMap::default();
         assert_eq!(
-            Client::command_for_slot("primary.0", &assets, None, &ui_state).as_deref(),
+            screen_model::command_for_slot("primary.0", &assets, None, &ui_state).as_deref(),
             Some("rules.tinker")
         );
 
         assets.rules = "[actions.inspect]\nkind = \"interaction\"".to_string();
         assert_eq!(
-            Client::command_for_slot("primary.0", &assets, None, &ui_state),
+            screen_model::command_for_slot("primary.0", &assets, None, &ui_state),
             None
         );
     }

@@ -19,7 +19,7 @@ impl Client {
         messages: Vec<(u32, WorldText)>,
     ) {
         for (receiver, mut message) in messages {
-            if !Self::resolve_party_entity(map, Some("leader")).is_some_and(|e| e.id == receiver)
+            if !screen_model::resolve_party_entity(map, Some("leader")).is_some_and(|e| e.id == receiver)
                 || message.text.trim().is_empty()
             {
                 continue;
@@ -146,7 +146,7 @@ impl Client {
                 .values()
                 .filter(|b| {
                     b.rect.y > game.rect.y + game.rect.height * 0.5
-                        && !Self::widget_name_is_hidden(&b.name, &self.widgets_to_hide)
+                        && !screen_model::widget_name_is_hidden(&b.name, &self.widgets_to_hide)
                 })
                 .map(|b| b.rect.y - 4.)
                 .fold(game.rect.y + game.rect.height - 6., f32::min);

@@ -273,3 +273,47 @@ fn profile_crop_and_layout_changes_reuse_the_original_avatar_source() {
     assert!(layout.view().unwrap().bars[0].vertical);
     assert!(widget.buffer.pixels().is_empty());
 }
+
+#[test]
+fn explicit_portrait_sources_ignore_health_and_display_metadata() {
+    let mut assets = Assets::default();
+    let tile = Tile::from_textures(vec![
+        Texture::from_color([40, 80, 120, 255]),
+        Texture::from_color([80, 120, 160, 255]),
+    ]);
+    let mut entity = Entity::default();
+    entity
+        .attributes
+        .set("portrait_tile_id", Value::Id(tile.id));
+    assets.set_tiles([(tile.id, tile)].into_iter().collect());
+    let mut sources = ContentSources::default();
+    let original = sources
+        .prepare(
+            ContentRecipe::Portrait {
+                entity: &entity,
+                frame: 1,
+            },
+            &assets,
+            ContentRevision(1),
+        )
+        .unwrap()
+        .unwrap();
+    entity.attributes.set("HP", Value::Float(20.));
+    entity
+        .attributes
+        .set("display_name", Value::Str("Changed".into()));
+    let again = sources
+        .prepare(
+            ContentRecipe::Portrait {
+                entity: &entity,
+                frame: 1,
+            },
+            &assets,
+            ContentRevision(1),
+        )
+        .unwrap()
+        .unwrap();
+    assert!(Arc::ptr_eq(&original, &again));
+    assert_eq!(again.image().pixels(), &[80, 120, 160, 255]);
+    assert!(!again.avatar);
+}

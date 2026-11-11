@@ -5,6 +5,8 @@ edition.workspace = true
 license.workspace = true
 description = "Shared scene views and graphical game presentation for Eldiron hosts."
 [dependencies]
+eldiron-runtime = {path="../runtime"}
+toml = "0.9"
 renderkit = {path="../renderkit"}
 scenevm = {path="../scenevm",default-features=false,features=["gpu"]}
 rusterix = {path="../rusterix",default-features=false,features=["graphics"]}
@@ -12,6 +14,7 @@ theframework-core = {path="../theframework-core"}
 rustc-hash = "2"
 theframework = {path="../theframework",default-features=false,features=["text"]}
 [dev-dependencies]
+shared = {package="eldiron-shared",path="../shared",default-features=false}
 futures = "0.3"
 png = "0.18"
 theframework = {path="../theframework",default-features=false,features=["render-wgpu"]}

@@ -18,6 +18,8 @@ use crate::{Assets, Map, Pixel, PixelSource, PlayerCamera, Rect, Texture, Value}
 use theframework::prelude::*;
 use toml::Table;
 mod artwork;
+mod bindings;
+pub use bindings::*;
 mod compile;
 mod layout;
 mod panels;

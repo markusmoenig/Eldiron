@@ -1141,7 +1141,7 @@ impl Widget {
         }
     }
 
-    fn portrait_tile_for_entity(entity: &Entity, assets: &Assets) -> Option<crate::Tile> {
+    pub(crate) fn portrait_tile_for_entity(entity: &Entity, assets: &Assets) -> Option<crate::Tile> {
         if let Some(source) = entity.attributes.get_source("portrait_tile_id") {
             return source.tile_from_tile_list(assets);
         }

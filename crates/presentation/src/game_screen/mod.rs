@@ -1,0 +1,369 @@
+//! Application-owned native screen/controller state. It borrows CPU runtime
+//! views; a host supplies scene/image services and owns its surface and clock.
+mod fonts;
+mod paint;
+use crate::{GameSceneInput, SceneViews, ViewId, ViewImage, screen::*};
+use eldiron_runtime::{RegionEvents, RuntimeView};
+pub use fonts::{GameFontVersion, GameFonts};
+use renderkit::ImageRegistry;
+use rustc_hash::FxHashMap;
+use rusterix::{
+    Currencies, D2Builder, Map, Rect, Scene,
+    client::{
+        content::{ContentRecipe, SourceFit},
+        screen_model::{self, ScreenElements, ScreenLayout},
+    },
+};
+use std::sync::Arc;
+use theframework::paint::{PaintList, PaintOp, Rect as Uv, Sampling, Transform};
+use theframework_core::Uuid;
+
+struct ProfileContent {
+    layout: ProfileLayout,
+    source: Option<Arc<PreparedContent>>,
+}
+struct AvatarContent {
+    source: Option<Arc<PreparedContent>>,
+    outline: ([u8; 4], usize),
+}
+struct ButtonSource {
+    source: Arc<PreparedContent>,
+    quantity: u32,
+}
+struct ScreenGeometry {
+    base: Scene,
+    foreground: Scene,
+}
+
+pub struct GameScreenController {
+    pub elements: ScreenElements,
+    pub name: String,
+    pub cursor: [f32; 2],
+    pub focused_input: Option<u32>,
+    pub pressed_button: Option<u32>,
+    pub open_dropdown: Option<u32>,
+    pub intent: String,
+    pub hovered_item: Option<u32>,
+    sources: ContentSources,
+    revision: Option<ContentRevision>,
+    font_version: Option<GameFontVersion>,
+    currencies: Currencies,
+    empty_map: Map,
+    messages: Vec<MessageLayouts>,
+    profiles: FxHashMap<Uuid, ProfileContent>,
+    avatars: FxHashMap<Uuid, AvatarContent>,
+    buttons: FxHashMap<u32, ButtonSource>,
+    geometry: Option<ScreenGeometry>,
+    view_ids: FxHashMap<Uuid, ViewId>,
+    configured_views: FxHashMap<ViewId, ContentRevision>,
+    view_images: FxHashMap<Uuid, ViewImage>,
+    pub animation_frame: usize,
+}
+impl GameScreenController {
+    pub fn from_screen(
+        name: &str,
+        world: &RuntimeView<'_>,
+        mut layout: ScreenLayout,
+    ) -> Result<Self, String> {
+        let screen = world
+            .screen(name)
+            .ok_or_else(|| format!("Screen '{name}' not found"))?;
+        layout.screen_responsive = screen.responsive;
+        if !layout.screen_responsive {
+            layout.viewport = layout.reference_viewport;
+        }
+        let config = world
+            .config()
+            .parse::<toml::Table>()
+            .map_err(|e| e.to_string())?;
+        let elements = ScreenElements::compile(
+            screen.map,
+            world.assets,
+            layout,
+            screen_model::screen_background(&config),
+            FxHashMap::default(),
+            0,
+        );
+        Ok(Self {
+            elements,
+            name: name.into(),
+            cursor: [0.; 2],
+            focused_input: None,
+            pressed_button: None,
+            open_dropdown: None,
+            intent: String::new(),
+            hovered_item: None,
+            sources: ContentSources::default(),
+            revision: None,
+            font_version: None,
+            currencies: Currencies::from_rules_source(&world.assets.rules),
+            empty_map: Map::default(),
+            messages: Vec::new(),
+            profiles: FxHashMap::default(),
+            avatars: FxHashMap::default(),
+            buttons: FxHashMap::default(),
+            geometry: None,
+            view_ids: FxHashMap::default(),
+            configured_views: FxHashMap::default(),
+            view_images: FxHashMap::default(),
+            animation_frame: 0,
+        })
+    }
+    /// Distribute each addressed batch once. Reflow/painting do not consume it
+    /// again; the application can also deliver it to audio/world-text consumers.
+    pub fn receive(&mut self, world: &RuntimeView<'_>, events: &RegionEvents) {
+        let map = world.map.unwrap_or(&self.empty_map);
+        for widget in &mut self.elements.messages_widgets {
+            widget.queue_messages(
+                world.assets,
+                map,
+                &world.time,
+                &events.messages,
+                &events.choices,
+            );
+        }
+    }
+    pub fn resize(&mut self, logical: (u32, u32)) -> bool {
+        let changed = self.elements.relayout(theframework::prelude::Vec2::new(
+            logical.0.min(i32::MAX as u32) as i32,
+            logical.1.min(i32::MAX as u32) as i32,
+        ));
+        if changed {
+            self.geometry = None;
+        }
+        changed
+    }
+    /// Prepare source artwork, message hit geometry and retained identity text
+    /// before routing input. Only a content/publication edit advances revision.
+    pub fn prepare(
+        &mut self,
+        world: &RuntimeView<'_>,
+        fonts: &mut GameFonts,
+        revision: ContentRevision,
+        animation_frame: usize,
+    ) -> Result<(), String> {
+        let font_version = fonts.refresh(world, revision);
+        if self.font_version != Some(font_version) {
+            self.font_version = Some(font_version);
+            self.messages.clear();
+            self.profiles.clear();
+        }
+        if self.revision != Some(revision) {
+            self.currencies = Currencies::from_rules_source(&world.assets.rules);
+            self.geometry = None;
+            self.revision = Some(revision);
+        }
+        self.animation_frame = animation_frame;
+        let map = world.map.unwrap_or(&self.empty_map);
+        self.messages.resize_with(
+            self.elements.messages_widgets.len(),
+            MessageLayouts::default,
+        );
+        for (widget, layout) in self
+            .elements
+            .messages_widgets
+            .iter_mut()
+            .zip(&mut self.messages)
+        {
+            if screen_model::widget_name_is_hidden(&widget.name, &self.elements.widgets_to_hide) {
+                continue;
+            }
+            layout.prepare(
+                widget,
+                &mut fonts.text,
+                world.assets,
+                map,
+                &world.time,
+                &[],
+                &[],
+            )?;
+        }
+        self.avatars.clear();
+        for (id, widget) in &mut self.elements.avatar_widgets {
+            if screen_model::widget_name_is_hidden(&widget.name, &self.elements.widgets_to_hide) {
+                continue;
+            }
+            let Some(entity) = screen_model::resolve_party_entity(map, widget.party.as_deref())
+            else {
+                continue;
+            };
+            let outline = widget.prepare_outline(entity, world.assets);
+            let source =
+                self.sources
+                    .prepare(widget.content_recipe(entity), world.assets, revision)?;
+            self.avatars.insert(*id, AvatarContent { source, outline });
+        }
+        for (id, widget) in &mut self.elements.profile_widgets {
+            if screen_model::widget_name_is_hidden(&widget.name, &self.elements.widgets_to_hide) {
+                if let Some(content) = self.profiles.get_mut(id) {
+                    content.source = None;
+                }
+                continue;
+            }
+            widget.animation_frame = animation_frame;
+            let Some(entity) = screen_model::resolve_party_entity(map, widget.party.as_deref())
+            else {
+                self.profiles.remove(id);
+                continue;
+            };
+            let source =
+                self.sources
+                    .prepare(widget.content_recipe(entity), world.assets, revision)?;
+            let content = self.profiles.entry(*id).or_insert_with(|| ProfileContent {
+                layout: ProfileLayout::default(),
+                source: None,
+            });
+            content
+                .layout
+                .prepare(widget, entity, &mut fonts.text, "Roboto", source.as_deref());
+            content.source = source;
+        }
+        self.buttons.clear();
+        for (id, widget) in &self.elements.button_widgets {
+            if screen_model::widget_name_is_hidden(&widget.name, &self.elements.widgets_to_hide) {
+                continue;
+            }
+            let Some(entity) = screen_model::resolve_party_entity(map, widget.party.as_deref())
+            else {
+                continue;
+            };
+            if widget.portrait {
+                if let Some(source) = self.sources.prepare(
+                    ContentRecipe::Portrait {
+                        entity,
+                        frame: animation_frame,
+                    },
+                    world.assets,
+                    revision,
+                )? {
+                    self.buttons.insert(
+                        *id,
+                        ButtonSource {
+                            source,
+                            quantity: 1,
+                        },
+                    );
+                    continue;
+                }
+            }
+            let item = if let Some(index) = widget.inventory_index {
+                entity.inventory.get(index).and_then(Option::as_ref)
+            } else {
+                widget
+                    .equipped_slot
+                    .as_deref()
+                    .and_then(|slot| entity.get_equipped_item(slot))
+            };
+            if let Some(item) = item {
+                if let Some(source) = self.sources.prepare(
+                    ContentRecipe::Item {
+                        item,
+                        frame: animation_frame,
+                    },
+                    world.assets,
+                    revision,
+                )? {
+                    self.buttons.insert(
+                        *id,
+                        ButtonSource {
+                            source,
+                            quantity: item.stack_quantity().max(0) as u32,
+                        },
+                    );
+                }
+            }
+        }
+        for widget in self.elements.deco_widgets.values_mut() {
+            widget.animation_frame = animation_frame;
+        }
+        if self.geometry.is_none() {
+            let size = self.elements.layout.viewport.map(|v| v as f32);
+            let mut builder = D2Builder::new();
+            builder.activated_widgets = self.elements.activated_widgets.clone();
+            self.geometry = Some(ScreenGeometry {
+                base: builder.build(&self.elements.render_layer(false), world.assets, size),
+                foreground: builder.build(&self.elements.render_layer(true), world.assets, size),
+            });
+        }
+        Ok(())
+    }
+    pub fn prepare_game_views(
+        &mut self,
+        world: &RuntimeView<'_>,
+        views: &mut SceneViews,
+        images: &mut ImageRegistry,
+    ) -> Result<(), String> {
+        self.view_images.clear();
+        let Some(map) = world.map else {
+            return Ok(());
+        };
+        let revision = self
+            .revision
+            .ok_or("Prepare the screen before its scene views")?;
+        let input = GameSceneInput {
+            map,
+            assets: world.assets,
+            time: world.time,
+            animation_frame: self.animation_frame,
+            render_state: &world.render_state,
+        };
+        for (key, widget) in &mut self.elements.game_widgets {
+            if screen_model::widget_name_is_hidden(&widget.name, &self.elements.widgets_to_hide) {
+                continue;
+            }
+            let id = *self.view_ids.entry(*key).or_default();
+            if views.scene(id).is_err() {
+                views.create(id, (0, 0)).map_err(|e| e.to_string())?;
+                self.configured_views.remove(&id);
+            }
+            if self.configured_views.get(&id) != Some(&revision) {
+                views
+                    .configure_game(id, world.assets)
+                    .map_err(|e| e.to_string())?;
+                self.configured_views.insert(id, revision);
+            }
+            let size = (
+                widget.rect.width.round().max(0.) as u32,
+                widget.rect.height.round().max(0.) as u32,
+            );
+            views
+                .prepare_game(id, widget, size, &input, images)
+                .map_err(|e| e.to_string())?;
+            if let Some(output) = views
+                .render(id, self.animation_frame as u64, images)
+                .map_err(|e| e.to_string())?
+            {
+                self.view_images.insert(*key, output);
+            }
+        }
+        Ok(())
+    }
+    /// The host calls this before closing/replacing the screen while retaining
+    /// its registry. IDs remain stable if a device owner is rebuilt afterward.
+    pub fn release_game_views(
+        &mut self,
+        views: &mut SceneViews,
+        images: &mut ImageRegistry,
+    ) -> Result<(), String> {
+        for id in self.view_ids.values() {
+            views.remove(*id, images).map_err(|e| e.to_string())?;
+        }
+        self.configured_views.clear();
+        self.view_images.clear();
+        Ok(())
+    }
+    pub fn view_images(&self) -> &FxHashMap<Uuid, ViewImage> {
+        &self.view_images
+    }
+    pub fn source_builds(&self) -> u64 {
+        self.sources.builds()
+    }
+    pub fn source_bytes(&self) -> usize {
+        self.sources.resident_bytes()
+    }
+}
+fn ordered<K: Ord + Copy, V>(map: &FxHashMap<K, V>) -> Vec<K> {
+    let mut keys = map.keys().copied().collect::<Vec<_>>();
+    keys.sort_unstable();
+    keys
+}
