@@ -521,3 +521,22 @@ Verification:
 - Two existing shared choice-controller tests passed (`/private/tmp/eldiron-keyboard-focus-choice.log`). Creator, both graphical clients and terminal compile (`/private/tmp/eldiron-keyboard-focus-apps.log`).
 
 Remaining: canonical launchers and complete HUD/input/output families, world picking/cameras/cursors/drag/drop, legacy framework editing adoption, Creator/custom tools, resource/performance/alpha/isometric work, and full browser/Swift/platform acceptance. Live desktop keyboard/IME/presentation validation remains unavailable while the Mac is locked; these headless checks do not claim it.
+
+
+## Common framework editor adoption checkpoint (2026-11-12)
+
+Native `TheTextLineEdit` fields, including numeric ranges and embedded `TheTreeItem` fields, now use the same retained `EditorView`/`EditorController` as game fields and transcript commands. Legacy text values remain a compatibility projection for existing widget APIs and the explicit CPU reference path; native editing/selection/preedit/history and GPU paint no longer use the legacy cursor/draw implementation. External value/document replacement creates a new callback epoch even for identical text, while ordinary layout/font/GPU changes preserve it. Field IME state exposes actual caret/preedit geometry through the UI adapter, with embedded row and outer scrolling transforms applied once.
+
+Added semantic `EditorCommand` operations for menus and shortcuts, shared asynchronous host clipboard routing, explicit blur notification, and visible-layout traversal for editor focus. Tab/Shift-Tab preserves modifiers across focus changes; preedit keeps Tab. Context menus, overlays, hidden stack/tab/shared-layout branches and collapsed tree branches suspend the editor's input scope and cancel preedit/pending clipboard. Callback identity rotates before returning to that editor. Native editor scopes, widget input/state ports and the existing generic host remain separate from the GPU surface; no native text widget accesses the platform clipboard directly.
+
+Numeric drags use grouped neutral-editor transactions: many samples produce one undo entry, release commits one noncontinuous callback, and scope loss cancels the unfinished gesture (restoring live callbacks for continuous fields). A queued blur cannot project an old gesture over a newer external value. Clipboard Copy supersedes earlier Cut/Paste requests so late completions cannot edit; AltGr physical letters do not trigger editor shortcuts before committed text.
+
+Verification:
+
+- Shared editor/text-only suite: 38 passed before the added gesture-group case (`/private/tmp/eldiron-semantic-editor-core.log`). Final UI-enabled library suite: 121 passed, including that group case, existing UI regressions and callback epochs.
+- Seven new native field integration tests passed, covering Unicode/grapheme/IME/undo, host clipboard completion, modifier/focus traversal, modal suspension, identical document replacement, range commit/cancel/external replacement and embedded tree fields.
+- Final framework checks: 121 library, 4 command-UI, 7 native-field and 13 actual headless GPU UI tests passed (`/private/tmp/eldiron-native-line-final-contracts.log`). Actual GPU UI includes scrolled forms, embedded fields, syntax-rich reference text, resource recreation and CAMetalLayer presentation. A separate widget-free foreign-layer application check passed (`/private/tmp/eldiron-native-field-ui-gpu.log`). No live desktop input/presentation claim is made while the Mac is locked.
+- Reference UI without the text feature, wasm browser UI/Winit host and iOS UI/render builds compile (`/private/tmp/eldiron-native-line-{reference-ui,web,ios}.log`); all four applications compile (`/private/tmp/eldiron-native-line-apps.log`). Seven independently resolved dependency boundaries pass (`/private/tmp/eldiron-native-line-boundaries.log`).
+- Visually inspected the actual GPU field/editor capture; native line text and the existing syntax editor render through glyph commands without a root framebuffer. Evidence: `native-wgpu-evidence/common-editor-fields.png`.
+
+Next: migrate multiline/code editors while preserving syntax/highlight source, match/error/debug marks, line numbers/status/scrollbars, readonly selection/wrapping, code indentation/bracket policy and saved editor-state APIs. Full framework keyboard-focus parity, text virtualization/performance and legacy/reference adapter retirement remain open. Creator/application conversion and the rest of M0–M9 remain active.

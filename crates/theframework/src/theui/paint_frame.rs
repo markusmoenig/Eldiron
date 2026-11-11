@@ -56,6 +56,7 @@ impl TheUI {
         if let Some(menu) = &mut self.context_menu {
             menu.prepare_commands_layout(ctx);
         }
+        self.synchronize_editor_scope(ctx);
     }
 
     /// Prepare and paint the UI tree directly. Unsupported widget families return

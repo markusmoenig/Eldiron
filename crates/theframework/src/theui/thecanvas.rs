@@ -35,6 +35,28 @@ impl Default for TheCanvas {
 /// TheCanvas divides a screen dimension into 4 possible sub-spaces for its border while containing a set of widgets for its center.
 impl TheCanvas {
     #[cfg(feature = "text")]
+    pub fn visit_visible_widgets(&mut self, visitor: &mut dyn FnMut(&mut dyn TheWidget)) {
+        for child in [
+            &mut self.left,
+            &mut self.top,
+            &mut self.right,
+            &mut self.bottom,
+            &mut self.center,
+        ]
+        .into_iter()
+        .flatten()
+        {
+            child.visit_visible_widgets(visitor);
+        }
+        if let Some(layout) = &mut self.layout {
+            layout.visit_visible_widgets(visitor);
+        }
+        if let Some(widget) = &mut self.widget {
+            visitor(widget.as_mut());
+        }
+    }
+
+    #[cfg(feature = "text")]
     pub fn prepare_paint(&mut self, ctx: &mut TheContext, _theme: &dyn TheTheme) {
         if self.layout_dirty {
             self.set_dim(self.dim, ctx);

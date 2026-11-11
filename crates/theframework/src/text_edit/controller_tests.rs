@@ -528,3 +528,97 @@ fn addressed_ime_callbacks_cannot_cross_editors_focus_epochs_or_document_replace
     );
     assert_eq!(first.text(), "Replacement");
 }
+
+#[test]
+fn menu_commands_supersede_pending_clipboard_and_share_keyboard_history() {
+    let (mut fonts, mut editor) = fixture(false, "A東京Z");
+    editor.select_bytes(&mut fonts, 1, 7);
+    let Some(EditorClipboard::Write { cut: Some(cut), .. }) =
+        editor.execute(&mut fonts, EditorCommand::Cut).clipboard
+    else {
+        panic!("cut");
+    };
+    assert!(matches!(
+        editor.execute(&mut fonts, EditorCommand::Copy).clipboard,
+        Some(EditorClipboard::Write { cut: None, .. })
+    ));
+    assert!(
+        !editor
+            .complete_clipboard(&mut fonts, cut, ClipboardResult::Written(true))
+            .changed
+    );
+    assert_eq!(editor.text(), "A東京Z");
+    let Some(EditorClipboard::Read { request }) =
+        editor.execute(&mut fonts, EditorCommand::Paste).clipboard
+    else {
+        panic!("paste");
+    };
+    editor.execute(&mut fonts, EditorCommand::Copy);
+    assert!(
+        !editor
+            .complete_clipboard(
+                &mut fonts,
+                request,
+                ClipboardResult::Text(Some("late".into()))
+            )
+            .changed
+    );
+    let target = editor.input_target();
+    assert!(editor.replace_text(&mut fonts, "20"));
+    assert_eq!(editor.input_target(), target);
+    assert!(shortcut(&mut editor, &mut fonts, b'z').changed);
+    assert_eq!(editor.text(), "A東京Z");
+    assert_eq!(editor.selection_bytes(), (1, 7));
+    assert!(editor.execute(&mut fonts, EditorCommand::Redo).changed);
+    assert_eq!(editor.text(), "20");
+}
+#[test]
+fn altgr_physical_letters_do_not_select_copy_or_paste_before_committed_text() {
+    let (mut fonts, mut editor) = fixture(false, "A東京Z");
+    editor.select_bytes(&mut fonts, 1, 7);
+    editor.input(
+        &mut fonts,
+        &InputEvent::Modifiers(Modifiers {
+            control: true,
+            alt: true,
+            ..Default::default()
+        }),
+    );
+    for letter in [b'a', b'c', b'x', b'v', b'z'] {
+        assert!(
+            key(&mut editor, &mut fonts, PhysicalKey::Letter(letter))
+                .clipboard
+                .is_none()
+        );
+        assert_eq!(editor.selection_bytes(), (1, 7));
+        assert_eq!(editor.text(), "A東京Z");
+    }
+    text(&mut editor, &mut fonts, "ą");
+    assert_eq!(editor.text(), "AąZ");
+    assert!(editor.undo(&mut fonts));
+    assert_eq!(editor.text(), "A東京Z");
+}
+
+#[test]
+fn gesture_edits_commit_one_undo_record_and_blur_cancels_without_destroying_redo() {
+    let (mut fonts, mut editor) = fixture(false, "2");
+    assert!(editor.begin_edit_group(&mut fonts));
+    assert!(!editor.begin_edit_group(&mut fonts));
+    for value in ["3", "4", "5"] {
+        assert!(editor.replace_text(&mut fonts, value));
+    }
+    assert_eq!(editor.history_bytes(), 0);
+    assert!(editor.commit_edit_group());
+    assert!(editor.undo(&mut fonts));
+    assert_eq!(editor.text(), "2");
+    assert!(editor.begin_edit_group(&mut fonts));
+    editor.replace_text(&mut fonts, "9");
+    editor.set_focused(&mut fonts, false);
+    assert_eq!(editor.text(), "2");
+    editor.set_focused(&mut fonts, true);
+    assert!(editor.redo(&mut fonts));
+    assert_eq!(editor.text(), "5");
+    assert!(editor.undo(&mut fonts));
+    assert_eq!(editor.text(), "2");
+    assert!(!editor.undo(&mut fonts), "drag samples form one undo unit");
+}

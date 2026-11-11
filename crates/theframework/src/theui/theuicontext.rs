@@ -38,6 +38,10 @@ pub struct TheUIContext {
     pub command_paint: bool,
     #[cfg(feature = "text")]
     pub input_transforms: FxHashMap<Uuid, crate::paint::Transform>,
+    #[cfg(feature = "text")]
+    pub editor_clipboard: std::collections::VecDeque<crate::text_edit::EditorClipboard>,
+    #[cfg(feature = "text")]
+    pub input_modifiers: crate::platform::Modifiers,
     pub font: Option<Font>,
     icons: FxHashMap<String, TheRGBABuffer>,
 
@@ -130,6 +134,10 @@ impl TheUIContext {
             command_paint: false,
             #[cfg(feature = "text")]
             input_transforms: FxHashMap::default(),
+            #[cfg(feature = "text")]
+            editor_clipboard: std::collections::VecDeque::new(),
+            #[cfg(feature = "text")]
+            input_modifiers: crate::platform::Modifiers::default(),
             file_requests: std::collections::VecDeque::new(),
             focus: None,
             keyboard_focus: None,
@@ -202,7 +210,9 @@ impl TheUIContext {
 
     /// Clears the focus state.
     pub fn clear_focus(&mut self) {
-        self.focus = None;
+        if let Some(focus) = self.focus.take() {
+            self.send(TheEvent::LostFocus(focus));
+        }
     }
 
     /// Checks if the given id has focus

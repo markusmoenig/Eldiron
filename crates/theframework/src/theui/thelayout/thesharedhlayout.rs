@@ -27,6 +27,19 @@ pub struct TheSharedHLayout {
 
 impl TheLayout for TheSharedHLayout {
     #[cfg(feature = "text")]
+    fn visit_visible_widgets(&mut self, visitor: &mut dyn FnMut(&mut dyn TheWidget)) {
+        if self.canvas.len() >= 2 {
+            match self.mode {
+                TheSharedHLayoutMode::Left => self.canvas[0].visit_visible_widgets(visitor),
+                TheSharedHLayoutMode::Right => self.canvas[1].visit_visible_widgets(visitor),
+                TheSharedHLayoutMode::Shared => {
+                    self.canvas[0].visit_visible_widgets(visitor);
+                    self.canvas[1].visit_visible_widgets(visitor);
+                }
+            }
+        }
+    }
+    #[cfg(feature = "text")]
     fn prepare_paint(&mut self, ctx: &mut TheContext, _theme: &dyn TheTheme) {
         self.set_dim(self.dim, ctx);
         for c in &mut self.canvas {

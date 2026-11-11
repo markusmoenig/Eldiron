@@ -15,6 +15,12 @@ pub struct TheStackLayout {
 
 impl TheLayout for TheStackLayout {
     #[cfg(feature = "text")]
+    fn visit_visible_widgets(&mut self, visitor: &mut dyn FnMut(&mut dyn TheWidget)) {
+        if let Some(canvas) = self.canvas.get_mut(self.index) {
+            canvas.visit_visible_widgets(visitor);
+        }
+    }
+    #[cfg(feature = "text")]
     fn prepare_paint(&mut self, ctx: &mut TheContext, _theme: &dyn TheTheme) {
         self.set_dim(self.dim, ctx);
         for c in &mut self.canvas {

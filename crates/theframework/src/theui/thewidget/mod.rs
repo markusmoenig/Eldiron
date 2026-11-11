@@ -296,6 +296,38 @@ pub trait TheWidget: Send {
         false
     }
 
+    /// Native editors own their precise selection/composition/history geometry.
+    /// Default widgets keep their reference event adapter until migrated.
+    #[cfg(feature = "text")]
+    fn uses_native_editor(&self) -> bool {
+        false
+    }
+    #[cfg(feature = "text")]
+    fn editor_set_active(&mut self, _active: bool, _ctx: &mut TheContext) {}
+    #[cfg(feature = "text")]
+    fn editor_input(
+        &mut self,
+        _event: &crate::platform::InputEvent,
+        _ctx: &mut TheContext,
+    ) -> Option<crate::text_edit::EditorResponse> {
+        None
+    }
+    #[cfg(feature = "text")]
+    fn editor_command(
+        &mut self,
+        _command: crate::text_edit::EditorCommand,
+        _ctx: &mut TheContext,
+    ) -> Option<crate::text_edit::EditorResponse> {
+        None
+    }
+    #[cfg(feature = "text")]
+    fn editor_input_state(
+        &mut self,
+        _ctx: &mut TheContext,
+    ) -> Option<crate::platform::TextInputState> {
+        None
+    }
+
     /// Widgets who support text input return true
     fn supports_text_input(&self) -> bool {
         false

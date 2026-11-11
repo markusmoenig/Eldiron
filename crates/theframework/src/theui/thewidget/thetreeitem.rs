@@ -33,6 +33,55 @@ pub struct TheTreeItem {
 
 impl TheWidget for TheTreeItem {
     #[cfg(feature = "text")]
+    fn uses_native_editor(&self) -> bool {
+        self.widget_column
+            .as_ref()
+            .is_some_and(|(_, widget)| widget.uses_native_editor())
+    }
+    #[cfg(feature = "text")]
+    fn editor_set_active(&mut self, active: bool, ctx: &mut TheContext) {
+        if let Some((_, widget)) = &mut self.widget_column {
+            widget.editor_set_active(active, ctx);
+        }
+    }
+    #[cfg(feature = "text")]
+    fn editor_input(
+        &mut self,
+        event: &crate::platform::InputEvent,
+        ctx: &mut TheContext,
+    ) -> Option<crate::text_edit::EditorResponse> {
+        let response = self.widget_column.as_mut()?.1.editor_input(event, ctx)?;
+        self.is_dirty |= response.input.redraw;
+        Some(response)
+    }
+    #[cfg(feature = "text")]
+    fn editor_command(
+        &mut self,
+        command: crate::text_edit::EditorCommand,
+        ctx: &mut TheContext,
+    ) -> Option<crate::text_edit::EditorResponse> {
+        let response = self
+            .widget_column
+            .as_mut()?
+            .1
+            .editor_command(command, ctx)?;
+        self.is_dirty |= response.input.redraw;
+        Some(response)
+    }
+    #[cfg(feature = "text")]
+    fn editor_input_state(
+        &mut self,
+        ctx: &mut TheContext,
+    ) -> Option<crate::platform::TextInputState> {
+        let mut state = self.widget_column.as_mut()?.1.editor_input_state(ctx)?;
+        // Child dimensions are row-local; the owner applies the same outer
+        // tree/scroll transform as row paint exactly once.
+        state.area.x += self.dim.x as f32;
+        state.area.y += self.dim.y as f32;
+        Some(state)
+    }
+
+    #[cfg(feature = "text")]
     fn paint_overlay(
         &mut self,
         p: &mut crate::theui::paint::WidgetPainter<'_>,

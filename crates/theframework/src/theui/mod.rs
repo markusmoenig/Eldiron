@@ -575,6 +575,10 @@ impl TheUI {
 
     /// Initiate a cut operation on the current focus widget.
     pub fn cut(&mut self, ctx: &mut TheContext) {
+        #[cfg(feature = "text")]
+        if self.focused_editor_command(crate::text_edit::EditorCommand::Cut, ctx) {
+            return;
+        }
         if let Some(id) = &ctx.ui.focus {
             if let Some(widget) = self.get_widget_abs(None, Some(&id.uuid)) {
                 let event = TheEvent::Cut;
@@ -586,6 +590,10 @@ impl TheUI {
 
     /// Initiate a copy operation on the current focus widget.
     pub fn copy(&mut self, ctx: &mut TheContext) {
+        #[cfg(feature = "text")]
+        if self.focused_editor_command(crate::text_edit::EditorCommand::Copy, ctx) {
+            return;
+        }
         if let Some(id) = &ctx.ui.focus {
             if let Some(widget) = self.get_widget_abs(None, Some(&id.uuid)) {
                 let event = TheEvent::Copy;
@@ -597,6 +605,10 @@ impl TheUI {
 
     /// Initiate a paste operation on the current focus widget.
     pub fn paste(&mut self, ctx: &mut TheContext) {
+        #[cfg(feature = "text")]
+        if self.focused_editor_command(crate::text_edit::EditorCommand::Paste, ctx) {
+            return;
+        }
         if let Some(id) = &ctx.ui.focus {
             if let Some(widget) = self.get_widget_abs(None, Some(&id.uuid)) {
                 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
@@ -623,6 +635,10 @@ impl TheUI {
 
     /// Initiate a widget based undo.
     pub fn undo(&mut self, ctx: &mut TheContext) {
+        #[cfg(feature = "text")]
+        if self.focused_editor_command(crate::text_edit::EditorCommand::Undo, ctx) {
+            return;
+        }
         if let Some(id) = &ctx.ui.focus {
             if let Some(widget) = self.get_widget_abs(None, Some(&id.uuid)) {
                 let event = TheEvent::Undo;
@@ -634,6 +650,10 @@ impl TheUI {
 
     /// Initiate a widget based redo.
     pub fn redo(&mut self, ctx: &mut TheContext) {
+        #[cfg(feature = "text")]
+        if self.focused_editor_command(crate::text_edit::EditorCommand::Redo, ctx) {
+            return;
+        }
         if let Some(id) = &ctx.ui.focus {
             if let Some(widget) = self.get_widget_abs(None, Some(&id.uuid)) {
                 let event = TheEvent::Redo;
@@ -1694,6 +1714,15 @@ impl TheUI {
         self.ctrl = ctrl;
         self.alt = alt;
         self.logo = logo;
+        #[cfg(feature = "text")]
+        {
+            ctx.ui.input_modifiers = crate::platform::Modifiers {
+                shift,
+                control: ctrl,
+                alt,
+                super_key: logo,
+            };
+        }
 
         if let Some(id) = &ctx.ui.focus {
             if let Some(widget) = self.get_widget_abs(Some(&id.name), Some(&id.uuid)) {

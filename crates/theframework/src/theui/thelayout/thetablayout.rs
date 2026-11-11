@@ -15,6 +15,18 @@ pub struct TheTabLayout {
 
 impl TheLayout for TheTabLayout {
     #[cfg(feature = "text")]
+    fn visit_visible_widgets(&mut self, visitor: &mut dyn FnMut(&mut dyn TheWidget)) {
+        visitor(self.tabbar.as_mut());
+        let index = self
+            .tabbar
+            .as_tabbar()
+            .and_then(|t| t.selection_index())
+            .unwrap_or(0) as usize;
+        if let Some(canvas) = self.canvas.get_mut(index) {
+            canvas.visit_visible_widgets(visitor);
+        }
+    }
+    #[cfg(feature = "text")]
     fn prepare_paint(&mut self, ctx: &mut TheContext, _theme: &dyn TheTheme) {
         self.set_dim(self.dim, ctx);
         for c in &mut self.canvas {

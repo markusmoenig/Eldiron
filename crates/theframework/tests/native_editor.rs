@@ -1,0 +1,391 @@
+#![cfg(all(feature = "ui", feature = "text"))]
+use theframework::{
+    platform::{ClipboardResult, InputEvent, LogicalKey, Modifiers, PhysicalKey},
+    prelude::*,
+    text_edit::{EditorClipboard, EditorCommand},
+};
+fn key(physical: PhysicalKey) -> InputEvent {
+    InputEvent::Key {
+        physical,
+        logical: LogicalKey::Other,
+        pressed: true,
+        repeat: false,
+    }
+}
+fn fixture() -> (TheUI, TheContext, TheId, TheId) {
+    let mut ctx = TheContext::new(400, 120, 1.);
+    let mut ui = TheUI::new();
+    ui.init(&mut ctx);
+    let a = TheId::named("First");
+    let b = TheId::named("Second");
+    let mut row = TheHLayout::new(TheId::named("Editors"));
+    let mut first = TheTextLineEdit::new(a.clone());
+    first.set_text("A東京Z".into());
+    row.widgets().push(Box::new(first));
+    row.widgets()
+        .push(Box::new(TheTextLineEdit::new(b.clone())));
+    ui.canvas.set_layout(row);
+    ui.prepare_paint_layout(&mut ctx);
+    ctx.ui.set_focus(&a);
+    ui.process_events(&mut ctx);
+    (ui, ctx, a, b)
+}
+fn send(ui: &mut TheUI, ctx: &mut TheContext, event: InputEvent) {
+    ui.prepare_paint_layout(ctx);
+    ui.dispatch_input(&event, ctx);
+}
+#[test]
+fn native_field_preedit_commits_once_and_menu_undo_uses_the_same_history() {
+    let (mut ui, mut ctx, _, _) = fixture();
+    send(
+        &mut ui,
+        &mut ctx,
+        InputEvent::Modifiers(Modifiers {
+            control: true,
+            ..Default::default()
+        }),
+    );
+    send(&mut ui, &mut ctx, key(PhysicalKey::Letter(b'a')));
+    send(
+        &mut ui,
+        &mut ctx,
+        InputEvent::Modifiers(Modifiers::default()),
+    );
+    send(
+        &mut ui,
+        &mut ctx,
+        InputEvent::Composition {
+            text: "仮".into(),
+            cursor: Some((0, 3)),
+        },
+    );
+    assert_eq!(ui.get_text_line_edit("First").unwrap().text(), "A東京Z");
+    send(&mut ui, &mut ctx, InputEvent::Text("e\u{301}👨‍👩‍👧‍👦".into()));
+    assert_eq!(ui.get_text_line_edit("First").unwrap().text(), "e\u{301}👨‍👩‍👧‍👦");
+    send(&mut ui, &mut ctx, key(PhysicalKey::Backspace));
+    assert_eq!(ui.get_text_line_edit("First").unwrap().text(), "e\u{301}");
+    ui.undo(&mut ctx);
+    assert_eq!(ui.get_text_line_edit("First").unwrap().text(), "e\u{301}👨‍👩‍👧‍👦");
+    ui.undo(&mut ctx);
+    assert_eq!(ui.get_text_line_edit("First").unwrap().text(), "A東京Z");
+    ui.redo(&mut ctx);
+    assert_eq!(ui.get_text_line_edit("First").unwrap().text(), "e\u{301}👨‍👩‍👧‍👦");
+}
+#[test]
+fn clipboard_is_host_serviced_and_old_completions_cannot_edit_another_field() {
+    let (mut ui, mut ctx, a, b) = fixture();
+    ui.get_widget_id(a.uuid)
+        .unwrap()
+        .editor_command(EditorCommand::SelectAll, &mut ctx);
+    ui.cut(&mut ctx);
+    let Some(EditorClipboard::Write {
+        cut: Some(request),
+        text,
+    }) = ctx.ui.editor_clipboard.pop_front()
+    else {
+        panic!("host cut request");
+    };
+    assert_eq!(text, "A東京Z");
+    assert_eq!(ui.get_text_line_edit("First").unwrap().text(), "A東京Z");
+    send(
+        &mut ui,
+        &mut ctx,
+        InputEvent::Clipboard {
+            request,
+            result: ClipboardResult::Written(false),
+        },
+    );
+    assert_eq!(ui.get_text_line_edit("First").unwrap().text(), "A東京Z");
+    ui.cut(&mut ctx);
+    let Some(EditorClipboard::Write {
+        cut: Some(request), ..
+    }) = ctx.ui.editor_clipboard.pop_front()
+    else {
+        panic!("second cut");
+    };
+    send(
+        &mut ui,
+        &mut ctx,
+        InputEvent::Clipboard {
+            request,
+            result: ClipboardResult::Written(true),
+        },
+    );
+    assert_eq!(ui.get_text_line_edit("First").unwrap().text(), "");
+    ui.undo(&mut ctx);
+    ui.paste(&mut ctx);
+    let Some(EditorClipboard::Read { request }) = ctx.ui.editor_clipboard.pop_front() else {
+        panic!("host paste request");
+    };
+    send(&mut ui, &mut ctx, key(PhysicalKey::Tab));
+    assert_eq!(ctx.ui.focus.as_ref(), Some(&b));
+    send(
+        &mut ui,
+        &mut ctx,
+        InputEvent::Clipboard {
+            request,
+            result: ClipboardResult::Text(Some("stale".into())),
+        },
+    );
+    assert_eq!(ui.get_text_line_edit("Second").unwrap().text(), "");
+    assert_eq!(ui.get_text_line_edit("First").unwrap().text(), "A東京Z");
+    ui.paste(&mut ctx);
+    let Some(EditorClipboard::Read { request }) = ctx.ui.editor_clipboard.pop_front() else {
+        panic!("new host paste");
+    };
+    send(
+        &mut ui,
+        &mut ctx,
+        InputEvent::Clipboard {
+            request,
+            result: ClipboardResult::Text(Some("東京\n".into())),
+        },
+    );
+    assert_eq!(ui.get_text_line_edit("Second").unwrap().text(), "東京");
+}
+#[test]
+fn shift_tab_modifiers_survive_focus_changes_and_preedit_owns_tab() {
+    let (mut ui, mut ctx, a, b) = fixture();
+    send(
+        &mut ui,
+        &mut ctx,
+        InputEvent::Modifiers(Modifiers {
+            shift: true,
+            ..Default::default()
+        }),
+    );
+    for expected in [&b, &a, &b] {
+        send(&mut ui, &mut ctx, key(PhysicalKey::Tab));
+        assert_eq!(ctx.ui.focus.as_ref(), Some(expected));
+    }
+    send(
+        &mut ui,
+        &mut ctx,
+        InputEvent::Composition {
+            text: "仮".into(),
+            cursor: None,
+        },
+    );
+    send(&mut ui, &mut ctx, key(PhysicalKey::Tab));
+    assert_eq!(ctx.ui.focus.as_ref(), Some(&b));
+}
+#[test]
+fn modal_scope_cancels_native_preedit_and_rotates_the_returning_editor_identity() {
+    let (mut ui, mut ctx, a, _) = fixture();
+    let before = ui
+        .get_widget_id(a.uuid)
+        .unwrap()
+        .editor_input_state(&mut ctx)
+        .unwrap()
+        .target;
+    send(
+        &mut ui,
+        &mut ctx,
+        InputEvent::CompositionFor {
+            target: before,
+            text: "仮".into(),
+            cursor: None,
+        },
+    );
+    ui.context_menu = Some(TheContextMenu::new());
+    ui.prepare_paint_layout(&mut ctx);
+    assert!(
+        ui.get_widget_id(a.uuid)
+            .unwrap()
+            .editor_input_state(&mut ctx)
+            .is_none()
+    );
+    assert!(
+        ui.dispatch_input(
+            &InputEvent::TextFor {
+                target: before,
+                text: "late".into()
+            },
+            &mut ctx
+        )
+        .consumed
+    );
+    ui.context_menu = None;
+    ui.prepare_paint_layout(&mut ctx);
+    let after = ui
+        .get_widget_id(a.uuid)
+        .unwrap()
+        .editor_input_state(&mut ctx)
+        .unwrap()
+        .target;
+    assert_ne!(after, before);
+    send(
+        &mut ui,
+        &mut ctx,
+        InputEvent::TextFor {
+            target: before,
+            text: "stale".into(),
+        },
+    );
+    assert_eq!(ui.get_text_line_edit("First").unwrap().text(), "A東京Z");
+}
+#[test]
+fn same_text_replacement_is_a_new_document_even_before_the_next_host_state_update() {
+    let (mut ui, mut ctx, a, _) = fixture();
+    let before = ui
+        .get_widget_id(a.uuid)
+        .unwrap()
+        .editor_input_state(&mut ctx)
+        .unwrap()
+        .target;
+    ui.get_text_line_edit("First")
+        .unwrap()
+        .set_text("A東京Z".into());
+    assert!(
+        !ui.dispatch_input(
+            &InputEvent::TextFor {
+                target: before,
+                text: "stale".into()
+            },
+            &mut ctx
+        )
+        .consumed
+    );
+    assert_eq!(ui.get_text_line_edit("First").unwrap().text(), "A東京Z");
+    let after = ui
+        .get_widget_id(a.uuid)
+        .unwrap()
+        .editor_input_state(&mut ctx)
+        .unwrap()
+        .target;
+    assert_ne!(before, after);
+}
+#[test]
+fn numeric_drag_commits_one_undo_unit_and_scope_loss_restores_an_uncommitted_gesture() {
+    let mut ctx = TheContext::new(240, 80, 1.);
+    ctx.ui.command_paint = true;
+    let (sender, receiver) = std::sync::mpsc::channel();
+    ctx.ui.state_events_sender = Some(sender);
+    let id = TheId::named("Range");
+    let mut field = TheTextLineEdit::new(id.clone());
+    field.set_dim(TheDim::new(10, 10, 200, 30), &mut ctx);
+    field.set_range(TheValue::RangeI32(0..=10));
+    field.set_value(TheValue::Int(2));
+    ctx.ui.set_focus(&id);
+    field.editor_set_active(true, &mut ctx);
+    field.on_event(&TheEvent::MouseDown(Vec2::new(10, 10)), &mut ctx);
+    for x in [60, 80, 100] {
+        field.on_event(&TheEvent::MouseDragged(Vec2::new(x, 10)), &mut ctx);
+    }
+    assert_eq!(field.value().to_i32(), Some(5));
+    assert!(
+        !receiver
+            .try_iter()
+            .any(|e| matches!(e, TheEvent::ValueChanged(..)))
+    );
+    field.on_event(&TheEvent::MouseUp(Vec2::new(100, 10)), &mut ctx);
+    assert_eq!(
+        receiver
+            .try_iter()
+            .filter(|e| matches!(e, TheEvent::ValueChanged(..)))
+            .count(),
+        1
+    );
+    field.editor_command(EditorCommand::Undo, &mut ctx);
+    assert_eq!(field.value().to_i32(), Some(2));
+    field.editor_command(EditorCommand::Redo, &mut ctx);
+    assert_eq!(field.value().to_i32(), Some(5));
+    field.on_event(&TheEvent::MouseDown(Vec2::new(10, 10)), &mut ctx);
+    field.on_event(&TheEvent::MouseDragged(Vec2::new(180, 10)), &mut ctx);
+    assert_eq!(field.value().to_i32(), Some(9));
+    field.editor_set_active(false, &mut ctx);
+    assert_eq!(field.value().to_i32(), Some(5));
+    let _ = receiver.try_iter().collect::<Vec<_>>();
+    field.on_event(&TheEvent::MouseUp(Vec2::new(180, 10)), &mut ctx);
+    assert!(
+        !receiver
+            .try_iter()
+            .any(|e| matches!(e, TheEvent::ValueChanged(..)))
+    );
+    field.editor_set_active(true, &mut ctx);
+    field.editor_command(EditorCommand::Undo, &mut ctx);
+    assert_eq!(field.value().to_i32(), Some(2));
+    field.on_event(&TheEvent::MouseDown(Vec2::new(10, 10)), &mut ctx);
+    field.on_event(&TheEvent::MouseDragged(Vec2::new(180, 10)), &mut ctx);
+    field.set_value(TheValue::Int(7));
+    field.editor_set_active(false, &mut ctx);
+    field.editor_set_active(true, &mut ctx);
+    field.editor_input_state(&mut ctx);
+    assert_eq!(
+        field.value().to_i32(),
+        Some(7),
+        "a pending blur cannot overwrite an externally replaced value"
+    );
+}
+
+#[test]
+fn tree_editor_forwards_addressed_input_clipboard_and_row_local_ime_geometry() {
+    let mut ctx = TheContext::new(400, 120, 1.);
+    let mut ui = TheUI::new();
+    ui.init(&mut ctx);
+    let mut tree = TheTreeLayout::new(TheId::named("Tree"));
+    tree.set_headerless(true);
+    tree.get_root().set_open(true);
+    let row_id = TheId::named("Row");
+    let mut row = TheTreeItem::new(row_id.clone());
+    let mut field = TheTextLineEdit::new(TheId::named("Column"));
+    field.set_text("A東京Z".into());
+    row.add_widget_column(180, Box::new(field));
+    tree.get_root().add_widget(Box::new(row));
+    ui.canvas.set_layout(tree);
+    ui.prepare_paint_layout(&mut ctx);
+    ctx.ui.set_focus(&row_id);
+    ui.process_events(&mut ctx);
+    let row = ui.get_widget_id(row_id.uuid).unwrap();
+    let dim = *row.dim();
+    let state = row.editor_input_state(&mut ctx).unwrap();
+    assert!(state.area.x >= dim.x as f32 && state.area.x <= (dim.x + dim.width) as f32);
+    assert!(state.area.y >= dim.y as f32 && state.area.y <= (dim.y + dim.height) as f32);
+    ui.get_widget_id(row_id.uuid)
+        .unwrap()
+        .editor_command(EditorCommand::SelectAll, &mut ctx);
+    send(
+        &mut ui,
+        &mut ctx,
+        InputEvent::TextFor {
+            target: state.target,
+            text: "新".into(),
+        },
+    );
+    let value = |ui: &mut TheUI| {
+        ui.get_widget_id(row_id.uuid)
+            .unwrap()
+            .as_tree_item()
+            .unwrap()
+            .embedded_widget_mut()
+            .unwrap()
+            .value()
+    };
+    assert_eq!(value(&mut ui), TheValue::Text("新".into()));
+    ui.paste(&mut ctx);
+    let Some(EditorClipboard::Read { request }) = ctx.ui.editor_clipboard.pop_front() else {
+        panic!("embedded paste request");
+    };
+    send(
+        &mut ui,
+        &mut ctx,
+        InputEvent::Clipboard {
+            request,
+            result: ClipboardResult::Text(Some("!".into())),
+        },
+    );
+    assert_eq!(value(&mut ui), TheValue::Text("新!".into()));
+    ui.get_layout("Tree")
+        .unwrap()
+        .as_tree_layout()
+        .unwrap()
+        .get_root()
+        .set_open(false);
+    ui.prepare_paint_layout(&mut ctx);
+    assert!(
+        ui.get_widget_id(row_id.uuid)
+            .unwrap()
+            .editor_input_state(&mut ctx)
+            .is_none()
+    );
+}

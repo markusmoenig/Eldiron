@@ -1,6 +1,114 @@
 use super::*;
 use crate::platform::{InputEvent, InputResponse, LogicalKey, PointerButton};
 impl TheUI {
+    /// Only the focused editor in the foremost painted input scope may accept
+    /// native text. Suspending a scope cancels preedit/clipboard without losing
+    /// committed content or undo history, and changes the native callback token.
+    pub(crate) fn synchronize_editor_scope(&mut self, ctx: &mut TheContext) -> bool {
+        let Some(id) = ctx.ui.focus.clone() else {
+            return false;
+        };
+        let mut visible = false;
+        if self.context_menu.is_none() && ctx.ui.overlay.is_none() {
+            let mut find = |widget: &mut dyn TheWidget| {
+                if widget.id().uuid == id.uuid
+                    && widget.supports_text_input()
+                    && !widget.disabled()
+                    && !ctx.ui.is_disabled(&id.name)
+                {
+                    visible = true;
+                }
+            };
+            if let Some(popover) = &mut self.popover {
+                popover.canvas.visit_visible_widgets(&mut find);
+            } else if let Some(dialog) = &mut self.dialog {
+                dialog.visit_visible_widgets(&mut find);
+            } else {
+                self.canvas.visit_visible_widgets(&mut find);
+            }
+        }
+        if let Some(widget) = self.get_widget_abs(None, Some(&id.uuid)) {
+            widget.editor_set_active(visible, ctx);
+        }
+        visible
+    }
+    fn advance_editor_focus(&mut self, ctx: &mut TheContext, backwards: bool) {
+        let mut targets = Vec::new();
+        let screen = crate::paint::Rect::new(0., 0., ctx.width as f32, ctx.height as f32);
+        let mut collect = |widget: &mut dyn TheWidget| {
+            if !widget.supports_text_input()
+                || widget.disabled()
+                || ctx.ui.is_disabled(&widget.id().name)
+            {
+                return;
+            }
+            let dim = widget.dim();
+            let transform = ctx
+                .ui
+                .input_transforms
+                .get(&widget.id().uuid)
+                .copied()
+                .unwrap_or_default();
+            let p = transform.point([dim.x as f32, dim.y as f32]);
+            let r = crate::paint::Rect::new(p[0], p[1], dim.width as f32, dim.height as f32)
+                .intersection(screen);
+            if r.width > 0. && r.height > 0. {
+                targets.push(widget.id().clone());
+            }
+        };
+        if let Some(popover) = &mut self.popover {
+            popover.canvas.visit_visible_widgets(&mut collect);
+        } else if let Some(dialog) = &mut self.dialog {
+            dialog.visit_visible_widgets(&mut collect);
+        } else {
+            self.canvas.visit_visible_widgets(&mut collect);
+        }
+        let current = targets
+            .iter()
+            .position(|id| Some(id) == ctx.ui.focus.as_ref());
+        let next = if targets.is_empty() {
+            None
+        } else if let Some(index) = current {
+            Some(
+                targets[if backwards {
+                    (index + targets.len() - 1) % targets.len()
+                } else {
+                    (index + 1) % targets.len()
+                }]
+                .clone(),
+            )
+        } else if backwards {
+            targets.last().cloned()
+        } else {
+            targets.first().cloned()
+        };
+        if let Some(next) = next {
+            ctx.ui.set_focus(&next);
+        } else {
+            ctx.ui.clear_focus();
+        }
+    }
+    pub(super) fn focused_editor_command(
+        &mut self,
+        command: crate::text_edit::EditorCommand,
+        ctx: &mut TheContext,
+    ) -> bool {
+        if !ctx.ui.command_paint || !self.synchronize_editor_scope(ctx) {
+            return false;
+        }
+        let Some(id) = ctx.ui.focus.clone() else {
+            return false;
+        };
+        let Some(response) = self
+            .get_widget_abs(None, Some(&id.uuid))
+            .and_then(|widget| widget.editor_command(command, ctx))
+        else {
+            return false;
+        };
+        self.is_dirty |= response.input.redraw;
+        self.process_events(ctx);
+        true
+    }
     /// Consumption is based on routing/capture, never inferred from a redraw flag.
     /// Exactly one widget path receives each input operation.
     pub fn dispatch_input(&mut self, event: &InputEvent, ctx: &mut TheContext) -> InputResponse {
@@ -12,6 +120,55 @@ impl TheUI {
             consumed: modal,
             redraw: false,
         };
+        let editor_scope = if ctx.ui.command_paint {
+            self.synchronize_editor_scope(ctx)
+        } else {
+            true
+        };
+        if !editor_scope
+            && modal
+            && matches!(
+                event,
+                InputEvent::Text(_)
+                    | InputEvent::TextFor { .. }
+                    | InputEvent::Composition { .. }
+                    | InputEvent::CompositionFor { .. }
+                    | InputEvent::Clipboard { .. }
+            )
+        {
+            return result;
+        }
+        if editor_scope
+            && ctx.ui.command_paint
+            && matches!(
+                event,
+                InputEvent::Key { .. }
+                    | InputEvent::Text(_)
+                    | InputEvent::TextFor { .. }
+                    | InputEvent::Composition { .. }
+                    | InputEvent::CompositionFor { .. }
+                    | InputEvent::Clipboard { .. }
+            )
+        {
+            if let Some(id) = ctx.ui.focus.clone() {
+                let response = self
+                    .get_widget_abs(None, Some(&id.uuid))
+                    .and_then(|widget| widget.editor_input(event, ctx));
+                if let Some(response) = response {
+                    if let Some(crate::text_edit::EditorAction::FocusNext { backwards }) =
+                        response.action
+                    {
+                        self.advance_editor_focus(ctx, backwards);
+                    }
+                    self.is_dirty |= response.input.redraw;
+                    self.process_events(ctx);
+                    return InputResponse {
+                        consumed: result.consumed || response.input.consumed,
+                        redraw: response.input.redraw,
+                    };
+                }
+            }
+        }
         match event {
             InputEvent::PointerMoved { position } => {
                 self.mouse_coord = Vec2::new(position[0] as i32, position[1] as i32);

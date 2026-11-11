@@ -34,6 +34,17 @@ struct PendingClipboard {
     cut: bool,
     state: Snapshot,
 }
+/// Semantic operations shared by physical shortcuts and application menus.
+/// Clipboard commands emit requests; they never access a platform clipboard.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EditorCommand {
+    Undo,
+    Redo,
+    SelectAll,
+    Copy,
+    Cut,
+    Paste,
+}
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EditorAction {
     Submit,
@@ -75,6 +86,7 @@ pub struct EditorController {
     focused: bool,
     modifiers: Modifiers,
     composition: Option<Snapshot>,
+    edit_group: Option<Snapshot>,
     undo: VecDeque<Change>,
     redo: Vec<Change>,
     history_bytes: usize,
@@ -96,6 +108,7 @@ impl EditorController {
             focused: false,
             modifiers: Modifiers::default(),
             composition: None,
+            edit_group: None,
             undo: VecDeque::new(),
             redo: Vec::new(),
             history_bytes: 0,
@@ -159,6 +172,7 @@ impl EditorController {
         }
         self.focused = focused;
         if !focused {
+            self.cancel_edit_group(fonts);
             self.cancel_composition(fonts);
             self.clipboard = None;
             self.modifiers = Modifiers::default();
@@ -172,6 +186,7 @@ impl EditorController {
     }
     pub fn set_text(&mut self, fonts: &mut TextSystem, text: &str) {
         self.input_target = crate::platform::TextInputTarget::new();
+        self.edit_group = None;
         self.cancel_composition(fonts);
         self.editor.set_text(&self.clean(text));
         fonts.editor_driver(&mut self.editor).move_to_text_end();
@@ -365,7 +380,13 @@ impl EditorController {
         self.snapshot = None;
         self.boundaries_dirty = true;
         self.snap_selection(fonts, true);
-        let after = self.state();
+        if self.edit_group.is_none() {
+            self.record_change(before, self.state());
+        }
+        self.clipboard = None;
+        true
+    }
+    fn record_change(&mut self, before: Snapshot, after: Snapshot) {
         self.history_bytes -= self.redo.iter().map(|c| c.bytes).sum::<usize>();
         self.redo.clear();
         let bytes = before.text.capacity() + after.text.capacity() + std::mem::size_of::<Change>();
@@ -383,9 +404,41 @@ impl EditorController {
             }
         }
         self.clipboard = None;
+    }
+    /// Group a continuous user gesture into one bounded undo record. A blur
+    /// cancels an unfinished gesture; external document replacement discards it.
+    pub fn begin_edit_group(&mut self, fonts: &mut TextSystem) -> bool {
+        if self.edit_group.is_some() {
+            return false;
+        }
+        self.cancel_composition(fonts);
+        self.ensure_fonts(fonts);
+        self.edit_group = Some(self.state());
+        self.clipboard = None;
         true
     }
+    pub fn commit_edit_group(&mut self) -> bool {
+        let Some(before) = self.edit_group.take() else {
+            return false;
+        };
+        let after = self.state();
+        if before.text == after.text {
+            return false;
+        }
+        self.record_change(before, after);
+        true
+    }
+    pub fn cancel_edit_group(&mut self, fonts: &mut TextSystem) -> bool {
+        let Some(before) = self.edit_group.take() else {
+            return false;
+        };
+        let changed = before.text != self.text();
+        self.restore(fonts, &before);
+        self.clipboard = None;
+        changed
+    }
     pub fn undo(&mut self, fonts: &mut TextSystem) -> bool {
+        self.commit_edit_group();
         self.cancel_composition(fonts);
         let Some(change) = self.undo.pop_back() else {
             return false;
@@ -396,6 +449,7 @@ impl EditorController {
         true
     }
     pub fn redo(&mut self, fonts: &mut TextSystem) -> bool {
+        self.commit_edit_group();
         self.cancel_composition(fonts);
         let Some(change) = self.redo.pop() else {
             return false;
@@ -519,59 +573,84 @@ impl EditorController {
             _ => EditorResponse::default(),
         }
     }
+    /// An in-document user replacement (for example a numeric drag) participates
+    /// in the same undo history without replacing the document/input identity.
+    pub fn replace_text(&mut self, fonts: &mut TextSystem, text: &str) -> bool {
+        let text = self.clean(text);
+        self.transaction(fonts, |driver| {
+            driver.select_all();
+            driver.insert_or_replace_selection(&text);
+        })
+    }
+    pub fn execute(&mut self, fonts: &mut TextSystem, command: EditorCommand) -> EditorResponse {
+        if !self.focused {
+            return EditorResponse::default();
+        }
+        self.cancel_composition(fonts);
+        match command {
+            EditorCommand::Undo => EditorResponse::handled(self.undo(fonts)),
+            EditorCommand::Redo => EditorResponse::handled(self.redo(fonts)),
+            EditorCommand::SelectAll => {
+                fonts.editor_driver(&mut self.editor).select_all();
+                EditorResponse::handled(false)
+            }
+            EditorCommand::Copy | EditorCommand::Cut => {
+                // A new copy supersedes older cuts/pastes, including when the
+                // current selection is empty. Their late completions cannot edit.
+                self.clipboard = None;
+                let Some(text) = self.editor.selected_text().map(str::to_owned) else {
+                    return EditorResponse::handled(false);
+                };
+                let cut = if command == EditorCommand::Cut {
+                    let request = NEXT_CLIPBOARD_REQUEST.fetch_add(1, Ordering::Relaxed);
+                    self.clipboard = Some(PendingClipboard {
+                        request,
+                        cut: true,
+                        state: self.state(),
+                    });
+                    Some(request)
+                } else {
+                    None
+                };
+                EditorResponse {
+                    clipboard: Some(EditorClipboard::Write { text, cut }),
+                    ..EditorResponse::handled(false)
+                }
+            }
+            EditorCommand::Paste => {
+                let request = NEXT_CLIPBOARD_REQUEST.fetch_add(1, Ordering::Relaxed);
+                self.clipboard = Some(PendingClipboard {
+                    request,
+                    cut: false,
+                    state: self.state(),
+                });
+                EditorResponse {
+                    clipboard: Some(EditorClipboard::Read { request }),
+                    ..EditorResponse::handled(false)
+                }
+            }
+        }
+    }
     fn key(&mut self, fonts: &mut TextSystem, key: PhysicalKey) -> EditorResponse {
         let mods = self.modifiers;
-        let shortcut = mods.control || mods.super_key;
+        let shortcut = (mods.control && !mods.alt) || mods.super_key;
         if let PhysicalKey::Letter(letter) = key {
             if shortcut {
-                self.cancel_composition(fonts);
-                match letter.to_ascii_lowercase() {
-                    b'z' => {
-                        return EditorResponse::handled(if mods.shift {
-                            self.redo(fonts)
-                        } else {
-                            self.undo(fonts)
-                        });
-                    }
-                    b'y' => return EditorResponse::handled(self.redo(fonts)),
-                    b'a' => {
-                        fonts.editor_driver(&mut self.editor).select_all();
-                        return EditorResponse::handled(false);
-                    }
-                    b'c' | b'x' => {
-                        let Some(text) = self.editor.selected_text().map(str::to_owned) else {
-                            return EditorResponse::handled(false);
-                        };
-                        let cut = letter.eq_ignore_ascii_case(&b'x');
-                        let request = if cut {
-                            let request = NEXT_CLIPBOARD_REQUEST.fetch_add(1, Ordering::Relaxed);
-                            self.clipboard = Some(PendingClipboard {
-                                request,
-                                cut: true,
-                                state: self.state(),
-                            });
-                            Some(request)
-                        } else {
-                            None
-                        };
-                        return EditorResponse {
-                            clipboard: Some(EditorClipboard::Write { text, cut: request }),
-                            ..EditorResponse::handled(false)
-                        };
-                    }
-                    b'v' => {
-                        let request = NEXT_CLIPBOARD_REQUEST.fetch_add(1, Ordering::Relaxed);
-                        self.clipboard = Some(PendingClipboard {
-                            request,
-                            cut: false,
-                            state: self.state(),
-                        });
-                        return EditorResponse {
-                            clipboard: Some(EditorClipboard::Read { request }),
-                            ..EditorResponse::handled(false)
-                        };
-                    }
-                    _ => {}
+                let command = match letter.to_ascii_lowercase() {
+                    b'z' => Some(if mods.shift {
+                        EditorCommand::Redo
+                    } else {
+                        EditorCommand::Undo
+                    }),
+                    b'y' => Some(EditorCommand::Redo),
+                    b'a' => Some(EditorCommand::SelectAll),
+                    b'c' => Some(EditorCommand::Copy),
+                    b'x' => Some(EditorCommand::Cut),
+                    b'v' => Some(EditorCommand::Paste),
+                    _ => None,
+                };
+                if let Some(command) = command {
+                    return self.execute(fonts, command);
                 }
             }
         }

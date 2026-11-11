@@ -91,6 +91,7 @@ pub struct UiApplicationAdapter<A> {
     pub session: UiSession,
     images: UiImageCache,
     text_target: Option<(theframework_core::Uuid, TextInputTarget)>,
+    native_editor: bool,
 }
 impl<A: UiApplication> UiApplicationAdapter<A> {
     pub fn new(application: A) -> Self {
@@ -100,38 +101,74 @@ impl<A: UiApplication> UiApplicationAdapter<A> {
             session: UiSession::new((size.0 as usize, size.1 as usize), 1.),
             images: UiImageCache::default(),
             text_target: None,
+            native_editor: false,
         }
     }
     fn platform_state(&mut self, host: &mut HostContext) {
+        self.session.ui.process_events(&mut self.session.context);
+        self.session
+            .ui
+            .synchronize_editor_scope(&mut self.session.context);
         host.requests.append(&mut self.session.requests);
         host.cursor = self.session.context.cursor_icon();
         host.cursor_visible = self.session.context.cursor_visible();
-        // The old widget adapter exposes its bounds. Native EditorView users
-        // provide their precise caret/preedit area directly on HostContext.
-        let focus = if self
-            .session
-            .ui
-            .focus_widget_supports_text_input(&mut self.session.context)
-        {
-            self.session.context.ui.focus.clone()
-        } else {
-            None
-        };
-        host.text_input = focus.and_then(|id| {
-            let area = self
-                .session
-                .ui
-                .get_widget_abs(None, Some(&id.uuid))
-                .map(|w| crate::theui::paint::bounds(w.dim()))?;
-            let target = if let Some((old, target)) = &self.text_target {
-                if *old == id.uuid {
-                    *target
-                } else {
-                    TextInputTarget::new()
+        for request in self.session.context.ui.editor_clipboard.drain(..) {
+            host.requests.push(match request {
+                crate::text_edit::EditorClipboard::Read { request } => {
+                    HostRequest::ClipboardRead { request }
                 }
-            } else {
-                TextInputTarget::new()
-            };
+                crate::text_edit::EditorClipboard::Write { text, cut } => {
+                    HostRequest::ClipboardWrite { text, request: cut }
+                }
+            });
+        }
+        self.native_editor = false;
+        let focus = self.session.context.ui.focus.clone();
+        host.text_input = focus.and_then(|id| {
+            let widget = self.session.ui.get_widget_abs(None, Some(&id.uuid))?;
+            if !widget.supports_text_input() {
+                return None;
+            }
+            if widget.uses_native_editor() {
+                self.native_editor = true;
+                let mut input = widget.editor_input_state(&mut self.session.context)?;
+                let transform = self
+                    .session
+                    .context
+                    .ui
+                    .input_transforms
+                    .get(&id.uuid)
+                    .copied()
+                    .unwrap_or_default();
+                let a = transform.point([input.area.x, input.area.y]);
+                let b = transform.point([
+                    input.area.x + input.area.width,
+                    input.area.y + input.area.height,
+                ]);
+                input.area = crate::paint::Rect::new(
+                    a[0].min(b[0]),
+                    a[1].min(b[1]),
+                    (a[0] - b[0]).abs(),
+                    (a[1] - b[1]).abs(),
+                )
+                .intersection(crate::paint::Rect::new(
+                    0.,
+                    0.,
+                    self.session.context.width as f32,
+                    self.session.context.height as f32,
+                ));
+                if input.area.width <= 0. || input.area.height <= 0. {
+                    return None;
+                }
+                self.text_target = Some((id.uuid, input.target));
+                return Some(input);
+            }
+            let area = crate::theui::paint::bounds(widget.dim());
+            let target = self
+                .text_target
+                .filter(|(old, _)| *old == id.uuid)
+                .map(|(_, target)| target)
+                .unwrap_or_default();
             self.text_target = Some((id.uuid, target));
             Some(TextInputState { target, area })
         });
@@ -173,8 +210,12 @@ impl<A: UiApplication> GpuApplication for UiApplicationAdapter<A> {
                 if self.text_target.as_ref().map(|(_, target)| target) != Some(target) {
                     return InputResponse::default();
                 }
-                addressed = InputEvent::Text(text.clone());
-                &addressed
+                if self.native_editor {
+                    event
+                } else {
+                    addressed = InputEvent::Text(text.clone());
+                    &addressed
+                }
             }
             InputEvent::CompositionFor {
                 target,
@@ -184,11 +225,15 @@ impl<A: UiApplication> GpuApplication for UiApplicationAdapter<A> {
                 if self.text_target.as_ref().map(|(_, target)| target) != Some(target) {
                     return InputResponse::default();
                 }
-                addressed = InputEvent::Composition {
-                    text: text.clone(),
-                    cursor: *cursor,
-                };
-                &addressed
+                if self.native_editor {
+                    event
+                } else {
+                    addressed = InputEvent::Composition {
+                        text: text.clone(),
+                        cursor: *cursor,
+                    };
+                    &addressed
+                }
             }
             _ => event,
         };

@@ -172,6 +172,22 @@ pub struct TheSharedVLayout {
 
 impl TheLayout for TheSharedVLayout {
     #[cfg(feature = "text")]
+    fn visit_visible_widgets(&mut self, visitor: &mut dyn FnMut(&mut dyn TheWidget)) {
+        if self.canvas.len() >= 2 {
+            match self.mode {
+                TheSharedVLayoutMode::Top => self.canvas[0].visit_visible_widgets(visitor),
+                TheSharedVLayoutMode::Bottom => self.canvas[1].visit_visible_widgets(visitor),
+                TheSharedVLayoutMode::Shared => {
+                    self.canvas[0].visit_visible_widgets(visitor);
+                    self.canvas[1].visit_visible_widgets(visitor);
+                    for widget in &mut self.widgets {
+                        visitor(widget.as_mut());
+                    }
+                }
+            }
+        }
+    }
+    #[cfg(feature = "text")]
     fn prepare_paint(&mut self, ctx: &mut TheContext, _theme: &dyn TheTheme) {
         self.set_dim(self.dim, ctx);
         for c in &mut self.canvas {

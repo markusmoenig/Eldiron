@@ -18,6 +18,15 @@ pub struct TheSnapperLayout {
 
 impl TheLayout for TheSnapperLayout {
     #[cfg(feature = "text")]
+    fn visit_visible_widgets(&mut self, visitor: &mut dyn FnMut(&mut dyn TheWidget)) {
+        for (bar, layout) in self.bars.iter_mut().zip(&mut self.layouts) {
+            visitor(bar.as_mut());
+            if bar.is_open() {
+                layout.visit_visible_widgets(visitor);
+            }
+        }
+    }
+    #[cfg(feature = "text")]
     fn prepare_paint(&mut self, ctx: &mut TheContext, _theme: &dyn TheTheme) {
         self.set_dim(self.dim, ctx);
         for bar in &mut self.bars {

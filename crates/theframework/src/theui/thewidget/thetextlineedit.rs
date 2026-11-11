@@ -1,3 +1,6 @@
+#[cfg(feature = "text")]
+#[path = "thetextlineedit_native.rs"]
+mod native;
 use num_traits::ToPrimitive;
 use web_time::Instant;
 
@@ -25,6 +28,18 @@ pub struct TheTextLineEdit {
     // Edit State
     is_disabled: bool,
 
+    #[cfg(feature = "text")]
+    native_editor: crate::text_edit::EditorView,
+    #[cfg(feature = "text")]
+    native_document_changed: bool,
+    #[cfg(feature = "text")]
+    native_active: bool,
+    #[cfg(feature = "text")]
+    native_dragging: bool,
+    #[cfg(feature = "text")]
+    native_clicks: u8,
+    #[cfg(feature = "text")]
+    native_modified_before_drag: bool,
     // Text state
     state: TheTextEditState,
     modified_since_last_return: bool,
@@ -40,6 +55,7 @@ pub struct TheTextLineEdit {
 
     // Modifiers
     modifier_ctrl: bool,
+    modifier_alt: bool,
     modifier_logo: bool,
     modifier_shift: bool,
 
@@ -67,35 +83,92 @@ pub struct TheTextLineEdit {
 impl TheWidget for TheTextLineEdit {
     #[cfg(feature = "text")]
     fn prepare_paint(&mut self, ctx: &mut TheContext, _theme: &dyn TheTheme) {
-        if self.modified_since_last_tick || !self.renderer.commands_ready() {
-            self.renderer
-                .prepare_commands(&self.state.to_text(), None, "Roboto", &mut ctx.text);
-            let border = if self.embedded || self.frameless {
-                0.
-            } else {
-                2.
-            };
-            let y = ((self.dim.height as f32 - self.renderer.actual_size.y as f32) * 0.5 - border)
-                .max(0.);
-            self.renderer.padding.1 = y as i32;
-            if self.frameless && !self.embedded {
-                self.renderer.padding.1 += 1;
-            }
-            let x = border + self.renderer.padding.0 as f32;
-            let y = border + self.renderer.padding.1 as f32;
-            self.renderer.command_viewport(
-                crate::paint::Rect::new(
-                    self.dim.x as f32 + x,
-                    self.dim.y as f32 + y,
-                    (self.dim.width as f32 - x - border - self.renderer.padding.2 as f32).max(0.),
-                    (self.dim.height as f32 - y - border - self.renderer.padding.3 as f32).max(0.),
-                ),
-                [x, y],
-            );
-            self.renderer
-                .scroll_to_cursor(self.state.find_cursor_index(), self.state.cursor.row);
+        self.prepare_native_editor(ctx);
+    }
+    #[cfg(feature = "text")]
+    fn uses_native_editor(&self) -> bool {
+        true
+    }
+    #[cfg(feature = "text")]
+    fn editor_set_active(&mut self, active: bool, ctx: &mut TheContext) {
+        if !active {
+            self.cancel_native_gesture(ctx);
         }
-        self.renderer.scroll_offset.y = 0;
+        self.native_active = active;
+        let focused = self.native_focused(ctx);
+        self.native_editor.set_focused(&mut ctx.text, focused);
+    }
+    #[cfg(feature = "text")]
+    fn editor_input(
+        &mut self,
+        event: &crate::platform::InputEvent,
+        ctx: &mut TheContext,
+    ) -> Option<crate::text_edit::EditorResponse> {
+        if !ctx.ui.command_paint {
+            return None;
+        }
+        if let crate::platform::InputEvent::Modifiers(modifiers) = event {
+            ctx.ui.input_modifiers = *modifiers;
+        }
+        self.prepare_native_editor(ctx);
+        if self.native_dragging
+            && self.is_range()
+            && matches!(
+                event,
+                crate::platform::InputEvent::Key { pressed: true, .. }
+                    | crate::platform::InputEvent::Text(_)
+                    | crate::platform::InputEvent::TextFor { .. }
+                    | crate::platform::InputEvent::Composition { .. }
+                    | crate::platform::InputEvent::CompositionFor { .. }
+            )
+        {
+            self.finish_native_gesture(ctx);
+        }
+        let response = if self.is_disabled {
+            crate::text_edit::EditorResponse::default()
+        } else if let crate::platform::InputEvent::Clipboard { request, result } = event {
+            let response = self.native_editor.editor.complete_clipboard(
+                &mut ctx.text,
+                *request,
+                result.clone(),
+            );
+            if response.input.redraw {
+                self.native_editor.reveal_caret(&mut ctx.text);
+            }
+            response
+        } else {
+            self.native_editor.input(&mut ctx.text, event)
+        };
+        self.apply_native_response(&response, ctx);
+        Some(response)
+    }
+    #[cfg(feature = "text")]
+    fn editor_command(
+        &mut self,
+        command: crate::text_edit::EditorCommand,
+        ctx: &mut TheContext,
+    ) -> Option<crate::text_edit::EditorResponse> {
+        if !ctx.ui.command_paint {
+            return None;
+        }
+        self.prepare_native_editor(ctx);
+        self.finish_native_gesture(ctx);
+        let response = if self.is_disabled {
+            crate::text_edit::EditorResponse::default()
+        } else {
+            self.native_editor.editor.execute(&mut ctx.text, command)
+        };
+        self.native_editor.reveal_caret(&mut ctx.text);
+        self.apply_native_response(&response, ctx);
+        Some(response)
+    }
+    #[cfg(feature = "text")]
+    fn editor_input_state(
+        &mut self,
+        ctx: &mut TheContext,
+    ) -> Option<crate::platform::TextInputState> {
+        self.prepare_native_editor(ctx);
+        self.native_editor.text_input_state(&mut ctx.text)
     }
     #[cfg(feature = "text")]
     fn paint(
@@ -146,7 +219,13 @@ impl TheWidget for TheTextLineEdit {
                 }
             }
         }
-        self.renderer.paint_commands(&self.state, focused, false, p);
+        let colors = crate::text_edit::EditorColors {
+            text: p.color(TextEditTextColor),
+            selection: p.color(DefaultSelection),
+            caret: p.color(TextEditCursorColor),
+            composition: p.color(TextEditCursorColor),
+        };
+        self.native_editor.paint(p.text, p.list, colors, true);
         if let Some(palette) = &self.palette {
             if let Some(value) = self.value().to_i32() {
                 if value >= 0 {
@@ -199,6 +278,18 @@ impl TheWidget for TheTextLineEdit {
 
             is_disabled: false,
 
+            #[cfg(feature = "text")]
+            native_editor: crate::text_edit::EditorView::new(false),
+            #[cfg(feature = "text")]
+            native_document_changed: true,
+            #[cfg(feature = "text")]
+            native_active: true,
+            #[cfg(feature = "text")]
+            native_dragging: false,
+            #[cfg(feature = "text")]
+            native_clicks: 0,
+            #[cfg(feature = "text")]
+            native_modified_before_drag: false,
             state: TheTextEditState::default(),
             modified_since_last_return: false,
             modified_since_last_tick: false,
@@ -210,6 +301,7 @@ impl TheWidget for TheTextLineEdit {
             last_mouse_down_time: Instant::now(),
 
             modifier_ctrl: false,
+            modifier_alt: false,
             modifier_logo: false,
             modifier_shift: false,
 
@@ -314,7 +406,7 @@ impl TheWidget for TheTextLineEdit {
     }
 
     fn supports_text_input(&self) -> bool {
-        true
+        !self.is_disabled
     }
 
     fn supports_clipboard(&mut self) -> bool {
@@ -326,6 +418,12 @@ impl TheWidget for TheTextLineEdit {
     }
 
     fn on_event(&mut self, event: &TheEvent, ctx: &mut TheContext) -> bool {
+        #[cfg(feature = "text")]
+        if ctx.ui.command_paint {
+            if let Some(redraw) = self.native_legacy_event(event, ctx) {
+                return redraw;
+            }
+        }
         if self.is_disabled {
             return false;
         }
@@ -380,8 +478,9 @@ impl TheWidget for TheTextLineEdit {
                 }
             }
 
-            TheEvent::ModifierChanged(shift, ctrl, _alt, logo) => {
+            TheEvent::ModifierChanged(shift, ctrl, alt, logo) => {
                 self.modifier_ctrl = *ctrl;
+                self.modifier_alt = *alt;
                 self.modifier_logo = *logo;
                 self.modifier_shift = *shift;
             }
@@ -1062,6 +1161,10 @@ impl TheWidget for TheTextLineEdit {
     }
 
     fn set_value(&mut self, value: TheValue) {
+        #[cfg(feature = "text")]
+        {
+            self.native_document_changed = true;
+        }
         match value {
             TheValue::Empty => {
                 self.state.reset();
@@ -1251,6 +1354,10 @@ impl TheTextLineEditTrait for TheTextLineEdit {
         self.state.to_text()
     }
     fn set_text(&mut self, text: String) {
+        #[cfg(feature = "text")]
+        {
+            self.native_document_changed = true;
+        }
         self.state.reset();
         if let Some(range) = &self.range {
             if let Some(range) = range.to_range_f32() {

@@ -34,6 +34,24 @@ impl Default for TheTreeNode {
 
 impl TheTreeNode {
     #[cfg(feature = "text")]
+    fn visit_visible_widgets(
+        &mut self,
+        include_self: bool,
+        visitor: &mut dyn FnMut(&mut dyn TheWidget),
+    ) {
+        if include_self {
+            visitor(self.widget.as_mut());
+        }
+        if self.open {
+            for widget in &mut self.widgets {
+                visitor(widget.as_mut());
+            }
+            for child in &mut self.childs {
+                child.visit_visible_widgets(true, visitor);
+            }
+        }
+    }
+    #[cfg(feature = "text")]
     fn prepare_commands(
         &mut self,
         ctx: &mut TheContext,
@@ -601,6 +619,10 @@ pub struct TheTreeLayout {
 }
 
 impl TheLayout for TheTreeLayout {
+    #[cfg(feature = "text")]
+    fn visit_visible_widgets(&mut self, visitor: &mut dyn FnMut(&mut dyn TheWidget)) {
+        self.root.visit_visible_widgets(!self.headerless, visitor);
+    }
     #[cfg(feature = "text")]
     fn prepare_paint(&mut self, ctx: &mut TheContext, _theme: &dyn TheTheme) {
         self.set_dim(self.dim, ctx);
