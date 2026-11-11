@@ -2,7 +2,7 @@
 mod atlas;
 mod mesh;
 mod renderer;
-pub use renderer::PaintRenderer;
+pub use renderer::{FrameStats, PaintRenderer};
 
 #[cfg(feature = "ui")]
 mod ui_images;

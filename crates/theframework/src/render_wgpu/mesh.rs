@@ -134,6 +134,21 @@ pub fn tessellate(
     Ok((vertices, geometry.indices))
 }
 pub fn quad(rect: Rect, uv: Rect, t: Transform, density: f32) -> (Vec<Vertex>, Vec<u32>) {
+    let mut vertices = Vec::with_capacity(4);
+    let mut indices = Vec::with_capacity(6);
+    append_quad(&mut vertices, &mut indices, rect, uv, t, density);
+    (vertices, indices)
+}
+
+/// Append ordered textured geometry without allocating once per glyph.
+pub fn append_quad(
+    vertices: &mut Vec<Vertex>,
+    indices: &mut Vec<u32>,
+    rect: Rect,
+    uv: Rect,
+    t: Transform,
+    density: f32,
+) {
     let local = [
         [rect.x, rect.y],
         [rect.x + rect.width, rect.y],
@@ -146,22 +161,17 @@ pub fn quad(rect: Rect, uv: Rect, t: Transform, density: f32) -> (Vec<Vertex>, V
         [uv.x + uv.width, uv.y + uv.height],
         [uv.x, uv.y + uv.height],
     ];
-    (
-        local
-            .into_iter()
-            .zip(tex)
-            .map(|(local, uv)| {
-                let p = t.point(local);
-                Vertex {
-                    position: [p[0] * density, p[1] * density],
-                    local,
-                    uv,
-                    color: [1.; 4],
-                }
-            })
-            .collect(),
-        vec![0, 1, 2, 0, 2, 3],
-    )
+    let base = u32::try_from(vertices.len()).expect("paint batch vertex count exceeds u32");
+    vertices.extend(local.into_iter().zip(tex).map(|(local, uv)| {
+        let p = t.point(local);
+        Vertex {
+            position: [p[0] * density, p[1] * density],
+            local,
+            uv,
+            color: [1.; 4],
+        }
+    }));
+    indices.extend([base, base + 1, base + 2, base, base + 2, base + 3]);
 }
 
 pub fn colored(vertices: &[PaintVertex], t: Transform, density: f32) -> Vec<Vertex> {

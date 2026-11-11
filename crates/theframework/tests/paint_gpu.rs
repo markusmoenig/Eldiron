@@ -96,3 +96,68 @@ fn ordered_paint_clips_groups_and_swash_blits() {
         .write_image_data(result.pixels())
         .unwrap();
 }
+
+#[test]
+#[ignore = "requires native GPU; run with --ignored"]
+fn dense_text_batches_atlas_pages_without_reuploading() {
+    let ctx = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let images = ImageRegistry::new(ctx.clone());
+    let output = GpuImage::new(&ctx, ImageDescriptor::rgba(1024, 256)).unwrap();
+    let mut renderer = PaintRenderer::new(ctx.clone()).unwrap();
+    let mut text = TextSystem::default();
+    text.register_font(include_bytes!("../embedded/fonts/Roboto-Bold.ttf").to_vec());
+    let layout = text.layout(
+        &"Eldiron scene text 0123456789 ".repeat(20),
+        "Roboto",
+        18.,
+        Some(650.),
+    );
+    let mut list = PaintList::default();
+    for run in &layout.runs {
+        list.ops.push(PaintOp::GlyphRun {
+            run: run.clone(),
+            origin: [12.25, 8.5],
+            color: [0.8, 0.9, 1., 0.75],
+        });
+    }
+    for frame in 0..2 {
+        let before = ctx.transfers().uploaded_bytes;
+        let rasterizations = renderer.glyphs.rasterizations;
+        renderer
+            .render(
+                &list,
+                &images,
+                &output.view,
+                output.descriptor.format,
+                (1024, 256),
+                1.,
+                [0.; 4],
+            )
+            .unwrap();
+        let stats = renderer.frame_stats();
+        assert!(stats.glyph_quads > 400, "{stats:?}");
+        assert!(stats.draw_calls <= layout.runs.len() + 1, "{stats:?}");
+        assert!(stats.draw_calls * 10 < stats.glyph_quads, "{stats:?}");
+        if frame == 1 {
+            assert_eq!(ctx.transfers().uploaded_bytes, before);
+            assert_eq!(renderer.glyphs.rasterizations, rasterizations);
+        }
+        assert_eq!(ctx.transfers().readback_bytes, 0);
+    }
+    let mut ticket = ReadbackTicket::capture(&ctx, output).unwrap();
+    ctx.device
+        .poll(wgpu::PollType::Wait {
+            submission_index: None,
+            timeout: Some(std::time::Duration::from_secs(30)),
+        })
+        .unwrap();
+    let capture = ticket.try_finish(&ctx).unwrap().unwrap();
+    assert!(
+        capture
+            .pixels()
+            .chunks_exact(4)
+            .filter(|p| p[3] > 100)
+            .count()
+            > 1000
+    );
+}

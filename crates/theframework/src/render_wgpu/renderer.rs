@@ -50,6 +50,20 @@ fn linear(c: Color) -> Color {
     [f(c[0]), f(c[1]), f(c[2]), c[3]]
 }
 
+/// Work submitted by the latest top-level render, including isolated opacity passes.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct FrameStats {
+    pub draw_calls: usize,
+    pub glyph_quads: usize,
+}
+
+struct GlyphBatch {
+    vertices: Vec<Vertex>,
+    indices: Vec<u32>,
+    image: Arc<GpuImage>,
+    color: Color,
+}
+
 pub struct PaintRenderer {
     context: Arc<GpuContext>,
     layout: wgpu::BindGroupLayout,
@@ -64,6 +78,7 @@ pub struct PaintRenderer {
     pipelines: HashMap<wgpu::TextureFormat, Arc<Pipelines>>,
     atlas: GlyphAtlas,
     pub glyphs: GlyphCache,
+    stats: FrameStats,
 }
 impl PaintRenderer {
     pub fn new(context: Arc<GpuContext>) -> Result<Self> {
@@ -170,8 +185,24 @@ impl PaintRenderer {
             pipelines: HashMap::new(),
             atlas: GlyphAtlas::default(),
             glyphs: GlyphCache::default(),
+            stats: FrameStats::default(),
         })
     }
+    pub fn frame_stats(&self) -> FrameStats {
+        self.stats
+    }
+
+    fn glyph_draw(&self, batch: GlyphBatch, size: (u32, u32), level: u32) -> Draw {
+        self.draw(
+            self.geometry(&batch.vertices, &batch.indices),
+            &Brush::Solid(batch.color),
+            Some((&batch.image, Sampling::Linear)),
+            size,
+            level,
+            0,
+        )
+    }
+
     fn pipelines(&mut self, format: wgpu::TextureFormat) -> Arc<Pipelines> {
         if let Some(p) = self.pipelines.get(&format) {
             return p.clone();
@@ -371,6 +402,7 @@ impl PaintRenderer {
         density: f32,
         clear: Color,
     ) -> Result<()> {
+        self.stats = FrameStats::default();
         list.validate().map_err(|e| RenderError(e.into()))?;
         if size.0 == 0 || size.1 == 0 || !density.is_finite() || density <= 0. {
             return Err(RenderError("invalid paint target".into()));
@@ -502,6 +534,7 @@ impl PaintRenderer {
                             .hypot(transform.0[1])
                             .max(transform.0[2].hypot(transform.0[3]));
                     if scale > 0. {
+                        let mut batch: Option<GlyphBatch> = None;
                         for glyph in run.glyphs.iter() {
                             let local =
                                 [origin[0] + glyph.position[0], origin[1] + glyph.position[1]];
@@ -531,20 +564,35 @@ impl PaintRenderer {
                                 );
                                 // Bitmap dimensions are physical pixels; divide by the complete
                                 // raster scale before the logical transform is applied again.
-                                let (v, ix) = mesh::quad(rect, entry.uv, transform, density);
-                                draws.push(self.draw(
-                                    self.geometry(&v, &ix),
-                                    &Brush::Solid(if entry.bitmap.color {
-                                        [1., 1., 1., color[3]]
-                                    } else {
-                                        *color
-                                    }),
-                                    Some((&entry.image, Sampling::Linear)),
-                                    size,
-                                    level,
-                                    0,
-                                ));
+                                let tint = if entry.bitmap.color {
+                                    [1., 1., 1., color[3]]
+                                } else {
+                                    *color
+                                };
+                                if batch.as_ref().is_some_and(|b| {
+                                    !Arc::ptr_eq(&b.image, &entry.image) || b.color != tint
+                                }) {
+                                    draws.push(self.glyph_draw(batch.take().unwrap(), size, level));
+                                }
+                                let batch = batch.get_or_insert_with(|| GlyphBatch {
+                                    vertices: Vec::new(),
+                                    indices: Vec::new(),
+                                    image: entry.image.clone(),
+                                    color: tint,
+                                });
+                                mesh::append_quad(
+                                    &mut batch.vertices,
+                                    &mut batch.indices,
+                                    rect,
+                                    entry.uv,
+                                    transform,
+                                    density,
+                                );
+                                self.stats.glyph_quads += 1;
                             }
+                        }
+                        if let Some(batch) = batch {
+                            draws.push(self.glyph_draw(batch, size, level));
                         }
                     }
                 }
@@ -734,6 +782,7 @@ impl PaintRenderer {
                 pass.set_vertex_buffer(0, draw.geometry.vertices.slice(..));
                 pass.set_index_buffer(draw.geometry.indices.slice(..), wgpu::IndexFormat::Uint32);
                 pass.draw_indexed(0..draw.geometry.count, 0, 0..1);
+                self.stats.draw_calls += 1;
             }
         }
         self.context.queue.submit([encoder.finish()]);
