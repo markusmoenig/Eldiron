@@ -209,3 +209,12 @@ This remains a scene ownership/composition checkpoint. Game-screen/HUD presentat
 - Passed: three existing text-content controller tests (`/private/tmp/eldiron-screen-controllers.log`), five independent dependency boundaries (`/private/tmp/eldiron-screen-boundaries.log`), browser and iOS-simulator presentation compilation (`/private/tmp/eldiron-screen-web.log`, `/private/tmp/eldiron-screen-ios.log`).
 - Remaining: buttons/item/portrait/profile/message families, static screen geometry and full HUD composition; graphical app and Creator adoption. Current legacy screen setup still allocates bitmap storage, and this checkpoint does not switch a canonical launcher or claim full M5 acceptance.
 - All four existing application entry points compile after this extraction: `/private/tmp/eldiron-screen-apps.log` (36.69 s).
+
+## GPU game-view preparation checkpoint (2026-11-11)
+
+- Added explicit GPU surface dimensions to the legacy game controller and separated camera/scene preparation from CPU destination/upscale allocation. Legacy CPU rendering still allocates its own output only when explicitly selected.
+- `SceneViews::configure_game` installs the actual engine 2D shader, configuration and atlas on the injected base VM. `prepare_game` accepts borrowed CPU map/assets/time/render-state input, prepares each widget against its own SceneHandler and resizes only that GPU view. It never advances or drains a server.
+- Reduced GPU resolution preserves logical 2D camera extent; physical render dimensions no longer change the visible map area. Native preparation releases any previous CPU adapter buffers. Zero-size views suspend. Text/isometric game presentation currently returns an explicit unsupported-path error; their command/sprite conversions remain required.
+- Three actual GPU view tests pass, including a textured map prepared by the real game camera/chunk builder in two independent views at full/half resolution, camera extent equality, no output/upscale/layer CPU storage, source upload/device replacement and explicit capture. Log: `/private/tmp/eldiron-game-views-gpu.log`.
+- All four existing apps compile (`/private/tmp/eldiron-game-views-apps.log`), and presentation compiles for browser and iOS simulator (`/private/tmp/eldiron-game-views-web.log`, `/private/tmp/eldiron-game-views-ios.log`).
+- Canonical app cutover, native screen setup without bitmap allocations, full HUD families, isometric sprite rendering and session/controller ownership adoption remain outstanding. Continue the whole rewrite.

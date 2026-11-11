@@ -1,5 +1,6 @@
 use eldiron_presentation::{SceneViews, ViewId};
 use renderkit::{GpuContext, GpuImage, ImageDescriptor, ImageRegistry, ReadbackTicket, wgpu};
+use rusterix::server::message::RuntimeRenderState;
 use scenevm::{
     Atom, GeoId, Poly2D, RenderMode, SharedAtlas,
     prelude::{Mat3, Vec2, Vec4},
@@ -167,5 +168,128 @@ fn cpu_atlas_sources_reupload_after_device_replacement() {
     assert_eq!(
         a.transfers().readback_bytes + b.transfers().readback_bytes,
         0
+    );
+}
+
+#[test]
+#[ignore = "requires native GPU; run with --ignored"]
+fn game_camera_preparation_uses_view_extents_without_cpu_output_or_upscale_storage() {
+    use eldiron_presentation::GameSceneInput;
+    use rusterix::{
+        Assets, Entity, Map, PixelSource, PlayerCamera, Texture, Tile, Value,
+        client::widget::game::GameWidget,
+    };
+    use theframework_core::TheTime;
+    let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut registry = ImageRegistry::new(gpu.clone());
+    let mut views = SceneViews::new(&registry, SharedAtlas::new(64, 64));
+    let mut assets = Assets::default();
+    assets.config = "[renderer]\nbackend_2d='raster'\n[render]\nambient_strength=1.0".into();
+    let tile = Tile::from_texture(Texture::new(vec![255, 32, 8, 255], 1, 1));
+    let tile_id = tile.id;
+    assets.set_tiles([(tile_id, tile)].into_iter().collect());
+    let mut map = Map::default();
+    map.name = "Native views".into();
+    let vertices = [(0., 0.), (2., 0.), (2., 2.), (0., 2.)].map(|(x, y)| map.add_vertex_at(x, y));
+    for i in 0..4 {
+        map.create_linedef(vertices[i], vertices[(i + 1) % 4]);
+    }
+    map.sectors[0]
+        .properties
+        .set("source", Value::Source(PixelSource::TileId(tile_id)));
+    let mut player = Entity::default();
+    player.position = scenevm::prelude::Vec3::new(1., 0., 1.);
+    player.attributes.set("player", Value::Bool(true));
+    map.entities.push(player);
+    let a = ViewId::new();
+    let b = ViewId::new();
+    views.create(a, (64, 64)).unwrap();
+    views.create(b, (32, 32)).unwrap();
+    views.configure_game(a, &assets).unwrap();
+    views.configure_game(b, &assets).unwrap();
+    let mut aa = GameWidget::new();
+    aa.camera = PlayerCamera::D2;
+    let mut bb = GameWidget::new();
+    bb.camera = PlayerCamera::D2;
+    bb.upscale = 2.;
+    // Prove a migrated controller releases old adapter storage, too.
+    aa.buffer.resize(64, 64);
+    bb.upscale_buffer.resize(32, 32);
+    let state = RuntimeRenderState::default();
+    for frame in 0..12 {
+        let input = GameSceneInput {
+            map: &map,
+            assets: &assets,
+            time: TheTime::new(),
+            animation_frame: frame,
+            render_state: &state,
+        };
+        views
+            .prepare_game(a, &mut aa, (64, 64), &input, &mut registry)
+            .unwrap();
+        views
+            .prepare_game(b, &mut bb, (64, 64), &input, &mut registry)
+            .unwrap();
+        assert!(aa.buffer.pixels().is_empty() && aa.upscale_buffer.pixels().is_empty());
+        assert!(bb.buffer.pixels().is_empty() && bb.upscale_buffer.pixels().is_empty());
+        views.render(a, frame as u64, &mut registry).unwrap();
+        views.render(b, frame as u64, &mut registry).unwrap();
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert!(!aa.loaded_chunks.is_empty() && !bb.loaded_chunks.is_empty());
+    assert_eq!(aa.scene_surface_size(), (64, 64));
+    assert_eq!(bb.scene_surface_size(), (64, 64));
+    assert_eq!(bb.render_surface_dim().width, 32);
+    assert_eq!(
+        aa.top_left, bb.top_left,
+        "resolution reduction must preserve camera extent"
+    );
+    assert!(!views.has_cpu_target_storage(a).unwrap() && !views.has_cpu_target_storage(b).unwrap());
+    assert_eq!(gpu.transfers().capture_requests, 0);
+    let full = finish(&gpu, views.capture(a).unwrap().ticket);
+    let reduced = finish(&gpu, views.capture(b).unwrap().ticket);
+    assert!(
+        full.chunks_exact(4)
+            .any(|p| p[0] > 100 && u16::from(p[0]) > u16::from(p[1]) * 2)
+    );
+    assert!(
+        reduced
+            .chunks_exact(4)
+            .any(|p| p[0] > 100 && u16::from(p[0]) > u16::from(p[1]) * 2)
+    );
+    views
+        .prepare_game(
+            a,
+            &mut aa,
+            (0, 0),
+            &GameSceneInput {
+                map: &map,
+                assets: &assets,
+                time: TheTime::new(),
+                animation_frame: 12,
+                render_state: &state,
+            },
+            &mut registry,
+        )
+        .unwrap();
+    assert!(views.output(a).is_none());
+    bb.camera = PlayerCamera::D2Iso;
+    assert!(
+        views
+            .prepare_game(
+                b,
+                &mut bb,
+                (64, 64),
+                &GameSceneInput {
+                    map: &map,
+                    assets: &assets,
+                    time: TheTime::new(),
+                    animation_frame: 12,
+                    render_state: &state
+                },
+                &mut registry
+            )
+            .is_err(),
+        "unsupported isometric path must never silently rasterize"
     );
 }

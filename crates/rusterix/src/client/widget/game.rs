@@ -66,6 +66,8 @@ pub struct GameWidget {
     pub scene: Scene,
 
     pub buffer: TheRGBABuffer,
+    // Explicit GPU view dimensions; CPU adapter dimensions remain in its buffer.
+    pub(crate) gpu_surface_size: Option<(u32, u32)>,
 
     pub map_bbox: Vec4<f32>,
 
@@ -142,7 +144,10 @@ impl GameWidget {
     }
 
     pub fn render_surface_dim(&self) -> TheDim {
-        let dim = *self.buffer.dim();
+        let dim = self.gpu_surface_size.map_or_else(
+            || *self.buffer.dim(),
+            |(w, h)| TheDim::sized(w as i32, h as i32),
+        );
         if self.upscale > 1.0 && dim.width > 0 && dim.height > 0 {
             return TheDim::sized(
                 ((dim.width as f32 / self.upscale).round() as i32).max(1),
@@ -150,6 +155,59 @@ impl GameWidget {
             );
         }
         dim
+    }
+
+    /// Logical output extent is independent of destination pixels in GPU mode.
+    pub fn scene_surface_size(&self) -> (u32, u32) {
+        self.gpu_surface_size.unwrap_or_else(|| {
+            (
+                self.buffer.dim().width.max(0) as u32,
+                self.buffer.dim().height.max(0) as u32,
+            )
+        })
+    }
+
+    pub fn gpu_scene_resolution(&self, logical: (u32, u32)) -> Result<(u32, u32), String> {
+        if self.backend_name == "text" {
+            return Err("text game views require their text presenter".into());
+        }
+        if self.camera.is_isometric_2d() {
+            return Err("isometric game views require the GPU sprite presenter".into());
+        }
+        if logical.0 == 0
+            || logical.1 == 0
+            || logical.0 > i32::MAX as u32
+            || logical.1 > i32::MAX as u32
+        {
+            return Err("invalid game view dimensions".into());
+        }
+        if !self.upscale.is_finite() || self.upscale <= 0. {
+            return Err("invalid game view upscale factor".into());
+        }
+        Ok((
+            ((logical.0 as f32 / self.upscale.max(1.)).round() as u32).max(1),
+            ((logical.1 as f32 / self.upscale.max(1.)).round() as u32).max(1),
+        ))
+    }
+
+    /// Prepare this controller into its own injected SceneHandler. Rendering and
+    /// output ownership belong to the caller; this never invokes the CPU adapter.
+    pub fn prepare_gpu_scene(
+        &mut self,
+        logical: (u32, u32),
+        map: &Map,
+        time: &TheTime,
+        animation_frame: usize,
+        assets: &Assets,
+        scene: &mut SceneHandler,
+    ) -> Result<(u32, u32), String> {
+        let resolution = self.gpu_scene_resolution(logical)?;
+        self.gpu_surface_size = Some(logical);
+        self.buffer = TheRGBABuffer::default();
+        self.upscale_buffer = TheRGBABuffer::default();
+        self.graphical_apply_entities(map, assets, animation_frame, scene);
+        self.graphical_prepare_frame(map, time, animation_frame, assets, scene);
+        Ok(resolution)
     }
 
     pub fn new() -> Self {
@@ -168,6 +226,7 @@ impl GameWidget {
             scene: Scene::default(),
 
             buffer: TheRGBABuffer::default(),
+            gpu_surface_size: None,
 
             map_bbox: Vec4::zero(),
 
@@ -920,6 +979,7 @@ impl GameWidget {
         assets: &Assets,
         scene_handler: &mut SceneHandler,
     ) {
+        self.gpu_surface_size = None;
         let mut backend = self
             .backend
             .take()
@@ -1181,8 +1241,8 @@ impl GameWidget {
     }
 
     fn prepare_isometric(&mut self, map: &Map) {
-        let width = self.buffer.dim().width.max(1) as f32;
-        let height = self.buffer.dim().height.max(1) as f32;
+        let (width, height) = self.scene_surface_size();
+        let (width, height) = (width.max(1) as f32, height.max(1) as f32);
         let unit = self.grid_size.clamp(4., 256.);
         let mut center = self.player_pos;
         if self.clamp_camera_to_map {
@@ -1256,30 +1316,16 @@ impl GameWidget {
         animation_frame: usize,
         scene_handler: &mut SceneHandler,
     ) {
-        let full_width = self.buffer.dim().width as usize;
-        let full_height = self.buffer.dim().height as usize;
+        let dim = self.render_surface_dim();
+        let (width, height) = (dim.width.max(1) as usize, dim.height.max(1) as usize);
 
-        // Determine render dimensions based on upscale factor
-        let (width, height, _render_buffer) = if self.upscale > 1.0 {
-            let scaled_width = (full_width as f32 / self.upscale).round() as usize;
-            let scaled_height = (full_height as f32 / self.upscale).round() as usize;
-
-            // Allocate/resize upscale buffer if needed
-            if self.upscale_buffer.dim().width as usize != scaled_width
-                || self.upscale_buffer.dim().height as usize != scaled_height
-            {
-                self.upscale_buffer = TheRGBABuffer::new(TheDim::new(
-                    0,
-                    0,
-                    scaled_width as i32,
-                    scaled_height as i32,
-                ));
-            }
-            (scaled_width, scaled_height, true)
-        } else {
-            (full_width, full_height, false)
-        };
-
+        // GPU resolution reduction preserves the logical camera extent.
+        let grid_size = self.grid_size
+            / if self.gpu_surface_size.is_some() {
+                self.upscale.max(1.)
+            } else {
+                1.
+            };
         let screen_size = Vec2::new(width as f32, height as f32);
         let safe_scale = self.upscale.max(1.0);
         let mut safe_left = (self.camera_safe_left / safe_scale).clamp(0.0, screen_size.x);
@@ -1305,8 +1351,8 @@ impl GameWidget {
         let start = Vec2::new(bbox.x, bbox.y);
         let end = Vec2::new(bbox.x + bbox.z, bbox.y + bbox.w);
 
-        let start_pixels = start * self.grid_size;
-        let end_pixels = end * self.grid_size;
+        let start_pixels = start * grid_size;
+        let end_pixels = end * grid_size;
 
         // Ensure min < max even if grid_size has negative components
         let min_world = Vec2::new(
@@ -1319,7 +1365,7 @@ impl GameWidget {
         );
 
         // Compute unclamped camera center in world space
-        let mut camera_pos = self.player_pos * self.grid_size;
+        let mut camera_pos = self.player_pos * grid_size;
 
         let map_width_px = max_world.x - min_world.x;
         let map_height_px = max_world.y - min_world.y;
@@ -1349,19 +1395,9 @@ impl GameWidget {
 
         let translation_matrix = Mat3::<f32>::translation_2d((focus_point - camera_pos).floor());
 
-        self.top_left = (camera_pos - focus_point).floor() / self.grid_size;
+        self.top_left = (camera_pos - focus_point).floor() / grid_size;
 
-        let scale_matrix = Mat3::new(
-            self.grid_size,
-            0.0,
-            0.0,
-            0.0,
-            self.grid_size,
-            0.0,
-            0.0,
-            0.0,
-            1.0,
-        );
+        let scale_matrix = Mat3::new(grid_size, 0.0, 0.0, 0.0, grid_size, 0.0, 0.0, 0.0, 1.0);
         let transform = translation_matrix * scale_matrix;
 
         let hour = time.to_f32();
@@ -1456,29 +1492,8 @@ impl GameWidget {
         animation_frame: usize,
         scene_handler: &mut SceneHandler,
     ) {
-        let full_width = self.buffer.dim().width as usize;
-        let full_height = self.buffer.dim().height as usize;
-
-        // Determine render dimensions based on upscale factor
-        let (width, height, _render_buffer) = if self.upscale > 1.0 {
-            let scaled_width = (full_width as f32 / self.upscale).round() as usize;
-            let scaled_height = (full_height as f32 / self.upscale).round() as usize;
-
-            // Allocate/resize upscale buffer if needed
-            if self.upscale_buffer.dim().width as usize != scaled_width
-                || self.upscale_buffer.dim().height as usize != scaled_height
-            {
-                self.upscale_buffer = TheRGBABuffer::new(TheDim::new(
-                    0,
-                    0,
-                    scaled_width as i32,
-                    scaled_height as i32,
-                ));
-            }
-            (scaled_width, scaled_height, true)
-        } else {
-            (full_width, full_height, false)
-        };
+        let dim = self.render_surface_dim();
+        let (width, height) = (dim.width.max(1) as usize, dim.height.max(1) as usize);
 
         let hour = time.to_f32();
 

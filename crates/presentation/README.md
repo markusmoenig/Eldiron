@@ -48,3 +48,11 @@ The screen painter owns neither a destination raster nor a simulation clock.
 Content/placeholder resolution and stat/choice geometry are shared with the CPU
 controller adapters. Fonts can be registered under project asset names with
 `TextSystem::register_font_named`; all text still uses Parley and Swash.
+
+`configure_game` installs the engine program/configuration and source atlas on a
+created view. `prepare_game` consumes a borrowed `GameSceneInput` and the game
+widget's camera/controller, sizes the GPU target and prepares its scene without
+CPU output/upscale buffers. Resolution reduction preserves logical 2D framing.
+It suspends zero-sized views. Text and isometric game presentation are currently
+explicit unsupported paths here, pending their dedicated command/sprite adapters;
+there is no implicit raster fallback.
