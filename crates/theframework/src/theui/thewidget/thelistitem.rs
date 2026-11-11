@@ -33,6 +33,101 @@ pub struct TheListItem {
 }
 
 impl TheWidget for TheListItem {
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::paint::{PaintOp, Rect, Sampling};
+        use crate::theui::paint::{bounds, rgba};
+        let r = bounds(&self.dim);
+        let color = if self.state == TheWidgetState::Selected {
+            *p.theme.color(if self.id.equals(&p.ui.focus) {
+                ListItemSelected
+            } else {
+                ListItemSelectedNoFocus
+            })
+        } else if self.id.equals(&p.ui.hover) {
+            *p.theme.color(ListItemHover)
+        } else if let Some((palette, index)) = self.background_palette {
+            p.theme.palette_color(palette, index)
+        } else if let Some(bg) = &self.background {
+            bg.to_u8_array()
+        } else {
+            *p.theme.color(ListItemNormal)
+        };
+        p.list.ops.push(PaintOp::PushClip(r));
+        p.list.rect(r, 0., rgba(color));
+        let mut text_x = r.x + 10.;
+        let mut text_width =
+            (r.width - 15. - self.values.iter().map(|v| v.0 as f32).sum::<f32>()).max(0.);
+        if let Some(icon) = &self.icon {
+            let size = (r.height - 6.).max(16.);
+            let frame = Rect::new(r.x + 2., r.y + 2., size + 2., size + 2.);
+            p.outline(frame, *p.theme.color(ListItemIconBorder), 1.);
+            p.image(
+                &format!("list-icon:{}", self.id.uuid),
+                icon,
+                Rect::new(frame.x + 1., frame.y + 1., size, size),
+                self.is_dirty,
+                Sampling::Linear,
+            )?;
+            text_x = r.x + size + 15.;
+            text_width = (r.width - size - 19.).max(0.);
+        }
+        let height = (r.height - 8.).max(1.);
+        let title_height = if self.sub_text.is_empty() {
+            height
+        } else {
+            height * 0.5
+        };
+        p.label(
+            Rect::new(text_x, r.y + 4., text_width, title_height),
+            &self.text,
+            self.text_size,
+            self.text_color.unwrap_or(*p.theme.color(ListItemText)),
+            TheHorizontalAlign::Left,
+            TheVerticalAlign::Center,
+        );
+        if !self.sub_text.is_empty() {
+            p.label(
+                Rect::new(
+                    text_x,
+                    r.y + 4. + title_height,
+                    text_width,
+                    (height - title_height).max(1.),
+                ),
+                &self.sub_text,
+                self.sub_text_size,
+                self.sub_text_color.unwrap_or(*p.theme.color(ListItemText)),
+                TheHorizontalAlign::Left,
+                TheVerticalAlign::Center,
+            );
+        }
+        if self.icon.is_none() {
+            let mut x = text_x + text_width;
+            for (width, value) in &self.values {
+                p.fill(Rect::new(x, r.y, 1., r.height), ListLayoutBackground);
+                p.label(
+                    Rect::new(
+                        x + 9.,
+                        r.y + 1.,
+                        (*width as f32 - 10.).max(0.),
+                        r.height - 2.,
+                    ),
+                    &value.describe(),
+                    13.,
+                    *p.theme.color(ListItemText),
+                    TheHorizontalAlign::Left,
+                    TheVerticalAlign::Center,
+                );
+                x += *width as f32;
+            }
+        }
+        p.list.ops.push(PaintOp::PopClip);
+        self.is_dirty = false;
+        Ok(())
+    }
     fn new(id: TheId) -> Self
     where
         Self: Sized,
@@ -108,11 +203,27 @@ impl TheWidget for TheListItem {
                     ));
                     redraw = true;
                 }
-                self.mouse_down_pos = Vec2::new(coord.x, coord.y + self.scroll_offset);
+                self.mouse_down_pos = Vec2::new(
+                    coord.x,
+                    coord.y
+                        + if ctx.ui.gpu_paint {
+                            0
+                        } else {
+                            self.scroll_offset
+                        },
+                );
                 ctx.ui.set_focus(self.id());
             }
             TheEvent::MouseDragged(coord) => {
-                let coord = Vec2::new(coord.x, coord.y + self.scroll_offset);
+                let coord = Vec2::new(
+                    coord.x,
+                    coord.y
+                        + if ctx.ui.gpu_paint {
+                            0
+                        } else {
+                            self.scroll_offset
+                        },
+                );
                 if ctx.ui.drop.is_none()
                     && Vec2::new(self.mouse_down_pos.x as f32, self.mouse_down_pos.y as f32)
                         .distance(Vec2::new(coord.x as f32, coord.y as f32))

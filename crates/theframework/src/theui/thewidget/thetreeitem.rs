@@ -32,6 +32,152 @@ pub struct TheTreeItem {
 }
 
 impl TheWidget for TheTreeItem {
+    #[cfg(feature = "render-wgpu")]
+    fn paint_overlay(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        if let Some((_, widget)) = &mut self.widget_column {
+            widget.paint_overlay(p)?;
+        }
+        Ok(())
+    }
+
+    #[cfg(feature = "render-wgpu")]
+    fn prepare_paint(&mut self, ctx: &mut TheContext) {
+        if let Some((width, widget)) = &mut self.widget_column {
+            widget.calculate_size(ctx);
+            let h = widget.limiter().get_max_height();
+            widget.set_dim(
+                TheDim::new(
+                    self.dim.width - *width + 9,
+                    (22 - h) / 2,
+                    (*width - 10).max(0),
+                    h,
+                ),
+                ctx,
+            );
+            let transform =
+                crate::paint::Transform::translate(self.dim.x as f32, self.dim.y as f32).then(
+                    ctx.ui
+                        .input_transforms
+                        .get(&self.id.uuid)
+                        .copied()
+                        .unwrap_or_default(),
+                );
+            ctx.ui.input_transforms.insert(widget.id().uuid, transform);
+            widget.prepare_paint(ctx);
+        }
+    }
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::paint::{PaintOp, Rect, Sampling, Transform};
+        use crate::theui::paint::{bounds, rgba};
+        let r = bounds(&self.dim);
+        let color = if self.state == TheWidgetState::Selected {
+            *p.theme.color(if self.id.equals(&p.ui.focus) {
+                ListItemSelected
+            } else {
+                ListItemSelectedNoFocus
+            })
+        } else if self.id.equals(&p.ui.hover) {
+            *p.theme.color(ListItemHover)
+        } else if let Some((palette, index)) = self.background_palette {
+            p.theme.palette_color(palette, index)
+        } else {
+            self.background
+                .as_ref()
+                .map(|c| c.to_u8_array())
+                .unwrap_or(*p.theme.color(ListItemNormal))
+        };
+        p.list.ops.push(PaintOp::PushClip(r));
+        p.list.rect(
+            Rect::new(r.x, r.y + 1., r.width, (r.height - 2.).max(0.)),
+            0.,
+            rgba(color),
+        );
+        let values_width = self.values.iter().map(|v| v.0 as f32).sum::<f32>();
+        let column_width = self
+            .widget_column
+            .as_ref()
+            .map(|v| v.0 as f32)
+            .unwrap_or(0.);
+        let mut text_x = r.x + 10.;
+        let mut text_width = (r.width - 15. - values_width - column_width).max(0.);
+        if let Some(icon) = &self.icon {
+            let frame = (r.height - 6.).max(16.);
+            let image = Rect::new(
+                r.x + 3.,
+                r.y + 4.,
+                (frame - 2.).max(0.),
+                (frame - 2.).max(0.),
+            );
+            p.outline(image.inset(-1.), *p.theme.color(ListItemIconBorder), 1.);
+            p.image(
+                &format!("tree-row:{}", self.id.uuid),
+                icon,
+                image,
+                self.is_dirty,
+                Sampling::Linear,
+            )?;
+            text_x = r.x + frame + 10.;
+            text_width = (r.width - frame - 14.).max(0.);
+        }
+        let height = if self.sub_text.is_empty() { 15. } else { 32. };
+        let y = r.y + (r.height - height).max(0.) * 0.5;
+        p.label(
+            Rect::new(text_x, y, text_width, 15.),
+            &self.text,
+            13.,
+            *p.theme.color(ListItemText),
+            TheHorizontalAlign::Left,
+            TheVerticalAlign::Center,
+        );
+        if !self.sub_text.is_empty() {
+            p.label(
+                Rect::new(text_x, y + 16., text_width, 15.),
+                &self.sub_text,
+                12.,
+                *p.theme.color(ListItemText),
+                TheHorizontalAlign::Left,
+                TheVerticalAlign::Center,
+            );
+        }
+        if self.icon.is_none() {
+            let mut x = text_x + text_width;
+            if let Some((_, widget)) = &mut self.widget_column {
+                p.fill(Rect::new(x, r.y, 1., r.height), ListLayoutBackground);
+                p.list
+                    .ops
+                    .push(PaintOp::PushTransform(Transform::translate(r.x, r.y)));
+                widget.paint(p)?;
+                p.list.ops.push(PaintOp::PopTransform);
+            }
+            for (width, value) in &self.values {
+                p.fill(Rect::new(x, r.y, 1., r.height), ListLayoutBackground);
+                p.label(
+                    Rect::new(
+                        x + 9.,
+                        r.y + 2.,
+                        (*width as f32 - 10.).max(0.),
+                        (r.height - 4.).max(0.),
+                    ),
+                    &value.describe(),
+                    13.,
+                    *p.theme.color(ListItemText),
+                    TheHorizontalAlign::Left,
+                    TheVerticalAlign::Center,
+                );
+                x += *width as f32;
+            }
+        }
+        p.list.ops.push(PaintOp::PopClip);
+        self.is_dirty = false;
+        Ok(())
+    }
     fn new(id: TheId) -> Self
     where
         Self: Sized,
@@ -81,6 +227,12 @@ impl TheWidget for TheTreeItem {
     fn on_event(&mut self, event: &TheEvent, ctx: &mut TheContext) -> bool {
         let mut redraw = false;
         match event {
+            TheEvent::TextInput(_) | TheEvent::TextComposition(_, _) => {
+                if let Some((_, widget)) = &mut self.widget_column {
+                    redraw = widget.on_event(event, ctx);
+                }
+            }
+
             TheEvent::Context(coord) => {
                 if let Some(context_menu) = &self.context_menu {
                     ctx.ui.send(TheEvent::ShowContextMenu(
@@ -111,8 +263,15 @@ impl TheWidget for TheTreeItem {
                 self.mouse_down_in_widget = false;
                 if let Some((_width, w)) = &mut self.widget_column {
                     let dim = w.dim();
-                    let widget_coord =
-                        Vec2::new(coord.x - dim.x, coord.y - dim.y + self.scroll_offset);
+                    let widget_coord = Vec2::new(
+                        coord.x - dim.x,
+                        coord.y - dim.y
+                            + if ctx.ui.gpu_paint {
+                                0
+                            } else {
+                                self.scroll_offset
+                            },
+                    );
 
                     // Check if the click is within the embedded widget bounds
                     if widget_coord.x >= 0
@@ -125,23 +284,45 @@ impl TheWidget for TheTreeItem {
                     }
                 }
 
-                self.mouse_down_pos = Vec2::new(coord.x, coord.y + self.scroll_offset);
+                self.mouse_down_pos = Vec2::new(
+                    coord.x,
+                    coord.y
+                        + if ctx.ui.gpu_paint {
+                            0
+                        } else {
+                            self.scroll_offset
+                        },
+                );
             }
             TheEvent::MouseUp(coord) => {
                 // If mouse down was in widget, forward mouse up (even if outside bounds)
                 if self.mouse_down_in_widget {
                     if let Some((_, w)) = &mut self.widget_column {
                         let dim = w.dim();
-                        let widget_coord =
-                            Vec2::new(coord.x - dim.x, coord.y - dim.y + self.scroll_offset);
+                        let widget_coord = Vec2::new(
+                            coord.x - dim.x,
+                            coord.y - dim.y
+                                + if ctx.ui.gpu_paint {
+                                    0
+                                } else {
+                                    self.scroll_offset
+                                },
+                        );
                         redraw = w.on_event(&TheEvent::MouseUp(widget_coord), ctx);
                         self.is_dirty = true;
                     }
                     self.mouse_down_in_widget = false;
                 } else if let Some((_, w)) = &mut self.widget_column {
                     let dim = w.dim();
-                    let widget_coord =
-                        Vec2::new(coord.x - dim.x, coord.y - dim.y + self.scroll_offset);
+                    let widget_coord = Vec2::new(
+                        coord.x - dim.x,
+                        coord.y - dim.y
+                            + if ctx.ui.gpu_paint {
+                                0
+                            } else {
+                                self.scroll_offset
+                            },
+                    );
 
                     // Check if the click is within the embedded widget bounds
                     if widget_coord.x >= 0
@@ -175,8 +356,15 @@ impl TheWidget for TheTreeItem {
                 if self.mouse_down_in_widget {
                     if let Some((_, w)) = &mut self.widget_column {
                         let dim = w.dim();
-                        let widget_coord =
-                            Vec2::new(coord.x - dim.x, coord.y - dim.y + self.scroll_offset);
+                        let widget_coord = Vec2::new(
+                            coord.x - dim.x,
+                            coord.y - dim.y
+                                + if ctx.ui.gpu_paint {
+                                    0
+                                } else {
+                                    self.scroll_offset
+                                },
+                        );
 
                         // Always forward drag events if mouse down was in widget (even if mouse is now outside)
                         redraw = w.on_event(&TheEvent::MouseDragged(widget_coord), ctx);
@@ -186,7 +374,15 @@ impl TheWidget for TheTreeItem {
 
                 // Only handle drag for tree item if not handled by embedded widget
                 if !handled_by_widget {
-                    let coord = Vec2::new(coord.x, coord.y + self.scroll_offset);
+                    let coord = Vec2::new(
+                        coord.x,
+                        coord.y
+                            + if ctx.ui.gpu_paint {
+                                0
+                            } else {
+                                self.scroll_offset
+                            },
+                    );
                     if ctx.ui.drop.is_none()
                         && Vec2::new(self.mouse_down_pos.x as f32, self.mouse_down_pos.y as f32)
                             .distance(Vec2::new(coord.x as f32, coord.y as f32))
@@ -339,6 +535,11 @@ impl TheWidget for TheTreeItem {
         true
     }
 
+    fn supports_undo_redo(&mut self) -> bool {
+        self.widget_column
+            .as_mut()
+            .is_some_and(|(_, w)| w.supports_undo_redo())
+    }
     fn supports_text_input(&self) -> bool {
         if let Some((_, widget)) = &self.widget_column {
             return widget.supports_text_input();

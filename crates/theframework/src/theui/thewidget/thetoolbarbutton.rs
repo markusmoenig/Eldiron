@@ -16,6 +16,44 @@ pub struct TheToolbarButton {
 }
 
 impl TheWidget for TheToolbarButton {
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::paint::Rect;
+        use crate::theui::paint::bounds;
+        let r = bounds(&self.dim);
+        if self.state == TheWidgetState::Clicked {
+            p.fill(r, ToolbarButtonClicked);
+        } else if self.id.equals(&p.ui.hover) {
+            p.fill(r, ToolbarButtonHover);
+            p.outline(r, *p.theme.color(ToolbarButtonHoverBorder), 1.);
+        }
+        if let Some(icon) = p.ui.icon(&self.icon_name) {
+            let (w, h) = (icon.dim().width as f32, icon.dim().height as f32);
+            p.icon(
+                &self.icon_name,
+                Rect::new(
+                    r.x + (r.width - w) * 0.5 + self.icon_offset.x as f32,
+                    r.y + (r.height - h) * 0.5 + self.icon_offset.y as f32,
+                    w,
+                    h,
+                ),
+            )?;
+        }
+        p.label(
+            r,
+            &self.text,
+            self.text_size,
+            *p.theme.color(SectionbarNormalTextColor),
+            TheHorizontalAlign::Center,
+            TheVerticalAlign::Center,
+        );
+        self.is_dirty = false;
+        Ok(())
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,
@@ -123,7 +161,7 @@ impl TheWidget for TheToolbarButton {
 
     fn calculate_size(&mut self, ctx: &mut TheContext) {
         if !self.text.is_empty() {
-            let size = ctx.draw.get_text_size(
+            let size = ctx.measure_text(
                 &self.text,
                 &TheFontSettings {
                     size: self.text_size,

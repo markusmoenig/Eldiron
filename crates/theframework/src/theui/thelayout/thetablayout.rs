@@ -14,6 +14,32 @@ pub struct TheTabLayout {
 }
 
 impl TheLayout for TheTabLayout {
+    #[cfg(feature = "render-wgpu")]
+    fn prepare_paint(&mut self, ctx: &mut TheContext) {
+        self.set_dim(self.dim, ctx);
+        for c in &mut self.canvas {
+            c.prepare_paint(ctx);
+        }
+        self.tabbar.prepare_paint(ctx);
+    }
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        p.fill(crate::theui::paint::bounds(&self.dim), TabbarConnector);
+        self.tabbar.paint(p)?;
+        let index = self
+            .tabbar
+            .as_tabbar()
+            .and_then(|t| t.selection_index())
+            .unwrap_or(0) as usize;
+        if let Some(c) = self.canvas.get_mut(index) {
+            c.paint(p)?;
+        }
+        Ok(())
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,

@@ -10,6 +10,17 @@ pub struct TheToolbar {
 }
 
 impl TheWidget for TheToolbar {
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::theui::paint::bounds;
+        p.theme_fill(bounds(&self.dim), 0., ToolbarBackground);
+        self.is_dirty = false;
+        Ok(())
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,

@@ -1,7 +1,7 @@
 use crate::{RenderError, Result};
 use std::sync::{
     Arc,
-    atomic::{AtomicU64, Ordering},
+    atomic::{AtomicBool, AtomicU64, Ordering},
 };
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct TransferCounters {
@@ -24,6 +24,7 @@ pub struct GpuContext {
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
     generation: u64,
+    lost: Arc<AtomicBool>,
     counters: Arc<Counters>,
 }
 impl GpuContext {
@@ -48,7 +49,13 @@ impl GpuContext {
             })
             .await
             .map_err(|e| RenderError(format!("request device: {e}")))?;
+        let lost = Arc::new(AtomicBool::new(false));
+        let flag = lost.clone();
+        device.set_device_lost_callback(move |_, _| {
+            flag.store(true, Ordering::Release);
+        });
         Ok(Arc::new(Self {
+            lost,
             instance,
             adapter,
             device,
@@ -77,6 +84,9 @@ impl GpuContext {
     pub(crate) fn record_capture(&self, bytes: u64) {
         self.counters.readback.fetch_add(bytes, Ordering::Relaxed);
         self.counters.captures.fetch_add(1, Ordering::Relaxed);
+    }
+    pub fn is_lost(&self) -> bool {
+        self.lost.load(Ordering::Acquire)
     }
     pub fn generation(&self) -> u64 {
         self.generation

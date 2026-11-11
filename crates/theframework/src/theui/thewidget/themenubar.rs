@@ -11,6 +11,17 @@ pub struct TheMenubar {
 }
 
 impl TheWidget for TheMenubar {
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::theui::paint::bounds;
+        let r = bounds(&self.dim);
+        p.theme_fill(r, 0., MenubarBackground);
+        self.is_dirty = false;
+        Ok(())
+    }
     fn new(id: TheId) -> Self
     where
         Self: Sized,

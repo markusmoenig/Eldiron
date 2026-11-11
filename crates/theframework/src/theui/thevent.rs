@@ -18,6 +18,10 @@ pub enum TheEvent {
     /// Relative magnification reported by a pinch gesture.
     Pinch(f32),
 
+    /// Atomic committed text from a keyboard, paste, or input method.
+    TextInput(String),
+    /// Preedit text is transient and must not mutate the document/undo history.
+    TextComposition(String, Option<(usize, usize)>),
     KeyDown(TheValue),
     KeyUp(TheValue),
     KeyCodeDown(TheValue),

@@ -18,6 +18,28 @@ pub struct TheVerticalScrollbar {
 }
 
 impl TheWidget for TheVerticalScrollbar {
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::paint::Rect;
+        let r = crate::theui::paint::bounds(&self.dim);
+        let size = self.scrollbar_thumb_height().clamp(0, self.dim.height) as f32;
+        let offset = self
+            .scrollbar_position()
+            .round()
+            .clamp(0., (r.height - size).max(0.));
+        p.scrollbar(
+            r,
+            Rect::new(r.x + 2., r.y + offset, (r.width - 4.).max(0.), size),
+            self.id.equals(&p.ui.hover),
+            self.state == TheWidgetState::Clicked,
+        );
+        self.is_dirty = false;
+        Ok(())
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,

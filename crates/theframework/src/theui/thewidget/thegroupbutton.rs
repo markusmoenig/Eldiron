@@ -22,6 +22,62 @@ pub struct TheGroupButton {
 }
 
 impl TheWidget for TheGroupButton {
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::paint::Rect;
+        use crate::theui::paint::bounds;
+        let r = bounds(&self.dim);
+        let mut x = r.x;
+        for (i, text) in self.text.iter().enumerate() {
+            let (border, bg) = if self.selected_index == Some(i) {
+                (GroupButtonSelectedBorder, GroupButtonSelectedBackground)
+            } else if self.hover_index == Some(i) {
+                (GroupButtonHoverBorder, GroupButtonHoverBackground)
+            } else {
+                (GroupButtonNormalBorder, GroupButtonNormalBackground)
+            };
+            let item = Rect::new(x, r.y, self.item_width as f32, 20.);
+            p.fill(item, border);
+            p.fill(item.inset(1.), bg);
+            let mut offset = 0.;
+            if let Some(name) = self.icon.get(i).and_then(|v| v.as_ref()) {
+                if p.ui.icon(name).is_some() {
+                    let w = self.icon_size.x.max(0) as f32;
+                    let h = self.icon_size.y.max(0) as f32;
+                    let ix = if text.is_empty() {
+                        (item.width - w).max(0.) * 0.5
+                    } else {
+                        5.
+                    };
+                    p.icon(name, Rect::new(x + ix, r.y + (20. - h) * 0.5, w, h))?;
+                    offset = w + 7.;
+                }
+            }
+            p.label(
+                Rect::new(
+                    x + offset + 1.,
+                    r.y + 1.,
+                    (item.width - offset - 2.).max(0.),
+                    18.,
+                ),
+                text,
+                12.5,
+                *p.theme.color(SectionbarNormalTextColor),
+                if offset > 0. {
+                    TheHorizontalAlign::Left
+                } else {
+                    TheHorizontalAlign::Center
+                },
+                TheVerticalAlign::Center,
+            );
+            x += self.item_width as f32 + 1.;
+        }
+        self.is_dirty = false;
+        Ok(())
+    }
     fn new(id: TheId) -> Self
     where
         Self: Sized,

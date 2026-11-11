@@ -17,6 +17,19 @@ struct TheSharedVSplitter {
 }
 
 impl TheWidget for TheSharedVSplitter {
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        let r = crate::theui::paint::bounds(&self.dim);
+        p.fill(
+            crate::paint::Rect::new(r.x, r.y + r.height * 0.5, r.width, 1.),
+            DividerStart,
+        );
+        self.is_dirty = false;
+        Ok(())
+    }
     fn new(id: TheId) -> Self
     where
         Self: Sized,
@@ -158,6 +171,41 @@ pub struct TheSharedVLayout {
 }
 
 impl TheLayout for TheSharedVLayout {
+    #[cfg(feature = "render-wgpu")]
+    fn prepare_paint(&mut self, ctx: &mut TheContext) {
+        self.set_dim(self.dim, ctx);
+        for c in &mut self.canvas {
+            c.prepare_paint(ctx);
+        }
+        for w in &mut self.widgets {
+            w.prepare_paint(ctx);
+        }
+    }
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        if let Some(bg) = self.background {
+            p.fill(crate::theui::paint::bounds(&self.dim), bg);
+        }
+        if self.canvas.len() >= 2 {
+            match self.mode {
+                TheSharedVLayoutMode::Top => self.canvas[0].paint(p)?,
+                TheSharedVLayoutMode::Bottom => self.canvas[1].paint(p)?,
+                TheSharedVLayoutMode::Shared => {
+                    self.canvas[0].paint(p)?;
+                    self.canvas[1].paint(p)?;
+                    for w in &mut self.widgets {
+                        w.paint(p)?;
+                    }
+                }
+            }
+        }
+        self.is_dirty = false;
+        Ok(())
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,

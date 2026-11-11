@@ -59,7 +59,7 @@ pub trait TheStyle: Send {
     fn create_drop_image(&mut self, drop: &mut TheDrop, ctx: &mut TheContext) {
         let mut width: i32 = 120;
 
-        let size = ctx.draw.get_text_size(
+        let size = ctx.measure_text(
             &drop.title,
             &TheFontSettings {
                 size: 12.5,
@@ -72,6 +72,12 @@ pub trait TheStyle: Send {
             drop.offset.x = width - 10;
         }
 
+        if ctx.ui.gpu_paint {
+            let mut image = TheRGBABuffer::empty();
+            *image.dim_mut() = TheDim::sized(width, 24);
+            drop.set_image(image);
+            return;
+        }
         let mut buffer = TheRGBABuffer::new(TheDim::new(0, 0, width, 24));
 
         let mut shrinker = TheDimShrinker::zero();

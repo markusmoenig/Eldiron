@@ -28,6 +28,93 @@ pub struct TheTraybarButton {
 }
 
 impl TheWidget for TheTraybarButton {
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::paint::{Rect, Sampling};
+        use crate::theui::paint::bounds;
+        let r = bounds(&self.dim);
+        if r.width <= 0. || r.height <= 0. {
+            return Ok(());
+        }
+        let (role, border) = if self.is_disabled {
+            (TrayButtonDisabled, TraybarButtonDisabledBorder)
+        } else if self.state == TheWidgetState::Clicked || self.state == TheWidgetState::Selected {
+            (TrayButtonPressed, TraybarButtonClickedBorder)
+        } else if self.id.equals(&p.ui.hover) {
+            (TrayButtonHover, TraybarButtonHoverBorder)
+        } else {
+            (TrayButtonNormal, TraybarButtonNormalBorder)
+        };
+        let radius = p.theme.metric(ControlCornerRadius);
+        p.list.rect(r, radius, p.color(border));
+        let inner = Rect::new(
+            r.x + 1.,
+            r.y + 1.,
+            (r.width - 2.).max(0.),
+            (r.height - 2.).max(0.),
+        );
+        p.theme_fill(inner, (radius - 1.).max(0.), role);
+        let size = self
+            .icon
+            .as_ref()
+            .map(|v| (v.pixel_width(), v.pixel_height()))
+            .or_else(|| {
+                p.ui.icon(&self.icon_name)
+                    .map(|v| (v.pixel_width(), v.pixel_height()))
+            });
+        if let Some((w, h)) = size
+            && w > 0
+            && h > 0
+        {
+            let scale = ((r.width - 4.) / w as f32)
+                .min((r.height - 4.) / h as f32)
+                .min(1.)
+                .max(0.);
+            let (w, h) = (w as f32 * scale, h as f32 * scale);
+            let target = Rect::new(
+                r.x + (r.width - w) * 0.5 + self.icon_offset.x as f32,
+                r.y + (r.height - h) * 0.5 + self.icon_offset.y as f32,
+                w,
+                h,
+            );
+            if let Some(icon) = &self.icon {
+                p.image(
+                    &format!("button:{}", self.id.uuid),
+                    icon,
+                    target,
+                    self.is_dirty,
+                    Sampling::Linear,
+                )?;
+            } else {
+                p.icon(&self.icon_name, target)?;
+            }
+        }
+        let color = self
+            .custom_color
+            .as_ref()
+            .map(|v| v.to_u8_array())
+            .unwrap_or(*p.theme.color(SectionbarNormalTextColor));
+        if self.is_disabled {
+            p.list.ops.push(crate::paint::PaintOp::PushOpacity(0.5));
+        }
+        p.label(
+            inner,
+            &self.text,
+            self.text_size,
+            color,
+            TheHorizontalAlign::Center,
+            TheVerticalAlign::Center,
+        );
+        if self.is_disabled {
+            p.list.ops.push(crate::paint::PaintOp::PopOpacity);
+        }
+        self.is_dirty = false;
+        Ok(())
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,
@@ -197,7 +284,7 @@ impl TheWidget for TheTraybarButton {
 
     fn calculate_size(&mut self, ctx: &mut TheContext) {
         if !self.text.is_empty() && !self.fixed_size {
-            let size = ctx.draw.get_text_size(
+            let size = ctx.measure_text(
                 &self.text,
                 &TheFontSettings {
                     size: self.text_size,

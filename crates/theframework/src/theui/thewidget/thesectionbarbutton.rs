@@ -13,6 +13,42 @@ pub struct TheSectionbarButton {
 }
 
 impl TheWidget for TheSectionbarButton {
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::theui::paint::bounds;
+        let r = bounds(&self.dim);
+        let selected = self.state == TheWidgetState::Selected;
+        let (role, border) = if selected {
+            (SectionButtonSelected, ToolListButtonSelectedBorder)
+        } else if self.id.equals(&p.ui.hover) {
+            (SectionButtonHover, ToolListButtonHoverBorder)
+        } else {
+            (SectionButtonNormal, ToolListButtonNormalBorder)
+        };
+        p.button(
+            r,
+            p.theme.metric(ControlCornerRadius) + 1.,
+            role,
+            *p.theme.color(border),
+        );
+        p.label(
+            r,
+            &self.text,
+            15.,
+            *p.theme.color(if selected {
+                SectionbarSelectedTextColor
+            } else {
+                SectionbarNormalTextColor
+            }),
+            TheHorizontalAlign::Center,
+            TheVerticalAlign::Center,
+        );
+        self.is_dirty = false;
+        Ok(())
+    }
     fn new(id: TheId) -> Self
     where
         Self: Sized,

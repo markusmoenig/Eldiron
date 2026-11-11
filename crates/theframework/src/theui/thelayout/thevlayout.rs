@@ -28,6 +28,21 @@ pub struct TheVLayout {
 }
 
 impl TheLayout for TheVLayout {
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::theui::paint::bounds;
+        if let Some(role) = self.background {
+            p.fill(bounds(&self.dim), role);
+        }
+        for widget in &mut self.widgets {
+            widget.paint(p)?;
+        }
+        Ok(())
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,
@@ -104,7 +119,13 @@ impl TheLayout for TheVLayout {
 
                 let mut y = self.margin.y;
                 for i in 0..to_go {
-                    self.widgets[i].calculate_size(ctx);
+                    self.widgets[i].measure(
+                        Vec2::new(
+                            (dim.width - self.margin.x - self.margin.z).max(0),
+                            dim.height,
+                        ),
+                        ctx,
+                    );
                     let width = self.widgets[i].limiter().get_width(dim.width);
                     let height = self.widgets[i].limiter().get_height(dim.height);
 
@@ -136,7 +157,13 @@ impl TheLayout for TheVLayout {
                     for i in 0..reverse {
                         let i: usize = self.widgets.len() - 1 - i as usize;
 
-                        self.widgets[i].calculate_size(ctx);
+                        self.widgets[i].measure(
+                            Vec2::new(
+                                (dim.width - self.margin.x - self.margin.z).max(0),
+                                dim.height,
+                            ),
+                            ctx,
+                        );
                         let width = self.widgets[i].limiter().get_width(dim.width);
                         let height = self.widgets[i].limiter().get_height(dim.height);
 

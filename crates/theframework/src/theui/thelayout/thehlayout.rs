@@ -28,6 +28,21 @@ pub struct TheHLayout {
 }
 
 impl TheLayout for TheHLayout {
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::theui::paint::bounds;
+        if let Some(role) = self.background {
+            p.fill(bounds(&self.dim), role);
+        }
+        for widget in &mut self.widgets {
+            widget.paint(p)?;
+        }
+        Ok(())
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,

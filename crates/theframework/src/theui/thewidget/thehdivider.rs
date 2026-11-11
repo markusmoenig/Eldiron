@@ -8,6 +8,25 @@ pub struct TheHDivider {
 }
 
 impl TheWidget for TheHDivider {
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::paint::Rect;
+        use crate::theui::paint::bounds;
+        let r = bounds(&self.dim);
+        p.fill(
+            Rect::new(r.x + (r.width / 2.).floor() - 1., r.y, 1., r.height),
+            DividerStart,
+        );
+        p.fill(
+            Rect::new(r.x + (r.width / 2.).floor(), r.y, 1., r.height),
+            DividerEnd,
+        );
+        Ok(())
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,

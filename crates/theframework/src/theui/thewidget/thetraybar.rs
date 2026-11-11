@@ -10,6 +10,32 @@ pub struct TheTraybar {
 }
 
 impl TheWidget for TheTraybar {
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::paint::Rect;
+        use crate::theui::paint::bounds;
+        let r = bounds(&self.dim);
+        p.fill(r, TraybarBorder);
+        p.fill(
+            Rect::new(
+                r.x + 1.,
+                r.y + 1.,
+                (r.width - 1.).max(0.),
+                (r.height - 1.).max(0.),
+            ),
+            TraybarBackground,
+        );
+        p.fill(
+            Rect::new(r.x + 1., r.y + r.height - 1., (r.width - 1.).max(0.), 1.),
+            TraybarBottomBorder,
+        );
+        self.is_dirty = false;
+        Ok(())
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,

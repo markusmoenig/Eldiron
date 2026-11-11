@@ -65,6 +65,123 @@ pub struct TheTextLineEdit {
 }
 
 impl TheWidget for TheTextLineEdit {
+    #[cfg(feature = "render-wgpu")]
+    fn prepare_paint(&mut self, ctx: &mut TheContext) {
+        if self.modified_since_last_tick || !self.renderer.gpu_ready() {
+            self.renderer
+                .prepare_gpu(&self.state.to_text(), None, "Roboto", &mut ctx.text);
+            let border = if self.embedded || self.frameless {
+                0.
+            } else {
+                2.
+            };
+            let y = ((self.dim.height as f32 - self.renderer.actual_size.y as f32) * 0.5 - border)
+                .max(0.);
+            self.renderer.padding.1 = y as i32;
+            if self.frameless && !self.embedded {
+                self.renderer.padding.1 += 1;
+            }
+            let x = border + self.renderer.padding.0 as f32;
+            let y = border + self.renderer.padding.1 as f32;
+            self.renderer.gpu_viewport(
+                crate::paint::Rect::new(
+                    self.dim.x as f32 + x,
+                    self.dim.y as f32 + y,
+                    (self.dim.width as f32 - x - border - self.renderer.padding.2 as f32).max(0.),
+                    (self.dim.height as f32 - y - border - self.renderer.padding.3 as f32).max(0.),
+                ),
+                [x, y],
+            );
+            self.renderer
+                .scroll_to_cursor(self.state.find_cursor_index(), self.state.cursor.row);
+        }
+        self.renderer.scroll_offset.y = 0;
+    }
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::paint::{PaintOp, Rect};
+        use crate::theui::paint::{bounds, rgba};
+        let r = bounds(&self.dim);
+        let focused = self.id.equals(&p.ui.focus)
+            || self.embedded
+                && self
+                    .parent_id
+                    .as_ref()
+                    .is_some_and(|id| id.equals(&p.ui.focus));
+        p.list.ops.push(PaintOp::PushClip(r));
+        let inner = p.text_input(
+            r,
+            focused,
+            self.is_disabled,
+            self.embedded || self.frameless,
+            false,
+            !(self.embedded || self.frameless),
+        );
+        if !self.is_disabled {
+            if let Some(range) = &self.range {
+                let value = self.state.to_text().parse::<f32>().ok();
+                let endpoints = range
+                    .to_range_f32()
+                    .map(|r| (*r.start(), *r.end()))
+                    .or_else(|| {
+                        range
+                            .to_range_i32()
+                            .map(|r| (*r.start() as f32, *r.end() as f32))
+                    });
+                if let (Some(value), Some((start, end))) = (value, endpoints) {
+                    if end > start {
+                        p.fill(
+                            Rect::new(
+                                inner.x,
+                                inner.y,
+                                inner.width * ((value - start) / (end - start)).clamp(0., 1.),
+                                inner.height,
+                            ),
+                            TextEditRange,
+                        );
+                    }
+                }
+            }
+        }
+        self.renderer.paint_gpu(&self.state, focused, false, p);
+        if let Some(palette) = &self.palette {
+            if let Some(value) = self.value().to_i32() {
+                if value >= 0 {
+                    if let Some(Some(color)) = palette.colors.get(value as usize) {
+                        p.list.rect(
+                            Rect::new(
+                                inner.x + 50.,
+                                inner.y,
+                                (inner.width - 50.).max(0.),
+                                inner.height,
+                            ),
+                            0.,
+                            rgba(color.to_u8_array()),
+                        );
+                    }
+                }
+            }
+        }
+        if let Some(info) = &self.info_text {
+            p.label(
+                Rect::new(inner.x, inner.y, (inner.width - 5.).max(0.), inner.height),
+                info,
+                11.5,
+                *p.theme.color(DefaultWidgetDarkBackground),
+                TheHorizontalAlign::Right,
+                TheVerticalAlign::Center,
+            );
+        }
+        p.list.ops.push(PaintOp::PopClip);
+        self.modified_since_last_return |= self.modified_since_last_tick;
+        self.modified_since_last_tick = false;
+        self.is_dirty = false;
+        Ok(())
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,
@@ -215,6 +332,54 @@ impl TheWidget for TheTextLineEdit {
 
         let mut redraw = false;
         match event {
+            #[cfg(feature = "render-wgpu")]
+            TheEvent::TextComposition(text, cursor) => {
+                #[cfg(feature = "render-wgpu")]
+                {
+                    self.renderer.composition = if text.is_empty() {
+                        None
+                    } else {
+                        Some((text.clone(), *cursor))
+                    };
+                    self.is_dirty = true;
+                    redraw = true;
+                }
+            }
+            TheEvent::TextInput(text) => {
+                let text: String = text.chars().filter(|c| !c.is_control()).collect();
+                if text.is_empty() {
+                    return false;
+                }
+                let previous = self.state.save();
+                if text.chars().count() == 1 {
+                    self.state.insert_char(text.chars().next().unwrap());
+                } else {
+                    self.state.insert_text(text);
+                }
+                #[cfg(feature = "render-wgpu")]
+                {
+                    self.renderer.composition = None;
+                }
+                self.modified_since_last_tick = true;
+                self.is_dirty = true;
+                redraw = true;
+                let mut undo = TheUndo::new(TheId::named("Input"));
+                undo.set_undo_data(previous);
+                undo.set_redo_data(self.state.save());
+                self.undo_stack.add(undo);
+                if self.continuous {
+                    if let Some(layout) = &self.layout_id {
+                        ctx.ui.send(TheEvent::RedirectWidgetValueToLayout(
+                            layout.clone(),
+                            self.id.clone(),
+                            self.value(),
+                        ));
+                    } else {
+                        ctx.ui.send_widget_value_changed(self.id(), self.value());
+                    }
+                }
+            }
+
             TheEvent::ModifierChanged(shift, ctrl, _alt, logo) => {
                 self.modifier_ctrl = *ctrl;
                 self.modifier_logo = *logo;

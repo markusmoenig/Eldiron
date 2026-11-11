@@ -25,6 +25,70 @@ pub struct TheTreeText {
 }
 
 impl TheWidget for TheTreeText {
+    fn measure(&mut self, _available: Vec2<i32>, ctx: &mut TheContext) {
+        #[cfg(feature = "render-wgpu")]
+        if ctx.ui.gpu_paint {
+            let layout = ctx.text.layout(
+                &self.text,
+                "Roboto",
+                self.font_size,
+                Some((_available.x - self.padding_left * 2).max(1) as f32),
+            );
+            self.limiter.set_max_height(
+                (layout.height().ceil() as i32 + self.padding_top + self.padding_bottom + 4)
+                    .max(22),
+            );
+            return;
+        }
+        self.calculate_size(ctx);
+    }
+
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::paint::{PaintOp, Rect};
+        use crate::theui::paint::bounds;
+        let r = bounds(&self.dim);
+        let role = if self.state == TheWidgetState::Selected {
+            if self.id.equals(&p.ui.focus) {
+                ListItemSelected
+            } else {
+                ListItemSelectedNoFocus
+            }
+        } else if self.id.equals(&p.ui.hover) {
+            ListItemHover
+        } else {
+            ListItemNormal
+        };
+        p.fill(
+            Rect::new(r.x, r.y + 1., r.width, (r.height - 2.).max(0.)),
+            role,
+        );
+        let text = p.text.layout(
+            &self.text,
+            "Roboto",
+            self.font_size,
+            Some((r.width - self.padding_left as f32 * 2.).max(1.)),
+        );
+        let y = if text.lines().len() == 1 {
+            ((r.height - text.height()) * 0.5).max(0.)
+        } else {
+            self.padding_top as f32
+        };
+        p.list.ops.push(PaintOp::PushClip(r));
+        for run in text.runs {
+            p.list.ops.push(PaintOp::GlyphRun {
+                run,
+                origin: [r.x + self.padding_left as f32, r.y + y],
+                color: p.color(ListItemText),
+            });
+        }
+        p.list.ops.push(PaintOp::PopClip);
+        self.is_dirty = false;
+        Ok(())
+    }
     fn new(id: TheId) -> Self
     where
         Self: Sized,
@@ -62,6 +126,21 @@ impl TheWidget for TheTreeText {
     }
 
     fn calculate_size(&mut self, _ctx: &mut TheContext) {
+        #[cfg(feature = "render-wgpu")]
+        if _ctx.ui.gpu_paint {
+            let layout = _ctx.text.layout(
+                &self.text,
+                "Roboto",
+                self.font_size,
+                Some((self.dim.width - self.padding_left * 2).max(1) as f32),
+            );
+            self.limiter.set_max_height(
+                (layout.height().ceil() as i32 + self.padding_top + self.padding_bottom + 4)
+                    .max(22),
+            );
+            return;
+        }
+
         // Re-wrap text during layout using current dimension width
         // The widget should already have a dimension from previous layout or from set_dim
         if self.dim.width > 0 {
@@ -142,7 +221,9 @@ impl TheWidget for TheTreeText {
 
         // If width changed and we have text, rewrap to get correct height
         if dim.width > 0 && !self.text.is_empty() && width_changed {
-            self.wrap_text();
+            if !_ctx.ui.gpu_paint {
+                self.wrap_text();
+            }
 
             // Override the height with our calculated height (don't use the one passed in)
             let new_height = self.limiter.get_max_height() + 2; // +2 for padding

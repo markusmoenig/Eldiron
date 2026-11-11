@@ -11,9 +11,21 @@ use swash::{
     zeno::{Format, Vector},
 };
 
+pub struct TextStyleSpan {
+    pub range: std::ops::Range<usize>,
+    pub color: crate::paint::Color,
+}
+pub struct TextLine {
+    pub range: std::ops::Range<usize>,
+    pub top: f32,
+    pub bottom: f32,
+    pub baseline: f32,
+    pub advance: f32,
+}
 pub struct TextLayout {
     pub runs: Vec<Arc<GlyphRun>>,
-    layout: Layout<()>,
+    layout: Layout<usize>,
+    pub styled_runs: Vec<(Arc<GlyphRun>, Option<crate::paint::Color>)>,
     pub source: Arc<str>,
 }
 impl TextLayout {
@@ -22,6 +34,38 @@ impl TextLayout {
     }
     pub fn height(&self) -> f32 {
         self.layout.height()
+    }
+    pub fn lines(&self) -> Vec<TextLine> {
+        self.layout
+            .lines()
+            .map(|line| {
+                let m = line.metrics();
+                TextLine {
+                    range: line.text_range(),
+                    top: m.block_min_coord,
+                    bottom: m.block_max_coord,
+                    baseline: m.baseline,
+                    advance: m.advance,
+                }
+            })
+            .collect()
+    }
+    pub fn selection(&self, start: usize, end: usize) -> Vec<Rect> {
+        let cursor = |index| {
+            parley::Cursor::from_byte_index(&self.layout, index, parley::Affinity::Downstream)
+        };
+        parley::Selection::new(cursor(start), cursor(end))
+            .geometry(&self.layout)
+            .into_iter()
+            .map(|(r, _)| {
+                Rect::new(
+                    r.x0 as f32,
+                    r.y0 as f32,
+                    (r.x1 - r.x0) as f32,
+                    (r.y1 - r.y0) as f32,
+                )
+            })
+            .collect()
     }
     pub fn hit_test(&self, point: Point) -> usize {
         parley::Cursor::from_point(&self.layout, point[0], point[1]).index()
@@ -39,7 +83,7 @@ impl TextLayout {
 }
 pub struct TextSystem {
     pub fonts: FontContext,
-    layouts: LayoutContext<()>,
+    layouts: LayoutContext<usize>,
     faces: HashMap<(u64, u32), Arc<FontFace>>,
 }
 impl Default for TextSystem {
@@ -64,13 +108,28 @@ impl TextSystem {
         size: f32,
         width: Option<f32>,
     ) -> TextLayout {
+        self.layout_styled(text, family, size, width, &[])
+    }
+    pub fn layout_styled(
+        &mut self,
+        text: &str,
+        family: &str,
+        size: f32,
+        width: Option<f32>,
+        styles: &[TextStyleSpan],
+    ) -> TextLayout {
         let mut builder = self.layouts.ranged_builder(&mut self.fonts, text, 1., true);
         builder.push_default(StyleProperty::FontSize(size));
         builder.push_default(parley::FontFamily::from(family));
-        let mut layout: Layout<()> = builder.build(text);
+        builder.push_default(StyleProperty::Brush(usize::MAX));
+        for (i, span) in styles.iter().enumerate() {
+            builder.push(StyleProperty::Brush(i), span.range.clone());
+        }
+        let mut layout: Layout<usize> = builder.build(text);
         layout.break_all_lines(width);
         layout.align(Alignment::Start, AlignmentOptions::default());
         let mut runs = Vec::new();
+        let mut styled_runs = Vec::new();
         for line in layout.lines() {
             for item in line.items() {
                 if let PositionedLayoutItem::GlyphRun(gr) = item {
@@ -95,17 +154,20 @@ impl TextSystem {
                             advance: g.advance,
                         })
                         .collect();
-                    runs.push(Arc::new(GlyphRun {
+                    let run = Arc::new(GlyphRun {
                         font: face,
                         size: r.font_size(),
                         variations: Arc::from(r.normalized_coords()),
                         glyphs: Arc::from(glyphs),
-                    }));
+                    });
+                    styled_runs.push((run.clone(), styles.get(gr.style().brush).map(|s| s.color)));
+                    runs.push(run);
                 }
             }
         }
         TextLayout {
             runs,
+            styled_runs,
             layout,
             source: Arc::from(text),
         }

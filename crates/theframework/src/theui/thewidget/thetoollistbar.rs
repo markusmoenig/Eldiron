@@ -11,6 +11,34 @@ pub struct TheToolListBar {
 }
 
 impl TheWidget for TheToolListBar {
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::paint::Rect;
+        use crate::theui::paint::bounds;
+        let r = bounds(&self.dim);
+        p.theme_fill(r, 0., ToolListBarChrome);
+        p.fill(
+            Rect::new(r.x, r.y, r.width, 1.),
+            DefaultWidgetDarkBackground,
+        );
+        p.fill(
+            Rect::new(r.x + r.width - 1., r.y, 1., r.height),
+            DefaultWidgetDarkBackground,
+        );
+        p.label(
+            r,
+            &self.text,
+            11.5,
+            *p.theme.color(SectionbarNormalTextColor),
+            TheHorizontalAlign::Center,
+            TheVerticalAlign::Center,
+        );
+        self.is_dirty = false;
+        Ok(())
+    }
     fn new(id: TheId) -> Self
     where
         Self: Sized,

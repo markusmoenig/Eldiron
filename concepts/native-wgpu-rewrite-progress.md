@@ -71,3 +71,36 @@ Next actions:
 - Extract shared local session orchestration and remaining CPU data dependencies without widening runtime/UI coupling.
 
 Outstanding: full Creator/client migration, isometric GPU-only sprite submission, runtime/session extraction, complete view/temporal state integration, IME and all locale/interaction parity, browser surface and Xcode wrapper cutover, release performance baselines. A real CAMetalLayer foundation test is not full Xcode application validation.
+
+## UI and host checkpoint (2026-11-11)
+
+The paint foundation now drives real TheFramework UI trees through an application-owned WGPU host. This remains an intermediate implementation checkpoint; Creator and client entry points have not switched, and the full rewrite Goal remains active.
+
+Implemented:
+
+- `platform::{GpuApplication,UiSession,GpuPresenter}` separates application/UI state from device/surface ownership. `platform::winit` creates and presents a native WGPU window directly, supports asynchronous browser startup, resize/density changes, suspension and replacement generations, and rebuild callbacks. There is no destination-pixel callback in this contract.
+- The same `GpuPresenter` accepts Rust surfaces created over a host-retained CAMetalLayer. The native test actually submitted and presented UI/text through this path without Winit.
+- Neutral physical-key, committed-text, preedit, pointer, relative-motion, scroll, focus and file-drop events; explicit consumption separate from redraw; focused-widget undo/clipboard routing. Layout records screen transforms for inverse input mapping, including captured drags and scrolled/embedded controls.
+- Canvas trees and converted scrolling/tree/stack/tab/split layouts emit ordered paint instead of composing raster caches. GPU layout retains dimensions without allocating pixel storage. A constraint-aware measurement hook lets wrapped tree text use actual shaping widths.
+- Standard buttons, bars, separators, menus, labels, checkboxes, sliders, tabs, list/tree rows, dropdowns/popups, scrollbars, image views and GPU-image render views have explicit paint methods. New paint/preparation methods preserve existing controllers, IDs and authoring/event semantics. Unsupported families return an error; there is no raster fallback behind the new interface.
+- Single/multiline editors share Parley layout for GPU glyph runs, selections, caret geometry and grapheme hit testing. Atomic committed text produces one undo entry; transient composition does not alter the document. Syntax foreground, matches/errors, line numbers, scrollbars and debugging backgrounds have GPU paint paths. Drag labels now use paint and Swash text rather than an intermediate text bitmap.
+- File pickers are neutral queued requests. The desktop host adapter uses optional desktop dialogs; the shared UI no longer requires unsupported desktop dialog/clipboard dependencies on iOS. Foreign hosts can service requests and report completion.
+- Added explicit device-loss tracking to the shared GPU context; application/UI state is retained outside the presenter.
+
+Verification passed:
+
+1. 88 framework library tests, GPU paint integration, and four actual-GPU UI integration tests (canvas storage/cache reuse/resize; Unicode/IME/atomic undo; inverse scrolled-form hit testing; tree embedded editing and dropdown overlay selection). Log: `/private/tmp/eldiron-ui-checkpoint-tests.log`.
+2. Actual UI presentation on a foreign CAMetalLayer, plus zero-size deferral, with no CPU canvas or readback: `/private/tmp/eldiron-apple-presenter-test.log`.
+3. Native Winit example (`native_gpu_ui --smoke`) presents three real UI frames and exits; no canvas pixels. The new host dependency graph contains neither Pixels nor Softbuffer.
+4. Browser-target `platform-winit` compile and iOS-simulator `ui,render-wgpu` compile passed. Logs: `/private/tmp/eldiron-ui-checkpoint-web.log`, `/private/tmp/eldiron-ui-checkpoint-ios.log`.
+5. Creator/classic/WGPU/terminal client compile checks passed; existing entry points remain usable during conversion.
+6. Captures `native-wgpu-evidence/ui-foundation.png` and `native-wgpu-evidence/editors-foundation.png` were visually inspected at 150% density.
+
+The first iOS UI compile exposed the desktop-dialog dependency; moving requests to the host boundary resolved it. The embedded-editor fixture initially clicked past the first glyph while expecting the start position; its pointer was corrected to the visible left edge and all interaction assertions passed.
+
+Next work (continue autonomously):
+
+- Remaining widget families: RGBA/tile/palette views, color/direction pickers, icon grid/row, switch/time controls, rich text/Markdown, and legacy node canvas. The unreferenced legacy code-layout source is not part of the active UI module tree.
+- Complete UI parity, including rich styles, IME candidate positioning/composition layout, forward-delete/page/function-key mapping, platform requests/cursor locking, modal and drag coverage, resource eviction, batching and idle scheduling. Existing editor controllers are retained, not declared fully rearchitected or fully parity-tested.
+- Migrate Creator/controllers/tool HUDs and the graphical clients to the new contract; extract runtime/session and presentation crates; finish GPU-only scene/isometric and preview paths.
+- Browser runtime execution and complete Xcode wrapper/FFI/document integration remain outstanding. Compile checks and detached CAMetalLayer presentation are not full platform acceptance. Device-loss recovery callbacks need application-level fault-injection verification.

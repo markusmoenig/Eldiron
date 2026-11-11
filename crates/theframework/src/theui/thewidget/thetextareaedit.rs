@@ -94,6 +94,267 @@ pub struct TheTextAreaEdit {
 }
 
 impl TheWidget for TheTextAreaEdit {
+    #[cfg(feature = "render-wgpu")]
+    fn prepare_paint(&mut self, ctx: &mut TheContext) {
+        use crate::paint::Rect;
+        let border = 1.;
+        let padding = self.renderer.padding;
+        let mut r = Rect::new(
+            self.dim.x as f32 + border,
+            self.dim.y as f32 + border,
+            (self.dim.width as f32 - 2.).max(0.),
+            (self.dim.height as f32 - 2.).max(0.),
+        );
+        if let StatusbarType::Widget(dim) = &mut self.statusbar_type {
+            let h = (self.renderer.font_size * 1.5).round().min(r.height);
+            *dim = TheDim::new(
+                r.x as i32,
+                (r.y + r.height - h) as i32,
+                r.width as i32,
+                h as i32,
+            );
+            r.height -= h;
+        }
+        if let Some(dim) = &mut self.ln_area_dim {
+            let digits = self.state.row_count().to_string().len();
+            let width = ctx
+                .text
+                .layout(
+                    &"9".repeat(digits),
+                    "Source Code Pro",
+                    self.renderer.font_size,
+                    None,
+                )
+                .width()
+                .ceil()
+                + self.renderer.font_size;
+            *dim = TheDim::new(r.x as i32, r.y as i32, width as i32, r.height as i32);
+            r.x += width;
+            r.width = (r.width - width).max(0.);
+        }
+        let content = Rect::new(
+            r.x + padding.0 as f32,
+            r.y + padding.1 as f32,
+            (r.width - (padding.0 + padding.2) as f32).max(0.),
+            (r.height - (padding.1 + padding.3) as f32).max(0.),
+        );
+        let wrap = self.readonly && self.word_wrap;
+        let width = if wrap {
+            Some((content.width - self.scrollbar_size as f32).max(1.))
+        } else {
+            None
+        };
+        let changed = self.modified_since_last_tick
+            || !self.renderer.gpu_ready()
+            || self.renderer.max_width != width;
+        self.renderer.max_width = width;
+        if changed {
+            self.renderer.prepare_gpu(
+                &self.state.to_text(),
+                self.highlight_source.as_deref(),
+                "Source Code Pro",
+                &mut ctx.text,
+            );
+        }
+        let bar = self.scrollbar_size as f32;
+        let w = self.renderer.actual_size.x as f32;
+        let h = self.renderer.actual_size.y as f32;
+        let (mut horizontal, mut vertical) = (w > content.width, h > content.height);
+        if horizontal || vertical {
+            horizontal = !wrap && w > (content.width - bar).max(0.);
+            vertical = h > (content.height - bar).max(0.);
+        }
+        let viewport = Rect::new(
+            content.x,
+            content.y,
+            (content.width - if vertical { bar } else { 0. }).max(0.),
+            (content.height - if horizontal { bar } else { 0. }).max(0.),
+        );
+        self.renderer.gpu_viewport(
+            viewport,
+            [border + padding.0 as f32, border + padding.1 as f32],
+        );
+        if changed {
+            if let Some(row) = self.pending_scroll_row.take() {
+                if self.pending_scroll_centered {
+                    self.renderer.scroll_to_row_centered(row);
+                } else {
+                    self.renderer.scroll_to_row_with_margin(row, 3);
+                }
+                self.pending_scroll_centered = false;
+            } else if self.auto_scroll_to_cursor {
+                self.renderer
+                    .scroll_to_cursor(self.state.find_cursor_index(), self.state.cursor.row);
+            }
+        }
+        if horizontal {
+            self.hscrollbar.set_dim(
+                TheDim::new(
+                    r.x as i32,
+                    (r.y + r.height - bar) as i32,
+                    (r.width - if vertical { bar } else { 0. }).max(0.) as i32,
+                    bar as i32,
+                ),
+                ctx,
+            );
+        }
+        if vertical {
+            self.vscrollbar.set_dim(
+                TheDim::new(
+                    (r.x + r.width - bar) as i32,
+                    r.y as i32,
+                    bar as i32,
+                    (r.height - if horizontal { bar } else { 0. }).max(0.) as i32,
+                ),
+                ctx,
+            );
+        }
+        if let Some(scroll) = self.hscrollbar.as_horizontal_scrollbar() {
+            scroll.set_total_width(self.renderer.actual_size.x as i32 + padding.0 + padding.2);
+            scroll.set_scroll_offset(self.renderer.scroll_offset.x as i32);
+        }
+        if let Some(scroll) = self.vscrollbar.as_vertical_scrollbar() {
+            scroll.set_total_height(self.renderer.actual_size.y as i32 + padding.1 + padding.3);
+            scroll.set_scroll_offset(self.renderer.scroll_offset.y as i32);
+        }
+    }
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::paint::{PaintOp, Rect};
+        use crate::theui::paint::{bounds, rgba};
+        let r = bounds(&self.dim);
+        let focused = self.id.equals(&p.ui.focus);
+        p.list.ops.push(PaintOp::PushClip(r));
+        let inner = p.text_input(r, focused, self.is_disabled, self.embedded, true, true);
+        let bg = *p.theme.color(TextEditBackground);
+        let light = bg[..3].iter().map(|v| *v as u16).sum::<u16>() > 480;
+        if self.last_light_ui != Some(light) {
+            if let Some(h) = self.renderer.highlighter.as_mut() {
+                h.set_light_ui(light);
+                self.renderer.prepare_gpu(
+                    &self.state.to_text(),
+                    self.highlight_source.as_deref(),
+                    "Source Code Pro",
+                    p.text,
+                );
+            }
+            self.last_light_ui = Some(light);
+        }
+        if let Some(bg) = self
+            .renderer
+            .highlighter
+            .as_ref()
+            .and_then(|h| h.background())
+        {
+            p.list.rect(inner, 0., rgba(bg.to_u8_array()));
+        }
+        self.renderer
+            .paint_gpu(&self.state, focused, self.readonly, p);
+        if let StatusbarType::Widget(dim) = &self.statusbar_type {
+            let r = bounds(dim);
+            p.fill(r, TextEditBackground);
+            p.fill(Rect::new(r.x, r.y, r.width, 1.), TextEditBorder);
+            p.label(
+                Rect::new(
+                    r.x,
+                    r.y,
+                    (r.width - self.renderer.font_size).max(0.),
+                    r.height,
+                ),
+                &self.statusbar_text(),
+                self.renderer.font_size * 0.8,
+                *p.theme.color(TextEditTextColor),
+                TheHorizontalAlign::Right,
+                TheVerticalAlign::Center,
+            );
+        }
+        if let Some(dim) = &self.ln_area_dim {
+            let r = bounds(dim);
+            p.fill(r, TextEditBackground);
+            p.fill(
+                Rect::new(r.x + r.width - 1., r.y, 1., r.height),
+                TextEditBorder,
+            );
+            p.list.ops.push(PaintOp::PushClip(r));
+            if let Some((first, last)) = self.renderer.visible_rows() {
+                for i in first..=last {
+                    let role = if self.debug_line == Some(i) || self.renderer.has_debug_line(i) {
+                        TextEditLineNumberDebugColor
+                    } else if self.state.cursor.row == i {
+                        TextEditLineNumberHighlightColor
+                    } else {
+                        TextEditLineNumberColor
+                    };
+                    let layout = p.text.layout(
+                        &(i + 1).to_string(),
+                        "Source Code Pro",
+                        self.renderer.font_size,
+                        None,
+                    );
+                    let baseline = self.renderer.row_baseline(i) as f32;
+                    let textbaseline = layout
+                        .lines()
+                        .first()
+                        .map(|l| l.baseline)
+                        .unwrap_or(self.renderer.font_size);
+                    let y =
+                        self.renderer.dim().y as f32 + self.renderer.padding.1 as f32 + baseline
+                            - self.renderer.scroll_offset.y as f32
+                            - textbaseline;
+                    for run in &layout.runs {
+                        p.list.ops.push(PaintOp::GlyphRun {
+                            run: run.clone(),
+                            origin: [
+                                r.x + r.width - self.renderer.font_size * 0.5 - layout.width(),
+                                y,
+                            ],
+                            color: p.color(role),
+                        });
+                    }
+                }
+            }
+            p.list.ops.push(PaintOp::PopClip);
+        }
+        if self.renderer.is_horizontal_overflow() {
+            let r = bounds(self.hscrollbar.dim());
+            let s = self.hscrollbar.as_horizontal_scrollbar().unwrap();
+            let width = s.scrollbar_thumb_width().clamp(0, r.width as i32) as f32;
+            let offset = s
+                .scrollbar_position()
+                .round()
+                .clamp(0., (r.width - width).max(0.));
+            p.scrollbar(
+                r,
+                Rect::new(r.x + offset, r.y + 2., width, (r.height - 4.).max(0.)),
+                self.is_hscrollbar_hovered,
+                self.is_hscrollbar_clicked,
+            );
+        }
+        if self.renderer.is_vertical_overflow() {
+            let r = bounds(self.vscrollbar.dim());
+            let s = self.vscrollbar.as_vertical_scrollbar().unwrap();
+            let height = s.scrollbar_thumb_height().clamp(0, r.height as i32) as f32;
+            let offset = s
+                .scrollbar_position()
+                .round()
+                .clamp(0., (r.height - height).max(0.));
+            p.scrollbar(
+                r,
+                Rect::new(r.x + 2., r.y + offset, (r.width - 4.).max(0.), height),
+                self.is_vscrollbar_hovered,
+                self.is_vscrollbar_clicked,
+            );
+        }
+        p.list.ops.push(PaintOp::PopClip);
+        self.modified_since_last_return |= self.modified_since_last_tick;
+        self.modified_since_last_tick = false;
+        self.is_dirty = false;
+        Ok(())
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,
@@ -245,6 +506,50 @@ impl TheWidget for TheTextAreaEdit {
         let mut redraw = false;
         let mut update_status = false;
         match event {
+            #[cfg(feature = "render-wgpu")]
+            TheEvent::TextComposition(text, cursor) => {
+                #[cfg(feature = "render-wgpu")]
+                {
+                    self.renderer.composition = if text.is_empty() {
+                        None
+                    } else {
+                        Some((text.clone(), *cursor))
+                    };
+                    self.is_dirty = true;
+                    redraw = true;
+                }
+            }
+            TheEvent::TextInput(text) => {
+                if self.readonly {
+                    return false;
+                }
+                let text = text.replace("\r\n", "\n").replace('\r', "\n");
+                if text.is_empty() {
+                    return false;
+                }
+                let previous = self.state.save();
+                if text.chars().count() == 1 {
+                    self.state.insert_char(text.chars().next().unwrap());
+                } else {
+                    self.state.insert_text(text);
+                }
+                #[cfg(feature = "render-wgpu")]
+                {
+                    self.renderer.composition = None;
+                }
+                self.modified_since_last_tick = true;
+                self.is_dirty = true;
+                redraw = true;
+                let mut undo = TheUndo::new(TheId::named("Input"));
+                undo.set_undo_data(previous);
+                undo.set_redo_data(self.state.save());
+                self.undo_stack.add(undo);
+                update_status = true;
+                if self.continuous {
+                    self.emit_value_changed(ctx);
+                }
+            }
+
             TheEvent::Undo => {
                 if self.undo_stack.has_undo() {
                     let (_id, state) = self.undo_stack.undo();
@@ -331,7 +636,12 @@ impl TheWidget for TheTextAreaEdit {
             }
             TheEvent::MouseDown(coord) => {
                 if !self.state.is_empty() {
-                    let global_coord = coord + Vec2::new(self.dim.buffer_x, self.dim.buffer_y);
+                    let global_coord = coord
+                        + if ctx.ui.gpu_paint {
+                            Vec2::new(self.dim.x, self.dim.y)
+                        } else {
+                            Vec2::new(self.dim.buffer_x, self.dim.buffer_y)
+                        };
                     if self.renderer.is_horizontal_overflow()
                         && self.hscrollbar.dim().contains(global_coord)
                     {
@@ -398,13 +708,17 @@ impl TheWidget for TheTextAreaEdit {
 
                 if !self.state.is_empty() {
                     if self.is_hscrollbar_clicked {
-                        redraw =
-                            self.hscrollbar.on_event(
-                                &TheEvent::MouseDragged(self.hscrollbar.dim().to_local(
-                                    coord + Vec2::new(self.dim.buffer_x, self.dim.buffer_y),
-                                )),
-                                ctx,
-                            );
+                        redraw = self.hscrollbar.on_event(
+                            &TheEvent::MouseDragged(self.hscrollbar.dim().to_local(
+                                coord
+                                    + if ctx.ui.gpu_paint {
+                                        Vec2::new(self.dim.x, self.dim.y)
+                                    } else {
+                                        Vec2::new(self.dim.buffer_x, self.dim.buffer_y)
+                                    },
+                            )),
+                            ctx,
+                        );
                         if let Some(scrollbar) = self.hscrollbar.as_horizontal_scrollbar() {
                             redraw = self.renderer.scroll(
                                 &Vec2::new(
@@ -416,13 +730,17 @@ impl TheWidget for TheTextAreaEdit {
                             ) || redraw;
                         }
                     } else if self.is_vscrollbar_clicked {
-                        redraw =
-                            self.vscrollbar.on_event(
-                                &TheEvent::MouseDragged(self.vscrollbar.dim().to_local(
-                                    coord + Vec2::new(self.dim.buffer_x, self.dim.buffer_y),
-                                )),
-                                ctx,
-                            );
+                        redraw = self.vscrollbar.on_event(
+                            &TheEvent::MouseDragged(self.vscrollbar.dim().to_local(
+                                coord
+                                    + if ctx.ui.gpu_paint {
+                                        Vec2::new(self.dim.x, self.dim.y)
+                                    } else {
+                                        Vec2::new(self.dim.buffer_x, self.dim.buffer_y)
+                                    },
+                            )),
+                            ctx,
+                        );
                         if let Some(scrollbar) = self.vscrollbar.as_vertical_scrollbar() {
                             redraw = self.renderer.scroll(
                                 &Vec2::new(
@@ -486,7 +804,12 @@ impl TheWidget for TheTextAreaEdit {
                 }
             }
             TheEvent::MouseUp(coord) => {
-                let global_coord = coord + Vec2::new(self.dim.buffer_x, self.dim.buffer_y);
+                let global_coord = coord
+                    + if ctx.ui.gpu_paint {
+                        Vec2::new(self.dim.x, self.dim.y)
+                    } else {
+                        Vec2::new(self.dim.buffer_x, self.dim.buffer_y)
+                    };
                 if self.is_hscrollbar_clicked {
                     self.hscrollbar.on_event(
                         &TheEvent::MouseUp(self.hscrollbar.dim().to_local(global_coord)),
@@ -527,8 +850,12 @@ impl TheWidget for TheTextAreaEdit {
                 self.drag_start_index = 0;
             }
             TheEvent::MouseWheel(delta) => {
-                let global_coord =
-                    self.hover_coord + Vec2::new(self.dim.buffer_x, self.dim.buffer_y);
+                let global_coord = self.hover_coord
+                    + if ctx.ui.gpu_paint {
+                        Vec2::new(self.dim.x, self.dim.y)
+                    } else {
+                        Vec2::new(self.dim.buffer_x, self.dim.buffer_y)
+                    };
                 let scrolled = if self.hscrollbar.dim().contains(global_coord) {
                     let delta = if delta.x.abs() > delta.y.abs() {
                         delta.x
@@ -1218,7 +1545,12 @@ impl TheWidget for TheTextAreaEdit {
             TheEvent::Hover(coord) => {
                 // The hovered widget is always current widget not scrollbars
                 // We should manually draw hovered style to scrollbar hovered
-                let global_coord = coord + Vec2::new(self.dim.buffer_x, self.dim.buffer_y);
+                let global_coord = coord
+                    + if ctx.ui.gpu_paint {
+                        Vec2::new(self.dim.x, self.dim.y)
+                    } else {
+                        Vec2::new(self.dim.buffer_x, self.dim.buffer_y)
+                    };
                 if self.renderer.is_horizontal_overflow() {
                     self.hscrollbar.on_event(
                         &TheEvent::Hover(self.hscrollbar.dim().to_local(global_coord)),
@@ -1526,7 +1858,7 @@ impl TheWidget for TheTextAreaEdit {
 
             let font_size = self.renderer.font_size * 0.8;
             let text = self.statusbar_text();
-            let text_size = ctx.draw.get_text_size(
+            let text_size = ctx.measure_text(
                 &text,
                 &TheFontSettings {
                     size: font_size,

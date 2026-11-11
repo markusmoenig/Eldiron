@@ -15,6 +15,55 @@ pub struct TheCheckButton {
 }
 
 impl TheWidget for TheCheckButton {
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::paint::Rect;
+        use crate::theui::paint::bounds;
+        let r = bounds(&self.dim);
+        use crate::paint::{LineCap, LineJoin, PaintOp, Path, PathElement, Stroke};
+        use std::sync::Arc;
+        let selected = self.state == TheWidgetState::Selected;
+        let highlighted =
+            !self.embedded && (self.id.equals(&p.ui.hover) || self.id.equals(&p.ui.focus));
+        let size = r.width.min(r.height).min(14.).max(0.);
+        let b = Rect::new(r.x, r.y + (r.height - size) * 0.5, size, size);
+        let role = if selected {
+            CheckboxSelected
+        } else if highlighted {
+            CheckboxHover
+        } else {
+            CheckboxNormal
+        };
+        let border = if highlighted || selected {
+            SelectedTextEditBorder1
+        } else {
+            TextEditBorder
+        };
+        p.button(b, 2.5, role, *p.theme.color(border));
+        if selected && size >= 8. {
+            let path = Path {
+                elements: vec![
+                    PathElement::Move([b.x + 3., b.y + 7.]),
+                    PathElement::Line([b.x + 5.5, b.y + 9.5]),
+                    PathElement::Line([b.x + 11., b.y + 4.]),
+                ],
+            };
+            p.list.ops.push(PaintOp::Stroke {
+                path: Arc::new(path),
+                stroke: Stroke {
+                    width: 1.8,
+                    cap: LineCap::Round,
+                    join: LineJoin::Round,
+                    brush: p.theme_brush(b, CheckboxMark),
+                },
+            });
+        }
+        self.is_dirty = false;
+        Ok(())
+    }
     fn new(id: TheId) -> Self
     where
         Self: Sized,

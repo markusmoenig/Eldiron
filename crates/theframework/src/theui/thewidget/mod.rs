@@ -155,6 +155,32 @@ pub enum TheWidgetState {
 /// TheWidget trait defines the asbtract functionality of a widget.
 #[allow(unused)]
 pub trait TheWidget: Send {
+    #[cfg(feature = "render-wgpu")]
+    fn prepare_paint(&mut self, _ctx: &mut TheContext) {}
+
+    /// Backend-neutral paint. Legacy widgets remain explicitly unsupported until
+    /// their family is migrated; no framebuffer is synthesized here.
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        _painter: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        Err(crate::theui::paint::UiPaintError(format!(
+            "widget needs GPU paint conversion: {}",
+            self.id().name
+        )))
+    }
+    #[cfg(feature = "render-wgpu")]
+    fn paint_overlay(
+        &mut self,
+        _painter: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        Err(crate::theui::paint::UiPaintError(format!(
+            "widget overlay needs GPU paint conversion: {}",
+            self.id().name
+        )))
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized;
@@ -162,6 +188,12 @@ pub trait TheWidget: Send {
     fn id(&self) -> &TheId;
 
     /// Called during layouts to give Widgets a chance to dynamically change size (for example for when a widgets text changes). The function is supposed to adjust its limiter.
+    /// Measure using actual layout constraints. Existing fixed-size widgets keep
+    /// their calculation policy; wrapped content can share its shaped layout.
+    fn measure(&mut self, _available: Vec2<i32>, ctx: &mut TheContext) {
+        self.calculate_size(ctx);
+    }
+
     fn calculate_size(&mut self, ctx: &mut TheContext) {}
 
     /// Returns a reference to the dimensions of the widget.

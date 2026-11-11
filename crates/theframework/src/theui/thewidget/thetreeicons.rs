@@ -30,6 +30,85 @@ pub struct TheTreeIcons {
 }
 
 impl TheWidget for TheTreeIcons {
+    #[cfg(feature = "render-wgpu")]
+    fn prepare_paint(&mut self, _ctx: &mut TheContext) {
+        let columns = self.effective_icons_per_row().max(1) as usize;
+        let step = self.icon_size + self.spacing;
+        self.rectangles = (0..self.icons.len())
+            .map(|i| {
+                TheDim::new(
+                    9 + (i % columns) as i32 * step,
+                    5 + (i / columns) as i32 * step,
+                    self.icon_size,
+                    self.icon_size,
+                )
+            })
+            .collect();
+    }
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::paint::{PaintOp, Rect, Sampling};
+        use crate::theui::paint::bounds;
+        let r = bounds(&self.dim);
+        let role = if self.state == TheWidgetState::Selected {
+            if self.id.equals(&p.ui.focus) {
+                ListItemSelected
+            } else {
+                ListItemSelectedNoFocus
+            }
+        } else if self.id.equals(&p.ui.hover) {
+            ListItemHover
+        } else {
+            ListItemNormal
+        };
+        p.fill(
+            Rect::new(r.x, r.y + 1., r.width, (r.height - 2.).max(0.)),
+            role,
+        );
+        p.list.ops.push(PaintOp::PushClip(r));
+        for (i, icon) in self.icons.iter().enumerate() {
+            let d = self.rectangles[i];
+            let item = Rect::new(
+                r.x + d.x as f32,
+                r.y + d.y as f32,
+                d.width as f32,
+                d.height as f32,
+            );
+            if let Some(icon) = icon {
+                p.image(
+                    &format!("tree-icon:{}:{i}", self.id.uuid),
+                    icon,
+                    item.inset(2.),
+                    self.is_dirty,
+                    Sampling::Linear,
+                )?;
+            }
+            p.outline(item.inset(1.), BLACK, 1.);
+            if Some(i) == self.selected_index {
+                p.outline(item, WHITE, 1.);
+            } else if Some(i) == self.hovered_index {
+                let mut color = *p.theme.color(ListItemHover);
+                color[3] = 128;
+                p.outline(item, color, 1.);
+            }
+            if let Some(Some(text)) = self.texts.get(i) {
+                p.label(
+                    item,
+                    text,
+                    9.,
+                    *p.theme.color(ListItemText),
+                    TheHorizontalAlign::Center,
+                    TheVerticalAlign::Center,
+                );
+            }
+        }
+        p.list.ops.push(PaintOp::PopClip);
+        self.is_dirty = false;
+        Ok(())
+    }
     fn new(id: TheId) -> Self
     where
         Self: Sized,
@@ -82,7 +161,15 @@ impl TheWidget for TheTreeIcons {
             TheEvent::Drop(coord, drop) => {
                 if drop.id.name == "Tile" {
                     // Adjust coordinates for scroll offset from layout
-                    let adjusted_coord = Vec2::new(coord.x, coord.y + self.scroll_offset);
+                    let adjusted_coord = Vec2::new(
+                        coord.x,
+                        coord.y
+                            + if ctx.ui.gpu_paint {
+                                0
+                            } else {
+                                self.scroll_offset
+                            },
+                    );
                     // Find which icon was dropped on
                     for (i, rect) in self.rectangles.iter().enumerate() {
                         if rect.contains(adjusted_coord) && i < self.icons.len() {
@@ -109,7 +196,15 @@ impl TheWidget for TheTreeIcons {
             }
             TheEvent::MouseDown(coord) => {
                 // Adjust coordinates for scroll offset from layout
-                let adjusted_coord = Vec2::new(coord.x, coord.y + self.scroll_offset);
+                let adjusted_coord = Vec2::new(
+                    coord.x,
+                    coord.y
+                        + if ctx.ui.gpu_paint {
+                            0
+                        } else {
+                            self.scroll_offset
+                        },
+                );
 
                 // Check if clicking on an icon
                 let mut clicked_icon = false;
@@ -141,7 +236,15 @@ impl TheWidget for TheTreeIcons {
             }
             TheEvent::Hover(coord) => {
                 // Adjust coordinates for scroll offset from layout
-                let adjusted_coord = Vec2::new(coord.x, coord.y + self.scroll_offset);
+                let adjusted_coord = Vec2::new(
+                    coord.x,
+                    coord.y
+                        + if ctx.ui.gpu_paint {
+                            0
+                        } else {
+                            self.scroll_offset
+                        },
+                );
 
                 let mut new_hover = None;
                 for (i, rect) in self.rectangles.iter().enumerate() {

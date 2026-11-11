@@ -21,6 +21,44 @@ pub struct TheIconView {
 }
 
 impl TheWidget for TheIconView {
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::paint::Sampling;
+        use crate::theui::paint::bounds;
+        let r = bounds(&self.dim);
+        if let Some(c) = self.background_color {
+            p.list.rect(r, 0., crate::theui::paint::rgba(c));
+        }
+        if let Some(image) = self.tile.buffer.get(self.index) {
+            p.image(
+                &format!("iconview:{}:{}", self.id.uuid, self.index),
+                image,
+                r,
+                self.is_dirty,
+                Sampling::Nearest,
+            )?;
+        }
+        if let Some(value) = &self.text {
+            p.label(
+                r,
+                value,
+                self.text_size,
+                self.text_color
+                    .unwrap_or(*p.theme.color(SectionbarNormalTextColor)),
+                TheHorizontalAlign::Center,
+                TheVerticalAlign::Center,
+            );
+        }
+        if let Some(c) = self.border_color {
+            p.outline(r, c, 1.);
+        }
+        self.is_dirty = false;
+        Ok(())
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,

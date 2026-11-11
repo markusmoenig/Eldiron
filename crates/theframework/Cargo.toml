@@ -36,7 +36,6 @@ rust-embed = { version = "8", default-features = true, features = [
 ] }
 png = "0.17"
 rustc-hash = "2.1.1"
-rfd = { version = "0.17.1", optional = true }
 futures = { version = "0.3" }
 serde = { version = "1.0", features = ["derive"], optional = false }
 serde_json = { version = "1.0", optional = false }
@@ -65,8 +64,11 @@ features = [
     "js",
 ]
 
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+[target.'cfg(any(target_os="macos",target_os="windows",target_os="linux"))'.dependencies]
+rfd = { version = "0.17.1", optional = true }
 arboard = "3.4.1"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 syntect = "5.2.0"
 log4rs = { version = "1.3.0", features = [
     "compound_policy",
@@ -88,19 +90,28 @@ syntect = { version = "5.2.0", default-features = false, features = [
 ] }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
-web-sys = { version = "0.3", features = ["Gpu", "GpuTextureFormat", "Navigator", "Performance", "Window"] }
+web-sys = { version = "0.3", features = ["Gpu", "GpuTextureFormat", "Navigator", "Performance", "Window", "Document", "HtmlElement", "HtmlCanvasElement", "Node"] }
 
 [features]
+platform-winit = ["desktop-dialogs", "dep:winit", "ui", "render-wgpu"]
 paint = []
 text = ["paint", "dep:parley", "dep:swash"]
 render-wgpu = ["text", "dep:renderkit", "dep:lyon_tessellation", "dep:bytemuck"]
 
-ui = ["rfd", "rayon", "zeno"]
-winit_app = ["winit", "winit_app_pixels"]
+desktop-dialogs = ["dep:rfd"]
+ui = [ "rayon", "zeno"]
+winit_app = ["desktop-dialogs", "dep:winit", "winit_app_pixels"]
 winit_app_pixels = ["pixels"]
-winit_app_softbuffer = ["winit", "softbuffer"]
+winit_app_softbuffer = ["desktop-dialogs", "dep:winit", "softbuffer"]
 log = ["log4rs"]
 i18n = ["font-kit"]
 
 default = ["winit_app"]
 rayon = []
+
+[[example]]
+name = "native_gpu_ui"
+required-features = ["platform-winit"]
+
+[target.'cfg(target_os = "macos")'.dev-dependencies]
+objc2-quartz-core = { version = "0.3.2", default-features = false, features = ["std", "CALayer", "CAMetalLayer", "objc2-metal", "objc2-core-foundation"] }

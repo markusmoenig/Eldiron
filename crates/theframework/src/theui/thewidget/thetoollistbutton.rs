@@ -15,6 +15,70 @@ pub struct TheToolListButton {
 }
 
 impl TheWidget for TheToolListButton {
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::paint::Rect;
+        use crate::theui::paint::bounds;
+        let r = bounds(&self.dim);
+        use crate::paint::PaintOp;
+        use crate::theui::paint::rgba;
+        let hover =
+            !self.is_disabled && self.state == TheWidgetState::None && self.id.equals(&p.ui.hover);
+        let selected = self.state == TheWidgetState::Selected;
+        let (role, border) = if self.is_disabled {
+            (TrayButtonDisabled, ToolListButtonNormalBorder)
+        } else if selected {
+            (ControlPressed, ToolListButtonSelectedBorder)
+        } else if hover {
+            (ControlHover, ToolListButtonHoverBorder)
+        } else {
+            (ControlNormal, ToolListButtonNormalBorder)
+        };
+        let radius = p.theme.metric(ControlCornerRadius);
+        let b = if self.is_disabled {
+            *p.theme.color_disabled(border)
+        } else {
+            *p.theme.color(border)
+        };
+        if let Some(color) = self.custom_color.as_ref().filter(|_| !self.is_disabled) {
+            let factor = if selected {
+                1.65
+            } else if hover {
+                1.35
+            } else {
+                1.
+            };
+            let mut color = color.to_u8_array();
+            for c in &mut color[..3] {
+                *c = (*c as f32 * factor).min(255.) as u8;
+            }
+            p.list.rect(r, radius, rgba(b));
+            p.list.rect(r.inset(1.), (radius - 1.).max(0.), rgba(color));
+        } else {
+            p.button(r, radius, role, b);
+        }
+        if let Some(icon) = p.ui.icon(&self.icon_name) {
+            let w = icon.dim().width as f32;
+            let h = icon.dim().height as f32;
+            if w <= r.width && h <= r.height {
+                if self.is_disabled {
+                    p.list.ops.push(PaintOp::PushOpacity(0.28));
+                }
+                p.icon(
+                    &self.icon_name,
+                    Rect::new(r.x + (r.width - w) * 0.5, r.y + (r.height - h) * 0.5, w, h),
+                )?;
+                if self.is_disabled {
+                    p.list.ops.push(PaintOp::PopOpacity);
+                }
+            }
+        }
+        self.is_dirty = false;
+        Ok(())
+    }
     fn new(id: TheId) -> Self
     where
         Self: Sized,

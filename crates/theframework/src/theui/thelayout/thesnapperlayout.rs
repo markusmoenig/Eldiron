@@ -17,6 +17,34 @@ pub struct TheSnapperLayout {
 }
 
 impl TheLayout for TheSnapperLayout {
+    #[cfg(feature = "render-wgpu")]
+    fn prepare_paint(&mut self, ctx: &mut TheContext) {
+        self.set_dim(self.dim, ctx);
+        for bar in &mut self.bars {
+            bar.prepare_paint(ctx);
+        }
+        for layout in &mut self.layouts {
+            layout.prepare_paint(ctx);
+        }
+    }
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        p.fill(
+            crate::theui::paint::bounds(&self.dim),
+            DefaultWidgetBackground,
+        );
+        for (bar, layout) in self.bars.iter_mut().zip(&mut self.layouts) {
+            bar.paint(p)?;
+            if bar.is_open() {
+                layout.paint(p)?;
+            }
+        }
+        Ok(())
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,

@@ -14,6 +14,28 @@ pub struct TheStackLayout {
 }
 
 impl TheLayout for TheStackLayout {
+    #[cfg(feature = "render-wgpu")]
+    fn prepare_paint(&mut self, ctx: &mut TheContext) {
+        self.set_dim(self.dim, ctx);
+        for c in &mut self.canvas {
+            c.prepare_paint(ctx);
+        }
+        for w in &mut self.widgets {
+            w.prepare_paint(ctx);
+        }
+    }
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        if let Some(c) = self.canvas.get_mut(self.index) {
+            c.paint(p)?;
+        }
+        self.is_dirty = false;
+        Ok(())
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,

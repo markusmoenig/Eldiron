@@ -11,6 +11,32 @@ pub struct TheStatusbar {
 }
 
 impl TheWidget for TheStatusbar {
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::paint::Rect;
+        use crate::theui::paint::bounds;
+        let r = bounds(&self.dim);
+        p.theme_fill(r, 0., StatusbarBackground);
+        p.label(
+            Rect::new(
+                r.x + 20.,
+                r.y + 1.,
+                (r.width - 20.).max(0.),
+                (r.height - 1.).max(0.),
+            ),
+            &self.text,
+            13.5,
+            *p.theme.color(SectionbarNormalTextColor),
+            TheHorizontalAlign::Left,
+            TheVerticalAlign::Center,
+        );
+        self.is_dirty = false;
+        Ok(())
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,

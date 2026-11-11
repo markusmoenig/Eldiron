@@ -8,6 +8,15 @@ pub struct TheSpacer {
 }
 
 impl TheWidget for TheSpacer {
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        let _ = p;
+        Ok(())
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,

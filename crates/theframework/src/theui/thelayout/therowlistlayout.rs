@@ -22,6 +22,71 @@ pub struct TheRowListLayout {
 }
 
 impl TheLayout for TheRowListLayout {
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::paint::{PaintOp, Rect, Transform};
+        let r = crate::theui::paint::bounds(&self.dim);
+        p.fill(r, ListLayoutBackground);
+        p.outline(r, *p.theme.color(ListLayoutBorder), 1.);
+        let offset = self
+            .horizontal_scrollbar
+            .as_horizontal_scrollbar()
+            .map(|s| s.scroll_offset())
+            .unwrap_or(0);
+        p.list.ops.push(PaintOp::PushClip(Rect::new(
+            r.x,
+            r.y,
+            r.width,
+            (r.height
+                - if self.horizontal_scrollbar_visible {
+                    13.
+                } else {
+                    0.
+                })
+            .max(0.),
+        )));
+        p.list.ops.push(PaintOp::PushTransform(Transform::translate(
+            -offset as f32,
+            0.,
+        )));
+        for w in &mut self.widgets {
+            if let Some(item) = w.as_rowlist_item() {
+                item.set_scroll_offset(offset);
+            }
+            let d = w.dim();
+            if d.x + d.width >= self.dim.x + offset && d.x < self.dim.x + self.dim.width + offset {
+                w.paint(p)?;
+            }
+        }
+        p.list.ops.push(PaintOp::PopTransform);
+        p.list.ops.push(PaintOp::PopClip);
+        if self.horizontal_scrollbar_visible {
+            self.horizontal_scrollbar.paint(p)?;
+        }
+        self.is_dirty = false;
+        Ok(())
+    }
+
+    #[cfg(feature = "render-wgpu")]
+    fn prepare_paint(&mut self, ctx: &mut TheContext) {
+        self.set_dim(self.dim, ctx);
+        let offset = self
+            .horizontal_scrollbar
+            .as_horizontal_scrollbar()
+            .map(|s| s.scroll_offset())
+            .unwrap_or(0);
+        for w in &mut self.widgets {
+            ctx.ui.input_transforms.insert(
+                w.id().uuid,
+                crate::paint::Transform::translate(-offset as f32, 0.),
+            );
+            w.prepare_paint(ctx);
+        }
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,
@@ -154,8 +219,13 @@ impl TheLayout for TheRowListLayout {
                 height -= 13;
             }
 
-            self.list_buffer
-                .set_dim(TheDim::new(0, 0, total_width, height));
+            if ctx.ui.gpu_paint {
+                self.list_buffer = TheRGBABuffer::empty();
+                *self.list_buffer.dim_mut() = TheDim::new(0, 0, total_width, height);
+            } else {
+                self.list_buffer
+                    .set_dim(TheDim::new(0, 0, total_width, height));
+            }
 
             for index in 0..items {
                 let i = index as usize;

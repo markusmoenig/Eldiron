@@ -9,6 +9,25 @@ pub struct TheMenubarSeparator {
 }
 
 impl TheWidget for TheMenubarSeparator {
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::paint::Rect;
+        use crate::theui::paint::bounds;
+        let r = bounds(&self.dim);
+        p.fill(
+            Rect::new(r.x + 4., r.y, 1., r.height),
+            MenubarButtonSeparator1,
+        );
+        p.fill(
+            Rect::new(r.x + 5., r.y, 1., r.height),
+            MenubarButtonSeparator2,
+        );
+        self.is_dirty = false;
+        Ok(())
+    }
     fn new(id: TheId) -> Self
     where
         Self: Sized,

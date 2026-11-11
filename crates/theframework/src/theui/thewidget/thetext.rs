@@ -17,6 +17,28 @@ pub struct TheText {
 }
 
 impl TheWidget for TheText {
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::theui::paint::bounds;
+        let mut r = bounds(&self.dim);
+        r.y += 1. + self.vertical_offset as f32;
+        r.height -= 1.;
+        p.label(
+            r,
+            &self.text,
+            self.text_size,
+            self.text_color
+                .unwrap_or(*p.theme.color(SectionbarNormalTextColor)),
+            TheHorizontalAlign::Left,
+            TheVerticalAlign::Center,
+        );
+        self.is_dirty = false;
+        Ok(())
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,
@@ -80,7 +102,7 @@ impl TheWidget for TheText {
     fn calculate_size(&mut self, ctx: &mut TheContext) {
         if self.fixed_size_text.is_empty() {
             if !self.text.is_empty() {
-                let size = ctx.draw.get_text_size(
+                let size = ctx.measure_text(
                     &self.text,
                     &TheFontSettings {
                         size: self.text_size,
@@ -93,7 +115,7 @@ impl TheWidget for TheText {
                 self.limiter_mut().set_max_size(Vec2::new(20, 20));
             }
         } else {
-            let size = ctx.draw.get_text_size(
+            let size = ctx.measure_text(
                 &self.fixed_size_text,
                 &TheFontSettings {
                     size: self.text_size,

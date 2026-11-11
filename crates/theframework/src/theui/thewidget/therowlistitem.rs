@@ -26,6 +26,53 @@ pub struct TheRowListItem {
 }
 
 impl TheWidget for TheRowListItem {
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::paint::{Rect, Sampling};
+        use crate::theui::paint::{bounds, rgba};
+        let r = bounds(&self.dim);
+        let color = if self.state == TheWidgetState::Selected {
+            *p.theme.color(if self.id.equals(&p.ui.focus) {
+                ListItemSelected
+            } else {
+                ListItemSelectedNoFocus
+            })
+        } else if self.id.equals(&p.ui.hover) {
+            *p.theme.color(ListItemHover)
+        } else {
+            self.background
+                .as_ref()
+                .map(|c| c.to_u8_array())
+                .unwrap_or(*p.theme.color(ListItemNormal))
+        };
+        p.list.rect(r, 0., rgba(color));
+        if let Some(icon) = &self.icon {
+            let size = (r.width - 18.).max(0.);
+            let image = Rect::new(r.x + 9., r.y + 9., size, size);
+            p.outline(image.inset(-1.), *p.theme.color(ListItemIconBorder), 1.);
+            p.image(
+                &format!("row-icon:{}", self.id.uuid),
+                icon,
+                image,
+                self.is_dirty,
+                Sampling::Linear,
+            )?;
+        }
+        p.label(
+            Rect::new(r.x, r.y + r.height - 25., r.width, 20.),
+            &self.text,
+            12.,
+            *p.theme.color(ListItemText),
+            TheHorizontalAlign::Center,
+            TheVerticalAlign::Center,
+        );
+        self.is_dirty = false;
+        Ok(())
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,
@@ -94,11 +141,27 @@ impl TheWidget for TheRowListItem {
                     ));
                     redraw = true;
                 }
-                self.mouse_down_pos = Vec2::new(coord.x + self.scroll_offset, coord.y);
+                self.mouse_down_pos = Vec2::new(
+                    coord.x
+                        + if ctx.ui.gpu_paint {
+                            0
+                        } else {
+                            self.scroll_offset
+                        },
+                    coord.y,
+                );
                 ctx.ui.set_focus(self.id());
             }
             TheEvent::MouseDragged(coord) => {
-                let coord = Vec2::new(coord.x + self.scroll_offset, coord.y);
+                let coord = Vec2::new(
+                    coord.x
+                        + if ctx.ui.gpu_paint {
+                            0
+                        } else {
+                            self.scroll_offset
+                        },
+                    coord.y,
+                );
                 if ctx.ui.drop.is_none()
                     && Vec2::new(self.mouse_down_pos.x as f32, self.mouse_down_pos.y as f32)
                         .distance(Vec2::new(coord.x as f32, coord.y as f32))

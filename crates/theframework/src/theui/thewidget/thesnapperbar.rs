@@ -68,6 +68,91 @@ pub struct TheSnapperbar {
 }
 
 impl TheWidget for TheSnapperbar {
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::paint::{Brush, FillRule, PaintOp, Path, PathElement, Rect};
+        use crate::theui::paint::{bounds, rgba};
+        use std::sync::Arc;
+        let d = bounds(&self.dim);
+        let r = Rect::new(d.x, d.y, d.width, (d.height - 1.).max(0.));
+        let hovered = self.state != TheWidgetState::Clicked && self.id.equals(&p.ui.hover);
+        let pressed = self.state == TheWidgetState::Clicked;
+        let fill = if self.selected {
+            p.theme_brush(r, SnapperSelected)
+        } else if let Some((palette, index)) = self.background_palette {
+            Brush::Solid(rgba(p.theme.palette_color(palette, index)))
+        } else if let Some(color) = self.background_color {
+            Brush::Solid(rgba(color))
+        } else {
+            p.theme_brush(
+                r,
+                if pressed {
+                    SnapperPressed
+                } else if hovered {
+                    SnapperHover
+                } else {
+                    SnapperNormal
+                },
+            )
+        };
+        let border = if self.selected || pressed || hovered {
+            p.color(if self.selected {
+                SelectedTextEditBorder1
+            } else if pressed {
+                ToolbarButtonClickedBorder
+            } else {
+                ToolbarButtonHoverBorder
+            })
+            .into()
+        } else {
+            fill.clone()
+        };
+        let radius = if self.root_mode { 1.5 } else { 0.5 };
+        p.list.rect(r, radius, border);
+        p.list.rect(r.inset(1.), (radius - 1.).max(0.), fill);
+        let y = r.y + r.height * 0.5;
+        let points = if self.open {
+            [
+                [r.x + 8., y - 2.5],
+                [r.x + 18., y - 2.5],
+                [r.x + 13., y + 3.],
+            ]
+        } else {
+            [[r.x + 10., y - 4.5], [r.x + 10., y + 4.5], [r.x + 16., y]]
+        };
+        p.list.ops.push(PaintOp::Fill {
+            path: Arc::new(Path {
+                elements: vec![
+                    PathElement::Move(points[0]),
+                    PathElement::Line(points[1]),
+                    PathElement::Line(points[2]),
+                    PathElement::Close,
+                ],
+            }),
+            rule: FillRule::NonZero,
+            brush: p.theme_brush(r, SnapperMarker),
+        });
+        p.label(
+            Rect::new(
+                d.x + 30.,
+                d.y + 1.,
+                (d.width - 30.).max(0.),
+                (d.height - 1.).max(0.),
+            ),
+            &self.text,
+            13.5,
+            self.text_color
+                .unwrap_or(*p.theme.color(SectionbarNormalTextColor)),
+            TheHorizontalAlign::Left,
+            TheVerticalAlign::Center,
+        );
+        self.is_dirty = false;
+        Ok(())
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,

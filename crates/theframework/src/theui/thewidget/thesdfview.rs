@@ -184,7 +184,7 @@ impl TheWidget for TheSDFView {
 
     fn calculate_size(&mut self, ctx: &mut TheContext) {
         if !self.text.is_empty() {
-            let size = ctx.draw.get_text_size(
+            let size = ctx.measure_text(
                 &self.text,
                 &TheFontSettings {
                     size: self.text_size,

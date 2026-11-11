@@ -33,6 +33,84 @@ impl Default for TheCanvas {
 
 /// TheCanvas divides a screen dimension into 4 possible sub-spaces for its border while containing a set of widgets for its center.
 impl TheCanvas {
+    #[cfg(feature = "render-wgpu")]
+    pub fn prepare_paint(&mut self, ctx: &mut TheContext) {
+        if !self.buffer.pixels().is_empty() {
+            self.buffer = TheRGBABuffer::empty();
+            *self.buffer.dim_mut() = self.dim;
+        }
+        for child in [
+            &mut self.left,
+            &mut self.top,
+            &mut self.right,
+            &mut self.bottom,
+            &mut self.center,
+        ]
+        .into_iter()
+        .flatten()
+        {
+            child.prepare_paint(ctx);
+        }
+        if let Some(layout) = &mut self.layout {
+            layout.prepare_paint(ctx);
+        }
+        if let Some(widget) = &mut self.widget {
+            widget.prepare_paint(ctx);
+        }
+    }
+
+    #[cfg(feature = "render-wgpu")]
+    pub fn release_raster_cache(&mut self) {
+        self.buffer = TheRGBABuffer::empty();
+        *self.buffer.dim_mut() = self.dim;
+        for child in [
+            &mut self.left,
+            &mut self.top,
+            &mut self.right,
+            &mut self.bottom,
+            &mut self.center,
+        ]
+        .into_iter()
+        .flatten()
+        {
+            child.release_raster_cache();
+        }
+    }
+
+    #[cfg(feature = "render-wgpu")]
+    pub fn paint(
+        &mut self,
+        painter: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::paint::PaintOp;
+        painter
+            .list
+            .ops
+            .push(PaintOp::PushClip(crate::theui::paint::bounds(&self.dim)));
+        for child in [
+            &mut self.left,
+            &mut self.top,
+            &mut self.right,
+            &mut self.bottom,
+            &mut self.center,
+        ]
+        .into_iter()
+        .flatten()
+        {
+            child.paint(painter)?;
+        }
+        if self.center.is_none() {
+            if let Some(widget) = &mut self.widget {
+                widget.paint(painter)?;
+            }
+            if let Some(layout) = &mut self.layout {
+                layout.paint(painter)?;
+            }
+        }
+        painter.list.ops.push(PaintOp::PopClip);
+        Ok(())
+    }
+
     pub fn new() -> Self {
         Self {
             uuid: Uuid::new_v4(),
@@ -63,7 +141,11 @@ impl TheCanvas {
     pub fn set_dim(&mut self, dim: TheDim, ctx: &mut TheContext) {
         if dim != self.dim || ctx.ui.relayout {
             self.dim = dim;
-            self.buffer.set_dim(self.dim);
+            if ctx.ui.gpu_paint {
+                *self.buffer.dim_mut() = self.dim;
+            } else {
+                self.buffer.set_dim(self.dim);
+            }
             self.layout(self.dim.width, self.dim.height, ctx);
         }
     }

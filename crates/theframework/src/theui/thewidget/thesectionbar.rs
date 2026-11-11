@@ -9,6 +9,18 @@ pub struct TheSectionbar {
 }
 
 impl TheWidget for TheSectionbar {
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::theui::paint::bounds;
+        let r = bounds(&self.dim);
+        p.fill(r, SectionbarHeaderBorder);
+        p.theme_fill(r.inset(1.), 0., SectionbarChrome);
+        self.is_dirty = false;
+        Ok(())
+    }
     fn new(id: TheId) -> Self
     where
         Self: Sized,

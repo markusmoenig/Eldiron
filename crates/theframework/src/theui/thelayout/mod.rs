@@ -35,6 +35,25 @@ pub mod prelude {
 /// TheLayout trait defines an abstract layout interface for widgets.
 #[allow(unused)]
 pub trait TheLayout: Send {
+    #[cfg(feature = "render-wgpu")]
+    fn prepare_paint(&mut self, ctx: &mut TheContext) {
+        self.set_dim(*self.dim(), ctx);
+        for widget in self.widgets() {
+            widget.prepare_paint(ctx);
+        }
+    }
+
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        _painter: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        Err(crate::theui::paint::UiPaintError(format!(
+            "layout needs GPU paint conversion: {}",
+            self.id().name
+        )))
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized;

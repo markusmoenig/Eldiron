@@ -5347,6 +5347,7 @@ dependencies = [
  "lyon_tessellation",
  "markdown",
  "maths-rs",
+ "objc2-quartz-core 0.3.2",
  "parley",
  "pixels",
  "png 0.17.16",

@@ -20,6 +20,60 @@ pub struct TheMenubarButton {
 }
 
 impl TheWidget for TheMenubarButton {
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::paint::Rect;
+        use crate::theui::paint::bounds;
+        let r = bounds(&self.dim);
+        use crate::paint::PaintOp;
+        let disabled = p.ui.is_disabled(&self.id.name);
+        let chrome = if !disabled && self.state == TheWidgetState::Clicked {
+            Some((MenubarButtonPressedChrome, MenubarButtonClickedBorder))
+        } else if !disabled && self.id.equals(&p.ui.hover) {
+            Some((MenubarButtonHoverChrome, MenubarButtonHoverBorder))
+        } else {
+            None
+        };
+        let mut inner = r;
+        if let Some((role, border)) = chrome {
+            p.button(
+                r,
+                p.theme.metric(ControlCornerRadius),
+                role,
+                *p.theme.color(border),
+            );
+            inner = r.inset(1.);
+        }
+        if let Some(icon) = p.ui.icon(&self.icon_name) {
+            let size = self
+                .fixed_size
+                .unwrap_or(Vec2::new(icon.dim().width, icon.dim().height));
+            if disabled {
+                p.list.ops.push(PaintOp::PushOpacity(0.3));
+            }
+            p.icon(
+                &self.icon_name,
+                Rect::new(
+                    inner.x
+                        + (inner.width - size.x as f32).max(0.) * 0.5
+                        + self.icon_offset.x as f32,
+                    inner.y
+                        + (inner.height - size.y as f32).max(0.) * 0.5
+                        + self.icon_offset.y as f32,
+                    size.x.max(0) as f32,
+                    size.y.max(0) as f32,
+                ),
+            )?;
+            if disabled {
+                p.list.ops.push(PaintOp::PopOpacity);
+            }
+        }
+        self.is_dirty = false;
+        Ok(())
+    }
     fn new(id: TheId) -> Self
     where
         Self: Sized,

@@ -27,6 +27,79 @@ pub struct TheSlider {
 }
 
 impl TheWidget for TheSlider {
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::paint::Rect;
+        use crate::theui::paint::bounds;
+        let r = bounds(&self.dim);
+        if self.dim.width <= self.text_width + 2 {
+            return Ok(());
+        }
+        let width = (self.dim.width - self.text_width) as f32;
+        let (value, start, end, text) = if let (Some(range), Some(value)) =
+            (self.range.to_range_f32(), self.value.to_f32())
+        {
+            (value, *range.start(), *range.end(), format!("{value:.2}"))
+        } else if let (Some(range), Some(value)) = (self.range.to_range_i32(), self.value.to_i32())
+        {
+            (
+                value as f32,
+                *range.start() as f32,
+                *range.end() as f32,
+                value.to_string(),
+            )
+        } else {
+            (0., 0., 1., String::new())
+        };
+        let pos = if (end - start).abs() > f32::EPSILON {
+            ((value - start) / (end - start)).clamp(0., 1.) * width
+        } else {
+            0.
+        };
+        let (thumb, border) = if !self.embedded && self.state == TheWidgetState::Selected {
+            (SliderThumbPressed, ToolbarButtonClickedBorder)
+        } else if !self.embedded && (self.id.equals(&p.ui.hover) || self.id.equals(&p.ui.focus)) {
+            (SliderThumbHover, SelectedTextEditBorder1)
+        } else {
+            (SliderThumbNormal, SliderSmallColor1)
+        };
+        let track = Rect::new(
+            r.x + 1.,
+            r.y + (r.height * 0.5).floor() - 1.,
+            (width - 2.).max(0.),
+            3.,
+        );
+        p.theme_fill(track, 1.5, SliderTrackChrome);
+        p.theme_fill(
+            Rect::new(track.x + 1., track.y + 1., (track.width - 2.).max(0.), 1.),
+            0.5,
+            SliderTrackAccent,
+        );
+        p.button(
+            Rect::new(r.x + pos, r.y, 5., r.height.min(13.)),
+            2.,
+            thumb,
+            *p.theme.color(border),
+        );
+        p.label(
+            Rect::new(
+                r.x + width + 5.,
+                r.y,
+                (r.width - width - 5.).max(0.),
+                r.height,
+            ),
+            &text,
+            12.5,
+            *p.theme.color(TextEditTextColor),
+            TheHorizontalAlign::Left,
+            TheVerticalAlign::Center,
+        );
+        self.is_dirty = false;
+        Ok(())
+    }
     fn new(id: TheId) -> Self
     where
         Self: Sized,

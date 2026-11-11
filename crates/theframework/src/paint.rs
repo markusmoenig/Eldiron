@@ -19,6 +19,14 @@ impl Rect {
             height,
         }
     }
+    pub fn inset(self, amount: f32) -> Self {
+        Self::new(
+            self.x + amount,
+            self.y + amount,
+            (self.width - amount * 2.).max(0.),
+            (self.height - amount * 2.).max(0.),
+        )
+    }
     pub fn contains(self, p: Point) -> bool {
         p[0] >= self.x
             && p[1] >= self.y

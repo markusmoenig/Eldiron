@@ -9,6 +9,19 @@ pub struct TheSeparator {
 }
 
 impl TheWidget for TheSeparator {
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::paint::Rect;
+        use crate::theui::paint::bounds;
+        let r = bounds(&self.dim);
+        p.fill(Rect::new(r.x, r.y + 8., r.width, 1.), LayoutSeparator);
+        self.is_dirty = false;
+        Ok(())
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,

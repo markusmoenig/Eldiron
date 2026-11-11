@@ -40,6 +40,8 @@ pub enum TheCursorIcon {
 }
 
 pub struct TheContext {
+    #[cfg(feature = "text")]
+    pub text: crate::text::TextSystem,
     pub width: usize,
     pub height: usize,
     pub scale_factor: f32,
@@ -62,7 +64,17 @@ pub struct TheContext {
 
 impl TheContext {
     pub fn new(width: usize, height: usize, scale_factor: f32) -> Self {
+        #[cfg(feature = "text")]
+        let mut text = crate::text::TextSystem::default();
+        #[cfg(feature = "text")]
+        for path in ["fonts/Roboto-Bold.ttf", "fonts/SourceCodePro-Bold.ttf"] {
+            if let Some(font) = crate::Embedded::get(path) {
+                text.register_font(font.data.to_vec());
+            }
+        }
         Self {
+            #[cfg(feature = "text")]
+            text,
             width,
             height,
             scale_factor,
@@ -79,6 +91,23 @@ impl TheContext {
             cursor_visible: true,
             cursor_visible_changed: false,
         }
+    }
+
+    /// Layout measurement shares shaping with GPU text painting.
+    pub fn measure_text(&mut self, value: &str, settings: &TheFontSettings) -> (usize, usize) {
+        #[cfg(all(feature = "text", feature = "ui"))]
+        if self.ui.gpu_paint {
+            let family = match settings.preference {
+                TheFontPreference::Default => "Roboto",
+                TheFontPreference::Code => "Source Code Pro",
+            };
+            let layout = self.text.layout(value, family, settings.size, None);
+            return (
+                layout.width().ceil() as usize,
+                layout.height().ceil() as usize,
+            );
+        }
+        self.draw.get_text_size(value, settings)
     }
 
     /// Set the cursor icon

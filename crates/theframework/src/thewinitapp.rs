@@ -341,6 +341,7 @@ impl TheWinitApp {
         }
 
         #[cfg(feature = "ui")]
+        crate::platform_services::service_files(&mut ctx.ctx.ui);
         if self.ui.update(&mut ctx.ctx) {
             wants_redraw = true;
         }

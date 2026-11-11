@@ -15,6 +15,27 @@ pub struct TheColorButton {
 }
 
 impl TheWidget for TheColorButton {
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::theui::paint::bounds;
+        let r = bounds(&self.dim);
+        use crate::theui::paint::rgba;
+        p.list.rect(
+            r,
+            0.,
+            rgba(if self.state == TheWidgetState::None {
+                [80, 80, 80, 255]
+            } else {
+                BLACK
+            }),
+        );
+        p.list.rect(r.inset(1.), 0., rgba(self.color));
+        self.is_dirty = false;
+        Ok(())
+    }
     fn new(id: TheId) -> Self
     where
         Self: Sized,

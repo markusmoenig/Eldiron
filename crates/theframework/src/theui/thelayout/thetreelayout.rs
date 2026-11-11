@@ -33,6 +33,48 @@ impl Default for TheTreeNode {
 }
 
 impl TheTreeNode {
+    #[cfg(feature = "render-wgpu")]
+    fn prepare_gpu(&mut self, ctx: &mut TheContext, offset: i32, include_self: bool) {
+        if include_self {
+            ctx.ui.input_transforms.insert(
+                self.widget.id().uuid,
+                crate::paint::Transform::translate(0., -offset as f32),
+            );
+            self.widget.prepare_paint(ctx);
+        }
+        if self.open {
+            for w in &mut self.widgets {
+                ctx.ui.input_transforms.insert(
+                    w.id().uuid,
+                    crate::paint::Transform::translate(0., -offset as f32),
+                );
+                w.prepare_paint(ctx);
+            }
+            for child in &mut self.childs {
+                child.prepare_gpu(ctx, offset, true);
+            }
+        }
+    }
+    #[cfg(feature = "render-wgpu")]
+    fn paint_gpu(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+        include_self: bool,
+    ) -> crate::theui::paint::UiPaintResult {
+        if include_self {
+            self.widget.paint(p)?;
+        }
+        if self.open {
+            for w in &mut self.widgets {
+                w.paint(p)?;
+            }
+            for child in &mut self.childs {
+                child.paint_gpu(p, true)?;
+            }
+        }
+        Ok(())
+    }
+
     pub fn new(id: TheId) -> Self {
         let layout_dirty_flag = Arc::new(AtomicBool::new(false));
         Self::new_with_dirty_flag(id, layout_dirty_flag)
@@ -328,7 +370,13 @@ impl TheTreeNode {
         ctx: &mut TheContext,
     ) {
         if include_self {
-            self.widget.calculate_size(ctx);
+            self.widget.measure(
+                Vec2::new(
+                    (available_width - indent - TREE_RIGHT_MARGIN).max(0),
+                    max_height,
+                ),
+                ctx,
+            );
 
             let node_width = (available_width - indent - TREE_RIGHT_MARGIN).max(0);
             let node_height = self.widget.limiter().get_height(max_height);
@@ -364,9 +412,8 @@ impl TheTreeNode {
         };
 
         for widget in &mut self.widgets {
-            widget.calculate_size(ctx);
-
             let available_child_width = (available_width - child_indent - TREE_RIGHT_MARGIN).max(0);
+            widget.measure(Vec2::new(available_child_width, max_height), ctx);
             let widget_width = widget.limiter().get_width(available_child_width);
             let widget_height = widget.limiter().get_height(max_height);
 
@@ -548,6 +595,61 @@ pub struct TheTreeLayout {
 }
 
 impl TheLayout for TheTreeLayout {
+    #[cfg(feature = "render-wgpu")]
+    fn prepare_paint(&mut self, ctx: &mut TheContext) {
+        self.set_dim(self.dim, ctx);
+        let offset = self
+            .vertical_scrollbar
+            .as_vertical_scrollbar()
+            .map(|s| s.scroll_offset())
+            .unwrap_or(0);
+        self.root.apply_scroll_offset(offset);
+        self.root.prepare_gpu(ctx, offset, !self.headerless);
+    }
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::paint::{PaintOp, Rect, Transform};
+        let r = crate::theui::paint::bounds(&self.dim);
+        if let Some(bg) = self.background {
+            p.fill(r, bg);
+        }
+        let offset = self
+            .vertical_scrollbar
+            .as_vertical_scrollbar()
+            .map(|s| s.scroll_offset())
+            .unwrap_or(0);
+        p.list.ops.push(PaintOp::PushClip(Rect::new(
+            r.x,
+            r.y,
+            (r.width
+                - if self.vertical_scrollbar_visible {
+                    13.
+                } else {
+                    0.
+                })
+            .max(0.),
+            r.height,
+        )));
+        p.list.ops.push(PaintOp::PushTransform(Transform::translate(
+            0.,
+            -offset as f32,
+        )));
+        self.root.paint_gpu(p, !self.headerless)?;
+        p.list.ops.push(PaintOp::PopTransform);
+        p.list.ops.push(PaintOp::PopClip);
+        if self.vertical_scrollbar_visible {
+            self.vertical_scrollbar.paint(p)?;
+        }
+        if self.background.is_some() {
+            p.outline(r, *p.theme.color(TextLayoutBorder), 1.);
+        }
+        self.paint_dirty = false;
+        Ok(())
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,
@@ -940,8 +1042,13 @@ impl TheTreeLayout {
                 }
             }
 
-            self.content_buffer
-                .set_dim(TheDim::new(0, 0, available_width, total_height));
+            if ctx.ui.gpu_paint {
+                self.content_buffer = TheRGBABuffer::empty();
+                *self.content_buffer.dim_mut() = TheDim::new(0, 0, available_width, total_height);
+            } else {
+                self.content_buffer
+                    .set_dim(TheDim::new(0, 0, available_width, total_height));
+            }
 
             // Apply scroll offset to all widgets
             if let Some(scroll_bar) = self.vertical_scrollbar.as_vertical_scrollbar() {

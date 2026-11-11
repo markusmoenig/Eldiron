@@ -18,6 +18,52 @@ pub struct TheMenu {
 }
 
 impl TheWidget for TheMenu {
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::paint::Rect;
+        let r = crate::theui::paint::bounds(&self.dim);
+        if self.opaque {
+            p.theme_fill(r, 0., MenuBackground);
+        }
+        for (i, menu) in self.menus.iter().enumerate() {
+            let t = self.menus_text[i];
+            let text = Rect::new(
+                r.x + t.x as f32,
+                r.y + t.y as f32,
+                t.width as f32,
+                t.height as f32,
+            );
+            if self.hovered == Some(i) || self.selected == Some(i) {
+                p.theme_fill(
+                    Rect::new(text.x, text.y - 2., text.width, text.height + 2.),
+                    2.,
+                    if self.selected == Some(i) {
+                        MenuItemSelected
+                    } else {
+                        MenuItemHover
+                    },
+                );
+            }
+            p.label(
+                text,
+                &menu.name,
+                14.,
+                *p.theme.color(if self.selected == Some(i) {
+                    MenuTextHighlighted
+                } else {
+                    MenuText
+                }),
+                TheHorizontalAlign::Center,
+                TheVerticalAlign::Center,
+            );
+        }
+        self.is_dirty = false;
+        Ok(())
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,

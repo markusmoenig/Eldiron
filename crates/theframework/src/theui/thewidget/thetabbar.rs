@@ -41,6 +41,48 @@ impl TheTabbar {
 }
 
 impl TheWidget for TheTabbar {
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::paint::{PaintOp, Rect};
+        let r = crate::theui::paint::bounds(&self.dim);
+        p.list.ops.push(PaintOp::PushClip(r));
+        p.theme_fill(r, 0., TabbarChrome);
+        let width = self.fitted_tab_width() as f32;
+        let mut x = r.x;
+        for (i, name) in self.tabs.iter().enumerate() {
+            let tr = Rect::new(x, r.y, width, (r.height - 1.).max(0.));
+            let role = if Some(i as i32) == self.selected_index {
+                TabSelectedChrome
+            } else if Some(i as i32) == self.hover_index {
+                TabHoverChrome
+            } else {
+                TabNormalChrome
+            };
+            p.theme_fill(tr, 0., role);
+            p.label(
+                tr,
+                name,
+                12.5,
+                *p.theme.color(TabbarText),
+                TheHorizontalAlign::Center,
+                TheVerticalAlign::Center,
+            );
+            x += width;
+            if i + 1 < self.tabs.len() {
+                p.fill(
+                    Rect::new(x, r.y + r.height - 1., Self::TAB_GAP as f32, 1.),
+                    TabbarConnector,
+                );
+                x += Self::TAB_GAP as f32;
+            }
+        }
+        p.list.ops.push(PaintOp::PopClip);
+        self.is_dirty = false;
+        Ok(())
+    }
     fn new(id: TheId) -> Self
     where
         Self: Sized,

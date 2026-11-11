@@ -22,6 +22,58 @@ pub struct TheRGBALayout {
 }
 
 impl TheLayout for TheRGBALayout {
+    #[cfg(feature = "render-wgpu")]
+    fn prepare_paint(&mut self, ctx: &mut TheContext) {
+        self.set_dim(self.dim, ctx);
+        let offset = Vec2::new(
+            self.horizontal_scrollbar
+                .as_horizontal_scrollbar()
+                .map(|s| s.scroll_offset())
+                .unwrap_or(0),
+            self.vertical_scrollbar
+                .as_vertical_scrollbar()
+                .map(|s| s.scroll_offset())
+                .unwrap_or(0),
+        );
+        if let Some(view) = self.rgba_view.as_rgba_view() {
+            view.set_scroll_offset(offset);
+        }
+        self.rgba_view.prepare_paint(ctx);
+    }
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::paint::Rect;
+        let r = crate::theui::paint::bounds(&self.dim);
+        if let Some(bg) = self.background {
+            p.fill(r, bg);
+        }
+        self.rgba_view.paint(p)?;
+        if self.vertical_scrollbar_visible {
+            self.vertical_scrollbar.paint(p)?;
+        }
+        if self.horizontal_scrollbar_visible {
+            self.horizontal_scrollbar.paint(p)?;
+        }
+        if self.vertical_scrollbar_visible || self.horizontal_scrollbar_visible {
+            p.fill(
+                Rect::new(r.x + r.width - 13., r.y + r.height - 13., 13., 13.),
+                ScrollbarBackground,
+            );
+            p.fill(
+                Rect::new(r.x, r.y + r.height - 13., r.width, 1.),
+                ScrollbarSeparator,
+            );
+            p.fill(
+                Rect::new(r.x + r.width - 13., r.y, 1., r.height),
+                ScrollbarSeparator,
+            );
+        }
+        Ok(())
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,

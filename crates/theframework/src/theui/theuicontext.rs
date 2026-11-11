@@ -5,10 +5,8 @@ use fontdue::Font;
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender};
 
-#[cfg(not(target_arch = "wasm32"))]
-use std::sync::mpsc::{self};
-
 /// TheFileExtension is used to specify supported file extensions in the load and save file requesters.
+#[derive(Clone, Debug)]
 pub struct TheFileExtension {
     pub name: String,
     pub extensions: Vec<String>,
@@ -20,7 +18,26 @@ impl TheFileExtension {
     }
 }
 
+#[derive(Clone, Debug)]
+pub enum FileRequestKind {
+    Open,
+    Save,
+}
+#[derive(Clone, Debug)]
+pub struct FileRequest {
+    pub id: TheId,
+    pub title: String,
+    pub extension: TheFileExtension,
+    pub kind: FileRequestKind,
+}
 pub struct TheUIContext {
+    /// The active platform host services these requests; foreign Apple hosts can
+    /// use native document pickers and complete with FileRequesterResult.
+    pub file_requests: std::collections::VecDeque<FileRequest>,
+    /// Selects the framebuffer-free layout/paint path.
+    pub gpu_paint: bool,
+    #[cfg(feature = "render-wgpu")]
+    pub input_transforms: FxHashMap<Uuid, crate::paint::Transform>,
     pub font: Option<Font>,
     icons: FxHashMap<String, TheRGBABuffer>,
 
@@ -110,6 +127,10 @@ impl TheUIContext {
         }
 
         Self {
+            gpu_paint: false,
+            #[cfg(feature = "render-wgpu")]
+            input_transforms: FxHashMap::default(),
+            file_requests: std::collections::VecDeque::new(),
             focus: None,
             keyboard_focus: None,
             hover: None,
@@ -256,55 +277,42 @@ impl TheUIContext {
         self.send(TheEvent::ValueChanged(id.clone(), value));
     }
 
-    /// Opens a file requester with the given title and extensions. Upon completion a TheEvent::FileRequesterResult event will be send.
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn open_file_requester(&mut self, id: TheId, title: String, extension: TheFileExtension) {
-        let (tx, rx): (Sender<Vec<PathBuf>>, Receiver<Vec<PathBuf>>) = mpsc::channel();
-
-        let task = rfd::AsyncFileDialog::new()
-            .add_filter(extension.name, &extension.extensions)
-            .set_title(title)
-            .pick_files();
-
-        std::thread::spawn(move || {
-            let files = futures::executor::block_on(task);
-
-            if let Some(files) = files {
-                let mut ff = vec![];
-                for f in files {
-                    ff.push(f.path().to_path_buf());
-                }
-                tx.send(ff).unwrap();
-            } else {
-                tx.send(vec![]).unwrap();
+    /// Layout and paint share the screen transform; captured drags use its inverse
+    /// even when the pointer is outside the viewport. Persistent dimensions remain unchanged.
+    pub fn local_position(&self, _id: &TheId, dim: &TheDim, coord: Vec2<i32>) -> Vec2<i32> {
+        #[cfg(feature = "render-wgpu")]
+        if self.gpu_paint {
+            if let Some(inverse) = self
+                .input_transforms
+                .get(&_id.uuid)
+                .and_then(|t| t.inverse())
+            {
+                let p = inverse.point([coord.x as f32, coord.y as f32]);
+                return Vec2::new(p[0] as i32 - dim.x, p[1] as i32 - dim.y);
             }
-        });
-
-        self.file_requester_receiver = Some((id, rx));
+        }
+        dim.to_local(coord)
     }
-
-    /// Opens a save file requester with the given title and extensions. Upon completion a TheEvent::FileRequesterResult event will be send.
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn save_file_requester(&mut self, id: TheId, title: String, extension: TheFileExtension) {
-        let (tx, rx): (Sender<Vec<PathBuf>>, Receiver<Vec<PathBuf>>) = mpsc::channel();
-
-        let task = rfd::AsyncFileDialog::new()
-            .add_filter(extension.name, &extension.extensions)
-            .set_title(title)
-            .save_file();
-
-        std::thread::spawn(move || {
-            let file = futures::executor::block_on(task);
-
-            if let Some(file) = file {
-                let ff = vec![file.path().to_path_buf()];
-                tx.send(ff).unwrap();
-            } else {
-                tx.send(vec![]).unwrap();
-            }
+    /// Queue an open request. The host supplies platform UI and reports completion.
+    pub fn open_file_requester(&mut self, id: TheId, title: String, extension: TheFileExtension) {
+        self.file_requests.push_back(FileRequest {
+            id,
+            title,
+            extension,
+            kind: FileRequestKind::Open,
         });
-
-        self.file_requester_receiver = Some((id, rx));
+    }
+    /// Queue a save request for the active host's document picker.
+    pub fn save_file_requester(&mut self, id: TheId, title: String, extension: TheFileExtension) {
+        self.file_requests.push_back(FileRequest {
+            id,
+            title,
+            extension,
+            kind: FileRequestKind::Save,
+        });
+    }
+    pub fn complete_file_request(&mut self, id: TheId, paths: Vec<PathBuf>) {
+        self.send(TheEvent::FileRequesterResult(id, paths));
     }
 
     /// Decode image

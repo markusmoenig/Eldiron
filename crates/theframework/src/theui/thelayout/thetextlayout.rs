@@ -31,6 +31,94 @@ pub struct TheTextLayout {
 }
 
 impl TheLayout for TheTextLayout {
+    #[cfg(feature = "render-wgpu")]
+    fn prepare_paint(&mut self, ctx: &mut TheContext) {
+        self.set_dim(self.dim, ctx);
+        let offset = self
+            .vertical_scrollbar
+            .as_vertical_scrollbar()
+            .map(|s| s.scroll_offset())
+            .unwrap_or(0);
+        for w in &mut self.widgets {
+            ctx.ui.input_transforms.insert(
+                w.id().uuid,
+                crate::paint::Transform::translate(0., -offset as f32),
+            );
+            w.prepare_paint(ctx);
+        }
+    }
+
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::paint::{PaintOp, Rect, Transform};
+        use crate::theui::paint::bounds;
+        let r = bounds(&self.dim);
+        let width = (r.width
+            - if self.vertical_scrollbar_visible {
+                13.
+            } else {
+                0.
+            })
+        .max(0.);
+        let offset = self
+            .vertical_scrollbar
+            .as_vertical_scrollbar()
+            .map(|s| s.scroll_offset())
+            .unwrap_or(0);
+        if let Some(bg) = self.background {
+            p.fill(r, bg);
+        }
+        p.list
+            .ops
+            .push(PaintOp::PushClip(Rect::new(r.x, r.y, width, r.height)));
+        p.list.ops.push(PaintOp::PushTransform(Transform::translate(
+            0.,
+            -offset as f32,
+        )));
+        for (i, widget) in self.widgets.iter_mut().enumerate() {
+            let d = widget.dim();
+            if d.y + d.height < self.dim.y + offset || d.y >= self.dim.y + self.dim.height + offset
+            {
+                continue;
+            }
+            if !self.text[i].is_empty() {
+                let tr = self.text_rect[i];
+                let color = if widget.as_any().is::<TheSeparator>() {
+                    TextEditLineNumberColor
+                } else {
+                    TextEditTextColor
+                };
+                p.label(
+                    Rect::new(
+                        r.x + tr.0 as f32,
+                        r.y + tr.1 as f32,
+                        tr.2 as f32,
+                        tr.3 as f32,
+                    ),
+                    &self.text[i],
+                    self.text_size,
+                    *p.theme.color(color),
+                    self.text_align.clone(),
+                    TheVerticalAlign::Top,
+                );
+            }
+            widget.paint(p)?;
+        }
+        p.list.ops.push(PaintOp::PopTransform);
+        p.list.ops.push(PaintOp::PopClip);
+        if self.vertical_scrollbar_visible {
+            self.vertical_scrollbar.paint(p)?;
+        }
+        if self.background.is_some() {
+            p.outline(r, *p.theme.color(TextLayoutBorder), 1.);
+        }
+        self.is_dirty = false;
+        Ok(())
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,
@@ -196,7 +284,7 @@ impl TheLayout for TheTextLayout {
 
             for t in &mut self.text {
                 let size = if !t.is_empty() {
-                    ctx.draw.get_text_size(
+                    ctx.measure_text(
                         t,
                         &TheFontSettings {
                             size: self.text_size,
@@ -285,8 +373,13 @@ impl TheLayout for TheTextLayout {
                 width -= 13;
             }
 
-            self.list_buffer
-                .set_dim(TheDim::new(0, 0, width, total_height));
+            if ctx.ui.gpu_paint {
+                self.list_buffer = TheRGBABuffer::empty();
+                *self.list_buffer.dim_mut() = TheDim::new(0, 0, width, total_height);
+            } else {
+                self.list_buffer
+                    .set_dim(TheDim::new(0, 0, width, total_height));
+            }
 
             self.text_rect = texts_rect;
             self.layout_dirty = false;

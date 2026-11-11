@@ -1,3 +1,9 @@
+#[cfg(feature = "render-wgpu")]
+mod input;
+#[cfg(feature = "render-wgpu")]
+pub mod paint;
+#[cfg(feature = "render-wgpu")]
+mod paint_frame;
 pub mod thecanvas;
 pub mod thecodehighlighter;
 pub mod thecollection;
@@ -587,11 +593,11 @@ impl TheUI {
     pub fn paste(&mut self, ctx: &mut TheContext) {
         if let Some(id) = &ctx.ui.focus {
             if let Some(widget) = self.get_widget_abs(None, Some(&id.uuid)) {
-                #[cfg(not(target_arch = "wasm32"))]
+                #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
                 let system_text = arboard::Clipboard::new()
                     .ok()
                     .and_then(|mut clipboard| clipboard.get_text().ok());
-                #[cfg(target_arch = "wasm32")]
+                #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
                 let system_text: Option<String> = None;
 
                 let (value, app_type) = if let Some(text) = system_text {
@@ -781,7 +787,7 @@ impl TheUI {
         lines.truncate(max_lines);
         let longest = lines
             .iter()
-            .map(|line| ctx.draw.get_text_size(line, &font_settings).0)
+            .map(|line| ctx.measure_text(line, &font_settings).0)
             .max()
             .unwrap_or(1);
         let content_width = Self::hover_help_content_width(longest, max_box_width) as i32;
@@ -851,7 +857,11 @@ impl TheUI {
 
                 match event {
                     TheEvent::SetClipboard(value, app_type) => {
-                        #[cfg(not(target_arch = "wasm32"))]
+                        #[cfg(any(
+                            target_os = "macos",
+                            target_os = "windows",
+                            target_os = "linux"
+                        ))]
                         if let TheValue::Text(text) = &value
                             && let Ok(mut clipboard) = arboard::Clipboard::new()
                         {
@@ -1231,7 +1241,10 @@ impl TheUI {
         if let Some(id) = &ctx.ui.overlay {
             let overlay_hit =
                 if let Some(widget) = self.get_widget_abs(Some(&id.name), Some(&id.uuid)) {
-                    Some((widget.id().clone(), widget.dim().to_local(coord)))
+                    Some((
+                        widget.id().clone(),
+                        ctx.ui.local_position(widget.id(), widget.dim(), coord),
+                    ))
                 } else {
                     None
                 };
@@ -1259,7 +1272,8 @@ impl TheUI {
         let mut mouse_capture_id: Option<TheId> = None;
         if let Some(widget) = self.get_widget_at_coord(coord) {
             mouse_capture_id = Some(widget.id().clone());
-            let event = TheEvent::MouseDown(widget.dim().to_local(coord));
+            let event =
+                TheEvent::MouseDown(ctx.ui.local_position(widget.id(), widget.dim(), coord));
             redraw = widget.on_event(&event, ctx);
 
             self.process_events(ctx);
@@ -1280,13 +1294,15 @@ impl TheUI {
 
         if let Some(id) = &ctx.ui.overlay {
             if let Some(widget) = self.get_widget_abs(None, Some(&id.uuid)) {
-                let event = TheEvent::MouseDragged(widget.dim().to_local(coord));
+                let event =
+                    TheEvent::MouseDragged(ctx.ui.local_position(widget.id(), widget.dim(), coord));
                 redraw = widget.on_event(&event, ctx);
                 self.process_events(ctx);
             }
         } else if let Some(id) = self.mouse_capture_id.clone() {
             if let Some(widget) = self.get_widget_abs(None, Some(&id.uuid)) {
-                let event = TheEvent::MouseDragged(widget.dim().to_local(coord));
+                let event =
+                    TheEvent::MouseDragged(ctx.ui.local_position(widget.id(), widget.dim(), coord));
                 redraw = widget.on_event(&event, ctx);
                 self.process_events(ctx);
             } else {
@@ -1294,20 +1310,26 @@ impl TheUI {
             }
         } else if let Some(id) = &ctx.ui.focus {
             if let Some(widget) = self.get_widget_abs(None, Some(&id.uuid)) {
-                let event = TheEvent::MouseDragged(widget.dim().to_local(coord));
+                let event =
+                    TheEvent::MouseDragged(ctx.ui.local_position(widget.id(), widget.dim(), coord));
                 redraw = widget.on_event(&event, ctx);
                 self.process_events(ctx);
             }
         } else if let Some(widget) = self.canvas.get_widget_at_coord(coord) {
-            let event = TheEvent::MouseDragged(widget.dim().to_local(coord));
+            let event =
+                TheEvent::MouseDragged(ctx.ui.local_position(widget.id(), widget.dim(), coord));
             redraw = widget.on_event(&event, ctx);
             self.process_events(ctx);
         }
 
-        if let Some(drop) = &mut ctx.ui.drop {
+        if let Some(mut drop) = ctx.ui.drop.clone() {
             drop.set_position(coord);
+            ctx.ui.drop = Some(drop.clone());
             if let Some(widget) = self.canvas.get_widget_at_coord(coord) {
-                let event = TheEvent::DropPreview(widget.dim().to_local(coord), drop.clone());
+                let event = TheEvent::DropPreview(
+                    ctx.ui.local_position(widget.id(), widget.dim(), coord),
+                    drop.clone(),
+                );
                 redraw = widget.on_event(&event, ctx);
                 self.process_events(ctx);
             }
@@ -1329,24 +1351,27 @@ impl TheUI {
 
         if let Some(id) = &ctx.ui.overlay {
             if let Some(widget) = self.get_widget_abs(Some(&id.name), Some(&id.uuid)) {
-                let event = TheEvent::MouseUp(widget.dim().to_local(coord));
+                let event =
+                    TheEvent::MouseUp(ctx.ui.local_position(widget.id(), widget.dim(), coord));
                 redraw = widget.on_event(&event, ctx);
                 self.process_events(ctx);
             }
         } else if let Some(id) = self.mouse_capture_id.clone() {
             if let Some(widget) = self.get_widget_abs(Some(&id.name), Some(&id.uuid)) {
-                let event = TheEvent::MouseUp(widget.dim().to_local(coord));
+                let event =
+                    TheEvent::MouseUp(ctx.ui.local_position(widget.id(), widget.dim(), coord));
                 redraw = widget.on_event(&event, ctx);
                 self.process_events(ctx);
             }
         } else if let Some(id) = &ctx.ui.focus {
             if let Some(widget) = self.get_widget_abs(Some(&id.name), Some(&id.uuid)) {
-                let event = TheEvent::MouseUp(widget.dim().to_local(coord));
+                let event =
+                    TheEvent::MouseUp(ctx.ui.local_position(widget.id(), widget.dim(), coord));
                 redraw = widget.on_event(&event, ctx);
                 self.process_events(ctx);
             }
         } else if let Some(widget) = self.canvas.get_widget_at_coord(coord) {
-            let event = TheEvent::MouseUp(widget.dim().to_local(coord));
+            let event = TheEvent::MouseUp(ctx.ui.local_position(widget.id(), widget.dim(), coord));
             redraw = widget.on_event(&event, ctx);
             self.process_events(ctx);
         }
@@ -1355,7 +1380,10 @@ impl TheUI {
             if let Some(widget) = self.canvas.get_widget_at_coord(coord) {
                 let mut drop_copy = drop.clone();
                 drop_copy.target_id = widget.id().clone();
-                let event = TheEvent::Drop(widget.dim().to_local(coord), drop.clone());
+                let event = TheEvent::Drop(
+                    ctx.ui.local_position(widget.id(), widget.dim(), coord),
+                    drop.clone(),
+                );
                 redraw = widget.on_event(&event, ctx);
                 ctx.ui.send(event);
                 self.process_events(ctx);
@@ -1382,7 +1410,11 @@ impl TheUI {
             if self.menu_widget_id.is_some() {
                 if let Some(widget) = self.get_widget_at_coord(coord) {
                     if Some(widget.id().clone()) == menu_widget_id {
-                        let event = TheEvent::Hover(widget.dim().to_local(coord));
+                        let event = TheEvent::Hover(ctx.ui.local_position(
+                            widget.id(),
+                            widget.dim(),
+                            coord,
+                        ));
                         redraw = widget.on_event(&event, ctx);
                     }
                 }
@@ -1391,7 +1423,7 @@ impl TheUI {
         }
 
         if let Some(widget) = self.get_widget_at_coord(coord) {
-            let event = TheEvent::Hover(widget.dim().to_local(coord));
+            let event = TheEvent::Hover(ctx.ui.local_position(widget.id(), widget.dim(), coord));
             redraw = widget.on_event(&event, ctx);
 
             // Check if the widget has a cursor icon and set it
@@ -1474,7 +1506,14 @@ impl TheUI {
                 if let Some(widget) = self.get_widget_abs(Some(&id.name), Some(&id.uuid)) {
                     let custom = widget.supports_precise_scroll();
                     if custom {
-                        widget.on_event(&TheEvent::Hover(widget.dim().to_local(coord)), ctx);
+                        widget.on_event(
+                            &TheEvent::Hover(ctx.ui.local_position(
+                                widget.id(),
+                                widget.dim(),
+                                coord,
+                            )),
+                            ctx,
+                        );
                     }
                     let event = if precise && (custom || widget.as_render_view().is_some()) {
                         TheEvent::PreciseScroll(Vec2::new(delta.0, delta.1))

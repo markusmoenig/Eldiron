@@ -1,0 +1,291 @@
+//! GPU paint integration. Unsupported legacy widgets fail explicitly; there is
+//! no whole-window CPU fallback hidden behind this interface.
+use crate::paint::Rect;
+use crate::{paint::*, prelude::*, text::TextSystem};
+use renderkit::{GpuContext, ImageAsset, ImageRegistry};
+use std::{collections::HashMap, sync::Arc};
+#[derive(Debug)]
+pub struct UiPaintError(pub String);
+impl std::fmt::Display for UiPaintError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+impl std::error::Error for UiPaintError {}
+pub type UiPaintResult = Result<(), UiPaintError>;
+pub struct UiImages {
+    pub registry: ImageRegistry,
+    cached: HashMap<String, ImageHandle>,
+}
+impl UiImages {
+    pub fn new(context: Arc<GpuContext>) -> Self {
+        Self {
+            registry: ImageRegistry::new(context),
+            cached: HashMap::new(),
+        }
+    }
+    pub fn image(
+        &mut self,
+        key: &str,
+        source: &TheRGBABuffer,
+        changed: bool,
+    ) -> Result<ImageHandle, UiPaintError> {
+        if !changed
+            && let Some(handle) = self.cached.get(key)
+            && self.registry.get(*handle).is_some()
+        {
+            return Ok(*handle);
+        }
+        let image = ImageAsset::rgba(
+            source.pixel_width() as u32,
+            source.pixel_height() as u32,
+            source.pixels().to_vec(),
+        )
+        .map_err(|e| UiPaintError(e.to_string()))?;
+        let handle = self
+            .registry
+            .upload(&image)
+            .map_err(|e| UiPaintError(e.to_string()))?;
+        if let Some(old) = self.cached.insert(key.into(), handle) {
+            self.registry.remove(old);
+        }
+        Ok(handle)
+    }
+}
+pub fn bounds(dim: &TheDim) -> Rect {
+    Rect::new(
+        dim.x as f32,
+        dim.y as f32,
+        dim.width.max(0) as f32,
+        dim.height.max(0) as f32,
+    )
+}
+pub fn rgba(color: RGBA) -> Color {
+    color.map(|v| v as f32 / 255.)
+}
+pub struct WidgetPainter<'a> {
+    pub list: &'a mut PaintList,
+    pub text: &'a mut TextSystem,
+    pub images: &'a mut UiImages,
+    pub ui: &'a TheUIContext,
+    pub theme: &'a mut dyn TheTheme,
+}
+impl WidgetPainter<'_> {
+    pub fn icon(&mut self, name: &str, rect: Rect) -> UiPaintResult {
+        if let Some(source) = self.ui.icon(name) {
+            if source.pixel_width() == 0 || source.pixel_height() == 0 {
+                return Ok(());
+            }
+            let image = self.images.image(&format!("icon:{name}"), source, false)?;
+            self.list.image(image, rect, Sampling::Linear);
+        }
+        Ok(())
+    }
+
+    pub fn button(&mut self, rect: Rect, radius: f32, role: TheThemePaints, border: RGBA) {
+        self.list.rect(rect, radius, rgba(border));
+        self.theme_fill(rect.inset(1.), (radius - 1.).max(0.), role);
+    }
+    pub fn text_input(
+        &mut self,
+        rect: Rect,
+        focused: bool,
+        disabled: bool,
+        embedded: bool,
+        area: bool,
+        border: bool,
+    ) -> Rect {
+        let radius = if area {
+            1.
+        } else {
+            self.theme.metric(ControlCornerRadius)
+        };
+        let inset = if !border {
+            0.
+        } else if area {
+            1.
+        } else {
+            2.
+        };
+        if border {
+            if focused && !embedded {
+                self.theme_fill(rect, radius, Focus);
+            }
+            let b = if area {
+                rect
+            } else {
+                Rect::new(
+                    rect.x + 1.,
+                    rect.y + 1.,
+                    (rect.width - 2.).max(0.),
+                    (rect.height - 2.).max(0.),
+                )
+            };
+            let role = if focused && !embedded && !area {
+                SelectedTextEditBorder2
+            } else {
+                TextEditBorder
+            };
+            let color = if disabled {
+                *self.theme.color_disabled(role)
+            } else {
+                *self.theme.color(role)
+            };
+            self.list.rect(
+                b,
+                (radius - if area { 0. } else { 1. }).max(0.),
+                rgba(color),
+            );
+        }
+        let inner = Rect::new(
+            rect.x + inset,
+            rect.y + inset,
+            (rect.width - inset * 2.).max(0.),
+            (rect.height - inset * 2.).max(0.),
+        );
+        self.theme_fill(
+            inner,
+            (radius - inset).max(0.),
+            if disabled {
+                TextInputDisabled
+            } else if focused {
+                TextInputFocused
+            } else {
+                TextInputNormal
+            },
+        );
+        inner
+    }
+    pub fn scrollbar(&mut self, bounds: Rect, thumb: Rect, hovered: bool, pressed: bool) {
+        let role = if pressed {
+            ScrollbarThumbPressed
+        } else if hovered {
+            ScrollbarThumbHover
+        } else {
+            ScrollbarThumbNormal
+        };
+        let border = if pressed {
+            ToolbarButtonClickedBorder
+        } else if hovered {
+            ToolbarButtonHoverBorder
+        } else {
+            DefaultWidgetBorder
+        };
+        self.list.ops.push(PaintOp::PushClip(bounds));
+        self.theme_fill(bounds, 0., ScrollbarTrack);
+        let radius = thumb.width.min(thumb.height) * 0.5;
+        self.list.rect(thumb, radius, self.color(border));
+        self.theme_fill(
+            Rect::new(
+                thumb.x + 1.,
+                thumb.y + 1.,
+                (thumb.width - 2.).max(0.),
+                (thumb.height - 2.).max(0.),
+            ),
+            (radius - 1.).max(0.),
+            role,
+        );
+        self.list.ops.push(PaintOp::PopClip);
+    }
+    pub fn color(&self, role: TheThemeColors) -> Color {
+        rgba(*self.theme.color(role))
+    }
+    pub fn fill(&mut self, rect: Rect, role: TheThemeColors) {
+        self.list.rect(rect, 0., self.color(role));
+    }
+    pub fn theme_brush(&self, rect: Rect, role: TheThemePaints) -> Brush {
+        match self.theme.paint(
+            role,
+            ThePixelRect::new(
+                rect.x as i32,
+                rect.y as i32,
+                rect.width as i32,
+                rect.height as i32,
+            ),
+        ) {
+            ThePaint::Solid(c) => Brush::Solid(rgba(c)),
+            ThePaint::LinearGradient {
+                start,
+                end,
+                start_color,
+                end_color,
+            } => Brush::LinearGradient {
+                start,
+                end,
+                start_color: rgba(start_color),
+                end_color: rgba(end_color),
+            },
+        }
+    }
+    pub fn theme_fill(&mut self, rect: Rect, radius: f32, role: TheThemePaints) {
+        let brush = self.theme_brush(rect, role);
+        self.list.rect(rect, radius, brush);
+    }
+    pub fn outline(&mut self, rect: Rect, color: RGBA, width: f32) {
+        let path = Path {
+            elements: vec![
+                PathElement::Move([rect.x, rect.y]),
+                PathElement::Line([rect.x + rect.width, rect.y]),
+                PathElement::Line([rect.x + rect.width, rect.y + rect.height]),
+                PathElement::Line([rect.x, rect.y + rect.height]),
+                PathElement::Close,
+            ],
+        };
+        self.list.ops.push(PaintOp::Stroke {
+            path: Arc::new(path),
+            stroke: Stroke {
+                width,
+                cap: LineCap::Butt,
+                join: LineJoin::Miter,
+                brush: rgba(color).into(),
+            },
+        });
+    }
+    pub fn label(
+        &mut self,
+        rect: Rect,
+        value: &str,
+        size: f32,
+        color: RGBA,
+        horizontal: TheHorizontalAlign,
+        vertical: TheVerticalAlign,
+    ) {
+        let layout = self.text.layout(value, "Roboto", size, None);
+        let x = rect.x
+            + match horizontal {
+                TheHorizontalAlign::Left => 0.,
+                TheHorizontalAlign::Center => (rect.width - layout.width()) * 0.5,
+                TheHorizontalAlign::Right => rect.width - layout.width(),
+            };
+        let y = rect.y
+            + match vertical {
+                TheVerticalAlign::Top => 0.,
+                TheVerticalAlign::Center => (rect.height - layout.height()) * 0.5,
+                TheVerticalAlign::Bottom => rect.height - layout.height(),
+            };
+        self.list.ops.push(PaintOp::PushClip(rect));
+        for run in layout.runs {
+            self.list.ops.push(PaintOp::GlyphRun {
+                run,
+                origin: [x, y],
+                color: rgba(color),
+            });
+        }
+        self.list.ops.push(PaintOp::PopClip);
+    }
+    pub fn image(
+        &mut self,
+        key: &str,
+        image: &TheRGBABuffer,
+        rect: Rect,
+        changed: bool,
+        sampling: Sampling,
+    ) -> UiPaintResult {
+        if image.pixel_width() == 0 || image.pixel_height() == 0 {
+            return Ok(());
+        }
+        let handle = self.images.image(key, image, changed)?;
+        self.list.image(handle, rect, sampling);
+        Ok(())
+    }
+}

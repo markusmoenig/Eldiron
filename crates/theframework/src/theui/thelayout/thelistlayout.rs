@@ -25,6 +25,71 @@ pub struct TheListLayout {
 }
 
 impl TheLayout for TheListLayout {
+    #[cfg(feature = "render-wgpu")]
+    fn prepare_paint(&mut self, ctx: &mut TheContext) {
+        self.set_dim(self.dim, ctx);
+        let offset = self
+            .vertical_scrollbar
+            .as_vertical_scrollbar()
+            .map(|s| s.scroll_offset())
+            .unwrap_or(0);
+        for w in &mut self.widgets {
+            ctx.ui.input_transforms.insert(
+                w.id().uuid,
+                crate::paint::Transform::translate(0., -offset as f32),
+            );
+            w.prepare_paint(ctx);
+        }
+    }
+
+    #[cfg(feature = "render-wgpu")]
+    fn paint(
+        &mut self,
+        p: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult {
+        use crate::paint::{PaintOp, Rect, Transform};
+        use crate::theui::paint::bounds;
+        let r = bounds(&self.dim);
+        let width = (r.width
+            - if self.vertical_scrollbar_visible {
+                13.
+            } else {
+                0.
+            })
+        .max(0.);
+        let offset = self
+            .vertical_scrollbar
+            .as_vertical_scrollbar()
+            .map(|s| s.scroll_offset())
+            .unwrap_or(0);
+        p.fill(r, ListLayoutBackground);
+        p.outline(r, *p.theme.color(ListLayoutBorder), 1.);
+        p.list
+            .ops
+            .push(PaintOp::PushClip(Rect::new(r.x, r.y, width, r.height)));
+        p.list.ops.push(PaintOp::PushTransform(Transform::translate(
+            0.,
+            -offset as f32,
+        )));
+        for widget in &mut self.widgets {
+            if let Some(item) = widget.as_list_item() {
+                item.set_scroll_offset(offset);
+            }
+            let d = widget.dim();
+            if d.y + d.height >= self.dim.y + offset && d.y < self.dim.y + self.dim.height + offset
+            {
+                widget.paint(p)?;
+            }
+        }
+        p.list.ops.push(PaintOp::PopTransform);
+        p.list.ops.push(PaintOp::PopClip);
+        if self.vertical_scrollbar_visible {
+            self.vertical_scrollbar.paint(p)?;
+        }
+        self.is_dirty = false;
+        Ok(())
+    }
+
     fn new(id: TheId) -> Self
     where
         Self: Sized,
@@ -170,8 +235,13 @@ impl TheLayout for TheListLayout {
 
             let content_width = (width - LIST_RIGHT_MARGIN).max(0);
 
-            self.list_buffer
-                .set_dim(TheDim::new(0, 0, width, total_height));
+            if ctx.ui.gpu_paint {
+                self.list_buffer = TheRGBABuffer::empty();
+                *self.list_buffer.dim_mut() = TheDim::new(0, 0, width, total_height);
+            } else {
+                self.list_buffer
+                    .set_dim(TheDim::new(0, 0, width, total_height));
+            }
 
             for index in 0..items {
                 let i = index as usize;
