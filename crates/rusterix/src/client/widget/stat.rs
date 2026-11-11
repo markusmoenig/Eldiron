@@ -14,6 +14,20 @@ enum StatWidgetOrientation {
     Vertical,
 }
 
+/// A CPU visual description consumed by graphical presentation.
+#[derive(Clone, Copy, Debug)]
+pub struct StatPresentation {
+    pub rect: Rect,
+    pub fill: Rect,
+    pub source: Option<Uuid>,
+    pub tile_mode: bool,
+    pub clip_source: bool,
+    pub background: Pixel,
+    pub color: Pixel,
+    pub border: Pixel,
+    pub border_width: f32,
+}
+
 pub struct StatWidget {
     pub name: String,
     pub rect: Rect,
@@ -164,35 +178,7 @@ impl StatWidget {
     ) {
         self.buffer.fill([0, 0, 0, 0]);
 
-        let stat = if self.stat.is_empty() {
-            assets.ruleset_attribute_role("health").unwrap_or_default()
-        } else {
-            self.stat.clone()
-        };
-        let max_stat = if self.max_stat.is_empty() {
-            if self.stat.is_empty() {
-                assets
-                    .ruleset_attribute_role("max_health")
-                    .unwrap_or_default()
-            } else {
-                format!("MAX_{}", stat)
-            }
-        } else {
-            self.max_stat.clone()
-        };
-        let ratio = entity
-            .map(|entity| {
-                let current = entity.attributes.get_float_default(&stat, 0.0);
-                let max = entity
-                    .attributes
-                    .get_float_default(&max_stat, current.max(1.0));
-                if max <= 0.0 {
-                    0.0
-                } else {
-                    (current / max).clamp(0.0, 1.0)
-                }
-            })
-            .unwrap_or(0.0);
+        let ratio = self.value_ratio(assets, entity);
 
         if self.background_color[3] > 0 {
             let width = self.buffer.dim().width as usize;
@@ -237,6 +223,74 @@ impl StatWidget {
         }
 
         target.blend_into(self.rect.x as i32, self.rect.y as i32, &self.buffer);
+    }
+
+    pub fn value_ratio(&self, assets: &Assets, entity: Option<&Entity>) -> f32 {
+        let stat = if self.stat.is_empty() {
+            assets.ruleset_attribute_role("health").unwrap_or_default()
+        } else {
+            self.stat.clone()
+        };
+        let max_stat = if self.max_stat.is_empty() {
+            if self.stat.is_empty() {
+                assets
+                    .ruleset_attribute_role("max_health")
+                    .unwrap_or_default()
+            } else {
+                format!("MAX_{}", stat)
+            }
+        } else {
+            self.max_stat.clone()
+        };
+        entity
+            .map(|entity| {
+                let current = entity.attributes.get_float_default(&stat, 0.0);
+                let max = entity
+                    .attributes
+                    .get_float_default(&max_stat, current.max(1.0));
+                if max <= 0.0 {
+                    0.0
+                } else {
+                    (current / max).clamp(0.0, 1.0)
+                }
+            })
+            .unwrap_or(0.0)
+    }
+
+    /// Geometry and source selection; no destination bitmap is required.
+    pub fn presentation(&self, assets: &Assets, entity: Option<&Entity>) -> StatPresentation {
+        let ratio = self.value_ratio(assets, entity);
+        let mut fill = self.rect;
+        match self.orientation {
+            StatWidgetOrientation::Horizontal => fill.width = (fill.width * ratio).round(),
+            StatWidgetOrientation::Vertical => {
+                fill.height = (fill.height * ratio).round();
+                fill.y += self.rect.height - fill.height;
+            }
+        }
+        let source = match self.mode {
+            StatWidgetMode::Bar => None,
+            StatWidgetMode::Tiles => {
+                if self.tile_ids.len() == 1 && self.clip_tile {
+                    self.tile_ids.first().copied()
+                } else {
+                    self.source_for_ratio(ratio)
+                }
+            }
+        };
+        StatPresentation {
+            rect: self.rect,
+            fill,
+            source,
+            clip_source: self.mode == StatWidgetMode::Tiles
+                && self.tile_ids.len() == 1
+                && self.clip_tile,
+            tile_mode: self.mode == StatWidgetMode::Tiles,
+            background: self.background_color,
+            color: self.fill_color,
+            border: self.border_color,
+            border_width: self.border_size.max(0) as f32,
+        }
     }
 
     fn parse_tile_ids(ui: &toml::Table) -> Vec<Uuid> {

@@ -10,6 +10,8 @@ scenevm = {path="../scenevm",default-features=false,features=["gpu"]}
 rusterix = {path="../rusterix",default-features=false,features=["graphics"]}
 theframework-core = {path="../theframework-core"}
 rustc-hash = "2"
+theframework = {path="../theframework",default-features=false,features=["text"]}
 [dev-dependencies]
 futures = "0.3"
+png = "0.18"
 theframework = {path="../theframework",default-features=false,features=["render-wgpu"]}

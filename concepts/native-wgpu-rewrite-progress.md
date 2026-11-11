@@ -198,3 +198,14 @@ This remains a scene ownership/composition checkpoint. Game-screen/HUD presentat
 - Actual GPU dense-text test verifies over 400 visible glyph quads with at most one draw per shaped run plus a page transition; a second frame adds neither image uploads nor Swash rasterization. Explicit capture verifies text coverage.
 - Passed: two paint GPU tests and the existing UI GPU regression suite. Logs: `/private/tmp/eldiron-glyph-batches-gpu.log`, `/private/tmp/eldiron-glyph-batches-ui.log`.
 - This removes per-glyph GPU buffer/bind allocations for a run. General primitive geometry/uniform arenas, scratch pooling, cache budgets and full application performance acceptance remain open.
+
+## Game-screen paint checkpoint (2026-11-11)
+
+- Began game-screen/HUD emission in `eldiron-presentation::screen`, outside the authoritative runtime and framework UI. `ScreenPainter` consumes existing CPU model/controller state and emits text, text-input, choice, stat, decoration, authored artwork, repeating spatial pages and nine-slice commands. It receives no destination pixels or server.
+- Extracted text placeholder resolution and stat value/geometry descriptions from CPU drawing. The legacy adapter and new presenter use the same content and rules semantics. Choice interaction and painting use the same public rectangles.
+- Added named font registration, so an authored project font asset name selects its bytes regardless of its internal font-family name. Verified the shaped glyph face uses those exact bytes.
+- `ScreenImageCache` owns source registrations in the host image registry. It reuses unchanged uploads, checks domain ownership, retains both source revisions used in one frame and evicts unused assets to a byte budget. No screen-sized CPU overlay is registered. Fingerprinting still scans source bytes; revision-driven asset invalidation and the overall resource/performance acceptance remain work.
+- Passed: three actual GPU tests for controls/Unicode/choice selection/stat geometry, cache ownership/reuse/eviction, and animation/spatial-page/nine-slice pixel addressing. `/private/tmp/eldiron-screen-art-gpu.log`. Captured and visually inspected `native-wgpu-evidence/game-screen-controls.png`.
+- Passed: three existing text-content controller tests (`/private/tmp/eldiron-screen-controllers.log`), five independent dependency boundaries (`/private/tmp/eldiron-screen-boundaries.log`), browser and iOS-simulator presentation compilation (`/private/tmp/eldiron-screen-web.log`, `/private/tmp/eldiron-screen-ios.log`).
+- Remaining: buttons/item/portrait/profile/message families, static screen geometry and full HUD composition; graphical app and Creator adoption. Current legacy screen setup still allocates bitmap storage, and this checkpoint does not switch a canonical launcher or claim full M5 acceptance.
+- All four existing application entry points compile after this extraction: `/private/tmp/eldiron-screen-apps.log` (36.69 s).

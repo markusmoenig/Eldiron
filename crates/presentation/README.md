@@ -30,8 +30,21 @@ not used as a cross-instance ownership identity. Mip pipelines live with the
 textures they serve, rather than in a process/thread-global cache.
 
 This is the initial scene-view boundary. Creator and graphical player entry
-points still need adoption; game-screen/HUD emission is not implemented here
-yet. Opaque raster-2D composition, independent transforms, resource domains,
+points still need adoption; `screen::ScreenPainter` now emits text, stat, text-input, choice, decoration
+and authored artwork commands from CPU controller state. Other screen families
+and the complete HUD composition/controller extraction are still being migrated. Opaque raster-2D composition, independent transforms, resource domains,
 resize/suspend and capture are tested. Transparent scene color/alpha contracts,
 3D/isometric application parity, shared geometry buffers, picking revisions and
 full application device-loss recovery remain acceptance work.
+
+`ScreenImageCache` registers authored/generated source images in the host registry.
+It fingerprints sources to reuse unchanged uploads, retains same-frame revisions,
+and evicts unused entries to its byte budget after frame assembly. Current-frame
+working sets remain live even when larger than the budget; resident bytes expose
+that case. Discard old command lists before beginning another cache frame, and
+call `clear` before replacing this owner while retaining its registry.
+
+The screen painter owns neither a destination raster nor a simulation clock.
+Content/placeholder resolution and stat/choice geometry are shared with the CPU
+controller adapters. Fonts can be registered under project asset names with
+`TextSystem::register_font_named`; all text still uses Parley and Swash.

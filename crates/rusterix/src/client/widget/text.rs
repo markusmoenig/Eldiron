@@ -158,13 +158,75 @@ impl TextWidget {
         if let Some(font) = &self.font {
             let stride = buffer.stride();
             let mut y = self.rect.y;
-            let player = map.entities.iter().find(|entity| entity.is_player());
-            let player_id = player.map(|entity| entity.id);
-
             let width = buffer.dim().width;
             let height = buffer.dim().height;
+            for resolved in self.resolved_lines(map, currencies, assets, time, ui_state) {
+                if resolved.contains('\t') {
+                    for (index, segment) in resolved.split('\t').enumerate() {
+                        let x = self.rect.x + self.tab_width * index as f32;
+                        let seg_width = (self.rect.width - (x - self.rect.x)).max(0.0);
+                        let tuple = (
+                            x.floor() as isize,
+                            y.floor() as isize,
+                            seg_width.floor() as isize,
+                            self.font_size as isize,
+                        );
+                        self.draw2d.text_rect_blend_safe(
+                            buffer.pixels_mut(),
+                            &tuple,
+                            stride,
+                            font,
+                            self.font_size,
+                            segment,
+                            &self.color,
+                            draw2d::TheHorizontalAlign::Left,
+                            draw2d::TheVerticalAlign::Center,
+                            &(0, 0, width as isize, height as isize),
+                        );
+                    }
+                } else {
+                    let tuple = (
+                        self.rect.x as isize,
+                        y.floor() as isize,
+                        self.rect.width as isize,
+                        self.font_size as isize,
+                    );
 
-            for line in self.text.lines() {
+                    self.draw2d.text_rect_blend_safe(
+                        buffer.pixels_mut(),
+                        &tuple,
+                        stride,
+                        font,
+                        self.font_size,
+                        &resolved,
+                        &self.color,
+                        self.horizontal_align.clone(),
+                        draw2d::TheVerticalAlign::Center,
+                        &(0, 0, width as isize, height as isize),
+                    );
+                }
+
+                y += self.font_size + self.spacing;
+            }
+        }
+    }
+
+    /// Resolve authored content once, independently of font measurement or drawing.
+    /// Graphical presenters and the legacy CPU adapter share these exact semantics.
+    pub fn resolved_lines(
+        &self,
+        map: &Map,
+        currencies: &Currencies,
+        assets: &Assets,
+        time: &TheTime,
+        ui_state: &FxHashMap<String, String>,
+    ) -> Vec<String> {
+        let player = map.entities.iter().find(|entity| entity.is_player());
+        let player_id = player.map(|entity| entity.id);
+
+        self.text
+            .lines()
+            .map(|line| {
                 let legacy = substitute_placeholders(line, |cat, key| {
                     match cat {
                         "PLAYER" => {
@@ -260,55 +322,9 @@ impl TextWidget {
                         world_time: Some(*time),
                     },
                 );
-
-                if resolved.contains('\t') {
-                    for (index, segment) in resolved.split('\t').enumerate() {
-                        let x = self.rect.x + self.tab_width * index as f32;
-                        let seg_width = (self.rect.width - (x - self.rect.x)).max(0.0);
-                        let tuple = (
-                            x.floor() as isize,
-                            y.floor() as isize,
-                            seg_width.floor() as isize,
-                            self.font_size as isize,
-                        );
-                        self.draw2d.text_rect_blend_safe(
-                            buffer.pixels_mut(),
-                            &tuple,
-                            stride,
-                            font,
-                            self.font_size,
-                            segment,
-                            &self.color,
-                            draw2d::TheHorizontalAlign::Left,
-                            draw2d::TheVerticalAlign::Center,
-                            &(0, 0, width as isize, height as isize),
-                        );
-                    }
-                } else {
-                    let tuple = (
-                        self.rect.x as isize,
-                        y.floor() as isize,
-                        self.rect.width as isize,
-                        self.font_size as isize,
-                    );
-
-                    self.draw2d.text_rect_blend_safe(
-                        buffer.pixels_mut(),
-                        &tuple,
-                        stride,
-                        font,
-                        self.font_size,
-                        &resolved,
-                        &self.color,
-                        self.horizontal_align.clone(),
-                        draw2d::TheVerticalAlign::Center,
-                        &(0, 0, width as isize, height as isize),
-                    );
-                }
-
-                y += self.font_size + self.spacing;
-            }
-        }
+                resolved
+            })
+            .collect()
     }
 
     fn start_ui_value(

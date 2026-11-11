@@ -1089,7 +1089,7 @@ impl Widget {
         None
     }
 
-    fn texture_index_for_state(len: usize, visual_state: ButtonVisualState) -> usize {
+    pub fn texture_index_for_state(len: usize, visual_state: ButtonVisualState) -> usize {
         match visual_state {
             ButtonVisualState::Selected => {
                 if len > 1 {

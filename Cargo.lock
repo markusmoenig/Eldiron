@@ -1352,6 +1352,7 @@ name = "eldiron-presentation"
 version = "0.96.0"
 dependencies = [
  "futures",
+ "png 0.18.0",
  "renderkit",
  "rustc-hash 2.1.1",
  "rusterix",

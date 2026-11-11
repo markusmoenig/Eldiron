@@ -101,6 +101,20 @@ impl TextSystem {
             .collection
             .register_fonts(parley::fontique::Blob::new(Arc::new(data)), None);
     }
+    /// Register an authored asset name independently of the font's internal family name.
+    pub fn register_font_named(&mut self, name: &str, data: Vec<u8>) -> bool {
+        !self
+            .fonts
+            .collection
+            .register_fonts(
+                parley::fontique::Blob::new(Arc::new(data)),
+                Some(parley::fontique::FontInfoOverride {
+                    family_name: Some(name),
+                    ..Default::default()
+                }),
+            )
+            .is_empty()
+    }
     pub fn layout(
         &mut self,
         text: &str,

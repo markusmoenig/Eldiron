@@ -296,7 +296,7 @@ impl ChoiceWidget {
         }
     }
 
-    fn tab_rect(&self, index: usize) -> Rect {
+    pub fn tab_rect(&self, index: usize) -> Rect {
         let count = self.options.len().max(1) as f32;
         let total_spacing = self.spacing * (count - 1.0);
         let available = (self.rect.width - total_spacing).max(1.0);
@@ -341,7 +341,7 @@ impl ChoiceWidget {
             .find_map(|(index, _)| self.tab_rect(index).contains(point).then_some(index))
     }
 
-    fn dropdown_item_rect(&self, index: usize) -> Rect {
+    pub fn dropdown_item_rect(&self, index: usize) -> Rect {
         let popup = self.popup_rect();
         Rect::new(
             popup.x,
