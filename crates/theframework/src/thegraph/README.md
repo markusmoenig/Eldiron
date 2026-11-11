@@ -220,3 +220,21 @@ inactive fallback labels; custom value painters keep their formatter and focused
 text keeps authored source. A host can display an equipment item's friendly name
 while editing/persisting its stable UUID. Supply read-only catalog/name snapshots
 through the context rather than mutating values before painting.
+
+
+Host-owned choice/conversation/custom controls complete through
+`GraphViewState::commit_control(binding, node, row, expected, value)`. It validates
+the captured source and exclusive editing scope before mutation, then publishes a
+reversible value edit. A stale binding/value/target or unfinished inline/pointer
+editor is rejected atomically. A prior completed inline edit keeps its own serial.
+Callers forward the returned latest notification; the application consumes the
+retained prefix. Unchanged controls produce no duplicate transaction.
+
+A native searchable popup can keep `GraphPicker`'s hit/filter/item model while
+using the shared `EditorView` for the search field. Reserve its search row with
+`set_always_show_search(true)`, refit, and use `search_rect()` for input/layout/IME.
+Project committed editor text with `set_query`; this resets scroll and refreshes
+hover/filter state before the next input. `paint_without_query` paints the same
+chrome/items, leaving query/caret/composition to the common editor. The default
+`paint` path and compact empty-search behavior remain available for reference
+hosts. Preedit stays with the editor, not in the committed filter string.

@@ -106,6 +106,51 @@ impl GraphViewState {
         self.pending.push_back(commit.clone());
         Some(commit)
     }
+    /// Complete a host-owned popup/conversation/custom control draft against its
+    /// captured source. Validate before mutation/publication; a stale view may not
+    /// overwrite a newer control value or absorb an unfinished graph gesture.
+    pub fn commit_control(
+        &mut self,
+        binding: u64,
+        node: GraphId,
+        row: GraphId,
+        expected: &GraphControlValue,
+        value: GraphControlValue,
+    ) -> Result<Option<Arc<GraphCommit>>, GraphDraftError> {
+        if binding != self.binding {
+            return Err(GraphDraftError::WrongBinding);
+        }
+        let current = self
+            .document
+            .nodes
+            .iter()
+            .find(|candidate| candidate.id == node)
+            .and_then(|node| node.rows.iter().find(|candidate| candidate.id == row))
+            .ok_or(GraphDraftError::MissingTarget)?;
+        if &current.value != expected {
+            return Err(GraphDraftError::SourceChanged);
+        }
+        if self.editor.is_gesturing() || self.editor.text_focus().is_some() {
+            return Err(GraphDraftError::EditorBusy);
+        }
+        let changed = current.value != value;
+        let before = changed.then(|| current.value.clone());
+        let preceding = self.publish_edits();
+        if let Some(before) = before {
+            let edit = GraphEdit::SetValue {
+                node,
+                row,
+                before,
+                after: value,
+            };
+            edit.apply(&mut self.document, true);
+            self.editor.record_edit(edit);
+            self.invalidate();
+            Ok(self.publish_edits())
+        } else {
+            Ok(preceding)
+        }
+    }
     /// Detached panels use the same source binding and retained transaction queue
     /// as inline edits. The view owner must suspend its other editing scopes.
     pub fn checkpoint_draft(

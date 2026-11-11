@@ -1185,3 +1185,79 @@ fn semantic_list_labels_do_not_substitute_authored_values_or_active_text() {
     editor.finish_text(&mut document, false);
     assert_eq!(document, source);
 }
+
+#[test]
+fn graph_picker_native_search_uses_the_same_reserved_geometry_filter_and_item_paint() {
+    #[derive(Default)]
+    struct Recorded {
+        text: Vec<String>,
+        geometry: Vec<GraphRect>,
+    }
+    impl GraphPainter for Recorded {
+        fn round_rect(&mut self, rect: GraphRect, _: f32, _: GraphColor) {
+            self.geometry.push(rect);
+        }
+        fn text(&mut self, _: GraphRect, text: &str, _: f32, _: GraphColor) {
+            self.text.push(text.into());
+        }
+        fn curve(&mut self, _: [[f32; 2]; 4], _: f32, _: GraphColor) {}
+        fn preview(&mut self, rect: GraphRect, _: &str) {
+            self.geometry.push(rect);
+        }
+    }
+    let anchor = GraphRect {
+        origin: [50., 35.],
+        size: [230., 26.],
+    };
+    let items: Vec<_> = (0..30)
+        .map(|id| GraphPickerItem {
+            id: id.to_string(),
+            label: format!("Item 日本 {id}"),
+        })
+        .collect();
+    for kind in 0..3 {
+        let mut picker = match kind {
+            0 => GraphPicker::new("Catalog", [20., 20.], items.clone()),
+            1 => GraphPicker::compact(anchor, [480., 320.], items.clone()),
+            _ => GraphPicker::grid(anchor, [480., 320.], items.clone()),
+        };
+        if kind == 1 {
+            assert!(picker.search_rect().is_none());
+        }
+        picker.set_always_show_search(true);
+        picker.fit([480., 320.]);
+        let search = picker.search_rect().unwrap();
+        let center = [
+            search.origin[0] + search.size[0] * 0.5,
+            search.origin[1] + search.size[1] * 0.5,
+        ];
+        assert!(picker.contains(center));
+        assert!(
+            picker.pick(center).is_none(),
+            "search input must not select an item"
+        );
+        picker.scroll_by(2);
+        assert!(picker.scroll > 0);
+        assert!(picker.set_query("日本 29"));
+        assert_eq!(picker.scroll, 0);
+        assert_eq!(picker.filtered().len(), 1);
+        assert_eq!(picker.filtered()[0].id, "29");
+        assert!(!picker.set_query("日本 29"));
+        let mut reference = Recorded::default();
+        picker.paint(&mut reference);
+        let mut native = Recorded::default();
+        picker.paint_without_query(&mut native);
+        assert_eq!(reference.geometry, native.geometry);
+        assert!(native.text.iter().any(|text| text == "Item 日本 29"));
+        assert!(
+            !native
+                .text
+                .iter()
+                .any(|text| text.contains("Search:") || text == "日本 29")
+        );
+        assert_eq!(reference.text.len(), native.text.len() + 1);
+        assert!(picker.set_query("No matches"));
+        picker.paint_without_query(&mut native);
+        assert!(native.text.iter().any(|text| text == &picker.empty_label));
+    }
+}

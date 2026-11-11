@@ -14,8 +14,8 @@ impl std::fmt::Display for GraphDraftError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
             Self::WrongBinding => "The graph draft belongs to another document",
-            Self::MissingTarget => "The graph draft's text field no longer exists",
-            Self::SourceChanged => "The graph text field changed outside this draft",
+            Self::MissingTarget => "The graph draft's field no longer exists",
+            Self::SourceChanged => "The graph field changed outside this draft",
             Self::EditorBusy => "Another graph edit is still active",
         })
     }

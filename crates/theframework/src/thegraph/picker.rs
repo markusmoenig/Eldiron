@@ -19,6 +19,7 @@ pub struct GraphPicker {
     pointer: Option<Point>,
     scroll_remainder: f32,
     compact: bool,
+    always_show_search: bool,
     width: f32,
     max_rows: usize,
     grid: bool,
@@ -38,6 +39,7 @@ impl GraphPicker {
             pointer: None,
             scroll_remainder: 0.,
             compact: false,
+            always_show_search: false,
             width: 330.,
             max_rows: 8,
             grid: false,
@@ -97,7 +99,7 @@ impl GraphPicker {
     }
     fn header(&self) -> f32 {
         if self.compact {
-            if !self.grid && self.query.is_empty() {
+            if !self.grid && self.query.is_empty() && !self.always_show_search {
                 4.
             } else {
                 28.
@@ -131,6 +133,38 @@ impl GraphPicker {
             .iter()
             .filter(|i| i.label.to_lowercase().contains(&query))
             .collect()
+    }
+    /// Reserve a native editor/IME row even for an empty compact list. Refit the
+    /// picker after changing this policy; reference defaults remain unchanged.
+    pub fn set_always_show_search(&mut self, visible: bool) {
+        self.always_show_search = visible;
+    }
+    /// Logical view-local bounds shared by the native search editor and hit test.
+    pub fn search_rect(&self) -> Option<GraphRect> {
+        if self.compact {
+            (self.header() > 4.).then_some(GraphRect {
+                origin: [self.origin[0] + 8., self.origin[1] + 4.],
+                size: [(self.width - 16.).max(0.), 20.],
+            })
+        } else {
+            Some(GraphRect {
+                origin: [self.origin[0] + 12., self.origin[1] + 36.],
+                size: [306., 22.],
+            })
+        }
+    }
+    /// Project committed text from a shared editor; composition remains owned by
+    /// that editor. Update filtering/hover immediately, before another input.
+    pub fn set_query(&mut self, query: impl Into<String>) -> bool {
+        let query = query.into();
+        if self.query == query {
+            return false;
+        }
+        self.query = query;
+        self.scroll = 0;
+        self.scroll_remainder = 0.;
+        self.hover(self.pointer);
+        true
     }
     pub fn type_char(&mut self, c: char) {
         if !c.is_control() {
@@ -229,6 +263,14 @@ impl GraphPicker {
         );
     }
     pub fn paint(&self, p: &mut dyn GraphPainter) {
+        self.paint_contents(p, true);
+    }
+    /// Paint chrome/items, leaving the search row for a shared native EditorView.
+    /// This prevents duplicate query glyphs and independent caret measurement.
+    pub fn paint_without_query(&self, p: &mut dyn GraphPainter) {
+        self.paint_contents(p, false);
+    }
+    fn paint_contents(&self, p: &mut dyn GraphPainter, query: bool) {
         if self.compact {
             p.round_rect(
                 GraphRect {
@@ -238,7 +280,7 @@ impl GraphPicker {
                 5.,
                 [24, 29, 30, 255],
             );
-            if self.grid || !self.query.is_empty() {
+            if query && (self.grid || !self.query.is_empty() || self.always_show_search) {
                 p.text(
                     GraphRect {
                         origin: [self.origin[0] + 8., self.origin[1] + 4.],
@@ -380,15 +422,14 @@ impl GraphPicker {
             16.,
             [232, 239, 235, 255],
         );
-        p.text(
-            GraphRect {
-                origin: [self.origin[0] + 12., self.origin[1] + 36.],
-                size: [306., 22.],
-            },
-            &format!("{}: {}", self.search_label, self.query),
-            13.,
-            [100, 205, 227, 255],
-        );
+        if query {
+            p.text(
+                self.search_rect().unwrap(),
+                &format!("{}: {}", self.search_label, self.query),
+                13.,
+                [100, 205, 227, 255],
+            );
+        }
         let items = self.filtered();
         for (i, item) in items.iter().skip(self.scroll).take(8).enumerate() {
             let r = GraphRect {

@@ -649,3 +649,133 @@ fn native_graph_folds_publish_once_and_survive_owner_acknowledgement_and_reversi
     edits[0].apply(&mut authoritative, false);
     assert_eq!(authoritative, source);
 }
+
+#[test]
+fn native_host_control_commits_keep_their_own_serial_and_reversible_source() {
+    let mut f = Fixture::new();
+    let expected = GraphControlValue::Custom {
+        kind: "conversation".into(),
+        data: serde_json::json!({"line":"Original", "choices":[]}),
+    };
+    let value = GraphControlValue::Custom {
+        kind: "conversation".into(),
+        data: serde_json::json!({"line":"日本\nNew line", "choices":["Continue"]}),
+    };
+    let row = GraphRow::new("Conversation", expected.clone());
+    let row_id = row.id;
+    f.model.lock().unwrap().edit(|document, _| {
+        document.nodes[0].rows.push(row);
+    });
+    let source = f.model.lock().unwrap().document().clone();
+    f.click_row(0, 0.5);
+    f.command(EditorCommand::SelectAll);
+    f.send(InputEvent::Text("Completed inline".into()));
+    let mut model = f.model.lock().unwrap();
+    model.finish_text(true);
+    let binding = model.binding();
+    let node = model.document().nodes[0].id;
+    let notification = model
+        .commit_control(binding, node, row_id, &expected, value.clone())
+        .unwrap()
+        .unwrap();
+    assert_eq!(notification.serial, 2);
+    let commits = model.pending_through(notification.serial);
+    assert_eq!(commits.len(), 2);
+    assert!(Arc::ptr_eq(&notification, &commits[1]));
+    let mut authoritative = source.clone();
+    commits[0].edits[0].apply(&mut authoritative, true);
+    assert_eq!(
+        authoritative.nodes[0].rows[0].value,
+        GraphControlValue::Text("Completed inline".into())
+    );
+    assert_eq!(authoritative.nodes[0].rows[2].value, expected);
+    commits[1].edits[0].apply(&mut authoritative, true);
+    assert_eq!(authoritative.nodes[0].rows[2].value, value);
+    assert_eq!(&authoritative, model.document());
+    assert!(model.acknowledge(binding, notification.serial));
+    assert!(
+        model
+            .commit_control(binding, node, row_id, &value, value.clone())
+            .unwrap()
+            .is_none()
+    );
+    assert!(model.pending_through(notification.serial).is_empty());
+    commits[1].edits[0].apply(&mut authoritative, false);
+    commits[0].edits[0].apply(&mut authoritative, false);
+    assert_eq!(authoritative, source);
+    drop(model);
+    f.paint();
+    assert!(f.ui.canvas.buffer.pixels().is_empty());
+}
+
+#[test]
+fn native_host_control_rejects_stale_sources_and_active_graph_editors_atomically() {
+    let f = Fixture::new();
+    let mut model = f.model.lock().unwrap();
+    let binding = model.binding();
+    let node = model.document().nodes[0].id;
+    let row = model.document().nodes[0].rows[0].id;
+    let expected = model.document().nodes[0].rows[0].value.clone();
+    let value = GraphControlValue::Text("New host control".into());
+    let initial = model.document().clone();
+    for inline in [true, false] {
+        model.edit(|document, editor| {
+            let r = document.nodes[0].row_rect(if inline { 0 } else { 1 }, &document.metrics());
+            editor.pointer_down(
+                document,
+                editor
+                    .viewport
+                    .to_screen([r.origin[0] + 12., r.origin[1] + 10.]),
+                &BasicGraphControls,
+            );
+        });
+        assert_eq!(model.editor().text_focus().is_some(), inline);
+        assert_eq!(model.editor().is_gesturing(), !inline);
+        let working = model.document().clone();
+        assert_eq!(
+            model
+                .commit_control(binding, node, row, &expected, value.clone())
+                .unwrap_err(),
+            GraphDraftError::EditorBusy
+        );
+        assert_eq!(
+            model.document(),
+            &working,
+            "failed commit must leave the active draft intact"
+        );
+        assert_eq!(model.last_serial(), 0);
+        model.finish_text(false);
+        model.edit(|document, editor| editor.cancel_gesture(document));
+        assert_eq!(model.document(), &initial);
+    }
+    let wrong = GraphControlValue::Text("Obsolete expected source".into());
+    assert_eq!(
+        model
+            .commit_control(binding, node, row, &wrong, value.clone())
+            .unwrap_err(),
+        GraphDraftError::SourceChanged
+    );
+    assert_eq!(
+        model
+            .commit_control(
+                binding,
+                node,
+                uuid::Uuid::new_v4(),
+                &expected,
+                value.clone()
+            )
+            .unwrap_err(),
+        GraphDraftError::MissingTarget
+    );
+    assert_eq!(model.document(), &initial);
+    model.replace_document("test-document", initial.clone());
+    assert_eq!(
+        model
+            .commit_control(binding, node, row, &expected, value)
+            .unwrap_err(),
+        GraphDraftError::WrongBinding
+    );
+    assert_eq!(model.document(), &initial);
+    assert_eq!(model.last_serial(), 0);
+    assert!(model.pending_commits().next().is_none());
+}
