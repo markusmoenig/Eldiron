@@ -133,8 +133,8 @@ impl Fixture {
         self.events
             .try_iter()
             .filter_map(|event| match event {
-                TheEvent::GraphCommitted(id, binding, edits) if id == self.id => {
-                    Some((binding, edits))
+                TheEvent::GraphCommitted(id, commit) if id == self.id => {
+                    Some((commit.binding, commit.edits.clone()))
                 }
                 _ => None,
             })
@@ -483,4 +483,128 @@ fn graph_widget_keeps_the_ui_editor_and_commands_across_gpu_replacement() {
     let commits = f.commits();
     assert_eq!(commits.len(), 1);
     assert_eq!(commits[0].1.len(), 1);
+}
+
+#[test]
+fn graph_save_checkpoint_collects_a_serial_prefix_without_losing_ime_or_replaying_wakeups() {
+    let mut f = Fixture::new();
+    let original = f.model.lock().unwrap().document().clone();
+    f.click_row(0, 0.1);
+    f.command(EditorCommand::SelectAll);
+    f.send(InputEvent::Text("first commit".into()));
+    f.send(key(PhysicalKey::Enter));
+    // Leave its UI wake-up queued, then continue editing before an owner save.
+    f.click_row(0, 0.1);
+    f.command(EditorCommand::SelectAll);
+    f.send(InputEvent::Text("saved draft".into()));
+    let target = f.state().target;
+    f.send(InputEvent::CompositionFor {
+        target,
+        text: "仮".into(),
+        cursor: None,
+    });
+    let checkpoint = f.model.lock().unwrap().checkpoint_text().unwrap();
+    assert_eq!(checkpoint.serial, 2);
+    assert_eq!(f.state().target, target);
+    assert_eq!(
+        f.text(),
+        "saved draft",
+        "preedit is never checkpointed as committed source"
+    );
+    let mut authoritative = original.clone();
+    let commits: Vec<_> = f.model.lock().unwrap().pending_commits().cloned().collect();
+    assert_eq!(
+        commits
+            .iter()
+            .map(|commit| commit.serial)
+            .collect::<Vec<_>>(),
+        vec![1, 2]
+    );
+    for commit in &commits {
+        for edit in &commit.edits {
+            edit.apply(&mut authoritative, true);
+        }
+    }
+    assert_eq!(&authoritative, f.model.lock().unwrap().document());
+    assert!(!f.model.lock().unwrap().acknowledge(checkpoint.binding, 3));
+    assert_eq!(f.model.lock().unwrap().pending_commits().count(), 2);
+    assert!(f.model.lock().unwrap().acknowledge(checkpoint.binding, 1));
+    assert_eq!(
+        f.model
+            .lock()
+            .unwrap()
+            .pending_commits()
+            .map(|commit| commit.serial)
+            .collect::<Vec<_>>(),
+        vec![2]
+    );
+    assert!(
+        f.model
+            .lock()
+            .unwrap()
+            .acknowledge(checkpoint.binding, checkpoint.serial)
+    );
+    assert!(
+        f.model
+            .lock()
+            .unwrap()
+            .acknowledge(checkpoint.binding, checkpoint.serial)
+    );
+    assert_eq!(f.model.lock().unwrap().pending_commits().count(), 0);
+    // The old wake-up was not lost, but its serial is already acknowledged;
+    // an owner collecting pending commits finds nothing to apply twice.
+    let wakeups: Vec<_> = f
+        .events
+        .try_iter()
+        .filter_map(|event| match event {
+            TheEvent::GraphCommitted(_, commit) => Some(commit),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(wakeups.len(), 1);
+    assert_eq!(wakeups[0].serial, 1);
+    assert!(f.model.lock().unwrap().pending_commits().next().is_none());
+    assert!(f.model.lock().unwrap().checkpoint_text().is_none());
+    // The same in-progress native composition remains addressable after Save.
+    f.send(key(PhysicalKey::Enter));
+    assert!(
+        f.model.lock().unwrap().editor().text_focus().is_some(),
+        "preedit still owns Enter after checkpoint"
+    );
+    assert_eq!(f.model.lock().unwrap().last_serial(), 2);
+    f.send(InputEvent::TextFor {
+        target,
+        text: "日本".into(),
+    });
+    assert!(f.text().contains("日本"));
+    f.command(EditorCommand::Undo);
+    assert_eq!(f.text(), "saved draft");
+    f.command(EditorCommand::Undo);
+    assert_eq!(
+        f.text(),
+        "first commit",
+        "checkpoint retains local text undo history"
+    );
+    let undo_checkpoint = f.model.lock().unwrap().checkpoint_text().unwrap();
+    assert_eq!(undo_checkpoint.serial, 3);
+    let mut undo_source = authoritative;
+    for edit in &undo_checkpoint.edits {
+        edit.apply(&mut undo_source, true);
+    }
+    assert_eq!(&undo_source, f.model.lock().unwrap().document());
+    for edit in undo_checkpoint.edits.iter().rev() {
+        edit.apply(&mut undo_source, false);
+    }
+    assert_eq!(
+        &undo_source.nodes[0].rows[0].value,
+        &GraphControlValue::Text("saved draft".into())
+    );
+    let old_binding = checkpoint.binding;
+    f.model
+        .lock()
+        .unwrap()
+        .replace_document("replacement", original);
+    assert!(!f.model.lock().unwrap().acknowledge(old_binding, 3));
+    assert_eq!(f.model.lock().unwrap().last_serial(), 0);
+    assert!(f.model.lock().unwrap().pending_commits().next().is_none());
 }

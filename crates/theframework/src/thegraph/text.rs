@@ -49,6 +49,29 @@ pub(super) fn focused_text<'a>(
     }
 }
 impl GraphTextFocus {
+    /// The committed draft addressed by this graph focus, without preedit.
+    pub fn value<'a>(&self, doc: &'a GraphDocument) -> Option<&'a str> {
+        let row = doc
+            .nodes
+            .iter()
+            .find(|n| n.id == self.node)?
+            .rows
+            .iter()
+            .find(|r| r.id == self.row)?;
+        match (&row.value, self.cell) {
+            (GraphControlValue::Text(text), None) => Some(text),
+            (GraphControlValue::List { rows, .. }, Some((row, column))) => {
+                match rows.get(row)?.get(column)? {
+                    GraphControlValue::Text(text) => Some(text),
+                    _ => None,
+                }
+            }
+            _ => None,
+        }
+    }
+}
+
+impl GraphTextFocus {
     pub fn selection(&self) -> std::ops::Range<usize> {
         self.caret.min(self.anchor)..self.caret.max(self.anchor)
     }
@@ -141,6 +164,28 @@ impl GraphEditor {
     pub fn text_focus(&self) -> Option<&GraphTextFocus> {
         self.text_focus.as_ref()
     }
+    /// Commit a document transaction without ending the native editing session.
+    /// Save/Play barriers use committed source text, leaving preedit and local
+    /// selection/history with the view. The next edit starts at this baseline.
+    pub fn checkpoint_text(&mut self, doc: &mut GraphDocument) {
+        let Some(focus) = self.text_focus.clone() else {
+            return;
+        };
+        let Some((before, after)) = focused_values(doc, &focus) else {
+            return;
+        };
+        if before != after {
+            self.record_edit(GraphEdit::SetValue {
+                node: focus.node,
+                row: focus.row,
+                before,
+                after,
+            });
+        }
+        if let Some(value) = focus.value(doc) {
+            self.text_focus.as_mut().unwrap().original = value.to_owned();
+        }
+    }
     pub fn finish_text(&mut self, doc: &mut GraphDocument, commit: bool) {
         let Some(focus) = self.text_focus.take() else {
             return;
@@ -149,38 +194,24 @@ impl GraphEditor {
         {
             self.text_epoch = next_text_epoch();
         }
-        let Some(row) = doc
-            .nodes
-            .iter_mut()
-            .find(|n| n.id == focus.node)
-            .and_then(|n| n.rows.iter_mut().find(|r| r.id == focus.row))
-        else {
+        let Some((before, after)) = focused_values(doc, &focus) else {
             return;
         };
-        // Editing mutates the live value, so `before` rewinds the edited text to
-        // its old content; undo then restores the whole row (list included).
-        let edited = row.value.clone();
-        let mut before = edited.clone();
-        match (&mut before, focus.cell) {
-            (GraphControlValue::Text(value), None) => *value = focus.original.clone(),
-            (GraphControlValue::List { rows, .. }, Some((r, c))) => {
-                match rows.get_mut(r).and_then(|row| row.get_mut(c)) {
-                    Some(GraphControlValue::Text(value)) => *value = focus.original.clone(),
-                    _ => return,
-                }
-            }
-            _ => return,
-        }
         if commit {
-            if before != edited {
+            if before != after {
                 self.record_edit(GraphEdit::SetValue {
                     node: focus.node,
                     row: focus.row,
                     before,
-                    after: edited,
+                    after,
                 });
             }
-        } else {
+        } else if let Some(row) = doc
+            .nodes
+            .iter_mut()
+            .find(|node| node.id == focus.node)
+            .and_then(|node| node.rows.iter_mut().find(|row| row.id == focus.row))
+        {
             row.value = before;
         }
     }
@@ -214,4 +245,30 @@ fn next_text_epoch() -> u64 {
     use std::sync::atomic::{AtomicU64, Ordering};
     static NEXT: AtomicU64 = AtomicU64::new(1);
     NEXT.fetch_add(1, Ordering::Relaxed)
+}
+
+fn focused_values(
+    doc: &GraphDocument,
+    focus: &GraphTextFocus,
+) -> Option<(GraphControlValue, GraphControlValue)> {
+    let row = doc
+        .nodes
+        .iter()
+        .find(|node| node.id == focus.node)?
+        .rows
+        .iter()
+        .find(|row| row.id == focus.row)?;
+    let after = row.value.clone();
+    let mut before = after.clone();
+    match (&mut before, focus.cell) {
+        (GraphControlValue::Text(value), None) => *value = focus.original.clone(),
+        (GraphControlValue::List { rows, .. }, Some((r, c))) => {
+            match rows.get_mut(r).and_then(|row| row.get_mut(c)) {
+                Some(GraphControlValue::Text(value)) => *value = focus.original.clone(),
+                _ => return None,
+            }
+        }
+        _ => return None,
+    }
+    Some((before, after))
 }

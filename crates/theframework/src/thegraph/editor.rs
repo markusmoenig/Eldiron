@@ -27,6 +27,17 @@ pub enum GraphEdit {
         after: GraphNode,
     },
 }
+/// A completed reversible transaction addressed to one authoring document.
+/// The application acknowledges serials after applying them to its authoritative
+/// document. Save barriers can collect pending commits synchronously; later UI
+/// wake-up events for acknowledged serials then become harmless notifications.
+#[derive(Clone, Debug)]
+pub struct GraphCommit {
+    pub binding: u64,
+    pub serial: u64,
+    pub edits: Vec<GraphEdit>,
+}
+
 impl GraphEdit {
     pub fn apply(&self, doc: &mut GraphDocument, forward: bool) {
         match self {

@@ -26,6 +26,9 @@ pub struct GraphViewState {
     owner: String,
     binding: u64,
     revision: u64,
+    serial: u64,
+    acknowledged: u64,
+    pending: std::collections::VecDeque<Arc<GraphCommit>>,
 }
 impl GraphViewState {
     pub fn new(owner: impl Into<String>, document: GraphDocument) -> Self {
@@ -36,6 +39,9 @@ impl GraphViewState {
             owner: owner.into(),
             binding: NEXT_BINDING.fetch_add(1, Ordering::Relaxed),
             revision: 1,
+            serial: 0,
+            acknowledged: 0,
+            pending: std::collections::VecDeque::new(),
         }
     }
     pub fn document(&self) -> &GraphDocument {
@@ -64,6 +70,9 @@ impl GraphViewState {
         }
         self.text.reset();
         self.binding = NEXT_BINDING.fetch_add(1, Ordering::Relaxed);
+        self.serial = 0;
+        self.acknowledged = 0;
+        self.pending.clear();
         self.invalidate();
     }
     /// Application commands mutate the CPU graph/controller and invalidate its
@@ -78,9 +87,63 @@ impl GraphViewState {
         self.text.reset();
         self.invalidate();
     }
-    pub fn take_edits(&mut self) -> Vec<GraphEdit> {
-        self.editor.take_edits()
+    /// Publish newly completed controller edits once. The returned value may be
+    /// sent as a UI notification; pending copies remain until owner acknowledgement.
+    pub fn publish_edits(&mut self) -> Option<Arc<GraphCommit>> {
+        let edits = self.editor.take_edits();
+        if edits.is_empty() {
+            return None;
+        }
+        self.serial = self
+            .serial
+            .checked_add(1)
+            .expect("graph commit serial exhausted");
+        let commit = Arc::new(GraphCommit {
+            binding: self.binding,
+            serial: self.serial,
+            edits,
+        });
+        self.pending.push_back(commit.clone());
+        Some(commit)
     }
+    pub fn pending_commits(&self) -> impl Iterator<Item = &GraphCommit> {
+        self.pending.iter().map(Arc::as_ref)
+    }
+    /// Lease an ordered prefix for application outside this model's lock. UI
+    /// wake-ups and the retained queue share payloads instead of cloning graphs.
+    pub fn pending_through(&self, serial: u64) -> Vec<Arc<GraphCommit>> {
+        self.pending
+            .iter()
+            .take_while(|commit| commit.serial <= serial)
+            .cloned()
+            .collect()
+    }
+    pub fn last_serial(&self) -> u64 {
+        self.serial
+    }
+    /// Acknowledge an applied prefix. Old binding/future/regressing serials are
+    /// rejected; an already acknowledged serial is an idempotent success.
+    pub fn acknowledge(&mut self, binding: u64, serial: u64) -> bool {
+        if binding != self.binding || serial > self.serial || serial < self.acknowledged {
+            return false;
+        }
+        self.acknowledged = serial;
+        while self
+            .pending
+            .front()
+            .is_some_and(|commit| commit.serial <= serial)
+        {
+            self.pending.pop_front();
+        }
+        true
+    }
+    /// Capture committed field content for Save/Play without cancelling preedit,
+    /// changing the native target, or clearing the text controller's undo history.
+    pub fn checkpoint_text(&mut self) -> Option<Arc<GraphCommit>> {
+        self.editor.checkpoint_text(&mut self.document);
+        self.publish_edits()
+    }
+
     pub fn invalidate(&mut self) {
         self.revision = self.revision.wrapping_add(1);
     }
@@ -144,13 +207,10 @@ impl TheGraphView {
         self.active && ctx.ui.has_focus(&self.id)
     }
     fn notify(&mut self, ctx: &mut TheContext) {
-        let (binding, edits) = {
-            let mut state = self.state.lock().unwrap();
-            (state.binding, state.take_edits())
-        };
-        if !edits.is_empty() {
+        let commit = self.state.lock().unwrap().publish_edits();
+        if let Some(commit) = commit {
             ctx.ui
-                .send(TheEvent::GraphCommitted(self.id.clone(), binding, edits));
+                .send(TheEvent::GraphCommitted(self.id.clone(), commit));
         }
     }
     fn response(&mut self, response: &EditorResponse, ctx: &mut TheContext) {

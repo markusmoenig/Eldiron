@@ -26,29 +26,6 @@ impl From<&GraphTextFocus> for Target {
         }
     }
 }
-impl GraphTextFocus {
-    /// The committed draft addressed by this graph focus, without preedit.
-    pub fn value<'a>(&self, doc: &'a GraphDocument) -> Option<&'a str> {
-        let row = doc
-            .nodes
-            .iter()
-            .find(|n| n.id == self.node)?
-            .rows
-            .iter()
-            .find(|r| r.id == self.row)?;
-        match (&row.value, self.cell) {
-            (GraphControlValue::Text(text), None) => Some(text),
-            (GraphControlValue::List { rows, .. }, Some((row, column))) => {
-                match rows.get(row)?.get(column)? {
-                    GraphControlValue::Text(text) => Some(text),
-                    _ => None,
-                }
-            }
-            _ => None,
-        }
-    }
-}
-
 /// A draft session survives graph zoom, layout, theme and renderer replacement.
 /// Hosts forward modifier/focus transitions and route editing events only while
 /// this graph is the foremost input scope. Clipboard responses stay in

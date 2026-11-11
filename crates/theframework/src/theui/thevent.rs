@@ -75,7 +75,7 @@ pub enum TheEvent {
 
     /// Committed reversible graph edits. The binding token rejects queued
     /// events after an application installs a different authoring document.
-    GraphCommitted(TheId, u64, Vec<crate::thegraph::GraphEdit>),
+    GraphCommitted(TheId, std::sync::Arc<crate::thegraph::GraphCommit>),
     /// Graph-level commands stay with the application's document/branch owner;
     /// they must not invoke the platform text clipboard behind the native view.
     #[cfg(feature = "text")]
