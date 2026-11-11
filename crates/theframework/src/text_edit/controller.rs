@@ -69,6 +69,7 @@ struct LayoutKey {
 /// One editor owns committed content, transient composition, selection and a
 /// bounded undo history. Layout and all hit/caret/IME geometry share Parley.
 pub struct EditorController {
+    input_target: crate::platform::TextInputTarget,
     editor: PlainEditor<usize>,
     multiline: bool,
     focused: bool,
@@ -89,6 +90,7 @@ pub struct EditorController {
 impl EditorController {
     pub fn new(multiline: bool) -> Self {
         Self {
+            input_target: crate::platform::TextInputTarget::new(),
             editor: PlainEditor::new(14.),
             multiline,
             focused: false,
@@ -106,6 +108,9 @@ impl EditorController {
             boundaries: vec![0],
             boundaries_dirty: false,
         }
+    }
+    pub fn input_target(&self) -> crate::platform::TextInputTarget {
+        self.input_target
     }
     pub fn text(&self) -> &str {
         self.composition
@@ -149,6 +154,9 @@ impl EditorController {
         }
     }
     pub fn set_focused(&mut self, fonts: &mut TextSystem, focused: bool) {
+        if self.focused && !focused {
+            self.input_target = crate::platform::TextInputTarget::new();
+        }
         self.focused = focused;
         if !focused {
             self.cancel_composition(fonts);
@@ -163,6 +171,7 @@ impl EditorController {
             .collect()
     }
     pub fn set_text(&mut self, fonts: &mut TextSystem, text: &str) {
+        self.input_target = crate::platform::TextInputTarget::new();
         self.cancel_composition(fonts);
         self.editor.set_text(&self.clean(text));
         fonts.editor_driver(&mut self.editor).move_to_text_end();
@@ -441,12 +450,16 @@ impl EditorController {
             }
             _ => {}
         }
-        if !self.focused {
+        if !self.focused
+            || event
+                .text_target()
+                .is_some_and(|target| target != self.input_target)
+        {
             return EditorResponse::default();
         }
         self.ensure_fonts(fonts);
         match event {
-            InputEvent::Text(text) => {
+            InputEvent::Text(text) | InputEvent::TextFor { text, .. } => {
                 let text = self.clean(text);
                 let cancelled = self.cancel_composition(fonts);
                 if text.is_empty() {
@@ -460,7 +473,8 @@ impl EditorController {
                     self.transaction(fonts, |driver| driver.insert_or_replace_selection(&text)),
                 )
             }
-            InputEvent::Composition { text, cursor } => {
+            InputEvent::Composition { text, cursor }
+            | InputEvent::CompositionFor { text, cursor, .. } => {
                 if text.is_empty() {
                     self.cancel_composition(fonts);
                     return EditorResponse::handled(false);

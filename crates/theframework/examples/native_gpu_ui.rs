@@ -4,6 +4,8 @@ use theframework::{platform::*, prelude::*, render_wgpu::UiFrameImages};
 struct Demo {
     frames: usize,
     smoke: bool,
+    presentations: usize,
+    deadline: Option<web_time::Instant>,
 }
 impl UiApplication for Demo {
     fn title(&self) -> String {
@@ -29,11 +31,36 @@ impl UiApplication for Demo {
         Ok(())
     }
     fn update(&mut self, ui: &mut UiSession, _: web_time::Duration) -> FrameRequest {
-        ui.ui.update(&mut ui.context);
-        if self.smoke && self.frames >= 3 {
+        let changed = ui.ui.update(&mut ui.context);
+        if self
+            .deadline
+            .is_some_and(|deadline| web_time::Instant::now() >= deadline)
+        {
+            ui.requests.push(HostRequest::Fail(format!(
+                "Native UI presentation validation timed out: {} successful surface presentations",
+                self.presentations
+            )));
+        }
+        if self.smoke && self.presentations >= 3 {
             ui.requests.push(HostRequest::Exit);
         }
-        FrameRequest::continuous(30.)
+        if self.smoke {
+            FrameRequest::continuous(30.)
+        } else {
+            FrameRequest {
+                redraw: changed,
+                wake_after: None,
+            }
+        }
+    }
+    fn presented(&mut self, _: &mut UiSession) {
+        self.presentations += 1;
+        if self.smoke {
+            eprintln!(
+                "native UI surface presentation {} acknowledged",
+                self.presentations
+            );
+        }
     }
     fn frame(
         &mut self,
@@ -68,10 +95,14 @@ impl UiApplication for Demo {
         Ok(list)
     }
 }
-fn main() {
+fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     theframework::platform::winit::run(Box::new(UiApplicationAdapter::new(Demo {
         frames: 0,
         smoke: std::env::args().any(|a| a == "--smoke"),
-    })))
-    .unwrap();
+        presentations: 0,
+        deadline: std::env::args()
+            .any(|a| a == "--smoke")
+            .then(|| web_time::Instant::now() + web_time::Duration::from_secs(10)),
+    })))?;
+    Ok(())
 }

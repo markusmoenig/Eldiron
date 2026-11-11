@@ -79,6 +79,7 @@ pub trait UiApplication {
     fn frame(&mut self, ui: &mut UiSession, images: &mut UiFrameImages<'_>) -> Result<PaintList> {
         ui.paint(images).map_err(|e| RenderError(e.to_string()))
     }
+    fn presented(&mut self, _ui: &mut UiSession) {}
     fn close_requested(&mut self, _ui: &mut UiSession) -> bool {
         true
     }
@@ -89,6 +90,7 @@ pub struct UiApplicationAdapter<A> {
     pub application: A,
     pub session: UiSession,
     images: UiImageCache,
+    text_target: Option<(theframework_core::Uuid, TextInputTarget)>,
 }
 impl<A: UiApplication> UiApplicationAdapter<A> {
     pub fn new(application: A) -> Self {
@@ -97,6 +99,7 @@ impl<A: UiApplication> UiApplicationAdapter<A> {
             application,
             session: UiSession::new((size.0 as usize, size.1 as usize), 1.),
             images: UiImageCache::default(),
+            text_target: None,
         }
     }
     fn platform_state(&mut self, host: &mut HostContext) {
@@ -105,21 +108,36 @@ impl<A: UiApplication> UiApplicationAdapter<A> {
         host.cursor_visible = self.session.context.cursor_visible();
         // The old widget adapter exposes its bounds. Native EditorView users
         // provide their precise caret/preedit area directly on HostContext.
-        host.text_input = if self
+        let focus = if self
             .session
             .ui
             .focus_widget_supports_text_input(&mut self.session.context)
         {
-            self.session
-                .context
-                .ui
-                .focus
-                .clone()
-                .and_then(|id| self.session.ui.get_widget_abs(None, Some(&id.uuid)))
-                .map(|w| crate::theui::paint::bounds(w.dim()))
+            self.session.context.ui.focus.clone()
         } else {
             None
         };
+        host.text_input = focus.and_then(|id| {
+            let area = self
+                .session
+                .ui
+                .get_widget_abs(None, Some(&id.uuid))
+                .map(|w| crate::theui::paint::bounds(w.dim()))?;
+            let target = if let Some((old, target)) = &self.text_target {
+                if *old == id.uuid {
+                    *target
+                } else {
+                    TextInputTarget::new()
+                }
+            } else {
+                TextInputTarget::new()
+            };
+            self.text_target = Some((id.uuid, target));
+            Some(TextInputState { target, area })
+        });
+        if host.text_input.is_none() {
+            self.text_target = None;
+        }
     }
 }
 impl<A: UiApplication> GpuApplication for UiApplicationAdapter<A> {
@@ -149,6 +167,31 @@ impl<A: UiApplication> GpuApplication for UiApplicationAdapter<A> {
         self.session.resize(host.physical_size, host.density);
     }
     fn input(&mut self, event: &InputEvent, host: &mut HostContext) -> InputResponse {
+        let addressed;
+        let event = match event {
+            InputEvent::TextFor { target, text } => {
+                if self.text_target.as_ref().map(|(_, target)| target) != Some(target) {
+                    return InputResponse::default();
+                }
+                addressed = InputEvent::Text(text.clone());
+                &addressed
+            }
+            InputEvent::CompositionFor {
+                target,
+                text,
+                cursor,
+            } => {
+                if self.text_target.as_ref().map(|(_, target)| target) != Some(target) {
+                    return InputResponse::default();
+                }
+                addressed = InputEvent::Composition {
+                    text: text.clone(),
+                    cursor: *cursor,
+                };
+                &addressed
+            }
+            _ => event,
+        };
         // The legacy widget adapter expects wheel ticks converted to its pixel
         // convention. Neutral application inputs keep unscaled line units.
         let legacy;
@@ -191,6 +234,10 @@ impl<A: UiApplication> GpuApplication for UiApplicationAdapter<A> {
         self.platform_state(host);
         Ok(list)
     }
+    fn presented(&mut self, host: &mut HostContext) {
+        self.application.presented(&mut self.session);
+        self.platform_state(host);
+    }
     fn close_requested(&mut self, host: &mut HostContext) -> bool {
         let close = self.application.close_requested(&mut self.session);
         self.platform_state(host);
@@ -203,5 +250,103 @@ impl<A: UiApplication> GpuApplication for UiApplicationAdapter<A> {
     fn resumed(&mut self, host: &mut HostContext) {
         self.application.resumed(&mut self.session);
         self.platform_state(host);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    struct Application;
+    impl UiApplication for Application {
+        fn initialize(&mut self, _: &mut UiSession, _: &mut UiFrameImages<'_>) -> Result<()> {
+            Ok(())
+        }
+    }
+    #[test]
+    fn legacy_ui_adapter_rejects_callbacks_for_previous_focus_tokens() {
+        let mut adapter = UiApplicationAdapter::new(Application);
+        let mut host = HostContext::new((400, 120));
+        let a = TheId::named("A");
+        let b = TheId::named("B");
+        let mut row = TheHLayout::new(TheId::named("Editors"));
+        row.widgets()
+            .push(Box::new(TheTextLineEdit::new(a.clone())));
+        row.widgets()
+            .push(Box::new(TheTextLineEdit::new(b.clone())));
+        adapter.session.ui.canvas.set_layout(row);
+        adapter
+            .session
+            .ui
+            .prepare_paint_layout(&mut adapter.session.context);
+        adapter.session.context.ui.set_focus(&a);
+        adapter.platform_state(&mut host);
+        let old = host.text_input.unwrap().target;
+        assert!(
+            adapter
+                .input(
+                    &InputEvent::TextFor {
+                        target: old,
+                        text: "First".into()
+                    },
+                    &mut host
+                )
+                .consumed
+        );
+        assert_eq!(
+            adapter.session.ui.get_text_line_edit("A").unwrap().text(),
+            "First"
+        );
+        adapter.session.context.ui.set_focus(&b);
+        adapter.platform_state(&mut host);
+        let current = host.text_input.unwrap().target;
+        assert_ne!(old, current);
+        assert!(
+            !adapter
+                .input(
+                    &InputEvent::TextFor {
+                        target: old,
+                        text: "stale".into()
+                    },
+                    &mut host
+                )
+                .consumed
+        );
+        assert_eq!(
+            adapter.session.ui.get_text_line_edit("B").unwrap().text(),
+            ""
+        );
+        assert!(
+            adapter
+                .input(
+                    &InputEvent::TextFor {
+                        target: current,
+                        text: "Second".into()
+                    },
+                    &mut host
+                )
+                .consumed
+        );
+        adapter.session.context.ui.clear_focus();
+        adapter.platform_state(&mut host);
+        assert!(host.text_input.is_none());
+        adapter.session.context.ui.set_focus(&b);
+        adapter.platform_state(&mut host);
+        assert_ne!(host.text_input.unwrap().target, current);
+        assert!(
+            !adapter
+                .input(
+                    &InputEvent::CompositionFor {
+                        target: current,
+                        text: "old".into(),
+                        cursor: None
+                    },
+                    &mut host
+                )
+                .consumed
+        );
+        assert_eq!(
+            adapter.session.ui.get_text_line_edit("B").unwrap().text(),
+            "Second"
+        );
     }
 }

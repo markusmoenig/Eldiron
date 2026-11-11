@@ -11,8 +11,11 @@ struct Demo {
     fonts: TextSystem,
     input: EditorView,
     frames: usize,
+    presentations: usize,
     smoke: bool,
+    input_smoke: bool,
     uploaded: Option<u64>,
+    deadline: Option<web_time::Instant>,
 }
 impl Demo {
     fn prepare(&mut self, host: &mut HostContext) {
@@ -27,12 +30,16 @@ impl Demo {
             Rect::new(24., 24., (host.logical_size[0] - 48.).max(0.), 48.),
             true,
         );
-        host.text_input = self.input.ime_area(&mut self.fonts);
+        host.text_input = self.input.text_input_state(&mut self.fonts);
     }
 }
 impl GpuApplication for Demo {
     fn title(&self) -> String {
-        "Eldiron native application host".into()
+        if self.input_smoke {
+            "Eldiron input validation".into()
+        } else {
+            "Eldiron native application host".into()
+        }
     }
     fn initial_size(&self) -> (u32, u32) {
         (720, 180)
@@ -40,9 +47,14 @@ impl GpuApplication for Demo {
     fn initialize(&mut self, host: &mut HostContext, _: &mut ImageRegistry) -> Result<()> {
         self.fonts
             .register_font(include_bytes!("../embedded/fonts/Roboto-Bold.ttf").to_vec());
-        self.input
-            .editor
-            .set_text(&mut self.fonts, "Rust WGPU — العربية 東京 e\u{301}");
+        self.input.editor.set_text(
+            &mut self.fonts,
+            if self.input_smoke {
+                ""
+            } else {
+                "Rust WGPU — العربية 東京 e\u{301}"
+            },
+        );
         self.input.set_focused(&mut self.fonts, true);
         self.prepare(host);
         Ok(())
@@ -52,15 +64,50 @@ impl GpuApplication for Demo {
     }
     fn input(&mut self, event: &InputEvent, host: &mut HostContext) -> InputResponse {
         let response = self.input.input(&mut self.fonts, event);
-        host.text_input = self.input.ime_area(&mut self.fonts);
+        host.text_input = self.input.text_input_state(&mut self.fonts);
+        if self.input_smoke {
+            eprintln!("native input {event:?} -> {:?}", self.input.editor.text());
+            if self.input.editor.text() == "Native input" {
+                eprintln!("Native OS keyboard input passed");
+                host.requests.push(HostRequest::Exit);
+            }
+        }
         response.input
     }
+    fn presented(&mut self, _host: &mut HostContext) {
+        self.presentations += 1;
+        if self.smoke {
+            eprintln!(
+                "widget-free surface presentation {} acknowledged",
+                self.presentations
+            );
+        }
+    }
     fn update(&mut self, host: &mut HostContext, _: web_time::Duration) -> FrameRequest {
-        if self.smoke && self.frames >= 3 {
+        if self
+            .deadline
+            .is_some_and(|deadline| web_time::Instant::now() >= deadline)
+        {
+            host.requests.push(HostRequest::Fail(if self.input_smoke {
+                "Native OS keyboard validation timed out".into()
+            } else {
+                format!(
+                    "Native presentation validation timed out: {} successful surface presentations",
+                    self.presentations
+                )
+            }));
+            return FrameRequest::idle();
+        }
+        if self.smoke && self.presentations >= 3 {
             host.requests.push(HostRequest::Exit);
         }
         if self.smoke {
             FrameRequest::continuous(30.)
+        } else if self.input_smoke {
+            FrameRequest {
+                redraw: false,
+                wake_after: Some(web_time::Duration::from_millis(100)),
+            }
         } else {
             FrameRequest::idle()
         }
@@ -78,7 +125,7 @@ impl GpuApplication for Demo {
         list.validate().unwrap();
         assert_eq!(images.context().transfers().readback_bytes, 0);
         let uploads = images.context().transfers().uploaded_bytes;
-        if self.smoke && self.frames > 1 {
+        if self.smoke && self.presentations > 1 {
             assert_eq!(self.uploaded, Some(uploads));
         }
         self.uploaded = Some(uploads);
@@ -93,13 +140,20 @@ impl GpuApplication for Demo {
         Ok(list)
     }
 }
-fn main() {
+fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     theframework::platform::winit::run(Box::new(Demo {
         fonts: TextSystem::default(),
         input: EditorView::new(false),
         frames: 0,
+        presentations: 0,
         smoke: std::env::args().any(|s| s == "--smoke"),
+        input_smoke: std::env::args().any(|s| s == "--input-smoke"),
         uploaded: None,
-    }))
-    .unwrap();
+        deadline: if std::env::args().any(|s| s == "--smoke" || s == "--input-smoke") {
+            Some(web_time::Instant::now() + web_time::Duration::from_secs(10))
+        } else {
+            None
+        },
+    }))?;
+    Ok(())
 }

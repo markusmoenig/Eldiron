@@ -374,6 +374,48 @@ fn assembled_player_keeps_runtime_edits_and_clock_across_gpu_replacement() {
         target2,
         "/private/tmp/eldiron-native-player-menu.png",
     );
+    // Fatal input/navigation errors must reach the host even when it cannot
+    // acquire another drawable; presentation cannot be the only error channel.
+    host.requests.clear();
+    app.screen
+        .elements
+        .button_widgets
+        .get_mut(&2)
+        .unwrap()
+        .command = Some("screen.goto.MissingScreen".into());
+    let point = app.viewport().host_rect(Rect::new(300., 280., 1., 1.));
+    for pressed in [true, false] {
+        app.input(
+            &InputEvent::PointerButton {
+                button: PointerButton::Primary,
+                pressed,
+                position: [point.x, point.y],
+            },
+            &mut host,
+        );
+    }
+    assert!(
+        app.failure()
+            .is_some_and(|error| error.contains("MissingScreen"))
+    );
+    assert_eq!(
+        host.requests
+            .iter()
+            .filter(|request| matches!(request, HostRequest::Fail(_)))
+            .count(),
+        1
+    );
+    let frames = app.frame_count();
+    host.resize((0, 0), 1.);
+    app.update(&mut host, Duration::ZERO);
+    assert_eq!(app.frame_count(), frames);
+    assert_eq!(
+        host.requests
+            .iter()
+            .filter(|request| matches!(request, HostRequest::Fail(_)))
+            .count(),
+        1
+    );
     app.player.runtime.stop();
 }
 

@@ -177,7 +177,9 @@ impl TheUI {
             InputEvent::RelativeMotion { .. }
             | InputEvent::Focus(true)
             | InputEvent::FileDropped(_)
-            | InputEvent::Clipboard { .. } => {}
+            | InputEvent::Clipboard { .. }
+            | InputEvent::TextFor { .. }
+            | InputEvent::CompositionFor { .. } => {}
         }
         result
     }

@@ -1771,3 +1771,64 @@ fn transcript_editor_identity_and_responsive_geometry_do_not_depend_on_widget_na
     );
     assert!((after.x - before.x - 200.).abs() < 0.01 && (after.y - before.y - 160.).abs() < 0.01);
 }
+
+#[test]
+fn native_text_target_changes_on_focus_and_recreation_and_rejects_late_commit() {
+    use eldiron_presentation::ScreenTextTarget;
+    use theframework::platform::*;
+    let (session, mut fonts, mut screen) = command_screen();
+    screen.focus_input(&mut fonts, Some(3));
+    let field = screen.text_input_state(&mut fonts).unwrap().target;
+    screen.focus_text(&mut fonts, Some(ScreenTextTarget::Command(4)));
+    let command = screen.text_input_state(&mut fonts).unwrap().target;
+    assert_ne!(field, command);
+    assert!(
+        !screen
+            .input(
+                &session.view(),
+                &mut fonts,
+                &InputEvent::TextFor {
+                    target: field,
+                    text: "late".into()
+                }
+            )
+            .unwrap()
+            .input
+            .consumed
+    );
+    assert!(screen.elements.messages_widgets[0].command_text.is_empty());
+    screen
+        .input(
+            &session.view(),
+            &mut fonts,
+            &InputEvent::TextFor {
+                target: command,
+                text: "look".into(),
+            },
+        )
+        .unwrap();
+    assert_eq!(screen.elements.messages_widgets[0].command_text, "look");
+    screen.focus_input(&mut fonts, Some(3));
+    let refocused = screen.text_input_state(&mut fonts).unwrap().target;
+    assert_ne!(refocused, field);
+    assert!(
+        !screen
+            .input(
+                &session.view(),
+                &mut fonts,
+                &InputEvent::TextFor {
+                    target: field,
+                    text: "old session".into()
+                }
+            )
+            .unwrap()
+            .input
+            .consumed
+    );
+    assert_eq!(screen.elements.text_input_widgets[&3].text, "Éowyn");
+    let mut next = GameScreenController::from_screen("Main", &session.view(), layout()).unwrap();
+    next.prepare(&session.view(), &mut fonts, ContentRevision(1), 0)
+        .unwrap();
+    next.focus_input(&mut fonts, Some(3));
+    assert_ne!(next.text_input_state(&mut fonts).unwrap().target, refocused);
+}

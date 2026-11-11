@@ -138,6 +138,12 @@ impl PlayerApplication {
     pub fn viewport(&self) -> ScreenViewport {
         self.viewport
     }
+    fn fail(&mut self, host: &mut HostContext, error: String) {
+        if self.failure.is_none() {
+            host.requests.push(HostRequest::Fail(error.clone()));
+            self.failure = Some(error);
+        }
+    }
     pub fn failure(&self) -> Option<&str> {
         self.failure.as_deref()
     }
@@ -197,8 +203,11 @@ impl PlayerApplication {
         self.viewport = ScreenViewport::fit([size.x as f32, size.y as f32], host.logical_size);
         host.text_input = if self.viewport.scale > 0. {
             self.screen
-                .text_ime_area(&mut self.fonts)
-                .map(|area| self.viewport.host_rect(area))
+                .text_input_state(&mut self.fonts)
+                .map(|mut input| {
+                    input.area = self.viewport.host_rect(input.area);
+                    input
+                })
         } else {
             None
         };
@@ -424,14 +433,14 @@ impl GpuApplication for PlayerApplication {
     }
     fn resize(&mut self, host: &mut HostContext) {
         if let Err(error) = self.sync_host(host) {
-            self.failure = Some(error);
+            self.fail(host, error);
         }
     }
     fn input(&mut self, event: &InputEvent, host: &mut HostContext) -> InputResponse {
         match self.route(event, host) {
             Ok(response) => response,
             Err(error) => {
-                self.failure = Some(error);
+                self.fail(host, error);
                 InputResponse {
                     consumed: true,
                     redraw: true,
@@ -441,7 +450,7 @@ impl GpuApplication for PlayerApplication {
     }
     fn update(&mut self, host: &mut HostContext, elapsed: Duration) -> FrameRequest {
         if let Err(error) = self.advance(elapsed, host) {
-            self.failure = Some(error);
+            self.fail(host, error);
         }
         if self.suspended {
             FrameRequest::idle()
@@ -499,7 +508,7 @@ impl GpuApplication for PlayerApplication {
         self.suspended = true;
         self.route(&InputEvent::Focus(false), host)
             .unwrap_or_else(|error| {
-                self.failure = Some(error);
+                self.fail(host, error);
                 InputResponse::default()
             });
         self.resume_simulation = self.player.runtime.server.state == ServerState::Running;
@@ -516,7 +525,7 @@ impl GpuApplication for PlayerApplication {
         }
         self.player.runtime.clock.reset_elapsed();
         if let Err(error) = self.sync_host(host) {
-            self.failure = Some(error);
+            self.fail(host, error);
         }
     }
 }

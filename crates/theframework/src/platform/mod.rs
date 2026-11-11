@@ -1,6 +1,8 @@
 //! Application-owned GPU presentation and platform-neutral input. No scene VM
 //! or CPU framebuffer is owned by this layer.
+mod ime;
 mod input;
+pub use ime::ImeSession;
 #[cfg(feature = "render-wgpu")]
 mod session;
 #[cfg(all(feature = "render-wgpu", feature = "ui"))]

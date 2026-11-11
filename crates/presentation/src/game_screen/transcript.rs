@@ -69,8 +69,11 @@ impl GameScreenController {
             | InputEvent::Pinch(_)
             | InputEvent::RelativeMotion { .. }
             | InputEvent::PointerButton { .. } => {}
-            InputEvent::Text(_) | InputEvent::Composition { .. } if self.focused_text.is_none() => {
-            }
+            InputEvent::Text(_)
+            | InputEvent::TextFor { .. }
+            | InputEvent::CompositionFor { .. }
+            | InputEvent::Composition { .. }
+                if self.focused_text.is_none() => {}
             _ => return None,
         }
         Some(ScreenInputResponse {

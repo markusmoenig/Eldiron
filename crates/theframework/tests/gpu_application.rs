@@ -12,6 +12,7 @@ struct Application {
     input: EditorView,
     initializations: usize,
     recreations: usize,
+    presentations: usize,
 }
 impl Application {
     fn layout(&mut self, host: &mut HostContext) {
@@ -26,7 +27,7 @@ impl Application {
             Rect::new(12., 12., host.logical_size[0] - 24., 40.),
             true,
         );
-        host.text_input = self.input.ime_area(&mut self.fonts);
+        host.text_input = self.input.text_input_state(&mut self.fonts);
     }
 }
 impl GpuApplication for Application {
@@ -51,8 +52,11 @@ impl GpuApplication for Application {
     }
     fn input(&mut self, event: &InputEvent, host: &mut HostContext) -> InputResponse {
         let response = self.input.input(&mut self.fonts, event);
-        host.text_input = self.input.ime_area(&mut self.fonts);
+        host.text_input = self.input.text_input_state(&mut self.fonts);
         response.input
+    }
+    fn presented(&mut self, _: &mut HostContext) {
+        self.presentations += 1;
     }
     fn frame(&mut self, host: &mut HostContext, _: &mut ImageRegistry) -> Result<PaintList> {
         let mut list = PaintList::default();
@@ -88,6 +92,7 @@ fn foreign_layer_hosts_widget_free_app_and_preserves_state_on_surface_replacemen
         input: EditorView::new(false),
         initializations: 0,
         recreations: 0,
+        presentations: 0,
     };
     let mut host = HostContext::new((320, 120));
     host.resize((480, 180), 1.5);
@@ -95,21 +100,55 @@ fn foreign_layer_hosts_widget_free_app_and_preserves_state_on_surface_replacemen
     app.input(&InputEvent::Text("!".into()), &mut host);
     assert_eq!(app.input.editor.text(), "Rust + Xcode 東京!");
     let builds = app.input.editor.snapshots_built();
+    let mut preparations = 0;
     for _ in 0..2 {
-        let list = app.frame(&mut host, &mut presenter.images).unwrap();
-        list.validate().unwrap();
+        let density = host.density;
         assert_eq!(
-            presenter.present(&list, host.density, [0.; 4]).unwrap(),
+            presenter
+                .present_with(density, [0.; 4], |images| {
+                    preparations += 1;
+                    let paint = app.frame(&mut host, images)?;
+                    paint.validate().unwrap();
+                    Ok(paint)
+                })
+                .unwrap(),
             PresentResult::Presented
         );
+        app.presented(&mut host);
         assert_eq!(presenter.context().transfers().readback_bytes, 0);
     }
+    assert_eq!(preparations, 2);
     assert_eq!(app.input.editor.snapshots_built(), builds);
     assert!(host.text_input.is_some());
+    let text_target = host.text_input.unwrap().target;
+    assert_eq!(app.presentations, 2);
     presenter.surface.suspend();
-    let list = app.frame(&mut host, &mut presenter.images).unwrap();
+    let density = host.density;
     assert_eq!(
-        presenter.present(&list, host.density, [0.; 4]).unwrap(),
+        presenter
+            .present_with(density, [0.; 4], |images| {
+                preparations += 1;
+                app.frame(&mut host, images)
+            })
+            .unwrap(),
+        PresentResult::Deferred
+    );
+    assert_eq!(
+        preparations, 2,
+        "deferred acquisition must not prepare a visual frame"
+    );
+    assert_eq!(
+        app.presentations, 2,
+        "a deferred frame cannot be acknowledged as presented"
+    );
+    presenter.surface.resume();
+    presenter.surface.resize(0, 0);
+    assert_eq!(
+        presenter
+            .present_with(density, [0.; 4], |_| panic!(
+                "zero-size frame must not prepare"
+            ))
+            .unwrap(),
         PresentResult::Deferred
     );
     drop(presenter);
@@ -119,12 +158,15 @@ fn foreign_layer_hosts_widget_free_app_and_preserves_state_on_surface_replacemen
         .unwrap();
     assert_eq!(app.initializations, 1);
     assert_eq!(app.recreations, 1);
+    assert_eq!(host.text_input.unwrap().target, text_target);
     assert_eq!(app.input.editor.text(), "Rust + Xcode 東京!");
     let list = app.frame(&mut host, &mut replacement.images).unwrap();
     assert_eq!(
         replacement.present(&list, host.density, [0.; 4]).unwrap(),
         PresentResult::Presented
     );
+    app.presented(&mut host);
+    assert_eq!(app.presentations, 3);
     app.input(&InputEvent::Focus(false), &mut host);
     assert!(host.text_input.is_none());
     drop(replacement);

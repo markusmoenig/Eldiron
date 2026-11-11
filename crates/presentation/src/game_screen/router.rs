@@ -67,6 +67,11 @@ impl GameScreenController {
         fonts: &mut GameFonts,
         event: &InputEvent,
     ) -> Result<ScreenInputResponse, String> {
+        if let Some(target) = event.text_target() {
+            if self.text_input_state(fonts).map(|state| state.target) != Some(target) {
+                return Ok(ScreenInputResponse::default());
+            }
+        }
         if matches!(event, InputEvent::Focus(false)) {
             self.pointer_capture = None;
             self.suppress_activation_slash = false;
@@ -79,7 +84,7 @@ impl GameScreenController {
             response.cancel_controls = true;
             return Ok(response);
         }
-        if let InputEvent::Text(text) = event {
+        if let InputEvent::Text(text) | InputEvent::TextFor { text, .. } = event {
             if std::mem::take(&mut self.suppress_activation_slash) && text == "/" {
                 return Ok(ScreenInputResponse::handled(false));
             }

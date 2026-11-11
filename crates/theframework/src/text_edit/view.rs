@@ -244,6 +244,16 @@ impl EditorView {
         }
         response
     }
+    pub fn text_input_state(
+        &mut self,
+        fonts: &mut TextSystem,
+    ) -> Option<crate::platform::TextInputState> {
+        self.ime_area(fonts)
+            .map(|area| crate::platform::TextInputState {
+                target: self.editor.input_target(),
+                area,
+            })
+    }
     pub fn ime_area(&mut self, fonts: &mut TextSystem) -> Option<Rect> {
         if !self.editor.is_focused() || self.bounds.width <= 0. || self.bounds.height <= 0. {
             return None;

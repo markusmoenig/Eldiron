@@ -27,7 +27,7 @@ enum HostEvent {
 }
 #[derive(Clone, Copy, PartialEq)]
 struct WindowState {
-    text_input: Option<crate::paint::Rect>,
+    text_input: Option<TextInputState>,
     cursor: crate::thecontext::TheCursorIcon,
     visible: bool,
 }
@@ -49,7 +49,7 @@ struct Host {
     last_update: Instant,
     pointer: [f32; 2],
     mods: Modifiers,
-    ime_enabled: bool,
+    ime: ImeSession,
     touch: Option<u64>,
     error: Option<RenderError>,
     applied: Option<WindowState>,
@@ -63,17 +63,30 @@ impl Host {
         };
         let state = WindowState {
             text_input: self.context.text_input.filter(|r| {
-                self.focused && [r.x, r.y, r.width, r.height].iter().all(|v| v.is_finite())
+                self.focused
+                    && r.area.width > 0.
+                    && r.area.height > 0.
+                    && [r.area.x, r.area.y, r.area.width, r.area.height]
+                        .iter()
+                        .all(|v| v.is_finite())
             }),
             cursor: self.context.cursor,
             visible: self.context.cursor_visible,
         };
         let old = self.applied;
-        if old.is_none_or(|old| old.text_input.is_some() != state.text_input.is_some()) {
+        let previous = self.ime.target();
+        let changed = self
+            .ime
+            .set_target(state.text_input.map(|state| state.target));
+        if changed && previous.is_some() && self.ime.target().is_some() {
+            window.set_ime_allowed(false);
+        }
+        if changed || old.is_none() {
             window.set_ime_allowed(state.text_input.is_some());
         }
         if old.is_none_or(|old| old.text_input != state.text_input) {
-            if let Some(area) = state.text_input {
+            if let Some(input) = state.text_input {
+                let area = input.area;
                 window.set_ime_cursor_area(
                     ::winit::dpi::LogicalPosition::new(area.x as f64, area.y as f64),
                     ::winit::dpi::LogicalSize::new(
@@ -135,6 +148,7 @@ impl Host {
             .map(|w| w.scale_factor() as f32)
             .unwrap_or(1.);
         self.context.resize((size.width, size.height), density);
+        self.next_present = Instant::now();
         if self.initialized {
             self.app.resize(&mut self.context);
         }
@@ -155,16 +169,16 @@ impl Host {
         if size.0 == 0 || size.1 == 0 {
             return;
         }
-        match self
-            .app
-            .frame(&mut self.context, &mut p.images)
-            .and_then(|list| p.present(&list, self.context.density, [0., 0., 0., 1.]))
-        {
+        match p.present_with(self.context.density, [0., 0., 0., 1.], |images| {
+            self.app.frame(&mut self.context, images)
+        }) {
             Ok(PresentResult::Presented) => {
+                self.app.presented(&mut self.context);
                 self.dirty = false;
                 self.sync_window_state();
             }
             Ok(PresentResult::Deferred) => {
+                self.next_present = Instant::now() + Duration::from_millis(100);
                 self.dirty = true;
             }
             Ok(PresentResult::SurfaceLost) => {
@@ -304,6 +318,7 @@ impl ApplicationHandler<HostEvent> for Host {
             WindowEvent::Occluded(value) => {
                 self.occluded = value;
                 if !value {
+                    self.next_present = Instant::now();
                     self.dirty = true;
                 }
             }
@@ -312,7 +327,7 @@ impl ApplicationHandler<HostEvent> for Host {
                 self.route(InputEvent::Focus(focused));
                 if !focused {
                     self.mods = Modifiers::default();
-                    self.ime_enabled = false;
+                    self.ime.disable();
                     self.touch = None;
                 }
             }
@@ -363,6 +378,7 @@ impl ApplicationHandler<HostEvent> for Host {
                 self.route(InputEvent::Modifiers(self.mods));
             }
             WindowEvent::KeyboardInput { event, .. } => {
+                let text_target = self.ime.target();
                 let logical = match &event.logical_key {
                     Key::Character(s) => LogicalKey::Character(s.to_string()),
                     Key::Named(k) => named(*k)
@@ -379,38 +395,33 @@ impl ApplicationHandler<HostEvent> for Host {
                 if event.state == ElementState::Pressed
                     && self.focused
                     && self.context.text_input.is_some()
-                    && !self.ime_enabled
                     && !self.mods.super_key
                     && (!self.mods.control || self.mods.alt)
                 {
                     if let Some(text) = event.text {
-                        let text: String = text.chars().filter(|c| !c.is_control()).collect();
-                        if !text.is_empty() {
-                            self.route(InputEvent::Text(text));
+                        if let Some(event) = self.ime.key_text(text_target, text.to_string()) {
+                            self.route(event);
                         }
                     }
                 }
             }
             WindowEvent::Ime(ime) => match ime {
-                Ime::Enabled => self.ime_enabled = true,
+                Ime::Enabled => self.ime.enable(),
                 Ime::Disabled => {
-                    self.ime_enabled = false;
-                    self.route(InputEvent::Composition {
-                        text: String::new(),
-                        cursor: None,
-                    });
+                    if let Some(event) = self.ime.disable() {
+                        self.route(event);
+                    }
                 }
-                Ime::Preedit(text, cursor) if self.focused && self.context.text_input.is_some() => {
-                    self.route(InputEvent::Composition { text, cursor })
+                Ime::Preedit(text, cursor) => {
+                    if let Some(event) = self.ime.preedit(text, cursor) {
+                        self.route(event);
+                    }
                 }
-                Ime::Commit(text) if self.focused && self.context.text_input.is_some() => {
-                    self.route(InputEvent::Composition {
-                        text: String::new(),
-                        cursor: None,
-                    });
-                    self.route(InputEvent::Text(text));
+                Ime::Commit(text) => {
+                    for event in self.ime.commit(text) {
+                        self.route(event);
+                    }
                 }
-                Ime::Preedit(..) | Ime::Commit(..) => {}
             },
             WindowEvent::DroppedFile(path) => self.route(InputEvent::FileDropped(path)),
             WindowEvent::Touch(touch) => {
@@ -469,9 +480,13 @@ impl ApplicationHandler<HostEvent> for Host {
                 .map(|delay| now + delay.max(Duration::from_millis(1)));
             self.sync_window_state();
         }
-        for request in self.context.requests.drain(..) {
+        for request in std::mem::take(&mut self.context.requests) {
             match request {
                 HostRequest::Exit => event_loop.exit(),
+                HostRequest::Fail(error) => {
+                    self.fail(event_loop, RenderError(error));
+                    return;
+                }
                 HostRequest::ClipboardRead { request } => {
                     read_clipboard(&mut self.clipboard, request, self.proxy.clone());
                 }
@@ -701,7 +716,7 @@ pub fn run(app: Box<dyn GpuApplication>) -> Result<()> {
         last_update: now,
         pointer: [0.; 2],
         mods: Modifiers::default(),
-        ime_enabled: false,
+        ime: ImeSession::default(),
         touch: None,
         error: None,
         applied: None,

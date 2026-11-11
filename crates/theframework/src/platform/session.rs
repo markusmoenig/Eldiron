@@ -1,12 +1,13 @@
 //! Host/application and surface contracts shared by Winit and foreign layers.
 //! This module has no widget tree, simulation clock or destination CPU bitmap.
-use super::{InputEvent, InputResponse};
-use crate::paint::{PaintList, Rect};
+use super::{InputEvent, InputResponse, TextInputState};
+use crate::paint::PaintList;
 use renderkit::{AcquireFrame, GpuContext, ImageRegistry, Result, SurfaceState};
 use std::sync::Arc;
 
 pub enum HostRequest {
     Exit,
+    Fail(String),
     Title(String),
     ClipboardRead { request: u64 },
     ClipboardWrite { text: String, request: Option<u64> },
@@ -19,7 +20,7 @@ pub struct HostContext {
     pub logical_size: [f32; 2],
     pub density: f32,
     pub requests: Vec<HostRequest>,
-    pub text_input: Option<Rect>,
+    pub text_input: Option<TextInputState>,
     pub cursor: crate::thecontext::TheCursorIcon,
     pub cursor_visible: bool,
 }
@@ -103,6 +104,10 @@ pub trait GpuApplication {
         FrameRequest::idle()
     }
     fn frame(&mut self, host: &mut HostContext, images: &mut ImageRegistry) -> Result<PaintList>;
+    /// Called once after successful surface presentation, never for a deferred
+    /// acquisition. This acknowledges submission/present, not physical display
+    /// completion; offscreen frame preparation is a separate operation.
+    fn presented(&mut self, _host: &mut HostContext) {}
     fn close_requested(&mut self, _host: &mut HostContext) -> bool {
         true
     }
@@ -134,30 +139,27 @@ impl<'a> GpuPresenter<'a> {
     pub fn context(&self) -> Arc<GpuContext> {
         self.surface.context.clone()
     }
-    pub fn present(
+    fn acquire_frame(&mut self) -> Result<AcquireFrame> {
+        if self.surface.context.is_lost() {
+            return Ok(AcquireFrame::Lost);
+        }
+        if let Err(error) = self.surface.context.poll() {
+            if self.surface.context.is_lost() {
+                return Ok(AcquireFrame::Lost);
+            }
+            return Err(error);
+        }
+        self.surface.acquire()
+    }
+    fn render_acquired(
         &mut self,
+        frame: renderkit::wgpu::SurfaceTexture,
         paint: &PaintList,
         density: f32,
         clear: [f32; 4],
     ) -> Result<PresentResult> {
-        if self.surface.context.is_lost() {
-            return Ok(PresentResult::SurfaceLost);
-        }
-        if let Err(error) = self.surface.context.poll() {
-            if self.surface.context.is_lost() {
-                return Ok(PresentResult::SurfaceLost);
-            }
-            return Err(error);
-        }
-        let frame = match self.surface.acquire()? {
-            AcquireFrame::Ready(frame) => frame,
-            AcquireFrame::Deferred | AcquireFrame::Reconfigure => {
-                return Ok(PresentResult::Deferred);
-            }
-            AcquireFrame::Lost => return Ok(PresentResult::SurfaceLost),
-        };
         let view = frame.texture.create_view(&Default::default());
-        self.renderer.render(
+        if let Err(error) = self.renderer.render(
             paint,
             &self.images,
             &view,
@@ -165,9 +167,51 @@ impl<'a> GpuPresenter<'a> {
             self.surface.physical_size(),
             density,
             clear,
-        )?;
+        ) {
+            if self.surface.context.is_lost() {
+                return Ok(PresentResult::SurfaceLost);
+            }
+            return Err(error);
+        }
         frame.present();
         Ok(PresentResult::Presented)
+    }
+    /// Present an already prepared/cached paint list. A deferred acquisition
+    /// does not submit paint or acknowledge an application presentation.
+    pub fn present(
+        &mut self,
+        paint: &PaintList,
+        density: f32,
+        clear: [f32; 4],
+    ) -> Result<PresentResult> {
+        match self.acquire_frame()? {
+            AcquireFrame::Ready(frame) => self.render_acquired(frame, paint, density, clear),
+            AcquireFrame::Deferred | AcquireFrame::Reconfigure => Ok(PresentResult::Deferred),
+            AcquireFrame::Lost => Ok(PresentResult::SurfaceLost),
+        }
+    }
+    /// Acquire before preparing UI/scenes. An occluded/locked/zero-sized surface
+    /// never invokes the callback or allocates a new visual frame. Simulation
+    /// updates remain the application's independent host timing responsibility.
+    pub fn present_with(
+        &mut self,
+        density: f32,
+        clear: [f32; 4],
+        prepare: impl FnOnce(&mut ImageRegistry) -> Result<PaintList>,
+    ) -> Result<PresentResult> {
+        let frame = match self.acquire_frame()? {
+            AcquireFrame::Ready(frame) => frame,
+            AcquireFrame::Deferred | AcquireFrame::Reconfigure => {
+                return Ok(PresentResult::Deferred);
+            }
+            AcquireFrame::Lost => return Ok(PresentResult::SurfaceLost),
+        };
+        let paint = match prepare(&mut self.images) {
+            Ok(paint) => paint,
+            Err(_) if self.surface.context.is_lost() => return Ok(PresentResult::SurfaceLost),
+            Err(error) => return Err(error),
+        };
+        self.render_acquired(frame, &paint, density, clear)
     }
 }
 

@@ -372,6 +372,18 @@ impl GameScreenController {
     ) -> ScreenTextResponse {
         self.complete_editor_clipboard(fonts, ScreenTextTarget::Input(widget), request, result)
     }
+    pub fn text_input_state(
+        &mut self,
+        fonts: &mut GameFonts,
+    ) -> Option<theframework::platform::TextInputState> {
+        let target = self.focused_text?;
+        if !self.text_targets().contains(&target) {
+            return None;
+        }
+        self.inputs
+            .get_mut(&target)?
+            .text_input_state(&mut fonts.text)
+    }
     pub fn text_ime_area(&mut self, fonts: &mut GameFonts) -> Option<Uv> {
         let target = self.focused_text?;
         if !self.text_targets().contains(&target) {

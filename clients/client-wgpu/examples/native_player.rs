@@ -31,6 +31,8 @@ impl PlayerServices for Services {
 struct NativeExample {
     player: PlayerApplication,
     smoke: bool,
+    presentations: usize,
+    deadline: Option<std::time::Instant>,
 }
 impl GpuApplication for NativeExample {
     fn title(&self) -> String {
@@ -51,10 +53,26 @@ impl GpuApplication for NativeExample {
     fn input(&mut self, e: &InputEvent, h: &mut HostContext) -> InputResponse {
         self.player.input(e, h)
     }
+    fn presented(&mut self, h: &mut HostContext) {
+        self.presentations += 1;
+        self.player.presented(h);
+        if self.smoke {
+            eprintln!(
+                "native player surface presentation {} acknowledged",
+                self.presentations
+            );
+        }
+    }
     fn update(&mut self, h: &mut HostContext, elapsed: Duration) -> FrameRequest {
         let request = self.player.update(h, elapsed);
+        if self
+            .deadline
+            .is_some_and(|deadline| std::time::Instant::now() >= deadline)
+        {
+            h.requests.push(HostRequest::Fail(format!("Native player presentation validation timed out: {} successful surface presentations",self.presentations)));
+        }
         if self.smoke
-            && self.player.frame_count() >= 3
+            && self.presentations >= 3
             && self.player.player.runtime.server.has_local_player()
         {
             h.requests.push(HostRequest::Exit);
@@ -90,6 +108,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut project = shared::project_io::decode_project(&std::fs::read(path)?)?;
     project.migrate_default_ruleset();
     let app = PlayerApplication::new(project, false, Box::new(Services))?;
-    theframework::platform::winit::run(Box::new(NativeExample { player: app, smoke }))?;
+    theframework::platform::winit::run(Box::new(NativeExample {
+        player: app,
+        smoke,
+        presentations: 0,
+        deadline: smoke.then(|| std::time::Instant::now() + Duration::from_secs(10)),
+    }))?;
     Ok(())
 }

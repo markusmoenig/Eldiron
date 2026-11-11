@@ -449,3 +449,82 @@ fn latin_ligatures_keep_every_user_character_navigable() {
         );
     }
 }
+
+#[test]
+fn addressed_ime_callbacks_cannot_cross_editors_focus_epochs_or_document_replacement() {
+    let (mut fonts, mut first) = fixture(false, "First");
+    let (_, mut second) = fixture(false, "Second");
+    let a = first.input_target();
+    let b = second.input_target();
+    assert_ne!(a, b);
+    first.input(
+        &mut fonts,
+        &InputEvent::CompositionFor {
+            target: a,
+            text: "仮".into(),
+            cursor: Some((0, 3)),
+        },
+    );
+    assert_eq!(first.text(), "First");
+    first.set_focused(&mut fonts, false);
+    assert!(
+        !second
+            .input(
+                &mut fonts,
+                &InputEvent::TextFor {
+                    target: a,
+                    text: "late".into()
+                }
+            )
+            .changed
+    );
+    assert_eq!(second.text(), "Second");
+    first.set_focused(&mut fonts, true);
+    assert_ne!(first.input_target(), a);
+    assert!(
+        !first
+            .input(
+                &mut fonts,
+                &InputEvent::TextFor {
+                    target: a,
+                    text: "late".into()
+                }
+            )
+            .changed
+    );
+    assert_eq!(first.text(), "First");
+    let current = first.input_target();
+    assert!(
+        first
+            .input(
+                &mut fonts,
+                &InputEvent::TextFor {
+                    target: current,
+                    text: "!".into()
+                }
+            )
+            .changed
+    );
+    assert_eq!(first.text(), "First!");
+    assert_eq!(
+        first.input_target(),
+        current,
+        "ordinary committed edits retain their native session"
+    );
+    first.set_text(&mut fonts, "Replacement");
+    assert_ne!(first.input_target(), current);
+    assert!(
+        !first
+            .input(
+                &mut fonts,
+                &InputEvent::CompositionFor {
+                    target: current,
+                    text: "stale".into(),
+                    cursor: None
+                }
+            )
+            .input
+            .consumed
+    );
+    assert_eq!(first.text(), "Replacement");
+}

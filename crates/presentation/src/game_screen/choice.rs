@@ -97,6 +97,8 @@ impl GameScreenController {
                 };
             }
             InputEvent::Text(_)
+            | InputEvent::TextFor { .. }
+            | InputEvent::CompositionFor { .. }
             | InputEvent::Composition { .. }
             | InputEvent::Scroll { .. }
             | InputEvent::RelativeMotion { .. }
