@@ -11,6 +11,7 @@ keywords = ["gpu", "rendering", "wgpu", "game", "engine"]
 readme = "README.md"
 
 [dependencies]
+renderkit = { path = "../renderkit", optional = true }
 wgpu = { version = "29.0.3", optional = true }
 pollster = { version = "0.4", optional = true }
 uuid = { version = "1.18.1", features = ["v4", "rng-getrandom"] }
@@ -56,7 +57,7 @@ web-sys = { version = "0.3", features = [
 getrandom = { version = "0.3", features = ["wasm_js"] }
 
 [features]
-gpu = ["dep:wgpu", "dep:pollster"]
+gpu = ["dep:wgpu", "dep:pollster", "dep:renderkit"]
 ui = ["fontdue"]
 windowing = ["winit"]
 

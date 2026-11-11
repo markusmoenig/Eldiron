@@ -12,6 +12,13 @@ readme = "README.md"
 exclude = ["Xcode"]
 
 [dependencies]
+parley = { version = "0.9.0", optional = true }
+swash = { version = "0.2.10", optional = true }
+renderkit = { path = "../renderkit", optional = true }
+lyon_tessellation = { version = "1", optional = true }
+bytemuck = { version = "1", features = ["derive"], optional = true }
+
+theframework-core = { path = "../theframework-core" }
 log = "0.4"
 fontdue = "0.9.3"
 maths-rs = { version = "0.2.6", features = [
@@ -84,6 +91,10 @@ wasm-bindgen-futures = "0.4"
 web-sys = { version = "0.3", features = ["Gpu", "GpuTextureFormat", "Navigator", "Performance", "Window"] }
 
 [features]
+paint = []
+text = ["paint", "dep:parley", "dep:swash"]
+render-wgpu = ["text", "dep:renderkit", "dep:lyon_tessellation", "dep:bytemuck"]
+
 ui = ["rfd", "rayon", "zeno"]
 winit_app = ["winit", "winit_app_pixels"]
 winit_app_pixels = ["pixels"]

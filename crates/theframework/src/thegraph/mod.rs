@@ -24,3 +24,8 @@ mod definitions;
 pub use definitions::*;
 mod picker;
 pub use picker::*;
+
+#[cfg(feature="text")]
+mod paint_list;
+#[cfg(feature="text")]
+pub use paint_list::*;

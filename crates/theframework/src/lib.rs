@@ -1,3 +1,9 @@
+#[cfg(feature = "render-wgpu")]
+pub mod render_wgpu;
+#[cfg(feature = "paint")]
+pub mod paint;
+#[cfg(feature = "text")]
+pub mod text;
 pub mod theapp;
 pub mod thecolor;
 pub mod thecontext;

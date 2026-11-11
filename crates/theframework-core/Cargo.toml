@@ -1,0 +1,10 @@
+[package]
+name = "theframework-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+vek = "0.17.1"
+[dev-dependencies]
+serde_json = "1"

@@ -13,7 +13,7 @@ pub struct Texture {
 pub struct TextureGPU {
     pub texture: wgpu::Texture,
     pub view: wgpu::TextureView,
-    pub readback: wgpu::Buffer,
+    pub readback: Option<wgpu::Buffer>,
     pub padded_bytes_per_row: u32,
     #[cfg(target_arch = "wasm32")]
     pub map_ready: Option<std::rc::Rc<std::cell::Cell<bool>>>,
@@ -130,6 +130,24 @@ impl Texture {
         }
     }
 
+    /// GPU output storage without an authoritative CPU image.
+    pub fn render_target(width: u32, height: u32) -> Self {
+        Self { width, height, data: Vec::new(), gpu: None }
+    }
+
+    #[cfg(feature = "gpu")]
+    fn ensure_readback(&mut self, device: &wgpu::Device) {
+        let gpu = self.gpu.as_mut().expect("GPU texture initialized");
+        if gpu.readback.is_none() {
+            gpu.readback = Some(device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("scenevm-requested-readback"),
+                size: gpu.padded_bytes_per_row as u64 * self.height as u64,
+                usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            }));
+        }
+    }
+
     /// Create from existing RGBA data (will truncate/extend to fit width*height*4)
     pub fn from_rgba(width: u32, height: u32, mut data: Vec<u8>) -> Self {
         let need = (width as usize) * (height as usize) * 4;
@@ -201,13 +219,7 @@ impl Texture {
             let unpadded = self.width * bpp;
             let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT; // 256
             let padded = ((unpadded + align - 1) / align) * align;
-            let readback_size = padded as u64 * self.height as u64;
-            let readback = device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("scenevm-Texture-readback"),
-                size: readback_size,
-                usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            });
+            let readback = None;
             self.gpu = Some(TextureGPU {
                 texture: tex,
                 view,
@@ -300,6 +312,7 @@ impl Texture {
     #[cfg(feature = "gpu")]
     pub fn download_from_gpu_with(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
         self.ensure_gpu_with(device);
+        self.ensure_readback(device);
         let g = self.gpu.as_ref().expect("Texture GPU not allocated");
 
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -313,7 +326,7 @@ impl Texture {
                 aspect: wgpu::TextureAspect::All,
             },
             wgpu::TexelCopyBufferInfo {
-                buffer: &g.readback,
+                buffer: g.readback.as_ref().expect("readback requested"),
                 layout: wgpu::TexelCopyBufferLayout {
                     offset: 0,
                     bytes_per_row: Some(g.padded_bytes_per_row),
@@ -328,7 +341,7 @@ impl Texture {
         );
         let _readback_submission = queue.submit(std::iter::once(encoder.finish()));
 
-        let slice = g.readback.slice(..);
+        let slice = g.readback.as_ref().expect("readback requested").slice(..);
         #[cfg(not(target_arch = "wasm32"))]
         {
             let (tx, rx) = std::sync::mpsc::sync_channel(1);
@@ -362,7 +375,7 @@ impl Texture {
                     .copy_from_slice(&data[src_off..src_off + unpadded_bpr]);
             }
             drop(data);
-            g.readback.unmap();
+            if let Some(readback) = &g.readback { readback.unmap(); }
         }
         #[cfg(target_arch = "wasm32")]
         {
@@ -424,13 +437,7 @@ impl Texture {
             let unpadded = self.width * bpp;
             let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT; // 256
             let padded = ((unpadded + align - 1) / align) * align;
-            let readback_size = padded as u64 * self.height as u64;
-            let readback = gpu.device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("scenevm-Texture-readback"),
-                size: readback_size,
-                usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            });
+            let readback = None;
 
             self.gpu = Some(TextureGPU {
                 texture: tex,
@@ -466,7 +473,8 @@ impl Texture {
             return false;
         }
         let gref = self.gpu.as_ref().unwrap();
-        let slice = gref.readback.slice(..);
+        let Some(readback) = gref.readback.as_ref() else { return false; };
+        let slice = readback.slice(..);
 
         #[cfg(target_arch = "wasm32")]
         {
@@ -496,7 +504,7 @@ impl Texture {
         drop(data);
         // Unmap and clear the ready flag (if any)
         if let Some(g) = self.gpu.as_mut() {
-            g.readback.unmap();
+            if let Some(readback) = &g.readback { readback.unmap(); }
             #[cfg(target_arch = "wasm32")]
             {
                 g.map_ready = None;
@@ -602,6 +610,7 @@ mod mip_tests {
                     ]);
                 }
                 texture.upload_to_gpu_with(&gpu.device, &gpu.queue);
+                texture.ensure_readback(&gpu.device);
                 let mut expected = texture.data.clone();
                 let (mut w, mut h) = (width, height);
                 let g = texture.gpu.as_ref().unwrap();
@@ -615,7 +624,7 @@ mod mip_tests {
                             aspect: wgpu::TextureAspect::All,
                         },
                         wgpu::TexelCopyBufferInfo {
-                            buffer: &g.readback,
+                            buffer: g.readback.as_ref().expect("readback requested"),
                             layout: wgpu::TexelCopyBufferLayout {
                                 offset: 0,
                                 bytes_per_row: Some(g.padded_bytes_per_row),
@@ -629,7 +638,7 @@ mod mip_tests {
                         },
                     );
                     let submission = gpu.queue.submit(Some(encoder.finish()));
-                    let slice = g.readback.slice(..);
+                    let slice = g.readback.as_ref().expect("readback requested").slice(..);
                     let (tx, rx) = std::sync::mpsc::sync_channel(1);
                     slice.map_async(wgpu::MapMode::Read, move |r| {
                         tx.send(r).unwrap();
@@ -652,7 +661,7 @@ mod mip_tests {
                         "{width}x{height} mip {mip}, upload seed {seed}"
                     );
                     drop(bytes);
-                    g.readback.unmap();
+                    if let Some(readback) = &g.readback { readback.unmap(); }
                     (expected, w, h) = downsample_rgba8_box(&expected, w, h);
                 }
             }

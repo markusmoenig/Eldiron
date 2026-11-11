@@ -1,4 +1,6 @@
 // pub mod app;
+#[cfg(feature = "gpu")]
+pub mod render_output;
 #[cfg(feature = "ui")]
 pub mod app_event;
 #[cfg(feature = "gpu")]
@@ -188,7 +190,6 @@ struct PresentPipeline {
 struct CompositingPipeline {
     pipeline: wgpu::RenderPipeline,
     bind_group_layout: wgpu::BindGroupLayout,
-    mode_buf: wgpu::Buffer,
     sampler: wgpu::Sampler,
     target_format: wgpu::TextureFormat,
 }
@@ -280,12 +281,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
             bind_group_layouts: &[Some(&bind_group_layout)],
             immediate_size: 0,
         });
-        let mode_buf = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("scenevm-composite-mode"),
-            size: std::mem::size_of::<u32>() as u64,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
+
 
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("scenevm-composite-sampler"),
@@ -328,7 +324,6 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         Self {
             pipeline,
             bind_group_layout,
-            mode_buf,
             sampler,
             target_format,
         }
@@ -1203,7 +1198,7 @@ impl SceneVM {
         rgba_overlay: &mut Option<RgbaOverlayState>,
         rgba_overlay_pipeline: &mut Option<RgbaOverlayCompositingPipeline>,
         composite_rgba_overlay_in_scene: bool,
-    ) {
+    ) -> SceneVMResult<()> {
         let debug_total_start = instant::Instant::now();
         let mut debug_composited_layers = 0u32;
 
@@ -1219,6 +1214,7 @@ impl SceneVM {
                 #[cfg(not(target_arch = "wasm32"))]
                 eprintln!("[SceneVM] Error drawing base VM: {e:?}");
             }
+            return Err(e);
         }
         let debug_base_ms = debug_base_start.elapsed().as_secs_f64() * 1000.0;
 
@@ -1233,6 +1229,7 @@ impl SceneVM {
                     #[cfg(not(target_arch = "wasm32"))]
                     eprintln!("[SceneVM] Error drawing overlay VM: {e:?}");
                 }
+                return Err(e);
             }
         }
         let debug_overlays_ms = debug_overlays_start.elapsed().as_secs_f64() * 1000.0;
@@ -1281,7 +1278,12 @@ impl SceneVM {
                         LayerBlendMode::AlphaLinear => 1,
                     };
                     // Upload mode
-                    queue.write_buffer(&pipeline.mode_buf, 0, bytemuck::bytes_of(&mode_u32));
+                    let mode_buf = device.create_buffer(&wgpu::BufferDescriptor {
+                        label: Some("scenevm-layer-blend-mode"), size: 4,
+                        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                        mapped_at_creation: false,
+                    });
+                    queue.write_buffer(&mode_buf, 0, bytemuck::bytes_of(&mode_u32));
 
                     let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
                         label: Some("scenevm-compositing-bind-group"),
@@ -1297,7 +1299,7 @@ impl SceneVM {
                             },
                             wgpu::BindGroupEntry {
                                 binding: 2,
-                                resource: pipeline.mode_buf.as_entire_binding(),
+                                resource: mode_buf.as_entire_binding(),
                             },
                         ],
                     });
@@ -1414,6 +1416,7 @@ impl SceneVM {
             overlays.len() as u32,
             debug_composited_layers,
         );
+        Ok(())
     }
 
     pub fn set_rgba_overlay(&mut self, width: u32, height: u32, rgba: Vec<u8>, rect: [f32; 4]) {
@@ -2343,7 +2346,7 @@ impl SceneVM {
 
         let (w, h) = self.size;
         let debug_draw_start = debug_enabled.then(instant::Instant::now);
-        SceneVM::draw_all_vms(
+        let _ = SceneVM::draw_all_vms(
             base_vm,
             overlays,
             &gpu.device,
@@ -2572,7 +2575,7 @@ impl SceneVM {
 
         // Delegate rendering to all VM layers in order (each overlays the previous result)
         let render_start = instant::Instant::now();
-        SceneVM::draw_all_vms(
+        let _ = SceneVM::draw_all_vms(
             base_vm,
             overlays,
             &gpu.device,
@@ -2622,7 +2625,7 @@ impl SceneVM {
         }
 
         let (w, h) = self.size;
-        SceneVM::draw_all_vms(
+        let _ = SceneVM::draw_all_vms(
             base_vm,
             overlays,
             &gpu.device,
@@ -2745,7 +2748,7 @@ impl SceneVM {
 
             // Render a new frame and start a download for the next call.
             let (w, h) = self.size;
-            SceneVM::draw_all_vms(
+            let _ = SceneVM::draw_all_vms(
                 base_vm,
                 overlays,
                 &gpu.device,

@@ -1,0 +1,648 @@
+use super::{
+    atlas::GlyphAtlas,
+    mesh::{self, Vertex},
+};
+use crate::{paint::*, text::GlyphCache};
+use renderkit::{
+    AlphaMode, ColorSpace, GpuContext, GpuImage, ImageDescriptor, ImageRegistry, RenderError,
+    Result, wgpu,
+};
+use std::{collections::HashMap, sync::Arc};
+use wgpu::util::DeviceExt;
+
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+struct Params {
+    viewport: [f32; 2],
+    mode: u32,
+    source: u32,
+    color0: Color,
+    color1: Color,
+    gradient: [f32; 4],
+}
+#[derive(Clone)]
+struct Geometry {
+    vertices: wgpu::Buffer,
+    indices: wgpu::Buffer,
+    count: u32,
+}
+struct Draw {
+    geometry: Geometry,
+    bind: wgpu::BindGroup,
+    stencil: u32,
+    phase: u8,
+}
+struct Pipelines {
+    draw: wgpu::RenderPipeline,
+    push: wgpu::RenderPipeline,
+    pop: wgpu::RenderPipeline,
+    samples: u32,
+}
+fn linear(c: Color) -> Color {
+    let f = |v: f32| {
+        if v <= 0.04045 {
+            v / 12.92
+        } else {
+            ((v + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    [f(c[0]), f(c[1]), f(c[2]), c[3]]
+}
+
+pub struct PaintRenderer {
+    context: Arc<GpuContext>,
+    layout: wgpu::BindGroupLayout,
+    pipeline_layout: wgpu::PipelineLayout,
+    shader: wgpu::ShaderModule,
+    linear: wgpu::Sampler,
+    nearest: wgpu::Sampler,
+    white: Arc<GpuImage>,
+    pipelines: HashMap<wgpu::TextureFormat, Arc<Pipelines>>,
+    atlas: GlyphAtlas,
+    pub glyphs: GlyphCache,
+}
+impl PaintRenderer {
+    pub fn new(context: Arc<GpuContext>) -> Result<Self> {
+        let layout = context
+            .device
+            .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("ui-paint-layout"),
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                        count: None,
+                    },
+                ],
+            });
+        let pipeline_layout =
+            context
+                .device
+                .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                    label: Some("ui-paint-pipeline-layout"),
+                    bind_group_layouts: &[Some(&layout)],
+                    immediate_size: 0,
+                });
+        let shader = context
+            .device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("ui-paint-shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("paint.wgsl").into()),
+            });
+        let sampler = |filter| {
+            context.device.create_sampler(&wgpu::SamplerDescriptor {
+                mag_filter: filter,
+                min_filter: filter,
+                ..Default::default()
+            })
+        };
+        let white = GpuImage::new(&context, ImageDescriptor::rgba(1, 1))?;
+        context.queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &white.texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            &[255; 4],
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(4),
+                rows_per_image: Some(1),
+            },
+            white.texture.size(),
+        );
+        Ok(Self {
+            linear: sampler(wgpu::FilterMode::Linear),
+            nearest: sampler(wgpu::FilterMode::Nearest),
+            context,
+            layout,
+            pipeline_layout,
+            shader,
+            white,
+            pipelines: HashMap::new(),
+            atlas: GlyphAtlas::default(),
+            glyphs: GlyphCache::default(),
+        })
+    }
+    fn pipelines(&mut self, format: wgpu::TextureFormat) -> Arc<Pipelines> {
+        if let Some(p) = self.pipelines.get(&format) {
+            return p.clone();
+        }
+        let samples = if self
+            .context
+            .adapter
+            .get_texture_format_features(format)
+            .flags
+            .contains(wgpu::TextureFormatFeatureFlags::MULTISAMPLE_X4)
+        {
+            4
+        } else {
+            1
+        };
+        let make = |phase: u8| {
+            let stencil = wgpu::StencilFaceState {
+                compare: wgpu::CompareFunction::Equal,
+                fail_op: wgpu::StencilOperation::Keep,
+                depth_fail_op: wgpu::StencilOperation::Keep,
+                pass_op: match phase {
+                    1 => wgpu::StencilOperation::IncrementClamp,
+                    2 => wgpu::StencilOperation::DecrementClamp,
+                    _ => wgpu::StencilOperation::Keep,
+                },
+            };
+            self.context.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor{
+                label:Some("ui-paint-pipeline"),layout:Some(&self.pipeline_layout),
+                vertex:wgpu::VertexState{module:&self.shader,entry_point:Some("vs"),compilation_options:Default::default(),buffers:&[wgpu::VertexBufferLayout{array_stride:std::mem::size_of::<Vertex>() as u64,step_mode:wgpu::VertexStepMode::Vertex,attributes:&wgpu::vertex_attr_array![0=>Float32x2,1=>Float32x2,2=>Float32x2]}]},
+                fragment:Some(wgpu::FragmentState{module:&self.shader,entry_point:Some("fs"),compilation_options:Default::default(),targets:&[Some(wgpu::ColorTargetState{format,blend:Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),write_mask:if phase==0{wgpu::ColorWrites::ALL}else{wgpu::ColorWrites::empty()}})]}),
+                primitive:wgpu::PrimitiveState::default(),depth_stencil:Some(wgpu::DepthStencilState{format:wgpu::TextureFormat::Depth24PlusStencil8,depth_write_enabled:Some(false),depth_compare:Some(wgpu::CompareFunction::Always),stencil:wgpu::StencilState{front:stencil,back:stencil,read_mask:255,write_mask:if phase==0{0}else{255}},bias:Default::default()}),
+                multisample:wgpu::MultisampleState{count:samples,..Default::default()},multiview_mask:None,cache:None,
+            })
+        };
+        let p = Arc::new(Pipelines {
+            draw: make(0),
+            push: make(1),
+            pop: make(2),
+            samples,
+        });
+        self.pipelines.insert(format, p.clone());
+        p
+    }
+    fn geometry(&self, vertices: &[Vertex], indices: &[u32]) -> Geometry {
+        let vertices = self
+            .context
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("ui-vertices"),
+                contents: bytemuck::cast_slice(vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+        let buffer = self
+            .context
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("ui-indices"),
+                contents: bytemuck::cast_slice(indices),
+                usage: wgpu::BufferUsages::INDEX,
+            });
+        Geometry {
+            vertices,
+            indices: buffer,
+            count: indices.len() as u32,
+        }
+    }
+    fn draw(
+        &self,
+        geometry: Geometry,
+        brush: &Brush,
+        image: Option<(&GpuImage, Sampling)>,
+        size: (u32, u32),
+        stencil: u32,
+        phase: u8,
+    ) -> Draw {
+        let (mode, color0, color1, gradient) = match brush {
+            Brush::Solid(c) => (0, linear(*c), [0.; 4], [0.; 4]),
+            Brush::LinearGradient {
+                start,
+                end,
+                start_color,
+                end_color,
+            } => (
+                1,
+                linear(*start_color),
+                linear(*end_color),
+                [start[0], start[1], end[0], end[1]],
+            ),
+        };
+        let source = image.map_or(0, |(image, _)| {
+            u32::from(
+                image.descriptor.color_space == ColorSpace::Srgb
+                    && !image.descriptor.format.is_srgb(),
+            ) | if image.descriptor.alpha_mode == AlphaMode::Premultiplied {
+                2
+            } else {
+                0
+            }
+        });
+        let params = Params {
+            viewport: [size.0 as f32, size.1 as f32],
+            mode: if image.is_some() { 2 } else { mode },
+            source,
+            color0,
+            color1,
+            gradient,
+        };
+        let uniform = self
+            .context
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("ui-paint-params"),
+                contents: bytemuck::bytes_of(&params),
+                usage: wgpu::BufferUsages::UNIFORM,
+            });
+        let texture = image.map_or(&*self.white, |(image, _)| image);
+        let sampler = if image.is_some_and(|(_, s)| s == Sampling::Nearest) {
+            &self.nearest
+        } else {
+            &self.linear
+        };
+        let bind = self
+            .context
+            .device
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("ui-paint-bind"),
+                layout: &self.layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: uniform.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::TextureView(&texture.view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: wgpu::BindingResource::Sampler(sampler),
+                    },
+                ],
+            });
+        Draw {
+            geometry,
+            bind,
+            stencil,
+            phase,
+        }
+    }
+    /// Execute paint in order. Explicit capture is available separately through renderkit.
+    pub fn render(
+        &mut self,
+        list: &PaintList,
+        images: &ImageRegistry,
+        target: &wgpu::TextureView,
+        format: wgpu::TextureFormat,
+        size: (u32, u32),
+        density: f32,
+        clear: Color,
+    ) -> Result<()> {
+        list.validate().map_err(|e| RenderError(e.into()))?;
+        if size.0 == 0 || size.1 == 0 || !density.is_finite() || density <= 0. {
+            return Err(RenderError("invalid paint target".into()));
+        }
+        if images.context().generation() != self.context.generation() {
+            return Err(RenderError(
+                "paint registry belongs to another device".into(),
+            ));
+        }
+        self.render_ops(
+            &list.ops,
+            images,
+            target,
+            format,
+            size,
+            density,
+            clear,
+            Transform::default(),
+        )
+    }
+    fn render_ops(
+        &mut self,
+        ops: &[PaintOp],
+        images: &ImageRegistry,
+        target: &wgpu::TextureView,
+        format: wgpu::TextureFormat,
+        size: (u32, u32),
+        density: f32,
+        clear: Color,
+        initial: Transform,
+    ) -> Result<()> {
+        let mut transforms = vec![initial];
+        let mut clips: Vec<Geometry> = vec![];
+        let mut draws = Vec::new();
+        let mut i = 0;
+        while i < ops.len() {
+            let transform = *transforms.last().unwrap();
+            let level = clips.len() as u32;
+            match &ops[i] {
+                PaintOp::Rect {
+                    rect,
+                    radius,
+                    brush,
+                } => {
+                    if rect.width > 0. && rect.height > 0. {
+                        let (v, ix) = mesh::tessellate(
+                            &mesh::rect_path(*rect, *radius),
+                            FillRule::NonZero,
+                            None,
+                            transform,
+                            density,
+                        )?;
+                        draws.push(self.draw(self.geometry(&v, &ix), brush, None, size, level, 0));
+                    }
+                }
+                PaintOp::Fill { path, rule, brush } => {
+                    let (v, ix) = mesh::tessellate(path, *rule, None, transform, density)?;
+                    draws.push(self.draw(self.geometry(&v, &ix), brush, None, size, level, 0));
+                }
+                PaintOp::Stroke { path, stroke } => {
+                    let (v, ix) = mesh::tessellate(
+                        path,
+                        FillRule::NonZero,
+                        Some(stroke),
+                        transform,
+                        density,
+                    )?;
+                    draws.push(self.draw(
+                        self.geometry(&v, &ix),
+                        &stroke.brush,
+                        None,
+                        size,
+                        level,
+                        0,
+                    ));
+                }
+                PaintOp::Image {
+                    image,
+                    rect,
+                    uv,
+                    sampling,
+                    tint,
+                } => {
+                    let image = images.get(*image).ok_or_else(|| {
+                        RenderError("paint references a stale image handle".into())
+                    })?;
+                    let (v, ix) = mesh::quad(*rect, *uv, transform, density);
+                    draws.push(self.draw(
+                        self.geometry(&v, &ix),
+                        &Brush::Solid(*tint),
+                        Some((&image, *sampling)),
+                        size,
+                        level,
+                        0,
+                    ));
+                }
+                PaintOp::GlyphRun { run, origin, color } => {
+                    let scale = density
+                        * transform.0[0]
+                            .hypot(transform.0[1])
+                            .max(transform.0[2].hypot(transform.0[3]));
+                    if scale > 0. {
+                        for glyph in run.glyphs.iter() {
+                            let local =
+                                [origin[0] + glyph.position[0], origin[1] + glyph.position[1]];
+                            let physical = transform.point(local).map(|x| x * density);
+                            if let Some((key, bitmap)) =
+                                self.glyphs.glyph(run, glyph.id, scale, physical)
+                            {
+                                if bitmap.width == 0 || bitmap.height == 0 {
+                                    continue;
+                                }
+                                let entry = if let Some(e) = self.atlas.get(&key) {
+                                    e
+                                } else {
+                                    self.atlas.insert(&self.context, key, bitmap)?
+                                };
+                                let snapped =
+                                    [physical[0].floor() / density, physical[1].floor() / density];
+                                let local = transform
+                                    .inverse()
+                                    .ok_or_else(|| RenderError("singular glyph transform".into()))?
+                                    .point(snapped);
+                                let rect = Rect::new(
+                                    local[0] + entry.bitmap.left as f32 / scale,
+                                    local[1] - entry.bitmap.top as f32 / scale,
+                                    entry.bitmap.width as f32 / scale,
+                                    entry.bitmap.height as f32 / scale,
+                                );
+                                // Bitmap dimensions are physical pixels; divide by the complete
+                                // raster scale before the logical transform is applied again.
+                                let (v, ix) = mesh::quad(rect, entry.uv, transform, density);
+                                draws.push(self.draw(
+                                    self.geometry(&v, &ix),
+                                    &Brush::Solid(if entry.bitmap.color {
+                                        [1., 1., 1., color[3]]
+                                    } else {
+                                        *color
+                                    }),
+                                    Some((&entry.image, Sampling::Linear)),
+                                    size,
+                                    level,
+                                    0,
+                                ));
+                            }
+                        }
+                    }
+                }
+                PaintOp::PushTransform(t) => transforms.push(t.then(transform)),
+                PaintOp::PopTransform => {
+                    if transforms.len() <= 1 {
+                        return Err(RenderError("paint transform underflow".into()));
+                    }
+                    transforms.pop();
+                }
+                PaintOp::PushClip(rect) => {
+                    let (v, ix) = mesh::tessellate(
+                        &mesh::rect_path(*rect, 0.),
+                        FillRule::NonZero,
+                        None,
+                        transform,
+                        density,
+                    )?;
+                    let geometry = self.geometry(&v, &ix);
+                    draws.push(self.draw(
+                        geometry.clone(),
+                        &Brush::Solid([1.; 4]),
+                        None,
+                        size,
+                        level,
+                        1,
+                    ));
+                    clips.push(geometry);
+                }
+                PaintOp::PushPathClip(path, rule) => {
+                    let (v, ix) = mesh::tessellate(path, *rule, None, transform, density)?;
+                    let geometry = self.geometry(&v, &ix);
+                    draws.push(self.draw(
+                        geometry.clone(),
+                        &Brush::Solid([1.; 4]),
+                        None,
+                        size,
+                        level,
+                        1,
+                    ));
+                    clips.push(geometry);
+                }
+                PaintOp::PopClip => {
+                    let geometry = clips
+                        .pop()
+                        .ok_or_else(|| RenderError("paint clip underflow".into()))?;
+                    draws.push(self.draw(geometry, &Brush::Solid([1.; 4]), None, size, level, 2));
+                }
+                PaintOp::PushOpacity(opacity) => {
+                    let mut depth = 1;
+                    let start = i + 1;
+                    let mut end = start;
+                    while end < ops.len() {
+                        match ops[end] {
+                            PaintOp::PushOpacity(_) => depth += 1,
+                            PaintOp::PopOpacity => {
+                                depth -= 1;
+                                if depth == 0 {
+                                    break;
+                                }
+                            }
+                            _ => {}
+                        }
+                        end += 1;
+                    }
+                    if depth != 0 {
+                        return Err(RenderError("unclosed opacity group".into()));
+                    }
+                    let group = GpuImage::new(
+                        &self.context,
+                        ImageDescriptor {
+                            width: size.0,
+                            height: size.1,
+                            format: wgpu::TextureFormat::Rgba8Unorm,
+                            color_space: ColorSpace::Linear,
+                            alpha_mode: AlphaMode::Premultiplied,
+                        },
+                    )?;
+                    self.render_ops(
+                        &ops[start..end],
+                        images,
+                        &group.view,
+                        group.descriptor.format,
+                        size,
+                        density,
+                        [0.; 4],
+                        transform,
+                    )?;
+                    let (v, ix) = mesh::quad(
+                        Rect::new(0., 0., size.0 as f32, size.1 as f32),
+                        Rect::new(0., 0., 1., 1.),
+                        Transform::default(),
+                        1.,
+                    );
+                    draws.push(self.draw(
+                        self.geometry(&v, &ix),
+                        &Brush::Solid([1., 1., 1., opacity.clamp(0., 1.)]),
+                        Some((&group, Sampling::Nearest)),
+                        size,
+                        level,
+                        0,
+                    ));
+                    i = end;
+                }
+                PaintOp::PopOpacity => {
+                    return Err(RenderError("unexpected opacity group end".into()));
+                }
+            }
+            if clips.len() > 255 {
+                return Err(RenderError("stencil clip nesting exceeds 255".into()));
+            }
+            i += 1;
+        }
+        if !clips.is_empty() || transforms.len() != 1 {
+            return Err(RenderError("unclosed paint scope".into()));
+        }
+        let pipelines = self.pipelines(format);
+        let scratch = |format, samples| {
+            self.context
+                .device
+                .create_texture(&wgpu::TextureDescriptor {
+                    label: Some("ui-frame-attachment"),
+                    size: wgpu::Extent3d {
+                        width: size.0,
+                        height: size.1,
+                        depth_or_array_layers: 1,
+                    },
+                    mip_level_count: 1,
+                    sample_count: samples,
+                    dimension: wgpu::TextureDimension::D2,
+                    format,
+                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                    view_formats: &[],
+                })
+        };
+        let stencil = scratch(wgpu::TextureFormat::Depth24PlusStencil8, pipelines.samples)
+            .create_view(&Default::default());
+        let msaa = (pipelines.samples > 1)
+            .then(|| scratch(format, pipelines.samples).create_view(&Default::default()));
+        let mut encoder =
+            self.context
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("ui-paint-frame"),
+                });
+        let c = linear(clear);
+        {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("ui-ordered-paint"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: msaa.as_ref().unwrap_or(target),
+                    resolve_target: msaa.as_ref().map(|_| target),
+                    depth_slice: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: (c[0] * c[3]) as f64,
+                            g: (c[1] * c[3]) as f64,
+                            b: (c[2] * c[3]) as f64,
+                            a: c[3] as f64,
+                        }),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &stencil,
+                    depth_ops: None,
+                    stencil_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(0),
+                        store: wgpu::StoreOp::Discard,
+                    }),
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            for draw in &draws {
+                if draw.geometry.count == 0 {
+                    continue;
+                }
+                pass.set_pipeline(match draw.phase {
+                    1 => &pipelines.push,
+                    2 => &pipelines.pop,
+                    _ => &pipelines.draw,
+                });
+                pass.set_stencil_reference(draw.stencil);
+                pass.set_bind_group(0, &draw.bind, &[]);
+                pass.set_vertex_buffer(0, draw.geometry.vertices.slice(..));
+                pass.set_index_buffer(draw.geometry.indices.slice(..), wgpu::IndexFormat::Uint32);
+                pass.draw_indexed(0..draw.geometry.count, 0, 0..1);
+            }
+        }
+        self.context.queue.submit([encoder.finish()]);
+        Ok(())
+    }
+}
