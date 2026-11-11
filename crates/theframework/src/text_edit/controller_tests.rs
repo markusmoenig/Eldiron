@@ -990,3 +990,83 @@ fn external_undo_policy_leaves_document_transactions_and_shortcuts_with_the_appl
     assert_eq!(editor.text(), "A東京Z!");
     assert!(!editor.undo(&mut fonts));
 }
+
+#[test]
+fn annotations_track_ime_replacements_and_external_position_changes_keep_history() {
+    let (mut fonts, mut editor) = fixture(true, "A東京Z");
+    text(&mut editor, &mut fonts, "!");
+    editor.select_bytes(&mut fonts, 1, 7);
+    editor.input(
+        &mut fonts,
+        &InputEvent::Composition {
+            text: "仮".into(),
+            cursor: None,
+        },
+    );
+    assert_eq!(editor.displayed_range(0..1), Some(0..1));
+    assert_eq!(editor.displayed_range(7..9), Some(4..6));
+    assert_eq!(editor.displayed_range(1..7), None);
+    assert_eq!(editor.displayed_range(2..3), None);
+    editor.input(
+        &mut fonts,
+        &InputEvent::Composition {
+            text: String::new(),
+            cursor: None,
+        },
+    );
+    let mut state = crate::text_edit::TextEditState::default();
+    editor.export_state(&mut state);
+    state.selection.reset();
+    state.cursor = crate::text_edit::Cursor::new(0, 0);
+    let target = editor.input_target();
+    assert!(editor.restore_selection_state(&mut fonts, &state));
+    assert_eq!(editor.selection_bytes(), (0, 0));
+    assert_eq!(editor.input_target(), target);
+    assert!(editor.undo(&mut fonts));
+    assert_eq!(editor.text(), "A東京Z");
+}
+
+#[test]
+fn multiline_document_replacement_preserves_control_characters_and_saved_selection() {
+    let source = "A\u{000c}東京\0Z\r\nend";
+    let (mut fonts, mut editor) = fixture(true, source);
+    assert_eq!(editor.text(), source);
+    editor.select_bytes(&mut fonts, source.len(), source.len());
+    let mut state = crate::text_edit::TextEditState::default();
+    editor.export_state(&mut state);
+    editor.import_state(&mut fonts, &state);
+    assert_eq!(editor.text(), source);
+    assert_eq!(editor.selection_bytes(), (source.len(), source.len()));
+    text(&mut editor, &mut fonts, "!");
+    assert_eq!(editor.text(), format!("{source}!"));
+    editor.undo(&mut fonts);
+    assert_eq!(editor.text(), source);
+}
+#[test]
+fn code_comment_plans_keep_unicode_backward_selection_and_one_undo_unit() {
+    let source = "東京\ne\u{301}\nlast";
+    let (mut fonts, mut editor) = fixture(true, source);
+    let end = source.find("last").unwrap();
+    editor.select_bytes(&mut fonts, end, 0);
+    assert!(editor.toggle_line_comment(&mut fonts, "# "));
+    assert_eq!(editor.text(), "# 東京\n# e\u{301}\nlast");
+    assert_eq!(editor.selection_bytes(), (end + 4, 0));
+    assert!(editor.toggle_line_comment(&mut fonts, "# "));
+    assert_eq!(editor.text(), source);
+    assert_eq!(editor.selection_bytes(), (end, 0));
+    editor.undo(&mut fonts);
+    editor.undo(&mut fonts);
+    assert_eq!(editor.text(), source);
+    assert!(!editor.undo(&mut fonts));
+}
+
+#[test]
+fn code_comment_can_toggle_an_empty_current_line_without_synthesizing_a_key() {
+    let (mut fonts, mut editor) = fixture(true, "");
+    assert!(editor.toggle_line_comment(&mut fonts, "# "));
+    assert_eq!(editor.text(), "# ");
+    assert!(editor.toggle_line_comment(&mut fonts, "# "));
+    assert_eq!(editor.text(), "");
+    editor.undo(&mut fonts);
+    assert_eq!(editor.text(), "# ");
+}

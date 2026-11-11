@@ -29,14 +29,11 @@ impl TheTextRenderer {
     ) {
         self.prepare_styled_commands(text, highlight_source, family, &[], fonts);
     }
-    pub fn prepare_styled_commands(
-        &mut self,
+    pub(super) fn syntax_spans(
+        &self,
         text: &str,
         highlight_source: Option<&str>,
-        family: &str,
-        extra: &[(Range<usize>, TheTextStyle)],
-        fonts: &mut TextSystem,
-    ) {
+    ) -> Vec<TextStyleSpan> {
         let mut styles = Vec::new();
         if let Some(highlighter) = &self.highlighter {
             let mut h = syntect::easy::HighlightLines::new(
@@ -72,6 +69,17 @@ impl TheTextRenderer {
                 offset += visible.len();
             }
         }
+        styles
+    }
+    pub fn prepare_styled_commands(
+        &mut self,
+        text: &str,
+        highlight_source: Option<&str>,
+        family: &str,
+        extra: &[(Range<usize>, TheTextStyle)],
+        fonts: &mut TextSystem,
+    ) {
+        let mut styles = self.syntax_spans(text, highlight_source);
         let mut bytes: Vec<_> = text.grapheme_indices(true).map(|v| v.0).collect();
         bytes.push(text.len());
         for (range, style) in extra {
@@ -135,6 +143,69 @@ impl TheTextRenderer {
         );
         self.command_layout = Some(layout);
         self.scroll(&Vec2::zero(), false);
+    }
+    pub(crate) fn editor_annotations(
+        &self,
+        display: &str,
+        highlight_source: Option<&str>,
+        committed: &str,
+        map: impl Fn(Range<usize>) -> Option<Range<usize>>,
+        theme: &dyn TheTheme,
+    ) -> crate::text_edit::EditorDecorations {
+        let mut result = crate::text_edit::EditorDecorations {
+            foreground: self.syntax_spans(display, highlight_source),
+            ..Default::default()
+        };
+        let mut bytes = committed
+            .grapheme_indices(true)
+            .map(|(index, _)| index)
+            .collect::<Vec<_>>();
+        bytes.push(committed.len());
+        let range = |start: usize, end: usize| {
+            map(bytes.get(start).copied().unwrap_or(committed.len())
+                ..bytes.get(end).copied().unwrap_or(committed.len()))
+        };
+        for (index, (start, end)) in self.matches.iter().enumerate() {
+            if let Some(range) = range(*start, *end) {
+                result.backgrounds.push(TextStyleSpan {
+                    range,
+                    color: if index == self.highlighted_match {
+                        [0.9, 0.65, 0.1, 0.65]
+                    } else {
+                        [0.7, 0.5, 0.1, 0.35]
+                    },
+                });
+            }
+        }
+        for (start, end) in &self.errors {
+            if let Some(range) = range(*start, *end) {
+                result.underlines.push(TextStyleSpan {
+                    range,
+                    color: [1., 0.2, 0.2, 1.],
+                });
+            }
+        }
+        if let Some(start) = self.debug_line.and_then(|row| {
+            std::iter::once(0)
+                .chain(committed.match_indices('\n').map(|(index, _)| index + 1))
+                .nth(row)
+        }) {
+            let end = start
+                + committed[start..]
+                    .split_inclusive('\n')
+                    .next()
+                    .map_or(0, str::len);
+            if let Some(range) = map(start..end) {
+                result.line_backgrounds.push(TextStyleSpan {
+                    range,
+                    color: rgba(*theme.color(TextEditDebugLineBackground)),
+                });
+            }
+        }
+        if self.indicate_space {
+            result.whitespace = Some(rgba(*theme.color(TextEditLineNumberColor)));
+        }
+        result
     }
     pub fn command_viewport(&mut self, rect: Rect, inset: [f32; 2]) {
         self.set_dim(

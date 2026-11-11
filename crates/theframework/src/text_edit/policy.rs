@@ -163,10 +163,16 @@ pub(super) fn indent(
     if edits.is_empty() {
         return None;
     }
+    let selection = mapped_selection(&edits, selection);
+    Some(EditPlan { edits, selection })
+}
+
+fn mapped_selection(edits: &[Edit], selection: (usize, usize)) -> (usize, usize) {
+    let start = selection.0.min(selection.1);
     let map = |index: usize| {
         let mut removed = 0;
         let mut inserted = 0;
-        for edit in &edits {
+        for edit in edits {
             if index < edit.range.start {
                 break;
             }
@@ -183,6 +189,68 @@ pub(super) fn indent(
         }
         index - removed + inserted
     };
-    let selection = (map(selection.0), map(selection.1));
-    Some(EditPlan { edits, selection })
+    (map(selection.0), map(selection.1))
+}
+pub(super) fn comment(source: &str, selection: (usize, usize), prefix: &str) -> Option<EditPlan> {
+    if prefix.is_empty() || prefix.contains(['\r', '\n']) {
+        return None;
+    }
+    let start = selection.0.min(selection.1);
+    let end = selection.0.max(selection.1);
+    let first = line_start(source, start);
+    let last = line_start(
+        source,
+        if end > start && source.as_bytes()[end - 1] == b'\n' {
+            end - 1
+        } else {
+            end
+        },
+    );
+    let starts = std::iter::once(first)
+        .chain(
+            source[first..last]
+                .match_indices('\n')
+                .map(|(index, _)| first + index + 1),
+        )
+        .collect::<Vec<_>>();
+    let lines = starts
+        .iter()
+        .map(|start| {
+            let end = source[*start..]
+                .find('\n')
+                .map_or(source.len(), |index| *start + index);
+            (*start, &source[*start..end])
+        })
+        .collect::<Vec<_>>();
+    let uncomment = lines.iter().any(|(_, line)| !line.trim().is_empty())
+        && lines
+            .iter()
+            .filter(|(_, line)| !line.trim().is_empty())
+            .all(|(_, line)| line.trim_start_matches([' ', '\t']).starts_with(prefix));
+    let mut edits = Vec::new();
+    for (start, line) in lines {
+        if line.trim().is_empty() && starts.len() > 1 {
+            continue;
+        }
+        let trimmed = line.trim_start_matches([' ', '\t']);
+        if uncomment && trimmed.starts_with(prefix) {
+            let position = start + line.len() - trimmed.len();
+            edits.push(Edit {
+                range: position..position + prefix.len(),
+                text: String::new(),
+            });
+        } else if !uncomment {
+            edits.push(Edit {
+                range: start..start,
+                text: prefix.to_owned(),
+            });
+        }
+    }
+    if edits.is_empty() {
+        return None;
+    }
+    Some(EditPlan {
+        selection: mapped_selection(&edits, selection),
+        edits,
+    })
 }

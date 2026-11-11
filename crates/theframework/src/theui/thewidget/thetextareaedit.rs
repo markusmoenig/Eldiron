@@ -1,3 +1,6 @@
+#[cfg(feature = "text")]
+#[path = "thetextareaedit_native.rs"]
+mod native;
 use fontdue::layout::{HorizontalAlign, LayoutSettings};
 use web_time::Instant;
 
@@ -41,6 +44,8 @@ pub struct TheTextAreaEdit {
     // Edit State
     is_disabled: bool,
 
+    #[cfg(feature = "text")]
+    native: native::NativeArea,
     // Text state
     state: TheTextEditState,
     modified_since_last_return: bool,
@@ -95,241 +100,95 @@ pub struct TheTextAreaEdit {
 
 impl TheWidget for TheTextAreaEdit {
     #[cfg(feature = "text")]
-    fn prepare_paint(&mut self, ctx: &mut TheContext, _theme: &dyn TheTheme) {
-        use crate::paint::Rect;
-        let bg = *_theme.color(TextEditBackground);
-        let light = bg[..3].iter().map(|v| *v as u16).sum::<u16>() > 480;
-        if self.last_light_ui != Some(light) {
-            if let Some(h) = self.renderer.highlighter.as_mut() {
-                h.set_light_ui(light);
-                self.modified_since_last_tick = true;
-            }
-            self.last_light_ui = Some(light);
-        }
-        let border = 1.;
-        let padding = self.renderer.padding;
-        let mut r = Rect::new(
-            self.dim.x as f32 + border,
-            self.dim.y as f32 + border,
-            (self.dim.width as f32 - 2.).max(0.),
-            (self.dim.height as f32 - 2.).max(0.),
-        );
-        if let StatusbarType::Widget(dim) = &mut self.statusbar_type {
-            let h = (self.renderer.font_size * 1.5).round().min(r.height);
-            *dim = TheDim::new(
-                r.x as i32,
-                (r.y + r.height - h) as i32,
-                r.width as i32,
-                h as i32,
-            );
-            r.height -= h;
-        }
-        if let Some(dim) = &mut self.ln_area_dim {
-            let digits = self.state.row_count().to_string().len();
-            let width = ctx
-                .text
-                .layout(
-                    &"9".repeat(digits),
-                    "Source Code Pro",
-                    self.renderer.font_size,
-                    None,
-                )
-                .width()
-                .ceil()
-                + self.renderer.font_size;
-            *dim = TheDim::new(r.x as i32, r.y as i32, width as i32, r.height as i32);
-            r.x += width;
-            r.width = (r.width - width).max(0.);
-        }
-        let content = crate::theui::text_viewport::text_content_rect(r, padding);
-        let wrap = self.readonly && self.word_wrap;
-        let width = if wrap {
-            Some((content.width - self.scrollbar_size as f32).max(1.))
-        } else {
-            None
-        };
-        let changed = self.modified_since_last_tick
-            || !self.renderer.commands_ready()
-            || self.renderer.max_width != width;
-        self.renderer.max_width = width;
-        if changed {
-            self.renderer.prepare_commands(
-                &self.state.to_text(),
-                self.highlight_source.as_deref(),
-                "Source Code Pro",
-                &mut ctx.text,
-            );
-        }
-        let bar = self.scrollbar_size as f32;
-        let plan = crate::theui::text_viewport::plan_text_viewport(
-            r,
-            padding,
-            [
-                self.renderer.actual_size.x as f32,
-                self.renderer.actual_size.y as f32,
-            ],
-            bar,
-            wrap,
-        );
-        self.renderer.command_viewport(
-            plan.viewport,
-            [border + padding.0 as f32, border + padding.1 as f32],
-        );
-        if changed {
-            if let Some(row) = self.pending_scroll_row.take() {
-                if self.pending_scroll_centered {
-                    self.renderer.scroll_to_row_centered(row);
-                } else {
-                    self.renderer.scroll_to_row_with_margin(row, 3);
-                }
-                self.pending_scroll_centered = false;
-            } else if self.auto_scroll_to_cursor {
-                self.renderer
-                    .scroll_to_cursor(self.state.find_cursor_index(), self.state.cursor.row);
-            }
-        }
-        if let Some(r) = plan.horizontal {
-            self.hscrollbar.set_dim(
-                TheDim::new(r.x as i32, r.y as i32, r.width as i32, r.height as i32),
-                ctx,
-            );
-        }
-        if let Some(r) = plan.vertical {
-            self.vscrollbar.set_dim(
-                TheDim::new(r.x as i32, r.y as i32, r.width as i32, r.height as i32),
-                ctx,
-            );
-        }
-        if let Some(scroll) = self.hscrollbar.as_horizontal_scrollbar() {
-            scroll.set_total_width(self.renderer.actual_size.x as i32 + padding.0 + padding.2);
-            scroll.set_scroll_offset(self.renderer.scroll_offset.x as i32);
-        }
-        if let Some(scroll) = self.vscrollbar.as_vertical_scrollbar() {
-            scroll.set_total_height(self.renderer.actual_size.y as i32 + padding.1 + padding.3);
-            scroll.set_scroll_offset(self.renderer.scroll_offset.y as i32);
-        }
+    fn prepare_paint(&mut self, ctx: &mut TheContext, theme: &dyn TheTheme) {
+        self.prepare_native_area(ctx, theme);
     }
     #[cfg(feature = "text")]
     fn paint(
         &mut self,
         p: &mut crate::theui::paint::WidgetPainter<'_>,
     ) -> crate::theui::paint::UiPaintResult {
-        use crate::paint::{PaintOp, Rect};
-        use crate::theui::paint::{bounds, rgba};
-        let r = bounds(&self.dim);
-        let focused = self.id.equals(&p.ui.focus);
-        p.list.ops.push(PaintOp::PushClip(r));
-        let inner = p.text_input(r, focused, self.is_disabled, self.embedded, true, true);
-        if let Some(bg) = self
-            .renderer
-            .highlighter
-            .as_ref()
-            .and_then(|h| h.background())
-        {
-            p.list.rect(inner, 0., rgba(bg.to_u8_array()));
+        self.paint_native_area(p)
+    }
+    #[cfg(feature = "text")]
+    fn uses_native_editor(&self) -> bool {
+        true
+    }
+    #[cfg(feature = "text")]
+    fn editor_set_active(&mut self, active: bool, ctx: &mut TheContext) {
+        self.is_dirty |= self.native.active != active;
+        self.native.active = active;
+        if !active {
+            self.cancel_native_area_capture(ctx);
         }
-        self.renderer
-            .paint_commands(&self.state, focused, self.readonly, p);
-        if let StatusbarType::Widget(dim) = &self.statusbar_type {
-            let r = bounds(dim);
-            p.fill(r, TextEditBackground);
-            p.fill(Rect::new(r.x, r.y, r.width, 1.), TextEditBorder);
-            p.label(
-                Rect::new(
-                    r.x,
-                    r.y,
-                    (r.width - self.renderer.font_size).max(0.),
-                    r.height,
-                ),
-                &self.statusbar_text(),
-                self.renderer.font_size * 0.8,
-                *p.theme.color(TextEditTextColor),
-                TheHorizontalAlign::Right,
-                TheVerticalAlign::Center,
-            );
+        let focused = active && !self.is_disabled && ctx.ui.has_focus(&self.id);
+        self.native.view.set_focused(&mut ctx.text, focused);
+    }
+    #[cfg(feature = "text")]
+    fn editor_input(
+        &mut self,
+        event: &crate::platform::InputEvent,
+        ctx: &mut TheContext,
+    ) -> Option<crate::text_edit::EditorResponse> {
+        if !ctx.ui.command_paint {
+            return None;
         }
-        if let Some(dim) = &self.ln_area_dim {
-            let r = bounds(dim);
-            p.fill(r, TextEditBackground);
-            p.fill(
-                Rect::new(r.x + r.width - 1., r.y, 1., r.height),
-                TextEditBorder,
-            );
-            p.list.ops.push(PaintOp::PushClip(r));
-            if let Some((first, last)) = self.renderer.visible_rows() {
-                for i in first..=last {
-                    let role = if self.debug_line == Some(i) || self.renderer.has_debug_line(i) {
-                        TextEditLineNumberDebugColor
-                    } else if self.state.cursor.row == i {
-                        TextEditLineNumberHighlightColor
-                    } else {
-                        TextEditLineNumberColor
-                    };
-                    let layout = p.text.layout(
-                        &(i + 1).to_string(),
-                        "Source Code Pro",
-                        self.renderer.font_size,
-                        None,
-                    );
-                    let baseline = self.renderer.row_baseline(i) as f32;
-                    let textbaseline = layout
-                        .lines()
-                        .first()
-                        .map(|l| l.baseline)
-                        .unwrap_or(self.renderer.font_size);
-                    let y =
-                        self.renderer.dim().y as f32 + self.renderer.padding.1 as f32 + baseline
-                            - self.renderer.scroll_offset.y as f32
-                            - textbaseline;
-                    for run in &layout.runs {
-                        p.list.ops.push(PaintOp::GlyphRun {
-                            run: run.clone(),
-                            origin: [
-                                r.x + r.width - self.renderer.font_size * 0.5 - layout.width(),
-                                y,
-                            ],
-                            color: p.color(role),
-                        });
-                    }
-                }
+        self.ensure_native_editor(ctx);
+        if !self.is_disabled {
+            if let Some(response) = self.native_code_shortcut(event, ctx) {
+                self.apply_native_area_response(&response, ctx);
+                return Some(response);
             }
-            p.list.ops.push(PaintOp::PopClip);
         }
-        if self.renderer.is_horizontal_overflow() {
-            let r = bounds(self.hscrollbar.dim());
-            let s = self.hscrollbar.as_horizontal_scrollbar().unwrap();
-            let width = s.scrollbar_thumb_width().clamp(0, r.width as i32) as f32;
-            let offset = s
-                .scrollbar_position()
-                .round()
-                .clamp(0., (r.width - width).max(0.));
-            p.scrollbar(
-                r,
-                Rect::new(r.x + offset, r.y + 2., width, (r.height - 4.).max(0.)),
-                self.is_hscrollbar_hovered,
-                self.is_hscrollbar_clicked,
-            );
+        let response = if self.is_disabled {
+            crate::text_edit::EditorResponse::default()
+        } else if let crate::platform::InputEvent::Clipboard { request, result } = event {
+            let response =
+                self.native
+                    .view
+                    .editor
+                    .complete_clipboard(&mut ctx.text, *request, result.clone());
+            if response.input.redraw && self.auto_scroll_to_cursor {
+                self.native.view.reveal_caret(&mut ctx.text);
+            }
+            response
+        } else {
+            self.native.view.input(&mut ctx.text, event)
+        };
+        self.apply_native_area_response(&response, ctx);
+        Some(response)
+    }
+    #[cfg(feature = "text")]
+    fn editor_command(
+        &mut self,
+        command: crate::text_edit::EditorCommand,
+        ctx: &mut TheContext,
+    ) -> Option<crate::text_edit::EditorResponse> {
+        if !ctx.ui.command_paint {
+            return None;
         }
-        if self.renderer.is_vertical_overflow() {
-            let r = bounds(self.vscrollbar.dim());
-            let s = self.vscrollbar.as_vertical_scrollbar().unwrap();
-            let height = s.scrollbar_thumb_height().clamp(0, r.height as i32) as f32;
-            let offset = s
-                .scrollbar_position()
-                .round()
-                .clamp(0., (r.height - height).max(0.));
-            p.scrollbar(
-                r,
-                Rect::new(r.x + 2., r.y + offset, (r.width - 4.).max(0.), height),
-                self.is_vscrollbar_hovered,
-                self.is_vscrollbar_clicked,
-            );
+        self.ensure_native_editor(ctx);
+        let response = if self.is_disabled {
+            crate::text_edit::EditorResponse::default()
+        } else {
+            self.native.view.editor.execute(&mut ctx.text, command)
+        };
+        if response.input.redraw && self.auto_scroll_to_cursor {
+            self.native.view.reveal_caret(&mut ctx.text);
         }
-        p.list.ops.push(PaintOp::PopClip);
-        self.modified_since_last_return |= self.modified_since_last_tick;
-        self.modified_since_last_tick = false;
-        self.is_dirty = false;
-        Ok(())
+        self.apply_native_area_response(&response, ctx);
+        Some(response)
+    }
+    #[cfg(feature = "text")]
+    fn editor_input_state(
+        &mut self,
+        ctx: &mut TheContext,
+    ) -> Option<crate::platform::TextInputState> {
+        self.ensure_native_editor(ctx);
+        self.native.view.text_input_state(&mut ctx.text)
+    }
+    fn supports_precise_scroll(&self) -> bool {
+        cfg!(feature = "text")
     }
 
     fn new(id: TheId) -> Self
@@ -359,6 +218,8 @@ impl TheWidget for TheTextAreaEdit {
 
             is_disabled: false,
 
+            #[cfg(feature = "text")]
+            native: native::NativeArea::new(),
             state: TheTextEditState::default(),
             modified_since_last_return: false,
             modified_since_last_tick: false,
@@ -479,6 +340,12 @@ impl TheWidget for TheTextAreaEdit {
 
     #[allow(clippy::single_match)]
     fn on_event(&mut self, event: &TheEvent, ctx: &mut TheContext) -> bool {
+        #[cfg(feature = "text")]
+        if ctx.ui.command_paint {
+            if let Some(redraw) = self.native_area_legacy_event(event, ctx) {
+                return redraw;
+            }
+        }
         if self.is_disabled {
             return false;
         }
@@ -1588,6 +1455,11 @@ impl TheWidget for TheTextAreaEdit {
     }
 
     fn set_value(&mut self, value: TheValue) {
+        #[cfg(feature = "text")]
+        {
+            self.native.replaced = true;
+        }
+
         match value {
             TheValue::Empty => {
                 self.state.reset();
@@ -2030,6 +1902,11 @@ impl TheTextAreaEditTrait for TheTextAreaEdit {
         self.state.to_text()
     }
     fn set_text(&mut self, text: String) {
+        #[cfg(feature = "text")]
+        {
+            self.native.replaced = true;
+        }
+
         self.state.set_text(text);
         self.highlight_source = None;
         self.modified_since_last_tick = true;
@@ -2125,36 +2002,88 @@ impl TheTextAreaEditTrait for TheTextAreaEdit {
         self.is_dirty = true;
     }
     fn set_matches(&mut self, matches: &[(usize, usize)]) {
+        #[cfg(feature = "text")]
+        {
+            self.native.annotations_dirty = true;
+            self.is_dirty = true;
+        }
+
         self.renderer.set_matches(matches.to_owned());
     }
     fn clear_matches(&mut self) {
+        #[cfg(feature = "text")]
+        {
+            self.native.annotations_dirty = true;
+            self.is_dirty = true;
+        }
+
         self.renderer.clear_matches();
     }
     fn highlight_match(&mut self, highlight_index: usize) {
+        #[cfg(feature = "text")]
+        {
+            self.native.annotations_dirty = true;
+            self.is_dirty = true;
+        }
+
         self.renderer.highlight_match(highlight_index);
     }
     fn set_errors(&mut self, errors: &[(usize, usize)]) {
+        #[cfg(feature = "text")]
+        {
+            self.native.annotations_dirty = true;
+            self.is_dirty = true;
+        }
+
         self.renderer.set_errors(errors.to_owned());
     }
     fn clear_errors(&mut self) {
+        #[cfg(feature = "text")]
+        {
+            self.native.annotations_dirty = true;
+            self.is_dirty = true;
+        }
+
         self.renderer.clear_errors();
     }
     fn set_debug_line(&mut self, line_number: Option<usize>) {
+        #[cfg(feature = "text")]
+        {
+            self.native.annotations_dirty = true;
+            self.is_dirty = true;
+        }
+
         self.debug_line = line_number;
         self.renderer.set_debug_line(line_number);
         self.is_dirty = true;
     }
     fn set_debug_lines(&mut self, lines: &[(usize, Option<bool>, Vec<String>)]) {
+        #[cfg(feature = "text")]
+        {
+            self.native.annotations_dirty = true;
+            self.is_dirty = true;
+        }
+
         self.renderer.set_debug_lines(lines);
         self.is_dirty = true;
     }
     fn goto_char_by_index(&mut self, char_index: usize) {
+        #[cfg(feature = "text")]
+        {
+            self.native.selection_changed = true;
+        }
+
         if self.state.goto_char_by_index(char_index) {
             self.modified_since_last_tick = true;
             self.is_dirty = true;
         }
     }
     fn goto_line(&mut self, line_number: usize) {
+        #[cfg(feature = "text")]
+        {
+            self.native.selection_changed = true;
+        }
+
         if self.state.goto_row(line_number) {
             self.pending_scroll_row = Some(self.state.cursor.row);
             self.pending_scroll_centered = true;
@@ -2169,6 +2098,11 @@ impl TheTextAreaEditTrait for TheTextAreaEdit {
         self.state.clone()
     }
     fn set_state(&mut self, state: TheTextEditState) {
+        #[cfg(feature = "text")]
+        {
+            self.native.replaced = true;
+        }
+
         self.state = state;
         self.modified_since_last_tick = true;
         self.is_dirty = true;

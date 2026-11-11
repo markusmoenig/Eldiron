@@ -1215,3 +1215,165 @@ fn optional_ui_adapter_uses_host_registry_and_rebuilds_only_device_resources() {
     assert!(app.session.ui.canvas.buffer.pixels().is_empty());
     assert_eq!(gpu.transfers().readback_bytes, 0);
 }
+
+#[test]
+#[ignore = "requires native GPU; run with --ignored"]
+fn native_multiline_editor_keeps_annotations_preedit_and_undo_across_gpu_replacement() {
+    use theframework::platform::*;
+    let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut images = UiImages::new(gpu.clone());
+    let mut renderer = PaintRenderer::new(gpu.clone()).unwrap();
+    let target = GpuImage::new(&gpu, ImageDescriptor::rgba(1000, 640)).unwrap();
+    let mut session = UiSession::new((500, 320), 2.);
+    let id = TheId::named("Native Code");
+    let mut area = TheTextAreaEdit::new(id.clone());
+    area.set_text("name = \"東京\"\nprint(name)\n# العربية e\u{301}\n".into());
+    area.as_code_editor("Python", TheCodeEditorSettings::default());
+    area.set_font_size(18.);
+    area.display_line_number(true);
+    area.use_statusbar(true);
+    area.set_matches(&[(12, 17)]);
+    area.set_errors(&[(0, 4)]);
+    area.set_debug_line(Some(2));
+    session.ui.canvas.set_widget(area);
+    session.ui.prepare_paint_layout(&mut session.context);
+    session.context.ui.set_focus(&id);
+    session.ui.process_events(&mut session.context);
+    session
+        .ui
+        .get_text_area_edit("Native Code")
+        .unwrap()
+        .goto_line(1);
+    session.input(&InputEvent::Text("e\u{301} ".into()));
+    let committed = session.ui.get_text_area_edit("Native Code").unwrap().text();
+    let input = session
+        .ui
+        .get_widget_id(id.uuid)
+        .unwrap()
+        .editor_input_state(&mut session.context)
+        .unwrap();
+    session.input(&InputEvent::CompositionFor {
+        target: input.target,
+        text: "日本".into(),
+        cursor: Some((3, 6)),
+    });
+    assert_eq!(
+        session.ui.get_text_area_edit("Native Code").unwrap().text(),
+        committed
+    );
+    let mut steady = None;
+    for _ in 0..2 {
+        let list = session.paint(&mut images).unwrap();
+        list.validate().unwrap();
+        assert!(
+            !list
+                .ops
+                .iter()
+                .any(|op| matches!(op, PaintOp::Image { .. } | PaintOp::FilteredImage { .. })),
+            "code text/chrome cannot become a CPU source image"
+        );
+        renderer
+            .render(
+                &list,
+                &images.registry,
+                &target.view,
+                target.descriptor.format,
+                (1000, 640),
+                2.,
+                [0.; 4],
+            )
+            .unwrap();
+        let now = (
+            gpu.transfers().uploaded_bytes,
+            renderer.glyphs.rasterizations,
+        );
+        if let Some(previous) = steady {
+            assert_eq!(now, previous);
+        }
+        steady = Some(now);
+        assert_eq!(gpu.transfers().readback_bytes, 0);
+        let state = session
+            .ui
+            .get_widget_id(id.uuid)
+            .unwrap()
+            .editor_input_state(&mut session.context)
+            .unwrap();
+        assert_eq!(state.target, input.target);
+        assert!(
+            state.area.x >= 0.
+                && state.area.y >= 0.
+                && state.area.x + state.area.width <= 500.01
+                && state.area.y + state.area.height <= 320.01
+        );
+    }
+    let capture = |gpu: &GpuContext, target: std::sync::Arc<GpuImage>| {
+        let mut ticket = ReadbackTicket::capture(gpu, target).unwrap();
+        gpu.device
+            .poll(wgpu::PollType::Wait {
+                submission_index: None,
+                timeout: Some(std::time::Duration::from_secs(30)),
+            })
+            .unwrap();
+        ticket.try_finish(gpu).unwrap().unwrap().into_pixels()
+    };
+    let pixels = capture(&gpu, target);
+    let mut png = png::Encoder::new(
+        std::fs::File::create("/private/tmp/eldiron-native-code-editor.png").unwrap(),
+        1000,
+        640,
+    );
+    png.set_color(png::ColorType::Rgba);
+    png.set_depth(png::BitDepth::Eight);
+    png.write_header()
+        .unwrap()
+        .write_image_data(&pixels)
+        .unwrap();
+    // The retained CPU editor/IME/history and annotations do not belong to the device.
+    let gpu2 = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut images2 = UiImages::new(gpu2.clone());
+    let mut renderer2 = PaintRenderer::new(gpu2.clone()).unwrap();
+    let target2 = GpuImage::new(&gpu2, ImageDescriptor::rgba(1000, 640)).unwrap();
+    let list = session.paint(&mut images2).unwrap();
+    renderer2
+        .render(
+            &list,
+            &images2.registry,
+            &target2.view,
+            target2.descriptor.format,
+            (1000, 640),
+            2.,
+            [0.; 4],
+        )
+        .unwrap();
+    assert_eq!(gpu2.transfers().readback_bytes, 0);
+    assert_eq!(
+        session
+            .ui
+            .get_widget_id(id.uuid)
+            .unwrap()
+            .editor_input_state(&mut session.context)
+            .unwrap()
+            .target,
+        input.target
+    );
+    assert_eq!(
+        capture(&gpu2, target2),
+        pixels,
+        "recreated GPU resources preserve actual native editor pixels"
+    );
+    session.input(&InputEvent::TextFor {
+        target: input.target,
+        text: "日本".into(),
+    });
+    assert_ne!(
+        session.ui.get_text_area_edit("Native Code").unwrap().text(),
+        committed
+    );
+    session.ui.undo(&mut session.context);
+    assert_eq!(
+        session.ui.get_text_area_edit("Native Code").unwrap().text(),
+        committed,
+        "IME commits form one undo transaction across GPU replacement"
+    );
+    assert!(session.ui.canvas.buffer.pixels().is_empty());
+}

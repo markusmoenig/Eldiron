@@ -132,8 +132,13 @@ impl EditorController {
     /// Native history/bidi affinity stay in this controller; options on `state`
     /// remain owned by its containing document/widget.
     pub fn export_state(&self, state: &mut super::TextEditState) {
+        state.set_text(self.text().to_owned());
+        self.export_selection(state);
+    }
+    /// Update position in an already synchronized projection without copying
+    /// the document text again for every caret/selection operation.
+    pub fn export_selection(&self, state: &mut super::TextEditState) {
         let source = self.text();
-        state.set_text(source.to_owned());
         let selection = self
             .composition
             .as_ref()
@@ -162,6 +167,27 @@ impl EditorController {
     /// Install an externally supplied document/state without changing its JSON
     /// shape. This starts a new native callback epoch and undo history.
     pub fn import_state(&mut self, fonts: &mut TextSystem, state: &super::TextEditState) {
+        let (source, anchor, focus) = self.legacy_position(state);
+        self.set_text(fonts, &source);
+        self.select_bytes(fonts, anchor, focus);
+    }
+    pub fn restore_selection_state(
+        &mut self,
+        fonts: &mut TextSystem,
+        state: &super::TextEditState,
+    ) -> bool {
+        let (source, anchor, focus) = self.legacy_position(state);
+        if if self.multiline {
+            source != self.text()
+        } else {
+            self.clean(&source) != self.text()
+        } {
+            return false;
+        }
+        self.select_bytes(fonts, anchor, focus);
+        true
+    }
+    fn legacy_position(&self, state: &super::TextEditState) -> (String, usize, usize) {
         let source = state.to_text();
         let byte_for_index = |mut index: usize| {
             let mut byte = 0;
@@ -199,10 +225,49 @@ impl EditorController {
                 (byte_for_index(start), byte_for_index(end))
             }
         };
-        let anchor = self.clean(&source[..anchor]).len();
-        let focus = self.clean(&source[..focus]).len();
-        self.set_text(fonts, &source);
-        self.select_bytes(fonts, anchor, focus);
+        let anchor = if self.multiline {
+            anchor
+        } else {
+            self.clean(&source[..anchor]).len()
+        };
+        let focus = if self.multiline {
+            focus
+        } else {
+            self.clean(&source[..focus]).len()
+        };
+        (source, anchor, focus)
+    }
+    /// Translate stable document annotations into transient displayed text.
+    /// Marks intersecting an IME replacement are withheld until it commits.
+    pub fn displayed_range(&self, range: std::ops::Range<usize>) -> Option<std::ops::Range<usize>> {
+        let source = self.text();
+        if range.start > range.end
+            || range.end > source.len()
+            || !source.is_char_boundary(range.start)
+            || !source.is_char_boundary(range.end)
+        {
+            return None;
+        }
+        let Some(before) = &self.composition else {
+            return Some(range);
+        };
+        let selection = before.selection;
+        let start = selection.anchor().index().min(selection.focus().index());
+        let end = selection.anchor().index().max(selection.focus().index());
+        if range.end <= start {
+            return Some(range);
+        }
+        let inserted = self
+            .editor
+            .raw_text()
+            .len()
+            .checked_sub(before.text.len() - (end - start))?;
+        if range.start >= end {
+            return Some(
+                (start + inserted + range.start - end)..(start + inserted + range.end - end),
+            );
+        }
+        None
     }
     pub fn policy(&self) -> EditorPolicy {
         self.policy
@@ -290,7 +355,13 @@ impl EditorController {
         self.input_target = crate::platform::TextInputTarget::new();
         self.edit_group = None;
         self.cancel_composition(fonts);
-        self.editor.set_text(&self.clean(text));
+        // Loaded multiline documents retain their exact UTF-8 contents; input
+        // filtering belongs to typed/pasted text, not a model/file replacement.
+        if self.multiline {
+            self.editor.set_text(text);
+        } else {
+            self.editor.set_text(&self.clean(text));
+        }
         fonts.editor_driver(&mut self.editor).move_to_text_end();
         self.undo = VecDeque::new();
         self.redo = Vec::new();
@@ -719,6 +790,14 @@ impl EditorController {
             }
             driver.select_byte_range(plan.selection.0, plan.selection.1);
         })
+    }
+    pub fn toggle_line_comment(&mut self, fonts: &mut TextSystem, prefix: &str) -> bool {
+        if self.policy.read_only {
+            return false;
+        }
+        self.cancel_composition(fonts);
+        policy::comment(self.editor.raw_text(), self.selection_bytes(), prefix)
+            .is_some_and(|plan| self.apply_edit_plan(fonts, plan))
     }
     /// Explicit user insertion such as paste: preserve undo and skip automatic
     /// typing-only bracket completion. External set_text remains a new document.

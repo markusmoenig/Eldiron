@@ -115,6 +115,25 @@ impl EditorView {
     pub fn set_auto_reveal(&mut self, enabled: bool) {
         self.auto_reveal = enabled;
     }
+    pub fn scroll_by(
+        &mut self,
+        fonts: &mut TextSystem,
+        delta: [f32; 2],
+        precise: bool,
+    ) -> crate::platform::InputResponse {
+        let old = self.scroll;
+        let unit = if precise { 1. } else { 24. };
+        for (scroll, delta) in self.scroll.iter_mut().zip(delta) {
+            if delta.is_finite() {
+                *scroll -= delta * unit;
+            }
+        }
+        self.clamp_scroll(fonts);
+        crate::platform::InputResponse {
+            consumed: true,
+            redraw: old != self.scroll,
+        }
+    }
     pub fn set_scroll(&mut self, fonts: &mut TextSystem, position: [f32; 2]) {
         self.scroll = position.map(|v| if v.is_finite() { v.max(0.) } else { 0. });
         self.clamp_scroll(fonts);
@@ -238,17 +257,10 @@ impl EditorView {
             }
             InputEvent::Scroll { delta, precise } => {
                 if self.pointer.is_some_and(|p| self.bounds.contains(p)) {
-                    let old = self.scroll;
-                    let unit = if *precise { 1. } else { 24. };
-                    for (scroll, delta) in self.scroll.iter_mut().zip(delta) {
-                        if delta.is_finite() {
-                            *scroll -= delta * unit;
-                        }
-                    }
-                    self.clamp_scroll(fonts);
-                    let mut result = EditorResponse::handled(false);
-                    result.input.redraw = old != self.scroll;
-                    return result;
+                    return EditorResponse {
+                        input: self.scroll_by(fonts, *delta, *precise),
+                        ..Default::default()
+                    };
                 }
                 return EditorResponse::default();
             }

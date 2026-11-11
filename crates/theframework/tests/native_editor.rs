@@ -512,3 +512,200 @@ fn embedded_scrollbar_gestures_keep_the_editor_focus_and_native_input_epoch() {
         before
     );
 }
+
+fn code_fixture(source: &str, external_undo: bool) -> (TheUI, TheContext, TheId) {
+    let mut ctx = TheContext::new(420, 240, 1.);
+    let mut ui = TheUI::new();
+    ui.init(&mut ctx);
+    let id = TheId::named("Code");
+    let mut area = TheTextAreaEdit::new(id.clone());
+    area.set_text(source.into());
+    area.as_code_editor("Python", TheCodeEditorSettings::default());
+    area.set_continuous(true);
+    area.set_supports_undo(!external_undo);
+    area.display_line_number(true);
+    area.use_statusbar(true);
+    ui.canvas.set_widget(area);
+    ui.prepare_paint_layout(&mut ctx);
+    ctx.ui.set_focus(&id);
+    ui.process_events(&mut ctx);
+    (ui, ctx, id)
+}
+#[test]
+fn multiline_widget_uses_common_unicode_code_policy_and_one_edit_history() {
+    let (mut ui, mut ctx, _) = code_fixture("    東京", false);
+    ui.get_text_area_edit("Code").unwrap().goto_char_by_index(6);
+    send(&mut ui, &mut ctx, key(PhysicalKey::Enter));
+    assert_eq!(
+        ui.get_text_area_edit("Code").unwrap().text(),
+        "    東京\n    "
+    );
+    send(&mut ui, &mut ctx, InputEvent::Text("(".into()));
+    assert_eq!(
+        ui.get_text_area_edit("Code").unwrap().text(),
+        "    東京\n    ()"
+    );
+    send(&mut ui, &mut ctx, InputEvent::Text("e\u{301}".into()));
+    assert_eq!(
+        ui.get_text_area_edit("Code").unwrap().text(),
+        "    東京\n    (e\u{301})"
+    );
+    ui.undo(&mut ctx);
+    ui.undo(&mut ctx);
+    ui.undo(&mut ctx);
+    assert_eq!(ui.get_text_area_edit("Code").unwrap().text(), "    東京");
+    ui.redo(&mut ctx);
+    assert_eq!(
+        ui.get_text_area_edit("Code").unwrap().text(),
+        "    東京\n    "
+    );
+}
+#[test]
+fn creator_style_external_undo_receives_the_shortcut_and_installs_its_saved_state() {
+    let (mut ui, mut ctx, id) = code_fixture("A東京Z", true);
+    let before = ui.get_text_area_edit("Code").unwrap().get_state();
+    let receiver = ui.add_state_listener("External document undo".into());
+    let undo = TheId::named("Document Undo");
+    ctx.ui.accelerators.insert(
+        undo.clone(),
+        TheAccelerator::new(TheAcceleratorKey::CTRL, 'z'),
+    );
+    send(&mut ui, &mut ctx, InputEvent::Text("!".into()));
+    assert_eq!(ui.get_text_area_edit("Code").unwrap().text(), "!A東京Z");
+    let changed = receiver
+        .try_iter()
+        .filter(|event| matches!(event,TheEvent::ValueChanged(value,_) if value==&id))
+        .count();
+    assert_eq!(changed, 1);
+    send(
+        &mut ui,
+        &mut ctx,
+        InputEvent::Modifiers(Modifiers {
+            control: true,
+            ..Default::default()
+        }),
+    );
+    send(&mut ui, &mut ctx, key(PhysicalKey::Letter(b'z')));
+    assert!(
+        receiver
+            .try_iter()
+            .any(|event| matches!(event,TheEvent::ContextMenuSelected(value,_) if value==undo))
+    );
+    assert_eq!(ui.get_text_area_edit("Code").unwrap().text(), "!A東京Z");
+    let target = ui
+        .get_widget_id(id.uuid)
+        .unwrap()
+        .editor_input_state(&mut ctx)
+        .unwrap()
+        .target;
+    TheTextAreaEditTrait::set_state(ui.get_text_area_edit("Code").unwrap(), before);
+    ui.prepare_paint_layout(&mut ctx);
+    assert_eq!(ui.get_text_area_edit("Code").unwrap().text(), "A東京Z");
+    assert_ne!(
+        ui.get_widget_id(id.uuid)
+            .unwrap()
+            .editor_input_state(&mut ctx)
+            .unwrap()
+            .target,
+        target
+    );
+}
+#[test]
+fn readonly_multiline_widget_copies_visible_source_and_rejects_text_and_paste() {
+    let (mut ui, mut ctx, id) = code_fixture("visible 東京\nsecond", false);
+    let area = ui.get_text_area_edit("Code").unwrap();
+    area.readonly(true);
+    area.set_word_wrap(true);
+    area.auto_scroll_to_cursor(false);
+    area.set_highlight_source(Some("# hidden marker\n# source style".into()));
+    ui.prepare_paint_layout(&mut ctx);
+    assert!(
+        ui.get_widget_id(id.uuid)
+            .unwrap()
+            .editor_input_state(&mut ctx)
+            .is_none()
+    );
+    send(&mut ui, &mut ctx, InputEvent::Text("stale".into()));
+    ui.paste(&mut ctx);
+    assert!(ctx.ui.editor_clipboard.is_empty());
+    ui.get_widget_id(id.uuid)
+        .unwrap()
+        .editor_command(EditorCommand::SelectAll, &mut ctx);
+    ui.copy(&mut ctx);
+    assert!(
+        matches!(ctx.ui.editor_clipboard.pop_front(),Some(EditorClipboard::Write { text,cut:None }) if text=="visible 東京\nsecond")
+    );
+    assert_eq!(
+        ui.get_text_area_edit("Code").unwrap().text(),
+        "visible 東京\nsecond"
+    );
+}
+
+#[test]
+fn multiline_loaded_controls_survive_edits_and_code_zoom_is_not_a_document_edit() {
+    let source = "A\u{000c}東京\0Z";
+    let (mut ui, mut ctx, id) = code_fixture(source, false);
+    let receiver = ui.add_state_listener("Code shortcuts".into());
+    send(&mut ui, &mut ctx, InputEvent::Text("!".into()));
+    assert_eq!(
+        ui.get_text_area_edit("Code").unwrap().text(),
+        format!("!{source}")
+    );
+    let _ = receiver.try_iter().collect::<Vec<_>>();
+    let target = ui
+        .get_widget_id(id.uuid)
+        .unwrap()
+        .editor_input_state(&mut ctx)
+        .unwrap()
+        .target;
+    send(
+        &mut ui,
+        &mut ctx,
+        InputEvent::Modifiers(Modifiers {
+            control: true,
+            ..Default::default()
+        }),
+    );
+    send(
+        &mut ui,
+        &mut ctx,
+        InputEvent::Key {
+            physical: PhysicalKey::Other(1),
+            logical: LogicalKey::Character("+".into()),
+            pressed: true,
+            repeat: false,
+        },
+    );
+    assert!(
+        !receiver
+            .try_iter()
+            .any(|event| matches!(event, TheEvent::ValueChanged(..)))
+    );
+    assert_eq!(
+        ui.get_widget_id(id.uuid)
+            .unwrap()
+            .editor_input_state(&mut ctx)
+            .unwrap()
+            .target,
+        target
+    );
+    send(
+        &mut ui,
+        &mut ctx,
+        InputEvent::Key {
+            physical: PhysicalKey::Other(2),
+            logical: LogicalKey::Character("/".into()),
+            pressed: true,
+            repeat: false,
+        },
+    );
+    assert_eq!(
+        ui.get_text_area_edit("Code").unwrap().text(),
+        format!("# !{source}")
+    );
+    ui.undo(&mut ctx);
+    assert_eq!(
+        ui.get_text_area_edit("Code").unwrap().text(),
+        format!("!{source}")
+    );
+}
