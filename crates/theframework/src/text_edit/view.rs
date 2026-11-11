@@ -245,16 +245,37 @@ impl EditorView {
         response
     }
     pub fn ime_area(&mut self, fonts: &mut TextSystem) -> Option<Rect> {
-        if !self.editor.is_focused() {
+        if !self.editor.is_focused() || self.bounds.width <= 0. || self.bounds.height <= 0. {
             return None;
         }
         let local = self.editor.ime_area(fonts);
         let origin = self.origin(fonts);
-        Some(Rect::new(
+        let raw = Rect::new(
             local.x + origin[0],
             local.y + origin[1],
             local.width,
             local.height,
+        );
+        if ![raw.x, raw.y, raw.width, raw.height]
+            .iter()
+            .all(|v| v.is_finite())
+        {
+            return None;
+        }
+        // Font fallback/preedit bounds can exceed the line box, and a user may
+        // scroll the caret out of view. Anchor native candidates to the visible
+        // editor viewport rather than a clipped or off-screen ink rectangle.
+        let right = self.bounds.x + self.bounds.width;
+        let bottom = self.bounds.y + self.bounds.height;
+        let min_width = self.bounds.width.min(1.);
+        let min_height = self.bounds.height.min(1.);
+        let x = raw.x.clamp(self.bounds.x, right - min_width);
+        let y = raw.y.clamp(self.bounds.y, bottom - min_height);
+        Some(Rect::new(
+            x,
+            y,
+            (raw.x + raw.width.max(min_width)).clamp(x + min_width, right) - x,
+            (raw.y + raw.height.max(min_height)).clamp(y + min_height, bottom) - y,
         ))
     }
     pub fn paint(
@@ -284,9 +305,18 @@ impl EditorView {
                 color: colors.text,
             });
         }
+        let top = self.bounds.y - origin[1];
+        let bottom = top + self.bounds.height;
+        let underline = self.bounds.height.min(1.);
         for rect in self.editor.composition_geometry(fonts) {
+            if rect.y >= bottom || rect.y + rect.height <= top {
+                continue;
+            }
+            // Keep the composition marker visible when fallback-font ink is
+            // taller than an authored line box. Off-screen rows stay clipped.
+            let y = (rect.y + rect.height - underline).clamp(top, bottom - underline);
             list.rect(
-                Rect::new(rect.x, rect.y + rect.height - 1., rect.width, 1.),
+                Rect::new(rect.x, y, rect.width, underline),
                 0.,
                 colors.composition,
             );
@@ -356,6 +386,66 @@ mod tests {
             false,
         );
         assert_eq!(view.editor.snapshots_built(), builds);
+    }
+    #[test]
+    fn ime_candidate_stays_visible_for_tiny_and_zero_sized_viewports() {
+        let bounds = Rect::new(30., 20., 32., 8.);
+        let (mut fonts, mut view) = fixture(false, "Long command", bounds);
+        view.set_focused(&mut fonts, true);
+        view.input(
+            &mut fonts,
+            &InputEvent::Composition {
+                text: "東京東京東京".into(),
+                cursor: Some((0, 18)),
+            },
+        );
+        let area = view.ime_area(&mut fonts).unwrap();
+        assert!(
+            area.x >= bounds.x
+                && area.y >= bounds.y
+                && area.x + area.width <= bounds.x + bounds.width
+                && area.y + area.height <= bounds.y + bounds.height,
+            "{area:?}"
+        );
+        let mut list = PaintList::default();
+        let color = [1., 0., 1., 1.];
+        let origin = view.origin(&mut fonts);
+        view.paint(
+            &mut fonts,
+            &mut list,
+            EditorColors {
+                composition: color,
+                ..Default::default()
+            },
+            true,
+        );
+        let markers = list
+            .ops
+            .iter()
+            .filter_map(|op| match op {
+                PaintOp::Rect {
+                    rect,
+                    brush: crate::paint::Brush::Solid(paint_color),
+                    ..
+                } if *paint_color == color => Some(rect),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert!(!markers.is_empty());
+        assert!(markers.iter().all(|r| r.y + origin[1] >= bounds.y
+            && r.y + r.height + origin[1] <= bounds.y + bounds.height));
+        view.prepare(
+            &mut fonts,
+            TextOptions {
+                family: "Roboto",
+                size: 20.,
+                width: None,
+                line_height: None,
+            },
+            Rect::new(30., 20., 0., 8.),
+            false,
+        );
+        assert!(view.ime_area(&mut fonts).is_none());
     }
     #[test]
     fn page_selection_drag_scroll_and_focus_are_viewport_operations() {

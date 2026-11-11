@@ -49,6 +49,15 @@ struct PlacedPrompt {
     align: Align,
 }
 
+/// Prefix and editable area share the transcript's shaped line metrics.
+#[derive(Clone)]
+pub struct MessageCommandLayout {
+    pub hit: Rect,
+    pub bounds: Rect,
+    pub family: String,
+    pub size: f32,
+    pub color: Pixel,
+}
 /// CPU presentation state only. Keep one per transcript widget. All retained and
 /// queued entries are measured before reveal/input; paint reuses the same layouts.
 #[derive(Default)]
@@ -62,6 +71,8 @@ pub struct MessageLayouts {
     prompt: Option<Prompt>,
     placed_prompt: Option<PlacedPrompt>,
     layouts_built: u64,
+    command_editor: bool,
+    command: Option<MessageCommandLayout>,
 }
 fn tile_by_id<'a>(assets: &'a Assets, id: &Uuid) -> Option<&'a Tile> {
     assets
@@ -84,6 +95,14 @@ fn intersection(a: Rect, b: Rect) -> Rect {
     }
 }
 impl MessageLayouts {
+    /// Native screen controllers paint and edit the line through EditorView.
+    /// Standalone read-only previews may keep the static prompt/text layout.
+    pub fn use_command_editor(&mut self, enabled: bool) {
+        self.command_editor = enabled;
+    }
+    pub fn command(&self) -> Option<&MessageCommandLayout> {
+        self.command.as_ref()
+    }
     pub fn layouts_built(&self) -> u64 {
         self.layouts_built
     }
@@ -294,6 +313,7 @@ impl MessageLayouts {
         self.bounds = widget.rect;
         self.visible.clear();
         self.placed_prompt = None;
+        self.command = None;
         widget.set_return_to_choices_rect(Rect::empty());
         for line in &mut widget.messages {
             line.rect = Rect::empty();
@@ -398,7 +418,9 @@ impl MessageLayouts {
                 false,
             ))
         } else if widget.active_choices.is_empty() && state.command_input_enabled {
-            let label = if widget.command_active {
+            let label = if self.command_editor {
+                format!("{} ", widget.command_prompt)
+            } else if widget.command_active {
                 format!("{} {}_", widget.command_prompt, widget.command_text)
             } else if widget.command_text.is_empty() {
                 format!("{} ", widget.command_prompt)
@@ -435,6 +457,32 @@ impl MessageLayouts {
                     (self.prompt.as_ref().unwrap().text.width() + size).min(widget.rect.width);
                 bounds.x = widget.rect.x + widget.rect.width - bounds.width;
                 widget.set_return_to_choices_rect(intersection(bounds, widget.rect));
+            }
+            if self.command_editor
+                && widget.active_choices.is_empty()
+                && state.command_input_enabled
+                && !state.paused
+            {
+                let prefix = self
+                    .prompt
+                    .as_ref()
+                    .unwrap()
+                    .text
+                    .full_width()
+                    .max(0.)
+                    .min(bounds.width);
+                self.command = Some(MessageCommandLayout {
+                    hit: bounds,
+                    bounds: Rect::new(
+                        bounds.x + prefix,
+                        bounds.y,
+                        (bounds.width - prefix).max(0.),
+                        bounds.height,
+                    ),
+                    family: family.clone(),
+                    size,
+                    color,
+                });
             }
             self.placed_prompt = Some(PlacedPrompt {
                 bounds,

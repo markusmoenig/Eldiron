@@ -10,5 +10,5 @@ pub use game_views::*;
 mod game_screen;
 pub use game_screen::{
     GameFontVersion, GameFonts, GameScreenController, ScreenActivation, ScreenEffect,
-    ScreenInputResponse, ScreenTextResponse,
+    ScreenInputResponse, ScreenTextResponse, ScreenTextTarget,
 };

@@ -495,7 +495,7 @@ fn native_text_fields_preserve_ime_bindings_focus_and_clipboard_ownership() {
             .input
             .consumed
     );
-    assert_eq!(controller.focused_input, Some(3));
+    assert_eq!(controller.focused_input(), Some(3));
     assert!(controller.text_ime_area(&mut fonts).is_some());
     controller.text_input_event(
         &mut fonts,
@@ -552,7 +552,7 @@ fn native_text_fields_preserve_ime_bindings_focus_and_clipboard_ownership() {
         response.editor.action,
         Some(EditorAction::FocusNext { backwards: false })
     );
-    assert_eq!(controller.focused_input, Some(20));
+    assert_eq!(controller.focused_input(), Some(20));
     assert!(
         !controller
             .complete_text_clipboard(
@@ -573,11 +573,11 @@ fn native_text_fields_preserve_ime_bindings_focus_and_clipboard_ownership() {
         }),
     );
     controller.text_input_event(&mut fonts, &key(PhysicalKey::Tab));
-    assert_eq!(controller.focused_input, Some(3));
+    assert_eq!(controller.focused_input(), Some(3));
     controller.text_input_event(&mut fonts, &InputEvent::Modifiers(Modifiers::default()));
     let response = controller.text_input_event(&mut fonts, &InputEvent::Focus(false));
     assert!(response.input.redraw);
-    assert_eq!(controller.focused_input, None);
+    assert_eq!(controller.focused_input(), None);
     assert!(controller.text_ime_area(&mut fonts).is_none());
     assert!(
         !controller
@@ -596,7 +596,7 @@ fn native_text_fields_preserve_ime_bindings_focus_and_clipboard_ownership() {
             .input
             .consumed
     );
-    assert_eq!(controller.focused_input, None);
+    assert_eq!(controller.focused_input(), None);
     assert_eq!(controller.elements.text_input_widgets[&20].text, "Other");
 }
 
@@ -641,7 +641,7 @@ fn native_dropdown_capture_precedes_fields_and_commits_keyboard_selection_once()
             .choice_input_event(&mut fonts, &pointer(220., 140., true))
             .consumed
     );
-    assert_eq!(screen.focused_input, None);
+    assert_eq!(screen.focused_input(), None);
     assert_eq!(screen.choice_controller.open_id(), Some(30));
     assert!(
         screen
@@ -754,7 +754,7 @@ fn screen_navigation_keeps_typed_bindings_without_mutating_the_project() {
         .unwrap();
     assert_eq!(other.elements.text_input_widgets[&3].text, "  東京  ");
     assert_eq!(other.elements.ui_state["start.class"], "Mage");
-    assert_eq!(other.focused_input, None);
+    assert_eq!(other.focused_input(), None);
     assert!(!other.elements.activated_widgets.contains(&8));
     assert!(
         !other
@@ -1088,7 +1088,7 @@ fn screen_router_has_one_capture_owner_and_commits_only_matching_button_releases
         .input(&session.view(), &mut fonts, &pointer([240., 200.], false))
         .unwrap();
     assert!(up.input.consumed && up.effects.is_empty());
-    assert_eq!(screen.focused_input, None);
+    assert_eq!(screen.focused_input(), None);
     screen
         .input(&session.view(), &mut fonts, &pointer([30., 200.], true))
         .unwrap();
@@ -1129,7 +1129,7 @@ fn screen_router_has_one_capture_owner_and_commits_only_matching_button_releases
         .input(&session.view(), &mut fonts, &pointer([30., 200.], false))
         .unwrap();
     assert!(field_up.input.consumed && field_up.effects.is_empty());
-    assert_eq!(screen.focused_input, Some(3));
+    assert_eq!(screen.focused_input(), Some(3));
     // Blurring cancels both a text composition and any held button capture.
     screen
         .input(
@@ -1146,7 +1146,7 @@ fn screen_router_has_one_capture_owner_and_commits_only_matching_button_releases
         .input(&session.view(), &mut fonts, &InputEvent::Focus(false))
         .unwrap();
     assert!(blur.cancel_controls);
-    assert_eq!(screen.focused_input, None);
+    assert_eq!(screen.focused_input(), None);
     assert_eq!(screen.elements.ui_state["start.name"], name);
     screen
         .input(&session.view(), &mut fonts, &pointer([30., 200.], true))
@@ -1194,7 +1194,7 @@ fn screen_router_matches_paint_stacking_and_consumes_modal_outside_releases() {
     screen
         .input(&session.view(), &mut fonts, &pointer([240., 200.], true))
         .unwrap();
-    assert_eq!(screen.focused_input, None);
+    assert_eq!(screen.focused_input(), None);
     assert_eq!(screen.pressed_button, Some(2));
     screen
         .input(&session.view(), &mut fonts, &pointer([240., 200.], false))
@@ -1215,7 +1215,7 @@ fn screen_router_matches_paint_stacking_and_consumes_modal_outside_releases() {
         .unwrap();
     assert!(release.input.consumed && release.effects.is_empty());
     assert_eq!(screen.pressed_button, None);
-    assert_eq!(screen.focused_input, None);
+    assert_eq!(screen.focused_input(), None);
 }
 
 #[test]
@@ -1252,4 +1252,522 @@ fn native_control_button_moves_while_held_and_stops_on_outside_release() {
         )]
     );
     assert_eq!(screen.pressed_button, None);
+}
+
+fn command_screen() -> (GameSession, GameFonts, GameScreenController) {
+    let session = fixture(false);
+    let mut screen = GameScreenController::from_screen("Main", &session.view(), layout()).unwrap();
+    screen.elements.messages_widgets[0].command_input = true;
+    let mut fonts = GameFonts::default();
+    screen
+        .prepare(&session.view(), &mut fonts, ContentRevision(1), 0)
+        .unwrap();
+    (session, fonts, screen)
+}
+#[test]
+fn transcript_commands_share_grapheme_ime_and_single_submit_policy_with_fields() {
+    use eldiron_presentation::{ScreenEffect, ScreenTextTarget};
+    use theframework::platform::*;
+    let (session, mut fonts, mut screen) = command_screen();
+    let key = |physical| InputEvent::Key {
+        physical,
+        logical: LogicalKey::Other,
+        pressed: true,
+        repeat: false,
+    };
+    let active = screen
+        .input(&session.view(), &mut fonts, &key(PhysicalKey::Enter))
+        .unwrap();
+    assert!(active.input.consumed && active.cancel_controls && active.effects.is_empty());
+    assert_eq!(screen.focused_text(), Some(ScreenTextTarget::Command(4)));
+    assert!(screen.text_ime_area(&mut fonts).is_some());
+    // Physical keys cannot insert text into either editor family.
+    screen
+        .input(&session.view(), &mut fonts, &key(PhysicalKey::Letter(b'k')))
+        .unwrap();
+    assert!(screen.elements.messages_widgets[0].command_text.is_empty());
+    screen
+        .input(
+            &session.view(),
+            &mut fonts,
+            &InputEvent::Text("look 👩‍👩‍👧‍👦".into()),
+        )
+        .unwrap();
+    screen
+        .input(&session.view(), &mut fonts, &key(PhysicalKey::Backspace))
+        .unwrap();
+    assert_eq!(screen.elements.messages_widgets[0].command_text, "look ");
+    screen
+        .input(
+            &session.view(),
+            &mut fonts,
+            &InputEvent::Composition {
+                text: "とうきょう".into(),
+                cursor: Some((3, 6)),
+            },
+        )
+        .unwrap();
+    assert_eq!(screen.elements.messages_widgets[0].command_text, "look ");
+    screen
+        .input(
+            &session.view(),
+            &mut fonts,
+            &InputEvent::Text("東京".into()),
+        )
+        .unwrap();
+    let submit = screen
+        .input(&session.view(), &mut fonts, &key(PhysicalKey::Enter))
+        .unwrap();
+    assert_eq!(
+        submit.effects,
+        vec![ScreenEffect::Action(rusterix::EntityAction::TextCommand(
+            "look 東京".into()
+        ))]
+    );
+    assert_eq!(screen.focused_text(), None);
+    assert!(!screen.elements.messages_widgets[0].command_active);
+    assert!(screen.elements.messages_widgets[0].command_text.is_empty());
+    assert!(screen.text_ime_area(&mut fonts).is_none());
+    screen
+        .prepare(&session.view(), &mut fonts, ContentRevision(1), 0)
+        .unwrap();
+    let mut images = Images(0);
+    screen
+        .paint(&session.view(), &mut fonts, &mut images)
+        .unwrap()
+        .validate()
+        .unwrap();
+    assert_eq!(images.0, 0);
+    assert!(
+        screen.elements.messages_widgets[0]
+            .buffer
+            .pixels()
+            .is_empty()
+    );
+    assert!(screen.elements.messages_widgets[0].font.is_none());
+}
+#[test]
+fn transcript_slash_activation_and_clipboard_follow_one_text_focus_owner() {
+    use eldiron_presentation::ScreenTextTarget;
+    use theframework::platform::*;
+    use theframework::text_edit::EditorClipboard;
+    let (session, mut fonts, mut screen) = command_screen();
+    let slash = InputEvent::Key {
+        physical: PhysicalKey::Other(0),
+        logical: LogicalKey::Character("/".into()),
+        pressed: true,
+        repeat: false,
+    };
+    assert!(
+        screen
+            .input(&session.view(), &mut fonts, &slash)
+            .unwrap()
+            .cancel_controls
+    );
+    assert!(
+        screen
+            .input(&session.view(), &mut fonts, &InputEvent::Text("/".into()))
+            .unwrap()
+            .input
+            .consumed
+    );
+    assert!(screen.elements.messages_widgets[0].command_text.is_empty());
+    screen
+        .input(
+            &session.view(),
+            &mut fonts,
+            &InputEvent::Text("use e\u{301}".into()),
+        )
+        .unwrap();
+    screen
+        .input(
+            &session.view(),
+            &mut fonts,
+            &InputEvent::Modifiers(Modifiers {
+                control: true,
+                ..Default::default()
+            }),
+        )
+        .unwrap();
+    let paste = screen
+        .input(
+            &session.view(),
+            &mut fonts,
+            &InputEvent::Key {
+                physical: PhysicalKey::Letter(b'v'),
+                logical: LogicalKey::Other,
+                pressed: true,
+                repeat: false,
+            },
+        )
+        .unwrap();
+    let Some(EditorClipboard::Read { request }) = paste.text.unwrap().editor.clipboard else {
+        panic!("clipboard request");
+    };
+    // Switching to a field cancels the old editor's pending clipboard operation.
+    screen.focus_input(&mut fonts, Some(3));
+    let completion = screen.complete_editor_clipboard(
+        &mut fonts,
+        ScreenTextTarget::Command(4),
+        request,
+        ClipboardResult::Text(Some("stale".into())),
+    );
+    assert!(!completion.editor.changed);
+    assert_eq!(screen.focused_input(), Some(3));
+    assert_eq!(
+        screen.elements.messages_widgets[0].command_text,
+        "use e\u{301}"
+    );
+    assert!(!screen.elements.messages_widgets[0].command_active);
+    screen
+        .input(
+            &session.view(),
+            &mut fonts,
+            &InputEvent::Modifiers(Modifiers::default()),
+        )
+        .unwrap();
+    screen
+        .input(
+            &session.view(),
+            &mut fonts,
+            &InputEvent::Key {
+                physical: PhysicalKey::Tab,
+                logical: LogicalKey::Other,
+                pressed: true,
+                repeat: false,
+            },
+        )
+        .unwrap();
+    assert_eq!(screen.focused_text(), Some(ScreenTextTarget::Command(4)));
+    let cancel = screen
+        .input(
+            &session.view(),
+            &mut fonts,
+            &InputEvent::Key {
+                physical: PhysicalKey::Escape,
+                logical: LogicalKey::Other,
+                pressed: true,
+                repeat: false,
+            },
+        )
+        .unwrap();
+    assert!(cancel.effects.is_empty());
+    assert!(screen.elements.messages_widgets[0].command_text.is_empty());
+    assert_eq!(screen.focused_text(), None);
+}
+#[test]
+fn transcript_choice_acknowledges_duplicate_views_and_emits_one_action() {
+    use rusterix::client::widget::messages::{MessageLine, MessagesWidget};
+    use theframework::platform::*;
+    let (session, mut fonts, mut screen) = command_screen();
+    let choice =
+        rusterix::Choice::ScriptChoice("Open".into(), "pick".into(), 1, 1, 0, i64::MAX, 10.);
+    let line = MessageLine {
+        id: Uuid::new_v4(),
+        text: "1) Open".into(),
+        rect: Rect::empty(),
+        choice: Some(choice.clone()),
+        choice_key: Some('1'),
+        color: [255; 4],
+        sender_entity: None,
+    };
+    screen.elements.messages_widgets[0]
+        .messages
+        .push(line.clone());
+    screen.elements.messages_widgets[0]
+        .active_choices
+        .push(line.clone());
+    let mut mirror = MessagesWidget::new();
+    mirror.id = 99;
+    mirror.name = "Mirror".into();
+    mirror.rect = Rect::new(200., 50., 180., 100.);
+    mirror.messages.push(line.clone());
+    mirror.active_choices.push(line);
+    screen.elements.messages_widgets.push(mirror);
+    screen
+        .prepare(&session.view(), &mut fonts, ContentRevision(1), 0)
+        .unwrap();
+    let key = InputEvent::Key {
+        physical: PhysicalKey::Digit(1),
+        logical: LogicalKey::Other,
+        pressed: true,
+        repeat: false,
+    };
+    let response = screen.input(&session.view(), &mut fonts, &key).unwrap();
+    assert_eq!(
+        response.effects,
+        vec![eldiron_presentation::ScreenEffect::Action(
+            rusterix::EntityAction::Choice(choice)
+        )]
+    );
+    for widget in &screen.elements.messages_widgets {
+        assert!(widget.active_choices.is_empty());
+        assert_eq!(
+            widget
+                .messages
+                .iter()
+                .filter(|l| l.text == "> Open")
+                .count(),
+            1
+        );
+    }
+    assert!(
+        screen
+            .input(&session.view(), &mut fonts, &key)
+            .unwrap()
+            .effects
+            .is_empty()
+    );
+}
+
+#[test]
+fn transcript_pause_captures_outside_click_and_release_without_start_button_fallthrough() {
+    use theframework::platform::*;
+    let (session, mut fonts, mut screen) = command_screen();
+    let events = RegionEvents {
+        messages: vec![(None, None, 1, "".into(), "continue".into())],
+        ..Default::default()
+    };
+    screen.receive(&session.view(), &events);
+    screen
+        .prepare(&session.view(), &mut fonts, ContentRevision(1), 0)
+        .unwrap();
+    assert!(screen.elements.messages_widgets[0].blocks_input());
+    let pointer = |pressed| InputEvent::PointerButton {
+        button: PointerButton::Primary,
+        pressed,
+        position: [30., 200.],
+    };
+    let down = screen
+        .input(&session.view(), &mut fonts, &pointer(true))
+        .unwrap();
+    assert!(down.input.consumed && down.cancel_controls && down.effects.is_empty());
+    let up = screen
+        .input(&session.view(), &mut fonts, &pointer(false))
+        .unwrap();
+    assert!(up.input.consumed && up.effects.is_empty());
+    assert!(screen.elements.messages_widgets[0].blocks_input());
+    let continued = screen
+        .input(
+            &session.view(),
+            &mut fonts,
+            &InputEvent::Key {
+                physical: PhysicalKey::Space,
+                logical: LogicalKey::Other,
+                pressed: true,
+                repeat: false,
+            },
+        )
+        .unwrap();
+    assert!(continued.input.consumed && continued.effects.is_empty());
+    screen
+        .prepare(&session.view(), &mut fonts, ContentRevision(1), 0)
+        .unwrap();
+    assert!(!screen.elements.messages_widgets[0].blocks_input());
+    screen
+        .input(&session.view(), &mut fonts, &pointer(true))
+        .unwrap();
+    assert_eq!(
+        screen
+            .input(&session.view(), &mut fonts, &pointer(false))
+            .unwrap()
+            .effects
+            .len(),
+        1
+    );
+}
+#[test]
+fn transcript_precise_scrolling_accumulates_fractional_lines_without_world_input() {
+    use theframework::platform::*;
+    let (session, mut fonts, mut screen) = command_screen();
+    let events = RegionEvents {
+        messages: (0..30)
+            .map(|i| (None, None, 1, format!("Message {i}"), "status".into()))
+            .collect(),
+        ..Default::default()
+    };
+    screen.receive(&session.view(), &events);
+    screen
+        .prepare(&session.view(), &mut fonts, ContentRevision(1), 0)
+        .unwrap();
+    screen
+        .input(
+            &session.view(),
+            &mut fonts,
+            &InputEvent::PointerMoved {
+                position: [40., 80.],
+            },
+        )
+        .unwrap();
+    let delta = screen.elements.messages_widgets[0].view_state().line_height / 4.;
+    for i in 0..4 {
+        let response = screen
+            .input(
+                &session.view(),
+                &mut fonts,
+                &InputEvent::Scroll {
+                    delta: [0., delta],
+                    precise: true,
+                },
+            )
+            .unwrap();
+        assert!(response.input.consumed);
+        assert_eq!(
+            screen.elements.messages_widgets[0]
+                .view_state()
+                .scroll_offset,
+            usize::from(i == 3)
+        );
+    }
+}
+#[test]
+#[ignore = "requires native GPU; run with --ignored"]
+fn transcript_command_preedit_and_caret_use_glyphs_and_stable_native_geometry() {
+    use theframework::platform::*;
+    let (session, mut fonts, mut screen) = command_screen();
+    screen
+        .input(
+            &session.view(),
+            &mut fonts,
+            &InputEvent::Key {
+                physical: PhysicalKey::Enter,
+                logical: LogicalKey::Other,
+                pressed: true,
+                repeat: false,
+            },
+        )
+        .unwrap();
+    screen
+        .input(
+            &session.view(),
+            &mut fonts,
+            &InputEvent::Text("look العربية 東京 e\u{301} ".into()),
+        )
+        .unwrap();
+    screen
+        .input(
+            &session.view(),
+            &mut fonts,
+            &InputEvent::Composition {
+                text: "日本".into(),
+                cursor: Some((0, 6)),
+            },
+        )
+        .unwrap();
+    let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut images = ImageRegistry::new(gpu.clone());
+    let mut cache = ScreenImageCache::default();
+    let mut renderer = PaintRenderer::new(gpu.clone()).unwrap();
+    let target = GpuImage::new(&gpu, ImageDescriptor::rgba(800, 480)).unwrap();
+    let mut stats = None;
+    for _ in 0..2 {
+        screen
+            .prepare(&session.view(), &mut fonts, ContentRevision(1), 0)
+            .unwrap();
+        let ime = screen.text_ime_area(&mut fonts).unwrap();
+        assert!(
+            ime.x >= 16.
+                && ime.x + ime.width <= 384.001
+                && ime.y >= 48.
+                && ime.y + ime.height <= 160.001,
+            "IME area must stay in the visible command viewport: {ime:?}"
+        );
+        let list = {
+            let mut frame = cache.begin_frame(&mut images).unwrap();
+            screen
+                .paint(&session.view(), &mut fonts, &mut frame)
+                .unwrap()
+        };
+        renderer
+            .render(
+                &list,
+                &images,
+                &target.view,
+                target.descriptor.format,
+                (800, 480),
+                2.,
+                [0.; 4],
+            )
+            .unwrap();
+        assert!(
+            list.ops
+                .iter()
+                .any(|op| matches!(op, PaintOp::GlyphRun { .. }))
+        );
+        assert_eq!(gpu.transfers().readback_bytes, 0);
+        let now = (
+            gpu.transfers().uploaded_bytes,
+            renderer.glyphs.rasterizations,
+        );
+        if let Some(previous) = stats {
+            assert_eq!(
+                now, previous,
+                "identical command-editor frames must reuse glyphs"
+            );
+        }
+        stats = Some(now);
+    }
+    assert_eq!(
+        cache.len(),
+        0,
+        "command text must never be a CPU raster source"
+    );
+    let pixels = capture(&gpu, target);
+    let mut png = png::Encoder::new(
+        std::fs::File::create("/private/tmp/eldiron-native-command-editor.png").unwrap(),
+        800,
+        480,
+    );
+    png.set_color(png::ColorType::Rgba);
+    png.set_depth(png::BitDepth::Eight);
+    png.write_header()
+        .unwrap()
+        .write_image_data(&pixels)
+        .unwrap();
+}
+
+#[test]
+fn transcript_editor_identity_and_responsive_geometry_do_not_depend_on_widget_names() {
+    use eldiron_presentation::ScreenTextTarget;
+    let mut session = fixture(false);
+    let authored = session.project.screens.values_mut().next().unwrap();
+    authored.settings = "[layout]\nmode='responsive'".into();
+    sector(
+        &mut authored.map,
+        30,
+        Rect::new(208., 96., 176., 64.),
+        "[ui]\nrole='messages'\ncommand_input=true\n[layout]\nanchor='bottom_right'",
+    );
+    authored.map.sectors.last_mut().unwrap().name = "Widget4".into();
+    let mut screen = GameScreenController::from_screen("Main", &session.view(), layout()).unwrap();
+    let mut fonts = GameFonts::default();
+    screen
+        .prepare(&session.view(), &mut fonts, ContentRevision(1), 0)
+        .unwrap();
+    assert_eq!(
+        screen
+            .elements
+            .messages_widgets
+            .iter()
+            .map(|w| w.id)
+            .collect::<Vec<_>>(),
+        vec![4, 30]
+    );
+    screen.focus_text(&mut fonts, Some(ScreenTextTarget::Command(30)));
+    let before = screen.text_ime_area(&mut fonts).unwrap();
+    screen.resize((600, 400));
+    screen
+        .prepare(&session.view(), &mut fonts, ContentRevision(1), 0)
+        .unwrap();
+    let after = screen.text_ime_area(&mut fonts).unwrap();
+    assert_eq!(screen.focused_text(), Some(ScreenTextTarget::Command(30)));
+    assert_eq!(
+        screen.elements.messages_widgets[0].rect,
+        Rect::new(16., 48., 368., 112.)
+    );
+    assert_eq!(
+        screen.elements.messages_widgets[1].rect,
+        Rect::new(408., 256., 176., 64.)
+    );
+    assert!((after.x - before.x - 200.).abs() < 0.01 && (after.y - before.y - 160.).abs() < 0.01);
 }

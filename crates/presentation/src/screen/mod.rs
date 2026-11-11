@@ -9,7 +9,7 @@ mod images;
 mod messages;
 mod painter;
 mod profile;
-pub use messages::MessageLayouts;
+pub use messages::{MessageCommandLayout, MessageLayouts};
 pub use profile::ProfileLayout;
 mod scene;
 pub use images::*;

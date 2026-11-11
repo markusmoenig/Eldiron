@@ -9,6 +9,7 @@ pub(super) enum PointerCapture {
     HeldButton,
     Text,
     Choice,
+    Message,
 }
 #[derive(Default)]
 pub struct ScreenInputResponse {
@@ -19,7 +20,7 @@ pub struct ScreenInputResponse {
     pub cancel_controls: bool,
 }
 impl ScreenInputResponse {
-    fn handled(redraw: bool) -> Self {
+    pub(super) fn handled(redraw: bool) -> Self {
         Self {
             input: InputResponse {
                 consumed: true,
@@ -28,15 +29,35 @@ impl ScreenInputResponse {
             ..Default::default()
         }
     }
-    fn text(text: ScreenTextResponse) -> Self {
+    fn text(mut text: ScreenTextResponse) -> Self {
         Self {
             input: text.input,
+            effects: std::mem::take(&mut text.effects),
             text: Some(text),
             ..Default::default()
         }
     }
 }
 impl GameScreenController {
+    /// Modal/text state owns world controls even when it arrived from a runtime
+    /// message between physical input events. Hosts stop held movement on entry.
+    pub fn captures_world_input(&self) -> bool {
+        self.focused_text.is_some()
+            || self.choice_controller.open_id().is_some()
+            || matches!(
+                self.pointer_capture,
+                Some(
+                    PointerCapture::Button(_)
+                        | PointerCapture::Text
+                        | PointerCapture::Choice
+                        | PointerCapture::Message
+                )
+            )
+            || self.elements.messages_widgets.iter().any(|w| {
+                w.blocks_input()
+                    && !screen_model::widget_name_is_hidden(&w.name, &self.elements.widgets_to_hide)
+            })
+    }
     /// Coordinates are in the same logical screen space used by `paint`.
     /// Modal choices precede buttons, fields and world input, matching paint order.
     /// A captured drag/release keeps its original owner even outside its bounds.
@@ -48,6 +69,7 @@ impl GameScreenController {
     ) -> Result<ScreenInputResponse, String> {
         if matches!(event, InputEvent::Focus(false)) {
             self.pointer_capture = None;
+            self.suppress_activation_slash = false;
             self.pressed_button = None;
             self.elements.release_button_state();
             self.geometry = None;
@@ -57,11 +79,25 @@ impl GameScreenController {
             response.cancel_controls = true;
             return Ok(response);
         }
+        if let InputEvent::Text(text) = event {
+            if std::mem::take(&mut self.suppress_activation_slash) && text == "/" {
+                return Ok(ScreenInputResponse::handled(false));
+            }
+        } else if matches!(
+            event,
+            InputEvent::Key { pressed: true, .. } | InputEvent::PointerButton { pressed: true, .. }
+        ) {
+            self.suppress_activation_slash = false;
+        }
         if let InputEvent::PointerMoved { position } = event {
             let moved = self.cursor != *position;
             self.cursor = *position;
             match self.pointer_capture {
-                Some(PointerCapture::Button(_) | PointerCapture::HeldButton) => {
+                Some(
+                    PointerCapture::Button(_)
+                    | PointerCapture::HeldButton
+                    | PointerCapture::Message,
+                ) => {
                     return Ok(ScreenInputResponse::handled(moved));
                 }
                 Some(PointerCapture::Text) => {
@@ -115,6 +151,12 @@ impl GameScreenController {
                     response.input.consumed = true;
                     return Ok(response);
                 }
+                Some(PointerCapture::Message) => {
+                    for widget in &mut self.elements.messages_widgets {
+                        widget.touch_up();
+                    }
+                    return Ok(ScreenInputResponse::handled(false));
+                }
                 Some(PointerCapture::Choice) => {
                     self.choice_input_event(fonts, event);
                     return Ok(ScreenInputResponse::handled(false));
@@ -145,6 +187,9 @@ impl GameScreenController {
                 cancel_controls: press,
                 ..Default::default()
             });
+        }
+        if let Some(response) = self.message_modal_event(fonts, event) {
+            return Ok(response);
         }
         if let InputEvent::PointerButton {
             button: PointerButton::Primary,
@@ -207,6 +252,11 @@ impl GameScreenController {
         {
             self.pointer_capture = Some(PointerCapture::Text);
             response.cancel_controls = true;
+        }
+        if !response.input.consumed {
+            if let Some(message) = self.message_input_event(fonts, event) {
+                return Ok(message);
+            }
         }
         if matches!(
             event,

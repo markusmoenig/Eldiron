@@ -168,13 +168,30 @@ impl GameScreenController {
         for (widget, layout) in model.messages_widgets.iter().zip(&self.messages) {
             if !hidden(&widget.name) {
                 p.messages(layout, assets)?;
+                if let Some(command) = layout.command() {
+                    if let Some(input) = self.inputs.get_mut(&ScreenTextTarget::Command(widget.id))
+                    {
+                        input.paint(
+                            p.text,
+                            p.list,
+                            theframework::text_edit::EditorColors {
+                                text: color(command.color),
+                                ..Default::default()
+                            },
+                            true,
+                        );
+                    }
+                }
             }
         }
         for key in ordered(&model.text_input_widgets) {
             let widget = &model.text_input_widgets[&key];
             if !hidden(&widget.name) {
-                p.text_input_chrome(widget, self.focused_input == Some(key));
-                if let Some(input) = self.inputs.get_mut(&key) {
+                p.text_input_chrome(
+                    widget,
+                    self.focused_text == Some(ScreenTextTarget::Input(key)),
+                );
+                if let Some(input) = self.inputs.get_mut(&ScreenTextTarget::Input(key)) {
                     input.paint(
                         p.text,
                         p.list,

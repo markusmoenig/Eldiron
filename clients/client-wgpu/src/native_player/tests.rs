@@ -143,7 +143,7 @@ fn assembled_player_keeps_runtime_edits_and_clock_across_gpu_replacement() {
         },
         &mut host,
     );
-    assert_eq!(app.screen.focused_input, Some(1));
+    assert_eq!(app.screen.focused_input(), Some(1));
     app.input(
         &InputEvent::Modifiers(Modifiers {
             super_key: true,
@@ -254,6 +254,32 @@ fn assembled_player_keeps_runtime_edits_and_clock_across_gpu_replacement() {
         .values()
         .copied()
         .collect::<Vec<_>>();
+    app.input(&key(PhysicalKey::Letter(b'w')), &mut host);
+    let receiver = app
+        .player
+        .runtime
+        .view()
+        .map
+        .unwrap()
+        .entities
+        .iter()
+        .find(|e| e.is_player())
+        .unwrap()
+        .id;
+    let events = RegionEvents {
+        messages: vec![(None, None, receiver, "".into(), "continue".into())],
+        ..Default::default()
+    };
+    app.screen.receive(&app.player.runtime.view(), &events);
+    app.update(&mut host, Duration::ZERO);
+    assert!(app.screen.captures_world_input());
+    assert_eq!(
+        app.player.control_key("a", false),
+        Some(rusterix::EntityAction::Off),
+        "an arriving modal must release movement even without another input event"
+    );
+    app.input(&key(PhysicalKey::Space), &mut host);
+    assert!(!app.screen.captures_world_input());
     let expected_geometry = app
         .screen
         .view_images()

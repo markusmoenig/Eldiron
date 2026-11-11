@@ -3,7 +3,8 @@
 mod viewport;
 use crate::player_session::PlayerSession;
 use eldiron_presentation::{
-    GameFonts, GameScreenController, SceneViews, ScreenEffect, ScreenTextResponse, ViewId,
+    GameFonts, GameScreenController, SceneViews, ScreenEffect, ScreenTextResponse,
+    ScreenTextTarget, ViewId,
     screen::{ContentRevision, ScreenImageCache},
 };
 use eldiron_runtime::{Project, RegionEvents, RuntimeView};
@@ -59,7 +60,8 @@ pub struct PlayerApplication {
     visual_elapsed: Duration,
     frame_count: u64,
     modifiers: Modifiers,
-    pending_clipboard: Option<(u32, u64)>,
+    controls_captured: bool,
+    pending_clipboard: Option<(ScreenTextTarget, u64)>,
     failure: Option<String>,
     suspended: bool,
     resume_simulation: bool,
@@ -123,6 +125,7 @@ impl PlayerApplication {
             visual_elapsed: Duration::ZERO,
             frame_count: 0,
             modifiers: Modifiers::default(),
+            controls_captured: false,
             pending_clipboard: None,
             failure: None,
             suspended: false,
@@ -184,6 +187,12 @@ impl PlayerApplication {
             self.revision,
             animation_frame,
         )?;
+        let captured = self.screen.captures_world_input();
+        if captured && !self.controls_captured {
+            let stop = self.player.cancel_controls();
+            self.player.submit_action(stop)?;
+        }
+        self.controls_captured = captured;
         let size = self.screen.elements.layout.viewport;
         self.viewport = ScreenViewport::fit([size.x as f32, size.y as f32], host.logical_size);
         host.text_input = if self.viewport.scale > 0. {
@@ -202,7 +211,7 @@ impl PlayerApplication {
         (self.visual_elapsed.as_secs_f64() * self.player.settings.target_fps).floor() as usize
     }
     fn clipboard(&mut self, response: &ScreenTextResponse, host: &mut HostContext) {
-        if let (Some(widget), Some(clipboard)) = (response.widget, &response.editor.clipboard) {
+        if let (Some(widget), Some(clipboard)) = (response.target, &response.editor.clipboard) {
             match clipboard {
                 EditorClipboard::Read { request } => {
                     self.pending_clipboard = Some((widget, *request));
@@ -260,7 +269,7 @@ impl PlayerApplication {
                 return Ok(InputResponse::default());
             }
             self.pending_clipboard = None;
-            let result = self.screen.complete_text_clipboard(
+            let result = self.screen.complete_editor_clipboard(
                 &mut self.fonts,
                 widget,
                 *request,
@@ -309,6 +318,7 @@ impl PlayerApplication {
             }
         }
         if !response.consumed
+            && !self.screen.captures_world_input()
             && !self.modifiers.control
             && !self.modifiers.super_key
             && !self.modifiers.alt

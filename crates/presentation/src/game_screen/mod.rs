@@ -6,12 +6,13 @@ mod fonts;
 pub use commands::{ScreenActivation, ScreenEffect};
 mod input;
 mod router;
+mod transcript;
 pub use router::ScreenInputResponse;
 mod paint;
 use crate::{GameSceneInput, SceneViews, ViewId, ViewImage, screen::*};
 use eldiron_runtime::{RegionEvents, RuntimeView};
 pub use fonts::{GameFontVersion, GameFonts};
-pub use input::ScreenTextResponse;
+pub use input::{ScreenTextResponse, ScreenTextTarget};
 use renderkit::ImageRegistry;
 use rustc_hash::FxHashMap;
 use rusterix::{
@@ -46,7 +47,7 @@ pub struct GameScreenController {
     pub elements: ScreenElements,
     pub name: String,
     pub cursor: [f32; 2],
-    pub focused_input: Option<u32>,
+    focused_text: Option<ScreenTextTarget>,
     pub pressed_button: Option<u32>,
     pub choice_controller: screen_model::ChoiceController,
     pub intent: String,
@@ -64,10 +65,12 @@ pub struct GameScreenController {
     view_ids: FxHashMap<Uuid, ViewId>,
     configured_views: FxHashMap<ViewId, ContentRevision>,
     view_images: FxHashMap<Uuid, ViewImage>,
-    inputs: FxHashMap<u32, theframework::text_edit::EditorView>,
+    inputs: FxHashMap<ScreenTextTarget, theframework::text_edit::EditorView>,
     input_modifiers: theframework::platform::Modifiers,
     pub animation_frame: usize,
     pointer_capture: Option<router::PointerCapture>,
+    suppress_activation_slash: bool,
+    message_scroll: FxHashMap<u32, f32>,
 }
 impl GameScreenController {
     pub fn from_screen(
@@ -134,7 +137,7 @@ impl GameScreenController {
             elements,
             name: name.into(),
             cursor: [0.; 2],
-            focused_input: None,
+            focused_text: None,
             pressed_button: None,
             choice_controller: screen_model::ChoiceController::default(),
             intent: String::new(),
@@ -156,6 +159,8 @@ impl GameScreenController {
             input_modifiers: Default::default(),
             animation_frame: 0,
             pointer_capture: None,
+            suppress_activation_slash: false,
+            message_scroll: FxHashMap::default(),
         }
     }
     /// Distribute each addressed batch once. Reflow/painting do not consume it
@@ -203,7 +208,6 @@ impl GameScreenController {
             self.revision = Some(revision);
         }
         self.animation_frame = animation_frame;
-        self.prepare_inputs(fonts);
         self.choice_controller.prepare(
             &mut self.elements.choice_widgets,
             &self.elements.widgets_to_hide,
@@ -223,6 +227,8 @@ impl GameScreenController {
             if screen_model::widget_name_is_hidden(&widget.name, &self.elements.widgets_to_hide) {
                 continue;
             }
+            widget.set_text_input_available(true);
+            layout.use_command_editor(true);
             layout.prepare(
                 widget,
                 &mut fonts.text,
@@ -340,6 +346,9 @@ impl GameScreenController {
                 foreground: builder.build(&self.elements.render_layer(true), world.assets, size),
             });
         }
+        self.prepare_inputs(fonts);
+        self.message_scroll
+            .retain(|id, _| self.elements.messages_widgets.iter().any(|w| w.id == *id));
         Ok(())
     }
     pub fn prepare_game_views(

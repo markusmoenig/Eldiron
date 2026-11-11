@@ -32,6 +32,8 @@ pub(crate) enum PendingMessage {
 }
 
 pub struct MessagesWidget {
+    /// Stable authored sector identity; independent of vector/layout order.
+    pub id: u32,
     pub name: String,
     pub rect: Rect,
     pub toml_str: String,
@@ -66,6 +68,7 @@ pub struct MessagesWidget {
     pub command_prompt_color: Pixel,
     pub command_text: String,
     pub command_active: bool,
+    pub(crate) text_input_available: bool,
     pub background: bool,
     pub background_color: Pixel,
     pub background_padding: f32,
@@ -89,19 +92,21 @@ impl Default for MessagesWidget {
 impl MessagesWidget {
     const CHOICE_COLUMN_SEPARATOR: char = '\u{1f}';
 
-    fn command_input_enabled(&self) -> bool {
-        #[cfg(any(target_os = "android", target_os = "ios"))]
-        {
-            false
-        }
-        #[cfg(not(any(target_os = "android", target_os = "ios")))]
-        {
-            self.command_input
+    pub fn command_input_enabled(&self) -> bool {
+        self.command_input && self.text_input_available
+    }
+    /// A native/foreign host with a text-input implementation opts in explicitly;
+    /// old mobile hosts retain their legacy default until their adapter migrates.
+    pub fn set_text_input_available(&mut self, available: bool) {
+        self.text_input_available = available;
+        if !available {
+            self.command_active = false;
         }
     }
 
     pub fn new() -> Self {
         Self {
+            id: 0,
             name: String::new(),
             rect: Rect::default(),
             toml_str: String::new(),
@@ -136,6 +141,7 @@ impl MessagesWidget {
             command_prompt_color: [215, 153, 33, 255],
             command_text: String::new(),
             command_active: false,
+            text_input_available: !cfg!(any(target_os = "android", target_os = "ios")),
             background: false,
             background_color: [0, 0, 0, 150],
             background_padding: 0.0,
@@ -1281,7 +1287,11 @@ impl MessagesWidget {
     }
 
     pub fn touch_down(&mut self, coord: Vec2<i32>) -> Option<EntityAction> {
-        let point = Vec2::new(coord.x as f32, coord.y as f32);
+        self.pointer_down(Vec2::new(coord.x as f32, coord.y as f32))
+    }
+    /// Native hit geometry uses logical floating-point positions without an
+    /// intermediate integer rounding step.
+    pub fn pointer_down(&mut self, point: Vec2<f32>) -> Option<EntityAction> {
         let inside = self.rect.contains(point);
         if self.return_to_choices_rect.width > 0.
             && self.return_to_choices_rect.height > 0.

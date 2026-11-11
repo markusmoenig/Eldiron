@@ -706,6 +706,7 @@ impl ScreenElements {
                             );
                         } else if role == "messages" {
                             let mut widget = MessagesWidget {
+                                id: widget.id,
                                 name: widget.name.clone(),
                                 rect: Rect::new(x, y, width, height),
                                 toml_str: data.clone(),

@@ -228,7 +228,7 @@ impl ScreenElements {
             role,
             sector_id,
             creator_id,
-            name,
+            name: _,
             rect,
             table,
         } in placements(&self.source, self.layout)
@@ -256,7 +256,11 @@ impl ScreenElements {
                     }
                 }
                 "messages" => {
-                    for widget in self.messages_widgets.iter_mut().filter(|w| w.name == name) {
+                    for widget in self
+                        .messages_widgets
+                        .iter_mut()
+                        .filter(|w| w.id == sector_id)
+                    {
                         widget.rect = rect;
                     }
                 }
