@@ -11,7 +11,7 @@ use theframework::paint::{
     Brush, LineCap, LineJoin, PaintOp, Path, PathElement as E, Rect as Uv, Sampling, Stroke,
 };
 
-fn segments(
+pub(super) fn segments(
     start: f32,
     length: f32,
     origin: i32,

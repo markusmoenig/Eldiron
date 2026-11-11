@@ -142,7 +142,7 @@ pub struct Stroke {
     pub join: LineJoin,
     pub brush: Brush,
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Sampling {
     Nearest,
     Linear,
@@ -150,6 +150,10 @@ pub enum Sampling {
     /// cover any viewport without allocating per-pixel or per-tile geometry.
     RepeatNearest,
     RepeatLinear,
+    RepeatNearestX,
+    RepeatNearestY,
+    RepeatLinearX,
+    RepeatLinearY,
 }
 #[derive(Clone, Debug)]
 pub struct FontFace {
@@ -177,6 +181,12 @@ pub struct PaintVertex {
     pub position: Point,
     pub color: Color,
 }
+/// A source-image vertex in logical coordinates, independent of GPU buffers.
+#[derive(Clone, Copy, Debug)]
+pub struct ImageVertex {
+    pub position: Point,
+    pub uv: Point,
+}
 /// Analytic distance geometry, in local logical coordinates. A field chooses
 /// the nearest primitive at each sample; this preserves union/material behavior
 /// when primitives overlap rather than changing it to painter-order fills.
@@ -201,6 +211,13 @@ pub struct DistanceField {
 }
 #[derive(Clone, Debug)]
 pub enum PaintOp {
+    ImageMesh {
+        vertices: Arc<[ImageVertex]>,
+        indices: Arc<[u32]>,
+        image: ImageHandle,
+        sampling: Sampling,
+        tint: Color,
+    },
     DistanceField {
         rect: Rect,
         field: Arc<DistanceField>,
@@ -268,6 +285,25 @@ impl PaintList {
         let mut scopes = Vec::new();
         for op in &self.ops {
             match op {
+                PaintOp::ImageMesh {
+                    vertices,
+                    indices,
+                    tint,
+                    ..
+                } => {
+                    if indices.len() % 3 != 0
+                        || indices.iter().any(|i| *i as usize >= vertices.len())
+                    {
+                        return Err("invalid image mesh indices");
+                    }
+                    if vertices
+                        .iter()
+                        .any(|v| v.position.iter().chain(v.uv.iter()).any(|x| !x.is_finite()))
+                        || tint.iter().any(|x| !x.is_finite())
+                    {
+                        return Err("nonfinite image mesh data");
+                    }
+                }
                 PaintOp::Mesh { vertices, indices } => {
                     if indices.len() % 3 != 0
                         || indices.iter().any(|i| *i as usize >= vertices.len())

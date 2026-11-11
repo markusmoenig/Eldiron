@@ -218,3 +218,11 @@ This remains a scene ownership/composition checkpoint. Game-screen/HUD presentat
 - Three actual GPU view tests pass, including a textured map prepared by the real game camera/chunk builder in two independent views at full/half resolution, camera extent equality, no output/upscale/layer CPU storage, source upload/device replacement and explicit capture. Log: `/private/tmp/eldiron-game-views-gpu.log`.
 - All four existing apps compile (`/private/tmp/eldiron-game-views-apps.log`), and presentation compiles for browser and iOS simulator (`/private/tmp/eldiron-game-views-web.log`, `/private/tmp/eldiron-game-views-ios.log`).
 - Canonical app cutover, native screen setup without bitmap allocations, full HUD families, isometric sprite rendering and session/controller ownership adoption remain outstanding. Continue the whole rewrite.
+
+## Screen geometry submission checkpoint (2026-11-11)
+
+- Added validated backend-neutral `ImageVertex`/`PaintOp::ImageMesh` and GPU execution through the existing ordered paint/clip/transform/composition contract. Prepared screen triangles now submit source images and geometry directly, with no software rasterizer or destination pixels.
+- `ScreenPainter::unlit_scene` consumes CPU builder output. Spatial-page boundaries clip triangles in UV space, retain concave empty areas, and address animation independently from page position. Added independent X/Y repeat/clamp samplers. Single-axis repeat follows the existing tile contract (spatial pages are addressed only by RepeatXY).
+- Five actual GPU screen tests pass, covering real D2Builder concave geometry, transform application, spatial animation, per-axis clamp/repeat, source lifetime/cache reuse, and prior controls/artwork tests. `/private/tmp/eldiron-screen-mesh-final.log`.
+- Existing framework paint and actual GPU UI regressions pass (2 paint tests plus 11 GPU UI tests); browser and iOS presentation compilation pass. Logs: `/private/tmp/eldiron-screen-mesh-framework.log`, `/private/tmp/eldiron-screen-mesh-web.log`, `/private/tmp/eldiron-screen-mesh-ios.log`.
+- This is a geometry submission path, not complete screen/launcher adoption. Lit/3D screen scenes and line primitives currently return explicit errors from this adapter; full screen composition, remaining widget families and canonical app cutover remain required.

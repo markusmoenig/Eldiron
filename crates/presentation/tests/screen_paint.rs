@@ -301,3 +301,179 @@ fn artwork_keeps_animation_spatial_pages_and_nine_slice_edges_independent() {
     assert_eq!(pixel(0, 47), [150, 0, 0, 255]);
     assert_eq!(pixel(15, 47), [200, 0, 0, 255]);
 }
+
+#[test]
+#[ignore = "requires native GPU; run with --ignored"]
+fn prepared_screen_polygons_keep_concavity_transforms_and_spatial_animation() {
+    use rusterix::{PixelSource, Texture, Tile, TileUvPages, scenebuilder::d2builder::D2Builder};
+    let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut registry = ImageRegistry::new(gpu.clone());
+    let mut cache = ScreenImageCache::default();
+    let mut text = TextSystem::default();
+    let mut assets = Assets::default();
+    let colors = [
+        [90, 0, 90, 255],
+        [90, 0, 90, 255],
+        [90, 0, 90, 255],
+        [90, 0, 90, 255],
+        [255, 0, 0, 255],
+        [0, 255, 0, 255],
+        [0, 0, 255, 255],
+        [255, 255, 0, 255],
+    ];
+    let mut tile = Tile::from_textures(
+        colors
+            .into_iter()
+            .map(|c| Texture::new(c.to_vec(), 1, 1))
+            .collect(),
+    );
+    let id = tile.id;
+    tile.uv_pages = Some(TileUvPages {
+        animation_frames: 2,
+        repeat_period: [0.; 2],
+        origin: [0; 2],
+        size: [2; 2],
+        axes: [[0.; 3]; 2],
+        units_per_page: 2,
+    });
+    assets.set_tiles([(id, tile)].into_iter().collect());
+    let mut map = Map::default();
+    let vertices = [(0., 0.), (4., 0.), (4., 1.), (1., 1.), (1., 4.), (0., 4.)]
+        .map(|(x, y)| map.add_vertex_at(x, y));
+    for i in 0..vertices.len() {
+        map.create_linedef(vertices[i], vertices[(i + 1) % vertices.len()]);
+    }
+    assert_eq!(map.sectors.len(), 1);
+    map.sectors[0]
+        .properties
+        .set("source", Value::Source(PixelSource::TileId(id)));
+    let mut scene = D2Builder::new().build(&map, &assets, scenevm::prelude::Vec2::new(96., 96.));
+    scene.animation_frame = 1;
+    assert!(!scene.d2_static.is_empty());
+    assert!(
+        scene
+            .d2_static
+            .iter()
+            .all(|b| b.projected_vertices.is_empty())
+    );
+    let mut list = PaintList::default();
+    list.ops.push(PaintOp::PushTransform(
+        Transform::scale(16., 16.).then(Transform::translate(8., 8.)),
+    ));
+    {
+        let mut images = cache.begin_frame(&mut registry).unwrap();
+        let mut painter = ScreenPainter {
+            list: &mut list,
+            text: &mut text,
+            images: &mut images,
+        };
+        painter.unlit_scene(&scene, &assets).unwrap();
+    }
+    list.ops.push(PaintOp::PopTransform);
+    list.validate().unwrap();
+    assert!(
+        list.ops
+            .iter()
+            .filter(|op| matches!(op, PaintOp::ImageMesh { .. }))
+            .count()
+            >= 3
+    );
+    let output = GpuImage::new(&gpu, ImageDescriptor::rgba(96, 96)).unwrap();
+    let mut renderer = PaintRenderer::new(gpu.clone()).unwrap();
+    renderer
+        .render(
+            &list,
+            &registry,
+            &output.view,
+            output.descriptor.format,
+            (96, 96),
+            1.,
+            [0.; 4],
+        )
+        .unwrap();
+    assert_eq!(gpu.transfers().readback_bytes, 0);
+    let mut capture = ReadbackTicket::capture(&gpu, output).unwrap();
+    gpu.device
+        .poll(wgpu::PollType::Wait {
+            submission_index: None,
+            timeout: Some(std::time::Duration::from_secs(30)),
+        })
+        .unwrap();
+    let capture = capture.try_finish(&gpu).unwrap().unwrap();
+    let pixel = |x: usize, y: usize| &capture.pixels()[(y * 96 + x) * 4..(y * 96 + x + 1) * 4];
+    assert_eq!(pixel(16, 16), [255, 0, 0, 255]);
+    assert_eq!(pixel(56, 16), [0, 255, 0, 255]);
+    assert_eq!(pixel(16, 56), [0, 0, 255, 255]);
+    assert_eq!(
+        pixel(56, 56),
+        [0; 4],
+        "concave empty area must remain clear"
+    );
+    assert_eq!(pixel(4, 4), [0; 4], "logical transform must apply once");
+}
+
+#[test]
+#[ignore = "requires native GPU; run with --ignored"]
+fn screen_sampler_repeats_only_the_authored_axis() {
+    use rusterix::{Batch2D, PixelSource, RepeatMode, Scene, Texture, Tile};
+    let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut registry = ImageRegistry::new(gpu.clone());
+    let mut cache = ScreenImageCache::default();
+    let mut text = TextSystem::default();
+    let mut assets = Assets::default();
+    let tile = Tile::from_texture(Texture::new(
+        vec![
+            255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 0, 255,
+        ],
+        2,
+        2,
+    ));
+    let id = tile.id;
+    assets.set_tiles([(id, tile)].into_iter().collect());
+    let mut scene = Scene::default();
+    for (x, repeat) in [(0., RepeatMode::RepeatX), (32., RepeatMode::RepeatY)] {
+        let mut batch = Batch2D::from_rectangle(x, 0., 32., 32.);
+        batch.repeat_mode = repeat;
+        batch.source = PixelSource::StaticTileIndex(0);
+        for uv in &mut batch.uvs {
+            *uv = uv.map(|v| v * 3.);
+        }
+        scene.d2_static.push(batch);
+    }
+    let mut list = PaintList::default();
+    {
+        let mut images = cache.begin_frame(&mut registry).unwrap();
+        ScreenPainter {
+            list: &mut list,
+            text: &mut text,
+            images: &mut images,
+        }
+        .unlit_scene(&scene, &assets)
+        .unwrap();
+    }
+    assert_eq!(cache.len(), 1);
+    let output = GpuImage::new(&gpu, ImageDescriptor::rgba(64, 32)).unwrap();
+    let mut renderer = PaintRenderer::new(gpu.clone()).unwrap();
+    renderer
+        .render(
+            &list,
+            &registry,
+            &output.view,
+            output.descriptor.format,
+            (64, 32),
+            1.,
+            [0.; 4],
+        )
+        .unwrap();
+    let mut capture = ReadbackTicket::capture(&gpu, output).unwrap();
+    gpu.device
+        .poll(wgpu::PollType::Wait {
+            submission_index: None,
+            timeout: Some(std::time::Duration::from_secs(30)),
+        })
+        .unwrap();
+    let capture = capture.try_finish(&gpu).unwrap().unwrap();
+    let pixel = |x: usize, y: usize| &capture.pixels()[(y * 64 + x) * 4..(y * 64 + x + 1) * 4];
+    assert_eq!(pixel(24, 24), [0, 0, 255, 255], "repeat X must clamp Y");
+    assert_eq!(pixel(56, 24), [0, 255, 0, 255], "repeat Y must clamp X");
+}

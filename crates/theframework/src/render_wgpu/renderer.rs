@@ -69,10 +69,7 @@ pub struct PaintRenderer {
     layout: wgpu::BindGroupLayout,
     pipeline_layout: wgpu::PipelineLayout,
     shader: wgpu::ShaderModule,
-    linear: wgpu::Sampler,
-    nearest: wgpu::Sampler,
-    repeat_nearest: wgpu::Sampler,
-    repeat_linear: wgpu::Sampler,
+    samplers: HashMap<Sampling, wgpu::Sampler>,
     white: Arc<GpuImage>,
     empty_field: wgpu::Buffer,
     pipelines: HashMap<wgpu::TextureFormat, Arc<Pipelines>>,
@@ -139,15 +136,34 @@ impl PaintRenderer {
                 label: Some("ui-paint-shader"),
                 source: wgpu::ShaderSource::Wgsl(include_str!("paint.wgsl").into()),
             });
-        let sampler = |filter, address_mode| {
-            context.device.create_sampler(&wgpu::SamplerDescriptor {
-                address_mode_u: address_mode,
-                address_mode_v: address_mode,
-                mag_filter: filter,
-                min_filter: filter,
-                ..Default::default()
-            })
+        use wgpu::{
+            AddressMode::{ClampToEdge as C, Repeat as R},
+            FilterMode::{Linear as L, Nearest as N},
         };
+        let samplers = [
+            (Sampling::Nearest, N, C, C),
+            (Sampling::Linear, L, C, C),
+            (Sampling::RepeatNearest, N, R, R),
+            (Sampling::RepeatLinear, L, R, R),
+            (Sampling::RepeatNearestX, N, R, C),
+            (Sampling::RepeatNearestY, N, C, R),
+            (Sampling::RepeatLinearX, L, R, C),
+            (Sampling::RepeatLinearY, L, C, R),
+        ]
+        .into_iter()
+        .map(|(mode, filter, u, v)| {
+            (
+                mode,
+                context.device.create_sampler(&wgpu::SamplerDescriptor {
+                    address_mode_u: u,
+                    address_mode_v: v,
+                    mag_filter: filter,
+                    min_filter: filter,
+                    ..Default::default()
+                }),
+            )
+        })
+        .collect();
         let white = GpuImage::new(&context, ImageDescriptor::rgba(1, 1))?;
         context.queue.write_texture(
             wgpu::TexelCopyTextureInfo {
@@ -173,10 +189,7 @@ impl PaintRenderer {
             });
         Ok(Self {
             empty_field,
-            linear: sampler(wgpu::FilterMode::Linear, wgpu::AddressMode::ClampToEdge),
-            nearest: sampler(wgpu::FilterMode::Nearest, wgpu::AddressMode::ClampToEdge),
-            repeat_linear: sampler(wgpu::FilterMode::Linear, wgpu::AddressMode::Repeat),
-            repeat_nearest: sampler(wgpu::FilterMode::Nearest, wgpu::AddressMode::Repeat),
+            samplers,
             context,
             layout,
             pipeline_layout,
@@ -340,12 +353,7 @@ impl PaintRenderer {
                 usage: wgpu::BufferUsages::UNIFORM,
             });
         let texture = image.map_or(&*self.white, |(image, _)| image);
-        let sampler = match image.map(|(_, s)| s).unwrap_or(Sampling::Linear) {
-            Sampling::Nearest => &self.nearest,
-            Sampling::Linear => &self.linear,
-            Sampling::RepeatNearest => &self.repeat_nearest,
-            Sampling::RepeatLinear => &self.repeat_linear,
-        };
+        let sampler = &self.samplers[&image.map(|(_, s)| s).unwrap_or(Sampling::Linear)];
         let field_data = field.map(|(f, _)| distance_data(f));
         let field_buffer = field_data.as_ref().filter(|v| !v.is_empty()).map(|data| {
             self.context
@@ -453,6 +461,28 @@ impl PaintRenderer {
                             level,
                             0,
                             Some((field, [rect.x, rect.y])),
+                        ));
+                    }
+                }
+                PaintOp::ImageMesh {
+                    vertices,
+                    indices,
+                    image,
+                    sampling,
+                    tint,
+                } => {
+                    if !indices.is_empty() {
+                        let image = images.get(*image).ok_or_else(|| {
+                            RenderError("paint references a stale image handle".into())
+                        })?;
+                        let vertices = mesh::textured(vertices, transform, density);
+                        draws.push(self.draw(
+                            self.geometry(&vertices, indices),
+                            &Brush::Solid(*tint),
+                            Some((&image, *sampling)),
+                            size,
+                            level,
+                            0,
                         ));
                     }
                 }

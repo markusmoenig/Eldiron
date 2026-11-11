@@ -56,3 +56,10 @@ CPU output/upscale buffers. Resolution reduction preserves logical 2D framing.
 It suspends zero-sized views. Text and isometric game presentation are currently
 explicit unsupported paths here, pending their dedicated command/sprite adapters;
 there is no implicit raster fallback.
+
+`ScreenPainter::unlit_scene` transfers prepared 2D batches to backend-neutral
+textured meshes. It preserves authored UVs, transforms, concave triangulation,
+per-axis repeating and time-major spatial pages; page boundaries clip geometry
+in UV space. It does not use the software rasterizer or allocate projected
+pixel/depth output. Lit/3D scenes and line primitives currently require dedicated
+scene/path adapters and are explicitly rejected by this method.

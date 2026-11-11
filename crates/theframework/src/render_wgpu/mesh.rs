@@ -188,3 +188,19 @@ pub fn colored(vertices: &[PaintVertex], t: Transform, density: f32) -> Vec<Vert
         })
         .collect()
 }
+
+/// Textured triangles use the same physical transform as quads and glyphs.
+pub fn textured(vertices: &[ImageVertex], transform: Transform, density: f32) -> Vec<Vertex> {
+    vertices
+        .iter()
+        .map(|v| {
+            let p = transform.point(v.position);
+            Vertex {
+                position: [p[0] * density, p[1] * density],
+                local: v.position,
+                uv: v.uv,
+                color: [1.; 4],
+            }
+        })
+        .collect()
+}
