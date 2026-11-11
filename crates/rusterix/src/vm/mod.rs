@@ -232,6 +232,105 @@ mod tests {
     }
 
     #[test]
+    fn compiled_numeric_arguments_keep_type_provenance_out_of_actual_string_payloads() {
+        #[derive(Default)]
+        struct Collector(Vec<VMValue>);
+        impl HostHandler for Collector {
+            fn on_host_call(&mut self, _: &str, args: &[VMValue]) -> Option<VMValue> {
+                self.0.push(args[0].clone());
+                Some(VMValue::zero())
+            }
+        }
+        let mut vm = VM::default();
+        vm.register_host_function("capture", 1).unwrap();
+        let program=vm.prepare_str(r#"capture(0); capture(2); capture(false); capture(vec2(1,2)); capture(vec3(3,4,5)); capture("float");"#).unwrap();
+        let mut host = Collector::default();
+        Execution::new(program.globals).execute_host(&program.body, &program, &mut host);
+        assert_eq!(host.0.len(), 6);
+        for value in &host.0[..5] {
+            assert!(value.as_string().is_none(), "{value:?}");
+        }
+        assert_eq!(host.0[0].to_value(), crate::value::Value::Float(0.));
+        assert_eq!(
+            host.0[1].to_value_with_hint(None),
+            crate::value::Value::Float(2.)
+        );
+        assert_eq!(
+            host.0[2].to_value_with_hint(None),
+            crate::value::Value::Bool(false)
+        );
+        assert!(!host.0[2].is_truthy());
+        assert_eq!(host.0[2].to_string(), "false");
+        assert_eq!(
+            host.0[3].to_value_with_hint(None),
+            crate::value::Value::Vec2([1., 2.])
+        );
+        assert_eq!(
+            host.0[4].to_value_with_hint(None),
+            crate::value::Value::Vec3([3., 4., 5.])
+        );
+        assert_eq!(host.0[5].as_string(), Some("float"));
+        assert_eq!(
+            host.0[5].to_value(),
+            crate::value::Value::Str("float".into())
+        );
+        assert_eq!(host.0[5].to_string(), "float");
+        assert_eq!(host.0[1], VMValue::from_f32(2.));
+        for word in ["float", "bool", "int", "vec2", "vec3", "string"] {
+            let text = VMValue::from_string(word);
+            assert_eq!(
+                text.to_value_with_hint(None),
+                crate::value::Value::Str(word.into())
+            );
+            assert_eq!(
+                text.to_value_with_hint(Some(&crate::value::Value::Str(String::new()))),
+                crate::value::Value::Str(word.into())
+            );
+        }
+        assert_eq!(
+            VMValue::from_string("bool:true").to_value_with_hint(None),
+            crate::value::Value::Bool(true)
+        );
+    }
+    #[test]
+    fn program_component_and_string_writes_discard_literal_provenance_before_host_conversion() {
+        #[derive(Default)]
+        struct Collector(Vec<VMValue>);
+        impl HostHandler for Collector {
+            fn on_host_call(&mut self, _: &str, args: &[VMValue]) -> Option<VMValue> {
+                self.0.push(args[0].clone());
+                Some(VMValue::zero())
+            }
+        }
+        let mut vm = VM::default();
+        vm.register_host_function("capture", 1).unwrap();
+        let program = vm.prepare_str(r#"let v = vec2(1,2); v.y = 3; capture(v); let b = false; b.x = 2; capture(b); let t = vec2(1,2); t.string = "message"; capture(t); t.string = 0; capture(t);"#).unwrap();
+        let mut host = Collector::default();
+        Execution::new(program.globals).execute_host(&program.body, &program, &mut host);
+        assert_eq!(host.0.len(), 4);
+        assert_eq!(
+            host.0[0].to_value_with_hint(None),
+            crate::value::Value::Vec3([1., 3., 0.])
+        );
+        assert_eq!(
+            host.0[1].to_value_with_hint(None),
+            crate::value::Value::Vec3([2., 0., 0.])
+        );
+        assert_eq!(host.0[2].as_string(), Some("message"));
+        assert_eq!(
+            host.0[3].to_value_with_hint(None),
+            crate::value::Value::Vec3([1., 2., 0.])
+        );
+    }
+    #[test]
+    fn actual_strings_named_after_numeric_types_remain_text_when_concatenated() {
+        let mut vm = VM::default();
+        let result = vm
+            .execute_string(r#""float" + "vec2";"#.into(), &ThePalette::default())
+            .unwrap();
+        assert_eq!(result.as_string(), Some("floatvec2"));
+    }
+    #[test]
     fn host_function_registration_rejects_invalid_or_duplicate_names() {
         let mut script = VM::default();
         assert!(script.register_host_function("editor.action", 1).is_err());

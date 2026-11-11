@@ -118,8 +118,16 @@ mod tests {
 
     #[test]
     fn eldrin_rejects_non_string_editor_action_arguments() {
-        let error =
-            collect_editor_automation_requests(r#"editor_action("face.extrude", 2);"#).unwrap_err();
-        assert!(error.contains("TOML string"));
+        for source in [
+            r#"editor_action("face.extrude", 2);"#,
+            r#"editor_action("face.extrude", 0);"#,
+            r#"editor_action("face.extrude", false);"#,
+            r#"editor_action("face.extrude", vec2(0,0));"#,
+        ] {
+            let error = collect_editor_automation_requests(source).unwrap_err();
+            assert!(error.contains("TOML string"), "{error}");
+        }
+        let error = collect_editor_automation_requests("editor_tool(0);").unwrap_err();
+        assert!(error.contains("command id must be a string"));
     }
 }

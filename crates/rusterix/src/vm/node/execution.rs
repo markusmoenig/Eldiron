@@ -1,4 +1,5 @@
 use super::hosthandler::HostHandler;
+use crate::vm::value::NumericType;
 use crate::vm::{NodeOp, Program, VMValue};
 use rustc_hash::FxHashMap;
 
@@ -117,7 +118,7 @@ impl Execution {
             NodeOp::SetComponents(swizzle) => {
                 let value = self.stack.pop().unwrap();
                 let mut target = self.stack.pop().unwrap();
-                target.string = None;
+                target.replace_string_payload(None);
 
                 let components = match swizzle.len() {
                     1 => vec![value.x],
@@ -216,14 +217,14 @@ impl Execution {
                 let y = self.stack.pop().unwrap();
                 let x = self.stack.pop().unwrap();
                 self.stack
-                    .push(VMValue::new_with_string(x.x, y.x, 0.0, "vec2"));
+                    .push(VMValue::typed_numeric(x.x, y.x, 0.0, NumericType::Vec2));
             }
             NodeOp::Pack3 => {
                 let z = self.stack.pop().unwrap();
                 let y = self.stack.pop().unwrap();
                 let x = self.stack.pop().unwrap();
                 self.stack
-                    .push(VMValue::new_with_string(x.x, y.x, z.x, "vec3"));
+                    .push(VMValue::typed_numeric(x.x, y.x, z.x, NumericType::Vec3));
             }
             NodeOp::Dup => {
                 if let Some(top) = self.stack.last() {
@@ -640,7 +641,7 @@ impl Execution {
             }
             NodeOp::SetString => {
                 if let (Some(new_str), Some(mut target)) = (self.stack.pop(), self.stack.pop()) {
-                    target.string = new_str.as_string().map(|s| s.to_string());
+                    target.replace_string_payload(new_str.as_string().map(|s| s.to_string()));
                     self.stack.push(target);
                 }
             }

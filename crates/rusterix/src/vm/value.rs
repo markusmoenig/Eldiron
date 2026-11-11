@@ -2,12 +2,29 @@ use crate::value::Value;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 use vek::Vec3;
 
-#[derive(Clone, Debug, PartialEq)]
+/// Numeric provenance used by host-value conversion, separate from real text.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum NumericType {
+    Bool,
+    Float,
+    Vec2,
+    Vec3,
+}
+
+#[derive(Clone, Debug)]
 pub struct VMValue {
     pub x: f32,
     pub y: f32,
     pub z: f32,
     pub string: Option<String>,
+    numeric_hint: Option<NumericType>,
+}
+// Numeric annotations affect host conversion, not the VM's component/payload
+// equality. Keep ordinary unannotated host values comparable with literals.
+impl PartialEq for VMValue {
+    fn eq(&self, other: &Self) -> bool {
+        self.x == other.x && self.y == other.y && self.z == other.z && self.string == other.string
+    }
 }
 
 impl VMValue {
@@ -17,9 +34,34 @@ impl VMValue {
             y,
             z,
             string: None,
+            numeric_hint: None,
         }
     }
 
+    pub(super) fn typed_numeric(x: f32, y: f32, z: f32, kind: NumericType) -> Self {
+        Self {
+            numeric_hint: Some(kind),
+            ..Self::new(x, y, z)
+        }
+    }
+    /// Program mutations used to discard the inline literal type marker.
+    /// Preserve that conversion behavior when replacing/clearing its payload.
+    pub(super) fn replace_string_payload(&mut self, text: Option<String>) {
+        self.string = text;
+        self.numeric_hint = None;
+    }
+    fn numeric_value(&self) -> Option<Value> {
+        // Attaching an explicit semantic text payload still takes precedence.
+        if self.string.is_some() {
+            return None;
+        }
+        Some(match self.numeric_hint? {
+            NumericType::Bool => Value::Bool(self.to_bool()),
+            NumericType::Float => Value::Float(self.x),
+            NumericType::Vec2 => Value::Vec2([self.x, self.y]),
+            NumericType::Vec3 => Value::Vec3([self.x, self.y, self.z]),
+        })
+    }
     /// Construct with numeric components and an optional string payload.
     pub fn new_with_string<S: Into<String>>(x: f32, y: f32, z: f32, s: S) -> Self {
         Self {
@@ -27,6 +69,7 @@ impl VMValue {
             y,
             z,
             string: Some(s.into()),
+            numeric_hint: None,
         }
     }
 
@@ -36,6 +79,7 @@ impl VMValue {
             y: v,
             z: v,
             string: None,
+            numeric_hint: None,
         }
     }
 
@@ -70,6 +114,7 @@ impl VMValue {
             y: v.y,
             z: v.z,
             string: None,
+            numeric_hint: None,
         }
     }
 
@@ -83,6 +128,7 @@ impl VMValue {
             y: 0.0,
             z: 0.0,
             string: Some(s.into()),
+            numeric_hint: None,
         }
     }
 
@@ -110,6 +156,8 @@ impl VMValue {
     pub fn to_value(&self) -> Value {
         if let Some(s) = self.as_string() {
             Value::Str(s.to_string())
+        } else if let Some(value) = self.numeric_value() {
+            value
         } else if self.x == self.y && self.x == self.z {
             Value::Float(self.x)
         } else {
@@ -117,28 +165,19 @@ impl VMValue {
         }
     }
 
-    /// Convert into a Value using an optional type hint and/or inline string tag (e.g. "bool").
+    /// Convert using numeric provenance, an explicit legacy tag (bool:true),
+    /// or the host property's supplied type/coercion hint.
     pub fn to_value_with_hint(&self, hint: Option<&Value>) -> Value {
-        // String payload can act as an explicit type hint.
+        // Retain the explicit legacy value encoding (for example bool:true).
+        // Bare words such as "float" are ordinary string payloads, not tags.
         if let Some(s) = self.as_string() {
-            let s_trim = s.trim();
-            // Support legacy tagged strings like "bool:true"
-            if let Some(tagged) = Self::from_type_tagged_str(s_trim) {
+            if let Some(tagged) = Self::from_type_tagged_str(s.trim()) {
                 return tagged;
             }
-            match s_trim.to_ascii_lowercase().as_str() {
-                "bool" => return Value::Bool(self.to_bool()),
-                "int" => return Value::Int(self.x as i32),
-                "uint" => return Value::UInt(self.x.max(0.0) as u32),
-                "i64" | "int64" => return Value::Int64(self.x as i64),
-                "float" | "f32" => return Value::Float(self.x),
-                "vec2" => return Value::Vec2([self.x, self.y]),
-                "vec3" => return Value::Vec3([self.x, self.y, self.z]),
-                "str" | "string" => {
-                    return Value::Str(Self::to_string_lossy_components(self.x, self.y, self.z));
-                }
-                _ => {}
-            }
+        }
+
+        if let Some(value) = self.numeric_value() {
+            return value;
         }
 
         match hint {
@@ -209,28 +248,6 @@ impl VMValue {
         }
     }
 
-    fn is_type_hint_str(s: &str) -> bool {
-        matches!(
-            s.trim().to_ascii_lowercase().as_str(),
-            "bool"
-                | "int"
-                | "uint"
-                | "i64"
-                | "int64"
-                | "float"
-                | "f32"
-                | "vec2"
-                | "vec3"
-                | "vec4"
-                | "str"
-                | "string"
-        )
-    }
-
-    fn non_hint_string(s: Option<String>) -> Option<String> {
-        s.filter(|value| !Self::is_type_hint_str(value))
-    }
-
     fn from_type_tagged_str(s: &str) -> Option<Value> {
         let (tag, rest) = s.split_once(':')?;
         let tag = tag.trim().to_ascii_lowercase();
@@ -293,31 +310,10 @@ impl VMValue {
 impl std::fmt::Display for VMValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if let Some(s) = &self.string {
-            let tag = s.trim();
-            let tag_l = tag.to_ascii_lowercase();
-
-            if let Some(val) = Self::from_type_tagged_str(tag) {
-                return write!(f, "{}", format_value_brief(&val));
-            }
-
-            return match tag_l.as_str() {
-                "bool" => write!(f, "{}", self.to_bool()),
-                "int" => write!(f, "{}", self.x as i32),
-                "uint" => write!(f, "{}", self.x.max(0.0) as u32),
-                "i64" | "int64" => write!(f, "{}", self.x as i64),
-                "float" | "f32" => write!(f, "{}", self.x),
-                "vec2" => write!(f, "[{}, {}]", self.x, self.y),
-                "vec3" => write!(f, "[{}, {}, {}]", self.x, self.y, self.z),
-                "vec4" => write!(f, "[{}, {}, {}, 0]", self.x, self.y, self.z),
-                "str" | "string" => {
-                    write!(
-                        f,
-                        "{}",
-                        Self::to_string_lossy_components(self.x, self.y, self.z)
-                    )
-                }
-                _ => write!(f, "{}", s),
-            };
+            return write!(f, "{s}");
+        }
+        if let Some(value) = self.numeric_value() {
+            return write!(f, "{}", format_value_brief(&value));
         }
 
         if self.x == self.y && self.x == self.z {
@@ -349,10 +345,7 @@ impl Add for VMValue {
     fn add(self, rhs: VMValue) -> Self::Output {
         let (ax, ay, az) = (self.x, self.y, self.z);
         let (bx, by, bz) = (rhs.x, rhs.y, rhs.z);
-        match (
-            VMValue::non_hint_string(self.string),
-            VMValue::non_hint_string(rhs.string),
-        ) {
+        match (self.string, rhs.string) {
             (Some(a), Some(b)) => VMValue::from_string(format!("{a}{b}")),
             (Some(a), None) => {
                 let b_str = VMValue::to_string_lossy_components(bx, by, bz);

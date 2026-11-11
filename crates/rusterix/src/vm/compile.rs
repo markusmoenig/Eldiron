@@ -1,4 +1,5 @@
 use super::objectd::FunctionD;
+use super::value::NumericType;
 use super::{
     ASTValue, AssignmentOperator, BinaryOperator, ComparisonOperator, Context, Environment,
     EqualityOperator, Expr, Location, LogicalOperator, Module, NodeOp, RuntimeError, Stmt,
@@ -574,13 +575,18 @@ impl Visitor for CompileVisitor {
         match &value {
             ASTValue::Boolean(b) => {
                 ctx.emit(NodeOp::Push(if *b {
-                    VMValue::new_with_string(1.0, 1.0, 1.0, "bool")
+                    VMValue::typed_numeric(1.0, 1.0, 1.0, NumericType::Bool)
                 } else {
-                    VMValue::new_with_string(0.0, 0.0, 0.0, "bool")
+                    VMValue::typed_numeric(0.0, 0.0, 0.0, NumericType::Bool)
                 }));
             }
             ASTValue::Float(f) => {
-                ctx.emit(NodeOp::Push(VMValue::new_with_string(*f, *f, *f, "float")));
+                ctx.emit(NodeOp::Push(VMValue::typed_numeric(
+                    *f,
+                    *f,
+                    *f,
+                    NumericType::Float,
+                )));
             }
             ASTValue::Float2(x, y) => {
                 _ = x.accept(self, ctx)?.to_float().unwrap_or_default();
