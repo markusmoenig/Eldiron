@@ -7,8 +7,9 @@ Upstream VCS revision: `65fd4ad705deabc89b732cf7e8de9245466a2450`.
 Upstream Apache-2.0 / MIT licenses are retained.
 
 The dictionary production change is confined to `src/analysis/mod.rs`; its diff
-is in `eldiron-complex-segmentation.patch`. The additional editing API adapter
-below is isolated in `eldiron-editor-selection.patch` for review/rebasing.
+is in `eldiron-complex-segmentation.patch`. The additional editing API adapters
+below are isolated in `eldiron-editor-selection.patch` and
+`eldiron-editor-glyph-clusters.patch` for review/rebasing.
 
 A test-only `eldiron-segmentation-tests` feature in the manifest/lib harness
 isolates the self-contained dictionary contract test. The published package's
@@ -55,3 +56,23 @@ scoped upstream dictionary test command above still covers only analysis data.
 Remove these API extensions when an upstream public API provides equivalent
 selection restoration/mapping. No font rasterizer, glyph generation or shaping
 algorithm is replaced.
+
+## Paint-only editor glyph colors
+
+`GlyphRun::positioned_glyphs_with_clusters` in `src/layout/line.rs` exposes the
+existing fully positioned glyph iterator with each glyph's original UTF-8
+cluster range. It uses exactly the same visual-cluster traversal, style slice,
+offset and baseline as `positioned_glyphs`; shaping and line breaking are
+unchanged. Its isolated diff is `eldiron-editor-glyph-clusters.patch`.
+
+The framework uses these ranges to recolor already shaped glyphs for native
+code-editor syntax/diagnostics. It never lays out a second highlighted version
+for painting, so editing carets, bidi order, preedit, wrapping and glyph positions
+stay aligned. A paint span intersecting part of one shaped cluster colors that
+cluster as a unit. Overlap resolution honors the last span and uses normalized
+intervals/binary lookup rather than scanning every syntax token for every glyph.
+Framework text-only and headless GPU tests cover position/identity preservation,
+overlapping colors, composition, cache reuse and actual colored output. Replace
+this extension when an upstream public API supplies equivalent cluster-addressed
+positioned glyph iteration. Upstream's full unpublished fixture suite is still
+not claimed as passed.

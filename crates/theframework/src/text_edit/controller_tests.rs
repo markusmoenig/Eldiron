@@ -622,3 +622,78 @@ fn gesture_edits_commit_one_undo_record_and_blur_cancels_without_destroying_redo
     assert_eq!(editor.text(), "2");
     assert!(!editor.undo(&mut fonts), "drag samples form one undo unit");
 }
+
+#[test]
+fn paint_only_syntax_colors_preserve_shaped_positions_bidi_carets_and_preedit_runs() {
+    let (mut fonts, mut editor) =
+        fixture(true, "office العربية e\u{301} 東京\nlet title = \"test\";");
+    editor.select_bytes(&mut fonts, 2, 2);
+    let caret = editor.caret(&mut fonts);
+    let builds = editor.snapshots_built();
+    let spans = vec![
+        crate::text::TextStyleSpan {
+            range: 0..6,
+            color: [1., 0., 0., 1.],
+        },
+        crate::text::TextStyleSpan {
+            range: 1..3,
+            color: [0., 1., 0., 1.],
+        },
+        crate::text::TextStyleSpan {
+            range: 7..21,
+            color: [0., 0., 1., 1.],
+        },
+    ];
+    for preedit in [false, true] {
+        if preedit {
+            editor.input(
+                &mut fonts,
+                &InputEvent::Composition {
+                    text: "仮".into(),
+                    cursor: None,
+                },
+            );
+        }
+        let layout = editor.layout(&mut fonts);
+        let original = layout
+            .runs
+            .iter()
+            .flat_map(|r| {
+                r.glyphs
+                    .iter()
+                    .map(move |g| (r.font.identity, r.size, g.id, g.position, g.advance))
+            })
+            .collect::<Vec<_>>();
+        let painted = layout.colorized_runs(&spans);
+        let colored = painted
+            .iter()
+            .flat_map(|(r, _)| {
+                r.glyphs
+                    .iter()
+                    .map(move |g| (r.font.identity, r.size, g.id, g.position, g.advance))
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(colored, original);
+        assert!(
+            painted
+                .iter()
+                .any(|(_, color)| *color == Some([0., 1., 0., 1.]))
+        );
+    }
+    editor.input(
+        &mut fonts,
+        &InputEvent::Composition {
+            text: String::new(),
+            cursor: None,
+        },
+    );
+    assert_eq!(editor.caret(&mut fonts), caret);
+    let after = editor.snapshots_built();
+    assert!(after > builds);
+    editor.layout(&mut fonts).colorized_runs(&spans);
+    assert_eq!(
+        editor.snapshots_built(),
+        after,
+        "paint colors do not reshape the editor"
+    );
+}

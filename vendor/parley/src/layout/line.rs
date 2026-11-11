@@ -231,6 +231,30 @@ impl<'a, B: Brush> GlyphRun<'a, B> {
             .take(self.glyph_count)
     }
 
+    /// Returns fully positioned glyphs with their original UTF-8 cluster ranges.
+    /// This preserves existing shaping/line breaking when clients add paint-only
+    /// syntax or diagnostic colors, including bidi and style-split runs.
+    pub fn positioned_glyphs_with_clusters(
+        &'a self,
+    ) -> impl Iterator<Item = (Glyph, Range<usize>)> + 'a + Clone {
+        let mut offset = self.offset;
+        let baseline = self.baseline;
+        self.run
+            .visual_clusters()
+            .flat_map(|cluster| {
+                let range = cluster.text_range();
+                cluster.glyphs().map(move |glyph| (glyph, range.clone()))
+            })
+            .skip(self.glyph_start)
+            .take(self.glyph_count)
+            .map(move |(mut glyph, range)| {
+                glyph.x += offset;
+                glyph.y += baseline;
+                offset += glyph.advance;
+                (glyph, range)
+            })
+    }
+
     /// Returns an iterator over the fully positioned glyphs in the run.
     pub fn positioned_glyphs(&'a self) -> impl Iterator<Item = Glyph> + 'a + Clone {
         let mut offset = self.offset;

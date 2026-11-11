@@ -4,9 +4,26 @@ use super::{EditorController, EditorResponse};
 use crate::{
     paint::{Color, PaintList, PaintOp, Rect, Transform},
     platform::{InputEvent, Modifiers, PhysicalKey, PointerButton},
-    text::{TextOptions, TextSystem},
+    text::{TextLine, TextOptions, TextStyleSpan, TextSystem},
 };
 
+use std::sync::Arc;
+/// Immutable paint-only document annotations. Byte ranges address the displayed
+/// text snapshot; they do not replace shaping, editing selection or IME state.
+#[derive(Clone, Default)]
+pub struct EditorDecorations {
+    pub foreground: Vec<TextStyleSpan>,
+    pub backgrounds: Vec<TextStyleSpan>,
+    pub underlines: Vec<TextStyleSpan>,
+    pub line_backgrounds: Vec<TextStyleSpan>,
+    pub whitespace: Option<Color>,
+}
+struct DecorationCache {
+    snapshot: u64,
+    source: Arc<EditorDecorations>,
+    runs: Vec<(Arc<crate::paint::GlyphRun>, Option<Color>)>,
+    whitespace: Vec<Rect>,
+}
 #[derive(Clone, Copy)]
 pub struct EditorColors {
     pub text: Color,
@@ -34,6 +51,7 @@ pub struct EditorView {
     dragging: bool,
     modifiers: Modifiers,
     center_y: bool,
+    decorations: Option<DecorationCache>,
 }
 impl EditorView {
     pub fn new(multiline: bool) -> Self {
@@ -45,6 +63,7 @@ impl EditorView {
             dragging: false,
             modifiers: Modifiers::default(),
             center_y: false,
+            decorations: None,
         }
     }
     pub fn bounds(&self) -> Rect {
@@ -87,6 +106,17 @@ impl EditorView {
         {
             self.reveal_caret(fonts);
         }
+    }
+    pub fn set_scroll(&mut self, fonts: &mut TextSystem, position: [f32; 2]) {
+        self.scroll = position.map(|v| if v.is_finite() { v.max(0.) } else { 0. });
+        self.clamp_scroll(fonts);
+    }
+    pub fn visible_lines(&mut self, fonts: &mut TextSystem) -> Vec<(usize, TextLine)> {
+        let origin = self.origin(fonts);
+        let top = self.bounds.y - origin[1];
+        self.editor
+            .layout(fonts)
+            .visible_lines(top, top + self.bounds.height)
     }
     fn origin(&mut self, fonts: &mut TextSystem) -> [f32; 2] {
         let height = self.editor.layout(fonts).height();
@@ -295,28 +325,135 @@ impl EditorView {
         colors: EditorColors,
         caret_visible: bool,
     ) {
+        self.paint_inner(fonts, list, colors, caret_visible, None);
+    }
+    pub fn paint_decorated(
+        &mut self,
+        fonts: &mut TextSystem,
+        list: &mut PaintList,
+        colors: EditorColors,
+        caret_visible: bool,
+        decorations: &Arc<EditorDecorations>,
+    ) {
+        self.paint_inner(fonts, list, colors, caret_visible, Some(decorations));
+    }
+    fn paint_inner(
+        &mut self,
+        fonts: &mut TextSystem,
+        list: &mut PaintList,
+        colors: EditorColors,
+        caret_visible: bool,
+        decorations: Option<&Arc<EditorDecorations>>,
+    ) {
         if self.bounds.width <= 0. || self.bounds.height <= 0. {
             return;
         }
         let origin = self.origin(fonts);
+        let top = self.bounds.y - origin[1];
+        let bottom = top + self.bounds.height;
+        if let Some(source) = decorations {
+            let snapshot = self.editor.snapshots_built();
+            if self
+                .decorations
+                .as_ref()
+                .is_none_or(|old| old.snapshot != snapshot || !Arc::ptr_eq(&old.source, source))
+            {
+                let layout = self.editor.layout(fonts);
+                let runs = layout.colorized_runs(&source.foreground);
+                let whitespace = if source.whitespace.is_some() {
+                    layout
+                        .source
+                        .char_indices()
+                        .filter(|(_, c)| *c == ' ')
+                        .map(|(index, _)| {
+                            let caret = layout.caret(index);
+                            Rect::new(caret.x + 2., caret.y + caret.height * 0.6, 1., 1.)
+                        })
+                        .collect()
+                } else {
+                    Vec::new()
+                };
+                self.decorations = Some(DecorationCache {
+                    snapshot,
+                    source: source.clone(),
+                    runs,
+                    whitespace,
+                });
+            }
+        } else {
+            self.decorations = None;
+        }
         list.ops.push(PaintOp::PushClip(self.bounds));
         list.ops.push(PaintOp::PushTransform(Transform::translate(
             origin[0], origin[1],
         )));
+        if let Some(source) = decorations {
+            let layout = self.editor.layout(fonts);
+            for (_, line) in layout.visible_lines(top, bottom) {
+                for span in &source.line_backgrounds {
+                    if span.range.start == line.range.start
+                        || (span.range.start < line.range.end && span.range.end > line.range.start)
+                    {
+                        list.rect(
+                            Rect::new(
+                                0.,
+                                line.top,
+                                self.bounds.width.max(layout.full_width()),
+                                line.bottom - line.top,
+                            ),
+                            0.,
+                            span.color,
+                        );
+                    }
+                }
+            }
+            for span in &source.backgrounds {
+                for rect in layout.selection(span.range.start, span.range.end) {
+                    list.rect(rect, 0., span.color);
+                }
+            }
+        }
         if self.editor.is_focused() {
             for rect in self.editor.selection(fonts) {
                 list.rect(rect, 0., colors.selection);
             }
         }
-        for run in &self.editor.layout(fonts).runs {
-            list.ops.push(PaintOp::GlyphRun {
-                run: run.clone(),
-                origin: [0.; 2],
-                color: colors.text,
-            });
+        if let Some(cache) = &self.decorations {
+            for (run, color) in &cache.runs {
+                list.ops.push(PaintOp::GlyphRun {
+                    run: run.clone(),
+                    origin: [0.; 2],
+                    color: color.unwrap_or(colors.text),
+                });
+            }
+            if let Some(color) = cache.source.whitespace {
+                for rect in &cache.whitespace {
+                    if rect.y < bottom && rect.y + rect.height > top {
+                        list.rect(*rect, 0., color);
+                    }
+                }
+            }
+        } else {
+            for run in &self.editor.layout(fonts).runs {
+                list.ops.push(PaintOp::GlyphRun {
+                    run: run.clone(),
+                    origin: [0.; 2],
+                    color: colors.text,
+                });
+            }
         }
-        let top = self.bounds.y - origin[1];
-        let bottom = top + self.bounds.height;
+        if let Some(source) = decorations {
+            let layout = self.editor.layout(fonts);
+            for span in &source.underlines {
+                for rect in layout.selection(span.range.start, span.range.end) {
+                    list.rect(
+                        Rect::new(rect.x, rect.y + rect.height - 1., rect.width, 1.),
+                        0.,
+                        span.color,
+                    );
+                }
+            }
+        }
         let underline = self.bounds.height.min(1.);
         for rect in self.editor.composition_geometry(fonts) {
             if rect.y >= bottom || rect.y + rect.height <= top {
@@ -573,4 +710,130 @@ fn repeated_prepare_keeps_user_scrollback_until_caret_moves() {
     }
     view.input(&mut fonts, &InputEvent::Text("!".into()));
     assert!(view.scroll()[1] > 0.);
+}
+
+#[cfg(test)]
+mod decoration_tests {
+    use super::*;
+    fn fixture() -> (TextSystem, EditorView) {
+        let mut fonts = TextSystem::default();
+        fonts.register_font(include_bytes!("../../embedded/fonts/Roboto-Bold.ttf").to_vec());
+        let mut view = EditorView::new(true);
+        view.editor.set_text(
+            &mut fonts,
+            "let title = \"Eldiron\";\n// العربية e\u{301}\n",
+        );
+        view.prepare(
+            &mut fonts,
+            TextOptions {
+                family: "Roboto",
+                size: 18.,
+                width: None,
+                line_height: Some(24.),
+            },
+            Rect::new(16., 16., 360., 96.),
+            false,
+        );
+        (fonts, view)
+    }
+    #[test]
+    fn decorations_reuse_shaped_runs_and_do_not_move_selection_or_rebuild_layout() {
+        let (mut fonts, mut view) = fixture();
+        view.set_focused(&mut fonts, true);
+        view.editor.select_bytes(&mut fonts, 4, 9);
+        let selection = view.editor.selection_bytes();
+        let caret = view.editor.caret(&mut fonts);
+        let builds = view.editor.snapshots_built();
+        let mut decorations = Arc::new(EditorDecorations {
+            foreground: vec![TextStyleSpan {
+                range: 0..3,
+                color: [0., 0.5, 1., 1.],
+            }],
+            backgrounds: vec![TextStyleSpan {
+                range: 4..9,
+                color: [0.2, 0.4, 0.8, 0.5],
+            }],
+            underlines: vec![TextStyleSpan {
+                range: 12..21,
+                color: [1., 0., 0., 1.],
+            }],
+            line_backgrounds: vec![TextStyleSpan {
+                range: 22..40,
+                color: [0.2, 0., 0., 0.5],
+            }],
+            whitespace: Some([0.5; 4]),
+        });
+        let paint =
+            |view: &mut EditorView, fonts: &mut TextSystem, styles: &Arc<EditorDecorations>| {
+                let mut list = PaintList::default();
+                view.paint_decorated(fonts, &mut list, EditorColors::default(), true, styles);
+                list.validate().unwrap();
+                list
+            };
+        let first = paint(&mut view, &mut fonts, &decorations);
+        let second = paint(&mut view, &mut fonts, &decorations);
+        let glyphs = |list: &PaintList| {
+            list.ops
+                .iter()
+                .filter_map(|op| {
+                    if let PaintOp::GlyphRun { run, .. } = op {
+                        Some(run.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>()
+        };
+        let before = glyphs(&first);
+        let after = glyphs(&second);
+        assert_eq!(before.len(), after.len());
+        assert!(
+            before.iter().zip(&after).all(|(a, b)| Arc::ptr_eq(a, b)),
+            "unchanged decorations keep their immutable glyph runs"
+        );
+        Arc::make_mut(&mut decorations).foreground[0].color = [0., 1., 0., 1.];
+        let third = paint(&mut view, &mut fonts, &decorations);
+        assert!(
+            third
+                .ops
+                .iter()
+                .any(|op| matches!(op,PaintOp::GlyphRun { color,.. } if *color == [0.,1.,0.,1.]))
+        );
+        assert_eq!(view.editor.snapshots_built(), builds);
+        assert_eq!(view.editor.selection_bytes(), selection);
+        assert_eq!(view.editor.caret(&mut fonts), caret);
+    }
+    #[test]
+    fn indexed_visible_lines_skip_a_large_document_prefix_and_follow_explicit_scroll() {
+        let (mut fonts, mut view) = fixture();
+        let source = (0..2000)
+            .map(|index| format!("line {index}\n"))
+            .collect::<String>();
+        view.editor.set_text(&mut fonts, &source);
+        view.prepare(
+            &mut fonts,
+            TextOptions {
+                family: "Roboto",
+                size: 18.,
+                width: None,
+                line_height: Some(24.),
+            },
+            Rect::new(16., 16., 360., 48.),
+            false,
+        );
+        let builds = view.editor.snapshots_built();
+        view.set_scroll(&mut fonts, [0., 24_000.]);
+        let visible = view.visible_lines(&mut fonts);
+        assert!(!visible.is_empty() && visible.len() <= 3);
+        assert!(visible[0].0 >= 999);
+        for (index, line) in visible {
+            assert!(source[line.range.clone()].starts_with(&format!("line {index}")));
+            assert!(line.top < 24_048. && line.bottom > 24_000.);
+        }
+        assert_eq!(
+            view.editor.snapshots_built(),
+            builds,
+            "scrolling does not reshape the document"
+        );
+    }
 }

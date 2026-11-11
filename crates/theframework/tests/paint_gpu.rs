@@ -472,3 +472,137 @@ fn native_editor_viewports_blit_selection_preedit_and_retained_glyphs() {
         .write_image_data(result.pixels())
         .unwrap();
 }
+
+#[test]
+#[ignore = "requires native GPU; run with --ignored"]
+fn decorated_editor_reuses_swash_glyphs_and_paints_native_syntax_and_diagnostics() {
+    use std::sync::Arc;
+    use theframework::{
+        text::{TextOptions, TextStyleSpan},
+        text_edit::{EditorColors, EditorDecorations, EditorView},
+    };
+    let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let images = ImageRegistry::new(gpu.clone());
+    let target = GpuImage::new(&gpu, ImageDescriptor::rgba(800, 280)).unwrap();
+    let mut renderer = PaintRenderer::new(gpu.clone()).unwrap();
+    let mut fonts = TextSystem::default();
+    fonts.register_font(include_bytes!("../embedded/fonts/SourceCodePro-Bold.ttf").to_vec());
+    let mut editor = EditorView::new(true);
+    let source = "let title = \"Eldiron\";\n// العربية 東京 e\u{301}\n";
+    editor.editor.set_text(&mut fonts, source);
+    editor.prepare(
+        &mut fonts,
+        TextOptions {
+            family: "Source Code Pro",
+            size: 18.,
+            width: None,
+            line_height: Some(28.),
+        },
+        Rect::new(16., 16., 368., 108.),
+        false,
+    );
+    let decorations = Arc::new(EditorDecorations {
+        foreground: vec![
+            TextStyleSpan {
+                range: 0..3,
+                color: [0.2, 0.6, 1., 1.],
+            },
+            TextStyleSpan {
+                range: 12..21,
+                color: [0.3, 0.9, 0.5, 1.],
+            },
+        ],
+        backgrounds: vec![TextStyleSpan {
+            range: 4..9,
+            color: [0.3, 0.5, 0.7, 0.4],
+        }],
+        underlines: vec![TextStyleSpan {
+            range: 4..9,
+            color: [1., 0.2, 0.2, 1.],
+        }],
+        line_backgrounds: vec![TextStyleSpan {
+            range: 22..source.len(),
+            color: [0.15, 0.1, 0.1, 1.],
+        }],
+        whitespace: Some([0.4, 0.4, 0.4, 1.]),
+    });
+    let mut steady = None;
+    let builds = editor.editor.snapshots_built();
+    for decorated in [false, true, true] {
+        let mut list = PaintList::default();
+        list.rect(Rect::new(0., 0., 400., 140.), 0., [0.05, 0.05, 0.05, 1.]);
+        if decorated {
+            editor.paint_decorated(
+                &mut fonts,
+                &mut list,
+                EditorColors::default(),
+                false,
+                &decorations,
+            );
+        } else {
+            editor.paint(&mut fonts, &mut list, EditorColors::default(), false);
+        }
+        list.validate().unwrap();
+        renderer
+            .render(
+                &list,
+                &images,
+                &target.view,
+                target.descriptor.format,
+                (800, 280),
+                2.,
+                [0.; 4],
+            )
+            .unwrap();
+        let now = (
+            gpu.transfers().uploaded_bytes,
+            renderer.glyphs.rasterizations,
+        );
+        if let Some(before) = steady {
+            assert_eq!(
+                now, before,
+                "syntax and diagnostic colors reuse the original glyph atlas"
+            );
+        }
+        steady = Some(now);
+        assert_eq!(gpu.transfers().readback_bytes, 0);
+    }
+    assert_eq!(editor.editor.snapshots_built(), builds);
+    let mut capture = ReadbackTicket::capture(&gpu, target).unwrap();
+    gpu.device
+        .poll(wgpu::PollType::Wait {
+            submission_index: None,
+            timeout: Some(std::time::Duration::from_secs(30)),
+        })
+        .unwrap();
+    let pixels = capture.try_finish(&gpu).unwrap().unwrap();
+    assert!(
+        pixels
+            .pixels()
+            .chunks_exact(4)
+            .filter(|p| p[2] > 180 && p[0] < 100)
+            .count()
+            > 10,
+        "syntax blue must reach the GPU target"
+    );
+    assert!(
+        pixels
+            .pixels()
+            .chunks_exact(4)
+            .filter(|p| p[0] > 200 && p[1] < 100 && p[2] < 100)
+            .count()
+            > 10,
+        "diagnostic underline must reach the GPU target"
+    );
+    let mut png = png::Encoder::new(
+        std::fs::File::create("/private/tmp/eldiron-decorated-editor.png").unwrap(),
+        800,
+        280,
+    );
+    png.set_color(png::ColorType::Rgba);
+    png.set_depth(png::BitDepth::Eight);
+    png.write_header()
+        .unwrap()
+        .write_image_data(pixels.pixels())
+        .unwrap();
+}

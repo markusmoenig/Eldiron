@@ -25,6 +25,7 @@ pub struct TextOptions<'a> {
     pub width: Option<f32>,
     pub line_height: Option<f32>,
 }
+#[derive(Clone, Debug, PartialEq)]
 pub struct TextStyleSpan {
     pub range: std::ops::Range<usize>,
     pub color: crate::paint::Color,
@@ -43,6 +44,63 @@ pub struct TextLayout {
     pub source: Arc<str>,
 }
 impl TextLayout {
+    /// Paint-only colors preserve every original glyph position, line break and
+    /// editing caret. A style crossing part of a shaped cluster colors that
+    /// cluster as a unit; later overlapping spans take precedence.
+    pub fn colorized_runs(
+        &self,
+        styles: &[TextStyleSpan],
+    ) -> Vec<(Arc<GlyphRun>, Option<crate::paint::Color>)> {
+        if styles.is_empty() {
+            return self.styled_runs.clone();
+        }
+        let spans = color_intervals(styles, self.source.len());
+        let mut source = self.styled_runs.iter();
+        let mut colored = Vec::new();
+        for line in self.layout.lines() {
+            for item in line.items() {
+                let PositionedLayoutItem::GlyphRun(positioned) = item else {
+                    continue;
+                };
+                let (run, original) = source.next().expect("snapshot/layout glyph run identity");
+                let mut groups: Vec<(Vec<Glyph>, Option<crate::paint::Color>)> = Vec::new();
+                for (index, (_, range)) in positioned.positioned_glyphs_with_clusters().enumerate()
+                {
+                    let start = spans.partition_point(|(r, _)| r.end <= range.start);
+                    let color = spans[start..]
+                        .iter()
+                        .take_while(|(r, _)| r.start < range.end)
+                        .map(|(_, index)| *index)
+                        .max()
+                        .map(|index| styles[index].color)
+                        .or(*original);
+                    if let Some((glyphs, previous)) =
+                        groups.last_mut().filter(|(_, previous)| *previous == color)
+                    {
+                        glyphs.push(run.glyphs[index]);
+                    } else {
+                        groups.push((vec![run.glyphs[index]], color));
+                    }
+                }
+                if groups.len() == 1 {
+                    colored.push((run.clone(), groups[0].1));
+                } else {
+                    for (glyphs, color) in groups {
+                        colored.push((
+                            Arc::new(GlyphRun {
+                                font: run.font.clone(),
+                                size: run.size,
+                                variations: run.variations.clone(),
+                                glyphs: Arc::from(glyphs),
+                            }),
+                            color,
+                        ));
+                    }
+                }
+            }
+        }
+        colored
+    }
     pub fn width(&self) -> f32 {
         self.layout.width()
     }
@@ -65,6 +123,41 @@ impl TextLayout {
                     baseline: m.baseline,
                     advance: m.advance,
                 }
+            })
+            .collect()
+    }
+    /// Indexed visual lines intersecting a viewport. Binary search skips the
+    /// document prefix without allocating metadata for every off-screen line.
+    pub fn visible_lines(&self, top: f32, bottom: f32) -> Vec<(usize, TextLine)> {
+        if !top.is_finite() || !bottom.is_finite() || top >= bottom {
+            return Vec::new();
+        }
+        let mut low = 0;
+        let mut high = self.layout.len();
+        while low < high {
+            let mid = low + (high - low) / 2;
+            if self.layout.get(mid).unwrap().metrics().block_max_coord <= top {
+                low = mid + 1;
+            } else {
+                high = mid;
+            }
+        }
+        (low..self.layout.len())
+            .map_while(|index| {
+                let line = self.layout.get(index)?;
+                let m = line.metrics();
+                (m.block_min_coord < bottom).then(|| {
+                    (
+                        index,
+                        TextLine {
+                            range: line.text_range(),
+                            top: m.block_min_coord,
+                            bottom: m.block_max_coord,
+                            baseline: m.baseline,
+                            advance: m.advance,
+                        },
+                    )
+                })
             })
             .collect()
     }
@@ -98,6 +191,38 @@ impl TextLayout {
             (r.y1 - r.y0) as f32,
         )
     }
+}
+fn color_intervals(
+    styles: &[TextStyleSpan],
+    length: usize,
+) -> Vec<(std::ops::Range<usize>, usize)> {
+    let mut events = Vec::with_capacity(styles.len() * 2);
+    for (index, style) in styles.iter().enumerate() {
+        let start = style.range.start.min(length);
+        let end = style.range.end.min(length);
+        if start < end {
+            events.push((start, true, index));
+            events.push((end, false, index));
+        }
+    }
+    events.sort_unstable();
+    let mut active = std::collections::BTreeSet::new();
+    let mut result = Vec::new();
+    let mut previous = 0;
+    for (position, begin, index) in events {
+        if previous < position {
+            if let Some(index) = active.last().copied() {
+                result.push((previous..position, index));
+            }
+            previous = position;
+        }
+        if begin {
+            active.insert(index);
+        } else {
+            active.remove(&index);
+        }
+    }
+    result
 }
 pub struct TextSystem {
     owner: u64,
