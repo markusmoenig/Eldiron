@@ -1,6 +1,5 @@
 #[cfg(feature = "paint")]
 pub mod paint;
-#[cfg(all(feature = "text", feature = "ui"))]
 pub mod platform;
 #[cfg(feature = "ui")]
 pub mod platform_services;
@@ -8,6 +7,7 @@ pub mod platform_services;
 pub mod render_wgpu;
 #[cfg(feature = "text")]
 pub mod text;
+pub mod text_edit;
 pub mod theapp;
 pub mod thecolor;
 pub mod thecontext;
