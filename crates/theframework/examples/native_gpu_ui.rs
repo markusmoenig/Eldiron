@@ -40,6 +40,19 @@ impl GpuApplication for Demo {
             .paint(images)
             .map_err(|e| renderkit::RenderError(e.to_string()))?;
         assert!(ui.ui.canvas.buffer.pixels().is_empty());
+        if self.smoke {
+            for name in ["heading", "run"] {
+                let dim = *ui.ui.get_widget(name).unwrap().dim();
+                eprintln!(
+                    "native widget {name}: {dim:?}; logical {}x{}",
+                    ui.context.width, ui.context.height
+                );
+                assert!(
+                    dim.width > 0 && dim.height > 0,
+                    "native host must lay out every demo widget"
+                );
+            }
+        }
         self.frames += 1;
         if self.smoke {
             eprintln!(

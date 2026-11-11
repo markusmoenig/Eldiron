@@ -2,6 +2,7 @@ use crate::prelude::*;
 
 pub struct TheCanvas {
     pub uuid: Uuid,
+    layout_dirty: bool,
     pub limiter: TheSizeLimiter,
 
     /// The relative offset to the parent canvas
@@ -35,6 +36,9 @@ impl Default for TheCanvas {
 impl TheCanvas {
     #[cfg(feature = "render-wgpu")]
     pub fn prepare_paint(&mut self, ctx: &mut TheContext) {
+        if self.layout_dirty {
+            self.set_dim(self.dim, ctx);
+        }
         if !self.buffer.pixels().is_empty() {
             self.buffer = TheRGBABuffer::empty();
             *self.buffer.dim_mut() = self.dim;
@@ -114,6 +118,7 @@ impl TheCanvas {
     pub fn new() -> Self {
         Self {
             uuid: Uuid::new_v4(),
+            layout_dirty: true,
             limiter: TheSizeLimiter::new(),
 
             offset: Vec2::zero(),
@@ -139,7 +144,8 @@ impl TheCanvas {
 
     /// Set the dimension of the canvas
     pub fn set_dim(&mut self, dim: TheDim, ctx: &mut TheContext) {
-        if dim != self.dim || ctx.ui.relayout {
+        if dim != self.dim || ctx.ui.relayout || self.layout_dirty {
+            self.layout_dirty = false;
             self.dim = dim;
             if ctx.ui.gpu_paint {
                 *self.buffer.dim_mut() = self.dim;
@@ -187,41 +193,48 @@ impl TheCanvas {
     /// Sets the widget.
     pub fn set_widget<T: TheWidget + 'static>(&mut self, widget: T) {
         self.widget = Some(Box::new(widget));
+        self.layout_dirty = true;
     }
 
     /// Sets the layout.
     pub fn set_layout<T: TheLayout + 'static>(&mut self, layout: T) {
         self.layout = Some(Box::new(layout));
+        self.layout_dirty = true;
     }
 
     /// Sets the canvas to the left of this canvas.
     pub fn set_left(&mut self, canvas: TheCanvas) {
         self.left = Some(Box::new(canvas));
+        self.layout_dirty = true;
     }
 
     /// Sets the canvas to the top of this canvas.
     pub fn set_top(&mut self, canvas: TheCanvas) {
         self.top = Some(Box::new(canvas));
+        self.layout_dirty = true;
     }
 
     /// Sets the canvas to the right of this canvas.
     pub fn set_right(&mut self, canvas: TheCanvas) {
         self.right = Some(Box::new(canvas));
+        self.layout_dirty = true;
     }
 
     /// Sets the canvas to the bottom of this canvas.
     pub fn set_bottom(&mut self, canvas: TheCanvas) {
         self.bottom = Some(Box::new(canvas));
+        self.layout_dirty = true;
     }
 
     /// Sets the canvas in the center of this canvas.
     pub fn set_center(&mut self, canvas: TheCanvas) {
         self.center = Some(Box::new(canvas));
+        self.layout_dirty = true;
     }
 
     /// Resize the canvas if needed
     pub fn resize(&mut self, width: i32, height: i32, ctx: &mut TheContext) -> bool {
-        if width != self.dim.width || height != self.dim.height {
+        if width != self.dim.width || height != self.dim.height || self.layout_dirty {
             self.set_dim(TheDim::new(self.dim.x, self.dim.y, width, height), ctx);
             true
         } else {
@@ -581,6 +594,9 @@ impl TheCanvas {
 
     /// Draw the canvas
     pub fn draw(&mut self, style: &mut Box<dyn TheStyle>, ctx: &mut TheContext) {
+        if self.layout_dirty {
+            self.set_dim(self.dim, ctx);
+        }
         if self.buffer.set_render_scale(ctx.ui_render_scale) {
             ctx.ui.redraw_all = true;
         }
@@ -667,18 +683,22 @@ impl TheCanvas {
 
     /// Returns true if any widget or layout attached to this canvas (or its children) needs a redraw.
     pub fn needs_redraw(&mut self) -> bool {
-        if let Some(widget) = &mut self.widget {
-            if widget.needs_redraw() {
-                return true;
+        if self.layout_dirty {
+            return true;
+        }
+        if self.center.is_none() {
+            if let Some(widget) = &mut self.widget {
+                if widget.needs_redraw() {
+                    return true;
+                }
+            }
+
+            if let Some(layout) = &mut self.layout {
+                if layout.needs_redraw() {
+                    return true;
+                }
             }
         }
-
-        if let Some(layout) = &mut self.layout {
-            if layout.needs_redraw() {
-                return true;
-            }
-        }
-
         if let Some(left) = &mut self.left {
             if left.needs_redraw() {
                 return true;

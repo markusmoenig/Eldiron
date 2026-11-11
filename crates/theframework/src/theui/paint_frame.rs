@@ -3,6 +3,18 @@ use super::*;
 use crate::paint::{PaintList, PaintOp, Rect};
 
 impl TheUI {
+    pub fn needs_gpu_redraw(&mut self, ctx: &TheContext) -> bool {
+        self.is_dirty
+            || ctx.ui.redraw_all
+            || ctx.ui.relayout
+            || self.canvas.needs_redraw()
+            || self.dialog.as_mut().is_some_and(|c| c.needs_redraw())
+            || self
+                .popover
+                .as_mut()
+                .is_some_and(|p| p.canvas.needs_redraw())
+    }
+
     pub fn prepare_gpu_geometry(&mut self, ctx: &mut TheContext) {
         if !ctx.ui.gpu_paint {
             ctx.ui.gpu_paint = true;

@@ -26,6 +26,7 @@ struct Host {
     proxy: EventLoopProxy<HostEvent>,
     epoch: u64,
     initialized: bool,
+    resume_pending: bool,
     pending: bool,
     suspended: bool,
     occluded: bool,
@@ -69,6 +70,9 @@ impl Host {
         wasm_bindgen_futures::spawn_local(initialize);
     }
     fn route(&mut self, event: InputEvent) {
+        if !self.initialized {
+            return;
+        }
         let response = self.app.input(&event, &mut self.ui);
         self.dirty |= response.redraw;
     }
@@ -158,14 +162,20 @@ impl ApplicationHandler<HostEvent> for Host {
         if let Some(window) = &self.window {
             self.resize(window.inner_size());
         }
-        self.app.resumed(&mut self.ui);
+        self.resume_pending = true;
+        if self.initialized && self.presenter.is_some() {
+            self.app.resumed(&mut self.ui);
+            self.resume_pending = false;
+        }
         self.dirty = true;
         self.next_update = Instant::now();
     }
     fn suspended(&mut self, _: &ActiveEventLoop) {
         self.suspended = true;
         self.route(InputEvent::Focus(false));
-        self.app.suspended(&mut self.ui);
+        if self.initialized {
+            self.app.suspended(&mut self.ui);
+        }
         self.presenter = None;
         self.pending = false;
         self.epoch += 1;
@@ -192,6 +202,11 @@ impl ApplicationHandler<HostEvent> for Host {
                             return;
                         }
                         self.initialized = true;
+                        self.ui.context.ui.relayout = true;
+                        if self.resume_pending {
+                            self.app.resumed(&mut self.ui);
+                            self.resume_pending = false;
+                        }
                         if let Some(window) = &self.window {
                             let size = window.inner_size();
                             presenter.surface.resize(size.width, size.height);
@@ -378,7 +393,7 @@ impl ApplicationHandler<HostEvent> for Host {
             crate::platform_services::service_files(&mut self.ui.context.ui);
             let request = self.app.update(&mut self.ui, now - self.last_update);
             self.last_update = now;
-            self.dirty |= request.redraw || self.ui.context.ui.redraw_all || self.ui.ui.is_dirty;
+            self.dirty |= request.redraw || self.ui.ui.needs_gpu_redraw(&self.ui.context);
             // UI requesters, tooltip deadlines and editing timers remain responsive.
             self.next_update = now
                 + request
@@ -396,12 +411,17 @@ impl ApplicationHandler<HostEvent> for Host {
                 }
             }
         }
-        if self.dirty && !self.occluded && now >= self.next_present {
+        let can_present = !self.occluded
+            && self.presenter.as_ref().is_some_and(|p| {
+                let size = p.surface.physical_size();
+                size.0 > 0 && size.1 > 0
+            });
+        if self.dirty && can_present && now >= self.next_present {
             if let Some(window) = &self.window {
                 window.request_redraw();
             }
         }
-        event_loop.set_control_flow(ControlFlow::WaitUntil(if self.dirty && !self.occluded {
+        event_loop.set_control_flow(ControlFlow::WaitUntil(if self.dirty && can_present {
             self.next_update
                 .min(self.next_present.max(now + Duration::from_millis(1)))
         } else {
@@ -508,6 +528,7 @@ pub fn run(app: Box<dyn GpuApplication>) -> Result<()> {
         proxy,
         epoch: 0,
         initialized: false,
+        resume_pending: true,
         pending: false,
         suspended: false,
         occluded: false,

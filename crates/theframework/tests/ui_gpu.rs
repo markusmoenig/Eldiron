@@ -400,3 +400,28 @@ fn shared_ui_presenter_draws_into_a_foreign_metal_layer() {
     drop(presenter);
     drop(layer);
 }
+#[test]
+fn installing_layout_after_initial_resize_measures_children() {
+    use theframework::platform::UiSession;
+    let mut session = UiSession::new((640, 400), 1.);
+    // Browser/native hosts can receive size information before application data.
+    session.ui.prepare_gpu_geometry(&mut session.context);
+    let mut layout = TheVLayout::new(TheId::named("late-layout"));
+    let mut label = TheText::new(TheId::named("late-label"));
+    label.set_text("Installed after resize".into());
+    layout.widgets().push(Box::new(label));
+    session.ui.canvas.set_layout(layout);
+    session.ui.prepare_gpu_geometry(&mut session.context);
+    let dim = *session.ui.get_widget("late-label").unwrap().dim();
+    assert!(dim.width > 0 && dim.height > 0);
+    assert!(session.ui.canvas.buffer.pixels().is_empty());
+    let mut replacement = TheVLayout::new(TheId::named("replacement-layout"));
+    replacement
+        .widgets()
+        .push(Box::new(TheTraybarButton::new(TheId::named("replacement"))));
+    session.ui.canvas.set_layout(replacement);
+    assert!(session.ui.needs_gpu_redraw(&session.context));
+    session.ui.prepare_gpu_geometry(&mut session.context);
+    let dim = *session.ui.get_widget("replacement").unwrap().dim();
+    assert!(dim.width > 0 && dim.height > 0);
+}
