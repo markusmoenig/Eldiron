@@ -943,6 +943,16 @@ impl Server {
         }
     }
 
+    /// Registration is asynchronous. Scope readiness to this server's regions
+    /// rather than treating a submitted CreateEntity command as an acknowledgement.
+    pub fn has_local_player(&self) -> bool {
+        LOCAL_PLAYERS.read().is_ok_and(|players| {
+            players
+                .iter()
+                .any(|(region, _)| self.region_id_map.values().any(|owned| owned == region))
+        })
+    }
+
     /// Send a local player action to the registered players
     pub fn local_player_action(&mut self, action: EntityAction) {
         if let Ok(local_players) = LOCAL_PLAYERS.read() {

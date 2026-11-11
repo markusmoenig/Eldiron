@@ -9,7 +9,7 @@ use rusterix::{
     EntityAction, Value,
     client::{action::ClientAction, command::ClientCommandBinding},
 };
-use std::time::Duration;
+use std::{collections::VecDeque, time::Duration};
 use toml::Table;
 
 #[derive(Clone, Debug)]
@@ -101,6 +101,7 @@ pub struct PlayerSession {
     pub runtime: GameSession,
     pub settings: PlayerSettings,
     controls: ClientAction,
+    pending_actions: VecDeque<EntityAction>,
 }
 impl PlayerSession {
     pub fn new(project: Project, debug: bool) -> Result<Self, String> {
@@ -117,6 +118,7 @@ impl PlayerSession {
             runtime,
             settings,
             controls: ClientAction::default(),
+            pending_actions: VecDeque::new(),
         })
     }
     pub fn auto_start(&mut self, showing_game: bool) -> Result<PlayerTransition, String> {
@@ -192,7 +194,41 @@ impl PlayerSession {
             .ok_or_else(|| format!("Unknown screen command '{command}'"))
     }
     pub fn advance(&mut self, elapsed: Duration) -> SessionUpdate {
-        self.runtime.advance(elapsed)
+        let update = self.runtime.advance(elapsed);
+        if self.runtime.server.has_local_player() {
+            for action in self.pending_actions.drain(..) {
+                self.runtime.action(action);
+            }
+        }
+        update
+    }
+    /// Keep startup input until the region acknowledges local registration.
+    /// Consecutive movement states collapse so a release during startup cannot
+    /// later replay stale held movement. One-shot commands retain order.
+    pub fn submit_action(&mut self, action: EntityAction) -> Result<(), String> {
+        if !self.runtime.has_started_player() {
+            return Ok(());
+        }
+        if self.runtime.server.has_local_player() {
+            for pending in self.pending_actions.drain(..) {
+                self.runtime.action(pending);
+            }
+            self.runtime.action(action);
+            return Ok(());
+        }
+        if movement_state(&action) && self.pending_actions.back().is_some_and(movement_state) {
+            self.pending_actions.pop_back();
+        }
+        if self.pending_actions.len() >= 256 {
+            return Err(
+                "Player registration has not completed; startup input queue is full".into(),
+            );
+        }
+        self.pending_actions.push_back(action);
+        Ok(())
+    }
+    pub fn pending_action_count(&self) -> usize {
+        self.pending_actions.len()
     }
     pub fn binding_for_key(&self, key: &str) -> Option<ClientCommandBinding> {
         self.controls.binding_for_key(key)
@@ -219,6 +255,23 @@ impl PlayerSession {
     }
 }
 
+fn movement_state(action: &EntityAction) -> bool {
+    matches!(
+        action,
+        EntityAction::Off
+            | EntityAction::Left
+            | EntityAction::Right
+            | EntityAction::Forward
+            | EntityAction::Backward
+            | EntityAction::StrafeLeft
+            | EntityAction::StrafeRight
+            | EntityAction::ForwardLeft
+            | EntityAction::ForwardRight
+            | EntityAction::BackwardLeft
+            | EntityAction::BackwardRight
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -243,6 +296,7 @@ fn control_focus_release_keeps_bindings_and_does_not_emit_ui_or_intent_commands(
         runtime: GameSession::new(Project::new()),
         settings: PlayerSettings::parse("").unwrap(),
         controls: ClientAction::default(),
+        pending_actions: VecDeque::new(),
     };
     state.controls.set_input_data(
         "[input]\nw='forward'\na='strafe_left'\ni='ui.inventory'\nf='intent.attack'",
@@ -289,6 +343,12 @@ fn real_starter_defers_menu_registration_and_starts_once_with_shared_runtime() {
             .is_some_and(|p| !p.template.is_empty())
     );
     assert_eq!(transition.screen.as_deref(), Some("Play"));
+    state.submit_action(EntityAction::Forward).unwrap();
+    state.submit_action(EntityAction::Off).unwrap();
+    state.submit_action(EntityAction::LookYaw(0.5)).unwrap();
+    assert_eq!(state.pending_action_count(), 2);
+    assert_eq!(state.pending_actions.front(), Some(&EntityAction::Off));
+
     assert!(
         state
             .game_command("start", &mut bindings)
@@ -303,6 +363,7 @@ fn real_starter_defers_menu_registration_and_starts_once_with_shared_runtime() {
     let deadline = Instant::now() + Duration::from_secs(10);
     loop {
         state.runtime.tick_once();
+        state.advance(Duration::ZERO);
         if state.runtime.view().map.is_some_and(|m| {
             m.entities
                 .iter()
@@ -318,6 +379,8 @@ fn real_starter_defers_menu_registration_and_starts_once_with_shared_runtime() {
         std::thread::sleep(Duration::from_millis(5));
     }
     assert!(state.runtime.has_started_player());
+    assert!(state.runtime.server.has_local_player());
+    assert_eq!(state.pending_action_count(), 0);
     assert!(
         state
             .runtime

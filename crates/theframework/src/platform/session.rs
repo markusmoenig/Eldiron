@@ -8,6 +8,8 @@ use std::sync::Arc;
 pub enum HostRequest {
     Exit,
     Title(String),
+    ClipboardRead { request: u64 },
+    ClipboardWrite { text: String, request: Option<u64> },
 }
 /// Host metrics and requested platform state survive surface/device replacement.
 /// Logical positions use floating-point precision; density is applied once by

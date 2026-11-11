@@ -1050,3 +1050,206 @@ fn semantic_camera_and_carried_item_effects_keep_view_and_runtime_requests_expli
         PlayerCamera::D2
     );
 }
+
+#[test]
+fn screen_router_has_one_capture_owner_and_commits_only_matching_button_releases() {
+    use theframework::platform::*;
+    let session = fixture(false);
+    let mut fonts = GameFonts::default();
+    let mut screen = GameScreenController::from_screen("Main", &session.view(), layout()).unwrap();
+    screen
+        .prepare(&session.view(), &mut fonts, ContentRevision(1), 0)
+        .unwrap();
+    let pointer = |position, pressed| InputEvent::PointerButton {
+        button: PointerButton::Primary,
+        pressed,
+        position,
+    };
+    let down = screen
+        .input(&session.view(), &mut fonts, &pointer([30., 200.], true))
+        .unwrap();
+    assert!(down.input.consumed && down.cancel_controls && down.effects.is_empty());
+    assert_eq!(screen.pressed_button, Some(2));
+    // Dragging over the name field does not focus or edit it.
+    assert!(
+        screen
+            .input(
+                &session.view(),
+                &mut fonts,
+                &InputEvent::PointerMoved {
+                    position: [240., 200.]
+                }
+            )
+            .unwrap()
+            .input
+            .consumed
+    );
+    let up = screen
+        .input(&session.view(), &mut fonts, &pointer([240., 200.], false))
+        .unwrap();
+    assert!(up.input.consumed && up.effects.is_empty());
+    assert_eq!(screen.focused_input, None);
+    screen
+        .input(&session.view(), &mut fonts, &pointer([30., 200.], true))
+        .unwrap();
+    let click = screen
+        .input(&session.view(), &mut fonts, &pointer([30., 200.], false))
+        .unwrap();
+    assert_eq!(
+        click.effects,
+        vec![eldiron_presentation::ScreenEffect::Command(
+            rusterix::client::command::ClientCommandBinding::Game("start".into())
+        )]
+    );
+    assert!(
+        screen
+            .input(&session.view(), &mut fonts, &pointer([30., 200.], false))
+            .unwrap()
+            .effects
+            .is_empty()
+    );
+    // Captured text selection can leave the field and cross a button without
+    // generating a button activation or moving input to the game.
+    assert!(
+        screen
+            .input(&session.view(), &mut fonts, &pointer([240., 200.], true))
+            .unwrap()
+            .cancel_controls
+    );
+    screen
+        .input(
+            &session.view(),
+            &mut fonts,
+            &InputEvent::PointerMoved {
+                position: [30., 200.],
+            },
+        )
+        .unwrap();
+    let field_up = screen
+        .input(&session.view(), &mut fonts, &pointer([30., 200.], false))
+        .unwrap();
+    assert!(field_up.input.consumed && field_up.effects.is_empty());
+    assert_eq!(screen.focused_input, Some(3));
+    // Blurring cancels both a text composition and any held button capture.
+    screen
+        .input(
+            &session.view(),
+            &mut fonts,
+            &InputEvent::Composition {
+                text: "仮".into(),
+                cursor: Some((0, 3)),
+            },
+        )
+        .unwrap();
+    let name = screen.elements.ui_state["start.name"].clone();
+    let blur = screen
+        .input(&session.view(), &mut fonts, &InputEvent::Focus(false))
+        .unwrap();
+    assert!(blur.cancel_controls);
+    assert_eq!(screen.focused_input, None);
+    assert_eq!(screen.elements.ui_state["start.name"], name);
+    screen
+        .input(&session.view(), &mut fonts, &pointer([30., 200.], true))
+        .unwrap();
+    screen
+        .input(&session.view(), &mut fonts, &InputEvent::Focus(false))
+        .unwrap();
+    assert!(
+        screen
+            .input(&session.view(), &mut fonts, &pointer([30., 200.], false))
+            .unwrap()
+            .effects
+            .is_empty()
+    );
+    assert_eq!(screen.pressed_button, None);
+}
+
+#[test]
+fn screen_router_matches_paint_stacking_and_consumes_modal_outside_releases() {
+    use theframework::platform::*;
+    let session = fixture(false);
+    let mut fonts = GameFonts::default();
+    let mut screen = GameScreenController::from_screen("Main", &session.view(), layout()).unwrap();
+    // Buttons paint over fields; the same overlap must go to the button.
+    screen.elements.button_widgets.get_mut(&2).unwrap().rect =
+        screen.elements.text_input_widgets[&3].rect;
+    use rusterix::client::widget::choice::{ChoiceWidget, ChoiceWidgetKind};
+    let choice = ChoiceWidget::from_ui(
+        "Classes".into(),
+        30,
+        Rect::new(200., 120., 180., 32.),
+        ChoiceWidgetKind::Dropdown,
+        &"bind='class'\noptions=['Warrior','Mage']".parse().unwrap(),
+    )
+    .unwrap();
+    screen.elements.choice_widgets.insert(30, choice);
+    screen
+        .prepare(&session.view(), &mut fonts, ContentRevision(1), 0)
+        .unwrap();
+    let pointer = |position, pressed| InputEvent::PointerButton {
+        button: PointerButton::Primary,
+        pressed,
+        position,
+    };
+    screen
+        .input(&session.view(), &mut fonts, &pointer([240., 200.], true))
+        .unwrap();
+    assert_eq!(screen.focused_input, None);
+    assert_eq!(screen.pressed_button, Some(2));
+    screen
+        .input(&session.view(), &mut fonts, &pointer([240., 200.], false))
+        .unwrap();
+    screen
+        .input(&session.view(), &mut fonts, &pointer([220., 140.], true))
+        .unwrap();
+    screen
+        .input(&session.view(), &mut fonts, &pointer([220., 140.], false))
+        .unwrap();
+    assert_eq!(screen.choice_controller.open_id(), Some(30));
+    let outside = screen
+        .input(&session.view(), &mut fonts, &pointer([240., 200.], true))
+        .unwrap();
+    assert!(outside.input.consumed && outside.effects.is_empty());
+    let release = screen
+        .input(&session.view(), &mut fonts, &pointer([240., 200.], false))
+        .unwrap();
+    assert!(release.input.consumed && release.effects.is_empty());
+    assert_eq!(screen.pressed_button, None);
+    assert_eq!(screen.focused_input, None);
+}
+
+#[test]
+fn native_control_button_moves_while_held_and_stops_on_outside_release() {
+    use theframework::platform::*;
+    let session = fixture(false);
+    let mut fonts = GameFonts::default();
+    let mut screen = GameScreenController::from_screen("Main", &session.view(), layout()).unwrap();
+    screen.elements.button_widgets.get_mut(&2).unwrap().command = Some("control.forward".into());
+    screen
+        .prepare(&session.view(), &mut fonts, ContentRevision(1), 0)
+        .unwrap();
+    let pointer = |position, pressed| InputEvent::PointerButton {
+        button: PointerButton::Primary,
+        pressed,
+        position,
+    };
+    let down = screen
+        .input(&session.view(), &mut fonts, &pointer([30., 200.], true))
+        .unwrap();
+    assert_eq!(
+        down.effects,
+        vec![eldiron_presentation::ScreenEffect::Action(
+            rusterix::EntityAction::Forward
+        )]
+    );
+    let up = screen
+        .input(&session.view(), &mut fonts, &pointer([-100., -100.], false))
+        .unwrap();
+    assert_eq!(
+        up.effects,
+        vec![eldiron_presentation::ScreenEffect::Action(
+            rusterix::EntityAction::Off
+        )]
+    );
+    assert_eq!(screen.pressed_button, None);
+}

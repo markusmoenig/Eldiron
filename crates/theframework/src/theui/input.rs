@@ -176,7 +176,8 @@ impl TheUI {
             }
             InputEvent::RelativeMotion { .. }
             | InputEvent::Focus(true)
-            | InputEvent::FileDropped(_) => {}
+            | InputEvent::FileDropped(_)
+            | InputEvent::Clipboard { .. } => {}
         }
         result
     }

@@ -632,3 +632,6 @@ pub unsafe extern "C" fn unified_app_runner_redo_description(
 ))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn unified_app_runner_free_string(_str_ptr: *const u8, _str_len: usize) {}
+
+#[cfg(feature = "native-player")]
+pub mod native_player;

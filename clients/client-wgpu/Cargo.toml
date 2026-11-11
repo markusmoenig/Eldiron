@@ -16,7 +16,18 @@ path = "src/main.rs"
 name = "scenevm_unified_app"
 crate-type = ["rlib", "staticlib"]
 
+[features]
+native-player = ["dep:eldiron-presentation", "dep:theframework", "dep:renderkit"]
+native-window = ["native-player", "theframework/platform-winit"]
+
+[[example]]
+name = "native_player"
+required-features = ["native-window"]
+
 [dependencies]
+eldiron-presentation = {path="../../crates/presentation", optional=true}
+theframework = {path="../../crates/theframework", default-features=false, features=["render-wgpu"], optional=true}
+renderkit = {path="../../crates/renderkit", optional=true}
 eldiron-runtime = { path = "../../crates/runtime" }
 rustc-hash = "2"
 scenevm = { workspace = true, default-features = true }
@@ -28,3 +39,7 @@ toml = "0.9.5"
 instant = { version = "0.1", features = ["wasm-bindgen"] }
 vek = "0.17"
 uuid = { version = "1.18", features = ["v4"] }
+
+[dev-dependencies]
+futures = "0.3"
+png = "0.18"

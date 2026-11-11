@@ -96,6 +96,7 @@ impl GameScreenController {
         widget.text = view.editor.text().to_owned();
         let (binding, text) = (widget.binding.clone(), widget.text.clone());
         self.elements.set_binding(&binding, &text);
+        self.geometry = None;
     }
     /// Route text fields before world/game controls. `prepare` supplies current
     /// hit geometry. Pointer positions and returned IME area are logical units.

@@ -28,10 +28,7 @@ pub enum EditorClipboard {
     Write { text: String, cut: Option<u64> },
     Read { request: u64 },
 }
-pub enum ClipboardResult {
-    Written(bool),
-    Text(Option<String>),
-}
+pub use crate::platform::ClipboardResult;
 struct PendingClipboard {
     request: u64,
     cut: bool,

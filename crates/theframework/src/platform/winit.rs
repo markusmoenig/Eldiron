@@ -15,8 +15,15 @@ use renderkit::{RenderError, Result, SurfaceState};
 use std::sync::Arc;
 use web_time::{Duration, Instant};
 
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+type ClipboardState = Option<arboard::Clipboard>;
+#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+#[derive(Default)]
+struct ClipboardState;
+
 enum HostEvent {
     Ready(u64, Result<GpuPresenter<'static>>),
+    Clipboard(u64, ClipboardResult),
 }
 #[derive(Clone, Copy, PartialEq)]
 struct WindowState {
@@ -47,6 +54,7 @@ struct Host {
     error: Option<RenderError>,
     applied: Option<WindowState>,
     focused: bool,
+    clipboard: ClipboardState,
 }
 impl Host {
     fn sync_window_state(&mut self) {
@@ -170,6 +178,7 @@ impl Host {
 impl ApplicationHandler<HostEvent> for Host {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         self.suspended = false;
+        self.last_update = Instant::now();
         self.applied = None;
         if self.window.is_none() {
             let (size_x, size_y) = self.app.initial_size();
@@ -233,6 +242,9 @@ impl ApplicationHandler<HostEvent> for Host {
     }
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: HostEvent) {
         match event {
+            HostEvent::Clipboard(request, result) => {
+                self.route(InputEvent::Clipboard { request, result });
+            }
             HostEvent::Ready(epoch, result) => {
                 if epoch != self.epoch {
                     return;
@@ -460,6 +472,12 @@ impl ApplicationHandler<HostEvent> for Host {
         for request in self.context.requests.drain(..) {
             match request {
                 HostRequest::Exit => event_loop.exit(),
+                HostRequest::ClipboardRead { request } => {
+                    read_clipboard(&mut self.clipboard, request, self.proxy.clone());
+                }
+                HostRequest::ClipboardWrite { text, request } => {
+                    write_clipboard(&mut self.clipboard, text, request, self.proxy.clone());
+                }
                 HostRequest::Title(title) => {
                     if let Some(w) = &self.window {
                         w.set_title(&title);
@@ -688,6 +706,7 @@ pub fn run(app: Box<dyn GpuApplication>) -> Result<()> {
         error: None,
         applied: None,
         focused: true,
+        clipboard: Default::default(),
     };
     #[cfg(not(target_arch = "wasm32"))]
     {
@@ -733,5 +752,99 @@ mod tests {
         assert_eq!(key(KeyCode::F1), PhysicalKey::Function(1));
         assert_eq!(key(KeyCode::F12), PhysicalKey::Function(12));
         assert_eq!(key(KeyCode::F35), PhysicalKey::Function(35));
+    }
+}
+
+// Platform I/O only. Request tokens route completions back to the originating
+// editor; focus/content validation remains in the editing controller.
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+fn read_clipboard(clipboard: &mut ClipboardState, request: u64, proxy: EventLoopProxy<HostEvent>) {
+    if clipboard.is_none() {
+        *clipboard = arboard::Clipboard::new().ok();
+    }
+    let text = clipboard.as_mut().and_then(|c| c.get_text().ok());
+    let _ = proxy.send_event(HostEvent::Clipboard(request, ClipboardResult::Text(text)));
+}
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+fn write_clipboard(
+    clipboard: &mut ClipboardState,
+    text: String,
+    request: Option<u64>,
+    proxy: EventLoopProxy<HostEvent>,
+) {
+    if clipboard.is_none() {
+        *clipboard = arboard::Clipboard::new().ok();
+    }
+    let success = clipboard.as_mut().is_some_and(|c| c.set_text(text).is_ok());
+    if let Some(request) = request {
+        let _ = proxy.send_event(HostEvent::Clipboard(
+            request,
+            ClipboardResult::Written(success),
+        ));
+    }
+}
+#[cfg(target_arch = "wasm32")]
+fn read_clipboard(_: &mut ClipboardState, request: u64, proxy: EventLoopProxy<HostEvent>) {
+    wasm_bindgen_futures::spawn_local(async move {
+        let text = if let Some(window) = web_sys::window() {
+            wasm_bindgen_futures::JsFuture::from(window.navigator().clipboard().read_text())
+                .await
+                .ok()
+                .and_then(|text| text.as_string())
+        } else {
+            None
+        };
+        let _ = proxy.send_event(HostEvent::Clipboard(request, ClipboardResult::Text(text)));
+    });
+}
+#[cfg(target_arch = "wasm32")]
+fn write_clipboard(
+    _: &mut ClipboardState,
+    text: String,
+    request: Option<u64>,
+    proxy: EventLoopProxy<HostEvent>,
+) {
+    wasm_bindgen_futures::spawn_local(async move {
+        let success = if let Some(window) = web_sys::window() {
+            wasm_bindgen_futures::JsFuture::from(window.navigator().clipboard().write_text(&text))
+                .await
+                .is_ok()
+        } else {
+            false
+        };
+        if let Some(request) = request {
+            let _ = proxy.send_event(HostEvent::Clipboard(
+                request,
+                ClipboardResult::Written(success),
+            ));
+        }
+    });
+}
+#[cfg(not(any(
+    target_arch = "wasm32",
+    target_os = "macos",
+    target_os = "windows",
+    target_os = "linux"
+)))]
+fn read_clipboard(_: &mut ClipboardState, request: u64, proxy: EventLoopProxy<HostEvent>) {
+    let _ = proxy.send_event(HostEvent::Clipboard(request, ClipboardResult::Text(None)));
+}
+#[cfg(not(any(
+    target_arch = "wasm32",
+    target_os = "macos",
+    target_os = "windows",
+    target_os = "linux"
+)))]
+fn write_clipboard(
+    _: &mut ClipboardState,
+    _: String,
+    request: Option<u64>,
+    proxy: EventLoopProxy<HostEvent>,
+) {
+    if let Some(request) = request {
+        let _ = proxy.send_event(HostEvent::Clipboard(
+            request,
+            ClipboardResult::Written(false),
+        ));
     }
 }

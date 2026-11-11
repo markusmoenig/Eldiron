@@ -62,6 +62,69 @@ impl GameScreenController {
             player, widget, persistent,
         ))
     }
+    /// Keyboard/action-catalog bindings use the same authored button policy
+    /// when a matching button exists. Otherwise they update targeting state and
+    /// emit the command without inventing an invisible widget.
+    pub fn activate_binding(
+        &mut self,
+        world: &RuntimeView<'_>,
+        binding: ClientCommandBinding,
+    ) -> Result<ScreenActivation, String> {
+        let map = world.map.unwrap_or(&self.empty_map);
+        let matched = screen_model::ordered_button_ids(&self.elements.button_widgets)
+            .into_iter()
+            .rev()
+            .find(|id| {
+                let widget = &self.elements.button_widgets[id];
+                !screen_model::widget_name_is_hidden(&widget.name, &self.elements.widgets_to_hide)
+                    && screen_model::resolved_widget_command(
+                        widget,
+                        world.assets,
+                        screen_model::resolve_party_entity(map, widget.party.as_deref()),
+                        &self.elements.ui_state,
+                    )
+                    .as_deref()
+                    .and_then(parse_client_command)
+                    .as_ref()
+                        == Some(&binding)
+            });
+        if let Some(id) = matched {
+            return self.activate_button(world, id);
+        }
+        let actor = screen_model::resolve_party_entity(map, None);
+        if !rules_ui::command_state(world.assets, actor, &binding.command_string()).enabled {
+            return Ok(ScreenActivation::default());
+        }
+        let mut effects = Vec::new();
+        if let Some(intent) = binding.intent_payload() {
+            self.intent = intent;
+            for active in [
+                &mut self.elements.activated_widgets,
+                &mut self.elements.permanently_activated_widgets,
+            ] {
+                active.retain(|id| {
+                    self.elements
+                        .button_widgets
+                        .get(id)
+                        .is_none_or(|w| !screen_model::is_targeting_button(w))
+                });
+            }
+            if !self.intent.trim().is_empty() && self.immediate_intents(world)? {
+                effects.push(ScreenEffect::Action(EntityAction::Intent(
+                    self.intent.clone(),
+                )));
+            }
+        } else if let ClientCommandBinding::Control(action) = binding {
+            effects.push(ScreenEffect::Action(action));
+        } else {
+            effects.push(ScreenEffect::Command(binding));
+        }
+        self.geometry = None;
+        Ok(ScreenActivation {
+            accepted: true,
+            effects,
+        })
+    }
     /// Activate a committed click/shortcut. A drag controller invokes this only
     /// after deciding it was a click, not while beginning an item drag.
     /// Command placeholders resolve before the authored binding transaction.

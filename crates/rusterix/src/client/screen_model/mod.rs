@@ -189,7 +189,15 @@ impl ScreenElements {
         if binding.trim().is_empty() {
             return;
         }
+        let binding = binding.trim();
         self.ui_state.insert(binding.to_owned(), value.to_owned());
+        for input in self
+            .text_input_widgets
+            .values_mut()
+            .filter(|w| w.binding.trim() == binding)
+        {
+            input.text = value.to_owned();
+        }
         sync_bound_button_activation(
             &self.button_widgets,
             &self.ui_state,

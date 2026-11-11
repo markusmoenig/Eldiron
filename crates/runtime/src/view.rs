@@ -58,6 +58,20 @@ impl RuntimeView<'_> {
     }
 }
 impl GameSession {
+    /// Addressed output consumers borrow the matching region's CPU state.
+    /// Off-screen audio/dialog delivery must not resolve entity IDs in whichever
+    /// map happens to be visible in the current game screen.
+    pub fn view_region(&self, id: &theframework_core::Uuid) -> Option<RuntimeView<'_>> {
+        let map = &self.project.regions.iter().find(|r| &r.map.id == id)?.map;
+        Some(RuntimeView {
+            project: &self.project,
+            assets: &self.assets,
+            map: Some(map),
+            time: self.server.get_time(id).unwrap_or(self.project.time),
+            state: self.server.state,
+            render_state: self.server.get_render_state(id),
+        })
+    }
     pub fn view(&self) -> RuntimeView<'_> {
         let map = self
             .project
@@ -76,5 +90,35 @@ impl GameSession {
                 |map| self.server.get_render_state(&map.id),
             ),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn addressed_region_view_does_not_use_the_current_maps_entity_ids_or_advance_time() {
+        let mut project = Project::new();
+        project.regions[0].map.name = "First".into();
+        let mut second = project.regions[0].clone();
+        second.map.id = theframework_core::Uuid::new_v4();
+        second.map.name = "Second".into();
+        project.regions.push(second);
+        let first = project.regions[0].map.id;
+        let second = project.regions[1].map.id;
+        let mut session = GameSession::new(project);
+        session.current_map = "Second".into();
+        let before = session.project.time;
+        assert_eq!(session.view().map.unwrap().id, second);
+        let addressed = session.view_region(&first).unwrap();
+        assert_eq!(addressed.map.unwrap().id, first);
+        assert_eq!(addressed.time, before);
+        assert!(
+            session
+                .view_region(&theframework_core::Uuid::new_v4())
+                .is_none()
+        );
+        assert_eq!(session.project.time, before);
+        assert_eq!(session.current_map, "Second");
     }
 }

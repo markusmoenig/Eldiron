@@ -5,6 +5,8 @@ mod commands;
 mod fonts;
 pub use commands::{ScreenActivation, ScreenEffect};
 mod input;
+mod router;
+pub use router::ScreenInputResponse;
 mod paint;
 use crate::{GameSceneInput, SceneViews, ViewId, ViewImage, screen::*};
 use eldiron_runtime::{RegionEvents, RuntimeView};
@@ -65,6 +67,7 @@ pub struct GameScreenController {
     inputs: FxHashMap<u32, theframework::text_edit::EditorView>,
     input_modifiers: theframework::platform::Modifiers,
     pub animation_frame: usize,
+    pointer_capture: Option<router::PointerCapture>,
 }
 impl GameScreenController {
     pub fn from_screen(
@@ -152,6 +155,7 @@ impl GameScreenController {
             inputs: FxHashMap::default(),
             input_modifiers: Default::default(),
             animation_frame: 0,
+            pointer_capture: None,
         }
     }
     /// Distribute each addressed batch once. Reflow/painting do not consume it
@@ -371,6 +375,11 @@ impl GameScreenController {
                 views
                     .configure_game(id, world.assets)
                     .map_err(|e| e.to_string())?;
+                widget.rebuild_graphical_scene(
+                    map,
+                    world.assets,
+                    views.scene_mut(id).map_err(|e| e.to_string())?,
+                );
                 self.configured_views.insert(id, revision);
             }
             let size = (
@@ -402,6 +411,14 @@ impl GameScreenController {
         self.configured_views.clear();
         self.view_images.clear();
         Ok(())
+    }
+    /// Detach only GPU view identities when replacing a CPU screen outside a
+    /// frame callback. The application retires these on its next registry borrow.
+    /// No old screen, source pixels or text layouts need to wait for that frame.
+    pub fn detach_game_views(&mut self) -> Vec<ViewId> {
+        self.configured_views.clear();
+        self.view_images.clear();
+        self.view_ids.drain().map(|(_, id)| id).collect()
     }
     pub fn view_images(&self) -> &FxHashMap<Uuid, ViewImage> {
         &self.view_images

@@ -51,6 +51,7 @@ impl GameScreenController {
                 );
                 if let Some((binding, value)) = outcome.selection {
                     self.elements.set_binding(&binding, &value);
+                    self.geometry = None;
                 }
                 if outcome.consumed {
                     self.focus_input(fonts, None);
@@ -87,6 +88,7 @@ impl GameScreenController {
                     );
                     if let Some((binding, value)) = outcome.selection {
                         self.elements.set_binding(&binding, &value);
+                        self.geometry = None;
                     }
                 }
                 return InputResponse {

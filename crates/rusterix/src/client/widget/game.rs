@@ -799,6 +799,19 @@ impl GameWidget {
         self.backend = Some(backend);
     }
 
+    /// A new GPU view/domain has no streamed static geometry even though this
+    /// retained CPU widget still remembers loaded chunks. Reset derived source
+    /// bookkeeping while preserving camera/UI state, then rebuild on that view.
+    pub fn rebuild_graphical_scene(
+        &mut self,
+        map: &Map,
+        assets: &Assets,
+        scene: &mut SceneHandler,
+    ) {
+        self.scenemanager.reset_for_project_switch();
+        self.graphical_build(map, assets, scene);
+    }
+
     pub fn graphical_build(
         &mut self,
         map: &Map,

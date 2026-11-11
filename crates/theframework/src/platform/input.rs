@@ -1,3 +1,10 @@
+/// Addressed asynchronous clipboard completion. A failed write must not delete
+/// a cut selection; unavailable reads never replace the editor contents.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ClipboardResult {
+    Written(bool),
+    Text(Option<String>),
+}
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Modifiers {
     pub shift: bool,
@@ -84,6 +91,10 @@ pub enum InputEvent {
     Modifiers(Modifiers),
     Focus(bool),
     FileDropped(std::path::PathBuf),
+    Clipboard {
+        request: u64,
+        result: ClipboardResult,
+    },
 }
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct InputResponse {

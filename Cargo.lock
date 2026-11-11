@@ -1289,14 +1289,19 @@ dependencies = [
 name = "eldiron-client-wgpu"
 version = "0.96.0"
 dependencies = [
+ "eldiron-presentation",
  "eldiron-runtime",
  "eldiron-shared",
+ "futures",
  "instant",
+ "png 0.18.0",
+ "renderkit",
  "rustc-hash 2.1.1",
  "rusterix",
  "scenevm",
  "serde",
  "serde_json",
+ "theframework",
  "toml 0.9.11+spec-1.1.0",
  "uuid",
  "vek",
