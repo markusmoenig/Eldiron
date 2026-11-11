@@ -2574,16 +2574,20 @@ impl Client {
     fn region_fallback_widget(&self) -> GameWidget {
         let width = self.viewport.x.max(1);
         let height = self.viewport.y.max(1);
-        let mut game_widget = GameWidget {
-            name: self.current_map.clone(),
-            rect: Rect::new(0.0, 0.0, width as f32, height as f32),
-            toml_str: "[ui]\nrole = \"game\"\n".to_string(),
-            buffer: TheRGBABuffer::new(TheDim::sized(width, height)),
-            grid_size: self.grid_size,
-            ..Default::default()
-        };
-
-        game_widget.init();
+        let mut model = ScreenElements::region_fallback(
+            &self.current_map,
+            ScreenLayout {
+                screen_responsive: false,
+                reference_viewport: Vec2::new(width, height),
+                viewport: Vec2::new(width, height),
+                grid_size: self.grid_size,
+            },
+            [0, 0, 0, 255],
+            FxHashMap::default(),
+        );
+        let mut game_widget = model.game_widgets.remove(&Uuid::nil()).unwrap();
+        // Only the compatibility renderer allocates a destination bitmap.
+        game_widget.buffer = TheRGBABuffer::new(TheDim::sized(width, height));
         game_widget
     }
 

@@ -36,6 +36,7 @@ pub(crate) use style::*;
 #[derive(Default)]
 pub struct ScreenElements {
     pub layout: ScreenLayout,
+    fallback_game: bool,
     pub source: Map,
     pub background: Pixel,
     pub animation_frame: usize,
@@ -150,6 +151,38 @@ pub(crate) fn screen_static_layer_render_map(screen: &Map, foreground: bool) -> 
 }
 
 impl ScreenElements {
+    /// A region without authored screen UI still uses the same game-view model.
+    /// Geometry follows the caller's fixed/responsive layout policy; no display
+    /// bitmap, font or GPU resources are allocated here.
+    pub fn region_fallback(
+        name: &str,
+        layout: ScreenLayout,
+        background: Pixel,
+        ui_state: FxHashMap<String, String>,
+    ) -> Self {
+        let mut model = Self {
+            layout,
+            background,
+            ui_state,
+            fallback_game: true,
+            ..Default::default()
+        };
+        let mut widget = GameWidget {
+            name: name.into(),
+            rect: Rect::new(
+                0.,
+                0.,
+                layout.viewport.x.max(0) as f32,
+                layout.viewport.y.max(0) as f32,
+            ),
+            toml_str: "[ui]\nrole = \"game\"\n".into(),
+            grid_size: layout.grid_size,
+            ..Default::default()
+        };
+        widget.init();
+        model.game_widgets.insert(Uuid::nil(), widget);
+        model
+    }
     /// User-entered values preserve whitespace. Command placeholder consumers
     /// may normalize their own values; this does not mutate authored sources.
     pub fn set_binding(&mut self, binding: &str, value: &str) {
@@ -176,6 +209,13 @@ impl ScreenElements {
             return false;
         }
         self.layout.viewport = surface;
+        if self.fallback_game {
+            if let Some(widget) = self.game_widgets.get_mut(&Uuid::nil()) {
+                widget.rect = Rect::new(0., 0., surface.x.max(0) as f32, surface.y.max(0) as f32);
+                widget.force_dynamics_rebuild = true;
+            }
+            return true;
+        }
         for ScreenPlacement {
             role,
             sector_id,

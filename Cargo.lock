@@ -1359,6 +1359,7 @@ dependencies = [
  "rustc-hash 2.1.1",
  "rusterix",
  "scenevm",
+ "serde_json",
  "theframework",
  "theframework-core",
  "toml 0.9.11+spec-1.1.0",

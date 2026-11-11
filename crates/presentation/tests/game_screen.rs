@@ -700,3 +700,175 @@ fn native_dropdown_capture_precedes_fields_and_commits_keyboard_selection_once()
     assert_eq!(screen.elements.choice_widgets[&30].selected, 1);
     assert_eq!(screen.choice_controller.open_id(), None);
 }
+
+#[test]
+fn screen_navigation_keeps_typed_bindings_without_mutating_the_project() {
+    use theframework::platform::*;
+    let mut session = fixture(false);
+    let copy = session.view().screen("Main").unwrap().map.clone();
+    let id = Uuid::new_v4();
+    let other = session.project.screens.entry(id).or_default();
+    other.id = id;
+    other.map = copy;
+    other.map.name = "Other".into();
+    sector(
+        &mut other.map,
+        8,
+        Rect::new(0., 0., 16., 16.),
+        "[ui]\nrole='button'\nactive=true\nbind='start.class'\nvalue='Warrior'\ngroup='classes'\nhide=['MageOnly']",
+    );
+    let before = serde_json::to_value(&session.project).unwrap();
+    let mut fonts = GameFonts::default();
+    let mut main = GameScreenController::from_screen("Main", &session.view(), layout()).unwrap();
+    main.prepare(&session.view(), &mut fonts, ContentRevision(1), 0)
+        .unwrap();
+    main.focus_input(&mut fonts, Some(3));
+    main.text_input_event(
+        &mut fonts,
+        &InputEvent::Modifiers(Modifiers {
+            control: true,
+            ..Default::default()
+        }),
+    );
+    main.text_input_event(
+        &mut fonts,
+        &InputEvent::Key {
+            physical: PhysicalKey::Letter(b'a'),
+            logical: LogicalKey::Other,
+            pressed: true,
+            repeat: false,
+        },
+    );
+    main.text_input_event(&mut fonts, &InputEvent::Modifiers(Modifiers::default()));
+    main.text_input_event(&mut fonts, &InputEvent::Text("  東京  ".into()));
+    main.elements.set_binding("start.class", "Mage");
+    let mut other = GameScreenController::from_screen_with_state(
+        "Other",
+        &session.view(),
+        layout(),
+        main.elements.ui_state.clone(),
+    )
+    .unwrap();
+    other
+        .prepare(&session.view(), &mut fonts, ContentRevision(1), 0)
+        .unwrap();
+    assert_eq!(other.elements.text_input_widgets[&3].text, "  東京  ");
+    assert_eq!(other.elements.ui_state["start.class"], "Mage");
+    assert_eq!(other.focused_input, None);
+    assert!(!other.elements.activated_widgets.contains(&8));
+    assert!(
+        !other
+            .elements
+            .widgets_to_hide
+            .iter()
+            .any(|name| name == "MageOnly")
+    );
+    assert_eq!(serde_json::to_value(&session.project).unwrap(), before);
+    assert!(
+        other
+            .elements
+            .text_widgets
+            .values()
+            .all(|w| w.buffer.pixels().is_empty())
+    );
+}
+
+#[test]
+fn region_fallback_uses_shared_fixed_or_responsive_geometry_without_pixels() {
+    let session = fixture(false);
+    let mut fonts = GameFonts::default();
+    let mut responsive = layout();
+    responsive.screen_responsive = true;
+    let mut screen =
+        GameScreenController::region_fallback(&session.view(), responsive, Default::default())
+            .unwrap();
+    assert_eq!(screen.name, "World");
+    assert_eq!(screen.elements.game_widgets.len(), 1);
+    assert!(screen.resize((560, 320)));
+    let game = &screen.elements.game_widgets[&Uuid::nil()];
+    assert_eq!((game.rect.width, game.rect.height), (560., 320.));
+    assert!(game.buffer.pixels().is_empty() && game.upscale_buffer.pixels().is_empty());
+    assert!(game.text_font.is_none());
+    screen
+        .prepare(&session.view(), &mut fonts, ContentRevision(1), 0)
+        .unwrap();
+    let mut fixed =
+        GameScreenController::region_fallback(&session.view(), layout(), Default::default())
+            .unwrap();
+    assert!(!fixed.resize((1000, 600)));
+    assert_eq!(fixed.elements.game_widgets[&Uuid::nil()].rect.width, 400.);
+}
+
+#[test]
+#[ignore = "requires native GPU; run with --ignored"]
+fn region_fallback_renders_and_resizes_using_only_gpu_game_targets() {
+    let session = fixture(true);
+    let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut registry = ImageRegistry::new(gpu.clone());
+    let mut views = SceneViews::new(&registry, SharedAtlas::new(64, 64));
+    let mut cache = ScreenImageCache::default();
+    let mut fonts = GameFonts::default();
+    let mut responsive = layout();
+    responsive.screen_responsive = true;
+    let mut screen =
+        GameScreenController::region_fallback(&session.view(), responsive, Default::default())
+            .unwrap();
+    let mut renderer = PaintRenderer::new(gpu.clone()).unwrap();
+    let mut previous = None;
+    for (width, height) in [(400, 240), (320, 180)] {
+        screen.resize((width, height));
+        screen
+            .prepare(&session.view(), &mut fonts, ContentRevision(1), 0)
+            .unwrap();
+        screen
+            .prepare_game_views(&session.view(), &mut views, &mut registry)
+            .unwrap();
+        let output = screen.view_images()[&Uuid::nil()];
+        assert!(!views.has_cpu_target_storage(output.view).unwrap());
+        if let Some((view, image)) = previous {
+            assert_eq!(output.view, view);
+            assert_ne!(output.image, image);
+            assert!(registry.get(image).is_none());
+        }
+        previous = Some((output.view, output.image));
+        let list = screen
+            .paint(
+                &session.view(),
+                &mut fonts,
+                &mut cache.begin_frame(&mut registry).unwrap(),
+            )
+            .unwrap();
+        let target = GpuImage::new(&gpu, ImageDescriptor::rgba(width, height)).unwrap();
+        let readbacks = gpu.transfers().readback_bytes;
+        renderer
+            .render(
+                &list,
+                &registry,
+                &target.view,
+                target.descriptor.format,
+                (width, height),
+                1.,
+                [0.; 4],
+            )
+            .unwrap();
+        assert_eq!(gpu.transfers().readback_bytes, readbacks);
+        let pixels = capture(&gpu, target);
+        assert!(
+            pixels
+                .chunks_exact(4)
+                .any(|p| p[0] > 100 && p[1] < 50 && p[2] < 50)
+        );
+        assert!(
+            screen
+                .elements
+                .game_widgets
+                .values()
+                .all(|w| w.buffer.pixels().is_empty() && w.upscale_buffer.pixels().is_empty())
+        );
+    }
+    let image = screen.view_images()[&Uuid::nil()].image;
+    screen
+        .release_game_views(&mut views, &mut registry)
+        .unwrap();
+    assert!(registry.get(image).is_none());
+}

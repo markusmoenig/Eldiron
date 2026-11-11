@@ -68,7 +68,17 @@ impl GameScreenController {
     pub fn from_screen(
         name: &str,
         world: &RuntimeView<'_>,
+        layout: ScreenLayout,
+    ) -> Result<Self, String> {
+        Self::from_screen_with_state(name, world, layout, FxHashMap::default())
+    }
+    /// Bindings live across navigation; a new screen compiles its controls from
+    /// the existing values while retaining the project's separate font owner.
+    pub fn from_screen_with_state(
+        name: &str,
+        world: &RuntimeView<'_>,
         mut layout: ScreenLayout,
+        state: FxHashMap<String, String>,
     ) -> Result<Self, String> {
         let screen = world
             .screen(name)
@@ -86,10 +96,36 @@ impl GameScreenController {
             world.assets,
             layout,
             screen_model::screen_background(&config),
-            FxHashMap::default(),
+            state,
             0,
         );
-        Ok(Self {
+        Ok(Self::with_elements(name, world, elements))
+    }
+    pub fn region_fallback(
+        world: &RuntimeView<'_>,
+        mut layout: ScreenLayout,
+        state: FxHashMap<String, String>,
+    ) -> Result<Self, String> {
+        let map = world
+            .map
+            .ok_or("Select a runtime region before preparing a fallback screen")?;
+        if !layout.screen_responsive {
+            layout.viewport = layout.reference_viewport;
+        }
+        let config = world
+            .config()
+            .parse::<toml::Table>()
+            .map_err(|e| e.to_string())?;
+        let elements = ScreenElements::region_fallback(
+            &map.name,
+            layout,
+            screen_model::screen_background(&config),
+            state,
+        );
+        Ok(Self::with_elements(&map.name, world, elements))
+    }
+    fn with_elements(name: &str, world: &RuntimeView<'_>, elements: ScreenElements) -> Self {
+        Self {
             elements,
             name: name.into(),
             cursor: [0.; 2],
@@ -114,7 +150,7 @@ impl GameScreenController {
             inputs: FxHashMap::default(),
             input_modifiers: Default::default(),
             animation_frame: 0,
-        })
+        }
     }
     /// Distribute each addressed batch once. Reflow/painting do not consume it
     /// again; the application can also deliver it to audio/world-text consumers.

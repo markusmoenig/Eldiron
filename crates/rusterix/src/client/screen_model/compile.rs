@@ -390,6 +390,15 @@ impl ScreenElements {
                                 if let Some(active_value) = ui.get("active") {
                                     if let Some(v) = active_value.as_bool()
                                         && v
+                                        && binding.as_ref().zip(value.as_ref()).is_none_or(
+                                            |(binding, value)| {
+                                                self.ui_state.get(binding).is_none_or(|current| {
+                                                    current
+                                                        .trim()
+                                                        .eq_ignore_ascii_case(value.trim())
+                                                })
+                                            },
+                                        )
                                     {
                                         self.activated_widgets.push(widget.id);
                                         self.permanently_activated_widgets.push(widget.id);
@@ -397,10 +406,9 @@ impl ScreenElements {
                                             (binding.as_deref(), value.as_deref())
                                             && !binding.trim().is_empty()
                                         {
-                                            self.ui_state.insert(
-                                                binding.to_string(),
-                                                bound_value.to_string(),
-                                            );
+                                            self.ui_state
+                                                .entry(binding.to_string())
+                                                .or_insert_with(|| bound_value.to_string());
                                         }
                                         if let Some(hide) = &hide {
                                             self.widgets_to_hide = hide.clone();
@@ -677,7 +685,7 @@ impl ScreenElements {
                             }
 
                             if !binding.trim().is_empty() {
-                                self.ui_state.insert(binding.clone(), text.clone());
+                                text = self.ui_state.entry(binding.clone()).or_insert(text).clone();
                             }
 
                             self.text_input_widgets.insert(
