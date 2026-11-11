@@ -234,3 +234,45 @@ fn replacing_a_registered_font_invalidates_idle_ui_and_keeps_invalid_edits_trans
     assert!(ui.canvas.buffer.pixels().is_empty());
     assert_eq!(images.uploads, 0);
 }
+
+#[test]
+fn published_view_commands_use_logical_viewport_without_source_uploads() {
+    use std::sync::Arc;
+    use theframework::paint::{PaintList, Rect, Transform};
+    let mut ctx = TheContext::new(240, 160, 2.);
+    let mut resources = RecordingImages::default();
+    let mut view = TheRenderView::new(TheId::named("commands"));
+    view.set_dim(TheDim::new(31, 27, 140, 80), &mut ctx);
+    let mut local = PaintList::default();
+    local.rect(Rect::new(-20., -20., 200., 120.), 0., [1., 0., 0., 1.]);
+    local
+        .ops
+        .push(PaintOp::PushClip(Rect::new(10., 10., 40., 20.)));
+    local
+        .ops
+        .push(PaintOp::PushTransform(Transform::translate(10., 10.)));
+    local.rect(Rect::new(0., 0., 40., 20.), 4., [0., 1., 0., 1.]);
+    local.ops.push(PaintOp::PopTransform);
+    local.ops.push(PaintOp::PopClip);
+    view.set_paint_list(Some(Arc::new(local))).unwrap();
+    let list = paint_widget(&mut view, &mut ctx, &mut resources);
+    assert_eq!(resources.uploads, 0);
+    assert!(matches!(list.ops[0], PaintOp::PushClip(r) if r == Rect::new(31., 27., 140., 80.)));
+    assert!(
+        matches!(list.ops[1], PaintOp::PushTransform(t) if t == Transform::translate(31., 27.))
+    );
+    assert!(matches!(list.ops.last(), Some(PaintOp::PopClip)));
+    // Resize/DPI do not bake pixel dimensions into retained commands.
+    view.set_dim(TheDim::new(47, 39, 100, 60), &mut ctx);
+    ctx.scale_factor = 1.5;
+    let resized = paint_widget(&mut view, &mut ctx, &mut resources);
+    assert!(matches!(resized.ops[0], PaintOp::PushClip(r) if r == Rect::new(47., 39., 100., 60.)));
+    assert_eq!(resources.uploads, 0);
+    view.set_paint_list(None).unwrap();
+    assert!(
+        paint_widget(&mut view, &mut ctx, &mut resources)
+            .ops
+            .is_empty()
+    );
+    assert_eq!(resources.uploads, 0);
+}

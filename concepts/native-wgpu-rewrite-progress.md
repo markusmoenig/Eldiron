@@ -683,3 +683,15 @@ The **full CPU engine suite is still non-green**. Its final broad run has 467 pa
 - `server::region_host::tests::official_ruleset_applies_character_defaults_and_unlocks` (current value four versus expected seven).
 
 Keep these explicit during runtime/client acceptance; do not silently delete authored fixture content or change gameplay data to satisfy stale assertions. The isolated control export is recorded in `/private/tmp/eldiron-cpu-baseline-location.txt` for further comparison. The overall rewrite remains active, with Creator's custom graph/view contributions, remaining isometric controls, full application ownership/cutover, graphical client/HUD families, GPU isometric/preview work, performance/resources, retirement and platform acceptance still outstanding.
+
+### View-local native contributions (2026-11-12)
+
+`TheRenderView` now accepts immutable `Arc<PaintList>` contributions as well as shared GPU images. The widget validates command scope balance before publication, clips content to its current logical viewport, translates local commands once, and preserves enclosing layout/scroll transforms. Native adoption releases the old CPU viewport storage; clearing or switching native content never exposes a stale bitmap. Explicit reference/image consumers may still opt into pixels through `render_buffer_mut`. Republishing an unchanged list/image does not dirty the widget. Device generation/residency remains the producer/registry contract, rather than becoming widget-owned GPU state.
+
+Evidence:
+
+- Renderer-free `ui-paint`: 145 library + 5 command-UI tests pass. Lifecycle tests cover atomic invalid-list rejection, retained-list idle behavior, raster release, image/list/clear transitions, explicit return to reference pixels, resize and density independence, and zero source uploads. `/private/tmp/eldiron-native-view-commands-neutral.log`.
+- Actual headless GPU composition passes for two view sizes/positions at densities 1, 1.5 and 2, inside a parent scroll transform and clip. It combines native graph curves/Swash text with a shared GPU image; samples prove the translated content and both viewport edges, and repeat rendering uploads/rasterizes nothing. CPU readback occurs only for explicit pixel assertions. `/private/tmp/eldiron-native-view-commands-gpu.log`.
+- Reference render-view test passes without the native text/paint feature. All four applications plus Creator `native-render` compile. `/private/tmp/eldiron-native-view-commands-reference.log`, `/private/tmp/eldiron-native-view-commands-apps.log`.
+
+This establishes a contribution boundary, not a completed NodesDock conversion. Graph inline/overlay editors still need the common editor/input ownership contract before claiming native graph parity. Full Creator host/viewport adoption remains active work. Cache budgets and frame resource pinning also remain required: publishing immutable lists alone does not keep an evicted image handle resident.

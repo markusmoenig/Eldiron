@@ -1409,3 +1409,126 @@ fn native_multiline_editor_keeps_annotations_preedit_and_undo_across_gpu_replace
     );
     assert!(session.ui.canvas.buffer.pixels().is_empty());
 }
+
+#[test]
+#[ignore = "requires native GPU; run with --ignored"]
+fn published_graph_view_composes_commands_and_gpu_images_inside_parent_scroll() {
+    use std::sync::Arc;
+    use theframework::{
+        paint::{PaintList, Rect, Sampling, Transform},
+        thegraph::{GraphPainter, GraphRect, PaintGraphPainter},
+        theui::paint::WidgetPainter,
+    };
+    let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut images = UiImages::new(gpu.clone());
+    let blue = images
+        .registry
+        .upload_linear(&ImageAsset::rgba(1, 1, vec![0, 0, 255, 255]).unwrap())
+        .unwrap();
+    let mut ctx = TheContext::new(200, 140, 1.);
+    let mut view = TheRenderView::new(TheId::named("published-graph"));
+    let mut local = PaintList::default();
+    local.rect(Rect::new(-40., -40., 240., 180.), 0., [1., 0., 0., 1.]);
+    local.rect(Rect::new(10., 10., 12., 12.), 0., [0., 1., 0., 1.]);
+    local.image(blue, Rect::new(30., 10., 12., 12.), Sampling::Nearest);
+    // Graph glyphs and curves use the same native painter as the surrounding UI.
+    let mut graph = PaintGraphPainter {
+        paint: &mut local,
+        text: &mut ctx.text,
+        images: &(),
+        family: "Roboto",
+    };
+    graph.text(
+        GraphRect {
+            origin: [2., 28.],
+            size: [70., 18.],
+        },
+        "Graph · café",
+        12.,
+        [255; 4],
+    );
+    graph.curve(
+        [[0., 48.], [15., 28.], [25., 48.], [60., 48.]],
+        1.,
+        [255; 4],
+    );
+    view.set_paint_list(Some(Arc::new(local))).unwrap();
+    let mut style = TheClassicStyle::new();
+    let mut renderer = PaintRenderer::new(gpu.clone()).unwrap();
+    for dim in [TheDim::new(45, 50, 80, 50), TheDim::new(60, 65, 45, 30)] {
+        view.set_dim(dim, &mut ctx);
+        for density in [1., 1.5, 2.] {
+            let size = ((200. * density) as u32, (140. * density) as u32);
+            let output = GpuImage::new(&gpu, ImageDescriptor::rgba(size.0, size.1)).unwrap();
+            let mut list = PaintList::default();
+            // A scrolled parent clips in host space and shifts view coordinates.
+            list.ops
+                .push(PaintOp::PushClip(Rect::new(20., 15., 110., 75.)));
+            list.ops
+                .push(PaintOp::PushTransform(Transform::translate(-7., -13.)));
+            WidgetPainter {
+                list: &mut list,
+                text: &mut ctx.text,
+                images: &mut images,
+                ui: &ctx.ui,
+                theme: style.theme().as_mut(),
+            }
+            .widget(&mut view)
+            .unwrap();
+            list.ops.push(PaintOp::PopTransform);
+            list.ops.push(PaintOp::PopClip);
+            list.validate().unwrap();
+            renderer
+                .render(
+                    &list,
+                    &images.registry,
+                    &output.view,
+                    output.descriptor.format,
+                    size,
+                    density,
+                    [0., 0., 0., 1.],
+                )
+                .unwrap();
+            let uploaded = gpu.transfers().uploaded_bytes;
+            let rasterized = renderer.glyphs.rasterizations;
+            renderer
+                .render(
+                    &list,
+                    &images.registry,
+                    &output.view,
+                    output.descriptor.format,
+                    size,
+                    density,
+                    [0., 0., 0., 1.],
+                )
+                .unwrap();
+            assert_eq!(gpu.transfers().uploaded_bytes, uploaded);
+            assert_eq!(renderer.glyphs.rasterizations, rasterized);
+            // Only the explicit assertions below request CPU output.
+            let before_capture = gpu.transfers().readback_bytes;
+            let mut ticket = ReadbackTicket::capture(&gpu, output).unwrap();
+            gpu.device
+                .poll(wgpu::PollType::Wait {
+                    submission_index: None,
+                    timeout: Some(std::time::Duration::from_secs(30)),
+                })
+                .unwrap();
+            let capture = ticket.try_finish(&gpu).unwrap().unwrap();
+            assert!(gpu.transfers().readback_bytes > before_capture);
+            let pixel = |x: f32, y: f32| {
+                let offset =
+                    (((y * density) as usize * size.0 as usize) + (x * density) as usize) * 4;
+                &capture.pixels()[offset..offset + 4]
+            };
+            let x = dim.x as f32 - 7.;
+            let y = dim.y as f32 - 13.;
+            assert_eq!(pixel(x + 5., y + 5.), [255, 0, 0, 255]);
+            assert_eq!(pixel(x + 15., y + 15.), [0, 255, 0, 255]);
+            assert_eq!(pixel(x + 35., y + 15.), [0, 0, 255, 255]);
+            assert_eq!(pixel(x - 3., y + 5.), [0, 0, 0, 255]);
+            assert_eq!(pixel(x + dim.width as f32 + 3., y + 5.), [0, 0, 0, 255]);
+            assert_eq!(pixel(x + 5., y + dim.height as f32 + 3.), [0, 0, 0, 255]);
+        }
+    }
+    assert!(renderer.glyphs.rasterizations > 0);
+}

@@ -1,5 +1,13 @@
 use crate::prelude::*;
 
+/// Presentation content supplied by the application. Images and command lists
+/// share the host compositor; neither implies ownership of a GPU or window.
+#[cfg(feature = "text")]
+enum NativeContent {
+    Image(crate::paint::ImageHandle),
+    Commands(std::sync::Arc<crate::paint::PaintList>),
+}
+
 pub struct TheRenderView {
     id: TheId,
     limiter: TheSizeLimiter,
@@ -7,7 +15,7 @@ pub struct TheRenderView {
 
     render_buffer: TheRGBABuffer,
     #[cfg(feature = "text")]
-    image_handle: Option<crate::paint::ImageHandle>,
+    native_content: Option<NativeContent>,
     empty_background: Option<TheThemeColors>,
     has_content: bool,
     wheel_scale: f32,
@@ -39,8 +47,23 @@ impl TheWidget for TheRenderView {
         use crate::paint::Sampling;
         use crate::theui::paint::bounds;
         let r = bounds(&self.dim);
-        if let Some(image) = self.image_handle {
-            p.list.image(image, r, Sampling::Linear);
+        if let Some(content) = &self.native_content {
+            use crate::paint::{PaintOp, Transform};
+            // The view's logical viewport is the authority for clipping. A
+            // published list uses local coordinates, just like pointer events;
+            // parent scroll/layout transforms are already on the paint stack.
+            p.list.ops.push(PaintOp::PushClip(r));
+            match content {
+                NativeContent::Image(image) => p.list.image(*image, r, Sampling::Linear),
+                NativeContent::Commands(list) => {
+                    p.list
+                        .ops
+                        .push(PaintOp::PushTransform(Transform::translate(r.x, r.y)));
+                    p.list.ops.extend(list.ops.iter().cloned());
+                    p.list.ops.push(PaintOp::PopTransform);
+                }
+            }
+            p.list.ops.push(PaintOp::PopClip);
         } else if self.has_content {
             p.image(
                 &format!("renderview:{}", self.id.uuid),
@@ -71,7 +94,7 @@ impl TheWidget for TheRenderView {
             state: TheWidgetState::None,
 
             #[cfg(feature = "text")]
-            image_handle: None,
+            native_content: None,
             render_buffer: TheRGBABuffer::new(TheDim::new(0, 0, 20, 20)),
             empty_background: None,
             has_content: false,
@@ -322,7 +345,7 @@ impl TheWidget for TheRenderView {
                 stride,
                 style.theme().color(role),
             );
-        } else {
+        } else if self.has_content {
             self.render_buffer.scaled_into_using_dim(buffer, &self.dim);
         }
 
@@ -358,7 +381,19 @@ impl TheWidget for TheRenderView {
 
 pub trait TheRenderViewTrait: TheWidget {
     #[cfg(feature = "text")]
+    /// Publish a shared GPU image, or clear all view content with `None`.
+    /// This releases the former CPU viewport cache. The application owns image
+    /// residency and republishes handles after device/resource replacement.
     fn set_image_handle(&mut self, image: Option<crate::paint::ImageHandle>);
+    /// Publish an immutable, balanced list in view-local logical coordinates.
+    /// The view adds its own clip and translation, preserving parent scrolling.
+    /// Validation is atomic: an invalid list leaves the previous content intact.
+    /// `None` clears the view without revealing an older CPU/image presentation.
+    #[cfg(feature = "text")]
+    fn set_paint_list(
+        &mut self,
+        list: Option<std::sync::Arc<crate::paint::PaintList>>,
+    ) -> crate::theui::paint::UiPaintResult;
     fn set_scroll_behavior(&mut self, scale: f32, aspect_scaled: bool);
     fn render_buffer_mut(&mut self) -> &mut TheRGBABuffer;
     fn set_auto_focus(&mut self, auto_focus: bool);
@@ -369,9 +404,37 @@ pub trait TheRenderViewTrait: TheWidget {
 impl TheRenderViewTrait for TheRenderView {
     #[cfg(feature = "text")]
     fn set_image_handle(&mut self, image: Option<crate::paint::ImageHandle>) {
-        self.image_handle = image;
-        self.has_content = image.is_some();
+        if matches!((&self.native_content, image),
+            (Some(NativeContent::Image(current)), Some(next)) if *current == next)
+            || (self.native_content.is_none() && !self.has_content && image.is_none())
+        {
+            return;
+        }
+        self.native_content = image.map(NativeContent::Image);
+        self.render_buffer = TheRGBABuffer::empty();
+        self.has_content = false;
         self.is_dirty = true;
+    }
+    #[cfg(feature = "text")]
+    fn set_paint_list(
+        &mut self,
+        list: Option<std::sync::Arc<crate::paint::PaintList>>,
+    ) -> crate::theui::paint::UiPaintResult {
+        if let Some(list) = &list {
+            list.validate()
+                .map_err(|e| crate::theui::paint::UiPaintError(e.into()))?;
+        }
+        if matches!((&self.native_content, &list),
+            (Some(NativeContent::Commands(current)), Some(next)) if std::sync::Arc::ptr_eq(current, next))
+            || (self.native_content.is_none() && !self.has_content && list.is_none())
+        {
+            return Ok(());
+        }
+        self.native_content = list.map(NativeContent::Commands);
+        self.render_buffer = TheRGBABuffer::empty();
+        self.has_content = false;
+        self.is_dirty = true;
+        Ok(())
     }
     fn set_scroll_behavior(&mut self, scale: f32, aspect_scaled: bool) {
         self.wheel_scale = scale;
@@ -383,7 +446,7 @@ impl TheRenderViewTrait for TheRenderView {
     fn render_buffer_mut(&mut self) -> &mut TheRGBABuffer {
         #[cfg(feature = "text")]
         {
-            self.image_handle = None;
+            self.native_content = None;
         }
         self.has_content = true;
         self.is_dirty = true;
@@ -397,6 +460,57 @@ impl TheRenderViewTrait for TheRenderView {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "text")]
+    #[test]
+    fn native_publication_is_atomic_releases_raster_and_never_resurrects_it() {
+        use crate::paint::{PaintList, PaintOp, Rect};
+        use std::sync::Arc;
+        let mut view = TheRenderView::new(TheId::named("native-view"));
+        *view.render_buffer_mut() = TheRGBABuffer::new(TheDim::sized(320, 180));
+        view.render_buffer_mut().fill([255, 0, 0, 255]);
+        let mut commands = PaintList::default();
+        commands.rect(Rect::new(0., 0., 80., 40.), 0., [0., 1., 0., 1.]);
+        let commands = Arc::new(commands);
+        view.set_paint_list(Some(commands.clone())).unwrap();
+        assert!(view.render_buffer.pixels().is_empty());
+        assert!(!view.has_content);
+        view.set_needs_redraw(false);
+        view.set_paint_list(Some(commands.clone())).unwrap();
+        assert!(
+            !view.needs_redraw(),
+            "republishing the retained list is idle"
+        );
+        let malformed = Arc::new(PaintList {
+            ops: vec![PaintOp::PopTransform],
+        });
+        assert!(view.set_paint_list(Some(malformed)).is_err());
+        assert!(!view.needs_redraw());
+        assert!(matches!(&view.native_content,
+            Some(NativeContent::Commands(current)) if Arc::ptr_eq(current, &commands)));
+        let image = crate::paint::ImageHandle {
+            owner: 1,
+            slot: 2,
+            generation: 3,
+        };
+        view.set_image_handle(Some(image));
+        assert!(
+            matches!(view.native_content, Some(NativeContent::Image(current)) if current == image)
+        );
+        view.set_image_handle(None);
+        assert!(view.native_content.is_none());
+        assert!(!view.has_content);
+        assert!(view.render_buffer.pixels().is_empty());
+        view.set_paint_list(Some(commands)).unwrap();
+        view.set_paint_list(None).unwrap();
+        assert!(view.native_content.is_none());
+        assert!(!view.has_content);
+        // Explicit reference/image consumers can still opt into owned pixels.
+        *view.render_buffer_mut() = TheRGBABuffer::new(TheDim::sized(16, 8));
+        assert!(view.native_content.is_none());
+        assert!(view.has_content);
+        assert_eq!(view.render_buffer.pixels().len(), 16 * 8 * 4);
+    }
 
     #[test]
     fn subpixel_touchpad_motion_accumulates_into_canvas_scroll() {
