@@ -315,6 +315,9 @@ impl GraphEditor {
                     // closer to the row's top.
                     let text_offset = ((metrics.list_row - 18.) * 0.5).max(0.);
                     for (column, definition) in columns.iter().enumerate() {
+                        let label = context
+                            .column_label(n, row, definition)
+                            .unwrap_or_else(|| definition.label.clone());
                         painter.fitted_text(
                             screen(GraphRect {
                                 origin: [
@@ -323,7 +326,7 @@ impl GraphEditor {
                                 ],
                                 size: [cell_width - 10., metrics.list_header - 8.],
                             }),
-                            &definition.label,
+                            &label,
                             (cell_width - 16.) * z,
                             header_size,
                             theme.muted,
@@ -355,9 +358,15 @@ impl GraphEditor {
                                 continue;
                             }
                             if !native {
+                                let label = if focus.is_none() {
+                                    context.cell_label(n, row, (index, column), cell)
+                                } else {
+                                    None
+                                }
+                                .unwrap_or_else(|| controls.label(cell));
                                 painter.fitted_text(
                                     screen(cell_rect),
-                                    &controls.label(cell),
+                                    &label,
                                     (cell_width - 16.) * z,
                                     cell_size,
                                     theme.text,

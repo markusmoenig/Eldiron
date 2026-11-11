@@ -210,38 +210,6 @@ impl NodesDock {
         self.editor.selected_connection = None;
         Ok(true)
     }
-    /// Friendly labels are presentation only; text editing and saved data retain stable IDs.
-    pub(super) fn equipment_display_document(&self) -> GraphDocument {
-        let mut doc = self.doc.clone();
-        for node in &mut doc.nodes {
-            if node.definition.as_deref() != Some("entity_equipment") {
-                continue;
-            }
-            for row in &mut node.rows {
-                if row.key.as_deref() != Some("start_equipped_items") {
-                    continue;
-                }
-                if let GraphControlValue::List { rows, columns, .. } = &mut row.value {
-                    for column in columns {
-                        column.label = fl!("entity_equipment_item");
-                    }
-                    for (i, cells) in rows.iter_mut().enumerate() {
-                        if self.editor.text_focus().is_some_and(|f| {
-                            f.node == node.id && f.row == row.id && f.cell == Some((i, 0))
-                        }) {
-                            continue;
-                        }
-                        if let Some(GraphControlValue::Text(reference)) = cells.first_mut() {
-                            if let Some(name) = self.tiles.equipment_names.get(reference) {
-                                *reference = name.clone();
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        doc
-    }
     /// Show validation feedback without adding a separate values panel.
     pub(super) fn refresh_configuration(&mut self, project: &Project) {
         if !self.is_configuration() {

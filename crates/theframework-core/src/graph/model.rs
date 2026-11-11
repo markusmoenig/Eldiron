@@ -499,6 +499,26 @@ pub trait GraphContext {
     fn row_label(&self, _node: &GraphNode, _row: &GraphRow) -> Option<String> {
         None
     }
+    /// Presentation-only list header. The authored column ID stays unchanged.
+    fn column_label(
+        &self,
+        _node: &GraphNode,
+        _row: &GraphRow,
+        _column: &GraphListColumn,
+    ) -> Option<String> {
+        None
+    }
+    /// Presentation-only fallback label for an inactive list cell. Custom value
+    /// painters and active text editors keep their own formatting/source text.
+    fn cell_label(
+        &self,
+        _node: &GraphNode,
+        _row: &GraphRow,
+        _cell: (usize, usize),
+        _value: &GraphControlValue,
+    ) -> Option<String> {
+        None
+    }
     fn observe(&self, node: &GraphNode) -> GraphObservation;
     fn node_active(&self, _node: GraphId) -> bool {
         false

@@ -212,3 +212,11 @@ data. Incomplete pointer/inline editing is rejected until its owner completes or
 cancels it. Dropping an uncheckpointed draft does not alter source; after a Save
 checkpoint, dropping it leaves the already saved source intact. This is a CPU
 model/transaction adapter; application panel integration is separate.
+
+
+`GraphContext::column_label` and `cell_label` resolve semantic display names
+without rewriting a presentation copy of the document. Cell overrides apply to
+inactive fallback labels; custom value painters keep their formatter and focused
+text keeps authored source. A host can display an equipment item's friendly name
+while editing/persisting its stable UUID. Supply read-only catalog/name snapshots
+through the context rather than mutating values before painting.

@@ -254,11 +254,33 @@ fn equipment_accepts_project_item_drops_with_zoom_history_and_saved_setup() {
     };
     assert_eq!(names(&project), vec![item_id.to_string()]);
     assert_eq!(server.pc, ProjectContext::CharacterData(character_id));
-    let display = dock.equipment_display_document();
-    assert!(
-        serde_json::to_string(&display)
-            .unwrap()
-            .contains("A renamed linen shirt")
+    struct Labels(Vec<String>);
+    impl GraphPainter for Labels {
+        fn round_rect(&mut self, _: GraphRect, _: f32, _: GraphColor) {}
+        fn text(&mut self, _: GraphRect, text: &str, _: f32, _: GraphColor) {
+            self.0.push(text.into());
+        }
+        fn curve(&mut self, _: [[f32; 2]; 4], _: f32, _: GraphColor) {}
+        fn preview(&mut self, _: GraphRect, _: &str) {}
+    }
+    let authored = dock.doc.clone();
+    let mut labels = Labels(Vec::new());
+    dock.editor.paint(
+        &dock.doc,
+        &live::LiveContext {
+            definitions: &dock.definitions,
+            live: &dock.live,
+            equipment_names: &dock.tiles.equipment_names,
+        },
+        &dock.tiles,
+        &mut labels,
+        [1000., 1000.],
+        &GraphTheme::default(),
+    );
+    assert!(labels.0.iter().any(|label| label.starts_with("A renamed")));
+    assert_eq!(
+        dock.doc, authored,
+        "presentation labels must not substitute authored references"
     );
     assert!(
         serde_json::to_string(&dock.doc)
@@ -637,7 +659,8 @@ fn dispatched_events_reach_selected_owner_without_source_debugging() {
     assert_eq!(
         live::LiveContext {
             definitions: &dock.definitions,
-            live: &dock.live
+            live: &dock.live,
+            equipment_names: &dock.tiles.equipment_names,
         }
         .row_label(&dock.doc.nodes[0], row),
         Some("garden".into())

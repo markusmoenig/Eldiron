@@ -194,8 +194,36 @@ impl NodesDock {
 pub(super) struct LiveContext<'a> {
     pub definitions: &'a GraphDefinitions,
     pub live: &'a LiveEvents,
+    pub equipment_names: &'a HashMap<String, String>,
 }
 impl GraphContext for LiveContext<'_> {
+    fn column_label(
+        &self,
+        node: &GraphNode,
+        row: &GraphRow,
+        _: &GraphListColumn,
+    ) -> Option<String> {
+        (node.definition.as_deref() == Some("entity_equipment")
+            && row.key.as_deref() == Some("start_equipped_items"))
+        .then(|| fl!("entity_equipment_item"))
+    }
+    fn cell_label(
+        &self,
+        node: &GraphNode,
+        row: &GraphRow,
+        cell: (usize, usize),
+        value: &GraphControlValue,
+    ) -> Option<String> {
+        if node.definition.as_deref() == Some("entity_equipment")
+            && row.key.as_deref() == Some("start_equipped_items")
+            && cell.1 == 0
+            && let GraphControlValue::Text(reference) = value
+        {
+            return self.equipment_names.get(reference).cloned();
+        }
+        None
+    }
+
     fn node_title(&self, node: &GraphNode) -> Option<String> {
         AuthoringContext(self.definitions).node_title(node)
     }

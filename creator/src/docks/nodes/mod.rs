@@ -296,7 +296,6 @@ impl NodesDock {
             .rules_error
             .clone()
             .or_else(|| self.configuration_error.clone());
-        let display_doc = configuration.then(|| self.equipment_display_document());
         let mut painter = RasterGraphPainter::new(
             buffer.pixels_mut(),
             width,
@@ -306,10 +305,11 @@ impl NodesDock {
             &self.tiles,
         );
         self.editor.paint(
-            display_doc.as_ref().unwrap_or(&self.doc),
+            &self.doc,
             &live::LiveContext {
                 definitions: &self.definitions,
                 live: &self.live,
+                equipment_names: &self.tiles.equipment_names,
             },
             &self.tiles,
             &mut painter,

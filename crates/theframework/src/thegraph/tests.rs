@@ -1096,3 +1096,92 @@ fn list_item_terminals_follow_entries_and_deletion_preserves_other_identities() 
         rect.origin[1] + metrics.list_header + metrics.list_row * 0.5
     );
 }
+
+#[test]
+fn semantic_list_labels_do_not_substitute_authored_values_or_active_text() {
+    struct Context;
+    impl GraphContext for Context {
+        fn observe(&self, _: &GraphNode) -> GraphObservation {
+            GraphObservation::default()
+        }
+        fn column_label(
+            &self,
+            _: &GraphNode,
+            _: &GraphRow,
+            column: &GraphListColumn,
+        ) -> Option<String> {
+            (column.id == "item").then(|| "Equipment".into())
+        }
+        fn cell_label(
+            &self,
+            _: &GraphNode,
+            _: &GraphRow,
+            cell: (usize, usize),
+            _: &GraphControlValue,
+        ) -> Option<String> {
+            (cell.1 == 0).then(|| "Shirt".into())
+        }
+    }
+    #[derive(Default)]
+    struct Labels(Vec<String>);
+    impl GraphPainter for Labels {
+        fn round_rect(&mut self, _: GraphRect, _: f32, _: GraphColor) {}
+        fn text(&mut self, _: GraphRect, text: &str, _: f32, _: GraphColor) {
+            self.0.push(text.into());
+        }
+        fn curve(&mut self, _: [[f32; 2]; 4], _: f32, _: GraphColor) {}
+        fn preview(&mut self, _: GraphRect, _: &str) {}
+    }
+    let mut node = GraphNode::new("Items", [0., 0.], [20, 30, 40, 255]);
+    node.width = 300.;
+    node.rows.push(GraphRow::new(
+        "Items",
+        GraphControlValue::List {
+            columns: vec![GraphListColumn {
+                id: "item".into(),
+                label: "Source label".into(),
+                control: GraphControlValue::Text(String::new()),
+            }],
+            row_ids: vec![uuid::Uuid::new_v4()],
+            rows: vec![vec![GraphControlValue::Text("item-42".into())]],
+        },
+    ));
+    let mut document = GraphDocument {
+        nodes: vec![node],
+        ..Default::default()
+    };
+    let source = document.clone();
+    let mut editor = GraphEditor::default();
+    let mut labels = Labels::default();
+    editor.paint(
+        &document,
+        &Context,
+        &BasicGraphControls,
+        &mut labels,
+        [600., 500.],
+        &GraphTheme::default(),
+    );
+    assert!(labels.0.iter().any(|label| label == "Equipment"));
+    assert!(labels.0.iter().any(|label| label == "Shirt"));
+    assert!(!labels.0.iter().any(|label| label == "item-42"));
+    let r = document.nodes[0].row_rect(0, &document.metrics());
+    let point = editor.viewport.to_screen([
+        r.origin[0] + 12.,
+        r.origin[1] + document.metrics().list_header + 10.,
+    ]);
+    editor.pointer_down(&mut document, point, &BasicGraphControls);
+    assert!(editor.text_focus().is_some());
+    labels.0.clear();
+    editor.paint(
+        &document,
+        &Context,
+        &BasicGraphControls,
+        &mut labels,
+        [600., 500.],
+        &GraphTheme::default(),
+    );
+    assert!(labels.0.iter().any(|label| label == "item-42"));
+    assert!(!labels.0.iter().any(|label| label == "Shirt"));
+    editor.finish_text(&mut document, false);
+    assert_eq!(document, source);
+}
