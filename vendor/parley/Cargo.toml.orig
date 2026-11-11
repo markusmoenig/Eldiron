@@ -1,0 +1,47 @@
+[package]
+name = "parley"
+version.workspace = true
+description = "Parley provides an API for implementing rich text layout."
+keywords = ["text", "layout"]
+categories = ["gui", "graphics"]
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+exclude = ["/tests"]
+
+[package.metadata.docs.rs]
+all-features = true
+
+[lints]
+workspace = true
+
+[features]
+default = ["system"]
+std = ["fontique/std", "harfrust/std", "peniko/std", "skrifa/std", "parlance/std"]
+libm = ["fontique/libm", "peniko/libm", "skrifa/libm", "dep:core_maths"]
+# Enables support for system font backends
+system = ["std", "fontique/system"]
+accesskit = ["dep:accesskit"]
+
+[dependencies]
+skrifa = { workspace = true }
+linebender_resource_handle = { workspace = true }
+fontique = { workspace = true }
+parlance = { workspace = true }
+core_maths = { version = "0.1.1", optional = true }
+parley_data = { workspace = true, features = ["baked"] }
+accesskit = { workspace = true, optional = true }
+hashbrown = { workspace = true }
+harfrust = { workspace = true }
+icu_normalizer = { workspace = true, features = ["compiled_data"] }
+icu_properties = { workspace = true, features = ["compiled_data"] }
+icu_segmenter = { workspace = true, features = ["compiled_data"] }
+
+[dev-dependencies]
+parley_dev = { workspace = true }
+peniko = { workspace = true }
+
+# We special-case android targets because oxipng doesn't build in Android CI.
+[target.'cfg(not(target_os = "android"))'.dev-dependencies]
+oxipng = { version = "9.1.5", default-features = false, features = ["freestanding"] }

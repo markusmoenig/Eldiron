@@ -1,0 +1,128 @@
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -38,6 +38,7 @@
+ all-features = true
+ 
+ [features]
++eldiron-segmentation-tests = []
+ accesskit = ["dep:accesskit"]
+ default = ["system"]
+ libm = [
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -125,7 +125,7 @@
+ pub mod setting;
+ pub mod style;
+ 
+-#[cfg(test)]
++#[cfg(all(test, not(feature = "eldiron-segmentation-tests")))]
+ mod tests;
+ 
+ pub use linebender_resource_handle::FontData;
+--- a/src/analysis/mod.rs
++++ b/src/analysis/mod.rs
+@@ -24,11 +24,29 @@
+ };
+ use parley_data::Properties;
+ 
+-pub(crate) struct AnalysisDataSources;
++pub(crate) struct AnalysisDataSources {
++    word: WordSegmenterBorrowed<'static>,
++    line_normal: LineSegmenterBorrowed<'static>,
++    line_break_all: LineSegmenterBorrowed<'static>,
++    line_keep_all: LineSegmenterBorrowed<'static>,
++}
+ 
+ impl AnalysisDataSources {
+     pub(crate) fn new() -> Self {
+-        Self
++        // Eldiron supports complex-script word/line boundaries. Keep the baked
++        // dictionary segmenters with this layout context rather than using the
++        // upstream non-complex-only defaults or constructing them per paragraph.
++        let line = |strength| {
++            let mut options = LineBreakOptions::default();
++            options.word_option = Some(strength);
++            LineSegmenter::new_dictionary(options)
++        };
++        Self {
++            word: WordSegmenter::new_dictionary(WordBreakInvariantOptions::default()),
++            line_normal: line(LineBreakWordOption::Normal),
++            line_break_all: line(LineBreakWordOption::BreakAll),
++            line_keep_all: line(LineBreakWordOption::KeepAll),
++        }
+     }
+ 
+     #[inline(always)]
+@@ -43,33 +61,15 @@
+ 
+     #[inline(always)]
+     fn word_segmenter(&self) -> WordSegmenterBorrowed<'static> {
+-        const { WordSegmenter::new_for_non_complex_scripts(WordBreakInvariantOptions::default()) }
++        self.word
+     }
+ 
+     #[inline(always)]
+     fn line_segmenter(&self, word_break_strength: WordBreak) -> LineSegmenterBorrowed<'static> {
+         match word_break_strength {
+-            WordBreak::Normal => {
+-                const {
+-                    let mut opt = LineBreakOptions::default();
+-                    opt.word_option = Some(LineBreakWordOption::Normal);
+-                    LineSegmenter::new_for_non_complex_scripts(opt)
+-                }
+-            }
+-            WordBreak::BreakAll => {
+-                const {
+-                    let mut opt = LineBreakOptions::default();
+-                    opt.word_option = Some(LineBreakWordOption::BreakAll);
+-                    LineSegmenter::new_for_non_complex_scripts(opt)
+-                }
+-            }
+-            WordBreak::KeepAll => {
+-                const {
+-                    let mut opt = LineBreakOptions::default();
+-                    opt.word_option = Some(LineBreakWordOption::KeepAll);
+-                    LineSegmenter::new_for_non_complex_scripts(opt)
+-                }
+-            }
++            WordBreak::Normal => self.line_normal,
++            WordBreak::BreakAll => self.line_break_all,
++            WordBreak::KeepAll => self.line_keep_all,
+         }
+     }
+ 
+@@ -520,3 +520,34 @@
+ 
+     !(general_category == GeneralCategory::Format && script != Script::Inherited)
+ }
++
++#[cfg(test)]
++mod eldiron_dictionary_tests {
++    use super::*;
++    use alloc::vec;
++    #[test]
++    fn eldiron_dictionary_word_boundaries_cover_japanese_and_thai() {
++        let sources = AnalysisDataSources::new();
++        let japanese = "東京の図書館";
++        assert_eq!(
++            sources
++                .word_segmenter()
++                .segment_str(japanese)
++                .collect::<Vec<_>>(),
++            vec![0, 6, 9, 18]
++        );
++        let thai = "ภาษาไทย";
++        assert_eq!(
++            sources
++                .word_segmenter()
++                .segment_str(thai)
++                .collect::<Vec<_>>(),
++            vec![0, 12, 21]
++        );
++        let breaks = sources
++            .line_segmenter(WordBreak::Normal)
++            .segment_str("ภาษาไทยภาษาไทย")
++            .collect::<Vec<_>>();
++        assert!(breaks.contains(&12) && breaks.contains(&21), "{breaks:?}");
++    }
++}
