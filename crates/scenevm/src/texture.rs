@@ -11,6 +11,9 @@ pub struct Texture {
 
 #[cfg(feature = "gpu")]
 pub struct TextureGPU {
+    pub device: wgpu::Device,
+    pub context_generation: Option<u64>,
+    mip_pipeline: Option<wgpu::ComputePipeline>,
     pub texture: wgpu::Texture,
     pub view: wgpu::TextureView,
     pub readback: Option<wgpu::Buffer>,
@@ -84,37 +87,17 @@ fn downsample_rgba8_box(src: &[u8], src_w: u32, src_h: u32) -> (Vec<u8>, u32, u3
 
 #[cfg(feature = "gpu")]
 fn mip_pipeline(device: &wgpu::Device) -> wgpu::ComputePipeline {
-    // SceneVMs and their atlases share a device. Keep the tiny filter pipeline
-    // across texture reallocations without sharing resources between devices.
-    thread_local! {
-        static CACHE: std::cell::RefCell<Vec<(wgpu::Device, wgpu::ComputePipeline)>> = const { std::cell::RefCell::new(Vec::new()) };
-    }
-    CACHE.with(|cache| {
-        let mut cache = cache.borrow_mut();
-        if let Some((_, pipeline)) = cache.iter().find(|(owner, _)| owner == device) {
-            return pipeline.clone();
-        }
-        let pipeline = {
-            let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: Some("scenevm-texture-mips"),
-                source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!(
-                    "texture_mips.wgsl"
-                ))),
-            });
-            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-                label: Some("scenevm-texture-mips"),
-                layout: None,
-                module: &shader,
-                entry_point: Some("main"),
-                compilation_options: Default::default(),
-                cache: None,
-            })
-        };
-        if cache.len() >= 4 {
-            cache.remove(0);
-        }
-        cache.push((device.clone(), pipeline.clone()));
-        pipeline
+    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some("scenevm-texture-mips"),
+        source: wgpu::ShaderSource::Wgsl(include_str!("texture_mips.wgsl").into()),
+    });
+    device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+        label: Some("scenevm-texture-mips"),
+        layout: None,
+        module: &shader,
+        entry_point: Some("main"),
+        compilation_options: Default::default(),
+        cache: None,
     })
 }
 
@@ -132,7 +115,12 @@ impl Texture {
 
     /// GPU output storage without an authoritative CPU image.
     pub fn render_target(width: u32, height: u32) -> Self {
-        Self { width, height, data: Vec::new(), gpu: None }
+        Self {
+            width,
+            height,
+            data: Vec::new(),
+            gpu: None,
+        }
     }
 
     #[cfg(feature = "gpu")]
@@ -182,7 +170,7 @@ impl Texture {
             None => true,
             Some(g) => {
                 let size = g.texture.size();
-                size.width != self.width || size.height != self.height
+                g.device != *device || size.width != self.width || size.height != self.height
             }
         };
         if need_realloc {
@@ -221,6 +209,9 @@ impl Texture {
             let padded = ((unpadded + align - 1) / align) * align;
             let readback = None;
             self.gpu = Some(TextureGPU {
+                device: device.clone(),
+                context_generation: None,
+                mip_pipeline: None,
                 texture: tex,
                 view,
                 readback,
@@ -229,6 +220,21 @@ impl Texture {
                 map_ready: None,
             });
         }
+    }
+
+    /// Explicit device domain for application-owned renderers. WGPU device
+    /// equality alone is insufficient across separate WGPU instances.
+    #[cfg(feature = "gpu")]
+    pub fn ensure_gpu_in_domain(&mut self, device: &wgpu::Device, generation: u64) {
+        if self
+            .gpu
+            .as_ref()
+            .is_some_and(|g| g.context_generation != Some(generation))
+        {
+            self.gpu = None;
+        }
+        self.ensure_gpu_with(device);
+        self.gpu.as_mut().unwrap().context_generation = Some(generation);
     }
 
     /// Copy CPU pixels into a destination slice (alias for cpu_blit_to_slice)
@@ -266,7 +272,7 @@ impl Texture {
         if levels <= 1 {
             return;
         }
-        let pipeline = mip_pipeline(device);
+        let pipeline = g.mip_pipeline.get_or_insert_with(|| mip_pipeline(device));
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("scenevm-texture-mips"),
         });
@@ -375,7 +381,9 @@ impl Texture {
                     .copy_from_slice(&data[src_off..src_off + unpadded_bpr]);
             }
             drop(data);
-            if let Some(readback) = &g.readback { readback.unmap(); }
+            if let Some(readback) = &g.readback {
+                readback.unmap();
+            }
         }
         #[cfg(target_arch = "wasm32")]
         {
@@ -395,59 +403,7 @@ impl Texture {
     /// Ensure a GPU texture exists matching current size, creating or resizing as needed.
     #[cfg(feature = "gpu")]
     fn ensure_gpu(&mut self, gpu: &GPUState) {
-        let need_realloc = match &self.gpu {
-            None => true,
-            Some(g) => {
-                let size = g.texture.size();
-                size.width != self.width || size.height != self.height
-            }
-        };
-        if need_realloc {
-            let tex = gpu.device.create_texture(&wgpu::TextureDescriptor {
-                label: Some("scenevm-Texture"),
-                size: wgpu::Extent3d {
-                    width: self.width,
-                    height: self.height,
-                    depth_or_array_layers: 1,
-                },
-                mip_level_count: mip_level_count(self.width, self.height),
-                sample_count: 1,
-                dimension: wgpu::TextureDimension::D2,
-                format: wgpu::TextureFormat::Rgba8Unorm,
-                usage: wgpu::TextureUsages::TEXTURE_BINDING
-                    | wgpu::TextureUsages::STORAGE_BINDING
-                    | wgpu::TextureUsages::COPY_SRC
-                    | wgpu::TextureUsages::COPY_DST,
-                view_formats: &[],
-            });
-            let view = tex.create_view(&wgpu::TextureViewDescriptor {
-                label: Some("scenevm-Texture-view-mip0"),
-                format: None,
-                dimension: None,
-                usage: None,
-                aspect: wgpu::TextureAspect::All,
-                base_mip_level: 0,
-                mip_level_count: Some(1),
-                base_array_layer: 0,
-                array_layer_count: Some(1),
-            });
-
-            // Create readback buffer sized to padded row alignment for downloads
-            let bpp = 4u32;
-            let unpadded = self.width * bpp;
-            let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT; // 256
-            let padded = ((unpadded + align - 1) / align) * align;
-            let readback = None;
-
-            self.gpu = Some(TextureGPU {
-                texture: tex,
-                view,
-                readback,
-                padded_bytes_per_row: padded,
-                #[cfg(target_arch = "wasm32")]
-                map_ready: None,
-            });
-        }
+        self.ensure_gpu_with(&gpu.device);
     }
 
     /// Upload CPU RGBA8 data to the GPU texture (creates it if needed).
@@ -473,7 +429,9 @@ impl Texture {
             return false;
         }
         let gref = self.gpu.as_ref().unwrap();
-        let Some(readback) = gref.readback.as_ref() else { return false; };
+        let Some(readback) = gref.readback.as_ref() else {
+            return false;
+        };
         let slice = readback.slice(..);
 
         #[cfg(target_arch = "wasm32")]
@@ -504,7 +462,9 @@ impl Texture {
         drop(data);
         // Unmap and clear the ready flag (if any)
         if let Some(g) = self.gpu.as_mut() {
-            if let Some(readback) = &g.readback { readback.unmap(); }
+            if let Some(readback) = &g.readback {
+                readback.unmap();
+            }
             #[cfg(target_arch = "wasm32")]
             {
                 g.map_ready = None;
@@ -661,7 +621,9 @@ mod mip_tests {
                         "{width}x{height} mip {mip}, upload seed {seed}"
                     );
                     drop(bytes);
-                    if let Some(readback) = &g.readback { readback.unmap(); }
+                    if let Some(readback) = &g.readback {
+                        readback.unmap();
+                    }
                     (expected, w, h) = downsample_rgba8_box(&expected, w, h);
                 }
             }

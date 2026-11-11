@@ -1348,6 +1348,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "eldiron-presentation"
+version = "0.96.0"
+dependencies = [
+ "futures",
+ "renderkit",
+ "rustc-hash 2.1.1",
+ "rusterix",
+ "scenevm",
+ "theframework",
+ "theframework-core",
+]
+
+[[package]]
 name = "eldiron-ruleset"
 version = "0.96.0"
 dependencies = [

@@ -1,0 +1,15 @@
+[package]
+name = "eldiron-presentation"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Shared scene views and graphical game presentation for Eldiron hosts."
+[dependencies]
+renderkit = {path="../renderkit"}
+scenevm = {path="../scenevm",default-features=false,features=["gpu"]}
+rusterix = {path="../rusterix",default-features=false,features=["graphics"]}
+theframework-core = {path="../theframework-core"}
+rustc-hash = "2"
+[dev-dependencies]
+futures = "0.3"
+theframework = {path="../theframework",default-features=false,features=["render-wgpu"]}

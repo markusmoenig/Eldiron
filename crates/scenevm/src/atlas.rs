@@ -379,7 +379,44 @@ impl SharedAtlas {
     pub fn upload_to_gpu_with(&self, device: &wgpu::Device, queue: &wgpu::Queue) {
         self.ensure_built();
         let mut guard = self.inner.lock().unwrap();
-        if guard.atlas_dirty {
+        if guard.atlas_dirty
+            || guard.atlas.gpu.as_ref().is_none_or(|g|g.device!=*device)
+            || guard.atlas_material.gpu.as_ref().is_none_or(|g|g.device!=*device)
+        {
+            guard.atlas.upload_to_gpu_with(device, queue);
+            guard.atlas_material.upload_to_gpu_with(device, queue);
+            guard.atlas_dirty = false;
+        }
+    }
+
+    /// Rebind retained CPU atlas sources to an explicitly owned GPU generation.
+    /// Existing prepared GPU commands keep their old resource leases alive.
+    #[cfg(feature="gpu")]
+    pub fn upload_to_gpu_in_domain(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        generation: u64,
+    ) {
+        self.ensure_built();
+        let mut guard = self.inner.lock().unwrap();
+        let changed = guard
+            .atlas
+            .gpu
+            .as_ref()
+            .is_none_or(|g| g.context_generation != Some(generation))
+            || guard
+                .atlas_material
+                .gpu
+                .as_ref()
+                .is_none_or(|g| g.context_generation != Some(generation));
+        if changed {
+            guard.atlas.ensure_gpu_in_domain(device, generation);
+            guard
+                .atlas_material
+                .ensure_gpu_in_domain(device, generation);
+        }
+        if changed || guard.atlas_dirty {
             guard.atlas.upload_to_gpu_with(device, queue);
             guard.atlas_material.upload_to_gpu_with(device, queue);
             guard.atlas_dirty = false;

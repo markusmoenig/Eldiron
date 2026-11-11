@@ -2803,7 +2803,11 @@ impl SceneHandler {
     }
 
     pub fn empty() -> Self {
-        let mut vm = SceneVM::default();
+        Self::with_vm(SceneVM::default())
+    }
+
+    /// Application-owned scene renderer; no window or compatibility GPU lookup.
+    pub fn with_vm(mut vm: SceneVM) -> Self {
         vm.set_background_lighting(true);
         vm.set_layer_activity_logging(false);
 

@@ -533,6 +533,7 @@ struct WindowSurface {
 
 #[cfg(feature = "gpu")]
 pub struct GPUState {
+    context_generation: Option<u64>,
     _instance: wgpu::Instance,
     _adapter: wgpu::Adapter,
     device: wgpu::Device,
@@ -1486,6 +1487,7 @@ impl SceneVM {
     pub fn add_vm_layer(&mut self) -> usize {
         // Overlays default to transparent so they don't hide layers below unless drawn into.
         let mut vm = VM::new_with_shared_atlas(self.atlas.clone());
+        vm.gpu_domain = self.gpu.as_ref().and_then(|g| g.context_generation);
         vm.set_background_lighting(self.vm.background_lighting());
         vm.background = vek::Vec4::new(0.0, 0.0, 0.0, 0.0);
         self.overlay_vms.push(vm);
@@ -1960,6 +1962,7 @@ impl SceneVM {
             surface.ensure_gpu_with(&global.device);
 
             let gpu = GPUState {
+                context_generation: None,
                 _instance: global.instance,
                 _adapter: global.adapter,
                 device: global.device,
@@ -2059,6 +2062,7 @@ impl SceneVM {
         storage_surface.ensure_gpu_with(&device);
 
         let gpu = GPUState {
+            context_generation: None,
             _instance: instance,
             _adapter: adapter,
             device,
@@ -2163,6 +2167,7 @@ impl SceneVM {
         storage_surface.ensure_gpu_with(&device);
 
         let gpu = GPUState {
+            context_generation: None,
             _instance: instance,
             _adapter: adapter,
             device,
@@ -2214,6 +2219,7 @@ impl SceneVM {
             let mut surface = Texture::new(w, h);
             surface.ensure_gpu_with(&gg.device);
             let gpu = GPUState {
+                context_generation: None,
                 _instance: gg.instance,
                 _adapter: gg.adapter,
                 device: gg.device,
@@ -2257,6 +2263,7 @@ impl SceneVM {
             surface.ensure_gpu_with(&device);
 
             let gpu = GPUState {
+                context_generation: None,
                 _instance: instance,
                 _adapter: adapter,
                 device,

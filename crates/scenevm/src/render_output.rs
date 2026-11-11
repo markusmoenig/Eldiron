@@ -10,6 +10,7 @@ use std::sync::Arc;
 pub struct SceneRenderTarget {
     texture: Texture,
     context: Arc<GpuContext>,
+    image: Arc<GpuImage>,
 }
 #[derive(Clone)]
 pub struct SceneOutput {
@@ -26,8 +27,26 @@ impl SceneRenderTarget {
             return Err(RenderError("invalid scene target size".into()));
         }
         let mut texture = Texture::render_target(width, height);
-        texture.ensure_gpu_with(&context.device);
-        Ok(Self { texture, context })
+        texture.ensure_gpu_in_domain(&context.device, context.generation());
+        let image = Arc::new(GpuImage::from_texture(
+            &context,
+            texture.gpu.as_ref().unwrap().texture.clone(),
+            ImageDescriptor {
+                width,
+                height,
+                format: wgpu::TextureFormat::Rgba8Unorm,
+                color_space: ColorSpace::Srgb,
+                alpha_mode: AlphaMode::Straight,
+            },
+        )?);
+        Ok(Self {
+            texture,
+            context,
+            image,
+        })
+    }
+    pub fn image(&self) -> Arc<GpuImage> {
+        self.image.clone()
     }
     pub fn size(&self) -> (u32, u32) {
         (self.texture.width, self.texture.height)
@@ -43,6 +62,19 @@ impl SceneRenderTarget {
     }
 }
 impl SceneVM {
+    pub fn shared_atlas(&self) -> SharedAtlas {
+        self.atlas.clone()
+    }
+    /// CPU storage retained by live layer/history targets (not source assets).
+    pub fn render_target_cpu_bytes(&self) -> usize {
+        self.vm.render_target_cpu_bytes()
+            + self
+                .overlay_vms
+                .iter()
+                .map(|v| v.render_target_cpu_bytes())
+                .sum::<usize>()
+    }
+
     /// Construct a renderer on the host's device, without creating a window or
     /// consulting the compatibility global GPU singleton.
     pub fn new_with_context(context: Arc<GpuContext>, width: u32, height: u32) -> Self {
@@ -55,8 +87,9 @@ impl SceneVM {
         atlas: SharedAtlas,
     ) -> Self {
         let mut surface = Texture::render_target(width.max(1), height.max(1));
-        surface.ensure_gpu_with(&context.device);
+        surface.ensure_gpu_in_domain(&context.device, context.generation());
         let gpu = GPUState {
+            context_generation: Some(context.generation()),
             _instance: context.instance.clone(),
             _adapter: context.adapter.clone(),
             device: context.device.clone(),
@@ -82,6 +115,7 @@ impl SceneVM {
             rgba_overlay: None,
             isometric_pass: None,
         };
+        this.vm.gpu_domain = Some(context.generation());
         this.refresh_layer_metadata();
         this
     }
@@ -94,10 +128,23 @@ impl SceneVM {
             .gpu
             .as_ref()
             .ok_or_else(|| RenderError("scene GPU is not initialized".into()))?;
-        if gpu.device != target.context.device {
+        if gpu.context_generation != Some(target.context.generation()) {
             return Err(RenderError(
                 "scene and target belong to different devices".into(),
             ));
+        }
+        if self.vm.gpu_domain != gpu.context_generation
+            || self
+                .overlay_vms
+                .iter()
+                .any(|v| v.gpu_domain != gpu.context_generation)
+        {
+            return Err(RenderError(
+                "scene contains renderer state from a different GPU domain".into(),
+            ));
+        }
+        if target.context.is_lost() {
+            return Err(RenderError("scene GPU device lost".into()));
         }
         let (w, h) = target.size();
         self.size = (w, h);
@@ -116,26 +163,8 @@ impl SceneVM {
             true,
         )
         .map_err(|e| RenderError(format!("scene rendering: {e:?}")))?;
-        let texture = target
-            .texture
-            .gpu
-            .as_ref()
-            .ok_or_else(|| RenderError("scene target missing GPU texture".into()))?
-            .texture
-            .clone();
-        let descriptor = ImageDescriptor {
-            width: w,
-            height: h,
-            format: wgpu::TextureFormat::Rgba8Unorm,
-            color_space: ColorSpace::Srgb,
-            alpha_mode: AlphaMode::Straight,
-        };
         Ok(SceneOutput {
-            image: Arc::new(GpuImage::from_texture(
-                &target.context,
-                texture,
-                descriptor,
-            )?),
+            image: target.image(),
             revision,
         })
     }

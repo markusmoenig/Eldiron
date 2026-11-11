@@ -104,6 +104,10 @@ impl ImageRegistry {
             free: vec![],
         }
     }
+    /// Stable registry domain; handles from another registry are never interchangeable.
+    pub fn owner_id(&self) -> u64 {
+        self.owner
+    }
     pub fn context(&self) -> &Arc<GpuContext> {
         &self.context
     }

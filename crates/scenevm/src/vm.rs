@@ -3572,6 +3572,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
 
 pub struct VM {
     shared_atlas: SharedAtlas,
+    pub(crate) gpu_domain: Option<u64>,
     pub chunks_map: FxHashMap<Uuid, Chunk>,
     pub current_chunk: Option<Uuid>,
 
@@ -4065,8 +4066,7 @@ impl VM {
 
     fn ensure_prev_dummy(&mut self, device: &wgpu::Device) -> wgpu::TextureView {
         if self.prev_dummy.is_none() {
-            let mut tex = crate::Texture::new(1, 1);
-            tex.data = vec![0, 0, 0, 0];
+            let mut tex = crate::Texture::render_target(1, 1);
             tex.ensure_gpu_with(device);
             self.prev_dummy = Some(tex);
         }
@@ -4095,8 +4095,8 @@ impl VM {
                 .unwrap_or(true);
 
             if needs_recreate {
-                let mut a = crate::Texture::new(width, height);
-                let mut b = crate::Texture::new(width, height);
+                let mut a = crate::Texture::render_target(width, height);
+                let mut b = crate::Texture::render_target(width, height);
                 a.ensure_gpu_with(device);
                 b.ensure_gpu_with(device);
                 self.ping_pong_textures = Some([a, b]);
@@ -4109,11 +4109,18 @@ impl VM {
             };
 
             if needs_recreate {
-                let mut tex = crate::Texture::new(width, height);
+                let mut tex = crate::Texture::render_target(width, height);
                 tex.ensure_gpu_with(device);
                 self.layer_texture = Some(tex);
             }
         }
+    }
+
+    pub(crate) fn render_target_cpu_bytes(&self) -> usize {
+        let bytes = |t: &crate::Texture| t.data.len();
+        self.layer_texture.as_ref().map_or(0, bytes)
+            + self.ping_pong_textures.as_ref().map_or(0, |pair| pair.iter().map(bytes).sum())
+            + self.prev_dummy.as_ref().map_or(0, bytes)
     }
 
     /// View for compositing (current front buffer)
@@ -5245,9 +5252,11 @@ impl VM {
     }
 
     fn ensure_tile_metadata(&mut self) {
+        self.build_atlas();
         let layout_version = self.shared_atlas.layout_version();
         if layout_version != self.cached_atlas_layout_version {
             self.rebuild_tile_metadata(layout_version);
+            self.mark_all_geometry_dirty();
         }
     }
 
@@ -5648,6 +5657,7 @@ impl VM {
         }
         Self {
             shared_atlas,
+            gpu_domain: None,
             chunks_map: FxHashMap::default(),
             current_chunk: None,
             animation_counter: 0,
@@ -6817,7 +6827,11 @@ impl VM {
     /// Upload the CPU atlas to GPU (creates GPU resources if needed).
     pub fn upload_atlas_to_gpu_with(&self, device: &wgpu::Device, queue: &wgpu::Queue) {
         self.build_atlas();
-        self.shared_atlas.upload_to_gpu_with(device, queue);
+        if let Some(generation) = self.gpu_domain {
+            self.shared_atlas.upload_to_gpu_in_domain(device, queue, generation);
+        } else {
+            self.shared_atlas.upload_to_gpu_with(device, queue);
+        }
     }
 
     /// Download the atlas from GPU into CPU memory; blocks on native, schedules on wasm.
@@ -14700,6 +14714,7 @@ impl VM {
             self.init_gpu(device)?;
         }
 
+        self.ensure_tile_metadata();
         match self.render_mode {
             RenderMode::Compute2D => {
                 self.compute_draw_2d_into(device, queue, surface, fb_w, fb_h)?;
