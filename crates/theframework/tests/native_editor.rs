@@ -463,3 +463,52 @@ fn popover_editor_escape_cancels_preedit_before_dismissing_its_scope() {
     send(&mut ui, &mut ctx, key(PhysicalKey::Escape));
     assert!(ui.popover.is_none());
 }
+
+#[test]
+fn embedded_scrollbar_gestures_keep_the_editor_focus_and_native_input_epoch() {
+    let (mut ui, mut ctx, a, _) = fixture();
+    let before = ui
+        .get_widget_id(a.uuid)
+        .unwrap()
+        .editor_input_state(&mut ctx)
+        .unwrap()
+        .target;
+    let mut horizontal = TheHorizontalScrollbar::new(TheId::named("Horizontal"));
+    horizontal.set_parent_id(a.clone());
+    horizontal.set_dim(TheDim::new(0, 0, 100, 16), &mut ctx);
+    horizontal
+        .as_horizontal_scrollbar()
+        .unwrap()
+        .set_total_width(1000);
+    let mut vertical = TheVerticalScrollbar::new(TheId::named("Vertical"));
+    vertical.set_parent_id(a.clone());
+    vertical.set_dim(TheDim::new(0, 0, 16, 100), &mut ctx);
+    vertical
+        .as_vertical_scrollbar()
+        .unwrap()
+        .set_total_height(1000);
+    horizontal.on_event(&TheEvent::MouseDown(Vec2::new(5, 5)), &mut ctx);
+    horizontal.on_event(&TheEvent::MouseDragged(Vec2::new(25, 5)), &mut ctx);
+    horizontal.on_event(&TheEvent::MouseUp(Vec2::new(25, 5)), &mut ctx);
+    assert!(
+        horizontal
+            .as_horizontal_scrollbar()
+            .unwrap()
+            .scroll_offset()
+            > 0
+    );
+    vertical.on_event(&TheEvent::MouseDown(Vec2::new(5, 5)), &mut ctx);
+    vertical.on_event(&TheEvent::MouseDragged(Vec2::new(5, 25)), &mut ctx);
+    vertical.on_event(&TheEvent::MouseUp(Vec2::new(5, 25)), &mut ctx);
+    assert!(vertical.as_vertical_scrollbar().unwrap().scroll_offset() > 0);
+    ui.process_events(&mut ctx);
+    assert_eq!(ctx.ui.focus.as_ref(), Some(&a));
+    assert_eq!(
+        ui.get_widget_id(a.uuid)
+            .unwrap()
+            .editor_input_state(&mut ctx)
+            .unwrap()
+            .target,
+        before
+    );
+}

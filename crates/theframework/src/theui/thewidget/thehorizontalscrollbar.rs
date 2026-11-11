@@ -4,6 +4,7 @@ use super::thescrollbarchrome::draw_scrollbar_chrome;
 
 pub struct TheHorizontalScrollbar {
     id: TheId,
+    focus_owner: Option<TheId>,
     limiter: TheSizeLimiter,
 
     state: TheWidgetState,
@@ -49,6 +50,7 @@ impl TheWidget for TheHorizontalScrollbar {
 
         Self {
             id,
+            focus_owner: None,
             limiter,
 
             state: TheWidgetState::None,
@@ -63,6 +65,12 @@ impl TheWidget for TheHorizontalScrollbar {
         }
     }
 
+    fn parent_id(&self) -> Option<&TheId> {
+        self.focus_owner.as_ref()
+    }
+    fn set_parent_id(&mut self, parent: TheId) {
+        self.focus_owner = Some(parent);
+    }
     fn id(&self) -> &TheId {
         &self.id
     }
@@ -83,7 +91,8 @@ impl TheWidget for TheHorizontalScrollbar {
                     if self.state != TheWidgetState::Clicked {
                         self.state = TheWidgetState::Clicked;
                         ctx.ui.send_widget_state_changed(self.id(), self.state);
-                        ctx.ui.set_focus(self.id());
+                        ctx.ui
+                            .set_focus(self.focus_owner.as_ref().unwrap_or(&self.id));
                         self.mouse_down_coord = *coord;
                     }
                 } else {

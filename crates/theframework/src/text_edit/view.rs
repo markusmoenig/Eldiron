@@ -51,6 +51,7 @@ pub struct EditorView {
     dragging: bool,
     modifiers: Modifiers,
     center_y: bool,
+    auto_reveal: bool,
     decorations: Option<DecorationCache>,
 }
 impl EditorView {
@@ -63,6 +64,7 @@ impl EditorView {
             dragging: false,
             modifiers: Modifiers::default(),
             center_y: false,
+            auto_reveal: true,
             decorations: None,
         }
     }
@@ -99,13 +101,19 @@ impl EditorView {
         self.center_y = center_y;
         self.editor.prepare(fonts, options);
         self.clamp_scroll(fonts);
-        if self.editor.is_focused()
+        if self.auto_reveal
+            && self.editor.is_focused()
             && (old_bounds != self.bounds
                 || old_center != self.center_y
                 || builds != self.editor.snapshots_built())
         {
             self.reveal_caret(fonts);
         }
+    }
+    /// Disable automatic following for logs/readonly views. Explicit caret
+    /// reveal, pointer drags and Page navigation remain available to the owner.
+    pub fn set_auto_reveal(&mut self, enabled: bool) {
+        self.auto_reveal = enabled;
     }
     pub fn set_scroll(&mut self, fonts: &mut TextSystem, position: [f32; 2]) {
         self.scroll = position.map(|v| if v.is_finite() { v.max(0.) } else { 0. });
@@ -166,7 +174,7 @@ impl EditorView {
             return;
         }
         self.editor.set_focused(fonts, focused);
-        if focused {
+        if focused && self.auto_reveal {
             self.reveal_caret(fonts);
         } else {
             self.dragging = false;
@@ -269,7 +277,7 @@ impl EditorView {
             _ => {}
         }
         let response = self.editor.input(fonts, event);
-        if response.input.redraw {
+        if response.input.redraw && self.auto_reveal {
             self.reveal_caret(fonts);
         }
         response
@@ -837,4 +845,43 @@ mod decoration_tests {
             "scrolling does not reshape the document"
         );
     }
+}
+
+#[cfg(test)]
+#[test]
+fn readonly_streaming_view_keeps_explicit_scrollback_and_exposes_no_ime_candidate() {
+    let mut fonts = TextSystem::default();
+    fonts.register_font(include_bytes!("../../embedded/fonts/Roboto-Bold.ttf").to_vec());
+    let mut view = EditorView::new(true);
+    let source = "One\nTwo\nThree\nFour\nFive\nSix\nSeven";
+    view.editor.set_text(&mut fonts, source);
+    view.editor.set_policy(
+        &mut fonts,
+        super::EditorPolicy {
+            read_only: true,
+            ..Default::default()
+        },
+    );
+    view.set_auto_reveal(false);
+    let options = || TextOptions {
+        family: "Roboto",
+        size: 18.,
+        width: Some(160.),
+        line_height: Some(24.),
+    };
+    let bounds = Rect::new(16., 16., 160., 48.);
+    view.prepare(&mut fonts, options(), bounds, false);
+    view.set_focused(&mut fonts, true);
+    assert_eq!(view.scroll(), [0.; 2]);
+    assert!(view.text_input_state(&mut fonts).is_none());
+    view.editor
+        .set_text(&mut fonts, &format!("{source}\nEight"));
+    view.prepare(&mut fonts, options(), bounds, false);
+    assert_eq!(view.scroll(), [0.; 2]);
+    view.reveal_caret(&mut fonts);
+    assert!(view.scroll()[1] > 0.);
+    view.set_scroll(&mut fonts, [0.; 2]);
+    view.set_focused(&mut fonts, false);
+    view.set_focused(&mut fonts, true);
+    assert_eq!(view.scroll(), [0.; 2]);
 }

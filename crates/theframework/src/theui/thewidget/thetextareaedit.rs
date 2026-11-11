@@ -340,12 +340,15 @@ impl TheWidget for TheTextAreaEdit {
         limiter.set_max_width(200);
         limiter.set_max_height(300);
 
-        let hscrollbar = Box::new(TheHorizontalScrollbar::new(TheId::named(
+        let mut hscrollbar = Box::new(TheHorizontalScrollbar::new(TheId::named(
             (id.name.clone() + " Horizontal Scrollbar").as_str(),
         )));
-        let vscrollbar = Box::new(TheVerticalScrollbar::new(TheId::named(
+        let mut vscrollbar = Box::new(TheVerticalScrollbar::new(TheId::named(
             (id.name.clone() + " Vertical Scrollbar").as_str(),
         )));
+
+        hscrollbar.set_parent_id(id.clone());
+        vscrollbar.set_parent_id(id.clone());
 
         Self {
             id,
