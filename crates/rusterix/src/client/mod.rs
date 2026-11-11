@@ -1,30 +1,34 @@
 pub mod action;
 pub mod content;
+pub mod screen_model;
+use screen_model::*;
 pub mod command {
     pub use crate::input_binding::*;
 }
 pub mod daylight;
 pub mod draw2d;
+mod intent_cursor;
 pub mod parser;
 pub mod resolver;
 pub mod rules_ui;
 pub mod text_command;
 pub mod widget;
 mod world_text;
-mod intent_cursor;
 
 use instant::{Duration, Instant};
 use scenevm::GeoId;
 
+#[cfg(test)]
+use crate::client::widget::BorderGradientDirection;
 use crate::prelude::*;
 use crate::{
     BrushPreview, Command, D2PreviewBuilder, Entity, EntityAction, MapMini, PlayerCamera, Rect,
     SceneHandler, Surface, Value,
     client::action::ClientAction,
-    client::command::{ClientCommandBinding, command_from_legacy_fields, parse_client_command},
+    client::command::{ClientCommandBinding, parse_client_command},
     client::rules_ui::{CommandState, ContainerUiTemplate, RulesDescription},
     client::widget::{
-        BorderGradientDirection, ButtonStateStyle, ButtonVisualState, TextInputWidget, Widget,
+        ButtonVisualState, TextInputWidget, Widget,
         avatar::AvatarWidget,
         choice::{ChoiceInteraction, ChoiceOption, ChoiceWidget, ChoiceWidgetKind},
         deco::DecoWidget,
@@ -42,37 +46,6 @@ use rayon::prelude::*;
 use std::sync::{Arc, Mutex};
 use theframework::prelude::*;
 use toml::*;
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-enum ScreenAnchor {
-    #[default]
-    TopLeft,
-    TopCenter,
-    TopRight,
-    CenterLeft,
-    Center,
-    CenterRight,
-    BottomLeft,
-    BottomCenter,
-    BottomRight,
-}
-
-impl ScreenAnchor {
-    fn parse(value: &str) -> Option<Self> {
-        match value.trim().to_ascii_lowercase().as_str() {
-            "top_left" => Some(Self::TopLeft),
-            "top" | "top_center" => Some(Self::TopCenter),
-            "top_right" => Some(Self::TopRight),
-            "left" | "center_left" | "middle_left" => Some(Self::CenterLeft),
-            "center" | "middle" => Some(Self::Center),
-            "right" | "center_right" | "middle_right" => Some(Self::CenterRight),
-            "bottom_left" => Some(Self::BottomLeft),
-            "bottom" | "bottom_center" => Some(Self::BottomCenter),
-            "bottom_right" => Some(Self::BottomRight),
-            _ => None,
-        }
-    }
-}
 
 pub(crate) fn apply_2d_visibility_mask(
     pixels: &mut [u8],
@@ -189,111 +162,6 @@ struct InventoryPanelLayout {
     page_count: usize,
 }
 
-#[derive(Clone)]
-struct InventoryPanelConfig {
-    columns: usize,
-    rows: usize,
-    cell_size: f32,
-    spacing: f32,
-    padding: f32,
-    title_height: f32,
-    tab_height: f32,
-    footer_height: f32,
-    sort_width: f32,
-    font: String,
-    font_size: f32,
-    title_font_size: f32,
-    title: String,
-    categories: Vec<ChoiceOption>,
-    sort_options: Vec<ChoiceOption>,
-    authored_rect: Option<Rect>,
-    background_color: Pixel,
-    title_background_color: Pixel,
-    border_color: Pixel,
-    text_color: Pixel,
-    muted_text_color: Pixel,
-    slot_background_color: Pixel,
-    slot_border_color: Pixel,
-    selected_slot_color: Pixel,
-    tab_background_color: Pixel,
-    tab_selected_color: Pixel,
-    dropdown_background_color: Pixel,
-    dropdown_panel_color: Pixel,
-}
-
-impl Default for InventoryPanelConfig {
-    fn default() -> Self {
-        Self {
-            columns: 8,
-            rows: 5,
-            cell_size: 48.0,
-            spacing: 4.0,
-            padding: 10.0,
-            title_height: 38.0,
-            tab_height: 30.0,
-            footer_height: 34.0,
-            sort_width: 132.0,
-            font: String::new(),
-            font_size: 14.0,
-            title_font_size: 20.0,
-            title: "Inventory".to_string(),
-            categories: vec![
-                ChoiceOption {
-                    label: "All".to_string(),
-                    value: "all".to_string(),
-                },
-                ChoiceOption {
-                    label: "Equipment".to_string(),
-                    value: "equipment".to_string(),
-                },
-                ChoiceOption {
-                    label: "Consumables".to_string(),
-                    value: "consumables".to_string(),
-                },
-                ChoiceOption {
-                    label: "Materials".to_string(),
-                    value: "materials".to_string(),
-                },
-                ChoiceOption {
-                    label: "Misc".to_string(),
-                    value: "misc".to_string(),
-                },
-            ],
-            sort_options: vec![
-                ChoiceOption {
-                    label: "Newest".to_string(),
-                    value: "newest".to_string(),
-                },
-                ChoiceOption {
-                    label: "Name".to_string(),
-                    value: "name".to_string(),
-                },
-                ChoiceOption {
-                    label: "Value".to_string(),
-                    value: "value".to_string(),
-                },
-                ChoiceOption {
-                    label: "Quantity".to_string(),
-                    value: "quantity".to_string(),
-                },
-            ],
-            authored_rect: None,
-            background_color: [8, 10, 10, 246],
-            title_background_color: [12, 14, 14, 246],
-            border_color: [104, 88, 55, 255],
-            text_color: [222, 214, 190, 255],
-            muted_text_color: [156, 149, 130, 255],
-            slot_background_color: [13, 16, 16, 238],
-            slot_border_color: [77, 67, 47, 255],
-            selected_slot_color: [238, 214, 118, 255],
-            tab_background_color: [10, 13, 13, 230],
-            tab_selected_color: [22, 29, 30, 245],
-            dropdown_background_color: [10, 13, 13, 245],
-            dropdown_panel_color: [8, 11, 11, 252],
-        }
-    }
-}
-
 #[derive(Clone, Debug)]
 struct EquipmentPanelSlotLayout {
     slot: String,
@@ -309,102 +177,6 @@ struct EquipmentPanelLayout {
     close_rect: Rect,
     avatar_rect: Rect,
     slots: Vec<EquipmentPanelSlotLayout>,
-}
-
-#[derive(Clone)]
-struct EquipmentPanelConfig {
-    padding: f32,
-    title_height: f32,
-    slot_size: f32,
-    spacing: f32,
-    column_gap: f32,
-    label_width: f32,
-    avatar_width: f32,
-    avatar_height: f32,
-    avatar_scale: f32,
-    font: String,
-    font_size: f32,
-    title_font_size: f32,
-    title: String,
-    left_slots: Vec<String>,
-    right_slots: Vec<String>,
-    authored_rect: Option<Rect>,
-    background_color: Pixel,
-    title_background_color: Pixel,
-    border_color: Pixel,
-    text_color: Pixel,
-    muted_text_color: Pixel,
-    slot_background_color: Pixel,
-    slot_border_color: Pixel,
-    occupied_slot_color: Pixel,
-}
-
-impl Default for EquipmentPanelConfig {
-    fn default() -> Self {
-        Self {
-            padding: 10.0,
-            title_height: 38.0,
-            slot_size: 52.0,
-            spacing: 8.0,
-            column_gap: 12.0,
-            label_width: 70.0,
-            avatar_width: 150.0,
-            avatar_height: 300.0,
-            avatar_scale: 1.0,
-            font: String::new(),
-            font_size: 13.0,
-            title_font_size: 20.0,
-            title: "Equipment".to_string(),
-            left_slots: Vec::new(),
-            right_slots: Vec::new(),
-            authored_rect: None,
-            background_color: [8, 10, 10, 246],
-            title_background_color: [12, 14, 14, 246],
-            border_color: [104, 88, 55, 255],
-            text_color: [222, 214, 190, 255],
-            muted_text_color: [156, 149, 130, 255],
-            slot_background_color: [13, 16, 16, 238],
-            slot_border_color: [77, 67, 47, 255],
-            occupied_slot_color: [238, 214, 118, 255],
-        }
-    }
-}
-
-#[derive(Clone)]
-struct PreferencesPanelConfig {
-    width: f32,
-    padding: f32,
-    title_height: f32,
-    row_height: f32,
-    font: String,
-    font_size: f32,
-    title_font_size: f32,
-    title: String,
-    background_color: Pixel,
-    title_background_color: Pixel,
-    border_color: Pixel,
-    text_color: Pixel,
-    muted_text_color: Pixel,
-}
-
-impl Default for PreferencesPanelConfig {
-    fn default() -> Self {
-        Self {
-            width: 290.0,
-            padding: 10.0,
-            title_height: 34.0,
-            row_height: 32.0,
-            font: String::new(),
-            font_size: 13.0,
-            title_font_size: 18.0,
-            title: "Preferences".to_string(),
-            background_color: [8, 10, 10, 246],
-            title_background_color: [12, 14, 14, 246],
-            border_color: [104, 88, 55, 255],
-            text_color: [222, 214, 190, 255],
-            muted_text_color: [156, 149, 130, 255],
-        }
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -462,129 +234,6 @@ struct ActionsPanelLayout {
     scroll_thumb_rect: Option<Rect>,
     page: usize,
     page_count: usize,
-}
-
-#[derive(Clone)]
-struct CatalogPanelConfig {
-    columns: usize,
-    rows: Option<usize>,
-    cell_size: f32,
-    spacing: f32,
-    padding: f32,
-    title_height: f32,
-    tab_height: f32,
-    detail_width: f32,
-    detail_gap: f32,
-    icon_inset: f32,
-    show_names: bool,
-    show_tabs: bool,
-    show_details: bool,
-    show_assign: bool,
-    title: String,
-    font: String,
-    title_font: String,
-    font_size: f32,
-    title_font_size: f32,
-    small_font_size: f32,
-    authored_rect: Option<Rect>,
-    background_color: Pixel,
-    title_background_color: Pixel,
-    border_color: Pixel,
-    border_size: i32,
-    text_color: Pixel,
-    muted_text_color: Pixel,
-    slot_background_color: Pixel,
-    slot_border_color: Pixel,
-    slot_border_size: i32,
-    detail_background_color: Pixel,
-    tab_background_color: Pixel,
-    tab_selected_color: Pixel,
-    separator_color: Pixel,
-    frame_texture: Option<Texture>,
-    frame_slice: usize,
-    slot_texture: Option<Texture>,
-    slot_slice: usize,
-}
-
-impl Default for CatalogPanelConfig {
-    fn default() -> Self {
-        Self {
-            columns: 5,
-            rows: None,
-            cell_size: 72.0,
-            spacing: 8.0,
-            padding: 12.0,
-            title_height: 38.0,
-            tab_height: 30.0,
-            detail_width: 196.0,
-            detail_gap: 12.0,
-            icon_inset: 6.0,
-            show_names: false,
-            show_tabs: true,
-            show_details: true,
-            show_assign: false,
-            title: String::new(),
-            font: String::new(),
-            title_font: String::new(),
-            font_size: 14.0,
-            title_font_size: 20.0,
-            small_font_size: 12.0,
-            authored_rect: None,
-            background_color: [8, 10, 10, 246],
-            title_background_color: [12, 14, 14, 246],
-            border_color: [104, 88, 55, 255],
-            border_size: 1,
-            text_color: [222, 214, 190, 255],
-            muted_text_color: [156, 149, 130, 255],
-            slot_background_color: [13, 16, 16, 238],
-            slot_border_color: [77, 67, 47, 255],
-            slot_border_size: 1,
-            detail_background_color: [8, 11, 11, 230],
-            tab_background_color: [10, 13, 13, 230],
-            tab_selected_color: [22, 29, 30, 245],
-            separator_color: [77, 67, 47, 255],
-            frame_texture: None,
-            frame_slice: 0,
-            slot_texture: None,
-            slot_slice: 0,
-        }
-    }
-}
-
-impl CatalogPanelConfig {
-    fn actions_default() -> Self {
-        Self {
-            title: "Actions".to_string(),
-            show_names: true,
-            show_details: false,
-            show_assign: true,
-            ..Self::default()
-        }
-    }
-}
-
-#[derive(Clone, Debug, Default)]
-struct ActionBarButtonConfig {
-    command: Option<String>,
-    command_slot: Option<String>,
-    label: String,
-    show_icon: Option<bool>,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-enum ActionBarGroupAlign {
-    Left,
-    #[default]
-    Center,
-    Right,
-}
-
-#[derive(Clone, Debug)]
-struct ActionBarGroupConfig {
-    align: ActionBarGroupAlign,
-    slot_size: f32,
-    spacing: f32,
-    buttons: Vec<ActionBarButtonConfig>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -1024,13 +673,13 @@ impl Client {
 
     fn say_color_from_table(say: &toml::value::Table, category: &str) -> Option<Pixel> {
         if let Some(hex) = say.get(category).and_then(toml::Value::as_str) {
-            return Some(Self::hex_to_rgba_u8(hex));
+            return Some(screen_model::hex_to_rgba_u8(hex));
         }
         if let Some(hex) = say.get("default").and_then(toml::Value::as_str) {
-            return Some(Self::hex_to_rgba_u8(hex));
+            return Some(screen_model::hex_to_rgba_u8(hex));
         }
         if let Some(hex) = say.get("").and_then(toml::Value::as_str) {
-            return Some(Self::hex_to_rgba_u8(hex));
+            return Some(screen_model::hex_to_rgba_u8(hex));
         }
         None
     }
@@ -1091,10 +740,10 @@ impl Client {
 
     fn say_background_color_from_table(say: &toml::value::Table) -> Option<Pixel> {
         if let Some(hex) = say.get("background_color").and_then(toml::Value::as_str) {
-            return Some(Self::hex_to_rgba_u8(hex));
+            return Some(screen_model::hex_to_rgba_u8(hex));
         }
         if let Some(hex) = say.get("background").and_then(toml::Value::as_str) {
-            return Some(Self::hex_to_rgba_u8(hex));
+            return Some(screen_model::hex_to_rgba_u8(hex));
         }
         None
     }
@@ -1251,12 +900,19 @@ impl Client {
             .and_then(|binding| binding.intent_payload())
     }
 
-    fn contextual_open_close_command(command: Option<String>, hovered: Option<u32>, map: &Map) -> Option<String> {
-        if command.as_deref()==Some("intent.open_close")
-            && let Some(item)=hovered.and_then(|id|map.items.iter().find(|i|i.id==id))
-            && item.attributes.get_bool_default("openable",false)
+    fn contextual_open_close_command(
+        command: Option<String>,
+        hovered: Option<u32>,
+        map: &Map,
+    ) -> Option<String> {
+        if command.as_deref() == Some("intent.open_close")
+            && let Some(item) = hovered.and_then(|id| map.items.iter().find(|i| i.id == id))
+            && item.attributes.get_bool_default("openable", false)
         {
-            return Some(format!("intent.{}",crate::item_state::canonical_intent(item,"open_close")));
+            return Some(format!(
+                "intent.{}",
+                crate::item_state::canonical_intent(item, "open_close")
+            ));
         }
         command
     }
@@ -1462,21 +1118,6 @@ impl Client {
             }
         } else {
             self.end_mouse_look();
-        }
-    }
-
-    fn parse_player_camera_mode(camera: &str) -> Option<PlayerCamera> {
-        match camera.to_ascii_lowercase().as_str() {
-            "2d" => Some(PlayerCamera::D2),
-            "2d_grid" => Some(PlayerCamera::D2Grid),
-            "2d_iso" => Some(PlayerCamera::D2Iso),
-            "2d_iso_grid" => Some(PlayerCamera::D2IsoGrid),
-            "iso" => Some(PlayerCamera::D3Iso),
-            "iso_grid" => Some(PlayerCamera::D2Grid),
-            "firstp" => Some(PlayerCamera::D3FirstP),
-            "firstp_mouse" => Some(PlayerCamera::D3FirstPMouse),
-            "firstp_grid" => Some(PlayerCamera::D3FirstPGrid),
-            _ => None,
         }
     }
 
@@ -2666,116 +2307,6 @@ impl Client {
         default.to_string()
     }
 
-    fn get_uuid(map: &toml::map::Map<String, toml::Value>, key: &str) -> Option<Uuid> {
-        map.get(key)
-            .and_then(|v| v.as_str())
-            .and_then(|s| Uuid::parse_str(s).ok())
-    }
-
-    fn hex_to_rgba_u8(hex: &str) -> [u8; 4] {
-        let hex = hex.trim_start_matches('#');
-        match hex.len() {
-            6 => match (
-                u8::from_str_radix(&hex[0..2], 16),
-                u8::from_str_radix(&hex[2..4], 16),
-                u8::from_str_radix(&hex[4..6], 16),
-            ) {
-                (Ok(r), Ok(g), Ok(b)) => [r, g, b, 255],
-                _ => [255, 255, 255, 255],
-            },
-            8 => match (
-                u8::from_str_radix(&hex[0..2], 16),
-                u8::from_str_radix(&hex[2..4], 16),
-                u8::from_str_radix(&hex[4..6], 16),
-                u8::from_str_radix(&hex[6..8], 16),
-            ) {
-                (Ok(r), Ok(g), Ok(b), Ok(a)) => [r, g, b, a],
-                _ => [255, 255, 255, 255],
-            },
-            _ => [255, 255, 255, 255],
-        }
-    }
-
-    fn color_from_table(table: &toml::value::Table, key: &str) -> Option<[u8; 4]> {
-        table
-            .get(key)
-            .and_then(toml::Value::as_str)
-            .map(Self::hex_to_rgba_u8)
-    }
-
-    fn border_style_from_table(
-        table: &toml::value::Table,
-        default_color: [u8; 4],
-        default_size: i32,
-    ) -> ([u8; 4], i32, Option<[u8; 4]>, BorderGradientDirection, f32) {
-        let mut color = Self::color_from_table(table, "border_color").unwrap_or(default_color);
-        let mut size = table
-            .get("border_size")
-            .and_then(toml::Value::as_integer)
-            .map(|value| value.max(0) as i32)
-            .unwrap_or(default_size.max(0));
-        let mut gradient_color = None;
-        let mut direction = BorderGradientDirection::Vertical;
-        let mut radius = 0.0;
-
-        if let Some(border) = table.get("border").and_then(toml::Value::as_table) {
-            size = border
-                .get("size")
-                .and_then(toml::Value::as_integer)
-                .map(|value| value.max(0) as i32)
-                .unwrap_or(size);
-            color = Self::color_from_table(border, "from")
-                .or_else(|| Self::color_from_table(border, "color"))
-                .unwrap_or(color);
-            gradient_color = Self::color_from_table(border, "to");
-            direction = border
-                .get("direction")
-                .and_then(toml::Value::as_str)
-                .map(BorderGradientDirection::parse)
-                .unwrap_or_default();
-            radius = Self::layout_number(border, "radius")
-                .unwrap_or(0.0)
-                .max(0.0);
-        }
-
-        (color, size, gradient_color, direction, radius)
-    }
-
-    fn ui_style_color(
-        ui: &toml::value::Table,
-        state: Option<&str>,
-        key: &str,
-        flat_key: &str,
-    ) -> Option<[u8; 4]> {
-        if let Some(color) = Self::color_from_table(ui, flat_key) {
-            return Some(color);
-        }
-
-        let style = ui.get("style").and_then(toml::Value::as_table)?;
-        match state {
-            Some(state) => style
-                .get(state)
-                .and_then(toml::Value::as_table)
-                .and_then(|state_style| Self::color_from_table(state_style, key)),
-            None => Self::color_from_table(style, key),
-        }
-    }
-
-    fn button_state_style_from_ui(
-        ui: &toml::value::Table,
-        state: &str,
-        background_key: &str,
-        border_key: &str,
-        label_key: &str,
-    ) -> ButtonStateStyle {
-        ButtonStateStyle {
-            background_color: Self::ui_style_color(ui, Some(state), "background", background_key),
-            border_color: Self::ui_style_color(ui, Some(state), "border", border_key),
-            label_color: Self::ui_style_color(ui, Some(state), "text", label_key)
-                .or_else(|| Self::ui_style_color(ui, Some(state), "color", label_key)),
-        }
-    }
-
     fn button_visual_state(
         hovered: bool,
         selected: bool,
@@ -2948,46 +2479,17 @@ impl Client {
             return false;
         };
 
-        screen
-            .sectors
-            .iter()
-            .any(|sector| Self::sector_ui_role(sector).is_some_and(|role| role == role_name))
-    }
-
-    fn sector_ui_role(sector: &crate::Sector) -> Option<String> {
-        let crate::Value::Str(data) = sector.properties.get("data")? else {
-            return None;
-        };
-        let table = data.parse::<Table>().ok()?;
-        table
-            .get("ui")
-            .and_then(toml::Value::as_table)
-            .and_then(|ui| ui.get("role"))
-            .and_then(toml::Value::as_str)
-            .map(str::trim)
-            .filter(|role| !role.is_empty() && !role.eq_ignore_ascii_case("none"))
-            .map(str::to_string)
+        screen.sectors.iter().any(|sector| {
+            screen_model::sector_ui_role(sector).is_some_and(|role| role == role_name)
+        })
     }
 
     fn screen_base_render_map(screen: &Map) -> Map {
-        Self::screen_static_layer_render_map(screen, false)
+        screen_model::screen_static_layer_render_map(screen, false)
     }
 
     fn screen_foreground_render_map(screen: &Map) -> Map {
-        Self::screen_static_layer_render_map(screen, true)
-    }
-
-    fn screen_static_layer_render_map(screen: &Map, foreground: bool) -> Map {
-        let mut map = screen.clone();
-        map.sectors.retain(|sector| {
-            if Self::sector_ui_role(sector).is_some() {
-                return false;
-            }
-
-            let layer = sector.properties.get_int_default("layer", 0);
-            if foreground { layer > 0 } else { layer <= 0 }
-        });
-        map
+        screen_model::screen_static_layer_render_map(screen, true)
     }
 
     pub fn process_pending_runtime_commands(
@@ -3079,49 +2581,13 @@ impl Client {
     }
 
     fn sync_bound_button_activation(&mut self, binding: &str) {
-        let selected_value = self.ui_state.get(binding).map(|value| value.trim());
-        let mut selected_button_id = None;
-
-        for (id, widget) in self.button_widgets.iter() {
-            if widget.binding.as_deref() != Some(binding) {
-                continue;
-            }
-
-            let single_selection = widget
-                .selection
-                .as_deref()
-                .map(|selection| selection.eq_ignore_ascii_case("single"))
-                .unwrap_or_else(|| widget.group.is_some());
-            if !single_selection {
-                continue;
-            }
-
-            self.activated_widgets.retain(|active_id| active_id != id);
-            self.permanently_activated_widgets
-                .retain(|active_id| active_id != id);
-
-            if let (Some(selected), Some(value)) = (selected_value, widget.value.as_deref())
-                && value.trim().eq_ignore_ascii_case(selected)
-            {
-                selected_button_id = Some(*id);
-            }
-        }
-
-        if let Some(id) = selected_button_id {
-            if !self.activated_widgets.contains(&id) {
-                self.activated_widgets.push(id);
-            }
-            if !self.permanently_activated_widgets.contains(&id) {
-                self.permanently_activated_widgets.push(id);
-            }
-        }
-    }
-
-    fn apply_bound_button_activations(&mut self) {
-        let bindings: Vec<String> = self.ui_state.keys().cloned().collect();
-        for binding in bindings {
-            self.sync_bound_button_activation(&binding);
-        }
+        screen_model::sync_bound_button_activation(
+            &self.button_widgets,
+            &self.ui_state,
+            &mut self.activated_widgets,
+            &mut self.permanently_activated_widgets,
+            binding,
+        );
     }
 
     /// Editor quick play uses authored entity configuration rather than setup-screen choices.
@@ -3475,7 +2941,10 @@ impl Client {
         F: FnMut(&mut GameWidget, &mut SceneHandler) -> bool,
         G: FnMut(&mut GameWidget, &mut SceneHandler),
     {
-        let messages = messages.into_iter().filter(|m| m.4 != "look").collect::<Vec<_>>();
+        let messages = messages
+            .into_iter()
+            .filter(|m| m.4 != "look")
+            .collect::<Vec<_>>();
         let debug_enabled = self.frame_timings_enabled();
         let debug_total_started = Instant::now();
         let debug_setup_started = Instant::now();
@@ -3947,7 +3416,11 @@ impl Client {
                 ));
                 let resolved_command =
                     Self::resolved_widget_command(widget, assets, entity, &self.ui_state);
-                let resolved_command=Self::contextual_open_close_command(resolved_command,self.hovered_item_id,map);
+                let resolved_command = Self::contextual_open_close_command(
+                    resolved_command,
+                    self.hovered_item_id,
+                    map,
+                );
                 debug_button_resolve += button_stage_started.elapsed();
 
                 let button_stage_started = Instant::now();
@@ -4140,7 +3613,10 @@ impl Client {
             // "none" mode: center without scaling
             buffer.fill(bg_color);
             let dim = buffer.dim();
-            self.target_offset = Vec2::new(((dim.width - self.viewport.x) / 2).max(0), ((dim.height - self.viewport.y) / 2).max(0));
+            self.target_offset = Vec2::new(
+                ((dim.width - self.viewport.x) / 2).max(0),
+                ((dim.height - self.viewport.y) / 2).max(0),
+            );
             self.first_game_draw = false;
             buffer.copy_into(self.target_offset.x, self.target_offset.y, &self.target);
         }
@@ -4321,7 +3797,10 @@ impl Client {
         width: u32,
         height: u32,
     ) -> &TheRGBABuffer {
-        let messages = messages.into_iter().filter(|m| m.4 != "look").collect::<Vec<_>>();
+        let messages = messages
+            .into_iter()
+            .filter(|m| m.4 != "look")
+            .collect::<Vec<_>>();
         let w = width.max(1) as i32;
         let h = height.max(1) as i32;
         let dim = self.overlay.dim();
@@ -4646,7 +4125,11 @@ impl Client {
                 ));
                 let resolved_command =
                     Self::resolved_widget_command(widget, assets, entity, &self.ui_state);
-                let resolved_command=Self::contextual_open_close_command(resolved_command,self.hovered_item_id,map);
+                let resolved_command = Self::contextual_open_close_command(
+                    resolved_command,
+                    self.hovered_item_id,
+                    map,
+                );
                 let command_state = resolved_command
                     .as_deref()
                     .map(|command| rules_ui::command_state(assets, entity, command));
@@ -6609,11 +6092,10 @@ impl Client {
         scene_handler: &mut SceneHandler,
     ) -> bool {
         let point = Vec2::new(p.x as f32, p.y as f32);
-        let Some(widget) = self
-            .game_widgets
-            .values()
-            .find(|widget| widget.rect.contains(point) && (!Self::is_2d_camera(&widget.camera) || widget.camera.is_isometric_2d()))
-        else {
+        let Some(widget) = self.game_widgets.values().find(|widget| {
+            widget.rect.contains(point)
+                && (!Self::is_2d_camera(&widget.camera) || widget.camera.is_isometric_2d())
+        }) else {
             return false;
         };
 
@@ -6628,10 +6110,19 @@ impl Client {
         if widget.camera.is_isometric_2d() {
             if let Some(projection) = widget.isometric_projection {
                 let sprites = scene_handler.isometric_avatars(map, assets, self.animation_frame);
-                self.hovered_item_id = crate::isometric::pick_item(map, assets, projection, Vec2::new(dx,dy), &sprites);
-                if let Some(item) = self.hovered_item_id.and_then(|id| map.items.iter().find(|i| i.id==id)) {
+                self.hovered_item_id = crate::isometric::pick_item(
+                    map,
+                    assets,
+                    projection,
+                    Vec2::new(dx, dy),
+                    &sprites,
+                );
+                if let Some(item) = self
+                    .hovered_item_id
+                    .and_then(|id| map.items.iter().find(|i| i.id == id))
+                {
                     self.hovered_world_pos = Some(item.position);
-                    self.hover_distance = Self::item_click_distance(map,item.id);
+                    self.hover_distance = Self::item_click_distance(map, item.id);
                 }
             }
             return self.hovered_item_id.is_some();
@@ -6883,11 +6374,20 @@ impl Client {
                 let dy = p.y as f32 - widget.rect.y;
 
                 if Self::is_2d_camera(&widget.camera) {
-                    if widget.camera.is_isometric_2d() && let Some(projection) = widget.isometric_projection {
-                        let sprites = scene_handler.isometric_avatars(map, assets, self.animation_frame);
-                        if let Some(item) = crate::isometric::pick_item(map, assets, projection, Vec2::new(dx,dy), &sprites) {
+                    if widget.camera.is_isometric_2d()
+                        && let Some(projection) = widget.isometric_projection
+                    {
+                        let sprites =
+                            scene_handler.isometric_avatars(map, assets, self.animation_frame);
+                        if let Some(item) = crate::isometric::pick_item(
+                            map,
+                            assets,
+                            projection,
+                            Vec2::new(dx, dy),
+                            &sprites,
+                        ) {
                             self.hovered_item_id = Some(item);
-                            pending_cursor_target = Some((false,true));
+                            pending_cursor_target = Some((false, true));
                             continue;
                         }
                     }
@@ -7044,7 +6544,9 @@ impl Client {
         // Transform screen coordinates to viewport coordinates
         let p = self.screen_to_viewport(coord);
         let point = Vec2::new(p.x as f32, p.y as f32);
-        if self.interact_world_text(point) { return None; }
+        if self.interact_world_text(point) {
+            return None;
+        }
 
         if self
             .preferences_tooltips_choice
@@ -8621,388 +8123,6 @@ impl Client {
         }
     }
 
-    fn layout_number(layout: &toml::Table, key: &str) -> Option<f32> {
-        layout.get(key).and_then(|value| {
-            value
-                .as_float()
-                .map(|value| value as f32)
-                .or_else(|| value.as_integer().map(|value| value as f32))
-        })
-    }
-
-    fn catalog_panel_config(
-        config: &toml::Table,
-        root: Option<&toml::Table>,
-        authored_rect: Option<Rect>,
-        assets: &Assets,
-    ) -> CatalogPanelConfig {
-        let mut parsed = CatalogPanelConfig::default();
-        parsed.columns = config
-            .get("columns")
-            .and_then(toml::Value::as_integer)
-            .unwrap_or(parsed.columns as i64)
-            .max(1) as usize;
-        parsed.rows = config
-            .get("rows")
-            .and_then(toml::Value::as_integer)
-            .map(|rows| rows.max(1) as usize);
-        parsed.cell_size = Self::layout_number(config, "cell_size")
-            .or_else(|| Self::layout_number(config, "slot_size"))
-            .unwrap_or(parsed.cell_size)
-            .max(16.0);
-        parsed.spacing = Self::layout_number(config, "spacing")
-            .or_else(|| Self::layout_number(config, "gap"))
-            .unwrap_or(parsed.spacing)
-            .max(0.0);
-        parsed.padding = Self::layout_number(config, "padding")
-            .unwrap_or(parsed.padding)
-            .max(0.0);
-        parsed.title_height = Self::layout_number(config, "title_height")
-            .unwrap_or(parsed.title_height)
-            .max(20.0);
-        parsed.tab_height = Self::layout_number(config, "tab_height")
-            .unwrap_or(parsed.tab_height)
-            .max(18.0);
-        parsed.detail_width = Self::layout_number(config, "detail_width")
-            .unwrap_or(parsed.detail_width)
-            .max(80.0);
-        parsed.detail_gap = Self::layout_number(config, "detail_gap")
-            .unwrap_or(parsed.detail_gap)
-            .max(0.0);
-        parsed.icon_inset = Self::layout_number(config, "icon_inset")
-            .unwrap_or(parsed.icon_inset)
-            .max(0.0);
-        parsed.show_names = config
-            .get("show_names")
-            .and_then(toml::Value::as_bool)
-            .unwrap_or(parsed.show_names);
-        parsed.show_tabs = config
-            .get("show_tabs")
-            .and_then(toml::Value::as_bool)
-            .unwrap_or(parsed.show_tabs);
-        parsed.show_details = config
-            .get("show_details")
-            .and_then(toml::Value::as_bool)
-            .unwrap_or(parsed.show_details);
-        parsed.show_assign = config
-            .get("show_assign")
-            .and_then(toml::Value::as_bool)
-            .unwrap_or(parsed.show_assign);
-        let text = |key: &str| {
-            config
-                .get(key)
-                .and_then(toml::Value::as_str)
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-                .map(str::to_string)
-        };
-        parsed.title = text("title").unwrap_or(parsed.title);
-        parsed.font = text("font").unwrap_or(parsed.font);
-        parsed.title_font = text("title_font").unwrap_or(parsed.title_font);
-        parsed.font_size = Self::layout_number(config, "font_size")
-            .unwrap_or(parsed.font_size)
-            .max(6.0);
-        parsed.title_font_size = Self::layout_number(config, "title_font_size")
-            .unwrap_or(parsed.title_font_size)
-            .max(6.0);
-        parsed.small_font_size = Self::layout_number(config, "small_font_size")
-            .unwrap_or(parsed.small_font_size)
-            .max(6.0);
-        parsed.authored_rect = authored_rect;
-
-        let frame = config
-            .get("frame")
-            .and_then(toml::Value::as_table)
-            .or_else(|| root.and_then(|root| root.get("frame").and_then(toml::Value::as_table)));
-        let slot = config
-            .get("slot")
-            .and_then(toml::Value::as_table)
-            .or_else(|| root.and_then(|root| root.get("slot").and_then(toml::Value::as_table)));
-
-        if let Some(frame) = frame {
-            parsed.background_color = Self::color_from_table(frame, "background_color")
-                .or_else(|| Self::color_from_table(frame, "color"))
-                .unwrap_or(parsed.background_color);
-            parsed.border_color =
-                Self::color_from_table(frame, "border_color").unwrap_or(parsed.border_color);
-            parsed.border_size = frame
-                .get("border_size")
-                .and_then(toml::Value::as_integer)
-                .unwrap_or(parsed.border_size as i64)
-                .max(0) as i32;
-            parsed.frame_texture = Self::action_bar_tile_texture(frame, "tile", assets);
-            parsed.frame_slice = frame
-                .get("slice")
-                .and_then(toml::Value::as_integer)
-                .unwrap_or(0)
-                .max(0) as usize;
-        }
-        if let Some(slot) = slot {
-            parsed.slot_background_color = Self::color_from_table(slot, "background_color")
-                .or_else(|| Self::color_from_table(slot, "color"))
-                .unwrap_or(parsed.slot_background_color);
-            parsed.slot_border_color =
-                Self::color_from_table(slot, "border_color").unwrap_or(parsed.slot_border_color);
-            parsed.slot_border_size = slot
-                .get("border_size")
-                .and_then(toml::Value::as_integer)
-                .unwrap_or(parsed.slot_border_size as i64)
-                .max(0) as i32;
-            parsed.slot_texture = Self::action_bar_tile_texture(slot, "normal_tile", assets)
-                .or_else(|| Self::action_bar_tile_texture(slot, "tile", assets));
-            parsed.slot_slice = slot
-                .get("slice")
-                .and_then(toml::Value::as_integer)
-                .unwrap_or(0)
-                .max(0) as usize;
-        }
-        parsed.title_background_color = Self::color_from_table(config, "title_background_color")
-            .unwrap_or(parsed.title_background_color);
-        parsed.text_color =
-            Self::color_from_table(config, "text_color").unwrap_or(parsed.text_color);
-        parsed.muted_text_color =
-            Self::color_from_table(config, "muted_text_color").unwrap_or(parsed.muted_text_color);
-        parsed.detail_background_color = Self::color_from_table(config, "detail_background_color")
-            .unwrap_or(parsed.detail_background_color);
-        parsed.tab_background_color = Self::color_from_table(config, "tab_background_color")
-            .unwrap_or(parsed.tab_background_color);
-        parsed.tab_selected_color = Self::color_from_table(config, "tab_selected_color")
-            .unwrap_or(parsed.tab_selected_color);
-        parsed.separator_color =
-            Self::color_from_table(config, "separator_color").unwrap_or(parsed.separator_color);
-        parsed
-    }
-
-    fn inventory_panel_config(
-        config: &toml::Table,
-        authored_rect: Option<Rect>,
-    ) -> InventoryPanelConfig {
-        let mut parsed = InventoryPanelConfig::default();
-        parsed.columns = config
-            .get("columns")
-            .and_then(toml::Value::as_integer)
-            .unwrap_or(parsed.columns as i64)
-            .max(1) as usize;
-        parsed.rows = config
-            .get("rows")
-            .and_then(toml::Value::as_integer)
-            .unwrap_or(parsed.rows as i64)
-            .max(1) as usize;
-        parsed.cell_size = Self::layout_number(config, "cell_size")
-            .or_else(|| Self::layout_number(config, "slot_size"))
-            .unwrap_or(parsed.cell_size)
-            .max(16.0);
-        parsed.spacing = Self::layout_number(config, "spacing")
-            .unwrap_or(parsed.spacing)
-            .max(0.0);
-        parsed.padding = Self::layout_number(config, "padding")
-            .unwrap_or(parsed.padding)
-            .max(0.0);
-        parsed.title_height = Self::layout_number(config, "title_height")
-            .unwrap_or(parsed.title_height)
-            .max(20.0);
-        parsed.tab_height = Self::layout_number(config, "tab_height")
-            .unwrap_or(parsed.tab_height)
-            .max(20.0);
-        parsed.footer_height = Self::layout_number(config, "footer_height")
-            .unwrap_or(parsed.footer_height)
-            .max(20.0);
-        parsed.sort_width = Self::layout_number(config, "sort_width")
-            .unwrap_or(parsed.sort_width)
-            .max(64.0);
-        parsed.font = config
-            .get("font")
-            .and_then(toml::Value::as_str)
-            .unwrap_or("")
-            .to_string();
-        parsed.font_size = Self::layout_number(config, "font_size")
-            .unwrap_or(parsed.font_size)
-            .max(1.0);
-        parsed.title_font_size = Self::layout_number(config, "title_font_size")
-            .unwrap_or(parsed.title_font_size)
-            .max(1.0);
-        if let Some(title) = config.get("title").and_then(toml::Value::as_str) {
-            parsed.title = title.to_string();
-        }
-        if let Some(categories) = config
-            .get("categories")
-            .or_else(|| config.get("tabs"))
-            .and_then(toml::Value::as_array)
-        {
-            let categories = categories
-                .iter()
-                .filter_map(ChoiceWidget::option_from_toml)
-                .collect::<Vec<_>>();
-            if !categories.is_empty() {
-                parsed.categories = categories;
-            }
-        }
-        if let Some(options) = config.get("sort_options").and_then(toml::Value::as_array) {
-            let options = options
-                .iter()
-                .filter_map(ChoiceWidget::option_from_toml)
-                .collect::<Vec<_>>();
-            if !options.is_empty() {
-                parsed.sort_options = options;
-            }
-        }
-        parsed.authored_rect = authored_rect;
-        parsed.background_color =
-            Self::color_from_table(config, "background_color").unwrap_or(parsed.background_color);
-        parsed.title_background_color = Self::color_from_table(config, "title_background_color")
-            .unwrap_or(parsed.title_background_color);
-        parsed.border_color =
-            Self::color_from_table(config, "border_color").unwrap_or(parsed.border_color);
-        parsed.text_color =
-            Self::color_from_table(config, "text_color").unwrap_or(parsed.text_color);
-        parsed.muted_text_color =
-            Self::color_from_table(config, "muted_text_color").unwrap_or(parsed.muted_text_color);
-        parsed.slot_background_color = Self::color_from_table(config, "slot_background_color")
-            .unwrap_or(parsed.slot_background_color);
-        parsed.slot_border_color =
-            Self::color_from_table(config, "slot_border_color").unwrap_or(parsed.slot_border_color);
-        parsed.selected_slot_color = Self::color_from_table(config, "selected_slot_color")
-            .unwrap_or(parsed.selected_slot_color);
-        parsed.tab_background_color = Self::color_from_table(config, "tab_background_color")
-            .unwrap_or(parsed.tab_background_color);
-        parsed.tab_selected_color = Self::color_from_table(config, "tab_selected_color")
-            .unwrap_or(parsed.tab_selected_color);
-        parsed.dropdown_background_color =
-            Self::color_from_table(config, "dropdown_background_color")
-                .unwrap_or(parsed.dropdown_background_color);
-        parsed.dropdown_panel_color = Self::color_from_table(config, "dropdown_panel_color")
-            .unwrap_or(parsed.dropdown_panel_color);
-        parsed
-    }
-
-    fn equipment_panel_config(
-        config: &toml::Table,
-        authored_rect: Option<Rect>,
-    ) -> EquipmentPanelConfig {
-        let mut parsed = EquipmentPanelConfig::default();
-        parsed.padding = Self::layout_number(config, "padding")
-            .unwrap_or(parsed.padding)
-            .max(0.0);
-        parsed.title_height = Self::layout_number(config, "title_height")
-            .unwrap_or(parsed.title_height)
-            .max(20.0);
-        parsed.slot_size = Self::layout_number(config, "slot_size")
-            .or_else(|| Self::layout_number(config, "cell_size"))
-            .unwrap_or(parsed.slot_size)
-            .max(20.0);
-        parsed.spacing = Self::layout_number(config, "spacing")
-            .unwrap_or(parsed.spacing)
-            .max(0.0);
-        parsed.column_gap = Self::layout_number(config, "column_gap")
-            .unwrap_or(parsed.column_gap)
-            .max(0.0);
-        parsed.label_width = Self::layout_number(config, "label_width")
-            .unwrap_or(parsed.label_width)
-            .max(0.0);
-        parsed.avatar_width = Self::layout_number(config, "avatar_width")
-            .unwrap_or(parsed.avatar_width)
-            .max(24.0);
-        parsed.avatar_height = Self::layout_number(config, "avatar_height")
-            .unwrap_or(parsed.avatar_height)
-            .max(24.0);
-        parsed.avatar_scale = Self::layout_number(config, "avatar_scale")
-            .unwrap_or(parsed.avatar_scale)
-            .clamp(0.25, 4.0);
-        parsed.font = config
-            .get("font")
-            .and_then(toml::Value::as_str)
-            .unwrap_or("")
-            .trim()
-            .to_string();
-        parsed.font_size = Self::layout_number(config, "font_size")
-            .unwrap_or(parsed.font_size)
-            .max(6.0);
-        parsed.title_font_size = Self::layout_number(config, "title_font_size")
-            .unwrap_or(parsed.title_font_size)
-            .max(6.0);
-        if let Some(title) = config.get("title").and_then(toml::Value::as_str) {
-            parsed.title = title.trim().to_string();
-        }
-        let slots = |key: &str| {
-            config
-                .get(key)
-                .and_then(toml::Value::as_array)
-                .map(|values| {
-                    values
-                        .iter()
-                        .filter_map(toml::Value::as_str)
-                        .map(str::trim)
-                        .filter(|value| !value.is_empty())
-                        .map(str::to_string)
-                        .collect::<Vec<_>>()
-                })
-                .unwrap_or_default()
-        };
-        parsed.left_slots = slots("left_slots");
-        parsed.right_slots = slots("right_slots");
-        parsed.authored_rect = authored_rect;
-        parsed.background_color =
-            Self::color_from_table(config, "background_color").unwrap_or(parsed.background_color);
-        parsed.title_background_color = Self::color_from_table(config, "title_background_color")
-            .unwrap_or(parsed.title_background_color);
-        parsed.border_color =
-            Self::color_from_table(config, "border_color").unwrap_or(parsed.border_color);
-        parsed.text_color =
-            Self::color_from_table(config, "text_color").unwrap_or(parsed.text_color);
-        parsed.muted_text_color =
-            Self::color_from_table(config, "muted_text_color").unwrap_or(parsed.muted_text_color);
-        parsed.slot_background_color = Self::color_from_table(config, "slot_background_color")
-            .unwrap_or(parsed.slot_background_color);
-        parsed.slot_border_color =
-            Self::color_from_table(config, "slot_border_color").unwrap_or(parsed.slot_border_color);
-        parsed.occupied_slot_color = Self::color_from_table(config, "occupied_slot_color")
-            .or_else(|| Self::color_from_table(config, "selected_slot_color"))
-            .unwrap_or(parsed.occupied_slot_color);
-        parsed
-    }
-
-    fn preferences_panel_config(config: &toml::Table) -> PreferencesPanelConfig {
-        let mut parsed = PreferencesPanelConfig::default();
-        parsed.width = Self::layout_number(config, "width")
-            .unwrap_or(parsed.width)
-            .max(180.0);
-        parsed.padding = Self::layout_number(config, "padding")
-            .unwrap_or(parsed.padding)
-            .max(0.0);
-        parsed.title_height = Self::layout_number(config, "title_height")
-            .unwrap_or(parsed.title_height)
-            .max(20.0);
-        parsed.row_height = Self::layout_number(config, "row_height")
-            .unwrap_or(parsed.row_height)
-            .max(20.0);
-        parsed.font = config
-            .get("font")
-            .and_then(toml::Value::as_str)
-            .unwrap_or("")
-            .trim()
-            .to_string();
-        parsed.font_size = Self::layout_number(config, "font_size")
-            .unwrap_or(parsed.font_size)
-            .max(6.0);
-        parsed.title_font_size = Self::layout_number(config, "title_font_size")
-            .unwrap_or(parsed.title_font_size)
-            .max(6.0);
-        if let Some(title) = config.get("title").and_then(toml::Value::as_str) {
-            parsed.title = title.trim().to_string();
-        }
-        parsed.background_color =
-            Self::color_from_table(config, "background_color").unwrap_or(parsed.background_color);
-        parsed.title_background_color = Self::color_from_table(config, "title_background_color")
-            .unwrap_or(parsed.title_background_color);
-        parsed.border_color =
-            Self::color_from_table(config, "border_color").unwrap_or(parsed.border_color);
-        parsed.text_color =
-            Self::color_from_table(config, "text_color").unwrap_or(parsed.text_color);
-        parsed.muted_text_color =
-            Self::color_from_table(config, "muted_text_color").unwrap_or(parsed.muted_text_color);
-        parsed
-    }
-
     fn active_inventory_panel_config(&self) -> InventoryPanelConfig {
         self.custom_inventory_panel_config
             .clone()
@@ -9031,688 +8151,13 @@ impl Client {
         }
     }
 
-    fn parse_action_bar_buttons(buttons: &[toml::Value]) -> Vec<ActionBarButtonConfig> {
-        buttons
-            .iter()
-            .filter_map(|value| {
-                if let Some(command) = value.as_str().map(str::trim).filter(|v| !v.is_empty()) {
-                    return Some(ActionBarButtonConfig {
-                        command: Some(command.to_string()),
-                        ..Default::default()
-                    });
-                }
-
-                let button = value.as_table()?;
-                let text = |key: &str| {
-                    button
-                        .get(key)
-                        .and_then(toml::Value::as_str)
-                        .map(str::trim)
-                        .filter(|value| !value.is_empty())
-                        .map(str::to_string)
-                };
-                Some(ActionBarButtonConfig {
-                    command: text("command"),
-                    command_slot: text("command_slot").or_else(|| text("slot")),
-                    label: text("label").or_else(|| text("text")).unwrap_or_default(),
-                    show_icon: button.get("show_icon").and_then(toml::Value::as_bool),
-                })
-            })
-            .collect()
-    }
-
-    fn action_bar_groups(table: &toml::Table) -> Vec<ActionBarGroupConfig> {
-        let Some(ui) = table.get("ui").and_then(toml::Value::as_table) else {
-            return vec![];
-        };
-        let default_slot_size = Self::layout_number(ui, "slot_size")
-            .unwrap_or(52.0)
-            .max(1.0);
-        let default_spacing = Self::layout_number(ui, "spacing").unwrap_or(4.0).max(0.0);
-
-        if let Some(groups) = ui.get("groups").and_then(toml::Value::as_array) {
-            let parsed: Vec<_> = groups
-                .iter()
-                .filter_map(toml::Value::as_table)
-                .filter_map(|group| {
-                    let buttons = group
-                        .get("buttons")
-                        .and_then(toml::Value::as_array)
-                        .map(|buttons| Self::parse_action_bar_buttons(buttons))
-                        .unwrap_or_default();
-                    if buttons.is_empty() {
-                        return None;
-                    }
-                    let align = match group
-                        .get("align")
-                        .and_then(toml::Value::as_str)
-                        .unwrap_or("center")
-                        .trim()
-                        .to_ascii_lowercase()
-                        .as_str()
-                    {
-                        "left" => ActionBarGroupAlign::Left,
-                        "right" => ActionBarGroupAlign::Right,
-                        _ => ActionBarGroupAlign::Center,
-                    };
-                    Some(ActionBarGroupConfig {
-                        align,
-                        slot_size: Self::layout_number(group, "slot_size")
-                            .unwrap_or(default_slot_size)
-                            .max(1.0),
-                        spacing: Self::layout_number(group, "spacing")
-                            .unwrap_or(default_spacing)
-                            .max(0.0),
-                        buttons,
-                    })
-                })
-                .collect();
-            if !parsed.is_empty() {
-                return parsed;
-            }
-        }
-
-        ui.get("buttons")
-            .and_then(toml::Value::as_array)
-            .map(|buttons| ActionBarGroupConfig {
-                align: ActionBarGroupAlign::Center,
-                slot_size: default_slot_size,
-                spacing: default_spacing,
-                buttons: Self::parse_action_bar_buttons(buttons),
-            })
-            .filter(|group| !group.buttons.is_empty())
-            .into_iter()
-            .collect()
-    }
-
-    fn action_bar_buttons(table: &toml::Table) -> Vec<ActionBarButtonConfig> {
-        Self::action_bar_groups(table)
-            .into_iter()
-            .flat_map(|group| group.buttons)
-            .collect()
-    }
-
-    fn action_bar_group_width(group: &ActionBarGroupConfig) -> f32 {
-        group.slot_size * group.buttons.len() as f32
-            + group.spacing * group.buttons.len().saturating_sub(1) as f32
-    }
-
-    fn action_bar_band_width(
-        groups: &[ActionBarGroupConfig],
-        align: ActionBarGroupAlign,
-        group_spacing: f32,
-    ) -> f32 {
-        let widths: Vec<_> = groups
-            .iter()
-            .filter(|group| group.align == align)
-            .map(Self::action_bar_group_width)
-            .collect();
-        widths.iter().sum::<f32>() + group_spacing * widths.len().saturating_sub(1) as f32
-    }
-
-    fn action_bar_authored_rect(authored: Rect, table: &toml::Table) -> Rect {
-        let groups = Self::action_bar_groups(table);
-        if groups.is_empty() {
-            return authored;
-        }
-        let Some(ui) = table.get("ui").and_then(toml::Value::as_table) else {
-            return authored;
-        };
-        if !ui
-            .get("auto_size")
-            .and_then(toml::Value::as_bool)
-            .unwrap_or(true)
-        {
-            return authored;
-        }
-
-        let padding = Self::layout_number(ui, "padding").unwrap_or(8.0).max(0.0);
-        let edge_padding = Self::layout_number(ui, "edge_padding")
-            .unwrap_or(padding)
-            .max(0.0);
-        let group_spacing = Self::layout_number(ui, "group_spacing")
-            .unwrap_or(18.0)
-            .max(0.0);
-        let left_width =
-            Self::action_bar_band_width(&groups, ActionBarGroupAlign::Left, group_spacing);
-        let center_width =
-            Self::action_bar_band_width(&groups, ActionBarGroupAlign::Center, group_spacing);
-        let right_width =
-            Self::action_bar_band_width(&groups, ActionBarGroupAlign::Right, group_spacing);
-        let content_width = if center_width > 0.0 {
-            let side_width = left_width.max(right_width);
-            center_width
-                + if side_width > 0.0 {
-                    (side_width + group_spacing) * 2.0
-                } else {
-                    0.0
-                }
-        } else {
-            left_width
-                + right_width
-                + if left_width > 0.0 && right_width > 0.0 {
-                    group_spacing
-                } else {
-                    0.0
-                }
-        };
-        let max_slot_size = groups
-            .iter()
-            .map(|group| group.slot_size)
-            .fold(1.0_f32, f32::max);
-        Rect::new(
-            authored.x,
-            authored.y,
-            (edge_padding * 2.0 + content_width).max(1.0),
-            (padding * 2.0 + max_slot_size).max(1.0),
-        )
-    }
-
-    fn action_bar_slot_rects(rect: Rect, table: &toml::Table) -> Vec<Rect> {
-        let groups = Self::action_bar_groups(table);
-        if groups.is_empty() {
-            return vec![];
-        }
-        let Some(ui) = table.get("ui").and_then(toml::Value::as_table) else {
-            return vec![];
-        };
-        let padding = Self::layout_number(ui, "padding").unwrap_or(8.0).max(0.0);
-        let edge_padding = Self::layout_number(ui, "edge_padding")
-            .unwrap_or(padding)
-            .max(0.0);
-        let group_spacing = Self::layout_number(ui, "group_spacing")
-            .unwrap_or(18.0)
-            .max(0.0);
-        let band_width = |align| Self::action_bar_band_width(&groups, align, group_spacing);
-        let center_width = band_width(ActionBarGroupAlign::Center);
-        let right_width = band_width(ActionBarGroupAlign::Right);
-        let mut left_cursor = rect.x + edge_padding;
-        let mut center_cursor = rect.x + (rect.width - center_width) * 0.5;
-        let mut right_cursor = rect.x + rect.width - edge_padding - right_width;
-        let mut group_rects: Vec<Vec<Rect>> = vec![vec![]; groups.len()];
-
-        for (group_index, group) in groups.iter().enumerate() {
-            let cursor = match group.align {
-                ActionBarGroupAlign::Left => &mut left_cursor,
-                ActionBarGroupAlign::Center => &mut center_cursor,
-                ActionBarGroupAlign::Right => &mut right_cursor,
-            };
-            let y = rect.y + (rect.height - group.slot_size) * 0.5;
-            for button_index in 0..group.buttons.len() {
-                group_rects[group_index].push(Rect::new(
-                    *cursor + button_index as f32 * (group.slot_size + group.spacing),
-                    y,
-                    group.slot_size,
-                    group.slot_size,
-                ));
-            }
-            *cursor += Self::action_bar_group_width(group) + group_spacing;
-        }
-
-        group_rects.into_iter().flatten().collect()
-    }
-
-    fn action_bar_group_separators(rect: Rect, table: &toml::Table) -> Vec<f32> {
-        let groups = Self::action_bar_groups(table);
-        let slots = Self::action_bar_slot_rects(rect, table);
-        let mut slot_index = 0;
-        let mut bounds = Vec::with_capacity(groups.len());
-
-        for group in groups {
-            let group_slots = &slots[slot_index..slot_index + group.buttons.len()];
-            slot_index += group.buttons.len();
-            let Some(first) = group_slots.first() else {
-                continue;
-            };
-            let last = group_slots.last().unwrap_or(first);
-            bounds.push((first.x, last.x + last.width));
-        }
-        bounds.sort_by(|left, right| left.0.total_cmp(&right.0));
-
-        bounds
-            .windows(2)
-            .filter_map(|pair| {
-                let gap_start = pair[0].1;
-                let gap_end = pair[1].0;
-                (gap_end > gap_start).then_some((gap_start + gap_end) * 0.5)
-            })
-            .collect()
-    }
-
-    fn action_bar_tile_texture(table: &toml::Table, key: &str, assets: &Assets) -> Option<Texture> {
-        let id = table
-            .get(key)
-            .and_then(toml::Value::as_str)
-            .and_then(|value| Uuid::parse_str(value.trim()).ok())?;
-        assets
-            .tiles
-            .get(&id)
-            .and_then(|tile| tile.textures.first())
-            .cloned()
-    }
-
-    fn action_bar_state_textures(table: &toml::Table, assets: &Assets) -> Vec<Texture> {
-        let normal = Self::action_bar_tile_texture(table, "normal_tile", assets)
-            .or_else(|| Self::action_bar_tile_texture(table, "tile", assets))
-            .or_else(|| Self::action_bar_tile_texture(table, "hover_tile", assets))
-            .or_else(|| Self::action_bar_tile_texture(table, "selected_tile", assets))
-            .or_else(|| Self::action_bar_tile_texture(table, "pressed_tile", assets))
-            .or_else(|| Self::action_bar_tile_texture(table, "disabled_tile", assets));
-        let Some(normal) = normal else {
-            return vec![];
-        };
-        let selected = Self::action_bar_tile_texture(table, "selected_tile", assets)
-            .unwrap_or_else(|| normal.clone());
-        let pressed = Self::action_bar_tile_texture(table, "pressed_tile", assets)
-            .unwrap_or_else(|| selected.clone());
-        let disabled = Self::action_bar_tile_texture(table, "disabled_tile", assets)
-            .unwrap_or_else(|| normal.clone());
-        let hover = Self::action_bar_tile_texture(table, "hover_tile", assets)
-            .unwrap_or_else(|| normal.clone());
-        vec![normal, selected, pressed, disabled, hover]
-    }
-
-    fn action_bar_slot_textures(table: &toml::Table, assets: &Assets) -> Vec<Texture> {
-        table
-            .get("slot")
-            .and_then(toml::Value::as_table)
-            .map(|slot| Self::action_bar_state_textures(slot, assets))
-            .unwrap_or_default()
-    }
-
-    fn action_bar_artwork(table: &toml::Table, slice: usize) -> widget::artwork::ScreenArtwork {
-        let source = |key: &str| {
-            table
-                .get(key)
-                .and_then(toml::Value::as_str)
-                .and_then(|s| Uuid::parse_str(s.trim()).ok())
-                .map(PixelSource::TileId)
-        };
-        let normal = [
-            "normal_tile",
-            "tile",
-            "hover_tile",
-            "selected_tile",
-            "pressed_tile",
-            "disabled_tile",
-        ]
-        .iter()
-        .find_map(|key| source(key));
-        let Some(normal) = normal else {
-            return Default::default();
-        };
-        let selected = source("selected_tile").unwrap_or_else(|| normal.clone());
-        widget::artwork::ScreenArtwork {
-            sources: vec![
-                normal.clone(),
-                selected.clone(),
-                source("pressed_tile").unwrap_or(selected),
-                source("disabled_tile").unwrap_or_else(|| normal.clone()),
-                source("hover_tile").unwrap_or(normal),
-            ],
-            slice,
-            ..Default::default()
-        }
-    }
-
-    fn next_action_bar_button_id(&self, screen: &Map) -> u32 {
-        let mut id = u32::MAX;
-        while self.button_widgets.contains_key(&id)
-            || self.text_input_widgets.contains_key(&id)
-            || screen.sectors.iter().any(|sector| sector.id == id)
-        {
-            id = id.wrapping_sub(1);
-        }
-        id
-    }
-
-    fn insert_action_bar(
-        &mut self,
-        screen: &Map,
-        sector_id: u32,
-        creator_id: Uuid,
-        name: &str,
-        rect: Rect,
-        table: &toml::Table,
-        assigned_artwork: &widget::artwork::ScreenArtwork,
-        assets: &Assets,
-    ) {
-        let ui = table.get("ui").and_then(toml::Value::as_table);
-        let frame = table.get("frame").and_then(toml::Value::as_table);
-        let slot = table.get("slot").and_then(toml::Value::as_table);
-        let slot_frame = slot
-            .and_then(|slot| slot.get("frame"))
-            .and_then(toml::Value::as_table);
-
-        if let Some(spellbook) = ui
-            .and_then(|ui| ui.get("spellbook"))
-            .and_then(toml::Value::as_table)
-        {
-            self.toolbar_spellbook_config =
-                Self::catalog_panel_config(spellbook, None, None, assets);
-        }
-        if let Some(inventory) = ui
-            .and_then(|ui| ui.get("inventory"))
-            .and_then(toml::Value::as_table)
-        {
-            self.toolbar_inventory_panel_config = Self::inventory_panel_config(inventory, None);
-        }
-        if let Some(equipment) = ui
-            .and_then(|ui| ui.get("equipment"))
-            .and_then(toml::Value::as_table)
-        {
-            self.toolbar_equipment_panel_config = Self::equipment_panel_config(equipment, None);
-        }
-        if let Some(preferences) = ui
-            .and_then(|ui| ui.get("preferences"))
-            .and_then(toml::Value::as_table)
-        {
-            self.toolbar_preferences_panel_config = Self::preferences_panel_config(preferences);
-        }
-        if let Some(actions) = ui
-            .and_then(|ui| ui.get("actions"))
-            .and_then(toml::Value::as_table)
-        {
-            let mut config = Self::catalog_panel_config(actions, None, None, assets);
-            if !actions.contains_key("show_assign") {
-                config.show_assign = true;
-            }
-            if !actions.contains_key("show_details") {
-                config.show_details = false;
-            }
-            if !actions.contains_key("show_names") {
-                config.show_names = true;
-            }
-            if config.title.is_empty() {
-                config.title = "Actions".to_string();
-            }
-            self.toolbar_actions_panel_config = config;
-        }
-
-        let frame_textures = Vec::new();
-        let mut frame_artwork = frame
-            .map(|f| Self::action_bar_artwork(f, 0))
-            .unwrap_or_default();
-        if frame_artwork.sources.is_empty() {
-            frame_artwork = assigned_artwork.clone();
-        }
-        let frame_color = frame
-            .and_then(|frame| {
-                Self::color_from_table(frame, "background_color")
-                    .or_else(|| Self::color_from_table(frame, "color"))
-            })
-            .unwrap_or([21, 18, 13, 204]);
-        let (
-            frame_border_color,
-            frame_border_size,
-            frame_border_gradient_color,
-            frame_border_gradient_direction,
-            frame_border_radius,
-        ) = frame
-            .map(|frame| Self::border_style_from_table(frame, [143, 117, 70, 255], 2))
-            .unwrap_or((
-                [143, 117, 70, 255],
-                2,
-                None,
-                BorderGradientDirection::Vertical,
-                0.0,
-            ));
-        let frame_slice = frame
-            .and_then(|frame| frame.get("slice"))
-            .and_then(toml::Value::as_integer)
-            .unwrap_or(0)
-            .max(0) as usize;
-        let separator = table.get("separator").and_then(toml::Value::as_table);
-        let separator_size = separator
-            .and_then(|separator| separator.get("size"))
-            .and_then(toml::Value::as_integer)
-            .unwrap_or(0)
-            .max(0) as i32;
-        let separator_color = separator
-            .and_then(|separator| {
-                Self::color_from_table(separator, "from")
-                    .or_else(|| Self::color_from_table(separator, "color"))
-            })
-            .unwrap_or([143, 117, 70, 255]);
-        let separator_gradient_color =
-            separator.and_then(|separator| Self::color_from_table(separator, "to"));
-        let separator_margin = separator
-            .and_then(|separator| Self::layout_number(separator, "margin"))
-            .unwrap_or(8.0)
-            .max(0.0);
-        let separators = if separator_size > 0 {
-            Self::action_bar_group_separators(rect, table)
-        } else {
-            vec![]
-        };
-        let top_separator = table.get("top_separator").and_then(toml::Value::as_table);
-        let top_separator_size = top_separator
-            .and_then(|separator| separator.get("size"))
-            .and_then(toml::Value::as_integer)
-            .unwrap_or(0)
-            .max(0) as i32;
-        let top_separator_color = top_separator
-            .and_then(|separator| {
-                Self::color_from_table(separator, "from")
-                    .or_else(|| Self::color_from_table(separator, "color"))
-            })
-            .unwrap_or([143, 117, 70, 255]);
-        let top_separator_gradient_color =
-            top_separator.and_then(|separator| Self::color_from_table(separator, "to"));
-        let top_separator_inset = top_separator
-            .and_then(|separator| Self::layout_number(separator, "inset"))
-            .unwrap_or(0.0)
-            .max(0.0);
-        let top_separator_offset = top_separator
-            .and_then(|separator| Self::layout_number(separator, "offset"))
-            .unwrap_or(0.0);
-        let layer = ui
-            .and_then(|ui| ui.get("layer"))
-            .and_then(toml::Value::as_integer)
-            .unwrap_or(0) as i32;
-        self.deco_widgets.insert(
-            creator_id,
-            DecoWidget {
-                rect,
-                buffer: TheRGBABuffer::new(TheDim::sized(
-                    rect.width.round().max(1.0) as i32,
-                    rect.height.round().max(1.0) as i32,
-                )),
-                layer,
-                color: frame_color,
-                border_color: frame_border_color,
-                border_size: frame_border_size,
-                border_gradient_color: frame_border_gradient_color,
-                border_gradient_direction: frame_border_gradient_direction,
-                border_radius: frame_border_radius,
-                artwork: {
-                    let mut a = frame_artwork;
-                    a.slice = frame_slice;
-                    a
-                },
-                animation_frame: self.animation_frame,
-                textures: frame_textures,
-                texture_slice: frame_slice,
-                separators,
-                separator_color,
-                separator_gradient_color,
-                separator_size,
-                separator_margin,
-                top_separator_color,
-                top_separator_gradient_color,
-                top_separator_size,
-                top_separator_inset,
-                top_separator_offset,
-                ..Default::default()
-            },
-        );
-
-        let buttons = Self::action_bar_buttons(table);
-        let rects = Self::action_bar_slot_rects(rect, table);
-        let slot_textures = Self::action_bar_slot_textures(table, assets);
-        let slot_slice = slot
-            .and_then(|slot| slot.get("slice"))
-            .and_then(toml::Value::as_integer)
-            .unwrap_or(0)
-            .max(0) as usize;
-        let slot_frame_textures = slot_frame
-            .map(|frame| Self::action_bar_state_textures(frame, assets))
-            .unwrap_or_default();
-        let slot_frame_slice = slot_frame
-            .and_then(|frame| frame.get("slice"))
-            .and_then(toml::Value::as_integer)
-            .or_else(|| {
-                slot.and_then(|slot| slot.get("frame_slice"))
-                    .and_then(toml::Value::as_integer)
-            })
-            .unwrap_or(0)
-            .max(0) as usize;
-        let icon_inset = slot
-            .and_then(|slot| Self::layout_number(slot, "icon_inset"))
-            .map(|value| value.max(0.0));
-        let background_color = slot
-            .and_then(|slot| {
-                Self::color_from_table(slot, "background_color")
-                    .or_else(|| Self::color_from_table(slot, "color"))
-            })
-            .or(Some([33, 28, 21, 238]));
-        let (
-            border_color,
-            border_size,
-            border_gradient_color,
-            border_gradient_direction,
-            border_radius,
-        ) = slot
-            .map(|slot| Self::border_style_from_table(slot, [119, 100, 69, 255], 1))
-            .unwrap_or((
-                [119, 100, 69, 255],
-                1,
-                None,
-                BorderGradientDirection::Vertical,
-                0.0,
-            ));
-        let label_color = slot
-            .and_then(|slot| {
-                Self::color_from_table(slot, "text_color")
-                    .or_else(|| Self::color_from_table(slot, "color"))
-            })
-            .unwrap_or(crate::WHITE);
-        let label_font = slot
-            .and_then(|slot| slot.get("font"))
-            .and_then(toml::Value::as_str)
-            .unwrap_or("")
-            .to_string();
-        let label_font_size = slot
-            .and_then(|slot| Self::layout_number(slot, "font_size"))
-            .unwrap_or(18.0);
-        let party = ui
-            .and_then(|ui| ui.get("party"))
-            .and_then(toml::Value::as_str)
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .map(str::to_string);
-        let default_show_icon = ui
-            .and_then(|ui| ui.get("show_icon"))
-            .and_then(toml::Value::as_bool)
-            .unwrap_or(true);
-        let hover_style = slot
-            .map(|slot| {
-                Self::button_state_style_from_ui(
-                    slot,
-                    "hover",
-                    "hover_background_color",
-                    "hover_border_color",
-                    "hover_color",
-                )
-            })
-            .unwrap_or_default();
-        let selected_style = slot
-            .map(|slot| {
-                Self::button_state_style_from_ui(
-                    slot,
-                    "selected",
-                    "selected_background_color",
-                    "selected_border_color",
-                    "selected_color",
-                )
-            })
-            .unwrap_or_default();
-        let pressed_style = slot
-            .map(|slot| {
-                Self::button_state_style_from_ui(
-                    slot,
-                    "pressed",
-                    "pressed_background_color",
-                    "pressed_border_color",
-                    "pressed_color",
-                )
-            })
-            .unwrap_or_default();
-        let disabled_style = slot
-            .map(|slot| {
-                Self::button_state_style_from_ui(
-                    slot,
-                    "disabled",
-                    "disabled_background_color",
-                    "disabled_border_color",
-                    "disabled_color",
-                )
-            })
-            .unwrap_or_default();
-
-        let mut ids = Vec::with_capacity(buttons.len());
-        for (index, (config, button_rect)) in buttons.into_iter().zip(rects).enumerate() {
-            let id = self.next_action_bar_button_id(screen);
-            ids.push(id);
-            self.button_widgets.insert(
-                id,
-                Widget {
-                    name: format!("{} Slot {}", name, index + 1),
-                    id,
-                    rect: button_rect,
-                    command: config.command,
-                    command_slot: config.command_slot,
-                    party: party.clone(),
-                    chrome_artwork: slot
-                        .map(|s| Self::action_bar_artwork(s, slot_slice))
-                        .unwrap_or_default(),
-                    frame_artwork: slot_frame
-                        .map(|s| Self::action_bar_artwork(s, slot_frame_slice))
-                        .unwrap_or_default(),
-                    chrome_textures: slot_textures.clone(),
-                    chrome_slice: slot_slice,
-                    frame_textures: slot_frame_textures.clone(),
-                    frame_slice: slot_frame_slice,
-                    icon_inset,
-                    border_color,
-                    border_size,
-                    border_gradient_color,
-                    border_gradient_direction,
-                    border_radius,
-                    show_icon: config.show_icon.unwrap_or(default_show_icon),
-                    label: config.label,
-                    label_font: label_font.clone(),
-                    label_font_size,
-                    label_color,
-                    background_color,
-                    hover_style,
-                    selected_style,
-                    pressed_style,
-                    disabled_style,
-                    ..Widget::new()
-                },
-            );
-        }
-        self.action_bar_button_ids.insert(sector_id, ids);
-    }
-
     fn relayout_action_bar(&mut self, sector_id: u32, creator_id: Uuid, rect: Rect, table: &Table) {
         if let Some(widget) = self.deco_widgets.get_mut(&creator_id) {
             widget.rect = rect;
-            widget.separators = Self::action_bar_group_separators(rect, table);
+            widget.separators = screen_model::action_bar_group_separators(rect, table);
             Self::resize_widget_buffer(&mut widget.buffer, rect);
         }
-        let rects = Self::action_bar_slot_rects(rect, table);
+        let rects = screen_model::action_bar_slot_rects(rect, table);
         if let Some(ids) = self.action_bar_button_ids.get(&sector_id) {
             for (id, rect) in ids.iter().zip(rects) {
                 if let Some(widget) = self.button_widgets.get_mut(id) {
@@ -9722,104 +8167,12 @@ impl Client {
         }
     }
 
-    fn resolve_screen_element_rect(&self, authored: Rect, role: &str, table: &toml::Table) -> Rect {
-        if !self.screen_responsive {
-            return authored;
-        }
-        if role.eq_ignore_ascii_case("game") {
-            return Rect::new(
-                0.0,
-                0.0,
-                self.viewport.x.max(1) as f32,
-                self.viewport.y.max(1) as f32,
-            );
-        }
-
-        let layout = table.get("layout").and_then(toml::Value::as_table);
-        let explicit_anchor = layout
-            .and_then(|layout| layout.get("anchor"))
-            .and_then(toml::Value::as_str)
-            .and_then(ScreenAnchor::parse);
-        let implicit_action_bar_anchor =
-            explicit_anchor.is_none() && role.eq_ignore_ascii_case("action_bar");
-        let Some(anchor) = explicit_anchor
-            .or_else(|| implicit_action_bar_anchor.then_some(ScreenAnchor::BottomCenter))
-        else {
-            return authored;
-        };
-
-        let reference_w = self.reference_viewport.x.max(1) as f32;
-        let reference_h = self.reference_viewport.y.max(1) as f32;
-        let viewport_w = self.viewport.x.max(1) as f32;
-        let viewport_h = self.viewport.y.max(1) as f32;
-        let authored_right = authored.x + authored.width;
-        let authored_bottom = authored.y + authored.height;
-        let default_x = if implicit_action_bar_anchor {
-            0.0
-        } else {
-            match anchor {
-                ScreenAnchor::TopLeft | ScreenAnchor::CenterLeft | ScreenAnchor::BottomLeft => {
-                    authored.x
-                }
-                ScreenAnchor::TopCenter | ScreenAnchor::Center | ScreenAnchor::BottomCenter => {
-                    authored.x + authored.width * 0.5 - reference_w * 0.5
-                }
-                ScreenAnchor::TopRight | ScreenAnchor::CenterRight | ScreenAnchor::BottomRight => {
-                    authored_right - reference_w
-                }
-            }
-        };
-        let default_y = if implicit_action_bar_anchor {
-            -16.0
-        } else {
-            match anchor {
-                ScreenAnchor::TopLeft | ScreenAnchor::TopCenter | ScreenAnchor::TopRight => {
-                    authored.y
-                }
-                ScreenAnchor::CenterLeft | ScreenAnchor::Center | ScreenAnchor::CenterRight => {
-                    authored.y + authored.height * 0.5 - reference_h * 0.5
-                }
-                ScreenAnchor::BottomLeft
-                | ScreenAnchor::BottomCenter
-                | ScreenAnchor::BottomRight => authored_bottom - reference_h,
-            }
-        };
-        let offset_x = layout
-            .and_then(|layout| Self::layout_number(layout, "x"))
-            .unwrap_or(default_x);
-        let offset_y = layout
-            .and_then(|layout| Self::layout_number(layout, "y"))
-            .unwrap_or(default_y);
-
-        let x = match anchor {
-            ScreenAnchor::TopLeft | ScreenAnchor::CenterLeft | ScreenAnchor::BottomLeft => offset_x,
-            ScreenAnchor::TopCenter | ScreenAnchor::Center | ScreenAnchor::BottomCenter => {
-                viewport_w * 0.5 - authored.width * 0.5 + offset_x
-            }
-            ScreenAnchor::TopRight | ScreenAnchor::CenterRight | ScreenAnchor::BottomRight => {
-                viewport_w - authored.width + offset_x
-            }
-        };
-        let y = match anchor {
-            ScreenAnchor::TopLeft | ScreenAnchor::TopCenter | ScreenAnchor::TopRight => offset_y,
-            ScreenAnchor::CenterLeft | ScreenAnchor::Center | ScreenAnchor::CenterRight => {
-                viewport_h * 0.5 - authored.height * 0.5 + offset_y
-            }
-            ScreenAnchor::BottomLeft | ScreenAnchor::BottomCenter | ScreenAnchor::BottomRight => {
-                viewport_h - authored.height + offset_y
-            }
-        };
-        let fill_width = role.eq_ignore_ascii_case("action_bar")
-            && table
-                .get("ui")
-                .and_then(toml::Value::as_table)
-                .and_then(|ui| ui.get("fill_width"))
-                .and_then(toml::Value::as_bool)
-                .unwrap_or(false);
-        if fill_width {
-            Rect::new(0.0, y, viewport_w, authored.height)
-        } else {
-            Rect::new(x, y, authored.width, authored.height)
+    fn screen_layout(&self) -> ScreenLayout {
+        ScreenLayout {
+            screen_responsive: self.screen_responsive,
+            reference_viewport: self.reference_viewport,
+            viewport: self.viewport,
+            grid_size: self.grid_size,
         }
     }
 
@@ -9838,50 +8191,17 @@ impl Client {
         let Some(screen) = assets.screens.get(&self.current_screen) else {
             return;
         };
-        let (start_x, start_y) = crate::utils::align_screen_to_grid(
-            self.reference_viewport.x as f32,
-            self.reference_viewport.y as f32,
-            self.grid_size,
-        );
+        let resolved = screen_model::placements(screen, self.screen_layout());
 
-        let mut resolved = Vec::new();
-        for sector in &screen.sectors {
-            let Some(crate::Value::Str(data)) = sector.properties.get("data") else {
-                continue;
-            };
-            let Ok(table) = data.parse::<toml::Table>() else {
-                continue;
-            };
-            let Some(role) = table
-                .get("ui")
-                .and_then(toml::Value::as_table)
-                .and_then(|ui| ui.get("role"))
-                .and_then(toml::Value::as_str)
-                .map(str::to_string)
-            else {
-                continue;
-            };
-            let bb = sector.bounding_box(screen);
-            let mut authored = Rect::new(
-                (bb.min.x - start_x) * self.grid_size,
-                (bb.min.y - start_y) * self.grid_size,
-                bb.size().x * self.grid_size,
-                bb.size().y * self.grid_size,
-            );
-            if role == "action_bar" {
-                authored = Self::action_bar_authored_rect(authored, &table);
-            }
-            resolved.push((
-                role.clone(),
-                sector.id,
-                sector.creator_id,
-                sector.name.clone(),
-                self.resolve_screen_element_rect(authored, &role, &table),
-                table,
-            ));
-        }
-
-        for (role, sector_id, creator_id, name, rect, table) in resolved {
+        for ScreenPlacement {
+            role,
+            sector_id,
+            creator_id,
+            name,
+            rect,
+            table,
+        } in resolved
+        {
             match role.as_str() {
                 "game" => {
                     if let Some(widget) = self.game_widgets.get_mut(&creator_id) {
@@ -9981,25 +8301,22 @@ impl Client {
         scene_handler: &mut SceneHandler,
     ) {
         self.clear_screen_widgets();
-
         self.screen_responsive = assets.screen_is_responsive(&screen_name);
         self.viewport = if self.screen_responsive {
             self.surface_viewport
         } else {
             self.reference_viewport
         };
+        let background = screen_model::screen_background(&self.config);
+        let layout = self.screen_layout();
+        // Only the explicit legacy adapter owns viewport/overlay/widget pixels.
         self.target = TheRGBABuffer::new(TheDim::sized(self.viewport.x, self.viewport.y));
         self.overlay = TheRGBABuffer::new(TheDim::sized(self.viewport.x, self.viewport.y));
-
         let mut screen_widget = ScreenWidget::new();
         screen_widget.buffer = TheRGBABuffer::new(TheDim::sized(self.viewport.x, self.viewport.y));
-        screen_widget.background_color = Self::hex_to_rgba_u8(&self.get_config_string_default(
-            "viewport",
-            "screen_background",
-            &self.get_config_string_default("viewport", "background_color_2d", "#000000"),
-        ));
+        screen_widget.background_color = background;
         self.screen_widget = Some(screen_widget);
-
+        // Preserve the legacy raster map layer normalization until its retirement.
         // Iterate sectors and apply layer property for sorted drawing
         if let Some(screen) = assets.screens.get_mut(&screen_name) {
             for sector in screen.sectors.iter_mut() {
@@ -10017,764 +8334,68 @@ impl Client {
             }
         }
 
-        if let Some(screen) = assets.screens.get(&screen_name) {
-            for widget in screen.sectors.iter() {
-                let bb = widget.bounding_box(screen);
+        let Some(screen) = assets.screens.get(&screen_name) else {
+            return;
+        };
+        let model = ScreenElements::compile(
+            screen,
+            assets,
+            layout,
+            background,
+            std::mem::take(&mut self.ui_state),
+            self.animation_frame,
+        );
+        self.game_widgets = model.game_widgets;
+        self.button_widgets = model.button_widgets;
+        self.action_bar_button_ids = model.action_bar_button_ids;
+        self.avatar_widgets = model.avatar_widgets;
+        self.profile_widgets = model.profile_widgets;
+        self.stat_widgets = model.stat_widgets;
+        self.text_widgets = model.text_widgets;
+        self.text_input_widgets = model.text_input_widgets;
+        self.choice_widgets = model.choice_widgets;
+        self.deco_widgets = model.deco_widgets;
+        self.messages_widgets = model.messages_widgets;
+        self.activated_widgets = model.activated_widgets;
+        self.permanently_activated_widgets = model.permanently_activated_widgets;
+        self.ui_state = model.ui_state;
+        self.widgets_to_hide = model.widgets_to_hide;
+        self.custom_inventory_panel_config = model.custom_inventory_panel_config;
+        self.custom_equipment_panel_config = model.custom_equipment_panel_config;
+        self.custom_actions_panel_config = model.custom_actions_panel_config;
+        self.custom_spellbook_config = model.custom_spellbook_config;
+        self.toolbar_inventory_panel_config = model.toolbar_inventory_panel_config;
+        self.toolbar_equipment_panel_config = model.toolbar_equipment_panel_config;
+        self.toolbar_preferences_panel_config = model.toolbar_preferences_panel_config;
+        self.toolbar_actions_panel_config = model.toolbar_actions_panel_config;
+        self.toolbar_spellbook_config = model.toolbar_spellbook_config;
 
-                let (start_x, start_y) = crate::utils::align_screen_to_grid(
-                    self.reference_viewport.x as f32,
-                    self.reference_viewport.y as f32,
-                    self.grid_size,
-                );
-
-                let mut authored_rect = Rect::new(
-                    (bb.min.x - start_x) * self.grid_size,
-                    (bb.min.y - start_y) * self.grid_size,
-                    bb.size().x * self.grid_size,
-                    bb.size().y * self.grid_size,
-                );
-
-                let source = widget
-                    .properties
-                    .get_default_source()
-                    .cloned()
-                    .unwrap_or(PixelSource::Off);
-                let active = widget
-                    .properties
-                    .get_source("ceiling_source")
-                    .cloned()
-                    .unwrap_or_else(|| source.clone());
-                let artwork = widget::artwork::ScreenArtwork {
-                    sources: vec![source, active],
-                    repeat: widget.properties.get_int_default("tile_mode", 0) != 0,
-                    origin: [bb.min.x, bb.min.y],
-                    units_per_pixel: 1. / self.grid_size.max(1.),
-                    ..Default::default()
-                };
-                let textures = Vec::new();
-
-                if let Some(crate::Value::Str(data)) = widget.properties.get("data") {
-                    if let Ok(table) = data.parse::<Table>() {
-                        let grid_size = self.grid_size;
-
-                        let mut role = "none";
-                        if let Some(ui) = table.get("ui").and_then(toml::Value::as_table) {
-                            if let Some(value) = ui.get("role") {
-                                if let Some(v) = value.as_str() {
-                                    role = v;
-                                }
-                            }
-                        }
-
-                        if role == "action_bar" {
-                            authored_rect = Self::action_bar_authored_rect(authored_rect, &table);
-                        }
-                        let rect = self.resolve_screen_element_rect(authored_rect, role, &table);
-                        let (x, y, width, height) = (rect.x, rect.y, rect.width, rect.height);
-                        let mut artwork = artwork.clone();
-                        artwork.slice = table
-                            .get("ui")
-                            .and_then(toml::Value::as_table)
-                            .and_then(|ui| ui.get("slice"))
-                            .and_then(toml::Value::as_integer)
-                            .unwrap_or(0)
-                            .max(0) as usize;
-
-                        if role == "game" {
-                            let mut game_widget = GameWidget {
-                                name: widget.name.clone(),
-                                rect: Rect::new(x, y, width, height),
-                                toml_str: data.clone(),
-                                buffer: TheRGBABuffer::new(TheDim::sized(
-                                    width as i32,
-                                    height as i32,
-                                )),
-                                grid_size,
-                                ..Default::default()
-                            };
-
-                            game_widget.init();
-                            if let Some(map) = assets.maps.get(&self.current_map) {
-                                game_widget.build(map, assets, scene_handler);
-                            }
-                            self.game_widgets.insert(widget.creator_id, game_widget);
-                        } else if role == "button" {
-                            let mut command = None;
-                            let mut command_slot = None;
-                            let mut action = "";
-                            let mut intent = None;
-                            let mut spell = None;
-                            let mut group = None;
-                            let mut binding = None;
-                            let mut value = None;
-                            let mut binding_append = false;
-                            let mut binding_separator = " ".to_string();
-                            let mut binding_max_parts = None;
-                            let mut selection = None;
-                            let mut show: Option<Vec<String>> = None;
-                            let mut hide: Option<Vec<String>> = None;
-                            let mut deactivate: Vec<String> = vec![];
-                            let mut camera: Option<PlayerCamera> = None;
-                            let mut player_camera: Option<PlayerCamera> = None;
-                            let mut camera_target: Option<String> = None;
-                            let mut party: Option<String> = None;
-                            let mut inventory_index: Option<usize> = None;
-                            let mut equipped_slot: Option<String> = None;
-                            let mut portrait = false;
-                            let mut drag_drop = false;
-
-                            let mut entity_cursor_id = None;
-                            let mut entity_clicked_cursor_id = None;
-                            let mut item_cursor_id = None;
-                            let mut item_clicked_cursor_id = None;
-                            let mut border_size: i32 = 0;
-                            let mut show_icon = true;
-                            let mut border_color: [u8; 4] = [255, 255, 255, 255];
-                            let mut label = String::new();
-                            let mut label_font = String::new();
-                            let mut label_font_size = 18.0;
-                            let mut label_color: [u8; 4] = [255, 255, 255, 255];
-                            let mut background_color = None;
-                            let mut hover_style = ButtonStateStyle::default();
-                            let mut selected_style = ButtonStateStyle::default();
-                            let mut pressed_style = ButtonStateStyle::default();
-                            let mut disabled_style = ButtonStateStyle::default();
-
-                            if let Some(ui) = table.get("ui").and_then(toml::Value::as_table) {
-                                // Check for command. This is the preferred button API.
-                                if let Some(value) = ui.get("command")
-                                    && let Some(v) = value.as_str()
-                                {
-                                    let trimmed = v.trim();
-                                    if !trimmed.is_empty() {
-                                        command = Some(trimmed.to_string());
-                                    }
-                                }
-                                if let Some(value) = ui.get("command_slot")
-                                    && let Some(v) = value.as_str()
-                                {
-                                    let trimmed = v.trim();
-                                    if !trimmed.is_empty() {
-                                        command_slot = Some(trimmed.to_string());
-                                    }
-                                }
-
-                                // Check for action
-                                if let Some(value) = ui.get("action") {
-                                    if let Some(v) = value.as_str() {
-                                        action = v;
-                                    }
-                                }
-
-                                // Check for intent
-                                if let Some(value) = ui.get("intent") {
-                                    if let Some(v) = value.as_str() {
-                                        intent = Some(v.to_string());
-                                    }
-                                }
-                                if let Some(value) = ui.get("spell")
-                                    && let Some(v) = value.as_str()
-                                {
-                                    let trimmed = v.trim();
-                                    if !trimmed.is_empty() {
-                                        spell = Some(trimmed.to_string());
-                                    }
-                                }
-                                if let Some(value) = ui.get("group")
-                                    && let Some(v) = value.as_str()
-                                {
-                                    let trimmed = v.trim();
-                                    if !trimmed.is_empty() {
-                                        group = Some(trimmed.to_string());
-                                    }
-                                }
-                                if let Some(v) = ui
-                                    .get("bind")
-                                    .or_else(|| ui.get("binding"))
-                                    .and_then(toml::Value::as_str)
-                                    .map(str::trim)
-                                    .filter(|value| !value.is_empty())
-                                {
-                                    binding = Some(v.to_string());
-                                }
-                                if let Some(v) = ui.get("value").and_then(toml::Value::as_str) {
-                                    value = Some(v.to_string());
-                                }
-                                if let Some(v) = ui
-                                    .get("append")
-                                    .or_else(|| ui.get("binding_append"))
-                                    .and_then(toml::Value::as_bool)
-                                {
-                                    binding_append = v;
-                                }
-                                if let Some(v) = ui
-                                    .get("separator")
-                                    .or_else(|| ui.get("binding_separator"))
-                                    .and_then(toml::Value::as_str)
-                                {
-                                    binding_separator = v.to_string();
-                                }
-                                if let Some(v) = ui
-                                    .get("max_parts")
-                                    .or_else(|| ui.get("binding_max_parts"))
-                                    .and_then(toml::Value::as_integer)
-                                    && v > 0
-                                {
-                                    binding_max_parts = Some(v as usize);
-                                }
-                                if let Some(v) = ui
-                                    .get("selection")
-                                    .and_then(toml::Value::as_str)
-                                    .map(str::trim)
-                                    .filter(|value| !value.is_empty())
-                                {
-                                    selection = Some(v.to_string());
-                                }
-
-                                if let Some(value) = ui.get("label").or_else(|| ui.get("text"))
-                                    && let Some(v) = value.as_str()
-                                {
-                                    label = v.to_string();
-                                }
-                                if let Some(value) = ui.get("font")
-                                    && let Some(v) = value.as_str()
-                                {
-                                    label_font = v.to_string();
-                                }
-                                if let Some(value) = ui.get("font_size") {
-                                    if let Some(v) = value.as_float() {
-                                        label_font_size = v as f32;
-                                    } else if let Some(v) = value.as_integer() {
-                                        label_font_size = v as f32;
-                                    }
-                                }
-                                if let Some(value) = ui.get("color")
-                                    && let Some(v) = value.as_str()
-                                {
-                                    label_color = Self::hex_to_rgba_u8(v);
-                                }
-                                if let Some(value) = ui
-                                    .get("show_icon")
-                                    .or_else(|| ui.get("icon"))
-                                    .and_then(toml::Value::as_bool)
-                                {
-                                    show_icon = value;
-                                }
-                                if let Some(color) = Self::ui_style_color(ui, None, "text", "color")
-                                    .or_else(|| Self::ui_style_color(ui, None, "color", "color"))
-                                {
-                                    label_color = color;
-                                }
-                                background_color = Self::ui_style_color(
-                                    ui,
-                                    None,
-                                    "background",
-                                    "background_color",
-                                );
-                                hover_style = Self::button_state_style_from_ui(
-                                    ui,
-                                    "hover",
-                                    "hover_background_color",
-                                    "hover_border_color",
-                                    "hover_color",
-                                );
-                                selected_style = Self::button_state_style_from_ui(
-                                    ui,
-                                    "selected",
-                                    "selected_background_color",
-                                    "selected_border_color",
-                                    "selected_color",
-                                );
-                                pressed_style = Self::button_state_style_from_ui(
-                                    ui,
-                                    "pressed",
-                                    "pressed_background_color",
-                                    "pressed_border_color",
-                                    "pressed_color",
-                                );
-                                disabled_style = Self::button_state_style_from_ui(
-                                    ui,
-                                    "disabled",
-                                    "disabled_background_color",
-                                    "disabled_border_color",
-                                    "disabled_color",
-                                );
-
-                                // Check for show
-                                if let Some(value) = ui.get("show") {
-                                    if let Some(va) = value.as_array() {
-                                        let mut c = vec![];
-                                        for v in va {
-                                            if let Some(v) = v.as_str() {
-                                                c.push(v.to_string());
-                                            }
-                                        }
-                                        if !c.is_empty() {
-                                            show = Some(c);
-                                        }
-                                    }
-                                }
-
-                                // Check for hide
-                                if let Some(value) = ui.get("hide") {
-                                    if let Some(va) = value.as_array() {
-                                        let mut c = vec![];
-                                        for v in va {
-                                            if let Some(v) = v.as_str() {
-                                                c.push(v.to_string());
-                                            }
-                                        }
-                                        if !c.is_empty() {
-                                            hide = Some(c);
-                                        }
-                                    }
-                                }
-
-                                // Check for deactivate
-                                if let Some(value) = ui.get("deactivate") {
-                                    if let Some(va) = value.as_array() {
-                                        let mut c = vec![];
-                                        for v in va {
-                                            if let Some(v) = v.as_str() {
-                                                c.push(v.to_string());
-                                            }
-                                        }
-                                        deactivate = c;
-                                    }
-                                }
-
-                                // Check camera mode switch for game widget rendering
-                                if let Some(value) = ui.get("camera")
-                                    && let Some(v) = value.as_str()
-                                {
-                                    camera = Self::parse_player_camera_mode(v);
-                                }
-
-                                // Check player camera mapping switch for server controls.
-                                if let Some(value) = ui.get("player_camera")
-                                    && let Some(v) = value.as_str()
-                                {
-                                    player_camera = Self::parse_player_camera_mode(v);
-                                }
-
-                                // Optional game widget name target (defaults to all game widgets)
-                                if let Some(value) = ui.get("camera_target")
-                                    && let Some(v) = value.as_str()
-                                    && !v.is_empty()
-                                {
-                                    camera_target = Some(v.to_string());
-                                }
-
-                                if let Some(value) = ui.get("party").and_then(toml::Value::as_str) {
-                                    let binding = value.trim();
-                                    if !binding.is_empty() {
-                                        party = Some(binding.to_string());
-                                    }
-                                }
-
-                                // Check for active
-                                if let Some(active_value) = ui.get("active") {
-                                    if let Some(v) = active_value.as_bool()
-                                        && v
-                                    {
-                                        self.activated_widgets.push(widget.id);
-                                        self.permanently_activated_widgets.push(widget.id);
-                                        if let (Some(binding), Some(bound_value)) =
-                                            (binding.as_deref(), value.as_deref())
-                                            && !binding.trim().is_empty()
-                                        {
-                                            self.ui_state.insert(
-                                                binding.to_string(),
-                                                bound_value.to_string(),
-                                            );
-                                        }
-                                        if let Some(hide) = &hide {
-                                            self.widgets_to_hide = hide.clone();
-                                        }
-                                    }
-                                }
-
-                                // Check for inventory
-                                if let Some(value) = ui.get("inventory_index") {
-                                    if let Some(v) = value.as_integer() {
-                                        inventory_index = Some(v as usize);
-                                    }
-                                }
-                                if let Some(value) = ui.get("equipped_slot")
-                                    && let Some(v) = value.as_str()
-                                {
-                                    let slot = v.trim();
-                                    if !slot.is_empty() {
-                                        equipped_slot = Some(slot.to_string());
-                                    }
-                                }
-                                if let Some(value) = ui.get("drag_drop")
-                                    && let Some(v) = value.as_bool()
-                                {
-                                    drag_drop = v;
-                                }
-                                if let Some(value) = ui.get("portrait")
-                                    && let Some(v) = value.as_bool()
-                                {
-                                    portrait = v;
-                                }
-
-                                if inventory_index.is_some() || equipped_slot.is_some() {
-                                    drag_drop = ui
-                                        .get("drag_drop")
-                                        .and_then(toml::Value::as_bool)
-                                        .unwrap_or(true);
-                                }
-
-                                // Check for the entity / item cursor ids
-                                entity_cursor_id = Self::get_uuid(ui, "entity_cursor_id");
-                                entity_clicked_cursor_id =
-                                    Self::get_uuid(ui, "entity_clicked_cursor_id");
-                                item_cursor_id = Self::get_uuid(ui, "item_cursor_id");
-                                item_clicked_cursor_id =
-                                    Self::get_uuid(ui, "item_clicked_cursor_id");
-
-                                // Check for border
-                                if let Some(value) = ui.get("border_size") {
-                                    if let Some(v) = value.as_integer() {
-                                        border_size = v as i32;
-                                    }
-                                }
-                                if let Some(value) = ui.get("border_color") {
-                                    if let Some(v) = value.as_str() {
-                                        border_color = Self::hex_to_rgba_u8(v);
-                                    }
-                                }
-                                if let Some(color) =
-                                    Self::ui_style_color(ui, None, "border", "border_color")
-                                {
-                                    border_color = color;
-                                }
-
-                                command = command_from_legacy_fields(
-                                    command.as_deref(),
-                                    (!action.trim().is_empty()).then_some(action),
-                                    intent.as_deref(),
-                                    spell.as_deref(),
-                                );
-                            }
-
-                            let (
-                                border_color,
-                                border_size,
-                                border_gradient_color,
-                                border_gradient_direction,
-                                border_radius,
-                            ) = table
-                                .get("ui")
-                                .and_then(toml::Value::as_table)
-                                .map(|ui| {
-                                    Self::border_style_from_table(ui, border_color, border_size)
-                                })
-                                .unwrap_or((
-                                    border_color,
-                                    border_size,
-                                    None,
-                                    BorderGradientDirection::Vertical,
-                                    0.0,
-                                ));
-
-                            let button_widget = Widget {
-                                name: widget.name.clone(),
-                                id: widget.id,
-                                rect: Rect::new(x, y, width, height),
-                                action: action.into(),
-                                command,
-                                command_slot,
-                                intent,
-                                spell,
-                                group,
-                                binding,
-                                value,
-                                binding_append,
-                                binding_separator,
-                                binding_max_parts,
-                                selection,
-                                show,
-                                hide,
-                                deactivate,
-                                camera,
-                                player_camera,
-                                camera_target,
-                                party,
-                                inventory_index,
-                                equipped_slot,
-                                portrait,
-                                drag_drop,
-                                chrome_textures: vec![],
-                                chrome_slice: 0,
-                                frame_textures: vec![],
-                                frame_slice: 0,
-                                icon_inset: None,
-                                artwork: artwork.clone(),
-                                chrome_artwork: Default::default(),
-                                frame_artwork: Default::default(),
-                                textures,
-                                entity_cursor_id,
-                                entity_clicked_cursor_id,
-                                item_cursor_id,
-                                item_clicked_cursor_id,
-                                border_color,
-                                border_size,
-                                border_gradient_color,
-                                border_gradient_direction,
-                                border_radius,
-                                border_painter: ThePainter::new(),
-                                show_icon,
-                                label,
-                                label_font,
-                                label_font_size,
-                                label_color,
-                                background_color,
-                                hover_style,
-                                selected_style,
-                                pressed_style,
-                                disabled_style,
-                            };
-
-                            self.button_widgets.insert(widget.id, button_widget);
-                        } else if role == "action_bar" {
-                            self.insert_action_bar(
-                                screen,
-                                widget.id,
-                                widget.creator_id,
-                                &widget.name,
-                                rect,
-                                &table,
-                                &artwork,
-                                assets,
-                            );
-                        } else if role == "spellbook" || role == "actions" {
-                            let Some(ui) = table.get("ui").and_then(toml::Value::as_table) else {
-                                continue;
-                            };
-                            let config =
-                                Self::catalog_panel_config(ui, Some(&table), Some(rect), assets);
-                            if role == "spellbook" {
-                                self.custom_spellbook_config = Some(config);
-                            } else {
-                                let mut config = config;
-                                if !ui.contains_key("show_assign") {
-                                    config.show_assign = true;
-                                }
-                                if !ui.contains_key("show_details") {
-                                    config.show_details = false;
-                                }
-                                if !ui.contains_key("show_names") {
-                                    config.show_names = true;
-                                }
-                                if config.title.is_empty() {
-                                    config.title = "Actions".to_string();
-                                }
-                                self.custom_actions_panel_config = Some(config);
-                            }
-                        } else if role == "inventory" {
-                            let Some(ui) = table.get("ui").and_then(toml::Value::as_table) else {
-                                continue;
-                            };
-                            self.custom_inventory_panel_config =
-                                Some(Self::inventory_panel_config(ui, Some(rect)));
-                        } else if role == "equipment" {
-                            let Some(ui) = table.get("ui").and_then(toml::Value::as_table) else {
-                                continue;
-                            };
-                            self.custom_equipment_panel_config =
-                                Some(Self::equipment_panel_config(ui, Some(rect)));
-                        } else if role == "tab_bar" || role == "dropdown" {
-                            let Some(ui) = table.get("ui").and_then(toml::Value::as_table) else {
-                                continue;
-                            };
-                            let kind = if role == "tab_bar" {
-                                ChoiceWidgetKind::TabBar
-                            } else {
-                                ChoiceWidgetKind::Dropdown
-                            };
-                            if let Some(mut choice) = ChoiceWidget::from_ui(
-                                widget.name.clone(),
-                                widget.id,
-                                Rect::new(x, y, width, height),
-                                kind,
-                                ui,
-                            ) {
-                                if let Some(value) = self.ui_state.get(&choice.binding) {
-                                    choice.sync_value(Some(value));
-                                } else {
-                                    self.ui_state.insert(
-                                        choice.binding.clone(),
-                                        choice.selected_value().to_string(),
-                                    );
-                                }
-                                self.choice_widgets.insert(widget.id, choice);
-                            }
-                        } else if role == "input" {
-                            let mut binding = widget.name.clone();
-                            let mut text = String::new();
-                            let mut font = String::new();
-                            let mut font_size = 22.0;
-                            let mut color: [u8; 4] = [242, 242, 242, 255];
-                            let mut background_color: [u8; 4] = [17, 17, 17, 204];
-                            let mut border_color: [u8; 4] = [136, 136, 136, 255];
-                            let mut border_size: i32 = 1;
-
-                            if let Some(ui) = table.get("ui").and_then(toml::Value::as_table) {
-                                if let Some(value) = ui
-                                    .get("bind")
-                                    .or_else(|| ui.get("binding"))
-                                    .and_then(toml::Value::as_str)
-                                {
-                                    let trimmed = value.trim();
-                                    if !trimmed.is_empty() {
-                                        binding = trimmed.to_string();
-                                    }
-                                }
-                                if let Some(value) = ui
-                                    .get("text")
-                                    .or_else(|| ui.get("default"))
-                                    .and_then(toml::Value::as_str)
-                                {
-                                    text = value.to_string();
-                                }
-                                if let Some(value) = ui.get("font").and_then(toml::Value::as_str) {
-                                    font = value.to_string();
-                                }
-                                if let Some(value) =
-                                    ui.get("font_size").and_then(toml::Value::as_float)
-                                {
-                                    font_size = value as f32;
-                                }
-                                if let Some(value) = ui.get("color").and_then(toml::Value::as_str) {
-                                    color = Self::hex_to_rgba_u8(value);
-                                }
-                                if let Some(value) =
-                                    ui.get("background_color").and_then(toml::Value::as_str)
-                                {
-                                    background_color = Self::hex_to_rgba_u8(value);
-                                }
-                                if let Some(value) =
-                                    ui.get("border_color").and_then(toml::Value::as_str)
-                                {
-                                    border_color = Self::hex_to_rgba_u8(value);
-                                }
-                                if let Some(value) =
-                                    ui.get("border_size").and_then(toml::Value::as_integer)
-                                {
-                                    border_size = value as i32;
-                                }
-                            }
-
-                            if !binding.trim().is_empty() {
-                                self.ui_state.insert(binding.clone(), text.clone());
-                            }
-
-                            self.text_input_widgets.insert(
-                                widget.id,
-                                TextInputWidget {
-                                    name: widget.name.clone(),
-                                    id: widget.id,
-                                    rect: Rect::new(x, y, width, height),
-                                    binding,
-                                    text,
-                                    font,
-                                    font_size,
-                                    color,
-                                    background_color,
-                                    border_color,
-                                    border_size,
-                                },
-                            );
-                        } else if role == "messages" {
-                            let mut widget = MessagesWidget {
-                                name: widget.name.clone(),
-                                rect: Rect::new(x, y, width, height),
-                                toml_str: data.clone(),
-                                buffer: TheRGBABuffer::new(TheDim::sized(
-                                    width as i32,
-                                    height as i32,
-                                )),
-                                ..Default::default()
-                            };
-                            widget.init(assets);
-                            self.messages_widgets.push(widget);
-                        } else if role == "avatar" {
-                            let mut avatar_widget = AvatarWidget {
-                                name: widget.name.clone(),
-                                rect: Rect::new(x, y, width, height),
-                                toml_str: data.clone(),
-                                buffer: TheRGBABuffer::new(TheDim::sized(
-                                    width as i32,
-                                    height as i32,
-                                )),
-                                ..Default::default()
-                            };
-                            avatar_widget.init();
-                            self.avatar_widgets.insert(widget.creator_id, avatar_widget);
-                        } else if role == "profile" {
-                            let mut profile_widget = ProfileWidget::new();
-                            profile_widget.animation_frame = self.animation_frame;
-                            profile_widget.name = widget.name.clone();
-                            profile_widget.rect = Rect::new(x, y, width, height);
-                            profile_widget.toml_str = data.clone();
-                            profile_widget.buffer =
-                                TheRGBABuffer::new(TheDim::sized(width as i32, height as i32));
-                            profile_widget.init();
-                            self.profile_widgets
-                                .insert(widget.creator_id, profile_widget);
-                        } else if role == "stat" {
-                            let mut stat_widget = StatWidget::new();
-                            stat_widget.name = widget.name.clone();
-                            stat_widget.rect = Rect::new(x, y, width, height);
-                            stat_widget.toml_str = data.clone();
-                            stat_widget.buffer =
-                                TheRGBABuffer::new(TheDim::sized(width as i32, height as i32));
-                            stat_widget.init();
-                            self.stat_widgets.insert(widget.creator_id, stat_widget);
-                        } else if role == "text" {
-                            let mut text_widget = TextWidget {
-                                name: widget.name.clone(),
-                                rect: Rect::new(x, y, width, height),
-                                toml_str: data.clone(),
-                                buffer: TheRGBABuffer::new(TheDim::sized(
-                                    width as i32,
-                                    height as i32,
-                                )),
-                                ..Default::default()
-                            };
-                            text_widget.init(assets);
-                            self.text_widgets.insert(widget.creator_id, text_widget);
-                        } else if role == "deco" {
-                            let mut deco_widget = DecoWidget {
-                                color: if artwork
-                                    .sources
-                                    .iter()
-                                    .any(|s| !matches!(s, PixelSource::Off))
-                                {
-                                    [0; 4]
-                                } else {
-                                    crate::BLACK
-                                },
-                                artwork: artwork.clone(),
-                                animation_frame: self.animation_frame,
-                                rect: Rect::new(x, y, width, height),
-                                toml_str: data.clone(),
-                                buffer: TheRGBABuffer::new(TheDim::sized(
-                                    width as i32,
-                                    height as i32,
-                                )),
-                                ..Default::default()
-                            };
-                            deco_widget.init(assets);
-                            self.deco_widgets.insert(widget.creator_id, deco_widget);
-                        }
-                    }
-                }
+        for widget in self.game_widgets.values_mut() {
+            Self::resize_widget_buffer(&mut widget.buffer, widget.rect);
+            if let Some(map) = assets.maps.get(&self.current_map) {
+                widget.build(map, assets, scene_handler);
             }
         }
-        self.apply_bound_button_activations();
+        for widget in &mut self.messages_widgets {
+            Self::resize_widget_buffer(&mut widget.buffer, widget.rect);
+            widget.init(assets);
+        }
+        for widget in self.text_widgets.values_mut() {
+            Self::resize_widget_buffer(&mut widget.buffer, widget.rect);
+            widget.init(assets);
+        }
+        for widget in self.avatar_widgets.values_mut() {
+            Self::resize_widget_buffer(&mut widget.buffer, widget.rect);
+        }
+        for widget in self.profile_widgets.values_mut() {
+            Self::resize_widget_buffer(&mut widget.buffer, widget.rect);
+        }
+        for widget in self.stat_widgets.values_mut() {
+            Self::resize_widget_buffer(&mut widget.buffer, widget.rect);
+        }
+        for widget in self.deco_widgets.values_mut() {
+            Self::resize_widget_buffer(&mut widget.buffer, widget.rect);
+        }
     }
 
     /// Returns the intent of the currently activated button
@@ -13638,7 +11259,6 @@ impl Client {
             }
         }
 
-
         None
     }
 
@@ -13725,7 +11345,9 @@ mod tests {
         let table = "[ui]\nrole = \"game\"\n".parse::<toml::Table>().unwrap();
 
         let rect =
-            client.resolve_screen_element_rect(Rect::new(32.0, 46.0, 640.0, 352.0), "game", &table);
+            client
+                .screen_layout()
+                .resolve(Rect::new(32.0, 46.0, 640.0, 352.0), "game", &table);
 
         assert_eq!(rect, Rect::new(0.0, 0.0, 1280.0, 720.0));
     }
@@ -13748,11 +11370,10 @@ mod tests {
         .parse::<toml::Table>()
         .unwrap();
 
-        let rect = client.resolve_screen_element_rect(
-            Rect::new(400.0, 460.0, 160.0, 60.0),
-            "button",
-            &table,
-        );
+        let rect =
+            client
+                .screen_layout()
+                .resolve(Rect::new(400.0, 460.0, 160.0, 60.0), "button", &table);
 
         assert_eq!(rect, Rect::new(560.0, 640.0, 160.0, 60.0));
     }
@@ -13775,16 +11396,16 @@ mod tests {
         .unwrap();
 
         let authored =
-            Client::action_bar_authored_rect(Rect::new(100.0, 200.0, 32.0, 32.0), &table);
+            screen_model::action_bar_authored_rect(Rect::new(100.0, 200.0, 32.0, 32.0), &table);
         assert_eq!(authored, Rect::new(100.0, 200.0, 180.0, 68.0));
 
-        let slots = Client::action_bar_slot_rects(authored, &table);
+        let slots = screen_model::action_bar_slot_rects(authored, &table);
         assert_eq!(slots.len(), 3);
         assert_eq!(slots[0], Rect::new(108.0, 208.0, 52.0, 52.0));
         assert_eq!(slots[1], Rect::new(164.0, 208.0, 52.0, 52.0));
         assert_eq!(slots[2], Rect::new(220.0, 208.0, 52.0, 52.0));
 
-        let buttons = Client::action_bar_buttons(&table);
+        let buttons = screen_model::action_bar_buttons(&table);
         assert_eq!(buttons[0].command.as_deref(), Some("intent.look"));
         assert_eq!(buttons[1].command_slot.as_deref(), Some("main.0"));
         assert_eq!(buttons[2].label, "Actions");
@@ -13808,7 +11429,7 @@ mod tests {
         .unwrap();
 
         let (from, size, to, direction, radius) =
-            Client::border_style_from_table(&table, [0, 0, 0, 255], 0);
+            screen_model::border_style_from_table(&table, [0, 0, 0, 255], 0);
         assert_eq!(from, [229, 196, 119, 255]);
         assert_eq!(size, 3);
         assert_eq!(to, Some([93, 59, 24, 255]));
@@ -13838,8 +11459,11 @@ mod tests {
         .parse::<toml::Table>()
         .unwrap();
 
-        let authored = Client::action_bar_authored_rect(Rect::new(0.0, 0.0, 32.0, 32.0), &table);
-        let rect = client.resolve_screen_element_rect(authored, "action_bar", &table);
+        let authored =
+            screen_model::action_bar_authored_rect(Rect::new(0.0, 0.0, 32.0, 32.0), &table);
+        let rect = client
+            .screen_layout()
+            .resolve(authored, "action_bar", &table);
         assert_eq!(rect, Rect::new(550.0, 636.0, 180.0, 68.0));
     }
 
@@ -13861,8 +11485,10 @@ mod tests {
         .unwrap();
 
         let authored =
-            Client::action_bar_authored_rect(Rect::new(100.0, 400.0, 32.0, 32.0), &table);
-        let rect = client.resolve_screen_element_rect(authored, "action_bar", &table);
+            screen_model::action_bar_authored_rect(Rect::new(100.0, 400.0, 32.0, 32.0), &table);
+        let rect = client
+            .screen_layout()
+            .resolve(authored, "action_bar", &table);
         assert_eq!(rect, Rect::new(550.0, 636.0, 180.0, 68.0));
     }
 
@@ -13895,11 +11521,14 @@ mod tests {
         .parse::<toml::Table>()
         .unwrap();
 
-        let authored = Client::action_bar_authored_rect(Rect::new(0.0, 0.0, 32.0, 32.0), &table);
-        let rect = client.resolve_screen_element_rect(authored, "action_bar", &table);
+        let authored =
+            screen_model::action_bar_authored_rect(Rect::new(0.0, 0.0, 32.0, 32.0), &table);
+        let rect = client
+            .screen_layout()
+            .resolve(authored, "action_bar", &table);
         assert_eq!(rect, Rect::new(0.0, 666.0, 1280.0, 54.0));
         assert_eq!(
-            Client::action_bar_slot_rects(rect, &table),
+            screen_model::action_bar_slot_rects(rect, &table),
             vec![
                 Rect::new(14.0, 671.0, 44.0, 44.0),
                 Rect::new(1222.0, 671.0, 44.0, 44.0),
@@ -13933,9 +11562,9 @@ mod tests {
         .unwrap();
 
         let authored =
-            Client::action_bar_authored_rect(Rect::new(100.0, 200.0, 20.0, 20.0), &table);
+            screen_model::action_bar_authored_rect(Rect::new(100.0, 200.0, 20.0, 20.0), &table);
         assert_eq!(authored, Rect::new(100.0, 200.0, 320.0, 68.0));
-        let slots = Client::action_bar_slot_rects(authored, &table);
+        let slots = screen_model::action_bar_slot_rects(authored, &table);
         assert_eq!(slots.len(), 5);
         assert_eq!(slots[0], Rect::new(108.0, 208.0, 52.0, 52.0));
         assert_eq!(slots[1], Rect::new(164.0, 208.0, 52.0, 52.0));
@@ -13943,7 +11572,7 @@ mod tests {
         assert_eq!(slots[3], Rect::new(304.0, 208.0, 52.0, 52.0));
         assert_eq!(slots[4], Rect::new(360.0, 208.0, 52.0, 52.0));
         assert_eq!(
-            Client::action_bar_group_separators(authored, &table),
+            screen_model::action_bar_group_separators(authored, &table),
             vec![225.0, 295.0]
         );
     }
@@ -13965,7 +11594,7 @@ mod tests {
         let authored = Rect::new(20.0, 30.0, 80.0, 80.0);
 
         assert_eq!(
-            client.resolve_screen_element_rect(authored, "button", &table),
+            client.screen_layout().resolve(authored, "button", &table),
             authored
         );
     }
@@ -14400,7 +12029,8 @@ mod tests {
         .unwrap();
         let mut client = Client::new();
         client.target = TheRGBABuffer::new(TheDim::sized(1280, 720));
-        client.toolbar_spellbook_config = Client::catalog_panel_config(&table, None, None, &assets);
+        client.toolbar_spellbook_config =
+            screen_model::catalog_panel_config(&table, None, None, &assets);
         client.apply_ui_command("spellbook");
 
         let first = client.actions_panel_layout(&map, &assets).unwrap();
@@ -14447,7 +12077,8 @@ mod tests {
         .unwrap();
         let mut client = Client::new();
         client.target = TheRGBABuffer::new(TheDim::sized(1280, 720));
-        client.toolbar_spellbook_config = Client::catalog_panel_config(&table, None, None, &assets);
+        client.toolbar_spellbook_config =
+            screen_model::catalog_panel_config(&table, None, None, &assets);
         client.apply_ui_command("spellbook");
 
         let all = client.actions_panel_layout(&map, &assets).unwrap();
@@ -14548,7 +12179,7 @@ mod tests {
         "##
         .parse::<toml::Table>()
         .unwrap();
-        let equipment = Client::equipment_panel_config(&equipment, None);
+        let equipment = screen_model::equipment_panel_config(&equipment, None);
         assert_eq!(equipment.slot_size, 60.0);
         assert_eq!(equipment.avatar_scale, 1.25);
         assert_eq!(equipment.left_slots, vec!["main_hand", "head"]);
@@ -14562,7 +12193,7 @@ mod tests {
         "#
         .parse::<toml::Table>()
         .unwrap();
-        let preferences = Client::preferences_panel_config(&preferences);
+        let preferences = screen_model::preferences_panel_config(&preferences);
         assert_eq!(preferences.width, 340.0);
         assert_eq!(preferences.row_height, 38.0);
         assert_eq!(preferences.title, "Interface");
@@ -14593,7 +12224,7 @@ mod tests {
         .parse::<toml::Table>()
         .unwrap();
 
-        let config = Client::inventory_panel_config(&table, None);
+        let config = screen_model::inventory_panel_config(&table, None);
         assert_eq!(config.columns, 9);
         assert_eq!(config.rows, 6);
         assert_eq!(config.cell_size, 46.0);
