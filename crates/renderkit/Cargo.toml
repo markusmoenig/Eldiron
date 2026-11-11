@@ -5,6 +5,7 @@ edition.workspace = true
 license.workspace = true
 [dependencies]
 wgpu = "29.0.3"
+half = "2.7"
 theframework-core = { path = "../theframework-core" }
 [dev-dependencies]
 pollster = "0.4"

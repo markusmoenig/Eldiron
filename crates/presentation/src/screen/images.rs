@@ -111,20 +111,23 @@ impl ScreenImages for ScreenImageFrame<'_> {
             }
         }
         let asset = ImageAsset::rgba(width, height, pixels.to_vec()).map_err(|e| e.to_string())?;
-        let image = self.images.upload(&asset).map_err(|e| e.to_string())?;
+        let image = self
+            .images
+            .upload_linear(&asset)
+            .map_err(|e| e.to_string())?;
         if let Some(old) = self.cache.entries.insert(
             key.into(),
             Entry {
                 image,
                 fingerprint,
-                bytes: pixels.len(),
+                bytes: pixels.len() * 2,
                 frame: self.cache.frame,
             },
         ) {
             // Earlier commands in this frame may still reference this revision.
             self.cache.retired.push((old.image, old.bytes));
         }
-        self.cache.bytes += pixels.len();
+        self.cache.bytes += pixels.len() * 2;
         Ok(image)
     }
 }

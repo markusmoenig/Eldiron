@@ -2,7 +2,9 @@ use crate::{
     paint::Rect,
     text::{GlyphBitmap, GlyphKey},
 };
-use renderkit::{GpuContext, GpuImage, ImageDescriptor, RenderError, Result};
+use renderkit::{
+    AlphaMode, ColorSpace, GpuContext, GpuImage, ImageAsset, ImageDescriptor, RenderError, Result,
+};
 use std::{collections::HashMap, sync::Arc};
 #[derive(Clone)]
 pub struct Entry {
@@ -55,7 +57,16 @@ impl GlyphAtlas {
                 self.entries.clear();
             }
             self.pages.push(Page {
-                image: GpuImage::new(context, ImageDescriptor::rgba(SIZE, SIZE))?,
+                image: GpuImage::new(
+                    context,
+                    ImageDescriptor {
+                        width: SIZE,
+                        height: SIZE,
+                        format: renderkit::wgpu::TextureFormat::Rgba16Float,
+                        color_space: ColorSpace::Linear,
+                        alpha_mode: AlphaMode::Premultiplied,
+                    },
+                )?,
                 x: 1,
                 y: 1,
                 row: 0,
@@ -79,6 +90,9 @@ impl GlyphAtlas {
                 .flat_map(|&a| [255, 255, 255, a])
                 .collect()
         };
+        let mut source = ImageAsset::rgba(w, h, pixels).map_err(|e| RenderError(e.to_string()))?;
+        source.alpha_mode = bitmap.alpha_mode;
+        let pixels = renderkit::linear_premultiplied_pixels(&source);
         context.record_upload(pixels.len() as u64);
         context.queue.write_texture(
             renderkit::wgpu::TexelCopyTextureInfo {
@@ -90,7 +104,7 @@ impl GlyphAtlas {
             &pixels,
             renderkit::wgpu::TexelCopyBufferLayout {
                 offset: 0,
-                bytes_per_row: Some(w * 4),
+                bytes_per_row: Some(w * 8),
                 rows_per_image: Some(h),
             },
             renderkit::wgpu::Extent3d {

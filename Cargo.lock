@@ -4392,6 +4392,7 @@ checksum = "19b30a45b0cd0bcca8037f3d0dc3421eaf95327a17cad11964fb8179b4fc4832"
 name = "renderkit"
 version = "0.96.0"
 dependencies = [
+ "half",
  "objc2-quartz-core 0.3.2",
  "pollster",
  "theframework-core",

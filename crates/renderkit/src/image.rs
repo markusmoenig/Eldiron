@@ -157,6 +157,46 @@ impl ImageRegistry {
         }
         true
     }
+    /// Normalize an authored/decoded RGBA8 source once at asset upload. All
+    /// interpolation then operates on linear premultiplied color, avoiding dark
+    /// fringes and gamma errors at transparent edges. These are source assets,
+    /// never a rasterized UI or scene destination.
+    ///
+    /// For RGBA8 inputs, Premultiplied means RGB is multiplied in the tagged
+    /// source color space. The GPU result is always RGBA16F linear premultiplied.
+    pub fn upload_linear(&mut self, source: &ImageAsset) -> Result<ImageHandle> {
+        let image = GpuImage::new(
+            &self.context,
+            ImageDescriptor {
+                width: source.width(),
+                height: source.height(),
+                format: wgpu::TextureFormat::Rgba16Float,
+                color_space: ColorSpace::Linear,
+                alpha_mode: AlphaMode::Premultiplied,
+            },
+        )?;
+        let pixels = linear_premultiplied_pixels(source);
+        self.context.record_upload(pixels.len() as u64);
+        self.context.queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &image.texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            &pixels,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(source.width() * 8),
+                rows_per_image: Some(source.height()),
+            },
+            image.texture.size(),
+        );
+        self.insert(image)
+    }
+
+    /// Preserve the source's raw RGBA8 representation (e.g. byte-exact capture).
+    /// UI source caches use `upload_linear` for correct filtered composition.
     pub fn upload(&mut self, source: &ImageAsset) -> Result<ImageHandle> {
         let mut descriptor = ImageDescriptor::rgba(source.width(), source.height());
         descriptor.color_space = source.color_space;
@@ -183,4 +223,48 @@ impl ImageRegistry {
         );
         self.insert(image)
     }
+}
+
+/// Prepare RGBA16F little-endian upload bytes from tagged RGBA8 source data.
+/// This is source normalization, not destination rendering or GPU readback.
+pub fn linear_premultiplied_pixels(source: &ImageAsset) -> Vec<u8> {
+    let linear = |c: f32| {
+        if c <= 0.04045 {
+            c / 12.92
+        } else {
+            ((c + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    let mut output = Vec::with_capacity(source.pixels().len() * 2);
+    for pixel in source.pixels().chunks_exact(4) {
+        let alpha = if source.alpha_mode == AlphaMode::Opaque {
+            1.
+        } else {
+            pixel[3] as f32 / 255.
+        };
+        let mut rgba = [0.; 4];
+        rgba[3] = alpha;
+        for channel in 0..3 {
+            let value = pixel[channel] as f32 / 255.;
+            rgba[channel] = if source.alpha_mode == AlphaMode::Premultiplied {
+                if alpha == 0. {
+                    0.
+                } else if source.color_space == ColorSpace::Srgb {
+                    linear((value / alpha).clamp(0., 1.)) * alpha
+                } else {
+                    value
+                }
+            } else {
+                (if source.color_space == ColorSpace::Srgb {
+                    linear(value)
+                } else {
+                    value
+                }) * alpha
+            };
+        }
+        for value in rgba {
+            output.extend_from_slice(&half::f16::from_f32(value).to_bits().to_le_bytes());
+        }
+    }
+    output
 }

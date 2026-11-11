@@ -203,6 +203,7 @@ pub struct GlyphBitmap {
     pub left: i32,
     pub top: i32,
     pub color: bool,
+    pub alpha_mode: theframework_core::AlphaMode,
     pub pixels: Vec<u8>,
 }
 /// Bounded cache of Swash glyph images. Color is applied at draw time for masks.
@@ -287,6 +288,13 @@ impl GlyphCache {
             left: image.placement.left,
             top: image.placement.top,
             color: image.content == Content::Color,
+            // Swash's layered outline blitter composites into zero RGBA using
+            // source-over in encoded color. PNG/raw color bitmaps are decoded RGBA.
+            alpha_mode: if matches!(image.source, Source::ColorOutline(_)) {
+                theframework_core::AlphaMode::Premultiplied
+            } else {
+                theframework_core::AlphaMode::Straight
+            },
             pixels: image.data,
         });
         if self.bytes + bitmap.pixels.len() > self.limit {

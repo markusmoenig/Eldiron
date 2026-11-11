@@ -149,7 +149,7 @@ fn screen_controls_paint_without_cpu_targets_and_keep_controller_geometry() {
 fn screen_source_cache_keeps_current_frame_revisions_and_evicts_unused_assets() {
     let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
     let mut registry = ImageRegistry::new(gpu.clone());
-    let mut cache = ScreenImageCache::new(4);
+    let mut cache = ScreenImageCache::new(8);
     let (a, b);
     {
         let mut frame = cache.begin_frame(&mut registry).unwrap();
@@ -158,14 +158,14 @@ fn screen_source_cache_keeps_current_frame_revisions_and_evicts_unused_assets() 
         b = frame.rgba("tile", 1, 1, &[0, 255, 0, 255]).unwrap();
         assert!(frame.rgba("bad", 2, 1, &[0; 4]).is_err());
     }
-    assert_eq!(cache.resident_bytes(), 8);
+    assert_eq!(cache.resident_bytes(), 16);
     assert!(registry.get(a).is_some() && registry.get(b).is_some());
     let uploads = gpu.transfers().uploaded_bytes;
     {
         let mut frame = cache.begin_frame(&mut registry).unwrap();
         assert_eq!(b, frame.rgba("tile", 1, 1, &[0, 255, 0, 255]).unwrap());
     }
-    assert_eq!(cache.resident_bytes(), 4);
+    assert_eq!(cache.resident_bytes(), 8);
     assert!(registry.get(a).is_none());
     assert_eq!(gpu.transfers().uploaded_bytes, uploads);
     {

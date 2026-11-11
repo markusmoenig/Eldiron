@@ -39,7 +39,7 @@ impl UiImageResources for UiImages {
         .map_err(|e| UiPaintError(e.to_string()))?;
         let handle = self
             .registry
-            .upload(&image)
+            .upload_linear(&image)
             .map_err(|e| UiPaintError(e.to_string()))?;
         if let Some(old) = self.cached.insert(key.into(), handle) {
             self.registry.remove(old);

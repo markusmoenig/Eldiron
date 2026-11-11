@@ -524,7 +524,7 @@ fn rgba_tile_view_blits_assets_and_keeps_display_changes_gpu_only() {
     session.paint(&mut images).unwrap();
     assert_eq!(
         gpu.transfers().uploaded_bytes,
-        uploads + 16 * 8 * 4,
+        uploads + 16 * 8 * 8,
         "an asset edit uploads the source image, not a window-sized framebuffer"
     );
     assert!(session.ui.canvas.buffer.pixels().is_empty());

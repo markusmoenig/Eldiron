@@ -161,3 +161,181 @@ fn dense_text_batches_atlas_pages_without_reuploading() {
             > 1000
     );
 }
+
+#[test]
+#[ignore = "requires native GPU; run with --ignored"]
+fn source_normalization_filters_transparent_edges_in_linear_premultiplied_color() {
+    let ctx = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut images = ImageRegistry::new(ctx.clone());
+    let edge = ImageAsset::rgba(2, 1, vec![255, 0, 0, 255, 0, 0, 0, 0]).unwrap();
+    let edge = images.upload_linear(&edge).unwrap();
+    let descriptor = images.get(edge).unwrap().descriptor;
+    assert_eq!(descriptor.format, wgpu::TextureFormat::Rgba16Float);
+    assert_eq!(
+        (descriptor.color_space, descriptor.alpha_mode),
+        (ColorSpace::Linear, AlphaMode::Premultiplied)
+    );
+    let mut list = PaintList::default();
+    list.image(edge, Rect::new(0., 0., 8., 8.), Sampling::Linear);
+    list.rect(Rect::new(0., 8., 64., 8.), 0., [0., 0., 0., 1.]);
+    for (i, (space, alpha, pixel)) in [
+        (ColorSpace::Srgb, AlphaMode::Straight, [255, 0, 0, 128]),
+        (ColorSpace::Srgb, AlphaMode::Premultiplied, [128, 0, 0, 128]),
+        (ColorSpace::Linear, AlphaMode::Straight, [255, 0, 0, 128]),
+        (
+            ColorSpace::Linear,
+            AlphaMode::Premultiplied,
+            [128, 0, 0, 128],
+        ),
+        (ColorSpace::Srgb, AlphaMode::Opaque, [255, 0, 0, 0]),
+        (
+            ColorSpace::Srgb,
+            AlphaMode::Premultiplied,
+            [200, 128, 64, 0],
+        ),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let mut asset = ImageAsset::rgba(1, 1, pixel.to_vec()).unwrap();
+        asset.color_space = space;
+        asset.alpha_mode = alpha;
+        let image = images.upload_linear(&asset).unwrap();
+        list.image(
+            image,
+            Rect::new(i as f32 * 8., 8., 8., 8.),
+            Sampling::Nearest,
+        );
+    }
+    let output = GpuImage::new(&ctx, ImageDescriptor::rgba(64, 16)).unwrap();
+    let mut renderer = PaintRenderer::new(ctx.clone()).unwrap();
+    renderer
+        .render(
+            &list,
+            &images,
+            &output.view,
+            output.descriptor.format,
+            (64, 16),
+            1.,
+            [1.; 4],
+        )
+        .unwrap();
+    assert_eq!(ctx.transfers().readback_bytes, 0);
+    let mut ticket = ReadbackTicket::capture(&ctx, output).unwrap();
+    ctx.device
+        .poll(wgpu::PollType::Wait {
+            submission_index: None,
+            timeout: Some(std::time::Duration::from_secs(30)),
+        })
+        .unwrap();
+    let capture = ticket.try_finish(&ctx).unwrap().unwrap();
+    let pixel = |x: usize, y: usize| &capture.pixels()[(y * 64 + x) * 4..(y * 64 + x + 1) * 4];
+    let edge = pixel(3, 3);
+    assert_eq!(
+        edge[0], 255,
+        "transparent texels must not darken the red edge: {edge:?}"
+    );
+    assert!(
+        (160..=170).contains(&edge[1]) && edge[1] == edge[2],
+        "linear source-over on white: {edge:?}"
+    );
+    for x in [3, 11, 19, 27] {
+        let p = pixel(x, 11);
+        assert!(
+            (187..=189).contains(&p[0]) && p[1] == 0 && p[2] == 0 && p[3] == 255,
+            "equivalent source representations at {x}: {p:?}"
+        );
+    }
+    assert_eq!(
+        pixel(35, 11),
+        [255, 0, 0, 255],
+        "opaque metadata overrides source alpha"
+    );
+    assert_eq!(
+        pixel(43, 11),
+        [0, 0, 0, 255],
+        "zero-alpha premultiplied color must normalize to zero"
+    );
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+#[ignore = "requires native GPU and system color emoji font; run with --ignored"]
+fn swash_color_glyphs_use_normalized_atlas_images() {
+    let ctx = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let images = ImageRegistry::new(ctx.clone());
+    let mut text = TextSystem::default();
+    let layout = text.layout("😀", "Apple Color Emoji", 48., None);
+    let mut renderer = PaintRenderer::new(ctx.clone()).unwrap();
+    let mut found_color = false;
+    let mut list = PaintList::default();
+    for run in &layout.runs {
+        for glyph in run.glyphs.iter() {
+            if let Some((_, bitmap)) = renderer.glyphs.glyph(run, glyph.id, 1., glyph.position) {
+                found_color |= bitmap.color;
+            }
+        }
+        list.ops.push(PaintOp::GlyphRun {
+            run: run.clone(),
+            origin: [8., 4.],
+            color: [1.; 4],
+        });
+    }
+    assert!(
+        found_color,
+        "native fixture requires a Swash-supported system color emoji font"
+    );
+    let output = GpuImage::new(&ctx, ImageDescriptor::rgba(80, 80)).unwrap();
+    renderer
+        .render(
+            &list,
+            &images,
+            &output.view,
+            output.descriptor.format,
+            (80, 80),
+            1.,
+            [0.; 4],
+        )
+        .unwrap();
+    let uploads = ctx.transfers().uploaded_bytes;
+    let rasterizations = renderer.glyphs.rasterizations;
+    renderer
+        .render(
+            &list,
+            &images,
+            &output.view,
+            output.descriptor.format,
+            (80, 80),
+            1.,
+            [0.; 4],
+        )
+        .unwrap();
+    assert_eq!(ctx.transfers().uploaded_bytes, uploads);
+    assert_eq!(renderer.glyphs.rasterizations, rasterizations);
+    let mut ticket = ReadbackTicket::capture(&ctx, output).unwrap();
+    ctx.device
+        .poll(wgpu::PollType::Wait {
+            submission_index: None,
+            timeout: Some(std::time::Duration::from_secs(30)),
+        })
+        .unwrap();
+    let capture = ticket.try_finish(&ctx).unwrap().unwrap();
+    assert!(
+        capture
+            .pixels()
+            .chunks_exact(4)
+            .any(|p| p[3] > 100 && p[0] > p[2].saturating_add(60)),
+        "emoji must retain its authored color"
+    );
+    let mut png = png::Encoder::new(
+        std::fs::File::create("/private/tmp/eldiron-swash-color-glyph.png").unwrap(),
+        80,
+        80,
+    );
+    png.set_color(png::ColorType::Rgba);
+    png.set_depth(png::BitDepth::Eight);
+    png.write_header()
+        .unwrap()
+        .write_image_data(capture.pixels())
+        .unwrap();
+}

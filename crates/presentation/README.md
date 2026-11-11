@@ -63,3 +63,8 @@ per-axis repeating and time-major spatial pages; page boundaries clip geometry
 in UV space. It does not use the software rasterizer or allocate projected
 pixel/depth output. Lit/3D scenes and line primitives currently require dedicated
 scene/path adapters and are explicitly rejected by this method.
+
+Screen source images now use RGBA16F linear-premultiplied upload normalization.
+The screen cache byte budget counts GPU texel storage (eight bytes per pixel),
+including superseded revisions retained for the current frame. Normalization is
+performed only for changed source assets; unchanged frames reuse registrations.
