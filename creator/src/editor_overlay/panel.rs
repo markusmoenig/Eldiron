@@ -176,6 +176,24 @@ impl<S: PartialEq, A: Clone> PanelFrames<S, A> {
             && receipts.contains(&frame.receipt())
             && self.acknowledge_reference(frame, scope, size, state)
     }
+    pub(crate) fn command_source_current(
+        &self,
+        frame: &PanelFrame<S, A>,
+        scope: PanelScope,
+        size: (usize, usize),
+        state: &S,
+    ) -> bool {
+        frame.owner == self.owner
+            && frame.serial > self.invalidated_after
+            && frame.serial <= self.serial
+            && frame.source.scope == scope
+            && frame.source.size == size
+            && &frame.source.state == state
+            && self
+                .prepared
+                .as_ref()
+                .is_some_and(|source| source.as_ref() == frame.source.as_ref())
+    }
     pub(crate) fn is_presented_frame(&self, frame: &PanelFrame<S, A>) -> bool {
         frame.owner == self.owner
             && frame.serial == self.last_presented

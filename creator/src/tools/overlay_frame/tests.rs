@@ -570,3 +570,685 @@ fn reference_glyph_bounds_include_actual_legacy_row_wrapping_without_masking_non
         "only actual old glyph boxes are excluded"
     );
 }
+
+#[cfg(feature = "native-ui")]
+mod routing {
+    use super::*;
+    use std::sync::Arc;
+
+    struct RecreatedTool {
+        id: TheId,
+        inner: Box<dyn Tool>,
+    }
+    impl Tool for RecreatedTool {
+        fn new() -> Self {
+            Self {
+                id: TheId::empty(),
+                inner: tool(0),
+            }
+        }
+        fn id(&self) -> TheId {
+            self.id.clone()
+        }
+        fn info(&self) -> String {
+            self.inner.info()
+        }
+        fn icon_name(&self) -> String {
+            self.inner.icon_name()
+        }
+        fn overlay_hud(&mut self) -> Option<&mut crate::hud::Hud> {
+            self.inner.overlay_hud()
+        }
+        fn hud_selected_id(&self, map: &Map, server: &ServerContext) -> Option<u32> {
+            self.inner.hud_selected_id(map, server)
+        }
+        fn overlay_screen_rectangle(
+            &self,
+            map: &Map,
+            server: &ServerContext,
+        ) -> Option<(Vec2<f32>, Vec2<f32>)> {
+            self.inner.overlay_screen_rectangle(map, server)
+        }
+    }
+    fn ready(
+        kind: usize,
+        state: usize,
+    ) -> (
+        Box<dyn Tool>,
+        Map,
+        ServerContext,
+        TheContext,
+        Arc<ToolOverlayFrame>,
+        ToolOverlayTarget,
+    ) {
+        let (map, mut server) = fixture(kind, state);
+        let mut tool = tool(kind);
+        let ctx = TheContext::new(800, 360, 1.);
+        let target = target(tool.as_ref(), &map, &server, (800, 360));
+        let frame = Arc::new(prepare(
+            tool.as_mut(),
+            target,
+            &map,
+            &server,
+            &ctx,
+            &Assets::default(),
+        ));
+        assert!(tool.presented_overlay(&frame, &markers(&frame), target, &map, &mut server));
+        (tool, map, server, ctx, frame, target)
+    }
+    fn command(route: ToolOverlayRoute) -> ToolOverlayCommand {
+        match route {
+            ToolOverlayRoute::Consumed {
+                command: Some(command),
+                ..
+            } => command,
+            _ => panic!("expected an accepted overlay command"),
+        }
+    }
+    fn hud_point(
+        tool: &mut dyn Tool,
+        target: ToolOverlayTarget,
+        map: &Map,
+        server: &ServerContext,
+        wanted: crate::hud::HudAction,
+    ) -> Vec2<i32> {
+        let hud = tool.overlay_hud().unwrap();
+        for y in 0..target.size.1 as i32 {
+            for x in 0..target.size.0 as i32 {
+                let at = Vec2::new(x, y);
+                if hud.hit_test(target.hud_scope(), target.size, at, map, server)
+                    == crate::hud::HudHit::Action(wanted)
+                {
+                    return at;
+                }
+            }
+        }
+        panic!("missing painted action {wanted:?}")
+    }
+    #[test]
+    fn native_overlay_routing_requires_presented_source_and_focus_before_accepting_input() {
+        let (mut tool, map, mut server, ctx, frame, target) = ready(0, 0);
+        let mut input = ToolOverlayInputState::default();
+        let pending = Arc::new(prepare(
+            tool.as_mut(),
+            target,
+            &map,
+            &server,
+            &ctx,
+            &Assets::default(),
+        ));
+        assert!(matches!(
+            input.route(
+                tool.as_mut(),
+                Some(&pending),
+                target,
+                &MapEvent::MapKey('4'),
+                true,
+                &map,
+                &server
+            ),
+            ToolOverlayRoute::Unavailable
+        ));
+        assert!(matches!(
+            input.route(
+                tool.as_mut(),
+                None,
+                target,
+                &MapEvent::MapClicked(Vec2::new(12, 12)),
+                true,
+                &map,
+                &server
+            ),
+            ToolOverlayRoute::Unavailable
+        ));
+        assert!(matches!(
+            input.route(
+                tool.as_mut(),
+                Some(&frame),
+                target,
+                &MapEvent::MapKey('4'),
+                false,
+                &map,
+                &server
+            ),
+            ToolOverlayRoute::Outside { .. }
+        ));
+        assert!(matches!(
+            input.route(
+                tool.as_mut(),
+                Some(&frame),
+                target,
+                &MapEvent::MapKey('x'),
+                true,
+                &map,
+                &server
+            ),
+            ToolOverlayRoute::Outside { .. }
+        ));
+        assert!(matches!(
+            input.route(
+                tool.as_mut(),
+                Some(&frame),
+                target,
+                &MapEvent::MapClicked(Vec2::new(700, 300)),
+                true,
+                &map,
+                &server
+            ),
+            ToolOverlayRoute::Outside { .. }
+        ));
+        assert!(matches!(
+            input.route(
+                tool.as_mut(),
+                Some(&frame),
+                target,
+                &MapEvent::MapClicked(Vec2::new(-1, 4)),
+                true,
+                &map,
+                &server
+            ),
+            ToolOverlayRoute::Outside { .. }
+        ));
+        assert!(tool.presented_overlay(&pending, &markers(&pending), target, &map, &mut server));
+        assert!(matches!(
+            input.route(
+                tool.as_mut(),
+                Some(&frame),
+                target,
+                &MapEvent::MapKey('4'),
+                true,
+                &map,
+                &server
+            ),
+            ToolOverlayRoute::Unavailable
+        ));
+        command(input.route(
+            tool.as_mut(),
+            Some(&pending),
+            target,
+            &MapEvent::MapKey('4'),
+            true,
+            &map,
+            &server,
+        ));
+    }
+    #[test]
+    fn native_overlay_commands_deliver_after_same_source_repaint_and_return_scoped_effects() {
+        let (mut tool, mut map, mut server, mut ctx, frame, target) = ready(0, 0);
+        let mut input = ToolOverlayInputState::default();
+        let accepted = command(input.route(
+            tool.as_mut(),
+            Some(&frame),
+            target,
+            &MapEvent::MapKey('4'),
+            true,
+            &map,
+            &server,
+        ));
+        let replacement = prepare(
+            tool.as_mut(),
+            target,
+            &map,
+            &server,
+            &ctx,
+            &Assets::default(),
+        );
+        assert!(tool.presented_overlay(
+            &replacement,
+            &markers(&replacement),
+            target,
+            &map,
+            &mut server
+        ));
+        let effects = accepted
+            .apply(
+                tool.as_mut(),
+                target,
+                &mut map,
+                &mut server,
+                &mut TheUI::new(),
+                &mut ctx,
+            )
+            .unwrap();
+        assert_eq!(map.subdivisions, 8.);
+        assert!(effects.scene_dirty && effects.overlay_dirty && effects.redraw);
+        assert_eq!(effects.events.len(), 1);
+        // The notification survives its own model mutation without authorizing
+        // any further action from the stale frame.
+        let event = effects
+            .events
+            .into_iter()
+            .next()
+            .unwrap()
+            .take_if_current(tool.as_mut(), target, &map, &server)
+            .unwrap();
+        assert!(matches!(event, TheEvent::Custom(id, _) if id.name == "Tool Changed"));
+        assert!(matches!(
+            input.route(
+                tool.as_mut(),
+                Some(&frame),
+                target,
+                &MapEvent::MapKey('2'),
+                true,
+                &map,
+                &server
+            ),
+            ToolOverlayRoute::Unavailable
+        ));
+    }
+    #[test]
+    fn native_overlay_accepted_commands_reject_changed_documents_sources_and_owners() {
+        for change in 0..8 {
+            let (mut tool, mut map, mut server, mut ctx, frame, mut target) = ready(0, 1);
+            let accepted = command(ToolOverlayInputState::default().route(
+                tool.as_mut(),
+                Some(&frame),
+                target,
+                &MapEvent::MapKey('6'),
+                true,
+                &map,
+                &server,
+            ));
+            match change {
+                0 => target.document = Uuid::new_v4(),
+                1 => target.revision += 1,
+                2 => target.view = Uuid::new_v4(),
+                3 => target.visible = false,
+                4 => map.changed += 1,
+                5 => map.selected_vertices.clear(),
+                6 => tool.invalidate_overlay(),
+                7 => {
+                    tool = Box::new(RecreatedTool {
+                        id: tool.id(),
+                        inner: Box::new(vertex::VertexTool::new()),
+                    });
+                }
+                _ => unreachable!(),
+            }
+            let before = serde_json::to_value(&map).unwrap();
+            assert!(
+                accepted
+                    .apply(
+                        tool.as_mut(),
+                        target,
+                        &mut map,
+                        &mut server,
+                        &mut TheUI::new(),
+                        &mut ctx
+                    )
+                    .is_none(),
+                "change {change}"
+            );
+            assert_eq!(serde_json::to_value(&map).unwrap(), before);
+        }
+    }
+    #[test]
+    fn native_overlay_drag_capture_survives_own_edits_and_ends_without_world_fallthrough() {
+        let (mut tool, mut map, mut server, mut ctx, frame, mut target) = ready(0, 0);
+        let mut input = ToolOverlayInputState::default();
+        let at = hud_point(
+            tool.as_mut(),
+            target,
+            &map,
+            &server,
+            crate::hud::HudAction::Subdivision(8),
+        );
+        let accepted = command(input.route(
+            tool.as_mut(),
+            Some(&frame),
+            target,
+            &MapEvent::MapClicked(at),
+            true,
+            &map,
+            &server,
+        ));
+        accepted
+            .apply(
+                tool.as_mut(),
+                target,
+                &mut map,
+                &mut server,
+                &mut TheUI::new(),
+                &mut ctx,
+            )
+            .unwrap();
+        for event in [
+            MapEvent::MapDragged(Vec2::new(700, 300)),
+            MapEvent::MapUp(Vec2::new(700, 300)),
+        ] {
+            assert!(matches!(
+                input.route(tool.as_mut(), None, target, &event, true, &map, &server),
+                ToolOverlayRoute::Consumed { command: None, .. }
+            ));
+        }
+        assert!(matches!(
+            input.route(
+                tool.as_mut(),
+                None,
+                target,
+                &MapEvent::MapUp(at),
+                true,
+                &map,
+                &server
+            ),
+            ToolOverlayRoute::Outside { .. }
+        ));
+        let frame = Arc::new(prepare(
+            tool.as_mut(),
+            target,
+            &map,
+            &server,
+            &ctx,
+            &Assets::default(),
+        ));
+        assert!(tool.presented_overlay(&frame, &markers(&frame), target, &map, &mut server));
+        command(input.route(
+            tool.as_mut(),
+            Some(&frame),
+            target,
+            &MapEvent::MapClicked(at),
+            true,
+            &map,
+            &server,
+        ));
+        target.document = Uuid::new_v4();
+        assert!(matches!(
+            input.route(
+                tool.as_mut(),
+                Some(&frame),
+                target,
+                &MapEvent::MapDragged(at),
+                true,
+                &map,
+                &server
+            ),
+            ToolOverlayRoute::Unavailable
+        ));
+        assert!(matches!(
+            input.route(
+                tool.as_mut(),
+                None,
+                target,
+                &MapEvent::MapUp(at),
+                true,
+                &map,
+                &server
+            ),
+            ToolOverlayRoute::Outside { .. }
+        ));
+    }
+    #[test]
+    fn native_overlay_hud_icon_and_gizmo_commands_preserve_semantics_without_renderer_access() {
+        for (kind, wanted) in [
+            (
+                1,
+                crate::hud::HudAction::SelectIcon {
+                    index: 1,
+                    wall_row: true,
+                },
+            ),
+            (4, crate::hud::HudAction::GeometryMode { resize: true }),
+        ] {
+            let (mut tool, mut map, mut server, mut ctx, mut frame, target) = ready(kind, 1);
+            if kind == 1 {
+                // Wall-row icons are supplied by the active action's material
+                // slots; the minimal geometry fixture has none by default.
+                let slots = ["Base", "Upper"].map(|label| crate::actions::ActionMaterialSlot {
+                    label: label.into(),
+                    source: None,
+                });
+                frame = Arc::new(
+                    tool.prepare_overlay(ToolOverlayInputs {
+                        target,
+                        hud: crate::hud::HudInputs {
+                            map: &map,
+                            server: &server,
+                            assets: &Assets::default(),
+                            selected_id: None,
+                            material_slots: Some(&slots),
+                            light: None,
+                        },
+                        style: &crate::hud::HudStyle::current(),
+                    })
+                    .unwrap(),
+                );
+                assert!(tool.presented_overlay(
+                    &frame,
+                    &markers(&frame),
+                    target,
+                    &map,
+                    &mut server
+                ));
+            }
+            let at = hud_point(tool.as_mut(), target, &map, &server, wanted);
+            let accepted = command(ToolOverlayInputState::default().route(
+                tool.as_mut(),
+                Some(&frame),
+                target,
+                &MapEvent::MapClicked(at),
+                true,
+                &map,
+                &server,
+            ));
+            let effects = accepted
+                .apply(
+                    tool.as_mut(),
+                    target,
+                    &mut map,
+                    &mut server,
+                    &mut TheUI::new(),
+                    &mut ctx,
+                )
+                .unwrap();
+            if kind == 1 {
+                assert_eq!(server.selected_hud_icon_index, 1);
+                assert_eq!(server.selected_wall_row, Some(1));
+                assert_eq!(effects.events.len(), 2);
+            } else {
+                assert_eq!(server.geometry_gizmo_op, GeometryGizmoOp::Resize);
+                assert!(effects.overlay_dirty);
+            }
+        }
+    }
+    #[test]
+    fn native_overlay_props_commands_keep_authoring_events_scoped_until_delivery() {
+        for stale in [false, true] {
+            let (mut tool, mut map, mut server, mut ctx, frame, target) = ready(5, 1);
+            let mut input = ToolOverlayInputState::default();
+            let accepted = command(input.route(
+                tool.as_mut(),
+                Some(&frame),
+                target,
+                &MapEvent::MapClicked(Vec2::new(160, 75)),
+                true,
+                &map,
+                &server,
+            ));
+            let effects = accepted
+                .apply(
+                    tool.as_mut(),
+                    target,
+                    &mut map,
+                    &mut server,
+                    &mut TheUI::new(),
+                    &mut ctx,
+                )
+                .unwrap();
+            assert!(!effects.scene_dirty && !effects.overlay_dirty);
+            assert_eq!(
+                server.block_operation, 0,
+                "authoring waits for validated event delivery"
+            );
+            assert_eq!(effects.events.len(), 1);
+            if stale {
+                server.curr_block_asset_id = Some(Uuid::new_v4());
+            }
+            let event = effects.events.into_iter().next().unwrap().take_if_current(
+                tool.as_mut(),
+                target,
+                &map,
+                &server,
+            );
+            if stale {
+                assert!(event.is_none());
+            } else {
+                assert!(
+                    matches!(event, Some(TheEvent::IndexChanged(id, 1)) if id.name == "Blocks Dock Operation")
+                );
+            }
+        }
+    }
+    #[test]
+    fn native_overlay_props_popups_use_the_accepted_button_and_reject_stale_delivery() {
+        for stale in [false, true] {
+            let (mut tool, mut map, mut server, mut ctx, frame, target) = ready(5, 1);
+            let rect = frame
+                .parts
+                .iter()
+                .find_map(|part| {
+                    if let Part::Props(props) = part {
+                        props.buttons.iter().find_map(|(rect, action)| {
+                            matches!(action, props_overlay::Action::Placement).then_some(*rect)
+                        })
+                    } else {
+                        None
+                    }
+                })
+                .unwrap();
+            let at = Vec2::new(rect.x + rect.width / 2, rect.y + rect.height / 2);
+            let accepted = command(ToolOverlayInputState::default().route(
+                tool.as_mut(),
+                Some(&frame),
+                target,
+                &MapEvent::MapClicked(at),
+                true,
+                &map,
+                &server,
+            ));
+            let mut ui = TheUI::new();
+            let mut view = TheRenderView::new(TheId::named_with_id("PolyView", target.view));
+            view.set_dim(TheDim::rect(23, 35, 800, 360), &mut ctx);
+            ui.canvas.set_widget(view);
+            if stale {
+                server.block_grid_level += 1;
+            }
+            let effects = accepted.apply(
+                tool.as_mut(),
+                target,
+                &mut map,
+                &mut server,
+                &mut ui,
+                &mut ctx,
+            );
+            if stale {
+                assert!(effects.is_none());
+                assert!(ui.popover.is_none());
+            } else {
+                let effects = effects.unwrap();
+                assert!(effects.redraw && effects.events.is_empty());
+                let popup = ui.popover.as_ref().expect("placement controls opened");
+                assert_eq!(popup.id.name, "Props Overlay Settings");
+                assert_eq!(
+                    popup.anchor,
+                    TheDim::rect(23 + rect.x, 35 + rect.y, rect.width, rect.height)
+                );
+                assert!(ui.get_widget("Props Grid").is_some());
+                assert!(ui.get_widget("Props Level").is_some());
+            }
+        }
+    }
+    #[test]
+    fn native_overlay_hover_capture_cancellation_and_blank_props_regions_are_explicit() {
+        let (mut tool, map, server, _ctx, frame, target) = ready(5, 1);
+        let mut input = ToolOverlayInputState::default();
+        let at = Vec2::new(10, 27);
+        assert!(matches!(
+            input.route(
+                tool.as_mut(),
+                Some(&frame),
+                target,
+                &MapEvent::MapHover(at),
+                true,
+                &map,
+                &server
+            ),
+            ToolOverlayRoute::Consumed {
+                command: None,
+                redraw: true
+            }
+        ));
+        assert!(matches!(
+            input.route(
+                tool.as_mut(),
+                Some(&frame),
+                target,
+                &MapEvent::MapHover(at),
+                true,
+                &map,
+                &server
+            ),
+            ToolOverlayRoute::Consumed {
+                command: None,
+                redraw: false
+            }
+        ));
+        assert!(matches!(
+            input.route(
+                tool.as_mut(),
+                Some(&frame),
+                target,
+                &MapEvent::MapClicked(at),
+                true,
+                &map,
+                &server
+            ),
+            ToolOverlayRoute::Consumed { command: None, .. }
+        ));
+        input.invalidate();
+        assert!(matches!(
+            input.route(
+                tool.as_mut(),
+                None,
+                target,
+                &MapEvent::MapDragged(at),
+                true,
+                &map,
+                &server
+            ),
+            ToolOverlayRoute::Outside { .. }
+        ));
+        assert!(matches!(
+            input.route(
+                tool.as_mut(),
+                Some(&frame),
+                target,
+                &MapEvent::MapClicked(at),
+                true,
+                &map,
+                &server
+            ),
+            ToolOverlayRoute::Consumed { command: None, .. }
+        ));
+        input.route(
+            tool.as_mut(),
+            None,
+            target,
+            &MapEvent::MapEscape,
+            true,
+            &map,
+            &server,
+        );
+        assert!(matches!(
+            input.route(
+                tool.as_mut(),
+                None,
+                target,
+                &MapEvent::MapUp(at),
+                true,
+                &map,
+                &server
+            ),
+            ToolOverlayRoute::Outside { .. }
+        ));
+    }
+}

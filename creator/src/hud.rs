@@ -5,7 +5,7 @@ use crate::prelude::*;
 use rusterix::prelude::*;
 use theframework::prelude::*;
 mod frame;
-pub(crate) use frame::{HudAction, HudFrame, HudHit, HudScope};
+pub(crate) use frame::{HudAction, HudEffects, HudFrame, HudHit, HudScope};
 
 #[derive(Clone, Copy)]
 pub(crate) struct HudColors {
@@ -1006,6 +1006,16 @@ impl Hud {
         false
     }
 
+    pub(crate) fn update_pointer_position(&mut self, position: Vec2<i32>) -> bool {
+        let changed = self.mouse_pos != position;
+        self.mouse_pos = position;
+        changed
+    }
+    pub(crate) fn shortcut_action(key: char) -> Option<HudAction> {
+        matches!(key, '1'..='6').then(|| {
+            HudAction::Subdivision(Self::GRID_SUBDIVISIONS[(key as u8 - b'1') as usize])
+        })
+    }
     pub fn hovered(
         &mut self,
         x: i32,

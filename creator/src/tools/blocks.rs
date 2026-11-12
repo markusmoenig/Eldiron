@@ -1501,6 +1501,25 @@ impl Tool for BlockTool {
         frame.hud_input_current(&self.hud, target, map, server)
             && frame.props_input_current(&self.overlay, target, server)
     }
+    fn overlay_command_source_current(
+        &mut self,
+        frame: &ToolOverlayFrame,
+        target: ToolOverlayTarget,
+        map: &Map,
+        server: &ServerContext,
+    ) -> bool {
+        frame.hud_command_source_current(&self.hud, target, map, server)
+            && frame.props_command_source_current(&self.overlay, target, server)
+    }
+    fn show_overlay_popup(
+        &mut self,
+        command: &ToolOverlayCommand,
+        server: &ServerContext,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+    ) -> bool {
+        command.show_props_popup(&self.overlay, server, ui, ctx)
+    }
     #[cfg(feature = "native-ui")]
     fn presented_overlay(
         &mut self,

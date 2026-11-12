@@ -249,6 +249,27 @@ impl Hud {
         self.displayed_source = Some(frame.source.clone());
         true
     }
+    pub(crate) fn owns_frame(&self, frame: &HudFrame) -> bool {
+        frame.token.owner == self.frame_owner && frame.token.serial <= self.serial
+    }
+    pub(crate) fn command_source_current(
+        &self,
+        frame: &HudFrame,
+        scope: HudScope,
+        size: (usize, usize),
+        map: &Map,
+        server: &ServerContext,
+    ) -> bool {
+        self.owns_frame(frame)
+            && frame.token.serial > self.invalidated_after
+            && frame.source.scope == scope
+            && frame.source.size == size
+            && frame.source.matches(map, server)
+            && self
+                .prepared_source
+                .as_ref()
+                .is_some_and(|source| source.as_ref() == frame.source.as_ref())
+    }
     pub(crate) fn is_presented_frame(&self, frame: &HudFrame) -> bool {
         frame.token.owner == self.frame_owner
             && frame.token.serial == self.last_presented

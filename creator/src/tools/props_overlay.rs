@@ -335,6 +335,16 @@ impl PropsOverlay {
         self.frames
             .presented_paint(frame, receipts, scope, size, &self.source(server))
     }
+    pub(crate) fn command_source_current(
+        &self,
+        frame: &PanelFrame<PropsSource, Action>,
+        scope: PanelScope,
+        size: (usize, usize),
+        server: &ServerContext,
+    ) -> bool {
+        self.frames
+            .command_source_current(frame, scope, size, &self.source(server))
+    }
     pub(crate) fn frame_input_current(
         &self,
         frame: &PanelFrame<PropsSource, Action>,
@@ -431,7 +441,7 @@ impl PropsOverlay {
             }
         }
     }
-    fn dispatch_action(
+    pub(crate) fn dispatch_action(
         &self,
         rect: TheDim,
         action: Action,

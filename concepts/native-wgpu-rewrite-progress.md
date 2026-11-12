@@ -39,6 +39,17 @@ Earlier Winit `--smoke` entries counted prepared paint lists rather than success
 - Added backend-neutral ImageHandle and validated CPU ImageAsset.
 - Added persisted-data shape and image storage contract tests. Passed: 2 contract tests.
 
+## Execution priority (user steering, 2026-11-13)
+
+The user explicitly requested less repeated testing and faster implementation.
+Prioritize connecting Creator's native viewport, tools and Play into the working
+application. Use compilation and focused checks during implementation; batch
+broad regressions at meaningful integration checkpoints and final acceptance.
+Avoid adding isolated tests for routine changes or rerunning unchanged GPU/
+platform suites after small edits. Preserve existing coverage and the full M0–M9
+acceptance criteria; incomplete checks remain open until the relevant integrated
+behavior is ready to verify.
+
 ## Next work
 
 1. Complete client command/policy inventory, resource/performance acceptance and canonical launcher/Creator Play adoption. Authored native text game views now have glyph, input, speech, mode-transition and common-player evidence below. GPU isometric source residency, floor/terrain/paint/contact/clipping production, normal/isometric view integration and acknowledged picking now have evidence below. Native inventory/equipment/catalogue/preferences/tooltips/cursors/drop feedback and real server transfer/assignment workflows now have evidence below. Preserve all currently supported camera modes during launcher cutover.
@@ -3880,3 +3891,111 @@ at delivery. These are required integration work, not optional polish. Full
 terrain/iso/collision/rect conversion, scene/native root ownership, Play/global
 retirement, typography/clipping/DPI visual parity and complete host/performance
 acceptance remain outstanding.
+
+### Standard tool overlay input and delayed command delivery
+
+The previous user-facing percentage turn was a status-only turn (no source
+progress). Revalidated authoritative worktree state and the previous routing
+compile/test log before resuming. The previous aggregate run was terminal: all
+10 cases passed in 15.63 s, `/private/tmp/eldiron-tool-routing-first.log`.
+
+Implemented source-scoped native input in
+`creator/src/tools/overlay_frame/input.rs`. New picking requires the exact
+acknowledged aggregate and all nested part identities. Missing, pending or stale
+input returns `Unavailable`, distinct from an outside hit, so a native parent must
+not fall through into world editing on stale overlay geometry. Focused number
+shortcuts, hover redraw, reverse painter-order Props hit testing, blank panel
+consumption and pointer capture are explicit. Overlay down/drag/up capture
+survives its own model change, while document/tool/view/context/layout/source
+binding changes revoke it; Escape and explicit invalidation clear it.
+
+Accepted commands retain the actual immutable frame and revalidate source and
+owner at delivery. An unchanged same-source repaint may replace the presented
+serial without cancelling an already accepted command. It cannot authorize a
+new pick against the old frame. HUD actions return explicit scene/overlay/redraw
+effects and consuming scoped notifications, with no global renderer mutation.
+Props authoring actions return consuming source-checked events instead of
+immediately queuing an unscoped TheEvent. Popup actions use the accepted frozen
+button rectangle only after command source validation. Native parent ownership,
+source-bound popup edit delivery and complete main viewport integration remain
+required; these APIs alone do not establish Creator cutover.
+
+Seven focused routing cases pass, 1.62 s:
+`/private/tmp/eldiron-tool-routing-cases-second.log`. Covers delayed same-source
+replacement, eight stale document/source/owner changes without mutation,
+missing/pending/replaced frame rejection, keyboard focus, outside hits, own-edit
+capture/release, wall-row selection, geometry gizmo, scoped Props events,
+blank panel hover/capture and cancellation. The first focused run exposed a
+fixture missing active-action material slots; supplied the two actual slots
+rather than inventing wall icons or changing production behavior.
+
+Added an eighth case for actual placement popover creation, frozen anchor and
+stale command rejection. All aggregate visual and routing cases are running via
+unified session **28166**, log `/private/tmp/eldiron-tool-routing-aggregate.log`.
+Inspect this handle/log before starting any replacement job. Changes remain
+uncommitted. Full affected verification and actual native parent/ToolList world
+adoption are next. All full M0–M9 gates remain incomplete and active; no serialized
+schema or independent fixture PNG was changed.
+
+All **18 aggregate/routing cases pass**, terminal exit 0 / **17.67 s**:
+`/private/tmp/eldiron-tool-routing-aggregate.log`. Includes the eight routing
+cases, actual Placement popover fields/anchor, all 36 independent fixture visual
+comparisons and unchanged resource/device reconstruction cases. Session 28166 is
+terminal. The **14-check affected matrix** is now live in unified session
+**52046**, script `/private/tmp/verify-tool-routing.py`, summary
+`/private/tmp/eldiron-tool-routing-matrix-results.log`. Reference aggregate (3),
+native panels (15), reference panels (10), iOS Creator library compilation and
+native HUD (20) have already passed; full ordinary Creator and remaining feature/
+root/application/boundary checks are still running. No GPU shader or source
+serialization change in this routing checkpoint.
+
+Integration audit resolved an additional concrete DPI dependency: current
+`Editor::native_ui_rendering()` returns true; legacy TheWinitApp keeps logical
+window/view dimensions but scales the canvas framebuffer to physical density.
+`TheRenderView::draw` calls `scaled_into_using_dim`, whose `composite` explicitly
+repeats/resamples the logical render-view source into the physical canvas.
+`Editor::update_ui` resizes that viewport source to the logical view dimensions.
+Thus a one-source-pixel guide in the original viewport generally covers multiple
+physical pixels above 100% density. The common PixelLine primitive intentionally
+covers one physical pixel, and current five-density kernel/lifecycle cases do
+not prove that whole Creator appearance. Preserve that primitive's tested
+contract; adapt editor guide units/sampling at integration and compare actual
+old composed viewport outputs at all five densities. Full text/triangle edge
+appearance also needs whole-view evidence. This remains an explicit acceptance
+gap rather than a passed DPI-parity claim.
+
+Parent integration must additionally revoke retained overlay input when entering
+Play/text game/game input mode, even when map/context/size remain the same, and
+must validate popup edit delivery after document or asset changes. Parent target
+visibility/epoch is authoritative; current isolated routing tests do not yet
+exercise those full application transitions. Next: finish matrix/checkpoint,
+then native parent/frame owner and viewport production adoption with these guards.
+
+
+### Routing checkpoint and verification cadence correction
+
+User steering: reduce test creation/repeated broad matrices and prioritize actual
+Creator integration. Stopped the owned broad matrix deliberately; session 52046
+is terminal exit 143. Identified runner PID 55115 and its own cargo/test children
+55347/55348 before terminating only those processes. This is an intentional
+cancellation, not a regression failure or an unavailable environment. No jobs
+remain live from this routing checkpoint.
+
+Completed evidence remains: all **18 native aggregate/routing cases pass**
+(17.67 s), including 36 independent GPU fixture comparisons; the matrix completed
+reference aggregate **3**, native panels **15**, reference panels **10**, native
+HUD **20**, and Creator iOS library compilation. Full ordinary Creator was still
+passing through its procedural-material cases when cancelled; it has no fresh
+complete result for this checkpoint. Remaining matrix steps were not performed.
+Earlier checkpoint matrices remain historical evidence, not fresh results.
+
+Source-scoped overlay input/command delivery is ready for parent adoption.
+Next work is the actual native Creator viewport/controller handoff: retain typed
+frames at the root, publish scene/overlay GPU content, bypass its old framebuffer
+draw/allocation, and route current-document actions without duplicate legacy
+HUD/Props interception. Include real document/widget/Play lifetime and pending
+profile/cancel/commit guards. Convert remaining custom overlay producers as that
+integration requires them; avoid another round of isolated component testing
+before making the assembled application more complete. Run focused compile/
+interaction checks for changed paths and defer broad platform/whole-Creator
+regressions to the integration checkpoint. Full M0–M9 goal remains active.

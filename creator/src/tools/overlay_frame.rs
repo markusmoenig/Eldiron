@@ -1,12 +1,17 @@
 //! Ordered tool overlay descriptions. Preparation has CPU source data only;
 //! the application retains the typed frame through successful root presentation.
 use super::*;
+mod input;
 use crate::{
     editor_overlay::{
         EditorOverlay,
         panel::{PanelFrame, PanelScope},
     },
     hud::{Hud, HudFrame, HudInputs, HudScope, HudStyle},
+};
+pub use input::{
+    ScopedToolOverlayEvent, ToolOverlayCommand, ToolOverlayEffects, ToolOverlayInputState,
+    ToolOverlayRoute,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -242,6 +247,74 @@ impl ToolOverlayFrame {
             .find_map(|part| {
                 if let Part::Props(frame) = part {
                     Some(overlay.frame_input_current(
+                        frame,
+                        target.panel_scope(),
+                        target.size,
+                        server,
+                    ))
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(true)
+    }
+    pub(crate) fn command_source_current<T: Tool + ?Sized>(
+        &self,
+        tool: &mut T,
+        target: ToolOverlayTarget,
+        map: &Map,
+        server: &ServerContext,
+    ) -> bool {
+        self.source_matches(&*tool, target, map, server)
+            && tool.overlay_command_source_current(self, target, map, server)
+    }
+    pub(crate) fn hud_command_source_current(
+        &self,
+        hud: &Hud,
+        target: ToolOverlayTarget,
+        map: &Map,
+        server: &ServerContext,
+    ) -> bool {
+        self.parts
+            .iter()
+            .find_map(|part| {
+                if let Part::Hud(frame) = part {
+                    Some(hud.command_source_current(
+                        frame,
+                        target.hud_scope(),
+                        target.size,
+                        map,
+                        server,
+                    ))
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(false)
+    }
+    pub(crate) fn hud_owner_matches(&self, hud: &Hud) -> bool {
+        self.parts
+            .iter()
+            .find_map(|part| {
+                if let Part::Hud(frame) = part {
+                    Some(hud.owns_frame(frame))
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(false)
+    }
+    pub(crate) fn props_command_source_current(
+        &self,
+        overlay: &props_overlay::PropsOverlay,
+        target: ToolOverlayTarget,
+        server: &ServerContext,
+    ) -> bool {
+        self.parts
+            .iter()
+            .find_map(|part| {
+                if let Part::Props(frame) = part {
+                    Some(overlay.command_source_current(
                         frame,
                         target.panel_scope(),
                         target.size,

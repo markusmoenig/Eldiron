@@ -26,7 +26,9 @@ pub mod effects;
 pub mod entity;
 pub mod overlay_frame;
 pub mod vertex;
-pub use overlay_frame::{ToolOverlayFrame, ToolOverlayInputs, ToolOverlayTarget};
+pub use overlay_frame::{
+    ToolOverlayCommand, ToolOverlayFrame, ToolOverlayInputs, ToolOverlayTarget,
+};
 
 pub enum PanelIndices {
     TilePicker,
@@ -151,6 +153,25 @@ pub trait Tool: Send + Sync {
     ) -> bool {
         self.overlay_hud()
             .is_some_and(|hud| frame.hud_input_current(hud, target, map, server))
+    }
+    fn overlay_command_source_current(
+        &mut self,
+        frame: &ToolOverlayFrame,
+        target: ToolOverlayTarget,
+        map: &Map,
+        server: &ServerContext,
+    ) -> bool {
+        self.overlay_hud()
+            .is_some_and(|hud| frame.hud_command_source_current(hud, target, map, server))
+    }
+    fn show_overlay_popup(
+        &mut self,
+        _command: &ToolOverlayCommand,
+        _server: &ServerContext,
+        _ui: &mut TheUI,
+        _ctx: &mut TheContext,
+    ) -> bool {
+        false
     }
     #[cfg(feature = "native-ui")]
     fn presented_overlay(
