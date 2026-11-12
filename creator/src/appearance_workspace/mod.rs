@@ -3,6 +3,10 @@ use crate::{editor::RUSTERIX, prelude::*};
 use std::{sync::Arc, time::Instant};
 pub mod data;
 mod preview;
+#[cfg(feature = "native-render")]
+mod native;
+#[cfg(feature = "native-render")]
+pub(crate) use native::PreviewToken;
 use data::{Kind, Owner};
 const STACK: &str = "Definition Appearance Stack";
 const VIEW: &str = "Definition Appearance Preview";
@@ -115,6 +119,8 @@ pub struct AppearanceWorkspace {
     yaw: f32,
     started: Option<Instant>,
     worker: Option<preview::Worker>,
+    #[cfg(feature = "native-render")]
+    native: native::Host,
     pending: bool,
     snapshot: Option<Arc<rusterix::Assets>>,
     dirty: bool,
@@ -137,7 +143,17 @@ impl AppearanceWorkspace {
         ctx.ui.redraw_all = true;
     }
     pub fn reset(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+        #[cfg(feature = "native-render")]
+        let native = {
+            let mut native = std::mem::take(&mut self.native);
+            native.invalidate();
+            native
+        };
         *self = Self::default();
+        #[cfg(feature = "native-render")]
+        {
+            self.native = native;
+        }
         Self::show(ui, ctx, false);
         if let Some(w) = ui.get_widget("Definition Appearance Return") {
             w.set_disabled(true);
@@ -631,13 +647,6 @@ impl AppearanceWorkspace {
         if self.pending {
             return redraw;
         }
-        if self.playing
-            && self
-                .last_frame
-                .is_some_and(|t| t.elapsed().as_millis() < 33)
-        {
-            return redraw;
-        }
         let size = ui
             .get_render_view(VIEW)
             .map(|w| {
@@ -645,13 +654,25 @@ impl AppearanceWorkspace {
                 (d.width.max(1) as u32, d.height.max(1) as u32)
             })
             .unwrap_or((1, 1));
-        if size != (1, 1)
-            && (self.dirty || self.playing || self.effects_active || size != self.last_size)
+        if self.playing
+            && size == self.last_size
+            && self
+                .last_frame
+                .is_some_and(|t| t.elapsed().as_millis() < 33)
         {
-            let job = self.request(p, size, *ui.style.theme().color(MaterialCanvas));
+            return redraw;
+        }
+        let background = *ui.style.theme().color(MaterialCanvas);
+        let background_changed = {
+            #[cfg(feature = "native-render")] { self.native.background_changed(background) }
+            #[cfg(not(feature = "native-render"))] { false }
+        };
+        if size != (1, 1)
+            && (self.dirty || self.playing || self.effects_active || size != self.last_size || background_changed)
+        {
+            let job = self.request(p, size, background);
             match job {
                 Ok(job) => {
-                    let worker = self.worker.get_or_insert_with(preview::Worker::new);
                     self.effects_active = if let Some(item) = &job.item {
                         rusterix::procedural_avatar::Runtime::resolve_item(item, &job.assets)
                             .is_some_and(|m| m.has_effects)
@@ -659,8 +680,24 @@ impl AppearanceWorkspace {
                         rusterix::procedural_avatar::Runtime::resolve(&job.entity, &job.assets)
                             .is_some_and(|m| m.has_entity_effects(&job.entity, &job.assets))
                     };
-                    if worker.send.send(job).is_ok() {
-                        self.pending = true;
+                    let use_native = {
+                        #[cfg(feature = "native-render")] { self.native.enabled }
+                        #[cfg(not(feature = "native-render"))] { false }
+                    };
+                    let queued = if use_native {
+                        #[cfg(feature = "native-render")]
+                        {
+                            self.native.queue(job);
+                        }
+                        true
+                    } else {
+                        self.worker
+                            .get_or_insert_with(preview::Worker::new)
+                            .send.send(job).is_ok()
+                    };
+                    if queued {
+                        redraw |= use_native;
+                        self.pending = !use_native;
                         self.dirty = false;
                         self.last_size = size;
                         self.last_frame = Some(Instant::now());

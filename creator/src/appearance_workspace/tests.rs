@@ -277,6 +277,8 @@ fn appearance_roundtrip_preview_and_ui_snapshots() {
             )
             .unwrap();
         let (buffer, phase) = preview::render(&mut vm, &mut uploaded, &job).unwrap();
+        #[cfg(feature = "native-render")]
+        super::native::assert_reference_pixels(&job, &buffer);
         assert!((phase - 0.3).abs() < 0.0001);
         assert!(
             buffer

@@ -1,7 +1,7 @@
 //! Transitional Creator application on the common GPU UI/host contract.
-//! Geometry output is injected and GPU resident. Legacy Editor still owns the
+//! Geometry and appearance outputs use the injected device. Legacy Editor owns the
 //! unconverted world/tool/history orchestration; this is not M5/M7 retirement.
-use crate::{editor::Editor, geometry_editor::PreviewToken};
+use crate::editor::{Editor, native_views::NativeViewTokens};
 use renderkit::{RenderError, Result};
 use std::time::{Duration, Instant};
 use theframework::{paint::PaintList, platform::*, prelude::*, render_wgpu::UiFrameImages};
@@ -9,7 +9,7 @@ use theframework::{paint::PaintList, platform::*, prelude::*, render_wgpu::UiFra
 pub struct NativeCreatorApplication {
     editor: Editor,
     args: Vec<String>,
-    pending: Option<PreviewToken>,
+    pending: Option<NativeViewTokens>,
     smoke: bool,
     deadline: Option<Instant>,
     presentations: u64,
@@ -134,7 +134,8 @@ impl UiApplication for NativeCreatorApplication {
     }
     fn presented(&mut self, ui: &mut UiSession) {
         if let Some(token) = self.pending.take() {
-            self.editor.presented_native_views(token);
+            self.editor
+                .presented_native_views(token, &mut ui.ui, &mut ui.context);
         }
         self.editor.post_ui(&mut ui.context);
         self.presentations += 1;

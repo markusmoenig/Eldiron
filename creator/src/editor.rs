@@ -13000,4 +13000,4 @@ impl EldironEditor for Editor {
 
 #[cfg(feature = "native-render")]
 #[path = "editor/native_views.rs"]
-mod native_views;
+pub(crate) mod native_views;

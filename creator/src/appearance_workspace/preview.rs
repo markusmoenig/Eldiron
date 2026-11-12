@@ -79,6 +79,22 @@ pub fn render_with_effects(
     job: &Request,
     effects: &mut rusterix::procedural_avatar::effects::Player,
 ) -> Result<(TheRGBABuffer, f32), String> {
+    let phase = prepare_with_effects(vm, uploaded, job, effects)?;
+    let w = job.width.max(1);
+    let h = job.height.max(1);
+    let mut rgba = vec![0; w as usize * h as usize * 4];
+    vm.render_frame(&mut rgba, w, h);
+    Ok((TheRGBABuffer::from(rgba, w, h), phase))
+}
+/// Shared source/pose/camera/effect preparation, independent of display or capture.
+/// Native owners inject the VM's device and consume render_gpu; the reference
+/// worker above explicitly requests CPU capture for its legacy callers.
+pub(super) fn prepare_with_effects(
+    vm: &mut SceneVM,
+    uploaded: &mut FxHashSet<Uuid>,
+    job: &Request,
+    effects: &mut rusterix::procedural_avatar::effects::Player,
+) -> Result<f32, String> {
     let uploaded_before = uploaded.len();
     let w = job.width.max(1);
     let h = job.height.max(1);
@@ -311,7 +327,5 @@ pub fn render_with_effects(
     if uploaded.len() != uploaded_before {
         vm.execute(Atom::BuildAtlas);
     }
-    let mut rgba = vec![0; w as usize * h as usize * 4];
-    vm.render_frame(&mut rgba, w, h);
-    Ok((TheRGBABuffer::from(rgba, w, h), phase))
+    Ok(phase)
 }

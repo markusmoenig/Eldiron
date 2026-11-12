@@ -13,7 +13,7 @@ fn run() -> Result<(), String> {
             match argument.as_str() {
                 "--help" | "-h" => {
                     println!(
-                        "Eldiron Creator native GPU migration host\nUsage: eldiron-creator-native [--smoke] [--] [PROJECT.eldiron ...]\n\nUses the common GPU UI host and native geometry preview. Main world/tool/history,\nremaining previews and full platform parity are still being migrated."
+                        "Eldiron Creator native GPU migration host\nUsage: eldiron-creator-native [--smoke] [--] [PROJECT.eldiron ...]\n\nUses the common GPU UI host and native geometry/appearance previews. Main world/tool/history,\nremaining previews and full platform parity are still being migrated."
                     );
                     return Ok(());
                 }

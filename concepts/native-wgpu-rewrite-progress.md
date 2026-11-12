@@ -25,7 +25,7 @@ Started: 2026-11-11 (Asia/Bangkok). Overall Goal: active; full M0–M9 scope rem
 - M2: in progress. Paint/Swash/Parley pipeline and native/foreign hosts work; batching, resource lifetime budgets and full text/input parity remain.
 - M3: in progress. Every active built-in TheWidget implementation now has a command paint path, including procedural controls and the legacy node canvas. Complex Creator integration, full widget catalog parity and legacy adapter retirement remain.
 - M4: in progress. CPU schema/identity extraction, shared `GameSession`, CPU startup preparation, message/party/world-target policies and terminal adoption are implemented and tested. Per-session routing, local players, world values, runtime IDs and region context ownership now pass controlled overlapping-session and parallel assembled-player regressions. Graphical/Creator adoption and remaining bitmap/value data extraction remain; this evidence does not establish full simultaneous Creator Play workflows.
-- M5: in progress. Native Creator controls, material/palette integration and retained prefab/behavior/configuration graph editors are adopted. Application/global ownership, main world/tool/preview producers and complete Creator workflows remain.
+- M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews and injected 2D/3D appearance outputs with acknowledged input/playback receipts. Application/global/document/Play ownership, main world/tool/HUD and interactive material producers, full visual/workflow/performance acceptance and canonical retirement remain.
 - M6: in progress. Independent GPU game views, common player/input/camera components, authored screen paint, private world descriptions, view-owned speech, acknowledged-frame world pointer gestures, relative first-person mouse look, default/world-intent cursors, world/UI item drag previews and acknowledged authored inventory/equipment pointer/keyboard gestures are implemented. Application-owned audio is integrated into the common player with cancellable CPU preparation jobs. The native container HUD now includes acknowledged paint/input, real server transfers, scrolling, GPU recovery and navigation lifetime. Floating inventory/equipment, action catalogue/spellbook and preferences now use typed native HUD owners, retained text/source resources and acknowledged input. Acknowledged UI-origin tooltips now use retained text and host deadlines. UI-origin Drop cursors and acknowledged drag/assignment highlighting now have GPU and authoritative transfer evidence. Native isometric source production, shared CPU source publication, game-view outputs and acknowledged input receipts now have GPU/CPU and shipped-source device-reconstruction evidence. Browser worker hosting, remaining game-mode/HUD policy parity, performance acceptance remain. Canonical native desktop launchers now share the common application/host; see launcher verification below.
 - M7/M8/M9: Retirement and platform/full acceptance pending. Canonical desktop clients share one common player; the Xcode client now uses it through the retained ABI over a Rust-created CAMetalLayer surface. Native/ARM64 simulator app bundles link, and real Swift/static-library and registered-scene layer checks pass. Browser bootstrap, native text/platform parity, Creator wrapper and complete physical/release acceptance remain; this is not complete application/platform parity.
 
@@ -2142,3 +2142,74 @@ release/resource measurements and canonical legacy retirement remain. Next: shar
 appearance scene preparation with an injected-device native output owner and
 separate interactive material outputs from explicit authoritative bake/readback
 jobs. Original checkout and unrelated networking concept remain untouched.
+
+## Native appearance output integration (after c69bce95, in progress)
+
+The shared appearance preview now separates source/pose/camera/effect preparation
+from explicit reference capture. New `appearance_workspace/native.rs` owns an
+injected-context SceneVM, bounded immutable output leases, source snapshots and
+presentation tokens. Opted-in Creator queues CPU requests without creating the
+old framebuffer worker; the common Creator frame/present/suspend/device callbacks
+now carry geometry and appearance tokens. The playhead follows only the image
+actually presented, preserving paused-pose semantics. Failed requests retain the
+last valid paint/status, stop repeated failing playback/effect work, and do not
+terminate the host. Hidden/reset views retire only their own registry handles;
+reopening a paused view queues it again. Source assets and clocks survive GPU
+reconstruction. The source snapshot still comes from the existing CPU RUSTERIX
+asset owner; extraction of that application/global ownership remains required.
+The existing 64px derived character sprite/material source caches remain source
+assets; this slice removes full viewport readback, not all CPU asset generation.
+
+The first **two actual GPU appearance tests pass**, 3.48 s:
+`/private/tmp/eldiron-native-appearance-tests-first.log`. Native and reference
+viewport pixels match byte-for-byte for 2D/3D character and ground item/icon cases.
+Tests require actual nonempty art, zero native target CPU/readback storage,
+immutable old images/backpressure, density, acknowledged playhead, stale token
+rejection, last-valid failure retention, actual device replacement and authored
+source preservation. Injected native configuration compiles. Expanded error-status
+retry/paused-reopen cases and the full 10-test appearance suite are currently in
+flight (`...native-appearance-full-regression.log`); inspect results and rerun
+only relevant changed checks. Root/application/reference/dependency gates need
+revalidation for the changed common token integration before checkpointing.
+This slice is uncommitted and not M5/M7/M9 acceptance.
+
+## Native appearance integration checkpoint (2026-11-12)
+
+Final **all 10 appearance workspace tests pass**, 77.98 s:
+`/private/tmp/eldiron-native-appearance-final.log`. The shipped equipped Orc
+review now captures an independently injected native renderer and checks its
+2D/3D viewport pixels byte-for-byte against the reference, in addition to the
+existing clothing/equipment/state/effect/save/undo review. The exact matching
+3D reference capture `/private/tmp/appearance-workspace-review/preview-3d.png`
+was visually inspected. This confirms that reviewed scene's appearance, not
+whole Creator chrome/text/platform parity.
+
+Expanded native recovery tests pass (both actual GPU tests, 3.47 s,
+`...native-appearance-cpu-recovery-fixed.log`). CPU effect simulation and source
+identity now live outside the GPU producer; device/surface replacement and hidden
+views retire GPU state while preserving those CPU owners. Document reset clears
+them and keeps native mode enabled. A paused view requeues after reopening.
+Failing request IDs/density are suppressed until changed/rebuilt; fallback
+presentation retains the newer diagnostic text. The test checks actual painted
+status glyphs rather than TheText's unrelated default value getter. The foreign
+registry assertion retains the currently displayed handle, rather than an older
+handle legitimately retired before replacement. An intermediate signature error
+while extracting CpuState was corrected; final native and reference checks pass.
+
+The final shared matrix passes: **7 actual geometry GPU regressions**, framework
+library/detached-layer host, assembled Creator root (17.12 s), native executable
+without default/Pixels, default/reference staticlib configuration, all four apps,
+browser/iOS player checks, **11 dependency boundaries**, diff validation. Reproduce
+`/private/tmp/verify-native-appearance.py`; summary
+`/private/tmp/eldiron-native-appearance-matrix-results.log` and named logs. The
+full appearance suite additionally covers the changed native failure/reopen
+paths and shipped reference pixels. Existing source images, CPU sprite/material
+asset generation, exports, data/schema and canonical legacy Creator stay intact.
+
+Geometry and appearance are integrated into the same Creator host now; there is
+no later assembly-only phase. This is not full M5/M7/M9 acceptance: interactive
+material output still returns CPU maps/viewport pixels; the main world/tool/HUD,
+application/document/history/Play globals, initial clear/text visual matching,
+browser/Creator Apple wrappers, physical interaction and release/resource budgets
+remain. Continue with direct MaterialZ interactive output and separating its
+explicit authored bakes from display jobs. Preserve the networking concept.
