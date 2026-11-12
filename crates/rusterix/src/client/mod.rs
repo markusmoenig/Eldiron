@@ -47,7 +47,12 @@ use crate::{
 use draw2d::Draw2D;
 use fontdue::*;
 use rayon::prelude::*;
-use screen_model::{EquipmentPanelLayout, EquipmentPanelSlotLayout, InventoryPanelSlotLayout};
+use screen_model::{
+    CatalogDetailRow, CatalogDetailRowKind, CatalogEntryLayout as ActionsPanelEntryLayout,
+    CatalogPanelKind as CatalogPanelContent, CatalogPanelLayout as ActionsPanelLayout,
+    CatalogTabLayout as ActionsPanelTabLayout, EquipmentPanelLayout, EquipmentPanelSlotLayout,
+    InventoryPanelSlotLayout,
+};
 use std::sync::{Arc, Mutex};
 use theframework::prelude::*;
 use toml::*;
@@ -158,79 +163,6 @@ struct InventoryPanelLayout {
     slots: Vec<InventoryPanelSlotLayout>,
     page: usize,
     page_count: usize,
-}
-
-#[derive(Clone, Debug)]
-struct ActionsPanelEntryLayout {
-    command: String,
-    name: String,
-    rect: Rect,
-    icon_rect: Rect,
-}
-
-#[derive(Clone, Debug)]
-struct ActionsPanelGroupLayout {
-    name: String,
-    title_rect: Rect,
-}
-
-#[derive(Clone, Debug)]
-struct ActionsPanelTabLayout {
-    id: String,
-    name: String,
-    rect: Rect,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum CatalogDetailRowKind {
-    Summary,
-    Section,
-    Fact,
-    Effect,
-    Warning,
-}
-
-#[derive(Clone, Debug)]
-struct CatalogDetailRow {
-    label: Option<String>,
-    text: String,
-    kind: CatalogDetailRowKind,
-}
-
-#[derive(Clone, Debug)]
-struct ActionsPanelLayout {
-    rect: Rect,
-    close_rect: Rect,
-    assign_rect: Option<Rect>,
-    title_rect: Rect,
-    tabs: Vec<ActionsPanelTabLayout>,
-    detail_rect: Option<Rect>,
-    groups: Vec<ActionsPanelGroupLayout>,
-    entries: Vec<ActionsPanelEntryLayout>,
-    empty_rect: Option<Rect>,
-    previous_page_rect: Option<Rect>,
-    next_page_rect: Option<Rect>,
-    page_label_rect: Option<Rect>,
-    scroll_track_rect: Option<Rect>,
-    scroll_thumb_rect: Option<Rect>,
-    page: usize,
-    page_count: usize,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-enum CatalogPanelContent {
-    #[default]
-    Actions,
-    Spellbook,
-}
-
-impl CatalogPanelContent {
-    fn title(self) -> &'static str {
-        match self {
-            Self::Actions => "Actions",
-            Self::Spellbook => "Spellbook",
-        }
-    }
 }
 
 #[derive(Default)]
@@ -4441,290 +4373,24 @@ impl Client {
             self.actions_panel_catalog_rules.clone_from(&assets.rules);
             self.actions_panel_catalog_class = actor_class;
         }
-        let complete_catalog: Vec<_> = self
-            .actions_panel_catalog
-            .iter()
-            .filter(|group| !group.entries.is_empty())
-            .cloned()
-            .collect();
-        let fixed_group_count = complete_catalog.len().max(1);
-        let config = self.active_catalog_panel_config();
-        let mut tab_definitions = vec![("all".to_string(), "All".to_string())];
-        tab_definitions.extend(
-            complete_catalog
-                .iter()
-                .map(|group| (group.id.clone(), group.name.clone())),
+        let layout = screen_model::catalog_panel_geometry(
+            &self.actions_panel_catalog,
+            &self.active_catalog_panel_config(),
+            &self.actions_panel_tab,
+            self.actions_panel_page,
+            self.actions_panel_position,
+            Vec2::new(
+                self.target.dim().width as i32,
+                self.target.dim().height as i32,
+            ),
         );
-        if !config.show_tabs
-            || !tab_definitions
-                .iter()
-                .any(|(id, _)| id.eq_ignore_ascii_case(&self.actions_panel_tab))
-        {
-            self.actions_panel_tab = "all".to_string();
-        }
-        let catalog: Vec<_> = if self.actions_panel_tab.eq_ignore_ascii_case("all") {
-            complete_catalog
-        } else {
-            complete_catalog
-                .into_iter()
-                .filter(|group| group.id.eq_ignore_ascii_case(&self.actions_panel_tab))
-                .collect()
-        };
-        let padding = config.padding;
-        let title_height = config.title_height;
-        let tabs_height = if config.show_tabs {
-            config.tab_height
-        } else {
-            0.0
-        };
-        let group_title_height = 18.0;
-        let card_width = config.cell_size;
-        let card_height = config.cell_size;
-        let column_gap = config.spacing;
-        let row_gap = config.spacing;
-        let group_gap = config.spacing;
-        let columns = config.columns;
-        let total_entries = catalog
-            .iter()
-            .map(|group| group.entries.len())
-            .sum::<usize>();
-        let page_capacity = config.rows.map(|rows| rows * columns);
-        let page_count = page_capacity
-            .map(|capacity| total_entries.div_ceil(capacity.max(1)).max(1))
-            .unwrap_or(1);
-        self.actions_panel_page = self.actions_panel_page.min(page_count.saturating_sub(1));
-        let page = self.actions_panel_page;
-        let page_start = page_capacity.map(|capacity| page * capacity).unwrap_or(0);
-        let page_end = page_capacity
-            .map(|capacity| (page_start + capacity).min(total_entries))
-            .unwrap_or(total_entries);
-        let mut offset = 0;
-        let mut visible_catalog = Vec::new();
-        for group in &catalog {
-            let group_start = offset;
-            let group_end = group_start + group.entries.len();
-            offset = group_end;
-            let visible_start = page_start.max(group_start);
-            let visible_end = page_end.min(group_end);
-            if visible_start >= visible_end {
-                continue;
-            }
-            let mut visible_group = group.clone();
-            visible_group.entries =
-                group.entries[(visible_start - group_start)..(visible_end - group_start)].to_vec();
-            visible_catalog.push(visible_group);
-        }
-
-        let content_width =
-            card_width * columns as f32 + column_gap * columns.saturating_sub(1) as f32;
-        let natural_content_height = if visible_catalog.is_empty() {
-            let rows = config.rows.unwrap_or(2).max(1);
-            card_height * rows as f32 + row_gap * rows.saturating_sub(1) as f32
-        } else {
-            visible_catalog
-                .iter()
-                .map(|group| {
-                    let mut rows = group.entries.len().div_ceil(columns);
-                    if visible_catalog.len() == 1 {
-                        rows = rows.max(config.rows.unwrap_or(0));
-                    }
-                    group_title_height
-                        + card_height * rows as f32
-                        + row_gap * rows.saturating_sub(1) as f32
-                })
-                .sum::<f32>()
-                + group_gap * visible_catalog.len().saturating_sub(1) as f32
-        };
-        // An authored row count defines the viewport, not the height of whichever
-        // tab happens to be selected. Reserve the same group-heading space for
-        // every tab so the complete window never jumps or resizes on selection.
-        let content_height = config
-            .rows
-            .map(|rows| {
-                let rows = rows.max(1);
-                group_title_height * fixed_group_count as f32
-                    + card_height * rows as f32
-                    + row_gap * rows.saturating_sub(1) as f32
-                    + group_gap * fixed_group_count.saturating_sub(1) as f32
-            })
-            .unwrap_or(natural_content_height);
-        let details_extra = if config.show_details {
-            config.detail_gap + config.detail_width
-        } else {
-            0.0
-        };
-        let computed_width = padding * 2.0 + content_width + details_extra;
-        let computed_height = title_height + tabs_height + padding * 2.0 + content_height;
-        let (panel_width, panel_height) = config
-            .authored_rect
-            .map(|rect| (rect.width.max(1.0), rect.height.max(1.0)))
-            .unwrap_or((computed_width, computed_height));
-        let viewport_width = self.target.dim().width.max(1) as f32;
-        let viewport_height = self.target.dim().height.max(1) as f32;
-        let default_x = config
-            .authored_rect
-            .map(|rect| rect.x)
-            .unwrap_or_else(|| ((viewport_width - panel_width) * 0.5).max(2.0));
-        let default_y = config
-            .authored_rect
-            .map(|rect| rect.y)
-            .unwrap_or_else(|| ((viewport_height - panel_height) * 0.5).max(2.0));
-        let position = self
-            .actions_panel_position
-            .unwrap_or_else(|| Vec2::new(default_x.round() as i32, default_y.round() as i32));
-        let x = (position.x as f32).clamp(2.0, (viewport_width - panel_width - 2.0).max(2.0));
-        let y = (position.y as f32).clamp(2.0, (viewport_height - panel_height - 2.0).max(2.0));
-        self.actions_panel_position = Some(Vec2::new(x.round() as i32, y.round() as i32));
-        let rect = Rect::new(x, y, panel_width, panel_height);
-        let close_rect = Rect::new(x + panel_width - 26.0, y + 5.0, 20.0, 20.0);
-        let assign_rect =
-            config
-                .show_assign
-                .then_some(Rect::new(x + panel_width - 100.0, y + 5.0, 66.0, 20.0));
-        let page_controls_right = if config.show_assign { 106.0 } else { 32.0 };
-        let (previous_page_rect, next_page_rect, page_label_rect) = if page_count > 1 {
-            (
-                Some(Rect::new(
-                    x + panel_width - page_controls_right - 70.0,
-                    y + 5.0,
-                    20.0,
-                    20.0,
-                )),
-                Some(Rect::new(
-                    x + panel_width - page_controls_right - 20.0,
-                    y + 5.0,
-                    20.0,
-                    20.0,
-                )),
-                Some(Rect::new(
-                    x + panel_width - page_controls_right - 48.0,
-                    y + 5.0,
-                    26.0,
-                    20.0,
-                )),
-            )
-        } else {
-            (None, None, None)
-        };
-        let title_rect = Rect::new(
-            x + padding,
-            y,
-            (panel_width - padding * 2.0).max(1.0),
-            title_height,
-        );
-        let tabs = if config.show_tabs {
-            let tab_area_width = (panel_width - padding * 2.0).max(1.0);
-            let tab_width = (tab_area_width / tab_definitions.len().max(1) as f32).min(104.0);
-            tab_definitions
-                .into_iter()
-                .enumerate()
-                .map(|(index, (id, name))| ActionsPanelTabLayout {
-                    id,
-                    name,
-                    rect: Rect::new(
-                        x + padding + index as f32 * tab_width,
-                        y + title_height,
-                        tab_width,
-                        tabs_height,
-                    ),
-                })
-                .collect()
-        } else {
-            Vec::new()
-        };
-
-        let mut group_layouts = Vec::with_capacity(visible_catalog.len());
-        let mut entry_layouts = Vec::new();
-        let mut cursor_y = y + title_height + tabs_height + padding;
-        let detail_rect = config.show_details.then_some(Rect::new(
-            x + padding + content_width + config.detail_gap,
-            cursor_y,
-            config.detail_width,
-            content_height,
+        self.actions_panel_tab.clone_from(&layout.tab);
+        self.actions_panel_page = layout.page;
+        self.actions_panel_position = Some(Vec2::new(
+            layout.rect.x.round() as i32,
+            layout.rect.y.round() as i32,
         ));
-        let (scroll_track_rect, scroll_thumb_rect) = if page_count > 1 {
-            let track_width = 6.0;
-            let track_x = if config.show_details {
-                x + padding + content_width + (config.detail_gap - track_width) * 0.5
-            } else {
-                x + padding + content_width - track_width
-            };
-            let track = Rect::new(track_x, cursor_y, track_width, content_height);
-            let thumb_height = (content_height / page_count as f32).max(24.0);
-            let travel = (content_height - thumb_height).max(0.0);
-            let progress = page as f32 / page_count.saturating_sub(1).max(1) as f32;
-            let thumb = Rect::new(
-                track_x,
-                cursor_y + travel * progress,
-                track_width,
-                thumb_height,
-            );
-            (Some(track), Some(thumb))
-        } else {
-            (None, None)
-        };
-        let empty_rect = visible_catalog.is_empty().then_some(Rect::new(
-            x + padding,
-            cursor_y,
-            content_width,
-            content_height,
-        ));
-        for group in &visible_catalog {
-            group_layouts.push(ActionsPanelGroupLayout {
-                name: group.name.clone(),
-                title_rect: Rect::new(x + padding, cursor_y, content_width, group_title_height),
-            });
-            cursor_y += group_title_height;
-            for (index, entry) in group.entries.iter().enumerate() {
-                let column = index % columns;
-                let row = index / columns;
-                let card_x = x + padding + column as f32 * (card_width + column_gap);
-                let card_y = cursor_y + row as f32 * (card_height + row_gap);
-                let rect = Rect::new(card_x, card_y, card_width, card_height);
-                let label_height = if config.show_names { 18.0 } else { 0.0 };
-                let icon_size = (card_width - config.icon_inset * 2.0)
-                    .min(card_height - config.icon_inset * 2.0 - label_height)
-                    .max(1.0);
-                entry_layouts.push(ActionsPanelEntryLayout {
-                    command: entry.command.clone(),
-                    name: entry.name.clone(),
-                    rect,
-                    icon_rect: Rect::new(
-                        card_x + (card_width - icon_size) * 0.5,
-                        card_y + config.icon_inset,
-                        icon_size,
-                        icon_size,
-                    ),
-                });
-            }
-            let rows = entry_layouts
-                .iter()
-                .rev()
-                .take_while(|entry| entry.rect.y >= cursor_y)
-                .count()
-                .div_ceil(columns);
-            cursor_y +=
-                card_height * rows as f32 + row_gap * rows.saturating_sub(1) as f32 + group_gap;
-        }
-
-        Some(ActionsPanelLayout {
-            rect,
-            close_rect,
-            assign_rect,
-            title_rect,
-            tabs,
-            detail_rect,
-            groups: group_layouts,
-            entries: entry_layouts,
-            empty_rect,
-            previous_page_rect,
-            next_page_rect,
-            page_label_rect,
-            scroll_track_rect,
-            scroll_thumb_rect,
-            page,
-            page_count,
-        })
+        Some(layout)
     }
 
     fn open_container_item<'a>(&self, map: &'a Map) -> Option<&'a crate::Item> {
@@ -8644,76 +8310,7 @@ impl Client {
         description: RulesDescription,
         state: &CommandState,
     ) -> Vec<CatalogDetailRow> {
-        let mut summary = Vec::new();
-        let mut facts = Vec::new();
-        let mut effects = Vec::new();
-        for line in description.lines {
-            let Some((label, value)) = line.split_once(':') else {
-                summary.push(CatalogDetailRow {
-                    label: None,
-                    text: line,
-                    kind: CatalogDetailRowKind::Summary,
-                });
-                continue;
-            };
-            let label = label.trim();
-            let value = value.trim();
-            let is_fact = matches!(
-                label,
-                "Activation"
-                    | "Target"
-                    | "Range"
-                    | "Damage"
-                    | "Cooldown"
-                    | "Cost"
-                    | "Consumes"
-                    | "Requires"
-                    | "Requires Target"
-                    | "Invocation"
-            );
-            let row = CatalogDetailRow {
-                label: Some(label.to_string()),
-                text: value.to_string(),
-                kind: if is_fact {
-                    CatalogDetailRowKind::Fact
-                } else {
-                    CatalogDetailRowKind::Effect
-                },
-            };
-            if is_fact {
-                facts.push(row);
-            } else {
-                effects.push(row);
-            }
-        }
-
-        let mut rows = summary;
-        if !facts.is_empty() {
-            rows.push(CatalogDetailRow {
-                label: None,
-                text: "DETAILS".to_string(),
-                kind: CatalogDetailRowKind::Section,
-            });
-            rows.extend(facts);
-        }
-        if !effects.is_empty() {
-            rows.push(CatalogDetailRow {
-                label: None,
-                text: "EFFECTS".to_string(),
-                kind: CatalogDetailRowKind::Section,
-            });
-            rows.extend(effects);
-        }
-        if !state.enabled
-            && let Some(reason) = state.disabled_reason.as_deref()
-        {
-            rows.push(CatalogDetailRow {
-                label: None,
-                text: reason.to_string(),
-                kind: CatalogDetailRowKind::Warning,
-            });
-        }
-        rows
+        screen_model::catalog_detail_rows(description, state)
     }
 
     fn draw_actions_panel(&mut self, map: &Map, assets: &Assets) {

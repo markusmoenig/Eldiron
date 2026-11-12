@@ -22,6 +22,8 @@ mod bindings;
 mod button_policy;
 pub use bindings::*;
 pub use button_policy::*;
+mod catalog_layout;
+pub use catalog_layout::*;
 mod choice_controller;
 mod container_layout;
 mod equipment_layout;
