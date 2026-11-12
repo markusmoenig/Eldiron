@@ -15,21 +15,27 @@ mod mouse_look;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct Binding {
     session: Uuid,
-    region: Uuid,
+    region: Option<Uuid>,
+    active: bool,
     revision: ContentRevision,
     size: (i32, i32),
 }
 impl Binding {
     fn new(world: &RuntimeView<'_>, revision: ContentRevision, size: Vec2<i32>) -> Option<Self> {
+        if size.x <= 0 || size.y <= 0 {
+            return None;
+        }
         Some(Self {
             session: world.session_id,
-            region: world.map?.id,
+            region: world.map.map(|map| map.id),
+            active: world.state != ServerState::Off,
             revision,
             size: (size.x, size.y),
         })
     }
     fn same_source(self, other: Self) -> bool {
         self.session == other.session
+            && self.active == other.active
             && self.region == other.region
             && self.revision == other.revision
     }
@@ -162,7 +168,7 @@ impl WorldPointer {
             (None, None) => false,
             _ => true,
         };
-        if self.bound != binding || world.state == ServerState::Off {
+        if self.bound != binding {
             self.invalidate();
         }
         if world.state != ServerState::Running {
@@ -539,7 +545,7 @@ impl GameScreenController {
     pub(super) fn begin_world_frame(&mut self, world: &RuntimeView<'_>) -> Result<(), String> {
         self.world.staged = None;
         let immediate = self.immediate_intents(world)?;
-        self.world.staged = if self.world.focused && world.state != ServerState::Off {
+        self.world.staged = if self.world.focused {
             Binding::new(world, self.revision.unwrap(), self.elements.layout.viewport).map(
                 |binding| Frame {
                     binding,
@@ -603,8 +609,10 @@ impl GameScreenController {
         world.state == ServerState::Running && self.ui_frame_matches(world)
     }
     fn ui_frame_matches(&self, world: &RuntimeView<'_>) -> bool {
+        world.state != ServerState::Off && self.presentation_frame_matches(world)
+    }
+    fn presentation_frame_matches(&self, world: &RuntimeView<'_>) -> bool {
         self.world.focused
-            && world.state != ServerState::Off
             && self.world.displayed.as_ref().is_some_and(|frame| {
                 Some(frame.binding)
                     == Binding::new(
@@ -889,7 +897,6 @@ impl GameScreenController {
                 self.revision.unwrap_or(ContentRevision(0)),
                 self.elements.layout.viewport,
             )
-            || world.state == ServerState::Off
             || !self.world.focused
         {
             self.world.invalidate();
@@ -1072,7 +1079,7 @@ impl GameScreenController {
                 && control.rect == rect(bounds)
                 && control.action.as_ref() == action
         };
-        self.ui_frame_matches(world)
+        self.presentation_frame_matches(world)
             && !self.author_modal()
             && self
                 .world
@@ -1126,7 +1133,7 @@ impl GameScreenController {
 
 impl GameScreenController {
     pub(super) fn hud_binding(&self, world: &RuntimeView<'_>) -> Option<Binding> {
-        self.ui_frame_matches(world)
+        self.presentation_frame_matches(world)
             .then(|| self.world.displayed.as_ref().unwrap().binding)
     }
     pub(super) fn hud_capture_valid(&self, world: &RuntimeView<'_>, binding: Binding) -> bool {

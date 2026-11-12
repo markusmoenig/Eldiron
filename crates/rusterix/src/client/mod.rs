@@ -5312,10 +5312,11 @@ impl Client {
                 .unwrap_or(ChoiceInteraction::None);
             if let ChoiceInteraction::Selected(value) = interaction {
                 self.tooltip_delay_ms = match value.as_str() {
-                    "instant" => 0,
-                    "short" => 300,
-                    _ => 650,
-                };
+                    "instant" => screen_model::TooltipDelay::Instant,
+                    "short" => screen_model::TooltipDelay::Short,
+                    _ => screen_model::TooltipDelay::Normal,
+                }
+                .milliseconds();
                 self.tooltip_hover_key = None;
                 self.tooltip_hover_since = None;
             }
@@ -8073,28 +8074,19 @@ impl Client {
             return;
         }
         let config = self.toolbar_preferences_panel_config.clone();
-        let height = config.title_height + config.padding * 2.0 + config.row_height * 3.0 + 12.0;
-        let x = 16.0;
-        let y = (self.target.dim().height as f32 - height - 72.0).max(2.0);
-        let rect = Rect::new(x, y, config.width, height);
-        let close_rect = Rect::new(x + config.width - 28.0, y + 6.0, 20.0, 20.0);
-        let label_width = 108.0;
-        let control_x = x + config.padding + label_width;
-        let control_width = config.width - config.padding * 2.0 - label_width;
-        let first_y = y + config.title_height + config.padding;
-        let tooltips_rect = Rect::new(control_x, first_y, control_width, config.row_height);
-        let delay_rect = Rect::new(
-            control_x,
-            first_y + config.row_height + 4.0,
-            control_width,
-            config.row_height,
+        let geometry = screen_model::preferences_panel_geometry(
+            &config,
+            None,
+            Vec2::new(self.target.dim().width, self.target.dim().height),
         );
-        let reset_rect = Rect::new(
-            x + config.padding,
-            first_y + (config.row_height + 4.0) * 2.0,
-            config.width - config.padding * 2.0,
-            config.row_height,
-        );
+        let rect = geometry.rect;
+        let (x, y) = (rect.x, rect.y);
+        let close_rect = geometry.close;
+        let tooltips_rect = geometry.tooltips;
+        let delay_rect = geometry.delay;
+        let reset_rect = geometry.reset;
+        let label_width = geometry.labels[0].width + 8.;
+        let first_y = geometry.labels[0].y;
         self.preferences_panel_rect = Some(rect);
         self.preferences_panel_close_rect = Some(close_rect);
         self.preferences_reset_rect = Some(reset_rect);
@@ -8251,13 +8243,12 @@ impl Client {
             ));
         }
         if self.preferences_delay_choice.is_none() {
-            let selected = if self.tooltip_delay_ms == 0 {
-                0
-            } else if self.tooltip_delay_ms <= 350 {
-                1
-            } else {
-                2
-            };
+            let selected =
+                match screen_model::TooltipDelay::from_milliseconds(self.tooltip_delay_ms) {
+                    screen_model::TooltipDelay::Instant => 0,
+                    screen_model::TooltipDelay::Short => 1,
+                    screen_model::TooltipDelay::Normal => 2,
+                };
             self.preferences_delay_choice = Some(Self::preferences_choice(
                 &config,
                 u32::MAX - 31,

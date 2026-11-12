@@ -118,17 +118,36 @@ impl GameScreenController {
                             ) {
                                 self.geometry = None;
                             }
-                            if matches!(action, model::HudAction::ToggleSort)
-                                && self.hud.state.popup_open()
+                            if matches!(
+                                action,
+                                model::HudAction::ToggleSort | model::HudAction::PreferencePopup(_)
+                            ) && self.hud.state.popup_open()
                             {
+                                self.hud.focused = self
+                                    .hud
+                                    .frames(world, &self.elements)
+                                    .iter()
+                                    .find(|panel| panel.id == capture.control.panel)
+                                    .and_then(|panel| {
+                                        panel
+                                            .buttons
+                                            .iter()
+                                            .find(|button| button.popup)
+                                            .map(|button| panel.control(button.part))
+                                    });
+                            } else if let Some(part) = match action {
+                                model::HudAction::Sort(_) => Some(HudPart::Sort),
+                                model::HudAction::Tooltips(_) => Some(HudPart::Preference(
+                                    screen_model::PreferenceSetting::Tooltips,
+                                )),
+                                model::HudAction::TooltipDelay(_) => Some(HudPart::Preference(
+                                    screen_model::PreferenceSetting::TooltipDelay,
+                                )),
+                                _ => None,
+                            } {
                                 self.hud.focused = Some(HudControlId {
                                     panel: capture.control.panel,
-                                    part: HudPart::SortOption(0),
-                                });
-                            } else if matches!(action, model::HudAction::Sort(_)) {
-                                self.hud.focused = Some(HudControlId {
-                                    panel: capture.control.panel,
-                                    part: HudPart::Sort,
+                                    part,
                                 });
                             }
                         }
@@ -188,12 +207,13 @@ impl GameScreenController {
                 if let Some(popup) = frame.popup {
                     if !rect(popup).contains(*position)
                         && !frame.buttons.iter().any(|button| {
-                            button.part == HudPart::Sort && rect(button.rect).contains(*position)
+                            Some(button.part) == frame.popup_trigger()
+                                && rect(button.rect).contains(*position)
                         })
                     {
                         self.hud.state.dismiss_popup();
                         self.hud.capture = Some(HudCapture {
-                            control: frame.control(HudPart::SortPopup),
+                            control: frame.control(HudPart::Popup),
                             cancelled: true,
                             binding: self.hud_binding(world),
                             bounds: popup,
@@ -280,7 +300,8 @@ impl GameScreenController {
                     if *pressed && !repeat {
                         if self.hud.state.popup_open() {
                             self.hud.state.dismiss_popup();
-                            self.hud.focused = Some(frame.control(HudPart::Sort));
+                            self.hud.focused =
+                                frame.popup_trigger().map(|part| frame.control(part));
                         } else {
                             self.hud.state.close_panel(frame.id);
                             self.hud.focused = None;
@@ -301,7 +322,10 @@ impl GameScreenController {
                             .into_iter()
                             .filter(|(id, _)| {
                                 if frame.popup.is_some() {
-                                    matches!(id.part, HudPart::SortOption(_))
+                                    frame
+                                        .buttons
+                                        .iter()
+                                        .any(|button| button.popup && button.part == id.part)
                                 } else {
                                     matches!(
                                         id.part,
@@ -315,6 +339,8 @@ impl GameScreenController {
                                             | HudPart::CatalogTab(_)
                                             | HudPart::Assign
                                             | HudPart::Detail
+                                            | HudPart::Preference(_)
+                                            | HudPart::ResetPositions
                                     )
                                 }
                             })

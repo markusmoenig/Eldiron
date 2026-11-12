@@ -42,6 +42,8 @@ pub use choice_controller::*;
 pub use cursor::*;
 mod layout;
 mod panels;
+mod preferences;
+pub use preferences::*;
 mod style;
 pub(crate) use artwork::*;
 pub use layout::*;

@@ -26,6 +26,9 @@ pub enum HudPanelId {
         entity: u32,
         incarnation: u64,
     },
+    Preferences {
+        incarnation: u64,
+    },
     Catalog {
         kind: screen_model::CatalogPanelKind,
         entity: Option<u32>,
@@ -41,7 +44,10 @@ pub enum HudPart {
     Category(usize),
     Sort,
     SortOption(usize),
-    SortPopup,
+    Popup,
+    Preference(screen_model::PreferenceSetting),
+    PreferenceOption(screen_model::PreferenceSetting, usize),
+    ResetPositions,
     PreviousPage,
     NextPage,
     CatalogEntry(usize),
@@ -113,8 +119,14 @@ impl Hud {
     pub(super) fn bind(&mut self, world: &RuntimeView<'_>) {
         self.state.bind(world);
         if world.state == rusterix::ServerState::Off {
-            self.prepared.clear();
-            self.focused = None;
+            self.prepared
+                .retain(|panel| matches!(panel.frame.id, HudPanelId::Preferences { .. }));
+            if self
+                .focused
+                .is_some_and(|id| !matches!(id.panel, HudPanelId::Preferences { .. }))
+            {
+                self.focused = None;
+            }
         }
     }
     pub(super) fn receive(
@@ -358,6 +370,9 @@ impl Hud {
     }
 }
 impl GameScreenController {
+    pub fn ui_preferences(&self) -> screen_model::UiPreferences {
+        self.hud.state.settings()
+    }
     /// Apply presentation-owned effects after semantic input emits them. No
     /// server queue is drained, and no authoritative inventory is mutated here.
     pub fn handle_hud_effect(&mut self, world: &RuntimeView<'_>, effect: &ScreenEffect) -> bool {

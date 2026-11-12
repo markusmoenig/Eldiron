@@ -21,6 +21,27 @@ pub(in crate::game_screen) struct PanelStyle {
     pub scroll_step: f32,
 }
 impl PanelStyle {
+    pub fn preferences(c: &screen_model::PreferencesPanelConfig) -> Self {
+        Self {
+            background: c.background_color,
+            title_background: c.title_background_color,
+            border: c.border_color,
+            text: c.text_color,
+            muted: c.muted_text_color,
+            slot: [13, 16, 16, 245],
+            slot_border: c.border_color,
+            occupied: c.border_color,
+            selected: [238, 214, 118, 255],
+            font: family(&c.font),
+            title_font: family(&c.font),
+            border_width: 1.,
+            slot_border_width: 1.,
+            font_size: c.font_size,
+            title_size: c.title_font_size,
+            quantity_size: c.font_size,
+            scroll_step: c.row_height,
+        }
+    }
     pub fn catalog(c: &screen_model::CatalogPanelConfig) -> Self {
         Self {
             background: c.background_color,

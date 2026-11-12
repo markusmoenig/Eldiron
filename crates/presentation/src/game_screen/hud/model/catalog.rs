@@ -66,7 +66,7 @@ impl HudState {
             self.catalog = Some(OpenCatalog {
                 panel: OpenActorPanel {
                     incarnation: self.serial,
-                    position: None,
+                    position: self.panel_positions.get(&PanelKind::Catalog(kind)).copied(),
                     scroll: [0.; 2],
                 },
                 kind,

@@ -6,6 +6,7 @@ mod cursor;
 mod hud;
 mod item_pointer;
 mod mouse_look;
+mod preferences;
 fn actor(id: u32, x: f32, z: f32) -> Entity {
     let mut actor = Entity::new();
     actor.id = id;

@@ -6,9 +6,29 @@ use rusterix::{ServerState, client::rules_ui, world_interaction::item_is_contain
 use scenevm::prelude::Vec2;
 mod actor_panels;
 pub(super) mod catalog;
+mod preferences;
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum PanelKind {
+    Inventory,
+    Equipment,
+    Catalog(screen_model::CatalogPanelKind),
+    Preferences,
+}
+impl PanelKind {
+    fn of(id: HudPanelId) -> Option<Self> {
+        match id {
+            HudPanelId::Inventory { .. } => Some(Self::Inventory),
+            HudPanelId::Equipment { .. } => Some(Self::Equipment),
+            HudPanelId::Catalog { kind, .. } => Some(Self::Catalog(kind)),
+            HudPanelId::Preferences { .. } => Some(Self::Preferences),
+            _ => None,
+        }
+    }
+}
 
 struct OpenContainer {
     source: ItemRef,
+    default_position: Vec2<i32>,
     incarnation: u64,
     position: Vec2<i32>,
     scroll: [f64; 2],
@@ -21,9 +41,14 @@ struct OpenActorPanel {
 #[derive(Default)]
 pub(super) struct HudState {
     scope: Option<(Uuid, Uuid)>,
+    session: Option<Uuid>,
     positions: FxHashMap<ItemRef, Vec2<i32>>,
     open: Option<OpenContainer>,
     serial: u64,
+    panel_positions: FxHashMap<PanelKind, Vec2<i32>>,
+    preferences: screen_model::UiPreferences,
+    preferences_panel: Option<OpenActorPanel>,
+    preferences_popup: Option<screen_model::PreferenceSetting>,
     inventory: Option<OpenActorPanel>,
     equipment: Option<OpenActorPanel>,
     page: usize,
@@ -70,6 +95,10 @@ pub(in crate::game_screen) struct PanelSlot {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::game_screen) enum HudAction {
+    PreferencePopup(screen_model::PreferenceSetting),
+    Tooltips(bool),
+    TooltipDelay(screen_model::TooltipDelay),
+    ResetPositions,
     Category(String),
     ToggleSort,
     Sort(String),
@@ -125,6 +154,14 @@ pub(in crate::game_screen) struct DetailSpec {
     pub background: [u8; 4],
 }
 impl PanelFrame {
+    pub fn popup_trigger(&self) -> Option<HudPart> {
+        self.popup?;
+        let setting = self.buttons.iter().find_map(|button| match button.part {
+            HudPart::PreferenceOption(setting, _) => Some(setting),
+            _ => None,
+        });
+        Some(setting.map_or(HudPart::Sort, HudPart::Preference))
+    }
     pub fn control(&self, part: HudPart) -> HudControlId {
         HudControlId {
             panel: self.id,
@@ -159,7 +196,7 @@ impl PanelFrame {
                 .map(|button| (self.control(button.part), button.rect)),
         );
         if let Some(popup) = self.popup {
-            controls.push((self.control(HudPart::SortPopup), popup));
+            controls.push((self.control(HudPart::Popup), popup));
             controls.extend(
                 self.buttons
                     .iter()
@@ -206,12 +243,14 @@ impl PanelFrame {
 impl HudState {
     pub fn bind(&mut self, world: &RuntimeView<'_>) {
         let scope = world.map.map(|map| (world.session_id, map.id));
+        if self.session != Some(world.session_id) {
+            self.close_all();
+            self.positions.clear();
+            self.panel_positions.clear();
+            self.session = Some(world.session_id);
+        }
         if self.scope != scope {
             self.close();
-            if self.scope.map(|s| s.0) != scope.map(|s| s.0) {
-                self.close_all();
-                self.positions.clear();
-            }
             self.scope = scope;
         }
         if world.state == ServerState::Off
@@ -225,7 +264,11 @@ impl HudState {
             self.close();
         }
         if world.state == ServerState::Off {
+            let panel = self.preferences_panel.take();
+            let popup = self.preferences_popup.take();
             self.close_all();
+            self.preferences_panel = panel;
+            self.preferences_popup = popup;
         }
     }
     pub fn close(&mut self) {
@@ -255,17 +298,21 @@ impl HudState {
             return;
         }
         self.close();
-        let position = self.positions.get(&source).copied().unwrap_or_else(|| {
-            anchor
-                .map(|r| Vec2::new((r.x + r.width + 12.).round() as i32, r.y.round() as i32))
-                .unwrap_or(Vec2::new(size.x / 2 - 96, size.y / 2 - 64))
-        });
+        let default_position = anchor
+            .map(|r| Vec2::new((r.x + r.width + 12.).round() as i32, r.y.round() as i32))
+            .unwrap_or(Vec2::new(size.x / 2 - 96, size.y / 2 - 64));
+        let position = self
+            .positions
+            .get(&source)
+            .copied()
+            .unwrap_or(default_position);
         self.serial = self
             .serial
             .checked_add(1)
             .expect("HUD incarnation exhausted");
         self.open = Some(OpenContainer {
             source,
+            default_position,
             incarnation: self.serial,
             position,
             scroll: [0.; 2],
@@ -395,6 +442,9 @@ impl HudState {
         })
     }
     pub fn retain_placement(&mut self, frame: &PanelFrame) {
+        if let Some(kind) = PanelKind::of(frame.id) {
+            self.panel_positions.insert(kind, frame.position);
+        }
         if let Some(open) = self.catalog_panel_mut(frame.id) {
             open.panel.position = Some(frame.position);
             open.panel.scroll = frame.scroll;

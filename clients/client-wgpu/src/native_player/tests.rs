@@ -1109,3 +1109,5 @@ fn capture(gpu: &GpuContext, target: Arc<GpuImage>, path: &str) {
 
 #[path = "tests/container.rs"]
 mod container;
+
+mod preferences;

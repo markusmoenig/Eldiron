@@ -13,6 +13,7 @@ impl HudState {
         let (open, incarnation) = match id {
             HudPanelId::Inventory { incarnation, .. } => (&mut self.inventory, incarnation),
             HudPanelId::Equipment { incarnation, .. } => (&mut self.equipment, incarnation),
+            HudPanelId::Preferences { incarnation } => (&mut self.preferences_panel, incarnation),
             _ => return None,
         };
         open.as_mut().filter(|open| open.incarnation == incarnation)
@@ -22,6 +23,8 @@ impl HudState {
         self.inventory = None;
         self.equipment = None;
         self.catalog = None;
+        self.preferences_panel = None;
+        self.preferences_popup = None;
         self.sort_open = false;
         self.page = 0;
         self.selected = None;
@@ -37,9 +40,16 @@ impl HudState {
             }
             HudPanelId::Equipment { .. } => self.equipment = None,
             HudPanelId::Catalog { .. } => self.catalog = None,
+            HudPanelId::Preferences { .. } => {
+                self.preferences_panel = None;
+                self.preferences_popup = None;
+            }
         }
     }
     pub fn toggle(&mut self, command: &str) -> bool {
+        if self.toggle_preferences(command) {
+            return true;
+        }
         if self.toggle_catalog(command) {
             return true;
         }
@@ -61,7 +71,14 @@ impl HudState {
                 .expect("HUD incarnation exhausted");
             let open = Some(OpenActorPanel {
                 incarnation: self.serial,
-                position: None,
+                position: self
+                    .panel_positions
+                    .get(&if inventory {
+                        PanelKind::Inventory
+                    } else {
+                        PanelKind::Equipment
+                    })
+                    .copied(),
                 scroll: [0.; 2],
             });
             if inventory {
@@ -73,12 +90,16 @@ impl HudState {
         true
     }
     pub fn popup_open(&self) -> bool {
-        self.inventory.is_some() && self.sort_open
+        (self.inventory.is_some() && self.sort_open) || self.preferences_popup.is_some()
     }
     pub fn dismiss_popup(&mut self) {
         self.sort_open = false;
+        self.preferences_popup = None;
     }
     pub fn activate(&mut self, action: &HudAction, elements: &mut ScreenElements) {
+        if self.activate_preferences(action, elements) {
+            return;
+        }
         if self.activate_catalog(action) {
             return;
         }
@@ -107,6 +128,11 @@ impl HudState {
     pub fn frames(&self, world: &RuntimeView<'_>, elements: &ScreenElements) -> Vec<PanelFrame> {
         let size = elements.layout.viewport;
         let mut frames: Vec<_> = self.layout(world, size).into_iter().collect();
+        if size.x >= 8 && size.y >= 8 {
+            if let Some(frame) = self.preferences_frame(elements) {
+                frames.push(frame);
+            }
+        }
         let Some(map) = world.map else {
             return frames;
         };

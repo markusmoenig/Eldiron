@@ -406,9 +406,10 @@ pub(super) fn input(
                             }
                             Some(ItemClick::ToggleContainer(address)) => address
                                 .owner
-                                .map(|owner| {
+                                .zip(capture.binding.region)
+                                .map(|(owner, region)| {
                                     vec![ScreenEffect::ToggleContainer {
-                                        region: capture.binding.region,
+                                        region,
                                         item: address.item,
                                         owner,
                                         anchor: rect(capture.slot.rect),
@@ -524,9 +525,10 @@ pub(super) fn activate_hud_receipt(
         }
         Some(ItemClick::ToggleContainer(address)) => address
             .owner
-            .map(|owner| {
+            .zip(receipt.binding.region)
+            .map(|(owner, region)| {
                 vec![ScreenEffect::ToggleContainer {
-                    region: receipt.binding.region,
+                    region,
                     item: address.item,
                     owner,
                     anchor: rect(receipt.slot.rect),
