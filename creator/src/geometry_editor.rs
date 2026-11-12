@@ -20,6 +20,14 @@ pub(crate) mod preview;
 mod rigging;
 mod scene;
 pub(crate) mod textures;
+#[cfg(feature = "native-render")]
+mod gpu_textures;
+#[cfg(feature = "native-render")]
+mod native_preview;
+#[cfg(feature = "native-render")]
+mod native_host;
+#[cfg(feature = "native-render")]
+pub(crate) use native_host::PreviewToken;
 pub const STACK: &str = "Appearance Workspace";
 pub const MODE: &str = "Appearance Mode";
 const EDITOR: &str = "MZ Geometry Rows";
@@ -211,6 +219,8 @@ pub struct GeometryEditor {
     revision: u64,
     preview_key: String,
     worker: Option<preview::Worker>,
+    #[cfg(feature = "native-render")]
+    native: native_host::Host,
     inspector: rigging::Selection,
     inspector_dirty: bool,
     local_edit: bool,
@@ -328,6 +338,8 @@ impl GeometryEditor {
         }
     }
     pub fn reset(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+        #[cfg(feature = "native-render")]
+        self.native.invalidate();
         self.active = false;
         self.viewport_visible = false;
         self.open_in_rig = false;
@@ -1871,15 +1883,19 @@ impl GeometryEditor {
                 }
                 changed = true;
             } else if let Some(evaluation) = &self.evaluation {
+                let use_native = {
+                    #[cfg(feature = "native-render")] { self.native.enabled }
+                    #[cfg(not(feature = "native-render"))] { false }
+                };
                 #[cfg(not(target_arch = "wasm32"))]
-                if self.worker.is_none() {
+                if !use_native && self.worker.is_none() {
                     if let Some((device, queue)) =
                         RUSTERIX.read().unwrap().scene_handler.vm.gpu_context()
                     {
                         self.worker = Some(preview::Worker::new(device, queue));
                     }
                 }
-                if let Some(worker) = &self.worker {
+                if use_native || self.worker.is_some() {
                     let mesh = if self.preview_selected {
                         self.selected_operation
                             .as_ref()
@@ -1947,7 +1963,7 @@ impl GeometryEditor {
                     };
                     let projection =
                         scene::Projection::new(bounds, dim.width, dim.height, self.yaw, self.pitch);
-                    worker.submit(preview::Request {
+                    let request = preview::Request {
                         epoch: self.preview_epoch,
                         projection,
                         posed: joints,
@@ -1971,7 +1987,11 @@ impl GeometryEditor {
                                     .palette_color(TheThemePalettes::MaterialCategories, i)
                             }),
                         },
-                    });
+                    };
+                    if use_native {
+                        #[cfg(feature = "native-render")]
+                        { self.native.latest=Some(request); }
+                    } else if let Some(worker)=&self.worker { worker.submit(request); }
                 } else {
                     Self::status(ctx, "Geometry preview requires the desktop GPU renderer");
                 }

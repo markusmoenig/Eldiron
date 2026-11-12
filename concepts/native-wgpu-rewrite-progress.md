@@ -1871,3 +1871,178 @@ application/document/history/world/tool/Play ownership, interactive GPU previews
 Creator Apple wrapper, browser bootstrap/workers and legacy retirement remain.
 Continue directly with Creator ownership/GPU view integration; do not wait for
 approval. The unrelated networking concept and original checkout remain intact.
+
+## Creator geometry GPU preview conversion (after d41688cc, in progress)
+
+The reference geometry renderer now separates mesh preparation/encoding from its
+explicit capture/export readback. Its existing worker/callers still use the
+reference output pending integration; they are not yet retired. New injected-device
+`geometry_editor/gpu_textures.rs` converts procedural MaterialZ float maps directly
+to GPU atlas layers, preserving the reference's encoded 8-bit sRGB/opacity/R/M/E
+map semantics and integer nearest resizing. Existing ruleset/library CPU bakes
+remain authoritative immutable source assets, with transient source pixels rather
+than a retained cache of every animation frame. Source atlas memory is provisionally
+bounded at 64 MiB and 16 authored material layers; numerical performance acceptance
+remains outstanding.
+
+The first actual GPU atlas test passes byte-for-byte against the existing maps
+at 16/32px and three animation times, including opacity, roughness, emission,
+source resizing, cached reuse and invalid-source/size rollback (2.30 s,
+`/private/tmp/eldiron-native-geometry-atlas-test-first.log`). No procedural source
+pixels are uploaded/read back by the new producer. MaterialZ still encodes its
+existing small 4-byte diagnostics copy; it is not mapped by this path. Expanded
+cancelled-encoder tests and native output integration are running.
+
+`native_preview.rs` now renders immutable GPU image leases using those atlases,
+shares the exact reference mesh pass, exposes view-local GPU paint for bones/axes,
+and retains the raster frame's projection/pose/revision. A bounded three-output
+pool applies backpressure while all outputs are externally leased; physical output
+uses density while picking/paint remain logical. It allocates no reference color
+staging buffer. Atlas cache reuse now requires explicit submission acknowledgement
+so a cancelled outer encoder cannot publish an uninitialized cached source.
+Compilation passes; actual native-vs-reference pixel, render-view GPU composition,
+lease/pool/density checks are in flight (`...geometry-output-test-fixed.log`).
+
+Next: inspect/fix native output tests, connect GeometryEditor request/publication
+and acknowledged picking through a host-owned registry without RUSTERIX device
+lookups; convert authoring/contour/handle overlays and active appearance/material
+preview callers; introduce/use the common Creator application owner. Preserve
+reference bake/export tools and existing source/serialized behavior. This slice is
+uncommitted and not accepted as a converted interactive preview or full M5.
+
+Expanded native geometry checks pass **two actual GPU tests** (1.86 s,
+`...geometry-output-test-fixed.log`): strict textured/untextured mesh pixels against
+reference capture, exact procedural source-map conversion, render-view/image-
+registry GPU composition, immutable old outputs while newer frames render,
+three-lease backpressure, fractional density and invalid input. Cancelled outer
+encoders leave atlas conversion unsubmitted and therefore ineligible for reuse.
+The reference renderer's capture targets remain unallocated in the native path.
+
+Creator request/publication integration is now implemented but its first actual
+UI-path test is still running (`...geometry-host-test-first.log`). The opted-in
+GeometryEditor queues CPU requests instead of discovering a RUSTERIX GPU or
+starting the old framebuffer worker. A host-owned registry injects the device,
+publishes GPU image/guide/handle paint, and supplies an opaque token to acknowledge
+only the frame included in a successful presentation. Picking retains that
+frame's projection, pose and frozen handles; newer unacknowledged requests do not
+move its targets, superseded acknowledgements reject, and source/owner/inspector
+changes invalidate modifying clicks. Device/registry replacement retains the
+latest CPU request but retires the old input receipt. Contour and baked-isometric
+preview adapters are still explicitly unconverted. A common Creator application
+frame caller and full reference/default/ownership regressions remain next.
+
+The first actual Creator geometry UI integration test passes (0.61 s,
+`...geometry-host-test-first.log`), including CPU request generation without the
+reference worker, opaque presentation tokens, frozen handle picking, a newer
+unacknowledged render, superseded-token rejection, source mutation before the next
+CPU update, registry reconstruction, byte-preserved authored project and reset
+cleanup. Expanded coverage now replaces the actual GPU device, not only registry.
+
+A transitional `NativeCreatorApplication` now drives the existing Creator UI
+through UiApplicationAdapter and the common host. Geometry gets the injected
+registry/device in frame preparation, and tokens are acknowledged only after
+successful presentation. Suspend/device replacement clears old input receipts;
+shared native editing/clipboard routing remains in the UI adapter. Unsaved close
+uses the existing confirm policy through an OS-service helper. Legacy Editor still
+owns world/tool/history globals and unconverted bitmap view producers; this bridge
+is explicitly temporary and is not canonical M5/M7 retirement.
+
+The assembled startup GPU UI test passes (14.55 s,
+`...native-creator-application-test-first.log`): menus, tools, sidebars, project
+chooser and glyphs paint without a root framebuffer, repeat paint adds no image
+uploads/glyph rasterization/readback, and registry reconstruction preserves the
+project. Visually inspected `/private/tmp/eldiron-native-creator-startup.png`; the
+existing brown theme and Creator layout are retained. A disposable explicit CPU
+reference capture and expanded native integration suite are now running.
+
+Added optional `eldiron-creator-native` (`native-host` feature), with the original
+`eldiron-creator` kept as default. Use `--no-default-features --features native-host
+--bin eldiron-creator-native` to isolate its dependency graph from Pixels. CLI/help,
+link/dependency gates, full serial Creator regressions and reference geometry GPU
+checks are pending. Window metadata/minimum/position/edited-state parity and all
+physical workflows still require completion before canonical cutover.
+
+Creator regression/dependency results: **573 serial library tests pass**, 83
+explicitly ignored (261.93 s). Existing sword/edit reference GPU preview passes
+(0.96 s). Native Creator executable links with `--no-default-features --features
+native-host`, and actual help/version exits pass before UI/GPU initialization.
+Default/staticlib Creator, framework tests, all four applications, browser/iOS
+player configurations and **11 independent dependency boundaries** pass; the new
+boundary excludes Pixels/Softbuffer/SceneVM windowing from the native Creator
+host. Reproduce `/private/tmp/verify-native-creator-preview.py`; results and
+individual logs `...native-creator-preview-{results,native-bin,creator-serial,reference-geometry,reference-config,framework,apps,web,ios,boundaries,diff}.log`.
+
+The initial expanded native suite passed 76/81; four ignored review tests lacked
+local generated projects, and the new same-process CPU reference capture tried to
+reuse a GPU canvas's released CPU buffers. The capture setup is fixed: an explicit
+fresh legacy reference tool now runs in its own process (`creator/examples/reference_ui_capture.rs`),
+so legacy Creator globals cannot contaminate the comparison. Normal native UI
+never switches back to CPU rendering. The corrected root test passes (27.15 s,
+`...native-creator-reference-capture-fixed.log`). Same-process fresh Editor captures
+also reused legacy dock/undo globals and are not accepted as independent controls.
+The independent reference is `/private/tmp/eldiron-reference-creator-fresh.png`;
+native startup is `/private/tmp/eldiron-native-creator-startup.png`. Both were
+visually inspected. Layout/theme/chrome match in structure, but empty view clear
+backgrounds and glyph spacing differ; full startup/viewport visual parity remains
+a required open gate, not accepted by the root paint test. Captures from the broad
+native test process can show a dirty marker inherited from prior tests' global
+undo state; use an isolated root test/process for visual comparisons. This is
+further evidence for the required Creator document/global ownership extraction.
+
+All three absent fixture directories were checked before generating anything; no
+existing outputs were replaced. The checked-in native isometric generator passes
+startup, room/stair/hill/click/height/source-roundtrip checks; the terrain and
+woodland builders pass as well. Logs:
+`...native-creator-fixture-{base,terrain,woodland}.log`, summary
+`...native-creator-fixture-results.log`. Outputs stay in ignored `generated/`.
+The native integration suite is now rerunning all 81 tests with those fixtures
+(`...native-creator-integration-final.log`); do not classify missing fixtures as
+passing, skip the tests silently or claim full Creator parity.
+
+The common window API now carries optional minimum size, saved physical position,
+RGBA icon and edited-document status, and explicit native window move/resize
+callbacks. Creator forwards its existing policy. Initial/GPU-only metric restoration
+is deliberately separate from user window events, so a capture or device rebuild
+cannot overwrite saved desktop bounds. The focused CPU contract test passes
+(`...native-creator-window-metadata-test.log`) and the isolated native launcher
+configuration compiles. Physical metadata/monitor/close workflows remain pending.
+
+## Creator host/geometry integration checkpoint (2026-11-12)
+
+Final expanded suite: **all 81 native Creator tests pass** (185.47 s), including
+all previously missing terrain/minimap reviews, actual GPU material/graph/geometry
+cases, native root UI and device-reconstructed geometry publication/picking.
+`/private/tmp/eldiron-native-creator-integration-final.log` supersedes the earlier
+76/81 run. The three generated fixture builders passed and their ignored outputs
+remain outside git. Full ordinary serial Creator remains **573 passed / 83 ignored**;
+existing reference sword/edit GPU rendering also passes. No ignored fixture failure
+was waived or silently skipped.
+
+After window metadata/root bootstrap changes, the final focused matrix passes:
+framework library plus actual detached-layer application/replacement test, isolated
+Creator root GPU capture, linked native Creator without default desktop/Pixels,
+all four applications, browser/iOS player checks, **11 boundaries**, and diff
+validation. Reproduce `/private/tmp/verify-native-creator-window-final.py`; results
+`...native-creator-window-final-results.log` and its named per-check logs. The
+isolated root capture avoids the broad suite's legacy global undo contamination.
+Creator's original root/layout bootstrap is preserved before constructing docks;
+extra preview preparation runs only while its viewport is active. The independent
+legacy capture tool is run separately with default desktop/reference features.
+
+The checkpoint provides a common Creator GPU UI host, injected immutable 3D
+geometry outputs, native vector guides/handles, source-map GPU conversion, bounded
+output leases, acknowledged picking, suspend/device reconstruction, explicit
+reference capture and native window metadata. It preserves the default canonical
+launcher and excludes unrelated networking work. It does **not** complete M5/M7:
+main world/tool/document/history/Play globals and bitmap producers remain, as do
+contour/baked-isometric/material/appearance preview conversions, clear-color/text
+visual matching, physical input/platform matrices and release/resource budgets.
+
+Immediate next correctness work: MaterialZ currently encodes a bounded four-byte
+GPU diagnostic copy; the native atlas path does not yet consume its result.
+Integrate asynchronous revision-scoped diagnostic handling and avoid publishing a
+failed procedural source without blocking on a color framebuffer. Preview failures
+should retain the last valid view and report a status instead of terminating the
+Creator host. Then convert the contour/baked preview paths and continue explicit
+application/document/world/Play ownership and remaining full-goal work. Full
+M0–M9 Goal remains active; none of these partial gates mark it complete.

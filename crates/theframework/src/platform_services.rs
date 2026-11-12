@@ -43,3 +43,39 @@ pub fn service_files(ui: &mut crate::theui::theuicontext::TheUIContext) {
     any(target_os = "macos", target_os = "windows", target_os = "linux")
 )))]
 pub fn service_files(_ui: &mut crate::theui::theuicontext::TheUIContext) {}
+
+/// Shared desktop close policy; foreign/document hosts can provide their own
+/// document UI. Missing dialog support must never silently discard authored work.
+pub fn confirm_unsaved_exit() -> bool {
+    #[cfg(all(
+        feature = "desktop-dialogs",
+        any(target_os = "macos", target_os = "windows", target_os = "linux")
+    ))]
+    {
+        rfd::MessageDialog::new()
+            .set_title("Unsaved Changes")
+            .set_description("You have unsaved changes. Are you sure you want to quit?")
+            .set_buttons(rfd::MessageButtons::YesNo)
+            .show()
+            == rfd::MessageDialogResult::Yes
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        web_sys::window()
+            .and_then(|w| {
+                w.confirm_with_message("You have unsaved changes. Are you sure you want to quit?")
+                    .ok()
+            })
+            .unwrap_or(false)
+    }
+    #[cfg(not(any(
+        target_arch = "wasm32",
+        all(
+            feature = "desktop-dialogs",
+            any(target_os = "macos", target_os = "windows", target_os = "linux")
+        )
+    )))]
+    {
+        false
+    }
+}

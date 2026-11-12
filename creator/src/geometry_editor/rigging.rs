@@ -1,7 +1,7 @@
 //! Inspector controls for reusable lofts, skeletal bindings and editable motion tracks.
 use super::*;
 use presentation::{number, property};
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Selection {
     pub joint: usize,
     pub part: usize,

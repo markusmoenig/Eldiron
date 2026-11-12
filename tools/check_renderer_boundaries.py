@@ -44,6 +44,7 @@ def main():
     check("eldiron-client", {"pixels", "softbuffer"}, forbidden_features=('scenevm feature "windowing"',))
     check("eldiron-client-wgpu", {"pixels", "softbuffer"}, forbidden_features=('scenevm feature "windowing"',))
     check("eldiron-client-wgpu", {"winit", "pixels", "softbuffer"}, features="native-player")
+    check("eldiron-creator", {"pixels", "softbuffer"}, features="native-host", forbidden_features=('scenevm feature "windowing"',))
 
 
 if __name__ == "__main__":

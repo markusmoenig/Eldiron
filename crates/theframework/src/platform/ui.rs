@@ -95,6 +95,14 @@ pub trait UiApplication {
     fn initial_size(&self) -> (u32, u32) {
         (1200, 700)
     }
+    fn window_configuration(&self) -> WindowConfiguration {
+        WindowConfiguration::default()
+    }
+    fn document_edited(&self) -> bool {
+        false
+    }
+    fn window_moved(&mut self, _position: (i32, i32), _ui: &mut UiSession) {}
+    fn window_resized(&mut self, _ui: &mut UiSession) {}
     fn initialize(&mut self, ui: &mut UiSession, images: &mut UiFrameImages<'_>) -> Result<()>;
     fn gpu_recreated(
         &mut self,
@@ -219,6 +227,20 @@ impl<A: UiApplication> GpuApplication for UiApplicationAdapter<A> {
     }
     fn initial_size(&self) -> (u32, u32) {
         self.application.initial_size()
+    }
+    fn window_configuration(&self) -> WindowConfiguration {
+        self.application.window_configuration()
+    }
+    fn document_edited(&self) -> bool {
+        self.application.document_edited()
+    }
+    fn window_moved(&mut self, position: (i32, i32), host: &mut HostContext) {
+        self.application.window_moved(position, &mut self.session);
+        self.platform_state(host);
+    }
+    fn window_resized(&mut self, host: &mut HostContext) {
+        self.application.window_resized(&mut self.session);
+        self.platform_state(host);
     }
     fn initialize(&mut self, host: &mut HostContext, images: &mut ImageRegistry) -> Result<()> {
         self.resize(host);
@@ -459,4 +481,50 @@ mod tests {
             "Second"
         );
     }
+}
+
+#[cfg(test)]
+#[test]
+fn window_metadata_and_user_events_survive_ui_metrics_reconstruction_without_persisting_it() {
+    struct WindowApp {
+        events: Vec<(i32, i32)>,
+    }
+    impl UiApplication for WindowApp {
+        fn initialize(&mut self, _: &mut UiSession, _: &mut UiFrameImages<'_>) -> Result<()> {
+            Ok(())
+        }
+        fn window_configuration(&self) -> WindowConfiguration {
+            WindowConfiguration {
+                minimum_size: Some((1200, 720)),
+                position: Some((-5, 7)),
+                icon: Some((vec![255; 4], 1, 1)),
+            }
+        }
+        fn document_edited(&self) -> bool {
+            true
+        }
+        fn window_moved(&mut self, p: (i32, i32), _: &mut UiSession) {
+            self.events.push(p);
+        }
+        fn window_resized(&mut self, ui: &mut UiSession) {
+            self.events
+                .push((ui.context.width as i32, ui.context.height as i32));
+        }
+    }
+    let mut adapter = UiApplicationAdapter::new(WindowApp { events: Vec::new() });
+    let config = GpuApplication::window_configuration(&adapter);
+    assert_eq!(config.minimum_size, Some((1200, 720)));
+    assert_eq!(config.position, Some((-5, 7)));
+    assert_eq!(config.icon, Some((vec![255; 4], 1, 1)));
+    assert!(GpuApplication::document_edited(&adapter));
+    let mut host = HostContext::new((800, 600));
+    host.resize((800, 600), 1.25);
+    GpuApplication::resize(&mut adapter, &mut host);
+    assert!(
+        adapter.application.events.is_empty(),
+        "restoring GPU/UI metrics must not persist a user window preference"
+    );
+    GpuApplication::window_moved(&mut adapter, (-4, 8), &mut host);
+    GpuApplication::window_resized(&mut adapter, &mut host);
+    assert_eq!(adapter.application.events, vec![(-4, 8), (640, 480)]);
 }

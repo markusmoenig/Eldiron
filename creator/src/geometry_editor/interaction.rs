@@ -341,10 +341,23 @@ impl GeometryEditor {
                 return Ok(true);
             }
             TheEvent::RenderViewContext(id, p) if id.name == PREVIEW && self.scene.tool == 3 => {
+                #[cfg(feature = "native-render")]
+                if !self.native_pick_ready(project) {
+                    return Ok(false);
+                }
                 self.finish_drag(project, ctx, false);
                 let doc = self.document.as_ref().ok_or("Create a model")?;
                 let e = self.evaluation.as_ref().ok_or("No model")?;
-                let hit = self.scene.hit(doc, e, &self.inspector, *p);
+                let hit = {
+                    #[cfg(feature = "native-render")]
+                    {
+                        self.preview_handle_hit(doc, e, *p)
+                    }
+                    #[cfg(not(feature = "native-render"))]
+                    {
+                        self.scene.hit(doc, e, &self.inspector, *p)
+                    }
+                };
                 let frame = self
                     .scene
                     .projection
@@ -400,6 +413,10 @@ impl GeometryEditor {
                 return Ok(true);
             }
             TheEvent::RenderViewClicked(id, p) if id.name == PREVIEW && self.scene.tool > 0 => {
+                #[cfg(feature = "native-render")]
+                if !self.native_pick_ready(project) {
+                    return Ok(false);
+                }
                 if self.scene.alt && self.scene.tool == 2 {
                     return Ok(false);
                 }
@@ -411,7 +428,17 @@ impl GeometryEditor {
                     .and_then(|id| project.procedural_appearances.get(&id))
                     .cloned()
                     .ok_or("No source")?;
-                if let Some((handle, point)) = self.scene.hit(doc, e, &self.inspector, *p) {
+                let hit = {
+                    #[cfg(feature = "native-render")]
+                    {
+                        self.preview_handle_hit(doc, e, *p)
+                    }
+                    #[cfg(not(feature = "native-render"))]
+                    {
+                        self.scene.hit(doc, e, &self.inspector, *p)
+                    }
+                };
+                if let Some((handle, point)) = hit {
                     if self.scene.tool != 4 && self.playback.selected > 0 {
                         self.playback.rest();
                         self.scene.posed.clear();

@@ -84,7 +84,7 @@ pub struct Drag {
     pub point: [f32; 3],
     pub frame: Projection,
 }
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct Scene {
     pub select_after_refresh: Option<String>,
     pub tool: usize,
@@ -626,6 +626,62 @@ impl Scene {
             .min_by(|a, b| a.2.total_cmp(&b.2))
             .map(|(h, p, _)| (h, p))
     }
+    fn handle_color(
+        &self,
+        handle: &Handle,
+        doc: &Document,
+        e: &Evaluation,
+        selection: &rigging::Selection,
+        theme: &dyn TheTheme,
+    ) -> RGBA {
+        let active = match handle {
+            Handle::Joint(id) => armature(doc)
+                .and_then(|(_, j)| j.get(selection.joint))
+                .map(|j| &j.id)
+                .or_else(|| {
+                    e.mesh
+                        .rig
+                        .as_ref()
+                        .and_then(|r| r.joints.get(selection.joint))
+                        .map(|j| &j.id)
+                })
+                .is_some_and(|j| *j == *id),
+            Handle::Profile(_, i, _) => *i == selection.section,
+            Handle::Socket(_) | Handle::Grip(_) => true,
+        };
+        *theme.color(if active {
+            SelectedTextEditBorder1
+        } else {
+            MaterialText
+        })
+    }
+    #[cfg(feature = "native-render")]
+    pub fn paint_native(
+        &self,
+        doc: &Document,
+        e: &Evaluation,
+        selection: &rigging::Selection,
+        theme: &dyn TheTheme,
+    ) -> theframework::paint::PaintList {
+        use theframework::paint::{PaintList, Rect};
+        let mut list = PaintList::default();
+        let Some(frame) = &self.projection else {
+            return list;
+        };
+        if self.tool == 0 {
+            return list;
+        }
+        for (handle, p, _) in self.handles(doc, e, selection) {
+            let q = frame.project(p);
+            let color = self.handle_color(&handle, doc, e, selection, theme);
+            list.rect(
+                Rect::new(q[0] - 4.5, q[1] - 4.5, 9., 9.),
+                4.5,
+                color.map(|v| v as f32 / 255.),
+            );
+        }
+        list
+    }
     pub fn paint(
         &self,
         image: &mut TheRGBABuffer,
@@ -644,26 +700,7 @@ impl Scene {
         let pixels = image.pixels_mut();
         for (handle, p, _) in self.handles(doc, e, selection) {
             let q = frame.project(p);
-            let active = match handle {
-                Handle::Joint(id) => armature(doc)
-                    .and_then(|(_, j)| j.get(selection.joint))
-                    .map(|j| &j.id)
-                    .or_else(|| {
-                        e.mesh
-                            .rig
-                            .as_ref()
-                            .and_then(|r| r.joints.get(selection.joint))
-                            .map(|j| &j.id)
-                    })
-                    .is_some_and(|j| *j == id),
-                Handle::Profile(_, i, _) => i == selection.section,
-                Handle::Socket(_) | Handle::Grip(_) => true,
-            };
-            let color = *theme.color(if active {
-                SelectedTextEditBorder1
-            } else {
-                MaterialText
-            });
+            let color = self.handle_color(&handle, doc, e, selection, theme);
             for y in q[1] as i32 - 4..=q[1] as i32 + 4 {
                 for x in q[0] as i32 - 4..=q[0] as i32 + 4 {
                     if x >= 0

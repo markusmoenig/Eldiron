@@ -26,3 +26,16 @@ cargo install eldiron-creator
 ## License
 
 Licensed under the MIT License.
+
+The native GPU migration host can be run with:
+
+```bash
+cargo run -p eldiron-creator --no-default-features --features native-host --bin eldiron-creator-native -- [PROJECT.eldiron ...]
+```
+
+It assembles the existing Creator UI through the common GPU compositor and Swash
+text atlases, and uses injected GPU geometry previews with acknowledged picking.
+The normal `eldiron-creator` launcher remains the default while main world/tool/
+history ownership, other previews and full platform/workflow parity are completed.
+The migration host's `--smoke` requires three real surface presentations; it fails
+on a timeout. It does not certify physical input, all workflows or performance.

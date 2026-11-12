@@ -115,6 +115,13 @@ pub struct Renderer {
     targets: std::sync::Mutex<Option<Targets>>,
     effects: std::sync::Mutex<rusterix::procedural_avatar::effects::Preview>,
 }
+pub(super) struct PreparedMesh {
+    vertices: wgpu::Buffer,
+    count: u32,
+    pub projection: super::scene::Projection,
+    pub extent: f32,
+    bindings: wgpu::BindGroup,
+}
 struct Targets {
     width: u32,
     height: u32,
@@ -196,12 +203,17 @@ impl Renderer {
             effects: Default::default(),
         }
     }
-    pub fn render(
+    #[cfg(all(test, feature = "native-render"))]
+    pub(super) fn has_capture_targets(&self) -> bool {
+        self.targets.lock().unwrap().is_some()
+    }
+    pub(super) fn prepare_mesh(
         &self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         job: &Job,
-    ) -> Result<TheRGBABuffer, String> {
+        native_bindings: Option<wgpu::BindGroup>,
+    ) -> Result<PreparedMesh, String> {
         let (w, h) = (job.width.max(16), job.height.max(16));
         if w > device.limits().max_texture_dimension_2d
             || h > device.limits().max_texture_dimension_2d
@@ -235,117 +247,126 @@ impl Renderer {
         if specs.len() > 16 {
             return Err("A preview supports at most 16 material textures".into());
         }
-        let frames = {
-            let mut cache = self
-                .textures
-                .lock()
-                .map_err(|_| "Texture cache is unavailable")?;
-            specs
-                .iter()
-                .map(|s| {
-                    cache
-                        .frame(s, &job.palette, job.surface_seconds)
-                        .map(|f| f.0)
-                })
-                .collect::<Result<Vec<_>, _>>()?
-        };
-        let binding_key =
-            super::fingerprint(&format!("{specs:?}:{frames:?}:{:?}", job.palette.colors));
-        let bindings = {
-            let mut cached = self
-                .bindings
-                .lock()
-                .map_err(|_| "Material bindings are unavailable")?;
-            if let Some((_, b)) = cached.as_ref().filter(|(key, _)| *key == binding_key) {
-                b.clone()
-            } else {
-                let size = specs.iter().map(|s| s.size).max().unwrap_or(16);
-                let layers = specs.len() as u32 + 1;
-                let mut colors = vec![255u8; (size * size * layers * 4) as usize];
-                let mut data = colors.clone();
-                let mut emission = vec![0u8; colors.len()];
+        let bindings = if let Some(bindings) = native_bindings {
+            bindings
+        } else {
+            let frames = {
                 let mut cache = self
                     .textures
                     .lock()
                     .map_err(|_| "Texture cache is unavailable")?;
-                for (i, spec) in specs.iter().enumerate() {
-                    let images =
-                        cache.image(spec, &job.palette, device, queue, job.surface_seconds)?;
-                    for y in 0..size {
-                        for x in 0..size {
-                            let from = (((y * spec.size / size) * spec.size + x * spec.size / size)
-                                * 4) as usize;
-                            let to = (((i as u32 + 1) * size * size + y * size + x) * 4) as usize;
-                            colors[to..to + 4].copy_from_slice(&images.color[from..from + 4]);
-                            data[to..to + 4].copy_from_slice(&images.data[from..from + 4]);
-                            emission[to..to + 4].copy_from_slice(&images.emission[from..from + 4]);
+                specs
+                    .iter()
+                    .map(|s| {
+                        cache
+                            .frame(s, &job.palette, job.surface_seconds)
+                            .map(|f| f.0)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?
+            };
+            let binding_key =
+                super::fingerprint(&format!("{specs:?}:{frames:?}:{:?}", job.palette.colors));
+            let bindings = {
+                let mut cached = self
+                    .bindings
+                    .lock()
+                    .map_err(|_| "Material bindings are unavailable")?;
+                if let Some((_, b)) = cached.as_ref().filter(|(key, _)| *key == binding_key) {
+                    b.clone()
+                } else {
+                    let size = specs.iter().map(|s| s.size).max().unwrap_or(16);
+                    let layers = specs.len() as u32 + 1;
+                    let mut colors = vec![255u8; (size * size * layers * 4) as usize];
+                    let mut data = colors.clone();
+                    let mut emission = vec![0u8; colors.len()];
+                    let mut cache = self
+                        .textures
+                        .lock()
+                        .map_err(|_| "Texture cache is unavailable")?;
+                    for (i, spec) in specs.iter().enumerate() {
+                        let images =
+                            cache.image(spec, &job.palette, device, queue, job.surface_seconds)?;
+                        for y in 0..size {
+                            for x in 0..size {
+                                let from = (((y * spec.size / size) * spec.size
+                                    + x * spec.size / size)
+                                    * 4) as usize;
+                                let to =
+                                    (((i as u32 + 1) * size * size + y * size + x) * 4) as usize;
+                                colors[to..to + 4].copy_from_slice(&images.color[from..from + 4]);
+                                data[to..to + 4].copy_from_slice(&images.data[from..from + 4]);
+                                emission[to..to + 4]
+                                    .copy_from_slice(&images.emission[from..from + 4]);
+                            }
                         }
                     }
-                }
-                drop(cache);
-                let upload = |bytes: &[u8], format| {
-                    let texture = device.create_texture(&wgpu::TextureDescriptor {
-                        label: Some("Appearance texture atlas"),
-                        size: wgpu::Extent3d {
-                            width: size,
-                            height: size,
-                            depth_or_array_layers: layers,
-                        },
-                        mip_level_count: 1,
-                        sample_count: 1,
-                        dimension: wgpu::TextureDimension::D2,
-                        format,
-                        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-                        view_formats: &[],
-                    });
-                    queue.write_texture(
-                        texture.as_image_copy(),
-                        bytes,
-                        wgpu::TexelCopyBufferLayout {
-                            offset: 0,
-                            bytes_per_row: Some(size * 4),
-                            rows_per_image: Some(size),
-                        },
-                        texture.size(),
-                    );
-                    texture.create_view(&wgpu::TextureViewDescriptor {
-                        dimension: Some(wgpu::TextureViewDimension::D2Array),
+                    drop(cache);
+                    let upload = |bytes: &[u8], format| {
+                        let texture = device.create_texture(&wgpu::TextureDescriptor {
+                            label: Some("Appearance texture atlas"),
+                            size: wgpu::Extent3d {
+                                width: size,
+                                height: size,
+                                depth_or_array_layers: layers,
+                            },
+                            mip_level_count: 1,
+                            sample_count: 1,
+                            dimension: wgpu::TextureDimension::D2,
+                            format,
+                            usage: wgpu::TextureUsages::TEXTURE_BINDING
+                                | wgpu::TextureUsages::COPY_DST,
+                            view_formats: &[],
+                        });
+                        queue.write_texture(
+                            texture.as_image_copy(),
+                            bytes,
+                            wgpu::TexelCopyBufferLayout {
+                                offset: 0,
+                                bytes_per_row: Some(size * 4),
+                                rows_per_image: Some(size),
+                            },
+                            texture.size(),
+                        );
+                        texture.create_view(&wgpu::TextureViewDescriptor {
+                            dimension: Some(wgpu::TextureViewDimension::D2Array),
+                            ..Default::default()
+                        })
+                    };
+                    let color = upload(&colors, wgpu::TextureFormat::Rgba8UnormSrgb);
+                    let material = upload(&data, wgpu::TextureFormat::Rgba8Unorm);
+                    let light = upload(&emission, wgpu::TextureFormat::Rgba8UnormSrgb);
+                    let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+                        mag_filter: wgpu::FilterMode::Nearest,
+                        min_filter: wgpu::FilterMode::Nearest,
                         ..Default::default()
-                    })
-                };
-                let color = upload(&colors, wgpu::TextureFormat::Rgba8UnormSrgb);
-                let material = upload(&data, wgpu::TextureFormat::Rgba8Unorm);
-                let light = upload(&emission, wgpu::TextureFormat::Rgba8UnormSrgb);
-                let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-                    mag_filter: wgpu::FilterMode::Nearest,
-                    min_filter: wgpu::FilterMode::Nearest,
-                    ..Default::default()
-                });
-                let bindings = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                    label: Some("Appearance material maps"),
-                    layout: &self.pipeline.get_bind_group_layout(0),
-                    entries: &[
-                        wgpu::BindGroupEntry {
-                            binding: 0,
-                            resource: wgpu::BindingResource::TextureView(&color),
-                        },
-                        wgpu::BindGroupEntry {
-                            binding: 1,
-                            resource: wgpu::BindingResource::Sampler(&sampler),
-                        },
-                        wgpu::BindGroupEntry {
-                            binding: 2,
-                            resource: wgpu::BindingResource::TextureView(&material),
-                        },
-                        wgpu::BindGroupEntry {
-                            binding: 3,
-                            resource: wgpu::BindingResource::TextureView(&light),
-                        },
-                    ],
-                });
-                *cached = Some((binding_key, bindings.clone()));
-                bindings
-            }
+                    });
+                    let bindings = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                        label: Some("Appearance material maps"),
+                        layout: &self.pipeline.get_bind_group_layout(0),
+                        entries: &[
+                            wgpu::BindGroupEntry {
+                                binding: 0,
+                                resource: wgpu::BindingResource::TextureView(&color),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 1,
+                                resource: wgpu::BindingResource::Sampler(&sampler),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 2,
+                                resource: wgpu::BindingResource::TextureView(&material),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 3,
+                                resource: wgpu::BindingResource::TextureView(&light),
+                            },
+                        ],
+                    });
+                    *cached = Some((binding_key, bindings.clone()));
+                    bindings
+                }
+            };
+            bindings
         };
         let effects_mesh =
             self.effects
@@ -398,6 +419,108 @@ impl Renderer {
             contents: &data,
             usage: wgpu::BufferUsages::VERTEX,
         });
+        Ok(PreparedMesh {
+            vertices,
+            count: floats.len() as u32 / 15,
+            projection: super::scene::Projection::new(
+                (lo, hi),
+                w as i32,
+                h as i32,
+                job.yaw,
+                job.pitch,
+            ),
+            extent,
+            bindings,
+        })
+    }
+    #[cfg(feature = "native-render")]
+    pub(super) fn material_bindings(
+        &self,
+        device: &wgpu::Device,
+        maps: &[wgpu::TextureView; 3],
+    ) -> wgpu::BindGroup {
+        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            mag_filter: wgpu::FilterMode::Nearest,
+            min_filter: wgpu::FilterMode::Nearest,
+            ..Default::default()
+        });
+        device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("native geometry materials"),
+            layout: &self.pipeline.get_bind_group_layout(0),
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&maps[0]),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::TextureView(&maps[1]),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::TextureView(&maps[2]),
+                },
+            ],
+        })
+    }
+    pub(super) fn encode_mesh(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        view: &wgpu::TextureView,
+        depth_view: &wgpu::TextureView,
+        prepared: &PreparedMesh,
+        background: RGBA,
+    ) {
+        {
+            let bg = background;
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("MZ mesh preview"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: linear(bg[0]) as f64,
+                            g: linear(bg[1]) as f64,
+                            b: linear(bg[2]) as f64,
+                            a: bg[3] as f64 / 255.,
+                        }),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.),
+                        store: wgpu::StoreOp::Discard,
+                    }),
+                    stencil_ops: None,
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            pass.set_pipeline(&self.pipeline);
+            pass.set_bind_group(0, &prepared.bindings, &[]);
+            if prepared.count > 0 {
+                pass.set_vertex_buffer(0, prepared.vertices.slice(..));
+                pass.draw(0..prepared.count, 0..1);
+            }
+        }
+    }
+    pub fn render(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        job: &Job,
+    ) -> Result<TheRGBABuffer, String> {
+        let (w, h) = (job.width.max(16), job.height.max(16));
+        let prepared = self.prepare_mesh(device, queue, job, None)?;
         // Reuse large color/depth/readback allocations while the viewport size is stable.
         let mut storage = self
             .targets
@@ -418,43 +541,7 @@ impl Renderer {
             targets.stride,
         );
         let mut encoder = device.create_command_encoder(&Default::default());
-        {
-            let bg = job.background;
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("MZ mesh preview"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    depth_slice: None,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: linear(bg[0]) as f64,
-                            g: linear(bg[1]) as f64,
-                            b: linear(bg[2]) as f64,
-                            a: bg[3] as f64 / 255.,
-                        }),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &depth_view,
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(1.),
-                        store: wgpu::StoreOp::Discard,
-                    }),
-                    stencil_ops: None,
-                }),
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
-            pass.set_pipeline(&self.pipeline);
-            pass.set_bind_group(0, &bindings, &[]);
-            if !floats.is_empty() {
-                pass.set_vertex_buffer(0, vertices.slice(..));
-                pass.draw(0..floats.len() as u32 / 15, 0..1);
-            }
-        }
+        self.encode_mesh(&mut encoder, view, depth_view, &prepared, job.background);
         encoder.copy_texture_to_buffer(
             target.as_image_copy(),
             wgpu::TexelCopyBufferInfo {
@@ -488,13 +575,8 @@ impl Renderer {
         }
         drop(mapped);
         read.unmap();
-        let project = |p: [f32; 3]| {
-            let p = rotate(std::array::from_fn(|i| p[i] - center[i]));
-            [
-                (p[0] / (extent * aspect.max(1.)) * 0.5 + 0.5) * w as f32,
-                (0.5 - p[1] / (extent / aspect.min(1.)) * 0.5) * h as f32,
-            ]
-        };
+        let project = |p| prepared.projection.project(p);
+        let extent = prepared.extent;
         for (a, b) in &job.bones {
             let a = project(*a);
             let b = project(*b);

@@ -9,10 +9,21 @@ repository = "https://github.com/markusmoenig/Eldiron"
 homepage = "https://eldiron.com"
 keywords = ["game", "rpg", "creator", "engine", "eldiron"]
 readme = "README.md"
+default-run = "eldiron-creator"
 
 [[bin]]
 name = "eldiron-creator"
 path = "src/main.rs"
+
+[[bin]]
+name = "eldiron-creator-native"
+path = "src/bin/native_creator.rs"
+required-features = ["native-host"]
+
+[[example]]
+name = "reference_ui_capture"
+path = "examples/reference_ui_capture.rs"
+required-features = ["desktop"]
 
 [dependencies]
 renderkit = { path = "../crates/renderkit", optional = true }
@@ -86,6 +97,7 @@ crate-type = ["lib", "staticlib"]
 default = ["desktop"]
 desktop = ["theframework/winit_app"]
 native-ui = ["theframework/ui-paint"]
+native-host = ["native-render", "theframework/platform-winit", "theframework/desktop-dialogs"]
 native-render = ["native-ui", "theframework/render-wgpu", "dep:renderkit"]
 log = ["theframework/log"]
 self-update = ["dep:self_update"]

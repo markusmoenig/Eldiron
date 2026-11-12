@@ -78,6 +78,14 @@ impl FrameRequest {
         }
     }
 }
+/// Optional native window metadata. Surface/device reconstruction does not
+/// replay user window-move/resize callbacks or persist desktop preferences.
+#[derive(Clone, Debug, Default)]
+pub struct WindowConfiguration {
+    pub minimum_size: Option<(u32, u32)>,
+    pub position: Option<(i32, i32)>,
+    pub icon: Option<(Vec<u8>, u32, u32)>,
+}
 /// The native/browser/foreign-layer hosts all execute the same application contract.
 /// There is deliberately no callback receiving destination CPU pixels.
 pub trait GpuApplication {
@@ -87,6 +95,14 @@ pub trait GpuApplication {
     fn initial_size(&self) -> (u32, u32) {
         (1200, 700)
     }
+    fn window_configuration(&self) -> WindowConfiguration {
+        WindowConfiguration::default()
+    }
+    fn document_edited(&self) -> bool {
+        false
+    }
+    fn window_moved(&mut self, _position: (i32, i32), _host: &mut HostContext) {}
+    fn window_resized(&mut self, _host: &mut HostContext) {}
     fn initialize(&mut self, host: &mut HostContext, images: &mut ImageRegistry) -> Result<()>;
     /// CPU document/runtime/controllers belong to the application and survive.
     fn gpu_recreated(

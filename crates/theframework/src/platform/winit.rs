@@ -2,14 +2,14 @@
 use super::*;
 use ::winit::{
     application::ApplicationHandler,
-    dpi::{LogicalSize, PhysicalSize},
+    dpi::{LogicalSize, PhysicalPosition, PhysicalSize},
     event::{
         DeviceEvent, DeviceId, ElementState, Ime, MouseButton, MouseScrollDelta, TouchPhase,
         WindowEvent,
     },
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy},
     keyboard::{Key, KeyCode, NamedKey, PhysicalKey as WinitPhysical},
-    window::{Window, WindowId},
+    window::{Icon, Window, WindowId},
 };
 use renderkit::{RenderError, Result, SurfaceState};
 use std::sync::Arc;
@@ -30,6 +30,7 @@ struct WindowState {
     text_input: Option<TextInputState>,
     cursor: crate::thecontext::TheCursorIcon,
     visible: bool,
+    edited: bool,
 }
 struct Host {
     app: Box<dyn GpuApplication>,
@@ -72,8 +73,14 @@ impl Host {
             }),
             cursor: self.context.cursor,
             visible: self.context.cursor_visible,
+            edited: self.app.document_edited(),
         };
         let old = self.applied;
+        #[cfg(target_os = "macos")]
+        if old.is_none_or(|old| old.edited != state.edited) {
+            use ::winit::platform::macos::WindowExtMacOS;
+            window.set_document_edited(state.edited);
+        }
         let previous = self.ime.target();
         let changed = self
             .ime
@@ -196,9 +203,19 @@ impl ApplicationHandler<HostEvent> for Host {
         self.applied = None;
         if self.window.is_none() {
             let (size_x, size_y) = self.app.initial_size();
-            let attributes = Window::default_attributes()
+            let options = self.app.window_configuration();
+            let mut attributes = Window::default_attributes()
                 .with_title(self.app.title())
                 .with_inner_size(LogicalSize::new(size_x, size_y));
+            if let Some((w, h)) = options.minimum_size {
+                attributes = attributes.with_min_inner_size(LogicalSize::new(w, h));
+            }
+            if let Some((x, y)) = options.position {
+                attributes = attributes.with_position(PhysicalPosition::new(x, y));
+            }
+            if let Some((rgba, w, h)) = options.icon {
+                attributes = attributes.with_window_icon(Icon::from_rgba(rgba, w, h).ok());
+            }
             match event_loop.create_window(attributes) {
                 Ok(window) => {
                     #[cfg(target_arch = "wasm32")]
@@ -308,7 +325,18 @@ impl ApplicationHandler<HostEvent> for Host {
                     event_loop.exit();
                 }
             }
-            WindowEvent::Resized(size) => self.resize(size),
+            WindowEvent::Resized(size) => {
+                self.resize(size);
+                if self.initialized {
+                    self.app.window_resized(&mut self.context);
+                }
+            }
+            WindowEvent::Moved(position) => {
+                if self.initialized {
+                    self.app
+                        .window_moved((position.x, position.y), &mut self.context);
+                }
+            }
             WindowEvent::ScaleFactorChanged { .. } => {
                 if let Some(w) = &self.window {
                     self.resize(w.inner_size());
