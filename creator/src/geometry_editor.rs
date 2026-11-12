@@ -27,6 +27,8 @@ mod native_preview;
 #[cfg(feature = "native-render")]
 mod native_host;
 #[cfg(feature = "native-render")]
+mod native_thumbnails;
+#[cfg(feature = "native-render")]
 mod baked_preview;
 #[cfg(feature = "native-render")]
 pub(crate) use native_host::PreviewToken;
@@ -343,7 +345,7 @@ impl GeometryEditor {
     }
     pub fn reset(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
         #[cfg(feature = "native-render")]
-        self.native.invalidate();
+        {self.native.invalidate();self.native.thumbnails.clear();}
         self.active = false;
         self.viewport_visible = false;
         self.open_in_rig = false;
@@ -1504,7 +1506,13 @@ impl GeometryEditor {
                         .map(|(uri, _)| uri)
                         .chain(project.procedural_materials.keys().map(ToString::to_string))
                         .collect();
-                    let thumbnails = evaluation
+                    let native_cards = {
+                        #[cfg(feature = "native-render")] {self.native.enabled}
+                        #[cfg(not(feature = "native-render"))] {false}
+                    };
+                    #[cfg(feature = "native-render")]
+                    {self.native.thumbnail_palette=project.palette.clone();}
+                    let thumbnails = if native_cards {Vec::new()} else { evaluation
                         .operations
                         .iter()
                         .map(|(id, value)| {
@@ -1517,7 +1525,7 @@ impl GeometryEditor {
                                 ),
                             )
                         })
-                        .collect::<Vec<_>>();
+                        .collect::<Vec<_>>() };
                     if let Some(w) = ui
                         .get_widget(EDITOR)
                         .and_then(|w| w.as_any().downcast_mut::<MaterialEditorWidget>())

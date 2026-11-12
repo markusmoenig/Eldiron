@@ -71,6 +71,8 @@ pub(super) struct Host {
     pub baked: Option<baked_preview::Request>,
     pub waiting: bool,
     pub error: Option<String>,
+    pub thumbnails: super::native_thumbnails::Cache,
+    pub thumbnail_palette: ThePalette,
     owner: u64,
     serial: u64,
     registry: Option<u64>,
@@ -89,6 +91,8 @@ impl Default for Host {
             baked: None,
             waiting: false,
             error: None,
+            thumbnails: Default::default(),
+            thumbnail_palette: Default::default(),
             owner: theframework::paint::new_receipt_owner(),
             serial: 0,
             registry: None,
@@ -154,6 +158,59 @@ impl GeometryEditor {
         }
     }
     pub(crate) fn prepare_gpu_preview(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        images: &mut ImageRegistry,
+    ) -> Result<Option<PreviewToken>, String> {
+        let visible = self.native.enabled
+            && self.active
+            && ui
+                .get_stack_layout("Sidebar Page Stack")
+                .is_none_or(|s| s.index() == crate::procedural_material::SIDEBAR_PAGE)
+            && ui
+                .get_stack_layout(super::STACK)
+                .is_none_or(|stack| stack.index() == 1);
+        let keys = ui
+            .get_widget(EDITOR)
+            .and_then(|w| w.as_any().downcast_mut::<MaterialEditorWidget>())
+            .filter(|_| visible)
+            .map(|w| w.visible_thumbnail_keys())
+            .unwrap_or_default();
+        let output = match self.native.thumbnails.prepare(
+            images,
+            self.key.as_deref(),
+            self.evaluation.as_ref(),
+            &self.native.thumbnail_palette,
+            ui.style.theme().as_ref(),
+            &mut ctx.text,
+            &keys,
+        ) {
+            Ok(output) => output,
+            Err(error) => {
+                if let Some(widget) = ui
+                    .get_widget(EDITOR)
+                    .and_then(|w| w.as_any().downcast_mut::<MaterialEditorWidget>())
+                {
+                    widget.set_native_thumbnails(Default::default());
+                }
+                return Err(error);
+            }
+        };
+        if let Some(widget) = ui
+            .get_widget(EDITOR)
+            .and_then(|w| w.as_any().downcast_mut::<MaterialEditorWidget>())
+        {
+            widget.set_native_thumbnails(output.handles);
+        }
+        for error in output.errors {
+            Self::status(ctx, error);
+        }
+        let result = self.prepare_gpu_view(ui, ctx, images);
+        self.native.waiting |= output.waiting;
+        result
+    }
+    fn prepare_gpu_view(
         &mut self,
         ui: &mut TheUI,
         ctx: &mut TheContext,
@@ -738,6 +795,18 @@ mod tests {
             .paint_commands(&mut ctx, &mut cache.frame(&mut images))
             .unwrap();
         assert!(list.receipts().any(|receipt| receipt == token.receipt()));
+        let cards = editor.native.thumbnails.handles();
+        assert!(
+            !cards.is_empty(),
+            "the real geometry graph publishes GPU inspection cards"
+        );
+        let painted = list
+            .image_handles()
+            .collect::<std::collections::HashSet<_>>();
+        assert!(
+            cards.values().all(|handle| painted.contains(handle)),
+            "the root must consume the GPU card handles"
+        );
         let mut tokens = crate::editor::native_views::NativeViewTokens {
             geometry: Some(token),
             appearance: None,

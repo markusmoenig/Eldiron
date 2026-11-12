@@ -2490,3 +2490,107 @@ images and exports remain legitimate CPU assets. Main Creator world/tool/HUD/
 Play/document/global ownership, browser/Creator Apple wrappers, text/background
 visual differences and full M0 release/platform/resource/retirement gates remain
 open. Continue across them; the overall M0–M9 Goal is not complete.
+
+## Geometry operation-card conversion (after 9117681e, in progress)
+
+The native geometry CPU update now retains its palette source and omits
+`presentation::thumbnail` pixel allocation. `native_thumbnails` builds immutable
+vertex/vector descriptions from existing CPU Value data and publishes 64px GPU
+images through the same opaque-handle MaterialEditorWidget bridge. Mesh cards
+use a real depth-tested GPU pass with the existing projection and encoded palette
+shade; palette swatches preserve raw RGBA/alpha without blending into a CPU
+thumbnail. Contours, grips, rigs and motions use the common vector painter.
+The cache advances one visible operation per frame, handles source/theme/domain
+changes, retires hidden cards and bounds visible RGBA output at 128 MiB. Required
+source evaluation remains CPU-owned; no project schema changed.
+
+The first all-native geometry regression suite passes **9 cases**, 4.60 s:
+`/private/tmp/eldiron-native-geometry-thumbnails-regression.log`. The new card test
+covers every Value family, exact initial mesh/material pixels, and bidirectional
+vector-feature coverage within two source pixels for antialiasing differences.
+`/private/tmp/eldiron-native-geometry-thumbnail-pairs.png` was visually inspected
+(reference left/native right): the silhouette/projection/swatches and line/circle
+features match; the vector edges have the expected common-renderer antialiasing.
+No full Creator or all-model visual acceptance is implied.
+
+Current expanded test adds full assembled Sword/Human meshes and a cache-lifetime
+matrix (unchanged/source switch, retained immutable outputs, hidden/reopen/reset,
+theme and actual device/registry replacement). It is running in
+`/private/tmp/eldiron-native-geometry-thumbnails-expanded.log`. Initial compilation
+needed WGPU 29 optional depth fields, render-pass multiview metadata, an explicit
+paint Rect import, and the actual TransferCounters test type. The initial
+reference fixtures lacked a rig, so explicit valid Rig/Motion values now cover
+those branches. No comparisons are waived; inspect expanded results before
+checkpointing. The native Creator/reference/platform/build matrix must run after
+this integration, and actual root painting should assert the new graph handles.
+Then continue main world/tool/HUD/Play/document/global ownership and all other
+remaining M0–M9 gates; the overall Goal remains active.
+
+### Assembled geometry-card depth correction and workspace guards
+
+The expanded comparison exposed one real assembled-mesh pixel discrepancy
+(native gray 113 versus reference 111). Preserving pixel-space projection
+rounding alone did not fix it. Replaced the normalized hardware-depth thumbnail
+pass with a small tiled GPU raster pass: CPU preparation bins triangle bounds
+into 8px tiles; each GPU lane evaluates one 64px-card output pixel in original
+triangle order with raw f32 depth. This preserves the independent reference's
+coplanar ordering without CPU pixel rasterization or color readback. Triangle
+sources are limited to one million vertices and bin references to 32 MiB,
+separately from the provisional 128 MiB immutable output limit. Those are safety
+bounds, not measured M0 release acceptance budgets.
+
+The expanded exact mesh/material and vector-coverage test now passes (0.57 s,
+`/private/tmp/eldiron-native-geometry-thumbnails-raw-depth.log`), including full
+assembled Sword and Human mesh outputs. No tolerance was added to the failed
+mesh comparison. The updated paired capture
+`/private/tmp/eldiron-native-geometry-thumbnail-pairs.png` was visually inspected:
+assembled models, palette swatches, projection and depth match; vector edges
+retain the expected reviewed common-painter antialiasing.
+
+Also tied native material/geometry graph residency to the actual Materials/Meshes
+workspace stack. Hidden sibling cards retire their GPU handles. Native material
+worker initialization now distinguishes visible editing from stale authored
+bakes; selecting the Meshes page alone must not initialize a material display
+worker. Required background asset bakes remain eligible. Palette snapshots are
+CPU source state retained across GPU replacement. The actual geometry root-paint
+fixture now asserts that it consumes native card handles. An early cache error
+clears widget handles to avoid painting revoked resources.
+
+The final affected matrix, including ordinary geometry controls, material
+controls/GPU cases, all native geometry/cache cases, appearance/common paint/
+framework, isolated Creator root and reference/native/apps/browser-player/iOS/
+dependency boundaries, is running:
+`/private/tmp/eldiron-native-geometry-thumbnails-matrix-results.log`.
+Inspect and fix all results before checkpointing; full M0–M9 acceptance remains
+open. The original `concepts/networking-mmo-concept.md` remains untracked and is
+excluded from every rewrite checkpoint.
+
+### Geometry GPU-card checkpoint verification
+
+The final affected matrix passes completely:
+`/private/tmp/eldiron-native-geometry-thumbnails-matrix-results.log`:
+52 ordinary geometry cases (19 ignored, 18.65 s), 36 material controls,
+10 native geometry cases (4.67 s), 10 native material cases, common paint GPU,
+appearance, framework/detached-layer, isolated Creator root, linked native
+binary, all four apps, browser players, iOS-simulator player, 11 boundaries and
+diff validation. The geometry root test proves actual consumption of GPU card
+handles. Full assembled Sword/Human mesh and material swatch pixels remain exact;
+vector coverage and paired captures retain the explicit antialiasing policy.
+
+The strengthened material fixture proves that a fully baked material hidden by
+the Meshes page retires card outputs and initializes no worker (2.74 s,
+`/private/tmp/eldiron-native-material-mesh-sibling-worker-final.log`).
+`material_canvas()` already contains the full Materials/Meshes workspace; a
+brief duplicate wrapper in the test was removed, and the final capture has one
+navigation bar. The fixture helper and production composition remain unchanged.
+
+Integration review identified a separate remaining shared-compositor issue:
+normalized CPU images filter linear premultiplied texels, while raw GPU SRGB/
+straight-alpha images currently use hardware filtering before decode/premultiply.
+The new card sources retain exact raw pixels, so scaled graph composition must
+also normalize before filtering. Add an actual raw-GPU-source compositor
+regression and correct that shared sampling path next; do not claim complete
+scaled/translucent graph parity from the source-pixel tests alone. This is
+available implementation work, not a blocker or reason to stop the full Goal.
+Main world/tool/HUD/Play/document/global, platform/full visual/resource/release
+and retirement acceptance still remain open.

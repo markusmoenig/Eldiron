@@ -2295,7 +2295,9 @@ impl ProceduralMaterialEditor {
                     .collect();
                 self.bake_keys_revision = Some(bake_revision);
             }
-            let needs_worker = self.tile.is_some()
+            let editing = self.tile.is_some() && (!self.native_preview_enabled()
+                || (self.active && ui.get_stack_layout(crate::geometry_editor::STACK).is_none_or(|stack|stack.index()==0)));
+            let needs_worker = editing
                 || self.bake_keys.iter().any(|(id, key)| {
                     project.tiles.contains_key(id)
                         && !project.isometric_bakes.contains_key(id)

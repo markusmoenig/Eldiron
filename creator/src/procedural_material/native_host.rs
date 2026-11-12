@@ -440,8 +440,15 @@ impl ProceduralMaterialEditor {
                 let _ = view.set_paint_list(None);
             }
         }
+        let graph_visible = self.active
+            && ui
+                .get_stack_layout("Sidebar Page Stack")
+                .is_none_or(|stack| stack.index() == SIDEBAR_PAGE)
+            && ui
+                .get_stack_layout(crate::geometry_editor::STACK)
+                .is_none_or(|stack| stack.index() == 0);
         #[cfg(not(target_arch = "wasm32"))]
-        if (self.active || self.native.needs_asset_worker)
+        if ((graph_visible && self.tile.is_some()) || self.native.needs_asset_worker)
             && self.native.worker_generation != Some(images.context().generation())
         {
             self.worker = Some(gpu::Worker::new_asset_bakes(
@@ -452,10 +459,6 @@ impl ProceduralMaterialEditor {
             self.native.asset_job_pending = true;
             self.requested.clear();
         }
-        let graph_visible = self.active
-            && ui
-                .get_stack_layout("Sidebar Page Stack")
-                .is_none_or(|stack| stack.index() == SIDEBAR_PAGE);
         let keys = ui
             .get_widget(EDITOR)
             .and_then(|w| w.as_any().downcast_mut::<MaterialEditorWidget>())
@@ -759,6 +762,35 @@ mod tests {
         ui.get_stack_layout(PREVIEW_STACK).unwrap().set_index(1);
         let reopened = complete(&mut host, &mut ui, &mut ctx, &mut replacement);
         assert!(host.presented_gpu_preview(reopened));
+        let current = host.native.displayed.as_ref().unwrap().image;
+        ui.get_stack_layout(crate::geometry_editor::STACK)
+            .unwrap()
+            .set_index(1);
+        host.worker = None;
+        host.native.worker_generation = None;
+        host.update(&mut ui, &mut ctx, &mut project, &mut server);
+        assert!(
+            !host.native.needs_asset_worker,
+            "a fully baked hidden material requests no worker"
+        );
+        assert!(
+            host.prepare_gpu_preview(&mut ui, &mut ctx, &mut replacement, 0)
+                .is_none()
+        );
+        assert!(
+            host.worker.is_none(),
+            "opening the Meshes sibling must not initialize a material worker"
+        );
+        assert!(
+            host.native.thumbnails.handles().is_empty(),
+            "the sibling Meshes page must retire hidden material card outputs"
+        );
+        assert!(replacement.get(current).is_none());
+        ui.get_stack_layout(crate::geometry_editor::STACK)
+            .unwrap()
+            .set_index(0);
+        let restored = complete(&mut host, &mut ui, &mut ctx, &mut replacement);
+        assert!(host.presented_gpu_preview(restored));
         let current = host.native.displayed.as_ref().unwrap().image;
         host.reset(&mut ui, &mut ctx);
         assert!(
