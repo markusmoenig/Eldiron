@@ -46,6 +46,8 @@ impl GameScreenController {
         if self.font_version != Some(fonts.version()) {
             return Err("Prepare screen layouts after changing their font owner".into());
         }
+        self.hud
+            .validate_prepared(world, self.elements.layout.viewport)?;
         // Scene preparation updates each view's camera. Reproject retained
         // overlays against those cameras before painting; unchanged text reuses
         // its shaped layout. Input uses the last prepared display geometry.
@@ -269,15 +271,27 @@ impl GameScreenController {
                 p.border(widget.rect.with_border(1.), 1., widget.label_color);
             }
         }
-        let mut choices = ordered(&model.choice_widgets);
-        if let Some(index) = choices
-            .iter()
-            .position(|id| Some(*id) == self.choice_controller.open_id())
+        let open_choice = self.choice_controller.open_id();
+        for id in ordered(&model.choice_widgets)
+            .into_iter()
+            .filter(|id| Some(*id) != open_choice)
         {
-            let id = choices.remove(index);
-            choices.push(id);
+            let widget = &model.choice_widgets[&id];
+            if !hidden(&widget.name) {
+                p.choice(widget, self.cursor);
+                if self.focus == Some(ScreenFocus::Choice(id)) {
+                    p.border(widget.rect.with_border(1.), 1., widget.indicator_color);
+                }
+            }
         }
-        for id in choices {
+        self.hud.paint(
+            &mut p,
+            world,
+            self.revision.unwrap(),
+            self.animation_frame,
+            self.cursor,
+        )?;
+        if let Some(id) = open_choice {
             let widget = &model.choice_widgets[&id];
             if !hidden(&widget.name) {
                 p.choice(widget, self.cursor);

@@ -7,6 +7,8 @@ mod focus;
 mod fonts;
 pub use commands::{ScreenActivation, ScreenEffect};
 pub use focus::{ScreenCapture, ScreenFocus};
+mod hud;
+pub use hud::{HudControlId, HudPanelId, HudPart};
 mod input;
 mod keyboard;
 mod router;
@@ -54,6 +56,7 @@ struct ScreenGeometry {
 
 pub struct GameScreenController {
     session: Uuid,
+    hud: hud::Hud,
     pointer_visuals: cursor::PointerVisuals,
     world: world_pointer::WorldPointer,
     pub speech: SpeechOverlay,
@@ -155,6 +158,7 @@ impl GameScreenController {
     fn with_elements(name: &str, world: &RuntimeView<'_>, elements: ScreenElements) -> Self {
         Self {
             session: world.session_id,
+            hud: Default::default(),
             pointer_visuals: Default::default(),
             world: world_pointer::WorldPointer::default(),
             speech: SpeechOverlay::default(),
@@ -197,6 +201,7 @@ impl GameScreenController {
             return false;
         }
         self.session = world.session_id;
+        self.hud = Default::default();
         self.pointer_visuals = Default::default();
         self.speech.bind_runtime(world);
         self.world_texts.bind_runtime(world);
@@ -235,6 +240,8 @@ impl GameScreenController {
     /// again; the application can also deliver it to audio/world-text consumers.
     pub fn receive(&mut self, world: &RuntimeView<'_>, events: &RegionEvents) {
         self.bind_runtime(world);
+        self.hud
+            .receive(world, events, self.elements.layout.viewport);
         self.speech.receive(world, events);
         self.world_texts.receive(world, events);
         let map = world.map.unwrap_or(&self.empty_map);
@@ -418,6 +425,14 @@ impl GameScreenController {
                 }
             }
         }
+        self.hud.prepare(
+            world,
+            self.elements.layout.viewport,
+            fonts,
+            &mut self.sources,
+            revision,
+            animation_frame,
+        )?;
         self.prepare_inputs(fonts);
         self.prepare_focus(fonts);
         for widget in self.elements.deco_widgets.values_mut() {

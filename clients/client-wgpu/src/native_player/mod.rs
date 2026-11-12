@@ -28,7 +28,8 @@ pub use viewport::ScreenViewport;
 
 /// The assembled host supplies platform/output services. Batches are borrowed
 /// exactly once after the active screen has received its messages/choices.
-/// Audio, world text and container consumers must not drain the server again.
+/// The active HUD consumes container requests before service fan-out. Other
+/// consumers must not drain the server again; addressed batches remain borrowed.
 pub trait PlayerServices {
     fn update(&mut self, _world: &RuntimeView<'_>, _revision: u64, _elapsed: Duration) {}
     fn user_gesture(&mut self, _world: &RuntimeView<'_>, _revision: u64) {}
@@ -275,6 +276,12 @@ impl PlayerApplication {
     }
     fn apply(&mut self, effects: Vec<ScreenEffect>) -> std::result::Result<(), String> {
         for effect in effects {
+            if self
+                .screen
+                .handle_hud_effect(&self.player.runtime.view(), &effect)
+            {
+                continue;
+            }
             match effect {
                 ScreenEffect::Action(action) => self.player.submit_action(action)?,
                 ScreenEffect::Command(ClientCommandBinding::Game(command)) => {
@@ -467,7 +474,12 @@ impl PlayerApplication {
             if current == Some(id) {
                 self.screen.receive(&world, &events);
             }
-            self.services.region_events(id, &world, events.outputs());
+            let outputs = if current == Some(id) {
+                events.outputs().without_containers()
+            } else {
+                events.outputs()
+            };
+            self.services.region_events(id, &world, outputs);
         }
         self.sync_host(host)
     }

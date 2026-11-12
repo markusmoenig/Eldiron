@@ -9,11 +9,11 @@ use rusterix::{
 use scenevm::prelude::{Vec2, Vec3};
 use theframework::platform::{InputEvent, PhysicalKey, PointerButton};
 mod item_pointer;
-pub(super) use item_pointer::ItemReceipt;
+pub(super) use item_pointer::{ItemControl, ItemReceipt};
 mod mouse_look;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-struct Binding {
+pub(super) struct Binding {
     session: Uuid,
     region: Uuid,
     revision: ContentRevision,
@@ -50,10 +50,11 @@ struct ViewFrame {
     projection: Projection,
     look: Option<mouse_look::LookSettings>,
 }
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 enum DropOwner {
     Button(u32),
     Profile(Uuid),
+    Hud(super::hud::HudControlId),
 }
 #[derive(Clone, PartialEq)]
 struct DropTarget {
@@ -249,7 +250,11 @@ impl GameScreenController {
         button: u32,
         point: [f32; 2],
     ) -> Option<ScreenInputResponse> {
-        item_pointer::begin(self, world, button, point)
+        let widget = self.elements.button_widgets.get(&button)?;
+        if !widget.drag_drop || widget.inventory_index.is_none() && widget.equipped_slot.is_none() {
+            return None;
+        }
+        item_pointer::begin(self, world, ItemControl::Button(button), point)
     }
     pub(super) fn captured_item_input(
         &mut self,
@@ -384,16 +389,16 @@ impl GameScreenController {
     pub(super) fn world_capture_owner(&self) -> Option<ScreenCapture> {
         self.world.owner()
     }
-    fn pointer_modal(&self) -> bool {
+    pub(super) fn pointer_modal(&self) -> bool {
         self.choice_controller.open_id().is_some() || self.message_blocks_input()
     }
-    fn pointer_occluders(&self) -> Vec<Uv> {
-        self.pointer_controls()
+    fn pointer_occluders(&self, world: &RuntimeView<'_>) -> Vec<Uv> {
+        self.pointer_controls(world)
             .into_iter()
             .map(|control| control.rect)
             .collect()
     }
-    fn pointer_controls(&self) -> Vec<UiControl> {
+    fn pointer_controls(&self, world: &RuntimeView<'_>) -> Vec<UiControl> {
         let model = &self.elements;
         let mut controls = self
             .world_texts
@@ -430,12 +435,34 @@ impl GameScreenController {
             add(&widget.name, widget.rect, Some(DropOwner::Button(id)));
         }
         for id in ordered(&model.choice_widgets) {
+            if self.choice_controller.open_id() != Some(id) {
+                let widget = &model.choice_widgets[&id];
+                add(&widget.name, widget.rect, None);
+            }
+        }
+        if let Some(hud) = self.hud.current(world, model.layout.viewport) {
+            controls.extend(hud.controls().into_iter().map(|(id, bounds)| UiControl {
+                owner: Some(DropOwner::Hud(id)),
+                rect: rect(bounds),
+            }));
+        }
+        if let Some(id) = self.choice_controller.open_id() {
             let widget = &model.choice_widgets[&id];
-            add(&widget.name, widget.rect, None);
+            if !screen_model::widget_name_is_hidden(&widget.name, &model.widgets_to_hide)
+                && visible_control_rect(model, widget.rect)
+            {
+                controls.push(UiControl {
+                    owner: None,
+                    rect: rect(widget.rect),
+                });
+            }
         }
         controls
     }
-    fn pointer_drops(&self, map: &Map) -> Vec<DropTarget> {
+    fn pointer_drops(&self, world: &RuntimeView<'_>) -> Vec<DropTarget> {
+        let Some(map) = world.map else {
+            return Vec::new();
+        };
         let mut targets = Vec::new();
         for id in ordered(&self.elements.profile_widgets) {
             let w = &self.elements.profile_widgets[&id];
@@ -477,6 +504,25 @@ impl GameScreenController {
                 });
             }
         }
+        if let Some(hud) = self.hud.current(world, self.elements.layout.viewport) {
+            targets.extend(
+                hud.controls()
+                    .into_iter()
+                    .filter(|(id, _)| {
+                        matches!(
+                            id.part,
+                            super::hud::HudPart::Body | super::hud::HudPart::Slot(_)
+                        )
+                    })
+                    .map(|(id, bounds)| DropTarget {
+                        source: DropOwner::Hud(id),
+                        rect: bounds,
+                        destination: rusterix::item_interaction::ItemDestination::Container(
+                            hud.source(),
+                        ),
+                    }),
+            );
+        }
         targets
     }
     pub(super) fn begin_world_frame(&mut self, world: &RuntimeView<'_>) -> Result<(), String> {
@@ -488,12 +534,12 @@ impl GameScreenController {
                     binding,
                     views: Vec::new(),
                     cells: None,
-                    occluders: self.pointer_occluders(),
-                    drops: self.pointer_drops(world.map.unwrap()),
+                    occluders: self.pointer_occluders(world),
+                    drops: self.pointer_drops(world),
                     modal: self.pointer_modal(),
                     immediate,
-                    items: self.item_slots(world.map.unwrap()),
-                    controls: self.pointer_controls(),
+                    items: self.item_slots(world),
+                    controls: self.pointer_controls(world),
                 },
             )
         } else {
@@ -518,17 +564,17 @@ impl GameScreenController {
             self.world.staged = None;
             return;
         }
-        let occluders = self.pointer_occluders();
+        let occluders = self.pointer_occluders(world);
         let drops = world
             .map
-            .map(|map| self.pointer_drops(map))
+            .map(|_| self.pointer_drops(world))
             .unwrap_or_default();
         let modal = self.pointer_modal();
         let items = world
             .map
-            .map(|map| self.item_slots(map))
+            .map(|_| self.item_slots(world))
             .unwrap_or_default();
-        let controls = self.pointer_controls();
+        let controls = self.pointer_controls(world);
         let frame = self.world.staged.as_mut().unwrap();
         frame.occluders = occluders;
         frame.drops = drops;
@@ -570,7 +616,7 @@ impl GameScreenController {
             || frame
                 .occluders
                 .iter()
-                .chain(self.pointer_occluders().iter())
+                .chain(self.pointer_occluders(world).iter())
                 .any(|r| r.contains(point))
         {
             return Err(Query::Outside);
@@ -716,7 +762,12 @@ impl GameScreenController {
                         )
                 })
     }
-    fn click_release_visible(&self, capture: &Capture, point: [f32; 2]) -> bool {
+    fn click_release_visible(
+        &self,
+        world: &RuntimeView<'_>,
+        capture: &Capture,
+        point: [f32; 2],
+    ) -> bool {
         let Some(frame) = &self.world.displayed else {
             return false;
         };
@@ -733,7 +784,7 @@ impl GameScreenController {
             && !frame
                 .occluders
                 .iter()
-                .chain(self.pointer_occluders().iter())
+                .chain(self.pointer_occluders(world).iter())
                 .any(|r| r.contains(point))
     }
     fn release_world_drag(
@@ -871,7 +922,7 @@ impl GameScreenController {
                             .into_iter()
                             .collect()
                     } else if self.world_source_current(&capture)
-                        && self.click_release_visible(&capture, point)
+                        && self.click_release_visible(world, &capture, point)
                     {
                         world_interaction::click(
                             world.map.unwrap(),
@@ -982,3 +1033,56 @@ impl GameScreenController {
 
 #[cfg(test)]
 mod tests;
+
+impl GameScreenController {
+    pub(super) fn hud_frame_valid(
+        &self,
+        world: &RuntimeView<'_>,
+        id: super::hud::HudControlId,
+        bounds: Rect,
+    ) -> bool {
+        self.ui_frame_matches(world)
+            && !self.pointer_modal()
+            && self.world.displayed.as_ref().is_some_and(|frame| {
+                !frame.modal
+                    && frame.controls.iter().any(|control| {
+                        control.owner == Some(DropOwner::Hud(id)) && control.rect == rect(bounds)
+                    })
+            })
+            && self.pointer_controls(world).iter().any(|control| {
+                control.owner == Some(DropOwner::Hud(id)) && control.rect == rect(bounds)
+            })
+    }
+    pub(super) fn hud_item_begin(
+        &mut self,
+        world: &RuntimeView<'_>,
+        id: super::hud::HudControlId,
+        point: [f32; 2],
+    ) -> Option<ScreenInputResponse> {
+        item_pointer::begin(self, world, ItemControl::Hud(id), point)
+    }
+    pub(super) fn hud_item_receipt(
+        &self,
+        world: &RuntimeView<'_>,
+        id: super::hud::HudControlId,
+    ) -> Result<Option<Arc<ItemReceipt>>, ()> {
+        item_pointer::receipt_for_control(self, world, ItemControl::Hud(id), None)
+    }
+    pub(super) fn hud_item_activate(
+        &self,
+        world: &RuntimeView<'_>,
+        receipt: &ItemReceipt,
+    ) -> Vec<ScreenEffect> {
+        item_pointer::activate_hud_receipt(self, world, receipt)
+    }
+}
+
+impl GameScreenController {
+    pub(super) fn hud_binding(&self, world: &RuntimeView<'_>) -> Option<Binding> {
+        self.ui_frame_matches(world)
+            .then(|| self.world.displayed.as_ref().unwrap().binding)
+    }
+    pub(super) fn hud_capture_valid(&self, world: &RuntimeView<'_>, binding: Binding) -> bool {
+        self.hud_binding(world) == Some(binding) && !self.pointer_modal()
+    }
+}

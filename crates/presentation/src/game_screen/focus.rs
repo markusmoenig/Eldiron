@@ -21,6 +21,7 @@ impl ScreenFocus {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ScreenCapture {
     World(Uuid),
+    Hud(super::hud::HudControlId),
     Text(TextInputTarget),
     Button(u32),
     Choice(u32),
@@ -55,6 +56,7 @@ impl GameScreenController {
         }
     }
     pub fn focus_control(&mut self, fonts: &mut GameFonts, focus: Option<ScreenFocus>) {
+        self.hud.clear_focus();
         let focus = focus.filter(|target| self.focus_visible(*target));
         if self.focus != focus {
             self.cancel_item_pointer();
@@ -180,6 +182,12 @@ impl GameScreenController {
     /// A stable owner stamp lets an application stop held input on a programmatic
     /// focus/capture change without resending Off on ordinary frame/layout work.
     pub fn control_capture(&self) -> Option<ScreenCapture> {
+        if matches!(self.pointer_capture, Some(PointerCapture::Item(_))) {
+            return self.world_capture_owner();
+        }
+        if let Some(owner) = self.hud.owner() {
+            return Some(owner);
+        }
         if let Some(capture) = self.keyboard_capture.as_ref() {
             return Some(if capture.cancelled {
                 ScreenCapture::Cancelled
@@ -188,13 +196,10 @@ impl GameScreenController {
             });
         }
         match self.pointer_capture.as_ref() {
-            Some(
-                PointerCapture::Button(id, _)
-                | PointerCapture::HeldButton(id)
-                | PointerCapture::Item(id),
-            ) => {
+            Some(PointerCapture::Button(id, _) | PointerCapture::HeldButton(id)) => {
                 return Some(ScreenCapture::Button(*id));
             }
+            Some(PointerCapture::Item(control)) => return Some(control.capture()),
             Some(PointerCapture::Choice(id)) => return Some(ScreenCapture::Choice(*id)),
             Some(PointerCapture::Message(id)) => return Some(ScreenCapture::Message(*id)),
             Some(PointerCapture::Cancelled) => return Some(ScreenCapture::Cancelled),

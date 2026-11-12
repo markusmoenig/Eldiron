@@ -5,7 +5,7 @@ use theframework::platform::{InputEvent, InputResponse, PointerButton};
 
 #[derive(Clone, Debug)]
 pub(super) enum PointerCapture {
-    Item(u32),
+    Item(world_pointer::ItemControl),
     Button(u32, Option<Arc<world_pointer::ItemReceipt>>),
     HeldButton(u32),
     Text,
@@ -94,6 +94,9 @@ impl GameScreenController {
             }
         }
         if let Some(response) = self.captured_item_input(world, None, event) {
+            return Ok(response);
+        }
+        if let Some(response) = self.hud_input(world, fonts, event) {
             return Ok(response);
         }
         if matches!(event, InputEvent::Focus(false)) {

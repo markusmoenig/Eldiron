@@ -60,6 +60,12 @@ pub struct RegionOutputs<'a> {
     pub containers: &'a [OpenContainerRequest],
 }
 impl<'a> RegionOutputs<'a> {
+    pub fn without_containers(self) -> Self {
+        Self {
+            containers: &[],
+            ..self
+        }
+    }
     pub fn without_audio(self) -> Self {
         Self { audio: &[], ..self }
     }
@@ -116,9 +122,17 @@ mod tests {
         let events = RegionEvents {
             messages: vec![(None, None, 7, "Hello".into(), "status".into())],
             audio: vec![AudioCommand::ClearAll],
+            containers: vec![(7, None)],
             ..Default::default()
         };
         let outputs = events.outputs();
+        let without_containers = outputs.without_containers();
+        assert!(without_containers.containers.is_empty());
+        assert_eq!(outputs.containers, &[(7, None)]);
+        assert!(std::ptr::eq(
+            without_containers.audio.as_ptr(),
+            outputs.audio.as_ptr()
+        ));
         let other = outputs.without_audio();
         assert_eq!(outputs.audio.len(), 1);
         assert!(other.audio.is_empty());

@@ -2,6 +2,7 @@ use super::*;
 use eldiron_runtime::{GameSession, Project};
 use rusterix::{Entity, Item, Value, client::widget::Widget};
 mod cursor;
+mod hud;
 mod item_pointer;
 mod mouse_look;
 fn actor(id: u32, x: f32, z: f32) -> Entity {

@@ -61,6 +61,7 @@ struct Observation {
     batches: usize,
     messages: usize,
     audio_forwarded: usize,
+    containers_forwarded: usize,
     effects: Vec<ScreenEffect>,
 }
 struct Services(Arc<Mutex<Observation>>);
@@ -70,6 +71,7 @@ impl PlayerServices for Services {
         o.batches += 1;
         o.messages += events.messages.len();
         o.audio_forwarded += events.audio.len();
+        o.containers_forwarded += events.containers.len();
     }
     fn screen_effect(
         &mut self,
@@ -1104,3 +1106,6 @@ fn capture(gpu: &GpuContext, target: Arc<GpuImage>, path: &str) {
         .write_image_data(&pixels)
         .unwrap();
 }
+
+#[path = "tests/container.rs"]
+mod container;

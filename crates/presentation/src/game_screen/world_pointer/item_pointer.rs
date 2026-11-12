@@ -4,9 +4,28 @@ use super::*;
 use crate::game_screen::router::PointerCapture;
 use rusterix::item_interaction::{self, ItemClick, ItemDestination, ItemRef, ItemSource};
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::game_screen) enum ItemControl {
+    Button(u32),
+    Hud(super::super::hud::HudControlId),
+}
+impl ItemControl {
+    fn drop_owner(self) -> DropOwner {
+        match self {
+            Self::Button(id) => DropOwner::Button(id),
+            Self::Hud(id) => DropOwner::Hud(id),
+        }
+    }
+    pub(in crate::game_screen) fn capture(self) -> ScreenCapture {
+        match self {
+            Self::Button(id) => ScreenCapture::Button(id),
+            Self::Hud(id) => ScreenCapture::Hud(id),
+        }
+    }
+}
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct ItemSlot {
-    button: u32,
+    control: ItemControl,
     rect: Rect,
     source: ItemSource,
     index: Option<usize>,
@@ -37,13 +56,16 @@ impl ItemCapture {
         if self.cancelled {
             ScreenCapture::Cancelled
         } else {
-            ScreenCapture::Button(self.slot.button)
+            self.slot.control.capture()
         }
     }
 }
 impl GameScreenController {
-    pub(super) fn item_slots(&self, map: &Map) -> Vec<ItemSlot> {
-        screen_model::ordered_button_ids(&self.elements.button_widgets)
+    pub(super) fn item_slots(&self, world: &RuntimeView<'_>) -> Vec<ItemSlot> {
+        let Some(map) = world.map else {
+            return Vec::new();
+        };
+        let mut slots: Vec<_> = screen_model::ordered_button_ids(&self.elements.button_widgets)
             .into_iter()
             .filter_map(|id| {
                 let widget = &self.elements.button_widgets[&id];
@@ -59,7 +81,7 @@ impl GameScreenController {
                     actor.get_equipped_item(widget.equipped_slot.as_deref()?)?
                 };
                 Some(ItemSlot {
-                    button: id,
+                    control: ItemControl::Button(id),
                     rect: widget.rect,
                     source: ItemSource::Direct(ItemRef {
                         item: item.id,
@@ -70,7 +92,22 @@ impl GameScreenController {
                     drag_drop: widget.drag_drop,
                 })
             })
-            .collect()
+            .collect();
+        if let Some(frame) = self.hud.current(world, self.elements.layout.viewport) {
+            slots.extend(frame.slots.iter().filter_map(|slot| {
+                Some(ItemSlot {
+                    control: ItemControl::Hud(
+                        frame.control(super::super::hud::HudPart::Slot(slot.index)),
+                    ),
+                    rect: slot.hit,
+                    source: slot.source?,
+                    index: Some(slot.index),
+                    slot: None,
+                    drag_drop: true,
+                })
+            }));
+        }
+        slots
     }
     fn item_source_current(&self, world: &RuntimeView<'_>, capture: &ItemCapture) -> bool {
         !capture.cancelled
@@ -94,7 +131,7 @@ impl GameScreenController {
                 frame.binding == binding && !frame.modal && frame.items.contains(slot)
             })
             && world.map.is_some_and(|map| {
-                self.item_slots(map).contains(slot) && slot.source.resolve(map).is_some()
+                self.item_slots(world).contains(slot) && slot.source.resolve(map).is_some()
             })
             && screen_model::selected_intent(
                 &self.elements.activated_widgets,
@@ -104,15 +141,20 @@ impl GameScreenController {
             .as_deref()
                 == intent
     }
-    fn item_source_visible(&self, point: [f32; 2], capture: &ItemCapture) -> bool {
+    fn item_source_visible(
+        &self,
+        world: &RuntimeView<'_>,
+        point: [f32; 2],
+        capture: &ItemCapture,
+    ) -> bool {
         inside_frame(capture.binding, point)
             && rect(capture.slot.rect).contains(point)
             && self.world.displayed.as_ref().is_some_and(|frame| {
                 front_control(&frame.controls, point)
-                    == Some(Some(DropOwner::Button(capture.slot.button)))
+                    == Some(Some(capture.slot.control.drop_owner()))
             })
-            && front_control(&self.pointer_controls(), point)
-                == Some(Some(DropOwner::Button(capture.slot.button)))
+            && front_control(&self.pointer_controls(world), point)
+                == Some(Some(capture.slot.control.drop_owner()))
     }
 }
 pub(super) fn receipt(
@@ -125,17 +167,25 @@ pub(super) fn receipt(
     if widget.inventory_index.is_none() && widget.equipped_slot.is_none() {
         return Ok(None);
     }
-    let current = world.map.and_then(|map| {
+    receipt_for_control(screen, world, ItemControl::Button(button), point)
+}
+pub(super) fn receipt_for_control(
+    screen: &GameScreenController,
+    world: &RuntimeView<'_>,
+    control: ItemControl,
+    point: Option<[f32; 2]>,
+) -> Result<Option<Arc<ItemReceipt>>, ()> {
+    let current = world.map.and_then(|_| {
         screen
-            .item_slots(map)
+            .item_slots(world)
             .into_iter()
-            .find(|slot| slot.button == button)
+            .find(|slot| slot.control == control)
     });
     let displayed = screen
         .world
         .displayed
         .as_ref()
-        .and_then(|frame| frame.items.iter().find(|slot| slot.button == button))
+        .and_then(|frame| frame.items.iter().find(|slot| slot.control == control))
         .cloned();
     if current.is_none() && displayed.is_none() {
         return Ok(None);
@@ -190,9 +240,9 @@ pub(super) fn valid_receipt(
         return false;
     }
     screen.world.displayed.as_ref().is_some_and(|frame| {
-        front_control(&frame.controls, point) == Some(Some(DropOwner::Button(receipt.slot.button)))
-    }) && front_control(&screen.pointer_controls(), point)
-        == Some(Some(DropOwner::Button(receipt.slot.button)))
+        front_control(&frame.controls, point) == Some(Some(receipt.slot.control.drop_owner()))
+    }) && front_control(&screen.pointer_controls(world), point)
+        == Some(Some(receipt.slot.control.drop_owner()))
 }
 fn front_control(controls: &[UiControl], point: [f32; 2]) -> Option<Option<DropOwner>> {
     controls
@@ -204,24 +254,20 @@ fn front_control(controls: &[UiControl], point: [f32; 2]) -> Option<Option<DropO
 pub(super) fn begin(
     screen: &mut GameScreenController,
     world: &RuntimeView<'_>,
-    button: u32,
+    control: ItemControl,
     point: [f32; 2],
 ) -> Option<ScreenInputResponse> {
-    let widget = screen.elements.button_widgets.get(&button)?;
-    if !widget.drag_drop || widget.inventory_index.is_none() && widget.equipped_slot.is_none() {
-        return None;
-    }
-    let current = world.map.and_then(|map| {
+    let current = world.map.and_then(|_| {
         screen
-            .item_slots(map)
+            .item_slots(world)
             .into_iter()
-            .find(|slot| slot.button == button)
+            .find(|slot| slot.control == control)
     });
     let displayed = screen
         .world
         .displayed
         .as_ref()
-        .and_then(|frame| frame.items.iter().find(|slot| slot.button == button))
+        .and_then(|frame| frame.items.iter().find(|slot| slot.control == control))
         .cloned();
     if current.is_none() && displayed.is_none() {
         return None;
@@ -243,7 +289,7 @@ pub(super) fn begin(
     }
     let slot = displayed.unwrap();
     let frame = screen.world.displayed.as_ref().unwrap();
-    if front_control(&frame.controls, point) != Some(Some(DropOwner::Button(button))) {
+    if front_control(&frame.controls, point) != Some(Some(control.drop_owner())) {
         screen.pointer_capture = Some(PointerCapture::Cancelled);
         return Some(ScreenInputResponse {
             cancel_controls: true,
@@ -263,7 +309,7 @@ pub(super) fn begin(
         dragging: false,
         cancelled: false,
     });
-    screen.pointer_capture = Some(PointerCapture::Item(button));
+    screen.pointer_capture = Some(PointerCapture::Item(control));
     Some(ScreenInputResponse {
         cancel_controls: true,
         ..ScreenInputResponse::handled(true)
@@ -336,7 +382,7 @@ pub(super) fn input(
                             .map(ScreenEffect::Action)
                             .into_iter()
                             .collect()
-                    } else if screen.item_source_visible(*position, &capture) {
+                    } else if screen.item_source_visible(world, *position, &capture) {
                         match item_interaction::click(
                             world.map.unwrap(),
                             capture.slot.source,
@@ -410,14 +456,14 @@ impl GameScreenController {
         }
         let map = world.map?;
         let front = front_control(&frame.controls, point);
-        let current = front_control(&self.pointer_controls(), point);
+        let current = front_control(&self.pointer_controls(world), point);
         if let Some(Some(owner)) = front {
             if current != front {
                 return None;
             }
             let target = frame.drops.iter().find(|target| target.source == owner)?;
             let live = self
-                .pointer_drops(map)
+                .pointer_drops(world)
                 .into_iter()
                 .find(|target| target.source == owner)?;
             if live != *target {
@@ -437,5 +483,29 @@ impl GameScreenController {
             );
         }
         None
+    }
+}
+
+pub(super) fn activate_hud_receipt(
+    screen: &GameScreenController,
+    world: &RuntimeView<'_>,
+    receipt: &ItemReceipt,
+) -> Vec<ScreenEffect> {
+    if !matches!(receipt.slot.control, ItemControl::Hud(_))
+        || !valid_receipt(screen, world, receipt)
+    {
+        return Vec::new();
+    }
+    match world.map.and_then(|map| {
+        item_interaction::click(
+            map,
+            receipt.slot.source,
+            receipt.intent.as_deref(),
+            0.,
+            false,
+        )
+    }) {
+        Some(ItemClick::Action { action, .. }) => vec![ScreenEffect::Action(action)],
+        _ => Vec::new(),
     }
 }

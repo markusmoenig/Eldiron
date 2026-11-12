@@ -1851,3 +1851,6 @@ mod item_pointer;
 mod keyboard;
 #[path = "game_screen/restart.rs"]
 mod restart;
+
+#[path = "game_screen/hud.rs"]
+mod hud;

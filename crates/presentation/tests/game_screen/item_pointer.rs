@@ -1,7 +1,7 @@
 use super::*;
 use theframework::platform::{InputEvent, PointerButton};
 
-fn render(
+pub(super) fn render(
     session: &GameSession,
     screen: &mut GameScreenController,
     fonts: &mut GameFonts,

@@ -98,26 +98,54 @@ impl ContainerGeometry {
     /// Row-major, positive-area intersections, with work proportional to visible
     /// rows/columns rather than declared capacity. Slot indices stay absolute.
     pub fn visible_slots(&self, clip: Rect) -> impl Iterator<Item = (usize, Rect)> + '_ {
+        self.visible_slots_offset(clip, [0.; 2])
+    }
+    pub fn content_size(&self) -> [f64; 2] {
+        let extent = |count: usize| {
+            if count == 0 {
+                0.
+            } else {
+                (count - 1) as f64 * self.step + self.size
+            }
+        };
+        [
+            extent(self.columns),
+            extent(self.count.div_ceil(self.columns)),
+        ]
+    }
+    /// Scroll in widened grid coordinates, translating back to viewport-local
+    /// floats only after choosing absolute slots. Large inventories cannot lose
+    /// cell positions through an early f32 conversion.
+    pub fn visible_slots_offset(
+        &self,
+        clip: Rect,
+        offset: [f64; 2],
+    ) -> impl Iterator<Item = (usize, Rect)> + '_ {
         let valid = [clip.x, clip.y, clip.width, clip.height]
             .into_iter()
             .all(f32::is_finite)
+            && offset.into_iter().all(f64::is_finite)
             && clip.width > 0.
             && clip.height > 0.;
-        let range = |start: f32, extent: f32, origin: f64, limit: usize| {
+        let range = |start: f64, extent: f32, origin: f64, limit: usize| {
             if !valid {
                 return 0..0;
             }
-            let first =
-                (((start as f64 - origin - self.size) / self.step).floor() + 1.).max(0.) as usize;
-            let end = (((start as f64 + extent as f64 - origin) / self.step)
+            let first = (((start - origin - self.size) / self.step).floor() + 1.).max(0.) as usize;
+            let end = (((start + extent as f64 - origin) / self.step)
                 .ceil()
                 .max(0.) as usize)
                 .min(limit);
             first.min(end)..end
         };
-        let columns = range(clip.x, clip.width, self.origin[0], self.columns);
+        let columns = range(
+            clip.x as f64 + offset[0],
+            clip.width,
+            self.origin[0],
+            self.columns,
+        );
         let rows = range(
-            clip.y,
+            clip.y as f64 + offset[1],
             clip.height,
             self.origin[1],
             self.count.div_ceil(self.columns),
@@ -125,7 +153,18 @@ impl ContainerGeometry {
         rows.flat_map(move |row| {
             columns.clone().filter_map(move |column| {
                 let index = row.checked_mul(self.columns)?.checked_add(column)?;
-                Some((index, self.slot(index)?))
+                if index >= self.count {
+                    return None;
+                }
+                Some((
+                    index,
+                    Rect::new(
+                        (self.origin[0] + column as f64 * self.step - offset[0]) as f32,
+                        (self.origin[1] + row as f64 * self.step - offset[1]) as f32,
+                        self.size as f32,
+                        self.size as f32,
+                    ),
+                ))
             })
         })
     }
@@ -307,6 +346,26 @@ mod tests {
             assert_eq!(geometry.visible_slots(clip).count(), 0);
         }
     }
+    #[test]
+    fn large_scrolled_rows_keep_fractional_viewport_positions_and_exact_source_indices() {
+        let geometry = ContainerGeometry::new(
+            Vec2::new(2, 2),
+            &Default::default(),
+            u32::MAX as usize,
+            Vec2::new(320, 240),
+        );
+        let row = 1usize << 25;
+        let slots = geometry
+            .visible_slots_offset(
+                Rect::new(10., 36., 140., 32.),
+                [0., row as f64 * 36. + 0.25],
+            )
+            .collect::<Vec<_>>();
+        assert_eq!(slots.len(), 4);
+        assert_eq!(slots[0], (row * 4, Rect::new(10., 35.75, 32., 32.)));
+        assert_eq!(slots[3], (row * 4 + 3, Rect::new(118., 35.75, 32., 32.)));
+    }
+
     #[test]
     fn huge_capacities_and_column_counts_keep_visibility_work_bounded_without_integer_wrap() {
         for columns in [4, usize::MAX] {
