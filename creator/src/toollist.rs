@@ -3648,7 +3648,10 @@ impl ToolList {
                         {
                             return true;
                         }
-                        if self.handle_action_hud_icon_click(ui, ctx, project, server_ctx, *coord) {
+                        let native_overlay = self.get_current_tool().uses_native_overlay_input();
+                        if !native_overlay
+                            && self.handle_action_hud_icon_click(ui, ctx, project, server_ctx, *coord)
+                        {
                             return true;
                         }
 

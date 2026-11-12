@@ -408,6 +408,9 @@ pub trait TheRenderViewTrait: TheWidget {
         &mut self,
         list: Option<std::sync::Arc<crate::paint::PaintList>>,
     ) -> crate::theui::paint::UiPaintResult;
+    /// Release a viewport publication only if it still belongs to this owner.
+    #[cfg(feature = "text")]
+    fn clear_paint_list(&mut self, expected: &std::sync::Arc<crate::paint::PaintList>) -> bool;
     fn set_scroll_behavior(&mut self, scale: f32, aspect_scaled: bool);
     fn render_buffer_mut(&mut self) -> &mut TheRGBABuffer;
     fn set_auto_focus(&mut self, auto_focus: bool);
@@ -449,6 +452,17 @@ impl TheRenderViewTrait for TheRenderView {
         self.has_content = false;
         self.is_dirty = true;
         Ok(())
+    }
+    #[cfg(feature = "text")]
+    fn clear_paint_list(&mut self, expected: &std::sync::Arc<crate::paint::PaintList>) -> bool {
+        if matches!(&self.native_content, Some(NativeContent::Commands(current))
+            if std::sync::Arc::ptr_eq(current, expected))
+        {
+            self.set_image_handle(None);
+            true
+        } else {
+            false
+        }
     }
     fn set_scroll_behavior(&mut self, scale: f32, aspect_scaled: bool) {
         self.wheel_scale = scale;

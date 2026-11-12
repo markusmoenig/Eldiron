@@ -7,7 +7,7 @@ use theframework::prelude::*;
 mod frame;
 pub(crate) use frame::{HudAction, HudEffects, HudFrame, HudHit, HudScope};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub(crate) struct HudColors {
     pub(crate) background: RGBA,
     pub(crate) panel: RGBA,
@@ -52,6 +52,7 @@ pub(crate) fn colors() -> HudColors {
     *HUD_COLORS.read().unwrap()
 }
 
+#[derive(Clone, PartialEq)]
 pub(crate) struct HudStyle {
     pub(crate) colors: HudColors,
     pub(crate) geometry_labels: [String; 2],
@@ -97,6 +98,7 @@ pub enum HudMode {
 
 pub struct Hud {
     mode: HudMode,
+    native_input: bool,
 
     icon_rects: Vec<TheDim>,
 
@@ -459,6 +461,7 @@ impl Hud {
         let frame_owner = Uuid::new_v4();
         Self {
             mode,
+            native_input: false,
 
             icon_rects: vec![],
             selected_icon_index: 0,
@@ -952,6 +955,15 @@ impl Hud {
         )
     }
 
+    pub(crate) fn uses_native_input(&self) -> bool {
+        self.native_input
+    }
+    pub(crate) fn set_native_input(&mut self, native: bool) {
+        if self.native_input != native {
+            self.invalidate_frame();
+            self.native_input = native;
+        }
+    }
     pub fn clicked(
         &mut self,
         x: i32,
@@ -961,6 +973,9 @@ impl Hud {
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) -> bool {
+        if self.native_input {
+            return false;
+        }
         if !self.source_input_current(map, server_ctx) {
             // Compatibility input consumes stale painted controls without
             // applying them to a new selection/document or leaking the click
@@ -1051,6 +1066,9 @@ impl Hud {
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) -> bool {
+        if self.native_input {
+            return false;
+        }
         match *event {
             MapEvent::MapClicked(coord) => self.clicked(coord.x, coord.y, map, ui, ctx, server_ctx),
             MapEvent::MapDragged(coord) => self.dragged(coord.x, coord.y, map, ui, ctx, server_ctx),

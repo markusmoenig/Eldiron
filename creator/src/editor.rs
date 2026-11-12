@@ -9305,7 +9305,8 @@ impl TheTrait for Editor {
                 "PolyView"
             };
             #[cfg(feature = "native-render")]
-            let native_display = self.native_display_owns_viewport();
+            let native_display =
+                self.native_display_owns_viewport() || self.native_world_owns_viewport();
             #[cfg(not(feature = "native-render"))]
             let native_display = false;
             if !crate::geometry_editor::is_visible(ui)
@@ -10018,8 +10019,17 @@ impl TheTrait for Editor {
         }
 
         profile.lap("scene");
-        let sync_geometry_recipes = !pending_events.is_empty();
-        for event in pending_events {
+        let mut sync_geometry_recipes = !pending_events.is_empty();
+        let mut pending_events: std::collections::VecDeque<_> = pending_events.into();
+        loop {
+            #[cfg(feature = "native-render")]
+            let scoped = self.take_native_world_event(ui, ctx);
+            #[cfg(not(feature = "native-render"))]
+            let scoped: Option<TheEvent> = None;
+            sync_geometry_recipes |= scoped.is_some();
+            let Some(event) = scoped.or_else(|| pending_events.pop_front()) else {
+                break;
+            };
             #[cfg(feature = "native-render")]
             self.synchronize_native_document();
             if self.appearance_workspace.handle_event(
@@ -10060,7 +10070,9 @@ impl TheTrait for Editor {
                 continue;
             }
             #[cfg(feature = "native-render")]
-            if self.handle_native_display_input(&event, ui, ctx) {
+            if self.handle_native_display_input(&event, ui, ctx)
+                || self.handle_native_world_input(&event, ui, ctx)
+            {
                 redraw = true;
                 continue;
             }

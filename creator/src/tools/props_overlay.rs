@@ -35,6 +35,7 @@ pub(crate) struct PropsSource {
 }
 #[derive(Default)]
 pub struct PropsOverlay {
+    native_input: bool,
     frames: PanelFrames<PropsSource, Action>,
     last_size: (usize, usize),
     bounds: TheDim,
@@ -365,6 +366,12 @@ impl PropsOverlay {
         self.frames
             .hit_test(scope, size, &self.source(server), point)
     }
+    pub(crate) fn set_native_input(&mut self, native: bool) {
+        if self.native_input != native {
+            self.invalidate_frame();
+        }
+        self.native_input = native;
+    }
     pub fn map_event(
         &mut self,
         event: &MapEvent,
@@ -372,6 +379,9 @@ impl PropsOverlay {
         ctx: &mut TheContext,
         server: &ServerContext,
     ) -> bool {
+        if self.native_input {
+            return false;
+        }
         let size = crate::utils::map_editor_render_view(ui, server)
             .map(|view| {
                 (

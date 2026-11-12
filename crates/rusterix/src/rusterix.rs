@@ -50,7 +50,12 @@ impl Default for Rusterix {
 }
 
 impl Rusterix {
-    fn apply_runtime_render_state(&mut self, map: &Map, apply_editor_preview: bool) {
+    /// CPU render policy shared by authoring views on independent GPU targets.
+    pub fn render_state_for_view(
+        &self,
+        map: &Map,
+        apply_editor_preview: bool,
+    ) -> crate::server::message::RuntimeRenderState {
         let mut state = self.server.get_render_state(&map.id);
         if apply_editor_preview && !self.editor_preview_post_enabled {
             state.post.set("enabled", Value::Bool(false));
@@ -74,7 +79,11 @@ impl Rusterix {
                 Value::Float(authored.max(self.editor_preview_fill_strength.clamp(0.0, 1.0))),
             );
         }
-        self.scene_handler.runtime_render_state = state;
+        state
+    }
+    fn apply_runtime_render_state(&mut self, map: &Map, apply_editor_preview: bool) {
+        self.scene_handler.runtime_render_state =
+            self.render_state_for_view(map, apply_editor_preview);
     }
 
     pub fn new() -> Self {

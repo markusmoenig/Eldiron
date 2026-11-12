@@ -25,7 +25,7 @@ Started: 2026-11-11 (Asia/Bangkok). Overall Goal: active; full M0–M9 scope rem
 - M2: in progress. Paint/Swash/Parley pipeline and native/foreign hosts work; batching, resource lifetime budgets and full text/input parity remain.
 - M3: in progress. Every active built-in TheWidget implementation now has a command paint path, including procedural controls and the legacy node canvas. Complex Creator integration, full widget catalog parity and legacy adapter retirement remain.
 - M4: in progress. CPU schema/identity extraction, shared `GameSession`, CPU startup preparation, message/party/world-target policies and terminal adoption are implemented and tested. Per-session routing, local players, world values, runtime IDs and region context ownership now pass controlled overlapping-session and parallel assembled-player regressions. Graphical/Creator adoption and remaining bitmap/value data extraction remain; this evidence does not establish full simultaneous Creator Play workflows.
-- M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Immutable ordinary editor-view preparation, exact reference/native view outputs and retained CPU chunk publication are now available through SceneViews. Common HUD, paint/props panels, profile displays and ViewCube now have retained command frames, guarded input and actual GPU composition/reconstruction evidence. Six standard tools additionally emit ordered typed overlay aggregates with exact presented-frame and detail-profile source guards. Full-viewport profile editing is now connected to the actual native Creator root with document/widget binding, presentation-gated input and inline commit/cancel; the world/tool viewport handoff remains pending. Application/global/document/Play ownership, main world/tool/HUD integration, remaining producers, full visual/workflow/performance acceptance and canonical retirement remain.
+- M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Immutable ordinary editor-view preparation, exact reference/native view outputs and retained CPU chunk publication are now available through SceneViews. Common HUD, paint/props panels, profile displays and ViewCube now have retained command frames, guarded input and actual GPU composition/reconstruction evidence. Six standard tools additionally emit ordered typed overlay aggregates with exact presented-frame and detail-profile source guards. Full-viewport profile editing is now connected to the actual native Creator root with document/widget binding, presentation-gated input and inline commit/cancel; ordinary stopped top-down region rendering and the six standard tool overlays now use the same native application owner and real tool dispatch. Other world modes and Play remain on their explicit migration adapters. Application/global/document/Play ownership, main world/tool/HUD integration, remaining producers, full visual/workflow/performance acceptance and canonical retirement remain.
 - M6: in progress. Independent GPU game views, common player/input/camera components, authored screen paint, private world descriptions, view-owned speech, acknowledged-frame world pointer gestures, relative first-person mouse look, default/world-intent cursors, world/UI item drag previews and acknowledged authored inventory/equipment pointer/keyboard gestures are implemented. Application-owned audio is integrated into the common player with cancellable CPU preparation jobs. The native container HUD now includes acknowledged paint/input, real server transfers, scrolling, GPU recovery and navigation lifetime. Floating inventory/equipment, action catalogue/spellbook and preferences now use typed native HUD owners, retained text/source resources and acknowledged input. Acknowledged UI-origin tooltips now use retained text and host deadlines. UI-origin Drop cursors and acknowledged drag/assignment highlighting now have GPU and authoritative transfer evidence. Native isometric source production, shared CPU source publication, game-view outputs and acknowledged input receipts now have GPU/CPU and shipped-source device-reconstruction evidence. Browser worker hosting, remaining game-mode/HUD policy parity, performance acceptance remain. Canonical native desktop launchers now share the common application/host; see launcher verification below.
 - M7/M8/M9: Retirement and platform/full acceptance pending. Canonical desktop clients share one common player; the Xcode client now uses it through the retained ABI over a Rust-created CAMetalLayer surface. Native/ARM64 simulator app bundles link, and real Swift/static-library and registered-scene layer checks pass. Browser bootstrap, native text/platform parity, Creator wrapper and complete physical/release acceptance remain; this is not complete application/platform parity.
 
@@ -4083,3 +4083,179 @@ ToolList/ActionList/scene-build/global bridges under application owners before
 claiming M5/M7. Main world/Play rendering still uses its previous implementation.
 Full text/DPI/physical/browser/Apple/release verification and all M0–M9 gates
 remain open. The user's implementation-first testing cadence remains in force.
+
+### Main world/tool handoff implemented, focused integration verification live
+
+Previous goal turn was progress: committed actual native profile application
+adoption as `b48bb3c6`. Revalidated current worktree; only the unrelated networking
+concept was untracked. Continued implementation-first as requested.
+
+`editor/native_world.rs` now connects the real main authoring view to SceneViews
+on the host registry/device, with its own scene target, CPU D2 guide builder,
+immutable static chunk publication, dynamic scene preparation, GPU image blit,
+typed six-tool overlay, source-injected material slots, Swash text, informational
+footer and the procedural GPU icon owner. The real Editor update_ui bypasses
+viewport bitmap allocation/draw in the adopted mode. Real native root preparation,
+complete receipt filtering/presentation acknowledgement, input and resource
+finalization call this owner. No device creation, VM borrowing/swapping, implicit
+capture or complete viewport CPU composition is introduced in the new path.
+
+Current adopted scope is stopped ordinary top-down region authoring with the six
+converted standard tools. Existing render adapters remain for 3D, isometric,
+custom/surface/screen/clipboard contexts, other tools, active runtime speech/
+visibility and Play. This is a required staged mode adoption, not a redefinition
+of the final goal. CPU assets/camera/time/static chunk reads and authoring still
+bridge existing Rusterix/ToolList/SceneManager owners; these globals must be
+extracted before M5/M7 completion. No serialized representation was changed.
+
+New input validates document-session, actual widget UUID, layout/density, tool,
+context, asset/material-slot/style epoch, exact acknowledged aggregate, map
+transform/revision, immutable scene source and completed source publication.
+New world picks also wait for SceneManager dirty work AND unconsumed geometry
+results, while a captured world gesture survives its own local edits. Accepted
+HUD/Props effects/events are consumed inline in the current document. The old
+HUD/Props reference intercept is disabled only for the adopted controller;
+remaining world authoring uses the existing tool path exactly once. Binding,
+visibility, focus/device/document/tool changes clear captured input.
+
+Scene preparation reuses unchanged source/guide/dynamic output, rather than
+reuploading guide geometry on an identical root frame. Source keys include the
+actual builder inputs, selection/line/rectangle/hover state, time/animation,
+render policy, theme canvas, assets and build values. View cleanup now compares
+the exact published command Arc in TheRenderView before clearing it, preserving
+a newer native or reference publication during a mode handoff. The shared render
+policy is exposed as CPU data; the reference renderer still calls the same policy.
+Overlay image/icon retirement sees the complete root on success and retained
+live resource pins on cancellation.
+
+Initial combined native library compilation passes, **24.15 s**:
+`/private/tmp/eldiron-native-world-check.log` (session 60107 terminal 0). Added
+world coverage to the existing assembled Creator check, not a new fixture suite:
+actual GPU scene+HUD publication, no CPU scene/readback target, pre-presentation
+input rejection, HUD grid application, completed scene-source publication and
+an outside HUD hit reaching the real Vertex tool through Editor.update_ui.
+The focused check is live in unified session **17869**, log
+`/private/tmp/eldiron-native-world-root.log`. Its test fixture was corrected while
+its dependencies were compiling to use the actual 2D toolbar grid coordinates,
+tool command ID and authoritative pending-build completion. Inspect this handle
+and log before any replacement run. Source changes are uncommitted; no broad
+matrix was started. Full visual/DPI, all world modes, global retirement and all
+M0–M9 acceptance remain open.
+
+Focused run 17869 is terminal exit 101. It reached and passed actual world GPU
+publication, no CPU target/readback storage, inactive pre-presentation input and
+post-presentation HUD application. The final HUD assertion used the earlier
+x=270 fixture (16 subdivisions) while expecting four; compilation had already
+read that file before the live fixture correction. Current x=235 is the actual
+2D four-subdivision button. The corrected focused assembled run is now live;
+record its handle from the next tool result, log
+`/private/tmp/eldiron-native-world-root-second.log`. No broad rerun was started.
+The actual Vertex-tool event delivery is the next assertion after the corrected
+HUD interaction; do not claim that part passed until its current result proves it.
+
+### World application handoff passes its focused assembled workflow
+
+The corrected real-command assembled Creator GPU check passes, **1 case /
+16.75 s**, `/private/tmp/eldiron-native-world-real-commands.log`, session 52880
+terminal 0. The same existing check now covers profile rendering/grid/cancel/
+Return geometry creation, real queued camera and tool activation, completed CPU
+scene publication, host-device world output plus HUD, no scene CPU/readback
+storage, pre-presentation input rejection, acknowledged HUD grid edits and an
+outside hit reaching the actual Vertex tool through Editor.update_ui once.
+No full-color readback is added to normal world composition on the injected
+host device. Physical-window, shipped-project/all-density visual parity and the
+remaining modes are not established by this focused default-project workflow.
+
+The prior failures after the header fix were fixture ordering: Return intentionally
+queues Set Tool(Object). A direct pre-update Vertex assignment/activation was
+then legitimately replaced by that older queued command. Temporary routing trace
+proved binding/stamp/source readiness and overlay authority were current and the
+actual active tool was Object. The fixture now sends the real camera/tool commands
+in application order. The temporary trace was removed; no production guard or
+expected authored mutation was weakened. Runs 93709/73566/42215 are terminal
+failures of that earlier fixture, not live jobs.
+
+Integration review also fixed a real dispatcher omission: native HUD/Props events
+must traverse the entire Editor handler, not only ToolList/Sidebar. They now stay
+in an application-owned scoped queue, are revalidated immediately at consuming
+delivery, and are processed by the complete existing Editor transaction before
+later generic document events. This preserves minimap/geometry/settings handlers
+and avoids unscoped UI-queue authoring. The normal reference event order remains
+unchanged. Builder map identity/projection is additionally checked for readiness,
+so queued camera/document switches cannot authorize old source geometry.
+
+Final cache polish forces atlas/source/builder refresh across document-session
+changes even if reopened documents reuse map UUIDs and local revision counters.
+A registry-domain reconstruction fallback also revokes old input/queued commands.
+Those additional transition guards need the eventual full document/platform
+workflow evidence; do not equate compilation with that acceptance. Next focused
+checks cover native/reference feature compilation and renderer dependency
+boundaries after the new optional presentation dependency. No broad regression
+matrix is planned for this checkpoint. Changes remain uncommitted.
+
+Final native library compilation passed, **20.18 s**:
+`/private/tmp/eldiron-native-world-final-check.log` (28966 terminal 0).
+All **11 independent renderer dependency boundaries pass**:
+`/private/tmp/eldiron-native-world-boundaries.log` (28023 terminal 0), including
+CPU core/ruleset/runtime/terminal, framework feature splits, both player launchers
+and Creator's native-host feature. The optional Creator presentation dependency
+does not widen isolated CPU consumers or introduce Pixels/windowing into its
+native path.
+
+Final input review removes the separate legacy action-HUD icon interceptor as
+well as the common HUD/Props intercept for an adopted tool. A fresh accepted 2D
+world click recomputes primitive hits and grid coordinates from the acknowledged
+transform and clears stale 3D hit/ray metadata. This avoids reusing hover data
+dropped while source geometry was pending. The existing CPU query is reused;
+no additional isolated tests or broad matrix were added. Focused native/reference
+compilation is now running (record handle from current tool result), logs
+`/private/tmp/eldiron-native-world-input-final-check.log` and
+`/private/tmp/eldiron-native-world-reference-check.log`.
+
+Remaining input/ownership acceptance includes explicit resolution/retry policy
+for authoring clicks received against unavailable geometry (current safe route
+consumes them and requests repaint), full widget/modal/focus/gesture workflows,
+and retiring legacy queued action followups such as Set Tool across document
+changes. The new native primary action/effect transactions are scoped; remaining
+legacy controller followups and global ownership are not claimed retired.
+
+
+### Native top-down world/tool checkpoint ready
+
+The final input-polished native configuration compiles, **9.11 s**:
+`/private/tmp/eldiron-native-world-input-final-check.log`. The reference staticlib
+configuration compiles, **19.66 s**:
+`/private/tmp/eldiron-native-world-reference-check.log`. Session 97021 is terminal
+exit 0; both individual logs were inspected (not just the shell's last exit).
+All 11 dependency boundaries and the focused actual root workflow results above
+remain the checkpoint evidence. Final eligibility explicitly keeps Prefab,
+world-map and profile-map contexts in their existing adapters until those modes
+are ported, rather than treating their Region-like map category as ordinary
+region authoring. This additional mode classification is being compiled in the
+final checkpoint command, log `/private/tmp/eldiron-native-world-scope-check.log`.
+
+The adopted world and overlay GPU owners use the injected context. Existing
+Rusterix/ToolList/SceneManager source/controller bridges and their legacy resource
+lifetime are still present; a single-device complete Creator architecture and
+global retirement are not established by this stage. No serialized structures or
+independent reference PNGs changed. No full regression matrix was run, consistent
+with the user's implementation-first cadence.
+
+Next implementation remains the full objective: extend the main owner to 3D
+views and ViewCube/depth-aware guides, sprite-isometric output, custom/profile/
+surface/screen and Prefab editing, remaining custom tools and paint overlays,
+then the shared Creator Play host. Move CPU document/assets/build/camera/tool
+ownership out of renderer globals and retire the mode adapters. Preserve precise
+source/gesture/document transactions and finish unavailable-click resolution/
+retry and scoped legacy action-followup delivery. Run broad workflow/visual/
+platform/release acceptance at the assembled integration gates. All M0–M9 gates
+remain incomplete; do not mark this renderer-mode adoption as full completion.
+
+Final scope classification compilation passes, **8.48 s**:
+`/private/tmp/eldiron-native-world-scope-check.log`, session 7127 terminal exit 0.
+All jobs from this checkpoint are terminal; no verification process is live.
+Current source has focused native/reference compilation, all 11 dependency
+boundaries, and the successful assembled real-command GPU workflow recorded
+above. Later cache/input/mode guard polish has compile evidence; broad workflow
+and visual acceptance remain open. Temporary routing diagnostics are absent.
+The unrelated networking concept is excluded from the local checkpoint.

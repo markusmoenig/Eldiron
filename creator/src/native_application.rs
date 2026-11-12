@@ -83,6 +83,7 @@ impl UiApplication for NativeCreatorApplication {
             InputEvent::Focus(false) => {
                 let response = ui.input(event);
                 self.editor.invalidate_native_display_viewport(&mut ui.ui);
+                self.editor.invalidate_native_world_viewport(&mut ui.ui);
                 InputResponse {
                     redraw: true,
                     ..response
@@ -135,11 +136,29 @@ impl UiApplication for NativeCreatorApplication {
     fn frame(&mut self, ui: &mut UiSession, images: &mut UiFrameImages<'_>) -> Result<PaintList> {
         self.editor.pre_ui(&mut ui.context);
         ui.ui.prepare_paint_layout(&mut ui.context);
-        self.pending = self
+        self.pending = match self
             .editor
             .prepare_native_views(&mut ui.ui, &mut ui.context, images)
-            .map_err(RenderError)?;
-        let mut list = ui.paint(images).map_err(|e| RenderError(e.to_string()))?;
+        {
+            Ok(tokens) => tokens,
+            Err(error) => {
+                self.pending = None;
+                let _ = self
+                    .editor
+                    .finish_native_viewport_frame(None, images.registry);
+                return Err(RenderError(error));
+            }
+        };
+        let mut list = match ui.paint(images) {
+            Ok(list) => list,
+            Err(error) => {
+                self.pending = None;
+                let _ = self
+                    .editor
+                    .finish_native_viewport_frame(None, images.registry);
+                return Err(RenderError(error.to_string()));
+            }
+        };
         list.ops.insert(
             0,
             theframework::paint::PaintOp::DisplayCompositing(
@@ -149,6 +168,9 @@ impl UiApplication for NativeCreatorApplication {
         if let Some(tokens) = &mut self.pending {
             tokens.retain_painted(&list);
         }
+        self.editor
+            .finish_native_viewport_frame(Some(&list), images.registry)
+            .map_err(RenderError)?;
         Ok(list)
     }
     fn presented(&mut self, ui: &mut UiSession) {
@@ -295,7 +317,8 @@ mod tests {
         let initial_grid = app.application.editor.native_profile_grid_for_test();
         app.update(&mut host, Duration::from_millis(16));
         let profile = app.frame(&mut host, &mut replacement).unwrap();
-        assert!(profile.receipts().count() > rebuilt.receipts().count());
+        assert!(app.application.pending.as_ref().unwrap().profile_for_test());
+        assert!(profile.receipts().next().is_some());
         let click = TheEvent::RenderViewClicked(view.clone(), Vec2::new(115, 14));
         assert!(app.application.editor.handle_native_display_input(
             &click,
@@ -384,5 +407,96 @@ mod tests {
             "Return applies the current profile in the same document transaction"
         );
         assert!(!app.application.editor.has_native_profile_for_test());
+        let world_view = app
+            .application
+            .editor
+            .begin_native_world_for_test(&mut app.session.ui, &mut app.session.context);
+        // Consume the real build results produced by Return before accepting
+        // a new world pick. This is the application's normal update path.
+        for _ in 0..64 {
+            app.update(&mut host, Duration::from_millis(16));
+            if !crate::editor::SCENEMANAGER
+                .read()
+                .unwrap()
+                .has_pending_geometry()
+            {
+                break;
+            }
+        }
+        assert!(
+            !crate::editor::SCENEMANAGER
+                .read()
+                .unwrap()
+                .has_pending_geometry()
+        );
+        assert_eq!(
+            crate::editor::TOOLLIST
+                .read()
+                .unwrap()
+                .current_game_tool_command_id(),
+            Some("tool.vertex")
+        );
+        let world = app.frame(&mut host, &mut replacement).unwrap();
+        assert!(app.application.pending.as_ref().unwrap().world_for_test());
+        assert!(
+            !app.application
+                .editor
+                .native_world_has_cpu_storage_for_test()
+        );
+        let before_world = gpu.transfers().readback_bytes;
+        let grid = app.application.editor.native_profile_grid_for_test();
+        let header = TheEvent::RenderViewClicked(world_view.clone(), Vec2::new(235, 5));
+        assert!(app.application.editor.handle_native_world_input(
+            &header,
+            &mut app.session.ui,
+            &mut app.session.context,
+        ));
+        assert_eq!(app.application.editor.native_profile_grid_for_test(), grid);
+        renderer
+            .render(
+                &world,
+                &replacement,
+                &output.view,
+                output.descriptor.format,
+                (1200, 800),
+                1.,
+                [0.; 4],
+            )
+            .unwrap();
+        app.presented(&mut host);
+        assert_eq!(gpu.transfers().readback_bytes, before_world);
+        assert!(app.application.editor.handle_native_world_input(
+            &header,
+            &mut app.session.ui,
+            &mut app.session.context,
+        ));
+        assert_eq!(app.application.editor.native_profile_grid_for_test(), 4.);
+        app.update(&mut host, Duration::from_millis(16));
+        let updated_world = app.frame(&mut host, &mut replacement).unwrap();
+        renderer
+            .render(
+                &updated_world,
+                &replacement,
+                &output.view,
+                output.descriptor.format,
+                (1200, 800),
+                1.,
+                [0.; 4],
+            )
+            .unwrap();
+        app.presented(&mut host);
+        let vertices = app.application.editor.native_world_vertices_for_test();
+        app.session.ui.shift = true;
+        app.session.context.ui.send(TheEvent::RenderViewClicked(
+            world_view.clone(),
+            Vec2::new(250, 240),
+        ));
+        app.update(&mut host, Duration::from_millis(16));
+        assert_eq!(
+            app.application.editor.native_world_vertices_for_test(),
+            vertices + 1,
+            "an acknowledged outside HUD hit reaches the actual Vertex tool once"
+        );
+        app.session.ui.shift = false;
     }
 }

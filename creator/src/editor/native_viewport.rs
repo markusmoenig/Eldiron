@@ -10,6 +10,8 @@ use theframework::render_wgpu::UiFrameImages;
 #[derive(Default)]
 pub(crate) struct NativeViewport {
     pub(crate) enabled: bool,
+    pub(super) world: super::world::NativeWorld,
+    published: Option<(TheId, Arc<theframework::paint::PaintList>)>,
     binding: Option<NativeDisplayBinding>,
     epoch: u64,
 }
@@ -68,11 +70,12 @@ impl Editor {
         self.native_viewport.binding.clone()
     }
     pub(crate) fn invalidate_native_display_viewport(&mut self, ui: &mut TheUI) {
-        if let Some(previous) = self.native_viewport.binding.take()
-            && let Some(view) = ui.get_render_view(&previous.view.name)
-            && view.id().uuid == previous.view.uuid
+        self.native_viewport.binding = None;
+        if let Some((id, list)) = self.native_viewport.published.take()
+            && let Some(view) = ui.get_render_view(&id.name)
+            && view.id().uuid == id.uuid
         {
-            view.set_image_handle(None);
+            view.clear_paint_list(&list);
         }
         self.native_viewport.epoch = self
             .native_viewport
@@ -124,8 +127,10 @@ impl Editor {
         if view.id().uuid != binding.view.uuid {
             return Ok(None);
         }
-        view.set_paint_list(Some(Arc::new(list)))
+        let list = Arc::new(list);
+        view.set_paint_list(Some(list.clone()))
             .map_err(|error| error.to_string())?;
+        self.native_viewport.published = Some((binding.view.clone(), list));
         Ok(Some(NativeDisplayFrame { binding, frame }))
     }
     pub(super) fn presented_native_display_viewport(

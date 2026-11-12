@@ -424,6 +424,21 @@ impl SceneManager {
         !self.dirty.is_empty()
     }
 
+    /// Identity/projection of the CPU map currently installed in the builder.
+    /// A queued camera/document switch must not authorize picking old chunks.
+    pub fn source_matches(&self, map: Uuid, camera: MapCamera) -> bool {
+        self.map.id == map && self.map.camera == camera
+    }
+
+    /// A new authoring pick also waits for built results not yet consumed by
+    /// the application's source publication.
+    pub fn has_pending_geometry(&self) -> bool {
+        self.is_busy()
+            || self.results.iter().any(|result| {
+                matches!(result, SceneManagerResult::Chunk(..) | SceneManagerResult::Clear)
+            })
+    }
+
     pub fn dirty_count(&self) -> usize {
         self.dirty.len()
     }

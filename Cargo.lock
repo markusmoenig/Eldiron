@@ -1317,6 +1317,7 @@ dependencies = [
  "arboard",
  "denrim-materials",
  "earcutr",
+ "eldiron-presentation",
  "eldiron-shared",
  "eldiron_scepter",
  "fontdue",

@@ -126,6 +126,14 @@ pub trait Tool: Send + Sync {
     fn overlay_hud(&mut self) -> Option<&mut crate::hud::Hud> {
         None
     }
+    fn uses_native_overlay_input(&mut self) -> bool {
+        self.overlay_hud().is_some_and(|hud| hud.uses_native_input())
+    }
+    fn set_native_overlay_input(&mut self, native: bool) {
+        if let Some(hud) = self.overlay_hud() {
+            hud.set_native_input(native);
+        }
+    }
     fn hud_selected_id(&self, _map: &Map, _server: &ServerContext) -> Option<u32> {
         None
     }

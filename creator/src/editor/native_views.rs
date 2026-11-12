@@ -2,11 +2,15 @@
 use super::*;
 #[path = "native_viewport.rs"]
 mod viewport;
+#[path = "native_world.rs"]
+mod world;
 use viewport::NativeDisplayFrame;
 pub(crate) use viewport::NativeViewport;
+use world::NativeWorldFrame;
 
 pub(crate) struct NativeViewTokens {
     display: Option<NativeDisplayFrame>,
+    world: Option<std::sync::Arc<NativeWorldFrame>>,
     pub(crate) geometry: Option<crate::geometry_editor::PreviewToken>,
     pub(crate) appearance: Option<crate::appearance_workspace::PreviewToken>,
     pub(crate) material: Option<crate::procedural_material::PreviewToken>,
@@ -19,13 +23,29 @@ impl NativeViewTokens {
     ) -> Self {
         Self {
             display: None,
+            world: None,
             geometry,
             appearance,
             material,
         }
     }
+    #[cfg(test)]
+    pub(crate) fn profile_for_test(&self) -> bool {
+        self.display.is_some()
+    }
+    #[cfg(test)]
+    pub(crate) fn world_for_test(&self) -> bool {
+        self.world.is_some()
+    }
     pub(crate) fn retain_painted(&mut self, list: &theframework::paint::PaintList) {
         let receipts = list.receipts().collect::<std::collections::HashSet<_>>();
+        self.world = self.world.take().filter(|frame| {
+            receipts.contains(&frame.receipt)
+                && frame
+                    .receipts
+                    .iter()
+                    .all(|receipt| receipts.contains(receipt))
+        });
         self.display = self
             .display
             .take()
@@ -91,8 +111,10 @@ impl Editor {
             self.server_ctx.animation_counter,
         );
         let display = self.prepare_native_display_viewport(ui, ctx, images)?;
+        let world = self.prepare_native_world_viewport(ui, ctx, images)?;
         let mut tokens = NativeViewTokens::previews(geometry, appearance, material);
         tokens.display = display;
+        tokens.world = world;
         Ok(Some(tokens))
     }
     pub(crate) fn native_views_waiting(&self) -> bool {
@@ -107,6 +129,7 @@ impl Editor {
         ctx: &mut TheContext,
     ) {
         self.presented_native_display_viewport(tokens.display, ui, ctx);
+        self.presented_native_world_viewport(tokens.world, ui, ctx);
         if let Some(token) = tokens.geometry {
             self.geometry_editor.presented_gpu_preview(token);
         }
@@ -120,6 +143,7 @@ impl Editor {
     }
     pub(crate) fn invalidate_native_views(&mut self, ui: &mut TheUI) {
         self.invalidate_native_display_viewport(ui);
+        self.native_viewport.world.device_reset(ui);
         self.geometry_editor.invalidate_gpu_preview(ui);
         self.appearance_workspace.invalidate_gpu_preview(ui);
         self.procedural_material.invalidate_gpu_preview(ui);
@@ -177,5 +201,35 @@ impl Editor {
             .unwrap()
             .active_editor_display_owner(&self.server_ctx)
             .is_some()
+    }
+    pub(crate) fn begin_native_world_for_test(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+    ) -> TheId {
+        // Use the real queued camera/tool commands after Return's queued
+        // Object-tool selection, preserving normal application event ordering.
+        ctx.ui.send(TheEvent::IndexChanged(
+            TheId::named("Editor View Switch"),
+            0,
+        ));
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named("Set Tool"),
+            TheValue::Text("tool.vertex".into()),
+        ));
+        let id = crate::utils::map_editor_render_view(ui, &self.server_ctx)
+            .unwrap()
+            .id()
+            .clone();
+        ctx.ui.set_focus(&id);
+        ctx.ui.redraw_all = true;
+        id
+    }
+    pub(crate) fn native_world_vertices_for_test(&self) -> usize {
+        self.project
+            .get_map(&self.server_ctx)
+            .unwrap()
+            .vertices
+            .len()
     }
 }

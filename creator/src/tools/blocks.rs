@@ -1474,6 +1474,10 @@ impl Tool for BlockTool {
         handled
     }
 
+    fn set_native_overlay_input(&mut self, native: bool) {
+        self.hud.set_native_input(native);
+        self.overlay.set_native_input(native);
+    }
     fn overlay_hud(&mut self) -> Option<&mut crate::hud::Hud> {
         Some(&mut self.hud)
     }
