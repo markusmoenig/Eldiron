@@ -5,6 +5,8 @@ struct Params {
     scale:vec4<f32>, // screen scale,base height,world scale,opacity
     contact:vec4<u32>, // owner,protection offset,length,unused
     bitmap:vec4<f32>, // anchor y,pixels/unit,unused,unused
+    foot:vec4<f32>, // foot screen Y,world height,world depth,projection unit
+    policy:vec4<u32>, // terrain clip/flat surface flags
 };
 @group(0) @binding(0) var<uniform> p:Params;
 @group(0) @binding(1) var<storage,read_write> albedo:array<u32>;
@@ -31,6 +33,10 @@ fn blit(@builtin(global_invocation_id) id:vec3<u32>) {
     let color=bytes(source[src]);let alpha=u32(floor(f32(color.a)*p.scale.w+0.5));
     if alpha==0u {return;}
     let dst=u32(at.y)*p.canvas.x+u32(at.x);
+    if (p.policy.x&1u)!=0u {
+        let ground=terrain[dst];
+        if ground.y>p.foot.y+0.06 && ground.x>p.foot.z+(p.foot.x-f32(at.y)-0.5)/p.foot.w*0.6666667+0.02 {return;}
+    }
     let previous_owner=owners[dst];
     if previous_owner<p.contact.z && protection[p.contact.y+previous_owner]!=0u {return;}
     owners[dst]=p.contact.x;
@@ -42,10 +48,10 @@ fn blit(@builtin(global_invocation_id) id:vec3<u32>) {
     var height=p.scale.y;
     var packed=128u|(255u<<8u)|(14u<<16u); // same upright normal/RME fallback
     var mode=0u;
-    if (p.image.z&1u)!=0u {
+    if (p.policy.x&2u)==0u && (p.image.z&1u)!=0u {
         if (p.image.z&4u)==0u { height+=(p.bitmap.x-f32(texel.y)-0.5)/p.bitmap.y*p.scale.z*0.61237246; }
         mode=select(2u,1u,(p.image.z&2u)!=0u);
-    } else if p.image.w!=0u {
+    } else if (p.policy.x&2u)==0u && p.image.w!=0u {
         let g=geometry[src];
         packed=(g.x&65535u)|(g.y&0xffff0000u);
         let source_height=bitcast<f32>((g.x>>16u)|((g.y&65535u)<<16u));

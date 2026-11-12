@@ -9,7 +9,7 @@ mod collect;
 mod contact;
 pub use contact::ContactPolicy;
 mod source;
-pub use source::{Sprite, SpriteImage, SpriteOwner};
+pub use source::{Sprite, SpriteImage, SpriteOwner, TerrainContact};
 
 /// Geometry caches shared by native GPU production and the reference adapter.
 /// No viewport-sized albedo, surface, depth or ownership array belongs here.

@@ -553,10 +553,7 @@ fn draw_scene_impl(
                     buffer.dim().width as usize
                 },
                 offset: terrain_offset,
-                foot_y: projection.screen(entry.pos, entry.height).y,
-                foot_height: entry.height,
-                foot_depth: entry.pos.y - entry.pos.x + entry.height * 0.8164966,
-                unit: projection.unit,
+                contact: entry.terrain_contact(projection).expect("upright terrain-occluded source"),
             });
             draw_scene_entry(
                 entry,

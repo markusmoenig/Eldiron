@@ -166,10 +166,7 @@ pub(super) struct Occlusion<'a> {
     pub pixels: &'a [[f32; 8]],
     pub width: usize,
     pub offset: Vec2<usize>,
-    pub foot_y: f32,
-    pub foot_height: f32,
-    pub foot_depth: f32,
-    pub unit: f32,
+    pub contact: super::scene::TerrainContact,
 }
 impl Occlusion<'_> {
     pub fn hides(&self, x: usize, y: usize) -> bool {
@@ -179,9 +176,7 @@ impl Occlusion<'_> {
         };
         // Supporting ground cannot erase the boot pixels below the sprite's
         // foot anchor. A genuinely higher slope can still hide the character.
-        pixel[1] > self.foot_height + 0.06
-            && pixel[0]
-                > self.foot_depth + (self.foot_y - y as f32 - 0.5) / self.unit * 0.6666667 + 0.02
+        self.contact.hides(pixel[0], pixel[1], y as f32)
     }
 }
 

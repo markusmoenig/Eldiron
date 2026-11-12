@@ -52,7 +52,31 @@ pub struct SpriteImage<'a> {
     pub ground: bool,
 }
 
+/// View-space foot metadata shared by reference and native terrain clipping.
+#[derive(Clone, Copy, Debug)]
+pub struct TerrainContact {
+    pub foot_y: f32,
+    pub foot_height: f32,
+    pub foot_depth: f32,
+    pub unit: f32,
+}
+impl TerrainContact {
+    pub fn hides(&self, depth: f32, height: f32, pixel_y: f32) -> bool {
+        height > self.foot_height + 0.06
+            && depth
+                > self.foot_depth + (self.foot_y - pixel_y - 0.5) / self.unit * 0.6666667 + 0.02
+    }
+}
 impl<'a> Sprite<'a> {
+    pub fn terrain_contact(&self, projection: Projection) -> Option<TerrainContact> {
+        (self.support.is_none() && self.floor.is_none()).then(|| TerrainContact {
+            foot_y: projection.screen(self.pos, self.height).y,
+            foot_height: self.height,
+            foot_depth: self.pos.y - self.pos.x + self.height * 0.8164966,
+            unit: projection.unit,
+        })
+    }
+
     /// Stable reference order shared by GPU submission and contact protection.
     pub fn painter_cmp(&self, other: &Self) -> std::cmp::Ordering {
         (self.pos.y - self.pos.x + self.height * 0.8164966)

@@ -96,6 +96,7 @@ impl GpuSpriteSource {
 }
 /// A source placement in the shared CPU scene plan. The two scales differ:
 /// pixel_scale places source texels on screen; world_scale scales source height.
+#[derive(Clone, Copy)]
 pub struct SpriteBlit<'a> {
     pub source: &'a GpuSpriteSource,
     pub origin: [f32; 2],
@@ -111,9 +112,26 @@ pub struct SpriteBlit<'a> {
 }
 /// Instance-indexed support policy from the shared CPU scene plan. No pixel
 /// ownership or destination-color array is uploaded from the CPU.
+#[derive(Clone, Copy, Default)]
 pub struct SpriteContacts<'a> {
     pub owner: u32,
     pub protected: &'a [bool],
+}
+/// Reference terrain occlusion uses the instance's foot in the same projection
+/// as the GPU-produced ground depth/height, not a CPU ownership image.
+#[derive(Clone, Copy)]
+pub struct SpriteTerrainClip {
+    pub foot_y: f32,
+    pub foot_height: f32,
+    pub foot_depth: f32,
+    pub unit: f32,
+}
+#[derive(Clone, Copy, Default)]
+pub struct SpriteEnvironment<'a> {
+    pub contacts: SpriteContacts<'a>,
+    pub terrain: Option<SpriteTerrainClip>,
+    /// Shared ground layers use flat geometry instead of the source's normals.
+    pub flat_surface: bool,
 }
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -124,6 +142,8 @@ struct Params {
     scale: [f32; 4],
     contact: [u32; 4],
     bitmap: [f32; 4],
+    foot: [f32; 4],
+    policy: [u32; 4],
 }
 /// Retained clear/blit pipelines and a bounded-by-instance-count parameter arena.
 /// Ordered compute passes provide cross-sprite storage visibility and preserve
@@ -250,7 +270,14 @@ impl IsometricBlitter {
                 "isometric contact/instance counts do not match".into(),
             ));
         }
-        self.render_impl(canvas, background, sprites, Some(contacts), true)
+        let environments = contacts
+            .iter()
+            .map(|contacts| SpriteEnvironment {
+                contacts: *contacts,
+                ..Default::default()
+            })
+            .collect::<Vec<_>>();
+        self.render_impl(canvas, background, sprites, Some(&environments), true)
     }
     /// Compose source sprites over an already GPU-produced floor/terrain canvas.
     pub fn append(&mut self, canvas: &IsometricCanvas, sprites: &[SpriteBlit<'_>]) -> Result<()> {
@@ -267,14 +294,34 @@ impl IsometricBlitter {
                 "isometric contact/instance counts do not match".into(),
             ));
         }
-        self.render_impl(canvas, [0; 4], sprites, Some(contacts), false)
+        let environments = contacts
+            .iter()
+            .map(|contacts| SpriteEnvironment {
+                contacts: *contacts,
+                ..Default::default()
+            })
+            .collect::<Vec<_>>();
+        self.render_impl(canvas, [0; 4], sprites, Some(&environments), false)
+    }
+    pub fn append_with_environment(
+        &mut self,
+        canvas: &IsometricCanvas,
+        sprites: &[SpriteBlit<'_>],
+        environments: &[SpriteEnvironment<'_>],
+    ) -> Result<()> {
+        if environments.len() != sprites.len() {
+            return Err(RenderError(
+                "isometric environment/instance counts do not match".into(),
+            ));
+        }
+        self.render_impl(canvas, [0; 4], sprites, Some(environments), false)
     }
     fn render_impl(
         &mut self,
         canvas: &IsometricCanvas,
         background: [u8; 4],
         sprites: &[SpriteBlit<'_>],
-        contacts: Option<&[SpriteContacts<'_>]>,
+        environments: Option<&[SpriteEnvironment<'_>]>,
         clear: bool,
     ) -> Result<()> {
         if self.context.is_lost() || canvas.device_generation() != self.context.generation() {
@@ -293,10 +340,11 @@ impl IsometricBlitter {
                 *n <= self.context.device.limits().max_buffer_size && *n <= u64::from(u32::MAX)
             })
             .ok_or_else(|| RenderError("isometric instance arena exceeds device limits".into()))?;
-        let mask_words = contacts
+        let mask_words = environments
             .map_or(Some(0u64), |c| {
-                c.iter()
-                    .try_fold(0u64, |n, c| n.checked_add(c.protected.len() as u64))
+                c.iter().try_fold(0u64, |n, c| {
+                    n.checked_add(c.contacts.protected.len() as u64)
+                })
             })
             .filter(|n| {
                 n.max(&1).saturating_mul(4)
@@ -338,8 +386,30 @@ impl IsometricBlitter {
                     "invalid isometric sprite placement or GPU domain".into(),
                 ));
             }
-            let contact = contacts.map_or([0; 4], |records| {
-                let c = &records[i];
+            let environment =
+                environments.map_or(SpriteEnvironment::default(), |records| records[i]);
+            if environment.terrain.is_some_and(|t| {
+                ![t.foot_y, t.foot_height, t.foot_depth, t.unit]
+                    .into_iter()
+                    .all(f32::is_finite)
+                    || t.unit <= 0.
+            }) {
+                return Err(RenderError(
+                    "invalid isometric terrain clip metadata".into(),
+                ));
+            }
+            let foot = environment
+                .terrain
+                .map_or([0.; 4], |t| [t.foot_y, t.foot_height, t.foot_depth, t.unit]);
+            let policy = [
+                u32::from(environment.terrain.is_some())
+                    | (u32::from(environment.flat_surface) << 1),
+                0,
+                0,
+                0,
+            ];
+            let contact = environments.map_or([0; 4], |records| {
+                let c = &records[i].contacts;
                 let offset = masks.len() as u32;
                 masks.extend(c.protected.iter().map(|v| u32::from(*v)));
                 [c.owner, offset, c.protected.len() as u32, 0]
@@ -367,6 +437,8 @@ impl IsometricBlitter {
                     scale: [s.pixel_scale, s.base_height, s.world_scale, s.opacity],
                     contact,
                     bitmap: [s.anchor_y, s.pixels_per_unit, 0., 0.],
+                    foot,
+                    policy,
                     ..base
                 },
             );
