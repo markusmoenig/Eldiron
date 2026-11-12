@@ -247,6 +247,57 @@ impl GameScreenController {
     pub fn world_pointer_hit(&self) -> Option<WorldHit> {
         self.world.hover
     }
+    pub(super) fn pointer_visual_position(&self) -> Option<[f32; 2]> {
+        self.world
+            .pointer
+            .filter(|point| self.world.focused && self.inside_screen(*point))
+    }
+    pub(super) fn pointer_targets_world(&self, world: &RuntimeView<'_>) -> bool {
+        self.pointer_visual_position()
+            .is_some_and(|point| self.pointer_view(world, point).is_ok())
+    }
+    pub(super) fn pointer_cursor_target(
+        &self,
+        world: &RuntimeView<'_>,
+    ) -> Option<(bool, bool, bool)> {
+        if !self.frame_matches(world)
+            || self.pointer_visual_position().is_none()
+            || self.pointer_modal()
+        {
+            return None;
+        }
+        let (hit, pressed) = if let Some(capture) = &self.world.capture {
+            if capture.cancelled || !self.world_source_current(capture) {
+                return None;
+            }
+            (capture.hit, true)
+        } else {
+            if !self.pointer_targets_world(world) {
+                return None;
+            }
+            (self.world.hover?, false)
+        };
+        let map = world.map?;
+        Some((
+            hit.entity
+                .is_some_and(|id| map.entities.iter().any(|entity| entity.id == id)),
+            hit.item
+                .is_some_and(|id| map.items.iter().any(|item| item.id == id)),
+            pressed,
+        ))
+    }
+    pub(super) fn dragged_world_item(&self, world: &RuntimeView<'_>) -> Option<u32> {
+        let capture = self.world.capture.as_ref()?;
+        if !capture.dragging
+            || capture.cancelled
+            || !self.frame_matches(world)
+            || !self.world_source_current(capture)
+            || self.pointer_modal()
+        {
+            return None;
+        }
+        capture.item
+    }
     pub fn world_captures_pointer(&self) -> bool {
         self.world.capture.is_some()
     }

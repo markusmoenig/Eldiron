@@ -2,6 +2,7 @@
 //! views; a host supplies scene/image services and owns its surface and clock.
 mod choice;
 mod commands;
+mod cursor;
 mod focus;
 mod fonts;
 pub use commands::{ScreenActivation, ScreenEffect};
@@ -53,6 +54,7 @@ struct ScreenGeometry {
 
 pub struct GameScreenController {
     session: Uuid,
+    pointer_visuals: cursor::PointerVisuals,
     world: world_pointer::WorldPointer,
     pub speech: SpeechOverlay,
     pub world_texts: WorldTextOverlay,
@@ -153,6 +155,7 @@ impl GameScreenController {
     fn with_elements(name: &str, world: &RuntimeView<'_>, elements: ScreenElements) -> Self {
         Self {
             session: world.session_id,
+            pointer_visuals: Default::default(),
             world: world_pointer::WorldPointer::default(),
             speech: SpeechOverlay::default(),
             world_texts: WorldTextOverlay::default(),
@@ -194,6 +197,7 @@ impl GameScreenController {
             return false;
         }
         self.session = world.session_id;
+        self.pointer_visuals = Default::default();
         self.speech.bind_runtime(world);
         self.world_texts.bind_runtime(world);
         self.invalidate_world_input();
@@ -431,6 +435,7 @@ impl GameScreenController {
             .retain(|id, _| self.elements.messages_widgets.iter().any(|w| w.id == *id));
         self.speech.prepare(world, &self.elements, fonts);
         self.world_texts.prepare(world, &self.elements, fonts);
+        self.prepare_pointer_visuals(world, revision)?;
         Ok(())
     }
     pub fn prepare_game_views(

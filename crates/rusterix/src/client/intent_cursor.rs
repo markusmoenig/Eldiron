@@ -10,7 +10,8 @@ impl Client {
             return None;
         }
         if self.button_widgets.values().any(|b| {
-            !screen_model::widget_name_is_hidden(&b.name, &self.widgets_to_hide) && b.rect.contains(point)
+            !screen_model::widget_name_is_hidden(&b.name, &self.widgets_to_hide)
+                && b.rect.contains(point)
         }) {
             return None;
         }
@@ -27,12 +28,7 @@ impl Client {
             return None;
         }
         let intent = self.get_current_intent()?;
-        let command = if let Some(action) = intent.strip_prefix("action:") {
-            format!("rules.{action}")
-        } else {
-            format!("intent.{intent}")
-        };
-        screen_model::contextual_open_close_command(Some(command), self.hovered_item_id, map)
+        screen_model::intent_cursor_command(&intent, self.hovered_item_id, map)
     }
     pub(super) fn draw_intent_cursor(&mut self, map: &Map, assets: &Assets, overlay: bool) {
         let Some(command) = self.targeting_cursor_command(map) else {

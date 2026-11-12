@@ -77,9 +77,17 @@ fn outline(uv: vec2<f32>) -> vec4<f32> {
     if(params.mode==4u){return field_color(i.local-params.gradient.xy,c);}
     if(params.mode==3u){c=vec4<f32>(linear(i.color.rgb),i.color.a);}
     if(params.mode==1u){let d=params.gradient.zw-params.gradient.xy;let t=clamp(dot(i.local-params.gradient.xy,d)/max(dot(d,d),0.000001),0.,1.);c=mix(params.color0,params.color1,t);}
-    if(params.mode==2u || params.mode==5u){
+    if(params.mode==2u || params.mode==5u || params.mode==7u){
         var tex=textureSample(image,image_sampler,i.uv);
         if((params.source&1u)!=0u){tex=vec4<f32>(linear(tex.rgb),tex.a);}
+        if(params.mode==7u){
+            var straight=tex.rgb;
+            if((params.source&2u)!=0u){straight=tex.rgb/max(tex.a,0.000001);}
+            let bytes=round(clamp(srgb(straight),vec3<f32>(0.),vec3<f32>(1.))*255.);
+            let tone=select(params.color0,params.color1,dot(bytes,params.gradient.rgb)>=params.gradient.a);
+            let alpha=tex.a*tone.a;
+            return vec4<f32>(tone.rgb*alpha,alpha);
+        }
         if(params.mode==5u){
             var straight=tex.rgb;
             if((params.source&2u)!=0u){straight=tex.rgb/max(tex.a,0.000001);}

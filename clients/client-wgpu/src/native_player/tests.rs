@@ -286,6 +286,59 @@ fn clipboard_result_before_next_frame_cannot_edit_a_stopped_runtime_incarnation(
 }
 
 #[test]
+fn custom_cursor_host_state_restores_system_pointer_on_leave_and_missing_artwork() {
+    let mut app = PlayerApplication::new(
+        starter_with_menu(),
+        false,
+        Box::new(Services(Arc::new(Mutex::new(Observation::default())))),
+    )
+    .unwrap();
+    let mut host = HostContext::new(app.initial_size());
+    let tile =
+        rusterix::Tile::from_texture(rusterix::Texture::new([0, 255, 0, 255].repeat(4), 2, 2));
+    let id = tile.id;
+    app.player.runtime.assets.tiles.insert(id, tile);
+    let mut config = app
+        .player
+        .runtime
+        .project
+        .config
+        .parse::<toml::Table>()
+        .unwrap();
+    config
+        .get_mut("viewport")
+        .unwrap()
+        .as_table_mut()
+        .unwrap()
+        .insert("cursor_id".into(), id.to_string().into());
+    app.player.runtime.project.config = toml::to_string(&config).unwrap();
+    app.revision.0 += 1;
+    // Initialization establishes metrics before the host can deliver input.
+    // This service-only case needs that lifecycle step but no GPU presenter.
+    app.sync_host(&mut host).unwrap();
+    app.route(
+        &InputEvent::PointerMoved {
+            position: [10., 10.],
+        },
+        &mut host,
+    )
+    .unwrap();
+    assert!(!host.cursor_visible && app.screen.uses_custom_cursor());
+    app.route(&InputEvent::PointerLeft, &mut host).unwrap();
+    assert!(host.cursor_visible && !app.screen.uses_custom_cursor());
+    app.player.runtime.assets.tiles.shift_remove(&id);
+    app.route(
+        &InputEvent::PointerMoved {
+            position: [10., 10.],
+        },
+        &mut host,
+    )
+    .unwrap();
+    assert!(host.cursor_visible && !app.screen.uses_custom_cursor());
+    app.player.runtime.stop();
+}
+
+#[test]
 #[ignore = "requires native GPU and real starter runtime"]
 fn assembled_player_keeps_runtime_edits_and_clock_across_gpu_replacement() {
     let observed = Arc::new(Mutex::new(Observation::default()));

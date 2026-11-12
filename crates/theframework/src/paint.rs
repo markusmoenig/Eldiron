@@ -231,6 +231,18 @@ pub enum PaintOp {
         tint: Color,
         filter: ImageColorFilter,
     },
+    /// Two-tone source artwork. Luminance is measured from reconstructed 8-bit
+    /// encoded sRGB with weights 54/256, 183/256, 19/256. Source alpha remains
+    /// coverage; this does not allocate or upload a recolored source image.
+    ThresholdImage {
+        image: ImageHandle,
+        rect: Rect,
+        uv: Rect,
+        sampling: Sampling,
+        threshold: u8,
+        dark: Color,
+        light: Color,
+    },
     ImageMesh {
         vertices: Arc<[ImageVertex]>,
         indices: Arc<[u32]>,
@@ -307,6 +319,7 @@ impl PaintList {
         self.ops.iter().filter_map(|op| match op {
             PaintOp::Image { image, .. }
             | PaintOp::FilteredImage { image, .. }
+            | PaintOp::ThresholdImage { image, .. }
             | PaintOp::ImageOutline { image, .. }
             | PaintOp::ImageMesh { image, .. } => Some(*image),
             _ => None,
@@ -316,6 +329,31 @@ impl PaintList {
         let mut scopes = Vec::new();
         for op in &self.ops {
             match op {
+                PaintOp::ThresholdImage {
+                    rect,
+                    uv,
+                    dark,
+                    light,
+                    ..
+                } => {
+                    if dark
+                        .iter()
+                        .chain(light.iter())
+                        .chain([
+                            &rect.x,
+                            &rect.y,
+                            &rect.width,
+                            &rect.height,
+                            &uv.x,
+                            &uv.y,
+                            &uv.width,
+                            &uv.height,
+                        ])
+                        .any(|value| !value.is_finite())
+                    {
+                        return Err("nonfinite threshold image geometry or color");
+                    }
+                }
                 PaintOp::ImageOutline {
                     rect,
                     uv,

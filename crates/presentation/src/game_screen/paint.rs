@@ -51,6 +51,11 @@ impl GameScreenController {
         // its shaped layout. Input uses the last prepared display geometry.
         self.speech.prepare(world, &self.elements, fonts);
         self.world_texts.prepare(world, &self.elements, fonts);
+        self.prepare_pointer_visuals(
+            world,
+            self.revision
+                .ok_or("Prepare screen layout before painting")?,
+        )?;
         let geometry_cache = self
             .geometry
             .as_mut()
@@ -281,6 +286,7 @@ impl GameScreenController {
                 }
             }
         }
+        cursor::paint(&mut p, &self.pointer_visuals, assets, self.animation_frame)?;
         p.list.ops.push(PaintOp::PopClip);
         self.finish_world_frame(world);
         list.validate().map_err(str::to_string)?;

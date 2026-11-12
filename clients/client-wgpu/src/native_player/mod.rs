@@ -247,6 +247,7 @@ impl PlayerApplication {
         if self.suspended {
             host.text_input = None;
         }
+        host.cursor_visible = self.suspended || !self.screen.uses_custom_cursor();
         Ok(())
     }
     fn animation_frame(&self) -> usize {
@@ -564,6 +565,7 @@ impl GpuApplication for PlayerApplication {
             .screen
             .paint(&world, &mut self.fonts, &mut source_frame)
             .map_err(RenderError)?;
+        host.cursor_visible = !self.screen.uses_custom_cursor();
         let mut list = PaintList::default();
         list.ops.push(PaintOp::PushClip(Rect::new(
             0.,

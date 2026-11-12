@@ -5418,51 +5418,19 @@ impl Client {
         Vec2::new(pos.x.floor(), pos.y.floor())
     }
 
-    fn active_intent_cursor_ids(
-        &self,
-    ) -> Option<(Option<Uuid>, Option<Uuid>, Option<Uuid>, Option<Uuid>)> {
-        self.activated_widgets.iter().rev().find_map(|button_id| {
-            self.button_widgets.get(button_id).and_then(|widget| {
-                let has_intent = widget
-                    .intent_payload()
-                    .map(|intent| !intent.trim().is_empty())
-                    .unwrap_or(false)
-                    || (widget.command_slot.is_some() && !self.intent.trim().is_empty());
-                has_intent.then(|| {
-                    (
-                        widget.entity_cursor_id,
-                        widget.entity_clicked_cursor_id,
-                        widget.item_cursor_id,
-                        widget.item_clicked_cursor_id,
-                    )
-                })
-            })
-        })
-    }
-
     fn apply_active_intent_cursor(&mut self, entity_target: bool, item_target: bool) {
-        let Some((
-            entity_cursor_id,
-            entity_clicked_cursor_id,
-            item_cursor_id,
-            item_clicked_cursor_id,
-        )) = self.active_intent_cursor_ids()
-        else {
+        let Some(pair) = screen_model::active_intent_cursors(
+            &self.activated_widgets,
+            &self.button_widgets,
+            &self.intent,
+        )
+        .and_then(|cursors| cursors.target(entity_target, item_target)) else {
             return;
         };
-
-        if entity_target {
-            self.curr_intent_cursor = entity_cursor_id.or(item_cursor_id);
-            self.curr_clicked_intent_cursor = entity_clicked_cursor_id.or(item_clicked_cursor_id);
-            if let Some(cursor_id) = self.curr_intent_cursor {
-                self.curr_cursor = Some(cursor_id);
-            }
-        } else if item_target {
-            self.curr_intent_cursor = item_cursor_id;
-            self.curr_clicked_intent_cursor = item_clicked_cursor_id;
-            if let Some(cursor_id) = self.curr_intent_cursor {
-                self.curr_cursor = Some(cursor_id);
-            }
+        self.curr_intent_cursor = pair.normal;
+        self.curr_clicked_intent_cursor = pair.pressed;
+        if let Some(cursor) = pair.normal {
+            self.curr_cursor = Some(cursor);
         }
     }
 
@@ -7857,22 +7825,7 @@ impl Client {
     }
 
     fn get_current_intent(&self) -> Option<String> {
-        // Newer activations should win, and non-intent buttons (e.g. camera toggles)
-        // must not mask an existing intent.
-        for button_id in self.activated_widgets.iter().rev() {
-            if let Some(widget) = self.button_widgets.get(button_id) {
-                if let Some(intent) = widget.intent_payload()
-                    && !intent.is_empty()
-                {
-                    return Some(intent);
-                }
-            }
-        }
-        if self.intent.is_empty() {
-            None
-        } else {
-            Some(self.intent.clone())
-        }
+        screen_model::selected_intent(&self.activated_widgets, &self.button_widgets, &self.intent)
     }
 
     /// Returns the current intent payload for server actions.

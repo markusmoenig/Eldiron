@@ -606,3 +606,100 @@ fn decorated_editor_reuses_swash_glyphs_and_paints_native_syntax_and_diagnostics
         .write_image_data(pixels.pixels())
         .unwrap();
 }
+
+#[test]
+#[ignore = "requires native GPU; run with --include-ignored"]
+fn threshold_images_reuse_sources_preserve_coverage_and_match_encoded_luminance_boundaries() {
+    let ctx = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut images = ImageRegistry::new(ctx.clone());
+    let pixels = [
+        [99, 99, 99, 255],
+        [100, 100, 100, 255],
+        [255, 0, 0, 255],
+        [0, 255, 0, 255],
+        [100, 100, 100, 128],
+        [255, 255, 255, 0],
+    ];
+    let asset = ImageAsset::rgba(6, 1, pixels.into_iter().flatten().collect()).unwrap();
+    let image = images.upload_linear(&asset).unwrap();
+    let output = GpuImage::new(&ctx, ImageDescriptor::rgba(120, 40)).unwrap();
+    let mut renderer = PaintRenderer::new(ctx.clone()).unwrap();
+    let mut list = PaintList::default();
+    list.ops
+        .push(PaintOp::PushClip(Rect::new(0., 0., 120., 32.)));
+    list.ops.push(PaintOp::PushOpacity(0.5));
+    list.ops.push(PaintOp::ThresholdImage {
+        image,
+        rect: Rect::new(0., 0., 120., 40.),
+        uv: Rect::new(0., 0., 1., 1.),
+        sampling: Sampling::Nearest,
+        threshold: 100,
+        dark: [35. / 255., 35. / 255., 35. / 255., 1.],
+        light: [230. / 255., 230. / 255., 230. / 255., 1.],
+    });
+    list.ops.extend([PaintOp::PopOpacity, PaintOp::PopClip]);
+    list.validate().unwrap();
+    assert_eq!(list.image_handles().collect::<Vec<_>>(), vec![image]);
+    let uploaded = ctx.transfers().uploaded_bytes;
+    for _ in 0..2 {
+        renderer
+            .render(
+                &list,
+                &images,
+                &output.view,
+                output.descriptor.format,
+                (120, 40),
+                1.,
+                [0., 0., 0., 1.],
+            )
+            .unwrap();
+    }
+    assert_eq!(
+        ctx.transfers().uploaded_bytes,
+        uploaded,
+        "recoloring cannot upload altered source pixels"
+    );
+    assert_eq!(ctx.transfers().readback_bytes, 0);
+    let mut capture = ReadbackTicket::capture(&ctx, output).unwrap();
+    ctx.device
+        .poll(wgpu::PollType::Wait {
+            submission_index: None,
+            timeout: Some(std::time::Duration::from_secs(30)),
+        })
+        .unwrap();
+    let capture = capture.try_finish(&ctx).unwrap().unwrap();
+    let pixel = |x: usize, y: usize| &capture.pixels()[(y * 120 + x) * 4..(y * 120 + x + 1) * 4];
+    let linear = |value: f32| {
+        if value <= 0.04045 {
+            value / 12.92
+        } else {
+            ((value + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    let encoded = |value: f32| {
+        if value <= 0.0031308 {
+            value * 12.92
+        } else {
+            1.055 * value.powf(1. / 2.4) - 0.055
+        }
+    };
+    for (i, source) in pixels.iter().enumerate() {
+        let luma = (source[0] as u32 * 54 + source[1] as u32 * 183 + source[2] as u32 * 19) / 256;
+        let tone = if luma >= 100 { 230. } else { 35. };
+        let expected =
+            (encoded(linear(tone / 255.) * source[3] as f32 / 255. * 0.5) * 255.).round() as u8;
+        let actual = pixel(i * 20 + 10, 10);
+        assert!(
+            actual[0].abs_diff(expected) <= 2,
+            "source {source:?}: {actual:?}, expected {expected}"
+        );
+        assert_eq!(actual[0], actual[1]);
+        assert_eq!(actual[1], actual[2]);
+        assert_eq!(actual[3], 255);
+    }
+    assert_eq!(
+        pixel(10, 36),
+        &[0, 0, 0, 255],
+        "threshold image obeys its outer clip"
+    );
+}

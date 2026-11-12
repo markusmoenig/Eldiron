@@ -1843,6 +1843,8 @@ fn native_text_target_changes_on_focus_and_recreation_and_rejects_late_commit() 
     assert_ne!(next.text_input_state(&mut fonts).unwrap().target, refocused);
 }
 
+#[path = "game_screen/cursor.rs"]
+mod cursor;
 #[path = "game_screen/keyboard.rs"]
 mod keyboard;
 #[path = "game_screen/restart.rs"]

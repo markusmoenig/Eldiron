@@ -40,7 +40,7 @@ impl ScreenInputResponse {
     }
 }
 impl GameScreenController {
-    fn inside_screen(&self, position: [f32; 2]) -> bool {
+    pub(super) fn inside_screen(&self, position: [f32; 2]) -> bool {
         position.iter().all(|v| v.is_finite())
             && Uv::new(
                 0.,

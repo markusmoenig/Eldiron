@@ -30,7 +30,16 @@ struct Geometry {
 #[derive(Clone, Copy)]
 enum ImageEffect {
     Filter(ImageColorFilter),
-    Outline { uv: Rect, step: Point, width: f32 },
+    Threshold {
+        dark: Color,
+        light: Color,
+        threshold: u8,
+    },
+    Outline {
+        uv: Rect,
+        step: Point,
+        width: f32,
+    },
 }
 struct Draw {
     geometry: Geometry,
@@ -342,10 +351,20 @@ impl PaintRenderer {
             Some(ImageEffect::Outline { uv, step, width }) => Some((uv, step, width)),
             _ => None,
         };
+        let threshold = match effect {
+            Some(ImageEffect::Threshold {
+                dark,
+                light,
+                threshold,
+            }) => Some((linear(dark), linear(light), threshold)),
+            _ => None,
+        };
         let params = Params {
             viewport: [size.0 as f32, size.1 as f32],
             mode: if outline.is_some() {
                 6
+            } else if threshold.is_some() {
+                7
             } else if field.is_some() {
                 4
             } else if filter.is_some() {
@@ -358,25 +377,40 @@ impl PaintRenderer {
                 mode
             },
             source: field.map_or(source, |(f, _)| f.primitives.len() as u32),
-            color0: filter.map_or(color0, |f| {
-                [color0[0], color0[1], color0[2], color0[3] * f.alpha_scale]
-            }),
-            color1: outline.map_or_else(
+            color0: threshold.map_or_else(
                 || {
-                    filter.map_or(color1, |f| {
-                        [f.scale[0], f.scale[1], f.scale[2], f.saturation]
+                    filter.map_or(color0, |f| {
+                        [color0[0], color0[1], color0[2], color0[3] * f.alpha_scale]
                     })
                 },
-                |(uv, _, _)| [uv.x, uv.y, uv.x + uv.width, uv.y + uv.height],
+                |(dark, _, _)| dark,
             ),
-            gradient: outline.map_or_else(
+            color1: threshold.map_or_else(
                 || {
-                    filter.map_or_else(
-                        || field.map_or(gradient, |(_, p)| [p[0], p[1], 0., 0.]),
-                        |f| [f.bias[0], f.bias[1], f.bias[2], f.minimum],
+                    outline.map_or_else(
+                        || {
+                            filter.map_or(color1, |f| {
+                                [f.scale[0], f.scale[1], f.scale[2], f.saturation]
+                            })
+                        },
+                        |(uv, _, _)| [uv.x, uv.y, uv.x + uv.width, uv.y + uv.height],
                     )
                 },
-                |(_, step, width)| [step[0], step[1], width, 0.],
+                |(_, light, _)| light,
+            ),
+            gradient: threshold.map_or_else(
+                || {
+                    outline.map_or_else(
+                        || {
+                            filter.map_or_else(
+                                || field.map_or(gradient, |(_, p)| [p[0], p[1], 0., 0.]),
+                                |f| [f.bias[0], f.bias[1], f.bias[2], f.minimum],
+                            )
+                        },
+                        |(_, step, width)| [step[0], step[1], width, 0.],
+                    )
+                },
+                |(_, _, threshold)| [54. / 256., 183. / 256., 19. / 256., threshold as f32],
             ),
         };
         let uniform = self
@@ -538,6 +572,36 @@ impl PaintRenderer {
                                 uv: *uv,
                                 step,
                                 width: *width,
+                            }),
+                        ));
+                    }
+                }
+                PaintOp::ThresholdImage {
+                    image,
+                    rect,
+                    uv,
+                    sampling,
+                    threshold,
+                    dark,
+                    light,
+                } => {
+                    let image = images.get(*image).ok_or_else(|| {
+                        RenderError("paint references a stale image handle".into())
+                    })?;
+                    if rect.width > 0. && rect.height > 0. {
+                        let (vertices, indices) = mesh::quad(*rect, *uv, transform, density);
+                        draws.push(self.draw_with_effects(
+                            self.geometry(&vertices, &indices),
+                            &Brush::Solid([1.; 4]),
+                            Some((&image, *sampling)),
+                            size,
+                            level,
+                            0,
+                            None,
+                            Some(ImageEffect::Threshold {
+                                dark: *dark,
+                                light: *light,
+                                threshold: *threshold,
                             }),
                         ));
                     }
