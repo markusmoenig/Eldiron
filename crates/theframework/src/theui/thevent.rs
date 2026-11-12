@@ -86,6 +86,10 @@ pub enum TheEvent {
     /// they must not invoke the platform text clipboard behind the native view.
     #[cfg(feature = "text")]
     GraphCommand(TheId, u64, crate::text_edit::EditorCommand),
+    #[cfg(feature = "text")]
+    GraphClipboardIntent(TheId, std::sync::Arc<crate::thegraph::GraphClipboardIntent>),
+    #[cfg(feature = "text")]
+    GraphClipboardResult(TheId, u64, u64, crate::platform::ClipboardResult),
     RenderViewClicked(TheId, Vec2<i32>),
     RenderViewDragged(TheId, Vec2<i32>),
     RenderViewHoverChanged(TheId, Vec2<i32>),

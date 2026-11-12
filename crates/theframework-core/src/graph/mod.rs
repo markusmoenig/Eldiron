@@ -1,3 +1,5 @@
+mod clipboard;
+pub use clipboard::*;
 mod copy;
 pub use copy::*;
 mod identity;

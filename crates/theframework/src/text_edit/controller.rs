@@ -10,11 +10,7 @@ use crate::{
     text::{TextLayout, TextOptions, TextSystem},
 };
 use parley::{PlainEditor, PlainEditorDriver, StyleProperty};
-use std::{
-    collections::VecDeque,
-    sync::atomic::{AtomicU64, Ordering},
-};
-static NEXT_CLIPBOARD_REQUEST: AtomicU64 = AtomicU64::new(1);
+use std::collections::VecDeque;
 use unicode_segmentation::UnicodeSegmentation;
 
 #[derive(Clone, PartialEq, Eq)]
@@ -963,7 +959,7 @@ impl EditorController {
                     return EditorResponse::handled(false);
                 };
                 let cut = if command == EditorCommand::Cut {
-                    let request = NEXT_CLIPBOARD_REQUEST.fetch_add(1, Ordering::Relaxed);
+                    let request = crate::platform::new_clipboard_request();
                     self.clipboard = Some(PendingClipboard {
                         request,
                         cut: true,
@@ -979,7 +975,7 @@ impl EditorController {
                 }
             }
             EditorCommand::Paste => {
-                let request = NEXT_CLIPBOARD_REQUEST.fetch_add(1, Ordering::Relaxed);
+                let request = crate::platform::new_clipboard_request();
                 self.clipboard = Some(PendingClipboard {
                     request,
                     cut: false,

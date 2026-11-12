@@ -260,6 +260,7 @@ impl NativeNodesWorkspace {
             .iter()
             .find(|node| is_branch_trigger(node, &definitions))
             .map(|node| node.id);
+        let selected = root.or_else(|| copy.nodes.first().map(|node| node.id));
         let existing_root = self
             .cpu
             .source(key)
@@ -292,6 +293,12 @@ impl NativeNodesWorkspace {
             && let Some(root) = root
         {
             self.show_configuration_branch(&to, root, &definitions, fonts)?;
+        }
+        if changed {
+            self.views[&to].model.lock().unwrap().edit(|_, editor| {
+                editor.selected = selected;
+                editor.selected_connection = None;
+            });
         }
         Ok(changed)
     }

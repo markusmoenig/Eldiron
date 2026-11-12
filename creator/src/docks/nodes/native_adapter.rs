@@ -1,5 +1,8 @@
 //! Native NodesDock host adapter. This mounts retained widgets and applies CPU
 //! source effects; it does not draw a graph or read back a displayed image.
+#[path = "native_clipboard.rs"]
+mod clipboard;
+pub(super) type PendingClipboard = clipboard::Pending;
 use super::*;
 use native_view::{NativeNodePanels, NativeNodesView};
 use shared::graph_authoring::{NodeGraphKind, NodeSourceKey};
@@ -195,6 +198,7 @@ impl NodesDock {
         branch: Option<GraphId>,
     ) {
         self.native_enabled = true;
+        self.native_clipboard = None;
         sync_node_list(ui, ctx, context);
         let previous = self.native.active.as_ref().map(|key| key.owner.clone());
         self.load_error = None;
@@ -258,6 +262,9 @@ impl NodesDock {
         ctx: &mut TheContext,
         project: &mut Project,
     ) -> bool {
+        if let Some(handled) = self.native_clipboard_event(event, ui, ctx, project) {
+            return handled;
+        }
         match event {
             TheEvent::GraphCommitted(id, packet) if id.name == VIEW => {
                 let Some(key) = self.native.cpu.binding_source(packet.binding).cloned() else {
@@ -579,6 +586,7 @@ mod tests {
     use theframework::{
         paint::{ImageHandle, PaintList},
         platform::*,
+        text_edit::EditorClipboard,
         theui::paint::{UiImageResources, UiPaintError},
     };
     struct NoImages;
@@ -685,6 +693,28 @@ mod tests {
             self.dock.native.views[self.dock.native.active.as_ref().unwrap()]
                 .model
                 .clone()
+        }
+        fn diagram(&mut self, selected: Option<GraphId>) {
+            let id = self.ui.get_widget(VIEW).unwrap().id().clone();
+            self.ctx.ui.set_focus(&id);
+            self.ui
+                .get_widget(VIEW)
+                .unwrap()
+                .editor_set_active(true, &mut self.ctx);
+            self.model().lock().unwrap().edit(|_, editor| {
+                editor.selected = selected;
+                editor.selected_connection = None;
+            });
+        }
+        fn clipboard_request(&mut self, command: EditorCommand) -> EditorClipboard {
+            self.ui
+                .get_widget(VIEW)
+                .unwrap()
+                .editor_command(command, &mut self.ctx);
+            self.pump();
+            let operation = self.ctx.ui.editor_clipboard.pop_front().unwrap();
+            assert!(self.ctx.ui.editor_clipboard.is_empty());
+            operation
         }
         fn send(&mut self, event: InputEvent) -> InputResponse {
             self.ui.prepare_paint_layout(&mut self.ctx);
@@ -1157,6 +1187,297 @@ mod tests {
         let before = serde_json::to_value(&f.project).unwrap();
         f.drop_node("say", [500.25, 200.125]);
         assert_eq!(serde_json::to_value(&f.project).unwrap(), before);
+    }
+    #[test]
+    fn native_nodes_clipboard_keyboard_copy_keeps_input_time_selection_without_project_changes() {
+        let mut f = Fixture::new();
+        let document = f.model().lock().unwrap().document().clone();
+        let say = document
+            .nodes
+            .iter()
+            .find(|n| n.definition.as_deref() == Some("say"))
+            .unwrap();
+        f.diagram(Some(say.id));
+        let before = serde_json::to_value(&f.project).unwrap();
+        f.send(InputEvent::Modifiers(Modifiers {
+            super_key: true,
+            ..Default::default()
+        }));
+        assert!(
+            f.send(InputEvent::Key {
+                physical: PhysicalKey::Letter(b'C'),
+                logical: LogicalKey::Character("c".into()),
+                pressed: true,
+                repeat: false,
+            })
+            .consumed
+        );
+        // Application dispatch happens after selection has moved elsewhere.
+        f.model()
+            .lock()
+            .unwrap()
+            .edit(|_, editor| editor.selected = Some(document.nodes[0].id));
+        f.pump();
+        let Some(EditorClipboard::Write { text, cut: None }) =
+            f.ctx.ui.editor_clipboard.pop_front()
+        else {
+            panic!("copy must request a host write")
+        };
+        let copy = GraphClipboard::decode(&text, "eldiron.behavior", 8 * 1024 * 1024).unwrap();
+        assert_eq!(copy.document.nodes, vec![say.clone()]);
+        assert_eq!(serde_json::to_value(&f.project).unwrap(), before);
+        assert!(
+            !f.dock
+                .native
+                .can_undo(f.dock.native.active.as_ref().unwrap())
+        );
+    }
+    #[test]
+    fn native_nodes_clipboard_cut_requires_successful_write_and_deletes_once_with_one_undo() {
+        let mut f = Fixture::new();
+        let document = f.model().lock().unwrap().document().clone();
+        let say = document
+            .nodes
+            .iter()
+            .find(|n| n.definition.as_deref() == Some("say"))
+            .unwrap()
+            .id;
+        f.diagram(Some(say));
+        let before = serde_json::to_value(&f.project).unwrap();
+        let EditorClipboard::Write {
+            cut: Some(failed), ..
+        } = f.clipboard_request(EditorCommand::Cut)
+        else {
+            panic!("cut must request an acknowledged write")
+        };
+        assert_eq!(serde_json::to_value(&f.project).unwrap(), before);
+        assert!(
+            f.send(InputEvent::Clipboard {
+                request: failed,
+                result: ClipboardResult::Written(false)
+            })
+            .consumed
+        );
+        f.pump();
+        assert_eq!(serde_json::to_value(&f.project).unwrap(), before);
+        let EditorClipboard::Write {
+            cut: Some(request), ..
+        } = f.clipboard_request(EditorCommand::Cut)
+        else {
+            panic!()
+        };
+        assert_ne!(request, failed);
+        assert!(
+            f.send(InputEvent::Clipboard {
+                request,
+                result: ClipboardResult::Written(true)
+            })
+            .consumed
+        );
+        f.pump();
+        assert_eq!(f.model().lock().unwrap().document().nodes.len(), 1);
+        let after = serde_json::to_value(&f.project).unwrap();
+        assert!(
+            !f.send(InputEvent::Clipboard {
+                request,
+                result: ClipboardResult::Written(true)
+            })
+            .consumed
+        );
+        f.pump();
+        assert_eq!(serde_json::to_value(&f.project).unwrap(), after);
+        f.dock
+            .undo(&mut f.ui, &mut f.ctx, &mut f.project, &mut f.server);
+        assert_eq!(f.model().lock().unwrap().document(), &document);
+        assert!(
+            !f.dock
+                .native
+                .can_undo(f.dock.native.active.as_ref().unwrap())
+        );
+        f.dock
+            .redo(&mut f.ui, &mut f.ctx, &mut f.project, &mut f.server);
+        assert!(
+            !f.model()
+                .lock()
+                .unwrap()
+                .document()
+                .nodes
+                .iter()
+                .any(|n| n.id == say)
+        );
+    }
+    #[test]
+    fn native_nodes_clipboard_paste_uses_frozen_graph_anchor_fresh_ids_and_source_history() {
+        let mut f = Fixture::new();
+        let document = f.model().lock().unwrap().document().clone();
+        let say = document
+            .nodes
+            .iter()
+            .find(|n| n.definition.as_deref() == Some("say"))
+            .unwrap()
+            .clone();
+        let text = GraphClipboard::new(
+            "eldiron.behavior",
+            GraphDocument {
+                nodes: vec![say.clone()],
+                ..Default::default()
+            },
+        )
+        .encode(100_000)
+        .unwrap();
+        f.diagram(None);
+        let anchor = [222.125, 180.25];
+        f.model()
+            .lock()
+            .unwrap()
+            .edit(|_, editor| editor.cursor = editor.viewport.to_screen(anchor));
+        let EditorClipboard::Read { request } = f.clipboard_request(EditorCommand::Paste) else {
+            panic!("paste must request a host read")
+        };
+        f.model().lock().unwrap().edit(|_, editor| {
+            editor.viewport.pan = [600., -400.];
+            editor.viewport.zoom_at([100., 100.], 1.75);
+        });
+        assert!(
+            f.send(InputEvent::Clipboard {
+                request,
+                result: ClipboardResult::Text(Some(text))
+            })
+            .consumed
+        );
+        f.pump();
+        let model = f.model();
+        let model = model.lock().unwrap();
+        let pasted = model
+            .document()
+            .nodes
+            .iter()
+            .find(|n| !document.nodes.iter().any(|old| old.id == n.id))
+            .unwrap();
+        assert_ne!(pasted.id, say.id);
+        for axis in 0..2 {
+            assert!((pasted.position[axis] - anchor[axis]).abs() < 0.001);
+        }
+        assert_eq!(pasted.rows[0].value, say.rows[0].value);
+        assert_eq!(model.editor().selected, Some(pasted.id));
+        drop(model);
+        f.dock
+            .undo(&mut f.ui, &mut f.ctx, &mut f.project, &mut f.server);
+        assert_eq!(f.model().lock().unwrap().document(), &document);
+        assert!(
+            !f.dock
+                .native
+                .can_undo(f.dock.native.active.as_ref().unwrap())
+        );
+    }
+    #[test]
+    fn native_nodes_clipboard_rejects_invalid_payloads_and_stale_owner_or_selection() {
+        let mut f = Fixture::new();
+        let document = f.model().lock().unwrap().document().clone();
+        let say = document
+            .nodes
+            .iter()
+            .find(|n| n.definition.as_deref() == Some("say"))
+            .unwrap()
+            .id;
+        f.diagram(Some(say));
+        let before = serde_json::to_value(&f.project).unwrap();
+        for text in [
+            None,
+            Some("ordinary text".into()),
+            Some(
+                GraphClipboard::new("eldiron.configuration", document.clone())
+                    .encode(100_000)
+                    .unwrap(),
+            ),
+            Some(" ".repeat(8 * 1024 * 1024 + 1)),
+        ] {
+            let EditorClipboard::Read { request } = f.clipboard_request(EditorCommand::Paste)
+            else {
+                panic!()
+            };
+            f.send(InputEvent::Clipboard {
+                request,
+                result: ClipboardResult::Text(text),
+            });
+            f.pump();
+            assert_eq!(serde_json::to_value(&f.project).unwrap(), before);
+        }
+        let EditorClipboard::Write {
+            cut: Some(request), ..
+        } = f.clipboard_request(EditorCommand::Cut)
+        else {
+            panic!()
+        };
+        f.diagram(None);
+        f.send(InputEvent::Clipboard {
+            request,
+            result: ClipboardResult::Written(true),
+        });
+        f.pump();
+        assert_eq!(serde_json::to_value(&f.project).unwrap(), before);
+        f.diagram(Some(say));
+        let EditorClipboard::Write {
+            cut: Some(request), ..
+        } = f.clipboard_request(EditorCommand::Cut)
+        else {
+            panic!()
+        };
+        f.show(ProjectContext::CharacterCode(f.character));
+        f.pump();
+        assert!(
+            !f.send(InputEvent::Clipboard {
+                request,
+                result: ClipboardResult::Written(true)
+            })
+            .consumed
+        );
+        f.pump();
+        assert_eq!(serde_json::to_value(&f.project).unwrap(), before);
+    }
+    #[test]
+    fn native_nodes_clipboard_text_and_diagram_requests_cannot_complete_each_other() {
+        let mut f = Fixture::new();
+        f.text("Kept text");
+        f.ui.paste(&mut f.ctx);
+        let Some(EditorClipboard::Read {
+            request: text_request,
+        }) = f.ctx.ui.editor_clipboard.pop_front()
+        else {
+            panic!()
+        };
+        let dim = *f.ui.get_widget(VIEW).unwrap().dim();
+        f.click([
+            (dim.x + dim.width - 8) as f32,
+            (dim.y + dim.height - 8) as f32,
+        ]);
+        f.pump();
+        f.diagram(None);
+        let EditorClipboard::Read { request } = f.clipboard_request(EditorCommand::Paste) else {
+            panic!()
+        };
+        assert_ne!(request, text_request);
+        let before = serde_json::to_value(&f.project).unwrap();
+        assert!(
+            !f.send(InputEvent::Clipboard {
+                request: text_request,
+                result: ClipboardResult::Text(Some("late text".into()))
+            })
+            .consumed
+        );
+        f.pump();
+        assert_eq!(serde_json::to_value(&f.project).unwrap(), before);
+        assert!(f.dock.native_clipboard.is_some());
+        assert!(
+            f.send(InputEvent::Clipboard {
+                request,
+                result: ClipboardResult::Text(None)
+            })
+            .consumed
+        );
+        f.pump();
+        assert!(f.dock.native_clipboard.is_none());
+        assert_eq!(f.saved("behavior/world"), "Kept text");
     }
     #[cfg(feature = "native-render")]
     #[test]

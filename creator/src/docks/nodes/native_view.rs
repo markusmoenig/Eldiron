@@ -339,6 +339,9 @@ impl NativeNodesView {
             editor_click: None,
         }
     }
+    pub(super) fn expect_clipboard(&mut self, binding: u64, request: u64) -> bool {
+        self.graph.expect_clipboard(binding, request)
+    }
     pub(super) fn model(&self) -> Arc<Mutex<GraphViewState>> {
         self.graph.model()
     }
@@ -374,6 +377,9 @@ impl NativeNodesView {
     }
     fn prepare_panel(&mut self, ctx: &mut TheContext) {
         let active = self.is_focused(ctx);
+        if self.is_panel() {
+            self.graph.cancel_clipboard();
+        }
         self.graph
             .editor_set_active(active && !self.is_panel(), ctx);
         let mut panels = self.panels.lock().unwrap();
@@ -580,7 +586,7 @@ impl TheWidget for NativeNodesView {
         !self.is_panel() || self.supports_text_input()
     }
     fn supports_clipboard(&mut self) -> bool {
-        self.supports_text_input()
+        !self.is_panel() || self.supports_text_input()
     }
     fn editor_set_active(&mut self, active: bool, ctx: &mut TheContext) {
         self.active = active;

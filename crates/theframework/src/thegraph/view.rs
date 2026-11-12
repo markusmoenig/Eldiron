@@ -267,6 +267,7 @@ pub struct TheGraphView {
     painted_revision: u64,
     wheel_scale: f32,
     aspect_scaled_scroll: bool,
+    clipboard: Option<(u64, u64)>,
 }
 impl TheGraphView {
     pub fn with_state(id: TheId, state: Arc<Mutex<GraphViewState>>) -> Self {
@@ -276,6 +277,17 @@ impl TheGraphView {
     }
     pub fn model(&self) -> Arc<Mutex<GraphViewState>> {
         self.state.clone()
+    }
+    /// Register a host request only after its application owner captured source.
+    pub fn expect_clipboard(&mut self, binding: u64, request: u64) -> bool {
+        if self.state.lock().unwrap().binding() != binding {
+            return false;
+        }
+        self.clipboard = Some((binding, request));
+        true
+    }
+    pub fn cancel_clipboard(&mut self) {
+        self.clipboard = None;
     }
     pub fn set_context(&mut self, context: impl GraphContext + Send + Sync + 'static) {
         self.context = Box::new(context);
@@ -474,6 +486,7 @@ impl TheWidget for TheGraphView {
             painted_revision: 0,
             wheel_scale: -0.4,
             aspect_scaled_scroll: true,
+            clipboard: None,
         }
     }
     fn id(&self) -> &TheId {
@@ -530,6 +543,9 @@ impl TheWidget for TheGraphView {
     }
 
     fn editor_set_active(&mut self, active: bool, ctx: &mut TheContext) {
+        if !active {
+            self.cancel_clipboard();
+        }
         if self.active != active {
             if !active && self.dragging {
                 let mut state = self.state.lock().unwrap();
@@ -545,6 +561,29 @@ impl TheWidget for TheGraphView {
         self.prepare_session(ctx);
     }
     fn editor_input(&mut self, event: &InputEvent, ctx: &mut TheContext) -> Option<EditorResponse> {
+        if let InputEvent::Clipboard { request, result } = event
+            && self
+                .clipboard
+                .is_some_and(|(_, pending)| pending == *request)
+        {
+            let (binding, _) = self.clipboard.take().unwrap();
+            let valid = self.focused(ctx) && self.state.lock().unwrap().binding() == binding;
+            if valid {
+                ctx.ui.send(TheEvent::GraphClipboardResult(
+                    self.id.clone(),
+                    binding,
+                    *request,
+                    result.clone(),
+                ));
+            }
+            return Some(EditorResponse {
+                input: crate::platform::InputResponse {
+                    consumed: valid,
+                    redraw: false,
+                },
+                ..Default::default()
+            });
+        }
         if let InputEvent::Modifiers(modifiers) = event {
             ctx.ui.input_modifiers = *modifiers;
         }
@@ -563,9 +602,49 @@ impl TheWidget for TheGraphView {
         let active = self.focused(ctx);
         if !self.supports_text_input() {
             if active {
-                let binding = self.state.lock().unwrap().binding;
-                ctx.ui
-                    .send(TheEvent::GraphCommand(self.id.clone(), binding, command));
+                let action = match command {
+                    EditorCommand::Copy => Some(GraphClipboardAction::Copy),
+                    EditorCommand::Cut => Some(GraphClipboardAction::Cut),
+                    EditorCommand::Paste => Some(GraphClipboardAction::Paste),
+                    _ => None,
+                };
+                if let Some(action) = action {
+                    let intent = {
+                        let state = self.state.lock().unwrap();
+                        (!state.editor.is_gesturing()).then(|| GraphClipboardIntent {
+                            binding: state.binding,
+                            serial: state.serial,
+                            action,
+                            document: Arc::new(state.document.clone()),
+                            nodes: if let Some(node) = state.editor.selected {
+                                vec![node]
+                            } else if state.editor.selected_connection.is_some() {
+                                vec![]
+                            } else {
+                                state
+                                    .document
+                                    .nodes
+                                    .iter()
+                                    .filter(|node| state.editor.node_visible(node.id))
+                                    .map(|node| node.id)
+                                    .collect()
+                            },
+                            selected: state.editor.selected,
+                            connection: state.editor.selected_connection,
+                            position: state.editor.viewport.to_graph(state.editor.cursor),
+                        })
+                    };
+                    if let Some(intent) = intent {
+                        ctx.ui.send(TheEvent::GraphClipboardIntent(
+                            self.id.clone(),
+                            Arc::new(intent),
+                        ));
+                    }
+                } else {
+                    let binding = self.state.lock().unwrap().binding;
+                    ctx.ui
+                        .send(TheEvent::GraphCommand(self.id.clone(), binding, command));
+                }
             }
             return Some(EditorResponse {
                 input: crate::platform::InputResponse {
@@ -728,6 +807,7 @@ impl TheWidget for TheGraphView {
                 state.invalidate();
             }
             TheEvent::LostFocus(_) => {
+                self.cancel_clipboard();
                 self.active = false;
                 self.dragging = false;
                 let mut state = self.state.lock().unwrap();

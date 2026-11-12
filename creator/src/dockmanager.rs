@@ -269,6 +269,8 @@ impl DockManager {
                 | TheEvent::GraphCommand(_, _, _)
                 | TheEvent::GraphInteractionStarted(_, _)
                 | TheEvent::GraphDrop(_, _, _, _)
+                | TheEvent::GraphClipboardIntent(_, _)
+                | TheEvent::GraphClipboardResult(_, _, _, _)
         ) {
             // The source binding selects its owner; the active dock/tool may
             // have changed between native input and application dispatch.

@@ -1,5 +1,11 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 static NEXT_TEXT_TARGET: AtomicU64 = AtomicU64::new(1);
+static NEXT_CLIPBOARD_REQUEST: AtomicU64 = AtomicU64::new(1);
+/// One request domain for text editors and application-owned diagram commands.
+/// Host clipboard completions retain the existing opaque u64 wire contract.
+pub fn new_clipboard_request() -> u64 {
+    NEXT_CLIPBOARD_REQUEST.fetch_add(1, Ordering::Relaxed)
+}
 /// Process-unique editor identity. It survives layout/device replacement and
 /// changes on focus/document replacement or controller recreation, including
 /// when the authored widget ID is reused.

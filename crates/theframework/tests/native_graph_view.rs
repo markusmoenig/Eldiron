@@ -371,9 +371,10 @@ fn suspended_graph_capture_restores_uncommitted_controls_and_keeps_graph_command
         .events
         .try_iter()
         .filter_map(|event| match event {
-            TheEvent::GraphCommand(id, binding, command) if id == f.id => {
-                assert_eq!(binding, f.model.lock().unwrap().binding());
-                Some(command)
+            TheEvent::GraphClipboardIntent(id, intent) if id == f.id => {
+                assert_eq!(intent.binding, f.model.lock().unwrap().binding());
+                assert_eq!(intent.document.as_ref(), &before);
+                Some(intent.action)
             }
             _ => None,
         })
@@ -381,9 +382,9 @@ fn suspended_graph_capture_restores_uncommitted_controls_and_keeps_graph_command
     assert_eq!(
         commands,
         vec![
-            EditorCommand::Copy,
-            EditorCommand::Cut,
-            EditorCommand::Paste
+            GraphClipboardAction::Copy,
+            GraphClipboardAction::Cut,
+            GraphClipboardAction::Paste
         ]
     );
     assert!(
@@ -940,4 +941,98 @@ fn native_graph_scroll_policy_keeps_generic_defaults_and_fractional_equal_axis_n
         assert_eq!(f.model.lock().unwrap().document(), &before);
         assert!(f.model.lock().unwrap().pending_commits().next().is_none());
     }
+}
+
+#[test]
+fn native_graph_clipboard_intent_keeps_input_time_document_selection_and_anchor() {
+    let mut f = Fixture::new();
+    f.ctx.ui.set_focus(&f.id);
+    let before = f.model.lock().unwrap().document().clone();
+    let node = before.nodes[0].id;
+    f.model.lock().unwrap().edit(|_, editor| {
+        editor.selected = Some(node);
+        editor.cursor = [123.25, 80.5];
+    });
+    let position = f
+        .model
+        .lock()
+        .unwrap()
+        .editor()
+        .viewport
+        .to_graph([123.25, 80.5]);
+    f.ui.get_widget("graph")
+        .unwrap()
+        .editor_set_active(true, &mut f.ctx);
+    f.ui.copy(&mut f.ctx);
+    f.model.lock().unwrap().edit(|doc, editor| {
+        doc.nodes[0].title = "Later source".into();
+        editor.selected = None;
+        editor.viewport.pan = [900., 1000.];
+    });
+    f.ui.process_events(&mut f.ctx);
+    let intent = f
+        .events
+        .try_iter()
+        .find_map(|event| {
+            if let TheEvent::GraphClipboardIntent(_, intent) = event {
+                Some(intent)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    assert_eq!(intent.document.as_ref(), &before);
+    assert_eq!(intent.nodes, vec![node]);
+    assert_eq!(intent.position, position);
+    assert_eq!(intent.selection(), before);
+    assert!(
+        f.ctx.ui.editor_clipboard.is_empty(),
+        "only the application owns clipboard effects"
+    );
+}
+#[test]
+fn native_graph_clipboard_results_require_a_registered_live_binding_and_are_consumed_once() {
+    let mut f = Fixture::new();
+    f.ctx.ui.set_focus(&f.id);
+    let binding = f.model.lock().unwrap().binding();
+    let request = theframework::platform::new_clipboard_request();
+    let widget = f.ui.get_widget("graph").unwrap();
+    widget.editor_set_active(true, &mut f.ctx);
+    let view = widget.as_any().downcast_mut::<TheGraphView>().unwrap();
+    assert!(view.expect_clipboard(binding, request));
+    assert!(
+        f.send(InputEvent::Clipboard {
+            request,
+            result: ClipboardResult::Written(true)
+        })
+        .consumed
+    );
+    f.ui.process_events(&mut f.ctx);
+    assert_eq!(f.events.try_iter().filter(|event|matches!(event,TheEvent::GraphClipboardResult(id,b,r,ClipboardResult::Written(true)) if id==&f.id && *b==binding && *r==request)).count(),1);
+    assert!(
+        !f.send(InputEvent::Clipboard {
+            request,
+            result: ClipboardResult::Written(true)
+        })
+        .consumed
+    );
+    let request = theframework::platform::new_clipboard_request();
+    assert!(
+        f.ui.get_widget("graph")
+            .unwrap()
+            .as_any()
+            .downcast_mut::<TheGraphView>()
+            .unwrap()
+            .expect_clipboard(binding, request)
+    );
+    let doc = f.model.lock().unwrap().document().clone();
+    f.model.lock().unwrap().replace_document("new-source", doc);
+    assert!(
+        !f.send(InputEvent::Clipboard {
+            request,
+            result: ClipboardResult::Text(Some("stale".into()))
+        })
+        .consumed
+    );
+    assert!(f.model.lock().unwrap().pending_commits().next().is_none());
 }

@@ -65,6 +65,8 @@ pub struct NodesDock {
     #[cfg(feature = "native-ui")]
     native_blank: Option<native_adapter::BlankView>,
     #[cfg(feature = "native-ui")]
+    native_clipboard: Option<native_adapter::PendingClipboard>,
+    #[cfg(feature = "native-ui")]
     native_prepared: std::collections::HashSet<(GraphId, Option<GraphId>)>,
     #[cfg(feature = "native-ui")]
     native_fit_pending: bool,
@@ -1175,6 +1177,8 @@ impl Dock for NodesDock {
             #[cfg(feature = "native-ui")]
             native_blank: None,
             #[cfg(feature = "native-ui")]
+            native_clipboard: None,
+            #[cfg(feature = "native-ui")]
             native_prepared: Default::default(),
             #[cfg(feature = "native-ui")]
             native_fit_pending: false,
@@ -1436,6 +1440,7 @@ impl Dock for NodesDock {
             self.native.reset();
             self.native_enabled = false;
             self.native_blank = None;
+            self.native_clipboard = None;
             self.native_prepared.clear();
             self.native_fit_pending = false;
             self.native_toolbar_scope = None;
