@@ -21,6 +21,23 @@ pub trait UiImageResources {
         source: &TheRGBABuffer,
         changed: bool,
     ) -> Result<ImageHandle, UiPaintError>;
+    /// Explicit legacy adapter: RenderView copied these RGB bytes into the
+    /// opaque application display instead of alpha-compositing an image asset.
+    /// Preserve the source/export bytes; only their display interpretation differs.
+    fn copied_framebuffer(
+        &mut self,
+        key: &str,
+        source: &TheRGBABuffer,
+        changed: bool,
+    ) -> Result<ImageHandle, UiPaintError> {
+        // Reference/custom resource sinks remain source-compatible. Native GPU
+        // sinks override this using metadata, without this temporary byte copy.
+        let mut opaque = source.clone();
+        for pixel in opaque.pixels_mut().chunks_exact_mut(4) {
+            pixel[3] = 255;
+        }
+        self.image(key, &opaque, changed)
+    }
 }
 pub fn bounds(dim: &TheDim) -> Rect {
     Rect::new(
@@ -320,6 +337,20 @@ impl WidgetPainter<'_> {
             });
         }
         self.list.ops.push(PaintOp::PopClip);
+    }
+    pub fn copied_framebuffer(
+        &mut self,
+        key: &str,
+        image: &TheRGBABuffer,
+        rect: Rect,
+        changed: bool,
+    ) -> UiPaintResult {
+        if image.pixel_width() == 0 || image.pixel_height() == 0 {
+            return Ok(());
+        }
+        let handle = self.images.copied_framebuffer(key, image, changed)?;
+        self.list.image(handle, rect, Sampling::Linear);
+        Ok(())
     }
     pub fn image(
         &mut self,

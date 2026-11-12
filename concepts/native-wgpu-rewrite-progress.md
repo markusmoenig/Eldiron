@@ -2654,3 +2654,69 @@ empty-view background differences. Keep true editable/source assets and direct
 GPU paint lists distinct from that temporary framebuffer adapter. Full M0–M9
 acceptance remains open, including text layout/font visual differences and all
 physical/release/platform/resource/retirement gates.
+
+## Copied-framebuffer display compatibility (after 14b77e23, in progress)
+
+Added an explicit `UiImageResources::copied_framebuffer` adapter for legacy
+RenderView pixels. Native resource sinks import those RGB bytes with opaque
+display metadata, while normal assets keep their alpha semantics. Source/export
+buffers are unchanged. Cache identity now includes the requested alpha
+interpretation, so one source key can be displayed both ways without stale data
+or repeated uploads. Custom/reference sinks have a compatible default adapter.
+Direct GPU images and retained paint lists use their own composition semantics.
+
+The actual RenderView GPU contract passes: zero-alpha and partial-alpha copied
+pixels preserve displayed RGB; the same-key image asset remains transparent;
+source bytes stay unchanged; both interpretations reuse resources on the next
+frame. Untouched legacy views now emit the reference zero-RGB clear without
+allocating a placeholder buffer. An existing command test caught the distinction
+between an untouched view and an explicitly cleared native publication. Added
+`NativeContent::Cleared`, retaining the established `set_* (None)` no-commands/
+no-old-pixels behavior. The comparison was fixed without changing that contract.
+
+All **168 framework library + 5 command UI + 8 DPI + 16 GPU UI cases** pass:
+`/private/tmp/eldiron-copied-framebuffer-framework-final.log`. The isolated native
+Creator root passes (14.42 s):
+`/private/tmp/eldiron-copied-framebuffer-native-root-final.log`.
+The independent CPU capture runs as a separate process with the example's
+required `desktop` feature (the initial `staticlib` invocation was rejected by
+its declared feature requirement). Source/capture fixtures preserve original
+RGBA data; the visible comparison uses RGB on the opaque application display.
+
+Startup captures:
+- Before: `/private/tmp/eldiron-native-creator-startup-before-framebuffer.png`.
+- Current: `/private/tmp/eldiron-native-creator-startup.png`.
+- Independent CPU: `/private/tmp/eldiron-reference-creator-startup-framebuffer.png`.
+
+The main viewport, tile area and minimap clear now match the reference RGB.
+Exact startup RGB matches increase from **449,649 to 907,456 of 960,000 pixels**.
+This is a focused startup comparison, not a full visual acceptance metric.
+Remaining differences include text/AA and border coverage; scaling behavior and
+full workflow/platform/release gates still require verification. The temporary
+CPU framebuffer display producers themselves remain M5/M9 adapters; this change
+does not remove their readbacks/uploads or establish native main-world rendering.
+The broader Creator/player/platform/build matrix is the next check before this
+checkpoint. Then continue main world/tool/HUD/Play/document/global ownership.
+
+### Framebuffer adapter checkpoint verified
+
+The final compatibility matrix passes completely:
+`/private/tmp/eldiron-copied-framebuffer-matrix-results.log`, including reference
+configuration, UI/DPI, ordinary geometry/material controls, all native material/
+geometry/appearance/common paint cases, framework and foreign-layer host,
+13 screen/message/isometric cases, isolated Creator root, linked native binary,
+all four apps, browser-player/iOS-simulator builds, 11 boundaries and diff checks.
+
+The current and independent CPU startup captures were visually compared after
+the untouched-view clear correction. Main viewport, tile panel and minimap now
+share the reference background; layout, commands and source/export pixels remain
+unchanged. Exact RGB comparison is 907,456/960,000 pixels. Remaining text and
+border differences are not accepted as full parity. The next visual decision is
+how to preserve the reference's encoded-color text blending and unhinted/floored
+raster conventions while keeping Swash generation and GPU atlas blitting. The
+current common compositor correctly uses linear-premultiplied composition;
+that mathematical policy differs from the reference CPU `mix_color` routine,
+which mixes encoded byte channels. Record an explicit compatibility policy if
+needed; do not compensate with a different font or theme-specific colors.
+Main world/tool/HUD/Play/document/global ownership and all other full-goal gates
+continue after this checkpoint. No M0–M9 completion claim.

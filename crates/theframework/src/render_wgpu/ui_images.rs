@@ -6,7 +6,7 @@ use crate::{
     prelude::TheRGBABuffer,
     theui::paint::{UiImageResources, UiPaintError, UiPaintResult},
 };
-use renderkit::{GpuContext, ImageAsset, ImageRegistry};
+use renderkit::{AlphaMode, GpuContext, ImageAsset, ImageRegistry};
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
@@ -65,7 +65,7 @@ pub struct UiImageCacheStats {
 /// be included in that final list even when no source image was requested anew.
 /// A superseded version remains valid until a subsequent finalization omits it.
 pub struct UiImageCache {
-    cached: HashMap<String, CachedImage>,
+    cached: HashMap<(String, AlphaMode), CachedImage>,
     retired: Vec<CachedImage>,
     owner: Option<u64>,
     byte_budget: usize,
@@ -177,7 +177,11 @@ impl UiImageCache {
             .filter(|(_, entry)| !pinned.contains(&entry.handle))
             .map(|(key, entry)| (entry.used, key.clone()))
             .collect();
-        candidates.sort_unstable();
+        candidates.sort_unstable_by(|a, b| {
+            a.0.cmp(&b.0)
+                .then_with(|| a.1.0.cmp(&b.1.0))
+                .then_with(|| (a.1.1 as u8).cmp(&(b.1.1 as u8)))
+        });
         for (_, key) in candidates {
             if !self.stats.over_budget {
                 break;
@@ -211,12 +215,23 @@ impl UiImageCache {
         source: &TheRGBABuffer,
         changed: bool,
     ) -> Result<ImageHandle, UiPaintError> {
+        self.image_with_alpha(registry, key, source, changed, AlphaMode::Straight)
+    }
+    fn image_with_alpha(
+        &mut self,
+        registry: &mut ImageRegistry,
+        key: &str,
+        source: &TheRGBABuffer,
+        changed: bool,
+        alpha: AlphaMode,
+    ) -> Result<ImageHandle, UiPaintError> {
         self.domain(registry);
         let used = self.tick();
         let width = source.pixel_width();
         let height = source.pixel_height();
+        let cache_key = (key.to_owned(), alpha);
         if !changed
-            && let Some(entry) = self.cached.get_mut(key)
+            && let Some(entry) = self.cached.get_mut(&cache_key)
             && entry.width == width
             && entry.height == height
             && registry.get(entry.handle).is_some()
@@ -225,12 +240,13 @@ impl UiImageCache {
             self.stats.hits += 1;
             return Ok(entry.handle);
         }
-        let image = ImageAsset::rgba(
+        let mut image = ImageAsset::rgba(
             u32::try_from(width).map_err(|_| UiPaintError("source image too wide".into()))?,
             u32::try_from(height).map_err(|_| UiPaintError("source image too tall".into()))?,
             source.pixels().to_vec(),
         )
         .map_err(|e| UiPaintError(e.to_string()))?;
+        image.alpha_mode = alpha;
         let bytes = width
             .checked_mul(height)
             .and_then(|count| count.checked_mul(8))
@@ -245,7 +261,7 @@ impl UiImageCache {
             bytes,
             used,
         };
-        if let Some(old) = self.cached.insert(key.into(), entry) {
+        if let Some(old) = self.cached.insert(cache_key, entry) {
             // Another earlier command can still sample that version this frame.
             self.retired.push(old);
         }
@@ -262,6 +278,15 @@ impl UiImageResources for UiImages {
         changed: bool,
     ) -> Result<ImageHandle, UiPaintError> {
         self.cache.image(&mut self.registry, key, source, changed)
+    }
+    fn copied_framebuffer(
+        &mut self,
+        key: &str,
+        source: &TheRGBABuffer,
+        changed: bool,
+    ) -> Result<ImageHandle, UiPaintError> {
+        self.cache
+            .image_with_alpha(&mut self.registry, key, source, changed, AlphaMode::Opaque)
     }
 }
 impl UiFrameImages<'_> {
@@ -280,5 +305,14 @@ impl UiImageResources for UiFrameImages<'_> {
         changed: bool,
     ) -> Result<ImageHandle, UiPaintError> {
         self.cache.image(self.registry, key, source, changed)
+    }
+    fn copied_framebuffer(
+        &mut self,
+        key: &str,
+        source: &TheRGBABuffer,
+        changed: bool,
+    ) -> Result<ImageHandle, UiPaintError> {
+        self.cache
+            .image_with_alpha(self.registry, key, source, changed, AlphaMode::Opaque)
     }
 }

@@ -1532,3 +1532,106 @@ fn published_graph_view_composes_commands_and_gpu_images_inside_parent_scroll() 
     }
     assert!(renderer.glyphs.rasterizations > 0);
 }
+
+#[test]
+#[ignore = "requires native GPU"]
+fn copied_render_view_display_preserves_rgb_without_changing_asset_alpha_or_source_bytes() {
+    use theframework::theui::paint::WidgetPainter;
+    let gpu = futures::executor::block_on(renderkit::GpuContext::headless()).unwrap();
+    let source = TheRGBABuffer::from(vec![120, 40, 200, 0, 10, 220, 80, 83], 2, 1);
+    let original = source.clone();
+    let mut view = TheRenderView::new(TheId::named("copied viewport"));
+    let mut ctx = TheContext::new(24, 8, 1.);
+    view.set_dim(TheDim::new(0, 0, 8, 8), &mut ctx);
+    *view.render_buffer_mut() = source.clone();
+    let mut empty = TheRenderView::new(TheId::named("untouched viewport"));
+    empty.set_dim(TheDim::new(16, 0, 8, 8), &mut ctx);
+    let key = format!("renderview:{}", view.id().uuid);
+    let mut images = theframework::render_wgpu::UiImages::new(gpu.clone());
+    let mut theme = TheBlackBlueTheme::new();
+    let mut first = None;
+    for _ in 0..2 {
+        let mut list = theframework::paint::PaintList::default();
+        let before = images.stats().uploads;
+        {
+            let mut painter = WidgetPainter {
+                list: &mut list,
+                text: &mut ctx.text,
+                images: &mut images,
+                ui: &ctx.ui,
+                theme: &mut theme,
+            };
+            painter.widget(&mut view).unwrap();
+            painter.widget(&mut empty).unwrap();
+            // One source key can have both interpretations in the same frame.
+            painter
+                .image(
+                    &key,
+                    &source,
+                    theframework::paint::Rect::new(8., 0., 8., 8.),
+                    false,
+                    theframework::paint::Sampling::Linear,
+                )
+                .unwrap();
+        }
+        let handles: Vec<_> = list.image_handles().collect();
+        assert_eq!(handles.len(), 2);
+        assert_ne!(handles[0], handles[1]);
+        images.finish_frame(&list).unwrap();
+        if let Some(first) = &first {
+            assert_eq!(&handles, first);
+            assert_eq!(
+                images.stats().uploads,
+                before,
+                "unchanged display interpretations reuse their resources"
+            );
+        } else {
+            first = Some(handles);
+        }
+        let output =
+            renderkit::GpuImage::new(&gpu, renderkit::ImageDescriptor::rgba(24, 8)).unwrap();
+        theframework::render_wgpu::PaintRenderer::new(gpu.clone())
+            .unwrap()
+            .render(
+                &list,
+                &images.registry,
+                &output.view,
+                output.descriptor.format,
+                (24, 8),
+                1.,
+                [0.2, 0.2, 0.2, 1.],
+            )
+            .unwrap();
+        let mut read = renderkit::ReadbackTicket::capture(&gpu, output).unwrap();
+        gpu.device
+            .poll(renderkit::wgpu::PollType::Wait {
+                submission_index: None,
+                timeout: Some(std::time::Duration::from_secs(30)),
+            })
+            .unwrap();
+        let image = read.try_finish(&gpu).unwrap().unwrap();
+        let pixel = |x: usize| &image.pixels()[(3 * 24 + x) * 4..(3 * 24 + x + 1) * 4];
+        assert_eq!(
+            pixel(0),
+            [120, 40, 200, 255],
+            "copied framebuffer RGB is display-opaque even when its stored alpha is zero"
+        );
+        assert_eq!(pixel(7), [10, 220, 80, 255]);
+        assert_eq!(
+            pixel(8),
+            [51, 51, 51, 255],
+            "normal assets retain transparency"
+        );
+        assert!(pixel(15)[1] > 0 && pixel(15)[1] < 220);
+        assert_eq!(
+            pixel(16),
+            [0, 0, 0, 255],
+            "an untouched view preserves the copied zero-RGB clear without a CPU buffer"
+        );
+        assert_eq!(
+            source, original,
+            "display import never changes authored/export bytes"
+        );
+    }
+    assert_eq!(view.render_buffer_mut().pixels(), source.pixels());
+}

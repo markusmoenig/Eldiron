@@ -4,6 +4,7 @@ use crate::prelude::*;
 /// share the host compositor; neither implies ownership of a GPU or window.
 #[cfg(feature = "text")]
 enum NativeContent {
+    Cleared,
     Image(crate::paint::ImageHandle),
     Commands(std::sync::Arc<crate::paint::PaintList>),
 }
@@ -47,13 +48,18 @@ impl TheWidget for TheRenderView {
         use crate::paint::Sampling;
         use crate::theui::paint::bounds;
         let r = bounds(&self.dim);
-        if let Some(content) = &self.native_content {
+        if matches!(self.native_content, Some(NativeContent::Cleared)) {
+            if let Some(role) = self.empty_background {
+                p.fill(r, role);
+            }
+        } else if let Some(content) = &self.native_content {
             use crate::paint::{PaintOp, Transform};
             // The view's logical viewport is the authority for clipping. A
             // published list uses local coordinates, just like pointer events;
             // parent scroll/layout transforms are already on the paint stack.
             p.list.ops.push(PaintOp::PushClip(r));
             match content {
+                NativeContent::Cleared => {}
                 NativeContent::Image(image) => p.list.image(*image, r, Sampling::Linear),
                 NativeContent::Commands(list) => {
                     p.list
@@ -65,15 +71,19 @@ impl TheWidget for TheRenderView {
             }
             p.list.ops.push(PaintOp::PopClip);
         } else if self.has_content {
-            p.image(
+            p.copied_framebuffer(
                 &format!("renderview:{}", self.id.uuid),
                 &self.render_buffer,
                 r,
                 self.is_dirty,
-                Sampling::Linear,
             )?;
         } else if let Some(role) = self.empty_background {
             p.fill(r, role);
+        } else {
+            // The reference canvas starts with zero RGB and copies even an
+            // untouched RenderView to the opaque display. Preserve that clear
+            // without allocating a placeholder framebuffer or uploading it.
+            p.list.rect(r, 0., [0., 0., 0., 1.]);
         }
         if Some(self.id.clone()) == p.ui.focus {
             p.outline(r, *p.theme.color(DefaultSelection), 1.);
@@ -410,11 +420,11 @@ impl TheRenderViewTrait for TheRenderView {
     fn set_image_handle(&mut self, image: Option<crate::paint::ImageHandle>) {
         if matches!((&self.native_content, image),
             (Some(NativeContent::Image(current)), Some(next)) if *current == next)
-            || (self.native_content.is_none() && !self.has_content && image.is_none())
+            || (matches!(self.native_content, Some(NativeContent::Cleared)) && image.is_none())
         {
             return;
         }
-        self.native_content = image.map(NativeContent::Image);
+        self.native_content = Some(image.map_or(NativeContent::Cleared, NativeContent::Image));
         self.render_buffer = TheRGBABuffer::empty();
         self.has_content = false;
         self.is_dirty = true;
@@ -430,11 +440,11 @@ impl TheRenderViewTrait for TheRenderView {
         }
         if matches!((&self.native_content, &list),
             (Some(NativeContent::Commands(current)), Some(next)) if std::sync::Arc::ptr_eq(current, next))
-            || (self.native_content.is_none() && !self.has_content && list.is_none())
+            || (matches!(self.native_content, Some(NativeContent::Cleared)) && list.is_none())
         {
             return Ok(());
         }
-        self.native_content = list.map(NativeContent::Commands);
+        self.native_content = Some(list.map_or(NativeContent::Cleared, NativeContent::Commands));
         self.render_buffer = TheRGBABuffer::empty();
         self.has_content = false;
         self.is_dirty = true;
@@ -510,12 +520,12 @@ mod tests {
             matches!(view.native_content, Some(NativeContent::Image(current)) if current == image)
         );
         view.set_image_handle(None);
-        assert!(view.native_content.is_none());
+        assert!(matches!(view.native_content, Some(NativeContent::Cleared)));
         assert!(!view.has_content);
         assert!(view.render_buffer.pixels().is_empty());
         view.set_paint_list(Some(commands)).unwrap();
         view.set_paint_list(None).unwrap();
-        assert!(view.native_content.is_none());
+        assert!(matches!(view.native_content, Some(NativeContent::Cleared)));
         assert!(!view.has_content);
         // Explicit reference/image consumers can still opt into owned pixels.
         *view.render_buffer_mut() = TheRGBABuffer::new(TheDim::sized(16, 8));
