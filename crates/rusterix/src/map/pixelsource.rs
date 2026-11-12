@@ -1,5 +1,77 @@
 use crate::{Assets, Map, Pixel, Texture, Tile, ValueContainer};
+use std::borrow::Cow;
 use theframework::prelude::*;
+
+/// Resolved source metadata. Authored tiles stay borrowed; synthetic sources
+/// carry small parameters until an actual pixel consumer materializes them.
+pub enum ResolvedTile<'a> {
+    Borrowed(&'a Tile),
+    Noise(NoiseMaterial),
+    Palette {
+        index: u16,
+        pixel: Pixel,
+        material: u8,
+    },
+}
+impl<'a> ResolvedTile<'a> {
+    pub fn frame_texture(&self, frame: usize) -> Option<Cow<'a, Texture>> {
+        match self {
+            Self::Borrowed(tile) => tile
+                .textures
+                .get(tile.frame_index(frame))
+                .map(Cow::Borrowed),
+            _ => {
+                let tile = self.materialize();
+                let index = tile.frame_index(frame);
+                tile.textures.into_iter().nth(index).map(Cow::Owned)
+            }
+        }
+    }
+    /// Metadata-only token; the application separately tracks asset publication.
+    pub fn frame_token(&self, frame: usize) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut hash = rustc_hash::FxHasher::default();
+        match self {
+            Self::Borrowed(tile) => {
+                0u8.hash(&mut hash);
+                tile.id.hash(&mut hash);
+                (*tile as *const Tile as usize).hash(&mut hash);
+                tile.frame_index(frame).hash(&mut hash);
+            }
+            Self::Noise(noise) => {
+                1u8.hash(&mut hash);
+                crate::fingerprint::hash_serialized(&mut hash, noise);
+            }
+            Self::Palette {
+                index,
+                pixel,
+                material,
+            } => {
+                2u8.hash(&mut hash);
+                (index, pixel, material).hash(&mut hash);
+            }
+        }
+        hash.finish()
+    }
+    pub fn materialize(&self) -> Tile {
+        match self {
+            Self::Borrowed(tile) => (*tile).clone(),
+            Self::Noise(noise) => noise.to_tile(64),
+            Self::Palette {
+                index,
+                pixel,
+                material,
+            } => {
+                let mut tile = Tile::from_texture(Texture::from_color(*pixel));
+                tile.id = PixelSource::palette_tile_uuid(*index);
+                for texture in &mut tile.textures {
+                    texture.set_material_id_all(*material);
+                }
+                tile
+            }
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NoiseTarget {
@@ -298,35 +370,58 @@ impl PixelSource {
     }
 
     pub fn tile_from_tile_list(&self, assets: &Assets) -> Option<Tile> {
+        self.resolve_tile(assets).map(|source| source.materialize())
+    }
+
+    pub fn resolve_tile<'a>(&self, assets: &'a Assets) -> Option<ResolvedTile<'a>> {
         match self {
-            Color(_) => self.tile_ref_from_tile_list(assets).cloned(),
+            Color(_) => self
+                .tile_ref_from_tile_list(assets)
+                .map(ResolvedTile::Borrowed),
             Noise(noise) => assets
                 .tiles
                 .get(&noise.tile_id())
-                .cloned()
-                .or_else(|| Some(noise.to_tile(64))),
+                .map(ResolvedTile::Borrowed)
+                .or_else(|| Some(ResolvedTile::Noise(noise.clone()))),
             TileId(id) | MaterialId(id) => {
                 if let Some(index) = assets.tile_indices.get(id) {
-                    assets.tile_list.get(*index as usize).cloned()
+                    assets
+                        .tile_list
+                        .get(*index as usize)
+                        .map(ResolvedTile::Borrowed)
                 } else {
                     assets
                         .tiles
                         .get(id)
-                        .cloned()
-                        .or_else(|| assets.materials.get(id).cloned())
+                        .or_else(|| assets.materials.get(id))
+                        .map(ResolvedTile::Borrowed)
                 }
             }
             ProceduralTile(_) => None,
             PaletteIndex(index) => {
                 let tile_id = Self::palette_tile_uuid(*index);
                 if let Some(index) = assets.tile_indices.get(&tile_id) {
-                    assets.tile_list.get(*index as usize).cloned()
+                    assets
+                        .tile_list
+                        .get(*index as usize)
+                        .map(ResolvedTile::Borrowed)
                 } else {
                     assets
                         .tiles
                         .get(&tile_id)
-                        .cloned()
-                        .or_else(|| Self::synthetic_palette_tile(assets, *index))
+                        .map(ResolvedTile::Borrowed)
+                        .or_else(|| {
+                            let color = assets.palette.colors.get(*index as usize)?.as_ref()?;
+                            Some(ResolvedTile::Palette {
+                                index: *index,
+                                pixel: color.to_u8_array(),
+                                material: assets
+                                    .palette_material_ids
+                                    .get(*index as usize)
+                                    .copied()
+                                    .unwrap_or(0),
+                            })
+                        })
                 }
             }
             _ => None,

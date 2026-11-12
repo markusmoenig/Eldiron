@@ -14,6 +14,50 @@ pub struct AvatarFrameStyle {
     pub outline_thickness: usize,
 }
 
+pub(crate) struct AvatarPreview<'a> {
+    entity: &'a Entity,
+    avatar: &'a Avatar,
+    assets: &'a Assets,
+    animation: Option<&'a str>,
+    direction: AvatarDirection,
+    frame: usize,
+    shading: AvatarShadingOptions,
+    weapons: bool,
+    bitmap_phase: u64,
+    procedural: Option<crate::procedural_avatar::ResolvedSprite<'a>>,
+}
+impl AvatarPreview<'_> {
+    pub(crate) fn fingerprint(&self) -> u64 {
+        crate::procedural_avatar::fingerprint(&(
+            self.bitmap_phase,
+            self.procedural.as_ref().map(|source| source.fingerprint()),
+            self.shading.enabled,
+            self.shading.skin_enabled,
+        ))
+    }
+    pub(crate) fn build(&self) -> Option<AvatarBuildOutput> {
+        if let Some(source) = &self.procedural {
+            if let Ok(sprite) = source.render() {
+                return Some(AvatarBuildOutput {
+                    size: crate::procedural_avatar::SPRITE_SIZE as u32,
+                    rgba: (*sprite.pixels).clone(),
+                    marker_channels: vec![None; crate::procedural_avatar::SPRITE_SIZE.pow(2)],
+                });
+            }
+        }
+        AvatarRuntimeBuilder::build_bitmap_preview(
+            self.entity,
+            self.avatar,
+            self.assets,
+            self.animation,
+            self.direction,
+            self.frame,
+            self.shading,
+            self.weapons,
+        )
+    }
+}
+
 struct CachedAvatarFrames {
     avatar_signature: u64,
     marker_signature: u64,
@@ -154,40 +198,119 @@ impl AvatarRuntimeBuilder {
         shading: AvatarShadingOptions,
         include_weapons: bool,
     ) -> Option<AvatarBuildOutput> {
-        if let Some(asset) = crate::procedural_avatar::Runtime::resolve(entity, assets) {
-            let mut preview_entity = entity.clone();
-            let heading: f32 = match direction {
-                AvatarDirection::Front => 0.,
-                AvatarDirection::FrontRight => 45.,
-                AvatarDirection::Right => 90.,
-                AvatarDirection::BackRight => 135.,
-                AvatarDirection::Back => 180.,
-                AvatarDirection::BackLeft => 225.,
-                AvatarDirection::Left => 270.,
-                AvatarDirection::FrontLeft => 315.,
+        Self::resolve_preview(
+            entity,
+            avatar,
+            assets,
+            animation_name,
+            direction,
+            frame_index,
+            shading,
+            include_weapons,
+        )
+        .build()
+    }
+    pub(crate) fn resolve_preview<'a>(
+        entity: &'a Entity,
+        avatar: &'a Avatar,
+        assets: &'a Assets,
+        animation_name: Option<&'a str>,
+        direction: AvatarDirection,
+        frame_index: usize,
+        shading: AvatarShadingOptions,
+        include_weapons: bool,
+    ) -> AvatarPreview<'a> {
+        let procedural =
+            if let Some(asset) = crate::procedural_avatar::Runtime::resolve(entity, assets) {
+                let mut preview_entity = entity.clone();
+                let heading: f32 = match direction {
+                    AvatarDirection::Front => 0.,
+                    AvatarDirection::FrontRight => 45.,
+                    AvatarDirection::Right => 90.,
+                    AvatarDirection::BackRight => 135.,
+                    AvatarDirection::Back => 180.,
+                    AvatarDirection::BackLeft => 225.,
+                    AvatarDirection::Left => 270.,
+                    AvatarDirection::FrontLeft => 315.,
+                };
+                preview_entity.orientation =
+                    vek::Vec2::new(heading.to_radians().sin(), heading.to_radians().cos());
+                if !include_weapons {
+                    preview_entity.equipped.clear();
+                }
+                let animation = animation_name
+                    .or_else(|| entity.attributes.get_str("avatar_animation"))
+                    .unwrap_or("idle")
+                    .to_ascii_lowercase();
+                asset
+                    .resolve_sprite(
+                        &preview_entity,
+                        assets,
+                        &animation,
+                        frame_index as f32 * 0.25,
+                        frame_index as f32 * 0.25,
+                        None,
+                        false,
+                    )
+                    .ok()
+            } else {
+                None
             };
-            preview_entity.orientation =
-                vek::Vec2::new(heading.to_radians().sin(), heading.to_radians().cos());
-            if !include_weapons {
-                preview_entity.equipped.clear();
+        let anim_name = animation_name.or_else(|| entity.attributes.get_str("avatar_animation"));
+        let mut phase = rustc_hash::FxHasher::default();
+        if let Some((animation, resolved_direction)) =
+            Self::resolve_avatar_selection(avatar, anim_name, direction)
+        {
+            animation.hash(&mut phase);
+            resolved_direction.hash(&mut phase);
+            if let Some(perspective) = avatar
+                .animations
+                .iter()
+                .find(|candidate| candidate.name == animation)
+                .and_then(|animation| {
+                    animation
+                        .perspectives
+                        .iter()
+                        .find(|perspective| perspective.direction == resolved_direction)
+                })
+            {
+                (frame_index % perspective.frames.len().max(1)).hash(&mut phase);
             }
-            let animation = animation_name
-                .or_else(|| entity.attributes.get_str("avatar_animation"))
-                .unwrap_or("idle")
-                .to_ascii_lowercase();
-            if let Ok(pixels) = asset.sprite(
-                &preview_entity,
-                assets,
-                &animation,
-                frame_index as f32 * 0.25,
-            ) {
-                return Some(AvatarBuildOutput {
-                    size: crate::procedural_avatar::SPRITE_SIZE as u32,
-                    rgba: (*pixels).clone(),
-                    marker_channels: vec![None; crate::procedural_avatar::SPRITE_SIZE.pow(2)],
-                });
+            if include_weapons {
+                for (slot, item) in &entity.equipped {
+                    slot.hash(&mut phase);
+                    if let Some(tile) = Self::item_tile_id_for_direction(item, resolved_direction)
+                        .and_then(|id| assets.tiles.get(&id))
+                    {
+                        tile.id.hash(&mut phase);
+                        tile.frame_index(frame_index).hash(&mut phase);
+                    }
+                }
             }
         }
+        AvatarPreview {
+            entity,
+            avatar,
+            assets,
+            animation: animation_name,
+            direction,
+            frame: frame_index,
+            shading,
+            weapons: include_weapons,
+            bitmap_phase: phase.finish(),
+            procedural,
+        }
+    }
+    fn build_bitmap_preview(
+        entity: &Entity,
+        avatar: &Avatar,
+        assets: &Assets,
+        animation_name: Option<&str>,
+        direction: AvatarDirection,
+        frame_index: usize,
+        shading: AvatarShadingOptions,
+        include_weapons: bool,
+    ) -> Option<AvatarBuildOutput> {
         let markers = Self::marker_colors_for_entity(entity, assets);
         let anim_name = animation_name.or_else(|| entity.attributes.get_str("avatar_animation"));
         let Some((resolved_anim, resolved_dir)) =
@@ -261,12 +384,22 @@ impl AvatarRuntimeBuilder {
         Some(out)
     }
 
-    pub(crate) fn explicit_item_tile(item: &Item, assets: &Assets) -> Option<crate::Tile> {
+    pub(crate) fn explicit_item_tile_source<'a>(
+        item: &Item,
+        assets: &'a Assets,
+    ) -> Option<crate::map::pixelsource::ResolvedTile<'a>> {
+        use crate::map::pixelsource::ResolvedTile;
         if let Some(tile_id) = Self::item_tile_id_for_direction(item, AvatarDirection::Front) {
-            return assets.tiles.get(&tile_id).cloned();
+            return assets.tiles.get(&tile_id).map(ResolvedTile::Borrowed);
         }
-        Self::item_class_tile_source(item, assets)
-            .and_then(|source| Self::tile_from_pixel_source(&source, assets))
+        match Self::item_class_tile_source(item, assets)? {
+            PixelSource::TileId(id) => assets.tiles.get(&id).map(ResolvedTile::Borrowed),
+            PixelSource::MaterialId(id) => assets.materials.get(&id).map(ResolvedTile::Borrowed),
+            source => source.resolve_tile(assets),
+        }
+    }
+    pub(crate) fn explicit_item_tile(item: &Item, assets: &Assets) -> Option<crate::Tile> {
+        Self::explicit_item_tile_source(item, assets).map(|source| source.materialize())
     }
 
     pub(crate) fn explicit_item_tile_id(item: &Item, assets: &Assets) -> Option<Uuid> {
@@ -324,14 +457,6 @@ impl AvatarRuntimeBuilder {
         })?;
         let table = data.parse::<toml::Table>().ok()?;
         Self::tile_source_from_item_data_table(&table)
-    }
-
-    fn tile_from_pixel_source(source: &PixelSource, assets: &Assets) -> Option<crate::Tile> {
-        match source {
-            PixelSource::TileId(id) => assets.tiles.get(id).cloned(),
-            PixelSource::MaterialId(id) => assets.materials.get(id).cloned(),
-            _ => source.tile_from_tile_list(assets),
-        }
     }
 
     fn tile_source_from_item_data_table(table: &toml::Table) -> Option<PixelSource> {

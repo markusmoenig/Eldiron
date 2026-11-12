@@ -103,15 +103,16 @@ impl ContentSources {
         assets: &Assets,
         revision: ContentRevision,
     ) -> Result<Option<Arc<PreparedContent>>, String> {
-        let key = (revision, recipe.fingerprint());
+        let resolved = recipe.resolve(assets);
+        let key = (revision, resolved.fingerprint());
         self.clock = self.clock.wrapping_add(1);
         if let Some(entry) = self.entries.get_mut(&key) {
             entry.used = self.clock;
             return Ok(entry.content.clone());
         }
         self.builds += 1;
-        let content = recipe
-            .build(assets)
+        let content = resolved
+            .build()
             .map(|art| {
                 let image = ImageAsset::rgba(
                     u32::try_from(art.texture.width).map_err(|_| "source width overflow")?,

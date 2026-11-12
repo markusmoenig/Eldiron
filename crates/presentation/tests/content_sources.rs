@@ -317,3 +317,296 @@ fn explicit_portrait_sources_ignore_health_and_display_metadata() {
     assert_eq!(again.image().pixels(), &[80, 120, 160, 255]);
     assert!(!again.avatar);
 }
+
+#[test]
+fn resolved_tile_and_item_sources_reuse_static_and_looped_phases_without_cloning_for_lookup() {
+    use rusterix::map::tile::TileUvPages;
+    use std::borrow::Cow;
+    let mut assets = Assets::default();
+    let mut tile = Tile::from_textures(
+        (0..8)
+            .map(|i| Texture::from_color([i * 20, 50, 90, 255]))
+            .collect(),
+    );
+    tile.uv_pages = Some(TileUvPages {
+        size: [2, 2],
+        animation_frames: 2,
+        repeat_period: [2., 2.],
+        origin: [0, 0],
+        axes: [[0.; 3]; 2],
+        units_per_page: 1,
+    });
+    let id = tile.id;
+    assets.set_tiles([(id, tile)].into_iter().collect());
+    let source = rusterix::PixelSource::TileId(id);
+    let descriptor = source.resolve_tile(&assets).unwrap();
+    assert!(matches!(
+        descriptor.frame_texture(1),
+        Some(Cow::Borrowed(_))
+    ));
+    assert_eq!(descriptor.frame_token(0), descriptor.frame_token(2));
+    assert_ne!(descriptor.frame_token(0), descriptor.frame_token(1));
+    let mut item = Item::default();
+    item.set_attribute("source", Value::Source(source));
+    let mut sources = ContentSources::default();
+    let first = sources
+        .prepare(
+            ContentRecipe::Item {
+                item: &item,
+                frame: 0,
+            },
+            &assets,
+            ContentRevision(1),
+        )
+        .unwrap()
+        .unwrap();
+    let second = sources
+        .prepare(
+            ContentRecipe::Item {
+                item: &item,
+                frame: 1,
+            },
+            &assets,
+            ContentRevision(1),
+        )
+        .unwrap()
+        .unwrap();
+    assert_ne!(first.image().pixels(), second.image().pixels());
+    for frame in [2, 4, 100] {
+        let again = sources
+            .prepare(
+                ContentRecipe::Item { item: &item, frame },
+                &assets,
+                ContentRevision(1),
+            )
+            .unwrap()
+            .unwrap();
+        assert!(Arc::ptr_eq(&first, &again));
+    }
+    assert_eq!(sources.builds(), 2);
+    item.set_attribute(
+        "source",
+        Value::Source(rusterix::PixelSource::Noise(Default::default())),
+    );
+    let noise = sources
+        .prepare(
+            ContentRecipe::Item {
+                item: &item,
+                frame: 0,
+            },
+            &assets,
+            ContentRevision(1),
+        )
+        .unwrap()
+        .unwrap();
+    let again = sources
+        .prepare(
+            ContentRecipe::Item {
+                item: &item,
+                frame: 100,
+            },
+            &assets,
+            ContentRevision(1),
+        )
+        .unwrap()
+        .unwrap();
+    assert!(
+        Arc::ptr_eq(&noise, &again),
+        "synthetic static noise is generated once"
+    );
+}
+
+#[test]
+fn resolved_avatar_sources_reuse_bitmap_phases_and_missing_art_across_advancing_frames() {
+    let mut assets = Assets::default();
+    let avatar = Avatar {
+        id: Default::default(),
+        name: "Human".into(),
+        resolution: 1,
+        perspective_count: AvatarPerspectiveCount::Four,
+        animations: vec![AvatarAnimation {
+            id: Default::default(),
+            name: "Idle".into(),
+            speed: 1.,
+            perspectives: vec![AvatarPerspective {
+                direction: AvatarDirection::Front,
+                frames: vec![
+                    AvatarAnimationFrame::new(Texture::from_color([24, 128, 240, 255])),
+                    AvatarAnimationFrame::new(Texture::from_color([200, 80, 20, 255])),
+                ],
+                weapon_main_anchor: None,
+                weapon_off_anchor: None,
+            }],
+        }],
+    };
+    assets.avatars.insert("Human".into(), avatar);
+    assets.default_avatar = Some("Human".into());
+    let entity = Entity::default();
+    let mut widget = AvatarWidget::new();
+    let mut sources = ContentSources::default();
+    let first = sources
+        .prepare(widget.content_recipe(&entity), &assets, ContentRevision(1))
+        .unwrap()
+        .unwrap();
+    widget.frame_index = 1;
+    let second = sources
+        .prepare(widget.content_recipe(&entity), &assets, ContentRevision(1))
+        .unwrap()
+        .unwrap();
+    assert!(!Arc::ptr_eq(&first, &second));
+    for frame in [2, 4, 100] {
+        widget.frame_index = frame;
+        let again = sources
+            .prepare(widget.content_recipe(&entity), &assets, ContentRevision(1))
+            .unwrap()
+            .unwrap();
+        assert!(Arc::ptr_eq(&first, &again));
+    }
+    assert_eq!(sources.builds(), 2);
+    let missing = Assets::default();
+    let mut cache = ContentSources::default();
+    for frame in 0..10 {
+        widget.frame_index = frame;
+        assert!(
+            cache
+                .prepare(widget.content_recipe(&entity), &missing, ContentRevision(1))
+                .unwrap()
+                .is_none()
+        );
+    }
+    assert_eq!(cache.builds(), 1);
+}
+
+#[test]
+fn resolved_bitmap_avatar_tracks_equipped_animation_independently_of_body_phase() {
+    let mut assets = Assets::default();
+    assets.rules =
+        "[equipment]\nweapon_slots=['grip']\n[equipment.avatar_anchors]\ngrip='main_hand'".into();
+    assets.avatars.insert(
+        "Human".into(),
+        Avatar {
+            id: Default::default(),
+            name: "Human".into(),
+            resolution: 1,
+            perspective_count: AvatarPerspectiveCount::Four,
+            animations: vec![AvatarAnimation {
+                id: Default::default(),
+                name: "Idle".into(),
+                speed: 1.,
+                perspectives: vec![AvatarPerspective {
+                    direction: AvatarDirection::Front,
+                    frames: vec![AvatarAnimationFrame::new(Texture::from_color([
+                        24, 128, 240, 255,
+                    ]))],
+                    weapon_main_anchor: Some((0, 0)),
+                    weapon_off_anchor: None,
+                }],
+            }],
+        },
+    );
+    assets.default_avatar = Some("Human".into());
+    let tile = Tile::from_textures(vec![
+        Texture::from_color([255, 0, 0, 255]),
+        Texture::from_color([0, 255, 0, 255]),
+    ]);
+    let id = tile.id;
+    assets.set_tiles([(id, tile)].into_iter().collect());
+    let mut entity = Entity::default();
+    let mut weapon = Item::default();
+    weapon.set_attribute("tile_id", Value::Id(id));
+    entity.equipped.insert("grip".into(), weapon);
+    let mut widget = AvatarWidget::new();
+    let mut sources = ContentSources::default();
+    let first = sources
+        .prepare(widget.content_recipe(&entity), &assets, ContentRevision(1))
+        .unwrap()
+        .unwrap();
+    widget.frame_index = 1;
+    let second = sources
+        .prepare(widget.content_recipe(&entity), &assets, ContentRevision(1))
+        .unwrap()
+        .unwrap();
+    assert!(
+        !Arc::ptr_eq(&first, &second),
+        "the equipped tile can animate while the body is static"
+    );
+    widget.frame_index = 2;
+    let again = sources
+        .prepare(widget.content_recipe(&entity), &assets, ContentRevision(1))
+        .unwrap()
+        .unwrap();
+    assert!(Arc::ptr_eq(&first, &again));
+    widget.show_weapons = false;
+    widget.frame_index = 0;
+    let bare = sources
+        .prepare(widget.content_recipe(&entity), &assets, ContentRevision(1))
+        .unwrap()
+        .unwrap();
+    widget.frame_index = 1;
+    let bare_again = sources
+        .prepare(widget.content_recipe(&entity), &assets, ContentRevision(1))
+        .unwrap()
+        .unwrap();
+    assert!(
+        Arc::ptr_eq(&bare, &bare_again),
+        "hidden equipment phases cannot rebuild the body source"
+    );
+}
+
+#[test]
+#[ignore = "requires native GPU; run with --include-ignored"]
+fn resolved_animation_phases_keep_cpu_leases_and_gpu_images_across_advancing_clock_frames() {
+    use eldiron_presentation::screen::ScreenImageCache;
+    use renderkit::{GpuContext, ImageRegistry};
+    let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut registry = ImageRegistry::new(gpu.clone());
+    let mut images = ScreenImageCache::default();
+    let mut assets = Assets::default();
+    let tile = Tile::from_textures(vec![
+        Texture::from_color([255, 0, 0, 255]),
+        Texture::from_color([0, 255, 0, 255]),
+    ]);
+    let mut item = Item::default();
+    item.set_attribute("icon", Value::Str(tile.id.to_string()));
+    assets.set_tiles([(tile.id, tile)].into_iter().collect());
+    let mut sources = ContentSources::default();
+    let mut phases = Vec::new();
+    let mut uploaded = 0;
+    for (index, clock) in [0, 1, 2, 3, 100, 101].into_iter().enumerate() {
+        let source = sources
+            .prepare(
+                ContentRecipe::Item {
+                    item: &item,
+                    frame: clock,
+                },
+                &assets,
+                ContentRevision(1),
+            )
+            .unwrap()
+            .unwrap();
+        let handle = {
+            let mut frame = images.begin_frame(&mut registry).unwrap();
+            source.resolve(&mut frame).unwrap()
+        };
+        if index < 2 {
+            phases.push((source, handle));
+        } else {
+            assert!(Arc::ptr_eq(&phases[clock % 2].0, &source));
+            assert_eq!(phases[clock % 2].1, handle);
+        }
+        if index == 1 {
+            uploaded = gpu.transfers().uploaded_bytes;
+        }
+        if index > 1 {
+            assert_eq!(
+                gpu.transfers().uploaded_bytes,
+                uploaded,
+                "returning to an animation phase must reuse its GPU image"
+            );
+        }
+    }
+    assert_ne!(phases[0].1, phases[1].1);
+    assert_eq!(sources.builds(), 2);
+    assert_eq!(gpu.transfers().capture_requests, 0);
+    assert_eq!(gpu.transfers().readback_bytes, 0);
+}

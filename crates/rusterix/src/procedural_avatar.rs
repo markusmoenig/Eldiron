@@ -75,10 +75,55 @@ pub struct Appearance {
     pub(crate) connectors: Vec<denrim_materials::geometry::connectors::Connector>,
     equipment: Vec<(String, String, String)>,
     compiled: Mutex<FxHashMap<u64, Arc<Compiled>>>,
-    sprites: Mutex<FxHashMap<(u64, String, u32, i32, u64, bool), crate::isometric::AvatarSprite>>,
+    sprites: Mutex<FxHashMap<SpriteKey, crate::isometric::AvatarSprite>>,
     last_ready: Mutex<FxHashMap<(Uuid, u32), u64>>,
     preparing: Mutex<FxHashSet<((Uuid, u32), u64)>>,
 }
+type SpriteKey = (u64, String, u32, i32, u64, bool);
+/// Metadata and immutable compiled geometry retained for one selected sprite.
+/// Resolution does not rasterize the selected sprite. A late variant job cannot change the
+/// source between a presentation cache lookup and its materialization.
+pub(crate) struct ResolvedSprite<'a> {
+    appearance: &'a Appearance,
+    compiled: Arc<Compiled>,
+    assets: &'a Assets,
+    key: SpriteKey,
+    sample: f32,
+    surface_seconds: f32,
+    joints: Option<&'a [denrim_materials::geometry::rig::Pose]>,
+}
+impl ResolvedSprite<'_> {
+    pub(crate) fn fingerprint(&self) -> u64 {
+        fingerprint(&(self.appearance.signature, &self.key))
+    }
+    pub(crate) fn render(&self) -> Result<crate::isometric::AvatarSprite, String> {
+        if let Some(pixels) = self.appearance.sprites.lock().unwrap().get(&self.key) {
+            return Ok(pixels.clone());
+        }
+        let c = &self.compiled;
+        let mesh = c
+            .evaluation
+            .mesh
+            .posed_with_joints(Appearance::motion(c, &self.key.1), self.sample, self.joints)
+            .map_err(|e| e.to_string())?
+            .mesh;
+        let pixels = raster_sprite_frame(
+            &mesh,
+            c,
+            f32::from_bits(self.key.3 as u32),
+            &self.assets.palette,
+            self.surface_seconds,
+            self.key.5,
+        );
+        let mut cache = self.appearance.sprites.lock().unwrap();
+        if cache.len() >= 512 {
+            cache.clear();
+        }
+        cache.insert(self.key.clone(), pixels.clone());
+        Ok(pixels)
+    }
+}
+
 struct VariantPlan {
     mask: u64,
     key: u64,
@@ -104,8 +149,14 @@ impl Appearance {
         let state_on = if document.has_states() {
             let on = serde_json::to_string(&document.for_state(true)).map_err(|e| e.to_string())?;
             document = document.for_state(false);
-            Some(Arc::new(Self::new(&on, equipment, fingerprint(&(signature, true)))?))
-        } else { None };
+            Some(Arc::new(Self::new(
+                &on,
+                equipment,
+                fingerprint(&(signature, true)),
+            )?))
+        } else {
+            None
+        };
         let mesh = document.evaluate().map_err(|e| e.to_string())?.mesh;
         let has_effects = !mesh.effects.is_empty();
         let bounds = mesh.bounds();
@@ -579,7 +630,9 @@ impl Appearance {
         }
     }
     fn animation_seconds(c: &Compiled, entity: &Entity, animation: &str, seconds: f32) -> f32 {
-        if entity.attributes.get_bool_default("avatar_pose_only", false)
+        if entity
+            .attributes
+            .get_bool_default("avatar_pose_only", false)
             && let Some(motion) = Self::motion(c, animation)
         {
             return motion.duration;
@@ -683,6 +736,27 @@ impl Appearance {
         joints: Option<&[denrim_materials::geometry::rig::Pose]>,
         isometric: bool,
     ) -> Result<crate::isometric::AvatarSprite, String> {
+        self.resolve_sprite(
+            entity,
+            assets,
+            animation,
+            seconds,
+            surface_seconds,
+            joints,
+            isometric,
+        )?
+        .render()
+    }
+    pub(crate) fn resolve_sprite<'a>(
+        &'a self,
+        entity: &Entity,
+        assets: &'a Assets,
+        animation: &str,
+        seconds: f32,
+        surface_seconds: f32,
+        joints: Option<&'a [denrim_materials::geometry::rig::Pose]>,
+        isometric: bool,
+    ) -> Result<ResolvedSprite<'a>, String> {
         let (c, mask) = self.compiled_for(entity, assets)?;
         let seconds = Self::animation_seconds(&c, entity, animation, seconds);
         let clip = Self::motion(&c, animation);
@@ -694,18 +768,27 @@ impl Appearance {
             }
         });
         let complete = clip.is_some_and(|m| !m.looping && seconds + 0.000001 >= m.duration);
-        let frame = if complete {
+        let frame = if clip.is_none() {
+            0.
+        } else if complete {
             (seconds * FPS).ceil()
         } else {
             (seconds * FPS).floor()
         } as u32;
-        let yaw = entity.attributes.get_float("appearance_yaw").unwrap_or_else(|| (entity
-            .orientation
-            .x
-            .atan2(entity.orientation.y)
-            .to_degrees()
-            / 45.)
-            .round() * 45.).rem_euclid(360.);
+        let yaw = entity
+            .attributes
+            .get_float("appearance_yaw")
+            .unwrap_or_else(|| {
+                (entity
+                    .orientation
+                    .x
+                    .atan2(entity.orientation.y)
+                    .to_degrees()
+                    / 45.)
+                    .round()
+                    * 45.
+            })
+            .rem_euclid(360.);
         let textures = fingerprint(&(
             c.materials
                 .iter()
@@ -726,34 +809,18 @@ impl Appearance {
             textures,
             isometric,
         );
-        if let Some(rgba) = self.sprites.lock().unwrap().get(&key) {
-            return Ok(rgba.clone());
-        }
-        // A duration need not be a multiple of the sprite frame interval. Give
-        // its final key a separate cache entry, so release/reload is never lost.
         let sample = clip
             .filter(|m| !m.looping)
             .map_or(frame as f32 / FPS, |m| (frame as f32 / FPS).min(m.duration));
-        let mesh = c
-            .evaluation
-            .mesh
-            .posed_with_joints(Self::motion(&c, animation), sample, joints)
-            .map_err(|e| e.to_string())?
-            .mesh;
-        let pixels = raster_sprite_frame(
-            &mesh,
-            &c,
-            yaw,
-            &assets.palette,
+        Ok(ResolvedSprite {
+            appearance: self,
+            compiled: c,
+            assets,
+            key,
+            sample,
             surface_seconds,
-            isometric,
-        );
-        let mut cache = self.sprites.lock().unwrap();
-        if cache.len() >= 512 {
-            cache.clear();
-        }
-        cache.insert(key, pixels.clone());
-        Ok(pixels)
+            joints,
+        })
     }
     /// Resolve effect attachment positions from exactly the same posed mesh as rendering.
     pub fn effects(
@@ -1283,18 +1350,37 @@ impl Runtime {
             .get(name.strip_prefix("ruleset:geometry/").unwrap_or(name))?;
         Some(if item.attributes.get_bool_default("active", false) {
             model.state_on.as_ref().unwrap_or(model)
-        } else { model })
+        } else {
+            model
+        })
     }
     pub fn item_entity(item: &crate::Item) -> Entity {
         let degrees = item.attributes.get_float_default("appearance_yaw", 0.);
         let yaw = degrees.to_radians();
-        let mut entity = Entity { orientation: vek::Vec2::new(yaw.sin(), yaw.cos()), ..Default::default() };
+        let mut entity = Entity {
+            orientation: vek::Vec2::new(yaw.sin(), yaw.cos()),
+            ..Default::default()
+        };
         entity.set_attribute("appearance_yaw", crate::Value::Float(degrees));
         entity
     }
-    pub fn isometric_item_sprite(&mut self, item: &crate::Item, assets: &Assets) -> Option<crate::isometric::AvatarSprite> {
+    pub fn isometric_item_sprite(
+        &mut self,
+        item: &crate::Item,
+        assets: &Assets,
+    ) -> Option<crate::isometric::AvatarSprite> {
         let model = Self::resolve_item(item, assets)?;
-        model.sprite_camera(&Self::item_entity(item), assets, "idle", 0., self.time, None, true).ok()
+        model
+            .sprite_camera(
+                &Self::item_entity(item),
+                assets,
+                "idle",
+                0.,
+                self.time,
+                None,
+                true,
+            )
+            .ok()
     }
     /// A separately authored Off model owns its effects too (for example smoke).
     pub fn item_effects_enabled(item: &crate::Item) -> bool {
@@ -1434,7 +1520,9 @@ impl Runtime {
     ) -> Result<AnimationSample, String> {
         let (animation, mut time) = self.phase(id, entity);
         let (c, variant) = model.compiled_for(entity, assets)?;
-        let pose_only = entity.attributes.get_bool_default("avatar_pose_only", false);
+        let pose_only = entity
+            .attributes
+            .get_bool_default("avatar_pose_only", false);
         if animation == "walk" {
             let duration = Appearance::motion(&c, &animation).map_or(1., |m| m.duration);
             let stride = entity
@@ -1496,9 +1584,7 @@ impl Runtime {
             entity.attributes.get_int_default("avatar_attack_serial", 0),
             fingerprint(&(variant, model.signature)),
         );
-        if !pose_only
-            && let Some(motion) = Appearance::motion(&c, &animation)
-        {
+        if !pose_only && let Some(motion) = Appearance::motion(&c, &animation) {
             let sample = Appearance::animation_seconds(&c, entity, &animation, time);
             let cursor = self
                 .event_cursors
@@ -1819,16 +1905,24 @@ mod tests {
         for cycle in 0..80 {
             runtime.time = cycle as f32 * 1.3 + 0.17;
             let sample = runtime.sample(id, &entity, &model, &assets, true).unwrap();
-            let pixels = model
-                .sprite_with_pose(
+            let resolved = model
+                .resolve_sprite(
                     &entity,
                     &assets,
                     &sample.animation,
                     sample.time,
                     0.,
                     Some(&sample.joints),
+                    false,
                 )
                 .unwrap();
+            if cycle == 0 {
+                assert!(
+                    model.sprites.lock().unwrap().is_empty(),
+                    "resolving a sample cannot rasterize it"
+                );
+            }
+            let pixels = resolved.render().unwrap().pixels;
             if let Some(reference) = &reference {
                 assert!(
                     Arc::ptr_eq(reference, &pixels),
@@ -1839,6 +1933,91 @@ mod tests {
             }
         }
         assert_eq!(model.sprites.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn resolved_preview_retains_its_compiled_sample_and_reuses_looped_phases_without_rasterizing_lookup()
+     {
+        use crate::client::content::{AvatarSourceSettings, ContentRecipe};
+        let (mut assets, original, entity) = fixture();
+        let mut doc = original.document.clone();
+        for tile in doc.rows.iter_mut().flat_map(|row| &mut row.tiles) {
+            if let Operation::Motion { duration, .. } = &mut tile.op {
+                *duration = 1.;
+            }
+        }
+        let model = Arc::new(Appearance::new(&doc.save().unwrap(), &[], 993).unwrap());
+        assets
+            .procedural_avatars
+            .insert("humanoid".into(), model.clone());
+        let avatar = crate::Avatar {
+            id: Default::default(),
+            name: "humanoid".into(),
+            resolution: 1,
+            perspective_count: crate::AvatarPerspectiveCount::Four,
+            animations: vec![crate::AvatarAnimation {
+                id: Default::default(),
+                name: "Idle".into(),
+                speed: 1.,
+                perspectives: vec![crate::AvatarPerspective {
+                    direction: crate::AvatarDirection::Front,
+                    frames: vec![crate::AvatarAnimationFrame::new(Texture::from_color([
+                        24, 128, 240, 255,
+                    ]))],
+                    weapon_main_anchor: None,
+                    weapon_off_anchor: None,
+                }],
+            }],
+        };
+        assets.avatars.insert("humanoid".into(), avatar);
+        let recipe = |frame| ContentRecipe::Avatar {
+            entity: &entity,
+            settings: AvatarSourceSettings {
+                avatar: Some("humanoid"),
+                animation: Some("Idle"),
+                direction: crate::AvatarDirection::Front,
+                frame,
+                weapons: false,
+            },
+        };
+        let first = recipe(0).resolve(&assets);
+        let looped = recipe(4).resolve(&assets);
+        assert_eq!(first.fingerprint(), looped.fingerprint());
+        assert!(model.sprites.lock().unwrap().is_empty());
+        model.compiled.lock().unwrap().clear();
+        let art = first.build().unwrap();
+        assert!(art.avatar);
+        assert_eq!(art.texture.width, SPRITE_SIZE);
+        assert!(art.texture.data.chunks_exact(4).any(|pixel| pixel[3] > 0));
+        assert!(
+            model.compiled.lock().unwrap().is_empty(),
+            "materialization must retain the sample selected before a late variant publication"
+        );
+        assert_eq!(looped.build().unwrap().texture.data, art.texture.data);
+        assert_eq!(model.sprites.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn resolved_static_procedural_geometry_ignores_pose_clock_but_tracks_source_material_phases() {
+        let (assets, original, entity) = fixture();
+        let mut doc = original.document.clone();
+        for row in &mut doc.rows {
+            row.tiles
+                .retain(|tile| !matches!(&tile.op, Operation::Motion { .. }));
+        }
+        let model = Appearance::new(&doc.save().unwrap(), &[], 994).unwrap();
+        let first = model
+            .resolve_sprite(&entity, &assets, "idle", 0., 0., None, false)
+            .unwrap();
+        let later = model
+            .resolve_sprite(&entity, &assets, "idle", 100., 100., None, false)
+            .unwrap();
+        assert_eq!(first.fingerprint(), later.fingerprint());
+        assert!(model.sprites.lock().unwrap().is_empty());
+        assert!(Arc::ptr_eq(
+            &first.render().unwrap().pixels,
+            &later.render().unwrap().pixels
+        ));
     }
 
     #[test]

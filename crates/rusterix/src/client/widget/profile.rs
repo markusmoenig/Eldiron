@@ -494,35 +494,49 @@ impl ProfileWidget {
             .unwrap_or(fallback)
     }
 
+    pub(crate) fn explicit_profile_source<'a>(
+        entity: &Entity,
+        assets: &'a Assets,
+        animation_frame: usize,
+    ) -> Option<crate::client::content::TexturePlan<'a>> {
+        use crate::{client::content::TexturePlan, map::pixelsource::ResolvedTile};
+        for key in ["profile_tile_id", "profile_source", "portrait_tile_id"] {
+            if let Some(plan) = entity
+                .attributes
+                .get_source(key)
+                .and_then(|source| source.resolve_tile(assets))
+                .and_then(|source| TexturePlan::tile(source, animation_frame))
+            {
+                return Some(plan);
+            }
+            if let Some(plan) = entity
+                .attributes
+                .get_id(key)
+                .and_then(|id| assets.tiles.get(&id))
+                .and_then(|tile| TexturePlan::tile(ResolvedTile::Borrowed(tile), animation_frame))
+            {
+                return Some(plan);
+            }
+            if let Some(plan) = entity
+                .attributes
+                .get_str(key)
+                .and_then(|value| Uuid::parse_str(value.trim()).ok())
+                .and_then(|id| assets.tiles.get(&id))
+                .and_then(|tile| TexturePlan::tile(ResolvedTile::Borrowed(tile), animation_frame))
+            {
+                return Some(plan);
+            }
+        }
+        None
+    }
     pub(crate) fn explicit_profile_texture(
         entity: &Entity,
         assets: &Assets,
         animation_frame: usize,
     ) -> Option<Texture> {
-        for key in ["profile_tile_id", "profile_source", "portrait_tile_id"] {
-            if let Some(source) = entity.attributes.get_source(key)
-                && let Some(tile) = source.tile_from_tile_list(assets)
-                && let Some(texture) = tile.textures.get(tile.frame_index(animation_frame))
-            {
-                return Some(texture.clone());
-            }
-            if let Some(id) = entity.attributes.get_id(key)
-                && let Some(tile) = assets.tiles.get(&id)
-                && let Some(texture) = tile.textures.get(tile.frame_index(animation_frame))
-            {
-                return Some(texture.clone());
-            }
-            if let Some(id) = entity
-                .attributes
-                .get_str(key)
-                .and_then(|value| Uuid::parse_str(value.trim()).ok())
-                && let Some(tile) = assets.tiles.get(&id)
-                && let Some(texture) = tile.textures.get(tile.frame_index(animation_frame))
-            {
-                return Some(texture.clone());
-            }
-        }
-        None
+        Self::explicit_profile_source(entity, assets, animation_frame)
+            .and_then(|plan| plan.build())
+            .map(|(texture, _)| texture)
     }
 
     fn alpha_bounds(size: usize, rgba: &[u8]) -> Option<(usize, usize, usize, usize)> {

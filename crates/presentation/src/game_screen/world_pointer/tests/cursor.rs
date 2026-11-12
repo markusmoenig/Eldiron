@@ -266,6 +266,16 @@ fn intent_marks_use_threshold_source_images_and_world_drag_preview_is_a_retained
         builds,
         "unchanged drag artwork is not rebuilt"
     );
+    for frame in [1, 2, 99, 100] {
+        screen
+            .prepare(&session.view(), &mut fonts, ContentRevision(1), frame)
+            .unwrap();
+        assert_eq!(
+            screen.source_builds(),
+            builds,
+            "a static drag source ignores advancing presentation frames"
+        );
+    }
     session.project.regions[0].map.items.clear();
     prepare(&session, &mut screen, &mut fonts);
     let list = screen

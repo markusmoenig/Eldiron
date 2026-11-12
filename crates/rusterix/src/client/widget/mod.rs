@@ -1141,18 +1141,29 @@ impl Widget {
         }
     }
 
-    pub(crate) fn portrait_tile_for_entity(entity: &Entity, assets: &Assets) -> Option<crate::Tile> {
+    pub(crate) fn portrait_tile_source<'a>(
+        entity: &Entity,
+        assets: &'a Assets,
+    ) -> Option<crate::map::pixelsource::ResolvedTile<'a>> {
+        use crate::map::pixelsource::ResolvedTile;
         if let Some(source) = entity.attributes.get_source("portrait_tile_id") {
-            return source.tile_from_tile_list(assets);
+            return source.resolve_tile(assets);
         }
         if let Some(id) = entity.attributes.get_id("portrait_tile_id") {
-            return assets.tiles.get(&id).cloned();
+            return assets.tiles.get(&id).map(ResolvedTile::Borrowed);
         }
         entity
             .attributes
             .get_str("portrait_tile_id")
             .and_then(|value| Uuid::parse_str(value.trim()).ok())
-            .and_then(|id| assets.tiles.get(&id).cloned())
+            .and_then(|id| assets.tiles.get(&id))
+            .map(ResolvedTile::Borrowed)
+    }
+    pub(crate) fn portrait_tile_for_entity(
+        entity: &Entity,
+        assets: &Assets,
+    ) -> Option<crate::Tile> {
+        Self::portrait_tile_source(entity, assets).map(|source| source.materialize())
     }
 
     /// Resolve authored/animated item artwork before UI painting. The returned
@@ -1162,7 +1173,16 @@ impl Widget {
         item: &Item,
         frame: usize,
     ) -> Option<(Texture, crate::client::content::SourceFit)> {
-        use crate::client::content::SourceFit;
+        Self::item_texture_plan(assets, item, frame)
+            .and_then(|plan| plan.build())
+            .or_else(|| Self::generated_item_source_texture(assets, item))
+    }
+    pub(crate) fn item_texture_plan<'a>(
+        assets: &'a Assets,
+        item: &Item,
+        frame: usize,
+    ) -> Option<crate::client::content::TexturePlan<'a>> {
+        use crate::client::content::TexturePlan;
         let explicit = item.attributes.get_str("icon").and_then(|name| {
             let root = assets.rules_table();
             let id = root.as_ref().map_or_else(
@@ -1177,30 +1197,32 @@ impl Widget {
             && let Some(tile) = explicit
             && let Some(texture) = tile.textures.get(tile.frame_index(frame))
         {
-            return Some((texture.clone(), SourceFit::Stretch));
+            return Some(TexturePlan::Texture(texture));
         }
         if let Some(frames) = Self::custom_item_icon_frames(assets, item)
             && let Some(texture) = frames.get(frame % frames.len().max(1))
         {
-            return Some((texture.clone(), SourceFit::Stretch));
+            return Some(TexturePlan::Texture(texture));
         }
         if let Some(Value::Source(source)) = item.attributes.get("source")
-            && let Some(tile) = source.tile_from_tile_list(assets)
-            && let Some(texture) = tile.textures.get(tile.frame_index(frame))
+            && let Some(plan) = source
+                .resolve_tile(assets)
+                .and_then(|source| TexturePlan::tile(source, frame))
         {
-            return Some((texture.clone(), SourceFit::Stretch));
+            return Some(plan);
         }
-        if let Some(tile) = AvatarRuntimeBuilder::explicit_item_tile(item, assets)
-            && let Some(texture) = tile.textures.get(tile.frame_index(frame))
+        if let Some(plan) = AvatarRuntimeBuilder::explicit_item_tile_source(item, assets)
+            .and_then(|source| TexturePlan::tile(source, frame))
         {
-            return Some((texture.clone(), SourceFit::Stretch));
+            return Some(plan);
         }
-        if let Some((size, rgba)) = Self::item_icon_texture_square_at_frame(assets, item, frame) {
-            return Some((
-                Texture::new(rgba, size as usize, size as usize),
-                SourceFit::Contain,
-            ));
-        }
+        Self::item_icon_source_texture(assets, item, frame).map(TexturePlan::Square)
+    }
+    pub(crate) fn generated_item_source_texture(
+        assets: &Assets,
+        item: &Item,
+    ) -> Option<(Texture, crate::client::content::SourceFit)> {
+        use crate::client::content::SourceFit;
         if let Some(Value::StrArray(channels)) = item.attributes.get("avatar_channels")
             && !channels.is_empty()
         {
@@ -1427,6 +1449,15 @@ impl Widget {
         item: &Item,
         animation_frame: usize,
     ) -> Option<(u32, Vec<u8>)> {
+        let texture = Self::item_icon_source_texture(assets, item, animation_frame)?;
+        let (texture, _) = crate::client::content::TexturePlan::Square(texture).build()?;
+        Some((texture.width as u32, texture.data))
+    }
+    fn item_icon_source_texture<'a>(
+        assets: &'a Assets,
+        item: &Item,
+        animation_frame: usize,
+    ) -> Option<&'a Texture> {
         // Every official item may own a PNG named after its ruleset id. This
         // avoids forcing action icons and visually richer item defaults to
         // share one semantic texture id.
@@ -1460,22 +1491,7 @@ impl Widget {
             .as_ref()
             .map(|root| Self::resolve_icon_texture_id(root, &icon_id))
             .unwrap_or(icon_id);
-        let texture = Self::icon_texture(assets, &texture_id, animation_frame)?;
-        let size = texture.width.max(texture.height).max(1);
-        let offset_x = (size - texture.width) / 2;
-        let offset_y = (size - texture.height) / 2;
-        let mut icon = vec![0_u8; size * size * 4];
-        for y in 0..texture.height {
-            for x in 0..texture.width {
-                let src = (y * texture.width + x) * 4;
-                if src + 3 >= texture.data.len() {
-                    continue;
-                }
-                let dst = ((y + offset_y) * size + x + offset_x) * 4;
-                icon[dst..dst + 4].copy_from_slice(&texture.data[src..src + 4]);
-            }
-        }
-        Some((size as u32, icon))
+        Self::icon_texture(assets, &texture_id, animation_frame)
     }
 
     fn item_equipment_icon_square(assets: &Assets, item: &Item) -> Option<(u32, Vec<u8>)> {
