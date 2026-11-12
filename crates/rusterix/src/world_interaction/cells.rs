@@ -33,13 +33,23 @@ impl CellTargets {
     /// Native flat producers use the runtime `visible` flag (default false).
     /// Reference click policy remains available separately for compatibility.
     pub fn capture_visible(map: &Map) -> Self {
+        Self::capture(map, false)
+    }
+    /// Isometric source collection defaults unspecified visibility to true.
+    pub fn capture_isometric(map: &Map) -> Self {
+        Self::capture(map, true)
+    }
+    fn capture(map: &Map, default_visible: bool) -> Self {
         let mut result = Self {
             region: map.id,
             leader: leader_position(map),
             cells: FxHashMap::default(),
         };
         for entity in &map.entities {
-            if !entity.attributes.get_bool_default("visible", false) {
+            if !entity
+                .attributes
+                .get_bool_default("visible", default_visible)
+            {
                 continue;
             }
             let position = entity.get_pos_xz();
@@ -59,7 +69,7 @@ impl CellTargets {
             slot.get_or_insert(target);
         }
         for item in &map.items {
-            if !item.attributes.get_bool_default("visible", false) {
+            if !item.attributes.get_bool_default("visible", default_visible) {
                 continue;
             }
             let position = item.get_pos_xz();

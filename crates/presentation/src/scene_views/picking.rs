@@ -26,7 +26,12 @@ impl SceneViews {
         let Some(view) = self.views.get(&displayed.view) else {
             return ViewPick::Unavailable;
         };
-        if view.dirty || view.size.0 == 0 || view.size.1 == 0 || view.output != Some(displayed) {
+        if view.isometric
+            || view.dirty
+            || view.size.0 == 0
+            || view.size.1 == 0
+            || view.output != Some(displayed)
+        {
             return ViewPick::Unavailable;
         }
         let vm = &view.scene.vm;

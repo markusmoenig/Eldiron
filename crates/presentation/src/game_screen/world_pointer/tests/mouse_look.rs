@@ -31,6 +31,7 @@ fn stage_look(session: &GameSession, screen: &mut GameScreenController, fonts: &
                 &screen.elements.game_widgets[&key],
                 output,
                 session.view().map.unwrap(),
+                None,
             )
             .unwrap();
     }

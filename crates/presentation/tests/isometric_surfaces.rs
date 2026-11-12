@@ -25,6 +25,8 @@ use isometric_support::*;
 #[ignore = "requires native GPU; run with --ignored"]
 fn gpu_floor_triangles_match_reference_pages_overrides_blends_clamp_and_height() {
     let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut producer =
+        eldiron_presentation::isometric::IsometricSceneRenderer::new(gpu.clone()).unwrap();
     let base = material([30, 50, 120], true);
     let paint = material([155, 35, 25], false);
     let blend = material([25, 140, 45], false);
@@ -171,6 +173,23 @@ fn gpu_floor_triangles_match_reference_pages_overrides_blends_clamp_and_height()
             &[],
         )
         .unwrap();
+        isometric_support::check_producer(
+            &gpu,
+            &mut producer,
+            size,
+            &eldiron_presentation::isometric::IsometricSceneInput {
+                map: &map,
+                assets: &assets,
+                avatars: &avatars,
+                seconds: seconds,
+                projection,
+                lighting: &lighting,
+                particles: &[],
+                source_version: version,
+            },
+            reference.pixels(),
+            "assembled native producer",
+        );
         mismatch(&pixels, reference.pixels(), &format!("floor pass {pass}"));
     }
 }
@@ -179,6 +198,8 @@ fn gpu_floor_triangles_match_reference_pages_overrides_blends_clamp_and_height()
 #[ignore = "requires native GPU; run with --ignored"]
 fn gpu_terrain_triangles_match_reference_materials_depth_and_live_lighting() {
     let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut producer =
+        eldiron_presentation::isometric::IsometricSceneRenderer::new(gpu.clone()).unwrap();
     let base = material([50, 85, 35], true);
     let paint = material([135, 65, 25], false);
     let blend = material([35, 60, 135], false);
@@ -332,6 +353,23 @@ fn gpu_terrain_triangles_match_reference_materials_depth_and_live_lighting() {
             &[],
         )
         .unwrap();
+        isometric_support::check_producer(
+            &gpu,
+            &mut producer,
+            size,
+            &eldiron_presentation::isometric::IsometricSceneInput {
+                map: &map,
+                assets: &assets,
+                avatars: &avatars,
+                seconds: seconds,
+                projection,
+                lighting: &lighting,
+                particles: &[],
+                source_version: version,
+            },
+            reference.pixels(),
+            "assembled native producer",
+        );
         mismatch(&pixels, reference.pixels(), &format!("terrain pass {pass}"));
     }
 }
@@ -343,6 +381,8 @@ fn gpu_surface_and_sprite_appends_preserve_supported_actors_and_existing_ground(
     use isometric::scene::ContactPolicy;
     use scenevm::isometric::{GpuSpriteSource, SpriteBlit};
     let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut producer =
+        eldiron_presentation::isometric::IsometricSceneRenderer::new(gpu.clone()).unwrap();
     let floor = material([105, 70, 30], false);
     let floor_id = floor.id;
     let mut image = vec![0; 32 * 32 * 4];
@@ -485,6 +525,23 @@ fn gpu_surface_and_sprite_appends_preserve_supported_actors_and_existing_ground(
         &[],
     )
     .unwrap();
+    isometric_support::check_producer(
+        &gpu,
+        &mut producer,
+        size,
+        &eldiron_presentation::isometric::IsometricSceneInput {
+            map: &map,
+            assets: &assets,
+            avatars: &avatars,
+            seconds: 0.,
+            projection,
+            lighting: &lighting,
+            particles: &[],
+            source_version: version,
+        },
+        reference.pixels(),
+        "assembled native producer",
+    );
     mismatch(&actual, reference.pixels(), "mixed surface/sprite appends");
     assert!(actual.chunks_exact(4).any(|p| p == [25, 185, 40, 255]));
     let marker = GpuSpriteSource::new(&gpu, 1, 1, &[230, 30, 150, 255], None).unwrap();

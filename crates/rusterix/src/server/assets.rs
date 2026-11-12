@@ -289,7 +289,7 @@ impl Assets {
     /// Keep presentation on the configured server tick without parsing the
     /// entire project TOML for every 2D/3D redraw. Direct config edits and cloned
     /// asset snapshots are checked against the source, rather than a stale flag.
-    pub(crate) fn animation_tick_seconds(&self) -> f32 {
+    pub fn animation_tick_seconds(&self) -> f32 {
         if let Ok(cache) = self.animation_tick.read()
             && let Some((source, seconds)) = &*cache
             && source == &self.config
@@ -462,7 +462,38 @@ impl Assets {
         self.tile_indices.get(id).copied()
     }
 
-    /// Set the tiles and atlas from a list of RGBA tiles.
+    /// Immutable authored/palette source normalization shared by the CPU
+    /// session and legacy renderer. This never initializes a GPU or window.
+    pub fn tiles_with_palette(&self, textures: IndexMap<Uuid, Tile>) -> IndexMap<Uuid, Tile> {
+        let mut all_tiles = textures;
+        for (id, tile) in &self.palette_tile_overrides {
+            if all_tiles.contains_key(id) {
+                all_tiles.insert(*id, tile.clone());
+            }
+        }
+
+        // Register synthetic 1x1 tiles for all palette indices so PaletteIndex sources
+        // always resolve to real atlas/tile-list entries.
+        for (idx, col_opt) in self.palette.colors.iter().enumerate() {
+            let Some(col) = col_opt else {
+                continue;
+            };
+            let tile_id = Uuid::from_u128(0x50414C455454455F0000000000000000u128 | idx as u128);
+            let material_id = self.palette_material_ids.get(idx).copied().unwrap_or(0);
+            let tile = all_tiles.entry(tile_id).or_insert_with(|| {
+                let mut t = Tile::from_texture(Texture::from_color(col.to_u8_array()));
+                t.id = tile_id;
+                t
+            });
+            for texture in &mut tile.textures {
+                texture.set_material_id_all(material_id);
+            }
+        }
+
+        all_tiles
+    }
+
+    /// Set the indexed source tiles; no GPU atlas is initialized here.
     pub fn set_tiles(&mut self, tiles: IndexMap<Uuid, Tile>) {
         self.tiles_revision = self.tiles_revision.wrapping_add(1);
         /*

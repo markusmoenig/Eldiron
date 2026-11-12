@@ -171,9 +171,6 @@ impl GameWidget {
         if self.backend_name == "text" {
             return Err("text game views require their text presenter".into());
         }
-        if self.camera.is_isometric_2d() {
-            return Err("isometric game views require the GPU sprite presenter".into());
-        }
         if logical.0 == 0
             || logical.1 == 0
             || logical.0 > i32::MAX as u32
@@ -205,6 +202,7 @@ impl GameWidget {
         self.gpu_surface_size = Some(logical);
         self.buffer = TheRGBABuffer::default();
         self.upscale_buffer = TheRGBABuffer::default();
+        self.isometric_ground = Default::default();
         self.graphical_apply_entities(map, assets, animation_frame, scene);
         self.graphical_prepare_frame(map, time, animation_frame, assets, scene);
         Ok(resolution)

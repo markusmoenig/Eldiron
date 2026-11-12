@@ -5,6 +5,7 @@ mod catalog;
 mod cursor;
 mod feedback;
 mod hud;
+mod isometric;
 mod item_pointer;
 mod mouse_look;
 mod preferences;
@@ -406,6 +407,7 @@ fn acknowledged_ray_frames_route_actual_geometry_and_reject_newer_dirty_or_unack
             &screen.elements.game_widgets[&key],
             output,
             session.view().map.unwrap(),
+            None,
         )
         .unwrap();
     let press = button([64., 48.], true);
@@ -485,6 +487,7 @@ fn acknowledged_ray_frames_route_actual_geometry_and_reject_newer_dirty_or_unack
             &screen.elements.game_widgets[&key],
             newer,
             session.view().map.unwrap(),
+            None,
         )
         .unwrap();
     screen.acknowledge_world_frame(&session.view(), Some(&views));

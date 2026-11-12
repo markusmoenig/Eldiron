@@ -146,3 +146,31 @@ fn real_project_supports_automatic_and_deferred_idempotent_player_registration()
         assert!(!session.has_started_player());
     }
 }
+
+#[test]
+fn cpu_session_startup_publishes_authored_tiles_with_coherent_indices() {
+    let mut project = Project::new();
+    let tile = rusterix::Tile::from_texture(rusterix::Texture::new(vec![30, 90, 150, 255], 1, 1));
+    let id = tile.id;
+    project.tiles.insert(id, tile.clone());
+    let mut session = GameSession::new(project);
+    session.server.print_log_messages = false;
+    session
+        .start(SessionOptions {
+            create_local_player: false,
+            ..Default::default()
+        })
+        .unwrap();
+    let index = session
+        .assets
+        .tile_index(&id)
+        .expect("startup must publish stable source indices");
+    assert_eq!(&session.assets.tile_list[index as usize], &tile);
+    assert_eq!(&session.assets.tiles[&id], &tile);
+    assert_eq!(
+        &session.project.tiles[&id], &tile,
+        "publishing source assets cannot alter authored tile data"
+    );
+    assert!(session.assets.tiles_revision > 0);
+    session.stop();
+}

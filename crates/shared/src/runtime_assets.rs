@@ -1018,9 +1018,7 @@ pub fn prepare_live_rules(
     insert_bundled_ruleset_item_icons(assets, project);
     insert_project_item_icons(assets, project);
     sync_procedural_avatar_assets(assets, project);
-    for (id, tile) in &project.tiles {
-        assets.tiles.insert(*id, tile.clone());
-    }
+    publish_visual_tiles(assets,project);
     Ok(Some(table))
 }
 
@@ -1425,6 +1423,29 @@ mod audio_source_tests {
     }
 }
 
+/// Publish authored/baked, palette and geometry material sources coherently for
+/// both CPU runtime snapshots and graphical consumers. Preserve existing engine
+/// entries and indices, and leave the serialized project sources untouched.
+pub fn publish_visual_tiles(assets: &mut rusterix::Assets, project: &Project) {
+    assets.palette = project.palette.clone();
+    assets.palette_materials = project
+        .palette_materials
+        .iter()
+        .map(|m| m.rmoe_values())
+        .collect();
+    assets.palette_material_ids = project
+        .palette_materials
+        .iter()
+        .map(|m| m.material_id())
+        .collect();
+    let mut tiles = assets.tiles_with_palette(project.tiles.clone());
+    assets.materialize_geometry_material_tiles_for_maps(
+        &mut tiles,
+        project.regions.iter().map(|r| &r.map),
+    );
+    assets.sync_tile_textures(tiles);
+}
+
 pub fn start_server(
     server: &mut rusterix::Server,
     assets: &mut rusterix::Assets,
@@ -1508,6 +1529,7 @@ pub fn start_server(
     }
     insert_bundled_ruleset_textures(assets, project);
     sync_procedural_avatar_assets(assets, project);
+    publish_visual_tiles(assets,project);
 
     // The session owns world-map lookup even when no graphical client is set up.
     // RegionAssets excludes this registry from the per-region snapshot.

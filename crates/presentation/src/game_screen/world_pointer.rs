@@ -43,6 +43,7 @@ impl Binding {
     }
 }
 enum Projection {
+    Isometric(Arc<crate::isometric::IsometricWorldTargets>),
     Flat {
         origin: Vec2<f32>,
         grid: f32,
@@ -200,16 +201,14 @@ impl WorldPointer {
         widget: &rusterix::client::widget::game::GameWidget,
         output: ViewImage,
         map: &Map,
+        isometric: Option<Arc<crate::isometric::IsometricWorldTargets>>,
     ) -> Result<(), String> {
         let Some(frame) = &mut self.staged else {
             return Ok(());
         };
-        let projection = if screen_model::is_2d_camera(&widget.camera) {
-            // Isometric preparation is explicitly rejected by its pending GPU
-            // sprite producer before this receipt can be published.
-            if widget.camera.is_isometric_2d() {
-                return Err("isometric input needs the GPU sprite producer's frame receipt".into());
-            }
+        let projection = if widget.camera.is_isometric_2d() {
+            Projection::Isometric(isometric.ok_or("missing completed isometric input receipt")?)
+        } else if screen_model::is_2d_camera(&widget.camera) {
             frame
                 .cells
                 .get_or_insert_with(|| Arc::new(CellTargets::capture_visible(map)));
@@ -714,6 +713,7 @@ impl GameScreenController {
         ];
         let uv = [uv[0] / view.source_size[0], uv[1] / view.source_size[1]];
         let hit = match &view.projection {
+            Projection::Isometric(targets) => targets.hit(uv, prefer_item),
             Projection::Flat {
                 origin,
                 grid,

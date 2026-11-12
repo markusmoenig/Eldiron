@@ -10,3 +10,9 @@ pub use surface_renderer::{IsometricSurfaceRenderer, SurfaceKind, SurfaceTriangl
 
 mod paint_sources;
 pub use paint_sources::{GpuTerrainPaintSource, IsometricPaintSources};
+
+mod producer;
+pub use producer::{IsometricPreparedFrame, IsometricSceneInput, IsometricSceneRenderer};
+
+mod picking;
+pub use picking::IsometricWorldTargets;

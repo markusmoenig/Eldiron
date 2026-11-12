@@ -427,23 +427,62 @@ fn game_camera_preparation_uses_view_extents_without_cpu_output_or_upscale_stora
         )
         .unwrap();
     assert!(views.output(a).is_none());
-    bb.camera = PlayerCamera::D2Iso;
+    bb.camera = PlayerCamera::D2;
+    map.camera = rusterix::MapCamera::TwoDIso;
+    views
+        .prepare_game(
+            b,
+            &mut bb,
+            (64, 64),
+            &GameSceneInput {
+                map: &map,
+                assets: &assets,
+                time: TheTime::new(),
+                animation_frame: 12,
+                render_state: &state,
+            },
+            &mut registry,
+        )
+        .unwrap();
+    assert!(bb.buffer.pixels().is_empty() && bb.upscale_buffer.pixels().is_empty());
+    assert!(!views.has_cpu_target_storage(b).unwrap());
+    let output = views.render(b, 12, &mut registry).unwrap().unwrap();
+    assert_eq!(bb.camera, PlayerCamera::D2Iso);
     assert!(
-        views
-            .prepare_game(
-                b,
-                &mut bb,
-                (64, 64),
-                &GameSceneInput {
-                    map: &map,
-                    assets: &assets,
-                    time: TheTime::new(),
-                    animation_frame: 12,
-                    render_state: &state
-                },
-                &mut registry
-            )
-            .is_err(),
-        "unsupported isometric path must never silently rasterize"
+        views.isometric_targets(output).is_some(),
+        "first synchronized frame must use the native isometric producer"
     );
+    assert_eq!(
+        (output.descriptor.width, output.descriptor.height),
+        (32, 32)
+    );
+    assert!(views.output(a).is_none());
+    let pixels = finish(&gpu, views.capture(b).unwrap().ticket);
+    assert!(
+        pixels
+            .chunks_exact(4)
+            .any(|p| p[0] > 100 && u16::from(p[0]) > u16::from(p[1]) * 2)
+    );
+    let previous = output;
+    bb.camera = PlayerCamera::D2;
+    bb.follow_player_camera = false;
+    views
+        .prepare_game(
+            b,
+            &mut bb,
+            (64, 64),
+            &GameSceneInput {
+                map: &map,
+                assets: &assets,
+                time: TheTime::new(),
+                animation_frame: 13,
+                render_state: &state,
+            },
+            &mut registry,
+        )
+        .unwrap();
+    assert!(registry.get(previous.image).is_none());
+    let output = views.render(b, 13, &mut registry).unwrap().unwrap();
+    assert_ne!(output.image, previous.image);
+    assert!(!views.has_cpu_target_storage(b).unwrap());
 }

@@ -1,4 +1,6 @@
-//! Actual GPU source blits compared byte-for-byte with the retained iso adapter.
+#[allow(dead_code)]
+mod isometric_support;
+// Actual GPU source blits compared byte-for-byte with the retained iso adapter.
 use eldiron_presentation::{
     isometric::{IsometricSourceVersion, IsometricSources},
     screen::ContentRevision,
@@ -69,6 +71,8 @@ fn tile(bitmap: bool, prelit: bool, ground: bool) -> Tile {
 #[ignore = "requires native GPU; run with --ignored"]
 fn gpu_sprite_sources_match_reference_alpha_placement_scaling_and_live_geometry() {
     let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut producer =
+        eldiron_presentation::isometric::IsometricSceneRenderer::new(gpu.clone()).unwrap();
     let mut map = Map::default();
     let tiles = [
         tile(false, false, false),
@@ -212,6 +216,23 @@ fn gpu_sprite_sources_match_reference_alpha_placement_scaling_and_live_geometry(
             &[],
         )
         .unwrap();
+        isometric_support::check_producer(
+            &gpu,
+            &mut producer,
+            size,
+            &eldiron_presentation::isometric::IsometricSceneInput {
+                map: &map,
+                assets: &assets,
+                avatars: &avatars,
+                seconds: 0.,
+                projection,
+                lighting: &lighting,
+                particles: &[],
+                source_version: version,
+            },
+            reference.pixels(),
+            "assembled native producer",
+        );
         assert_eq!(
             actual,
             reference.pixels(),
@@ -226,6 +247,8 @@ fn gpu_contact_owners_preserve_supported_boots_without_protecting_foreground_pro
     use rusterix::isometric::scene::ContactPolicy;
     use scenevm::isometric::SpriteContacts;
     let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut producer =
+        eldiron_presentation::isometric::IsometricSceneRenderer::new(gpu.clone()).unwrap();
     let mut floor = Tile::from_texture(Texture::new([190, 45, 30, 255].repeat(32 * 16), 32, 16));
     floor.isometric = Some(SpriteLayout {
         bitmap: true,
@@ -434,6 +457,23 @@ fn gpu_contact_owners_preserve_supported_boots_without_protecting_foreground_pro
             &[],
         )
         .unwrap();
+        isometric_support::check_producer(
+            &gpu,
+            &mut producer,
+            size,
+            &eldiron_presentation::isometric::IsometricSceneInput {
+                map: &map,
+                assets: &assets,
+                avatars: &avatars,
+                seconds: 0.,
+                projection,
+                lighting: &lighting,
+                particles: &[],
+                source_version: version,
+            },
+            reference.pixels(),
+            "assembled native producer",
+        );
         if protected != reference.pixels() {
             let at = protected
                 .iter()

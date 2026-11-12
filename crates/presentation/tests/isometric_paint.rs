@@ -72,6 +72,8 @@ fn painted() -> TerrainPaint {
 #[ignore = "requires native GPU; run with --ignored"]
 fn gpu_paint_matches_reference_negative_chunks_replacement_erasure_and_material_channels() {
     let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut producer =
+        eldiron_presentation::isometric::IsometricSceneRenderer::new(gpu.clone()).unwrap();
     let base = material([35, 65, 105], true);
     let id = base.id;
     let mut assets = Assets::default();
@@ -230,6 +232,23 @@ fn gpu_paint_matches_reference_negative_chunks_replacement_erasure_and_material_
                 &[],
             )
             .unwrap();
+            isometric_support::check_producer(
+                &gpu,
+                &mut producer,
+                size,
+                &eldiron_presentation::isometric::IsometricSceneInput {
+                    map: &map,
+                    assets: &assets,
+                    avatars: &avatars,
+                    seconds: seconds,
+                    projection,
+                    lighting: &lighting,
+                    particles: &[],
+                    source_version: version,
+                },
+                reference.pixels(),
+                "assembled native producer",
+            );
             mismatch(
                 &actual,
                 reference.pixels(),

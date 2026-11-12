@@ -1179,37 +1179,7 @@ impl Rusterix {
     }
 
     fn tiles_with_palette(&self, textures: IndexMap<Uuid, Tile>) -> IndexMap<Uuid, Tile> {
-        let mut all_tiles = textures;
-        for (id, tile) in &self.assets.palette_tile_overrides {
-            if all_tiles.contains_key(id) {
-                all_tiles.insert(*id, tile.clone());
-            }
-        }
-
-        // Register synthetic 1x1 tiles for all palette indices so PaletteIndex sources
-        // always resolve to real atlas/tile-list entries.
-        for (idx, col_opt) in self.assets.palette.colors.iter().enumerate() {
-            let Some(col) = col_opt else {
-                continue;
-            };
-            let tile_id = Uuid::from_u128(0x50414C455454455F0000000000000000u128 | idx as u128);
-            let material_id = self
-                .assets
-                .palette_material_ids
-                .get(idx)
-                .copied()
-                .unwrap_or(0);
-            let tile = all_tiles.entry(tile_id).or_insert_with(|| {
-                let mut t = Tile::from_texture(Texture::from_color(col.to_u8_array()));
-                t.id = tile_id;
-                t
-            });
-            for texture in &mut tile.textures {
-                texture.set_material_id_all(material_id);
-            }
-        }
-
-        all_tiles
+        self.assets.tiles_with_palette(textures)
     }
 
     fn apply_tiles(&mut self, all_tiles: IndexMap<Uuid, Tile>, editor: bool, clear_scene: bool) {

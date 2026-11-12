@@ -541,7 +541,8 @@ impl GameScreenController {
                 .render(id, self.animation_frame as u64, images)
                 .map_err(|e| e.to_string())?
             {
-                self.world.push_view(*key, widget, output, map)?;
+                self.world
+                    .push_view(*key, widget, output, map, views.isometric_targets(output))?;
                 self.view_images.insert(*key, output);
             }
         }

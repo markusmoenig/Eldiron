@@ -26,11 +26,13 @@ enum SourceKey {
 struct Entry {
     source: Arc<GpuSpriteSource>,
     used: u64,
+    alpha: Option<Arc<[u8]>>,
     _avatar: Option<AvatarSprite>,
     _stamp: Option<Arc<StampSprite>>,
 }
 /// The cache counts GPU source bytes. Avatar/stamp leases share the existing
-/// CPU assets; no additional source or viewport pixel copy is allocated.
+/// CPU assets; optional derived alpha is bounded to one byte per source texel.
+/// No viewport pixel copy is allocated.
 pub struct IsometricSources {
     context: Arc<GpuContext>,
     entries: FxHashMap<SourceKey, Entry>,
@@ -68,6 +70,32 @@ impl IsometricSources {
         self.entries.clear();
         self.bytes = 0;
     }
+    /// Source-space alpha for explicit frame picking. It is generated once per
+    /// resident source, at most one byte per texel (bounded by the GPU budget).
+    /// Old receipts retain their alpha lease after cache edits/eviction.
+    pub fn prepare_with_alpha(
+        &mut self,
+        sprite: &Sprite<'_>,
+        version: IsometricSourceVersion,
+    ) -> Result<Option<(Arc<GpuSpriteSource>, Arc<[u8]>)>> {
+        let Some(source) = self.prepare(sprite, version)? else {
+            return Ok(None);
+        };
+        let Some((key, _, _)) = source_identity(sprite, version) else {
+            return Ok(None);
+        };
+        if let Some(alpha) = self.entries.get(&key).and_then(|entry| entry.alpha.clone()) {
+            return Ok(Some((source, alpha)));
+        }
+        let Some(image) = sprite.image() else {
+            return Ok(None);
+        };
+        let alpha: Arc<[u8]> = image.data.chunks_exact(4).map(|p| p[3]).collect();
+        if let Some(entry) = self.entries.get_mut(&key) {
+            entry.alpha = Some(alpha.clone());
+        }
+        Ok(Some((source, alpha)))
+    }
     /// Sources are shared by instances and camera positions. Returned GPU leases
     /// remain usable when an entry is evicted, including an oversized new source.
     pub fn prepare(
@@ -80,33 +108,7 @@ impl IsometricSources {
                 "isometric source GPU device lost".into(),
             ));
         }
-        let (key, avatar, stamp) = if let Some(stamp) = sprite.stamp {
-            (
-                SourceKey::Stamp(
-                    version.namespace,
-                    stamp.id,
-                    stamp.raster_key,
-                    Arc::as_ptr(&stamp.sprite) as usize,
-                ),
-                None,
-                Some(stamp.sprite.clone()),
-            )
-        } else if let Some(avatar) = sprite.avatar {
-            (
-                SourceKey::Avatar(
-                    version.namespace,
-                    Arc::as_ptr(&avatar.pixels) as usize,
-                    avatar
-                        .surface
-                        .as_ref()
-                        .map_or(0, |s| Arc::as_ptr(s) as usize),
-                ),
-                Some(avatar.clone()),
-                None,
-            )
-        } else if let Some(tile) = sprite.tile {
-            (SourceKey::Tile(version, tile.id, sprite.frame), None, None)
-        } else {
+        let Some((key, avatar, stamp)) = source_identity(sprite, version) else {
             return Ok(None);
         };
         self.clock = self.clock.wrapping_add(1);
@@ -135,6 +137,7 @@ impl IsometricSources {
             Entry {
                 source: source.clone(),
                 used: self.clock,
+                alpha: None,
                 _avatar: avatar,
                 _stamp: stamp,
             },
@@ -157,4 +160,39 @@ impl IsometricSources {
         }
         Ok(Some(source))
     }
+}
+
+fn source_identity(
+    sprite: &Sprite<'_>,
+    version: IsometricSourceVersion,
+) -> Option<(SourceKey, Option<AvatarSprite>, Option<Arc<StampSprite>>)> {
+    Some(if let Some(stamp) = sprite.stamp {
+        (
+            SourceKey::Stamp(
+                version.namespace,
+                stamp.id,
+                stamp.raster_key,
+                Arc::as_ptr(&stamp.sprite) as usize,
+            ),
+            None,
+            Some(stamp.sprite.clone()),
+        )
+    } else if let Some(avatar) = sprite.avatar {
+        (
+            SourceKey::Avatar(
+                version.namespace,
+                Arc::as_ptr(&avatar.pixels) as usize,
+                avatar
+                    .surface
+                    .as_ref()
+                    .map_or(0, |s| Arc::as_ptr(s) as usize),
+            ),
+            Some(avatar.clone()),
+            None,
+        )
+    } else if let Some(tile) = sprite.tile {
+        (SourceKey::Tile(version, tile.id, sprite.frame), None, None)
+    } else {
+        return None;
+    })
 }

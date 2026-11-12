@@ -27,6 +27,8 @@ use isometric_support::*;
 #[ignore = "requires native GPU; run with --ignored"]
 fn gpu_sprite_terrain_clipping_matches_reference_and_keeps_supporting_feet_visible() {
     let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut producer =
+        eldiron_presentation::isometric::IsometricSceneRenderer::new(gpu.clone()).unwrap();
     let ground = material([60, 90, 35], false);
     let mut pixels = vec![0; 32 * 32 * 4];
     for y in 12..31 {
@@ -185,6 +187,23 @@ fn gpu_sprite_terrain_clipping_matches_reference_and_keeps_supporting_feet_visib
             &[],
         )
         .unwrap();
+        isometric_support::check_producer(
+            &gpu,
+            &mut producer,
+            size,
+            &eldiron_presentation::isometric::IsometricSceneInput {
+                map: &map,
+                assets: &assets,
+                avatars: &avatars,
+                seconds: 0.,
+                projection,
+                lighting: &lighting,
+                particles: &[],
+                source_version: version,
+            },
+            reference.pixels(),
+            "assembled native producer",
+        );
         mismatch(
             &actual,
             reference.pixels(),

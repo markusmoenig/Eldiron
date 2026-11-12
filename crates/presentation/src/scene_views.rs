@@ -6,6 +6,7 @@ use rusterix::SceneHandler;
 use scenevm::{SceneVM, SharedAtlas, render_output::SceneRenderTarget};
 use std::sync::Arc;
 use theframework_core::Uuid;
+mod isometric;
 mod picking;
 pub use picking::{ViewPick, ViewPickHit};
 
@@ -41,6 +42,10 @@ pub struct ViewCapture {
 }
 struct SceneView {
     scene: SceneHandler,
+    isometric: bool,
+    isometric_renderer: Option<crate::isometric::IsometricSceneRenderer>,
+    isometric_frame: Option<crate::isometric::IsometricPreparedFrame>,
+    last_image: Option<Arc<renderkit::GpuImage>>,
     size: (u32, u32),
     target: Option<SceneRenderTarget>,
     output: Option<ViewImage>,
@@ -109,6 +114,10 @@ impl SceneViews {
             id,
             SceneView {
                 scene: SceneHandler::with_vm(vm),
+                isometric: false,
+                isometric_renderer: None,
+                isometric_frame: None,
+                last_image: None,
                 size,
                 target,
                 output: None,
@@ -132,6 +141,7 @@ impl SceneViews {
             .get_mut(&id)
             .ok_or_else(|| RenderError("unknown scene view".into()))?;
         view.dirty = true;
+        view.isometric_frame = None;
         Ok(&mut view.scene)
     }
     pub fn invalidate(&mut self, id: ViewId) -> Result<()> {
@@ -156,12 +166,30 @@ impl SceneViews {
         if view.size == size {
             return Ok(());
         }
-        if size.0 > 0 && size.1 > 0 && view.target.as_ref().is_none_or(|t| t.size() != size) {
-            let target = SceneRenderTarget::new(self.context.clone(), size.0, size.1)?;
+        let replace_target = if view.isometric {
+            view.last_image
+                .as_ref()
+                .is_some_and(|image| (image.descriptor.width, image.descriptor.height) != size)
+        } else {
+            view.target
+                .as_ref()
+                .is_none_or(|target| target.size() != size)
+        };
+        if size.0 > 0 && size.1 > 0 && replace_target {
+            let target = if view.isometric {
+                None
+            } else {
+                Some(SceneRenderTarget::new(
+                    self.context.clone(),
+                    size.0,
+                    size.1,
+                )?)
+            };
             if let Some(output) = view.output.take() {
                 images.remove(output.image);
             }
-            view.target = Some(target);
+            view.last_image = None;
+            view.target = target;
         }
         // Zero-sized/suspended views retain their last target but produce no
         // paint output or render work. Resuming at the same size reuses it.
@@ -205,11 +233,25 @@ impl SceneViews {
             .revision
             .checked_add(1)
             .ok_or_else(|| RenderError("scene output revision exhausted".into()))?;
-        let target = view
-            .target
-            .as_mut()
-            .ok_or_else(|| RenderError("scene view target missing".into()))?;
-        let rendered = view.scene.vm.render_gpu(target, revision)?;
+        let rendered = if view.isometric {
+            let frame = view
+                .isometric_frame
+                .as_ref()
+                .ok_or_else(|| RenderError("isometric frame missing".into()))?;
+            if frame.size() != view.size {
+                return Err(RenderError("isometric frame size is stale".into()));
+            }
+            view.isometric_renderer
+                .as_mut()
+                .ok_or_else(|| RenderError("isometric producer missing".into()))?
+                .render_prepared(frame, revision)?
+        } else {
+            let target = view
+                .target
+                .as_mut()
+                .ok_or_else(|| RenderError("scene view target missing".into()))?;
+            view.scene.vm.render_gpu(target, revision)?
+        };
         let image = if let Some(output) = view.output {
             if images.get(output.image).is_none() {
                 return Err(RenderError(
@@ -227,6 +269,7 @@ impl SceneViews {
             revision,
             content_revision,
         };
+        view.last_image = Some(rendered.image);
         view.revision = revision;
         view.output = Some(output);
         view.dirty = false;
@@ -240,15 +283,15 @@ impl SceneViews {
         let output = self
             .output(id)
             .ok_or_else(|| RenderError("scene view has no visible rendered output".into()))?;
-        let target = view
-            .target
+        let image = view
+            .last_image
             .as_ref()
-            .ok_or_else(|| RenderError("scene view target missing".into()))?;
+            .ok_or_else(|| RenderError("scene image missing".into()))?;
         Ok(ViewCapture {
             view: id,
             revision: output.revision,
             content_revision: output.content_revision,
-            ticket: ReadbackTicket::capture(&self.context, target.image())?,
+            ticket: ReadbackTicket::capture(&self.context, image.clone())?,
         })
     }
     pub fn remove(&mut self, id: ViewId, images: &mut ImageRegistry) -> Result<bool> {
@@ -277,7 +320,11 @@ impl SceneViews {
             .views
             .get(&id)
             .ok_or_else(|| RenderError("unknown scene view".into()))?;
-        Ok(view.scene.vm.render_target_cpu_bytes() > 0
+        Ok(view
+            .isometric_renderer
+            .as_ref()
+            .is_some_and(|r| r.has_cpu_storage() || r.has_readback_storage())
+            || view.scene.vm.render_target_cpu_bytes() > 0
             || view
                 .target
                 .as_ref()

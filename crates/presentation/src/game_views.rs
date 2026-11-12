@@ -24,6 +24,26 @@ impl SceneViews {
         scene.vm.set_active_vm(0);
         scene.vm.execute(scenevm::Atom::SetSource2D(source.into()));
         scene.build_atlas(&assets.tiles, false);
+        scene.vm.execute(scenevm::Atom::SetPalette(
+            assets
+                .palette
+                .colors
+                .iter()
+                .map(|entry| {
+                    entry
+                        .as_ref()
+                        .map_or(scenevm::prelude::Vec4::zero(), |color| {
+                            let [r, g, b, a] = color.to_array();
+                            scenevm::prelude::Vec4::new(
+                                r.max(0.).powf(2.2),
+                                g.max(0.).powf(2.2),
+                                b.max(0.).powf(2.2),
+                                a,
+                            )
+                        })
+                })
+                .collect(),
+        ));
         scene.mark_dynamics_dirty();
         Ok(())
     }
@@ -54,6 +74,11 @@ impl SceneViews {
                 scene,
             )
             .map_err(RenderError)?;
+        // Player/map synchronization can change the camera during preparation.
+        self.select_game_mode(id, widget.camera.is_isometric_2d(), images)?;
+        if widget.camera.is_isometric_2d() {
+            self.prepare_isometric_game(id, widget, input)?;
+        }
         Ok(())
     }
 }

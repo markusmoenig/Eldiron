@@ -1113,3 +1113,5 @@ mod container;
 mod preferences;
 
 mod tooltip;
+
+mod isometric;

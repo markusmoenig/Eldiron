@@ -227,3 +227,38 @@ fn immutable_avatar_and_stamp_leases_prevent_pointer_reuse_and_share_across_inst
     cache.clear();
     assert_eq!(Arc::strong_count(&stamp.sprite), 1);
 }
+
+#[test]
+#[ignore = "requires native GPU; run with --ignored"]
+fn source_alpha_receipts_reuse_assets_and_survive_revision_edits_and_eviction() {
+    let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut cache = IsometricSources::new(gpu.clone(), 1024, 1);
+    let mut tile = Tile::from_texture(Texture::new(vec![10, 20, 30, 0, 40, 50, 60, 255], 2, 1));
+    let mut v = version();
+    let s = sprite(Some(&tile), None, None);
+    let (first, alpha) = cache.prepare_with_alpha(&s, v).unwrap().unwrap();
+    let uploaded = gpu.transfers().uploaded_bytes;
+    let (again, reused) = cache.prepare_with_alpha(&s, v).unwrap().unwrap();
+    assert!(Arc::ptr_eq(&first, &again) && Arc::ptr_eq(&alpha, &reused));
+    assert_eq!(&*alpha, &[0, 255]);
+    assert_eq!(uploaded, gpu.transfers().uploaded_bytes);
+    drop(s);
+    tile.textures[0].data[3] = 190;
+    v.content.0 += 1;
+    let (_, changed) = cache
+        .prepare_with_alpha(&sprite(Some(&tile), None, None), v)
+        .unwrap()
+        .unwrap();
+    assert_eq!(&*changed, &[190, 255]);
+    assert_eq!(&*alpha, &[0, 255]);
+    cache.clear();
+    assert!(cache.is_empty());
+    assert_eq!(&*alpha, &[0, 255]);
+    let mut zero = IsometricSources::new(gpu.clone(), 0, 0);
+    assert!(
+        zero.prepare_with_alpha(&sprite(Some(&tile), None, None), v)
+            .unwrap()
+            .is_some()
+    );
+    assert!(zero.is_empty());
+}

@@ -130,3 +130,18 @@ pub(super) fn save_png(path: &str, size: (u32, u32), pixels: &[u8]) {
         .write_image_data(pixels)
         .unwrap();
 }
+
+pub(super) fn check_producer(
+    gpu: &GpuContext,
+    producer: &mut eldiron_presentation::isometric::IsometricSceneRenderer,
+    size: (u32, u32),
+    input: &eldiron_presentation::isometric::IsometricSceneInput<'_>,
+    expected: &[u8],
+    label: &str,
+) {
+    let before = gpu.transfers().readback_bytes;
+    let output = producer.render(size, input, 1).unwrap();
+    assert!(!producer.has_cpu_storage() && !producer.has_readback_storage());
+    assert_eq!(gpu.transfers().readback_bytes, before);
+    mismatch(&capture(gpu, output.image), expected, label);
+}
