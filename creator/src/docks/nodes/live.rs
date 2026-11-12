@@ -196,6 +196,61 @@ pub(super) struct LiveContext<'a> {
     pub live: &'a LiveEvents,
     pub equipment_names: &'a HashMap<String, String>,
 }
+/// Immutable, source-specific presentation inputs retained by a native widget.
+/// This owns no runtime or Project lock; the host publishes a replacement when
+/// authoring definitions, live observations or asset labels change.
+#[cfg(feature = "native-ui")]
+#[derive(Clone)]
+pub(super) struct NativeContext {
+    pub definitions: std::sync::Arc<GraphDefinitions>,
+    pub live: std::sync::Arc<LiveEvents>,
+    pub equipment_names: HashMap<String, String>,
+}
+#[cfg(feature = "native-ui")]
+impl NativeContext {
+    fn borrowed(&self) -> LiveContext<'_> {
+        LiveContext {
+            definitions: &self.definitions,
+            live: &self.live,
+            equipment_names: &self.equipment_names,
+        }
+    }
+}
+#[cfg(feature = "native-ui")]
+impl GraphContext for NativeContext {
+    fn node_title(&self, node: &GraphNode) -> Option<String> {
+        self.borrowed().node_title(node)
+    }
+    fn row_label(&self, node: &GraphNode, row: &GraphRow) -> Option<String> {
+        self.borrowed().row_label(node, row)
+    }
+    fn column_label(
+        &self,
+        node: &GraphNode,
+        row: &GraphRow,
+        column: &GraphListColumn,
+    ) -> Option<String> {
+        self.borrowed().column_label(node, row, column)
+    }
+    fn cell_label(
+        &self,
+        node: &GraphNode,
+        row: &GraphRow,
+        cell: (usize, usize),
+        value: &GraphControlValue,
+    ) -> Option<String> {
+        self.borrowed().cell_label(node, row, cell, value)
+    }
+    fn node_active(&self, node: Uuid) -> bool {
+        self.borrowed().node_active(node)
+    }
+    fn connection_active(&self, connection: Uuid) -> bool {
+        self.borrowed().connection_active(connection)
+    }
+    fn observe(&self, node: &GraphNode) -> GraphObservation {
+        self.borrowed().observe(node)
+    }
+}
 impl GraphContext for LiveContext<'_> {
     fn column_label(
         &self,
@@ -414,5 +469,69 @@ impl GraphContext for LiveContext<'_> {
             };
         }
         AuthoringContext(self.definitions).observe(node)
+    }
+}
+
+#[cfg(all(test, feature = "native-ui"))]
+mod native_tests {
+    use super::*;
+    #[test]
+    fn native_context_retains_source_labels_and_live_observations_without_a_runtime_owner() {
+        let definitions = std::sync::Arc::new(catalog::definitions());
+        let event = definitions.events().next().unwrap();
+        let event_id = event.id.clone();
+        let event_label = event.label.clone();
+        let mut entry = definitions.instantiate("event", [20., 30.]).unwrap();
+        entry
+            .rows
+            .iter_mut()
+            .find(|row| row.key.as_deref() == Some("event"))
+            .unwrap()
+            .value = GraphControlValue::Custom {
+            kind: "event".into(),
+            data: event_id.into(),
+        };
+        let mut engage = GraphNode::new("Engage", [200., 30.], [40, 50, 60, 255]);
+        engage.definition = Some("engage".into());
+        let connection = Uuid::new_v4();
+        let mut live = LiveEvents {
+            active: true,
+            ..Default::default()
+        };
+        live.active_nodes.insert(engage.id);
+        live.active_connections.insert(connection);
+        live.combat_status
+            .insert(engage.id, ("attacking".into(), Some(42)));
+        let mut names = HashMap::from([("item:source".into(), "Source blade".into())]);
+        let context = NativeContext {
+            definitions: definitions.clone(),
+            live: std::sync::Arc::new(live.clone()),
+            equipment_names: names.clone(),
+        };
+        live.active = false;
+        live.active_nodes.clear();
+        names.insert("item:source".into(), "Other blade".into());
+        assert!(context.node_title(&entry).unwrap().contains(&event_label));
+        assert!(context.node_active(engage.id));
+        assert!(context.connection_active(connection));
+        let observation = context.observe(&engage);
+        assert_eq!(observation.execution, GraphExecution::Running);
+        assert!(observation.text.contains("42"));
+        let mut equipment = GraphNode::new("Equipment", [0.; 2], [1, 2, 3, 255]);
+        equipment.definition = Some("entity_equipment".into());
+        let mut row = GraphRow::new("Items", GraphControlValue::Text("item:source".into()));
+        row.key = Some("start_equipped_items".into());
+        assert_eq!(
+            context
+                .cell_label(&equipment, &row, (0, 0), &row.value)
+                .as_deref(),
+            Some("Source blade")
+        );
+        assert!(
+            context
+                .cell_label(&equipment, &row, (0, 1), &row.value)
+                .is_none()
+        );
+        assert!(!live.active);
     }
 }

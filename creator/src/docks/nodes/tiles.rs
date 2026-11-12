@@ -10,6 +10,31 @@ pub(super) struct TileControls {
     items: Vec<GraphPickerItem>,
 }
 impl TileControls {
+    #[cfg(feature = "native-ui")]
+    pub(super) fn picker(
+        &self,
+        anchor: GraphRect,
+        viewport: Point,
+        allow_empty: bool,
+    ) -> GraphPicker {
+        let mut picker = GraphPicker::grid(
+            anchor,
+            viewport,
+            self.items
+                .iter()
+                .filter(|item| allow_empty || !item.id.is_empty())
+                .cloned()
+                .collect(),
+        );
+        picker.previews = self
+            .images
+            .keys()
+            .map(|id| (id.clone(), id.clone()))
+            .collect();
+        picker.search_label = fl!("node_search");
+        picker.empty_label = fl!("node_no_results");
+        picker
+    }
     pub(super) fn image_arc(&self, key: &str) -> Option<Arc<TheRGBABuffer>> {
         self.images.get(key).cloned()
     }

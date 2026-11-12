@@ -300,6 +300,9 @@ impl NativeNodePanels {
 pub(super) struct NativeNodesView {
     graph: TheGraphView,
     assets: tiles::TileControls,
+    definitions: Arc<GraphDefinitions>,
+    live: Arc<live::LiveEvents>,
+    allow_empty_tile: bool,
     previous_images: HashMap<String, Arc<TheRGBABuffer>>,
     panels: Arc<Mutex<NativeNodePanels>>,
     active: bool,
@@ -320,6 +323,9 @@ impl NativeNodesView {
         Self {
             graph,
             assets: tiles::TileControls::default(),
+            definitions: Arc::new(GraphDefinitions::default()),
+            live: Arc::new(live::LiveEvents::default()),
+            allow_empty_tile: false,
             previous_images: HashMap::new(),
             panels,
             active: false,
@@ -332,6 +338,25 @@ impl NativeNodesView {
     pub(super) fn set_assets(&mut self, assets: tiles::TileControls) {
         self.graph.set_controls(assets.clone());
         self.assets = assets;
+        self.refresh_context();
+    }
+    pub(super) fn set_snapshot(
+        &mut self,
+        definitions: Arc<GraphDefinitions>,
+        live: Arc<live::LiveEvents>,
+        allow_empty_tile: bool,
+    ) {
+        self.definitions = definitions;
+        self.live = live;
+        self.allow_empty_tile = allow_empty_tile;
+        self.refresh_context();
+    }
+    fn refresh_context(&mut self) {
+        self.graph.set_context(live::NativeContext {
+            definitions: self.definitions.clone(),
+            live: self.live.clone(),
+            equipment_names: self.assets.equipment_names.clone(),
+        });
         self.dirty = true;
     }
     fn is_panel(&self) -> bool {
@@ -824,6 +849,34 @@ impl TheWidget for NativeNodesView {
         }
         if let TheEvent::MouseDown(point) = event {
             let position = [point.x as f32, point.y as f32];
+            let model = self.graph.model();
+            let mut panels = self.panels.lock().unwrap();
+            let mut model = model.lock().unwrap();
+            if let Some((target, picker)) = super::native_picker::picker_at(
+                &model,
+                position,
+                [self.dim().width as f32, self.dim().height as f32],
+                &self.definitions,
+                &self.assets,
+                self.allow_empty_tile,
+            ) {
+                let result = panels.open_picker(&mut model, &target, picker, &mut ctx.text);
+                let commit = model.pending_through(u64::MAX).last().cloned();
+                if let Err(error) = result {
+                    panels.error = Some(error.to_string());
+                }
+                drop(model);
+                drop(panels);
+                self.graph.editor_set_active(false, ctx);
+                self.active = true;
+                ctx.ui.set_focus(self.id());
+                self.last_click = None;
+                self.prepare_panel(ctx);
+                self.notify(commit, ctx);
+                return true;
+            }
+            drop(model);
+            drop(panels);
             let double = self.last_click.is_some_and(|(time, previous)| {
                 time.elapsed() < Duration::from_millis(400)
                     && (position[0] - previous[0]).abs() < 5.
@@ -1648,5 +1701,112 @@ mod tests {
         );
         assert_eq!(f.model.lock().unwrap().document(), &before);
         assert!(f.model.lock().unwrap().pending_commits().next().is_none());
+    }
+    #[test]
+    fn native_node_pointer_opens_row_and_list_choices_with_one_source_owned_transaction() {
+        for table in [false, true] {
+            let mut f = Fixture::new();
+            f.panels.lock().unwrap().clear(&mut f.ctx.text);
+            let choice = GraphControlValue::Choice {
+                options: vec!["One".into(), "Two 日本".into()],
+                selected: 0,
+            };
+            let mut node = GraphNode::new("Selection", [40., 40.], [50, 80, 110, 255]);
+            node.rows.push(GraphRow::new(
+                "Choose",
+                if table {
+                    GraphControlValue::List {
+                        columns: vec![GraphListColumn {
+                            id: "choice".into(),
+                            label: "Choice".into(),
+                            control: choice.clone(),
+                        }],
+                        row_ids: vec![Uuid::new_v4()],
+                        rows: vec![vec![choice]],
+                    }
+                } else {
+                    choice
+                },
+            ));
+            f.node = node.id;
+            f.model.lock().unwrap().replace_document(
+                "choice-owner",
+                GraphDocument {
+                    nodes: vec![node],
+                    ..Default::default()
+                },
+            );
+            let before = f.model.lock().unwrap().document().clone();
+            {
+                let view =
+                    f.ui.get_widget("Native Nodes")
+                        .unwrap()
+                        .as_any()
+                        .downcast_mut::<NativeNodesView>()
+                        .unwrap();
+                view.set_snapshot(
+                    Arc::new(catalog::definitions()),
+                    Arc::new(live::LiveEvents::default()),
+                    false,
+                );
+            }
+            f.paint();
+            let point = {
+                let model = f.model.lock().unwrap();
+                let metrics = model.document().metrics();
+                let rect = model.document().nodes[0].row_rect(0, &metrics);
+                let local = model.editor().viewport.to_screen([
+                    rect.origin[0] + 12.,
+                    rect.origin[1] + if table { metrics.list_header + 8. } else { 8. },
+                ]);
+                let dim = f.ui.get_widget("Native Nodes").unwrap().dim();
+                [local[0] + dim.x as f32, local[1] + dim.y as f32]
+            };
+            click(&mut f, point);
+            f.paint();
+            let state = f.state();
+            assert!(matches!(
+                f.panels.lock().unwrap().panel,
+                Some(Panel::Picker(_))
+            ));
+            assert_eq!(f.model.lock().unwrap().document(), &before);
+            assert!(f.model.lock().unwrap().pending_commits().next().is_none());
+            f.send(InputEvent::TextFor {
+                target: state.target,
+                text: "Two 日本".into(),
+            });
+            f.paint();
+            f.send(key(PhysicalKey::Down));
+            f.send(key(PhysicalKey::Enter));
+            assert!(f.panels.lock().unwrap().panel.is_none());
+            let after = f.model.lock().unwrap().document().clone();
+            let value = &after.nodes[0].rows[0].value;
+            let value = if table {
+                let GraphControlValue::List { rows, .. } = value else {
+                    panic!("table")
+                };
+                &rows[0][0]
+            } else {
+                value
+            };
+            assert!(matches!(
+                value,
+                GraphControlValue::Choice { selected: 1, .. }
+            ));
+            let packet = f.model.lock().unwrap().pending_through(u64::MAX);
+            assert_eq!(packet.len(), 1);
+            assert_eq!(packet[0].edits.len(), 1);
+            let mut restored = after.clone();
+            packet[0].edits[0].apply(&mut restored, false);
+            assert_eq!(restored, before);
+            assert!(
+                !f.send(InputEvent::TextFor {
+                    target: state.target,
+                    text: "stale query".into()
+                })
+                .consumed
+            );
+            assert_eq!(f.model.lock().unwrap().document(), &after);
+        }
     }
 }
