@@ -807,11 +807,9 @@ mod tests {
             cards.values().all(|handle| painted.contains(handle)),
             "the root must consume the GPU card handles"
         );
-        let mut tokens = crate::editor::native_views::NativeViewTokens {
-            geometry: Some(token),
-            appearance: None,
-            material: None,
-        };
+        let mut tokens = crate::editor::native_views::NativeViewTokens::previews(
+            Some(token), None, None,
+        );
         tokens.retain_painted(&list);
         assert_eq!(tokens.geometry, Some(token));
         ui.get_stack_layout(super::super::layout::MAIN_STACK)

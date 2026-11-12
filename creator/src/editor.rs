@@ -509,6 +509,8 @@ pub struct Editor {
     procedural_wearable_revision: u64,
     procedural_wearable_materials: std::collections::BTreeSet<Uuid>,
     mapeditor: MapEditor,
+    #[cfg(feature = "native-render")]
+    native_viewport: native_views::NativeViewport,
 
     server_ctx: ServerContext,
 
@@ -8033,6 +8035,8 @@ impl TheTrait for Editor {
             procedural_wearable_revision: 0,
             procedural_wearable_materials: Default::default(),
             mapeditor: MapEditor::new(),
+            #[cfg(feature = "native-render")]
+            native_viewport: Default::default(),
 
             server_ctx: ServerContext::default(),
 
@@ -9300,7 +9304,12 @@ impl TheTrait for Editor {
             } else {
                 "PolyView"
             };
+            #[cfg(feature = "native-render")]
+            let native_display = self.native_display_owns_viewport();
+            #[cfg(not(feature = "native-render"))]
+            let native_display = false;
             if !crate::geometry_editor::is_visible(ui)
+                && !native_display
                 && let Some(render_view) = ui.get_render_view(render_view_name)
             {
                 let dim = *render_view.dim();
@@ -10011,6 +10020,8 @@ impl TheTrait for Editor {
         profile.lap("scene");
         let sync_geometry_recipes = !pending_events.is_empty();
         for event in pending_events {
+            #[cfg(feature = "native-render")]
+            self.synchronize_native_document();
             if self.appearance_workspace.handle_event(
                 &event,
                 &mut self.project,
@@ -10045,6 +10056,11 @@ impl TheTrait for Editor {
                 &mut self.project,
                 &mut self.server_ctx,
             ) {
+                redraw = true;
+                continue;
+            }
+            #[cfg(feature = "native-render")]
+            if self.handle_native_display_input(&event, ui, ctx) {
                 redraw = true;
                 continue;
             }

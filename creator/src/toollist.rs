@@ -56,6 +56,10 @@ pub struct ToolList {
     prefab_grid_rgb: [f32; 3],
     box_select_armed: bool,
     editor_display_session: Option<EditorDisplaySession>,
+    #[cfg(feature = "native-ui")]
+    native_display_mode: bool,
+    #[cfg(feature = "native-ui")]
+    native_document: Option<Uuid>,
     #[cfg(target_os = "macos")]
     macos_primary_orbit_drag: Option<MacOsPrimaryOrbitDrag>,
 }
@@ -280,6 +284,7 @@ impl ToolList {
     fn update_editor_display_owner(
         &mut self,
         owner: EditorDisplayOwner,
+        expected: &EditorDisplay,
         display: &EditorDisplay,
     ) -> bool {
         match owner {
@@ -287,18 +292,28 @@ impl ToolList {
                 .write()
                 .unwrap()
                 .get_action_by_id_mut(action_id)
-                .is_some_and(|action| action.update_editor_display(display)),
+                .is_some_and(|action| {
+                    action.editor_display().as_ref() == Some(expected)
+                        && action.update_editor_display(display)
+                }),
             EditorDisplayOwner::Tool(tool_id) => self
                 .game_tools
                 .iter_mut()
                 .find(|tool| tool.id().uuid == tool_id)
-                .is_some_and(|tool| tool.update_editor_display(display)),
+                .is_some_and(|tool| {
+                    tool.editor_display().as_ref() == Some(expected)
+                        && tool.update_editor_display(display)
+                }),
         }
     }
 
     fn cancel_editor_display_session(&mut self) {
         if let Some(session) = self.editor_display_session.take() {
-            self.update_editor_display_owner(session.owner, session.original_display());
+            self.update_editor_display_owner(
+                session.owner,
+                session.working_display(),
+                session.original_display(),
+            );
         }
     }
 
@@ -346,7 +361,10 @@ impl ToolList {
         if self
             .editor_display_session
             .as_ref()
-            .is_some_and(|session| session.is_for(owner, project_context))
+            .is_some_and(|session| {
+                session.is_for(owner, project_context)
+                    && display.as_ref() == Some(session.working_display())
+            })
         {
             return;
         }
@@ -375,6 +393,19 @@ impl ToolList {
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
+        #[cfg(feature = "native-ui")]
+        if self.native_display_mode {
+            // Native viewport input has already been routed by the owning
+            // document. Keep the real Apply button's established close behavior.
+            if self.editor_display_session.as_ref().is_some_and(|session|
+                matches!(session.owner, EditorDisplayOwner::Action(_)))
+                && matches!(event, TheEvent::StateChanged(id, _)
+                    if id.name == "Action Apply" || id.name == "Project Action Apply")
+            {
+                self.editor_display_session = None;
+            }
+            return false;
+        }
         if self
             .editor_display_session
             .as_ref()
@@ -396,7 +427,8 @@ impl ToolList {
             return false;
         }
 
-        let Some((owner, result)) = self.editor_display_session.as_mut().map(|session| {
+        let Some((owner, expected, result)) = self.editor_display_session.as_mut().map(|session| {
+            let expected = session.working_display().clone();
             if let Some(map) = project.get_map(server_ctx) {
                 session.set_grid_subdivisions(map.subdivisions);
             }
@@ -405,7 +437,7 @@ impl ToolList {
                 crate::utils::map_editor_render_view_name(server_ctx),
                 ui.logo || ui.ctrl,
             );
-            (session.owner, result)
+            (session.owner, expected, result)
         }) else {
             return false;
         };
@@ -416,7 +448,9 @@ impl ToolList {
                 true
             }
             EditorDisplayResult::DisplayChanged(display) => {
-                self.update_editor_display_owner(owner, &display);
+                if !self.update_editor_display_owner(owner, &expected, &display) {
+                    self.editor_display_session = None;
+                }
                 ctx.ui.redraw_all = true;
                 true
             }
@@ -457,7 +491,11 @@ impl ToolList {
             }
             EditorDisplayResult::Cancel => {
                 let session = self.editor_display_session.take().unwrap();
-                self.update_editor_display_owner(session.owner, session.original_display());
+                self.update_editor_display_owner(
+                    session.owner,
+                    session.working_display(),
+                    session.original_display(),
+                );
                 ctx.ui.send(TheEvent::SetStatusText(
                     TheId::empty(),
                     "Editor display changes cancelled.".to_string(),
@@ -1997,6 +2035,10 @@ impl ToolList {
             prefab_grid_rgb: [57.0 / 255.0, 75.0 / 255.0, 105.0 / 255.0],
             box_select_armed: false,
             editor_display_session: None,
+            #[cfg(feature = "native-ui")]
+            native_display_mode: false,
+            #[cfg(feature = "native-ui")]
+            native_document: None,
             #[cfg(target_os = "macos")]
             macos_primary_orbit_drag: None,
         };
@@ -7356,3 +7398,9 @@ impl ToolList {
         None
     }
 }
+
+#[cfg(feature = "native-ui")]
+#[path = "toollist/native_display.rs"]
+mod native_display;
+#[cfg(feature = "native-ui")]
+pub(crate) use native_display::{NativeDisplayBinding, NativeDisplayOutcome};

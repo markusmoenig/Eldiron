@@ -80,6 +80,14 @@ impl UiApplication for NativeCreatorApplication {
     }
     fn input(&mut self, event: &InputEvent, ui: &mut UiSession) -> InputResponse {
         match event {
+            InputEvent::Focus(false) => {
+                let response = ui.input(event);
+                self.editor.invalidate_native_display_viewport(&mut ui.ui);
+                InputResponse {
+                    redraw: true,
+                    ..response
+                }
+            }
             InputEvent::RelativeMotion { delta } => {
                 let handled = self
                     .editor
@@ -112,6 +120,7 @@ impl UiApplication for NativeCreatorApplication {
             )));
             return FrameRequest::idle();
         }
+        self.editor.synchronize_native_document();
         let mut redraw = ui.ui.update(&mut ui.context);
         redraw |= self.editor.update_ui(&mut ui.ui, &mut ui.context);
         redraw |= self.editor.update(&mut ui.context);
@@ -128,7 +137,7 @@ impl UiApplication for NativeCreatorApplication {
         ui.ui.prepare_paint_layout(&mut ui.context);
         self.pending = self
             .editor
-            .prepare_native_views(&mut ui.ui, &mut ui.context, images.registry)
+            .prepare_native_views(&mut ui.ui, &mut ui.context, images)
             .map_err(RenderError)?;
         let mut list = ui.paint(images).map_err(|e| RenderError(e.to_string()))?;
         list.ops.insert(
@@ -235,7 +244,7 @@ mod tests {
             serde_json::to_value(&app.application.editor.project_for_native_test()).unwrap(),
             authored
         );
-        let mut capture = ReadbackTicket::capture(&gpu, output).unwrap();
+        let mut capture = ReadbackTicket::capture(&gpu, output.clone()).unwrap();
         gpu.device
             .poll(wgpu::PollType::Wait {
                 submission_index: None,
@@ -277,5 +286,103 @@ mod tests {
             serde_json::to_value(&app.application.editor.project_for_native_test()).unwrap(),
             authored
         );
+        // Exercise the real viewport handoff in the same assembled application,
+        // rather than another isolated profile renderer/fixture suite.
+        let view = app
+            .application
+            .editor
+            .begin_native_profile_for_test(&mut app.session.ui, &mut app.session.context);
+        let initial_grid = app.application.editor.native_profile_grid_for_test();
+        app.update(&mut host, Duration::from_millis(16));
+        let profile = app.frame(&mut host, &mut replacement).unwrap();
+        assert!(profile.receipts().count() > rebuilt.receipts().count());
+        let click = TheEvent::RenderViewClicked(view.clone(), Vec2::new(115, 14));
+        assert!(app.application.editor.handle_native_display_input(
+            &click,
+            &mut app.session.ui,
+            &mut app.session.context,
+        ));
+        assert_eq!(
+            app.application.editor.native_profile_grid_for_test(),
+            initial_grid,
+            "preparing a root cannot activate profile input"
+        );
+        let before_profile = gpu.transfers().readback_bytes;
+        renderer
+            .render(
+                &profile,
+                &replacement,
+                &output.view,
+                output.descriptor.format,
+                (1200, 800),
+                1.,
+                [0.; 4],
+            )
+            .unwrap();
+        app.presented(&mut host);
+        assert_eq!(gpu.transfers().readback_bytes, before_profile);
+        assert!(app.application.editor.handle_native_display_input(
+            &click,
+            &mut app.session.ui,
+            &mut app.session.context,
+        ));
+        assert_eq!(app.application.editor.native_profile_grid_for_test(), 2.);
+        assert_eq!(
+            app.session.context.ui.focus.as_ref().unwrap().uuid,
+            view.uuid
+        );
+        // The root acknowledges the current edited frame before keyboard cancel.
+        let edited = app.frame(&mut host, &mut replacement).unwrap();
+        renderer
+            .render(
+                &edited,
+                &replacement,
+                &output.view,
+                output.descriptor.format,
+                (1200, 800),
+                1.,
+                [0.; 4],
+            )
+            .unwrap();
+        app.presented(&mut host);
+        assert!(app.application.editor.handle_native_display_input(
+            &TheEvent::KeyCodeDown(TheValue::KeyCode(TheKeyCode::Escape)),
+            &mut app.session.ui,
+            &mut app.session.context,
+        ));
+        assert!(!app.application.editor.has_native_profile_for_test());
+        app.application
+            .editor
+            .begin_native_profile_for_test(&mut app.session.ui, &mut app.session.context);
+        let commit_frame = app.frame(&mut host, &mut replacement).unwrap();
+        renderer
+            .render(
+                &commit_frame,
+                &replacement,
+                &output.view,
+                output.descriptor.format,
+                (1200, 800),
+                1.,
+                [0.; 4],
+            )
+            .unwrap();
+        app.presented(&mut host);
+        let objects = app
+            .application
+            .editor
+            .native_profile_geometry_count_for_test();
+        assert!(app.application.editor.handle_native_display_input(
+            &TheEvent::KeyCodeDown(TheValue::KeyCode(TheKeyCode::Return)),
+            &mut app.session.ui,
+            &mut app.session.context,
+        ));
+        assert_eq!(
+            app.application
+                .editor
+                .native_profile_geometry_count_for_test(),
+            objects + 1,
+            "Return applies the current profile in the same document transaction"
+        );
+        assert!(!app.application.editor.has_native_profile_for_test());
     }
 }

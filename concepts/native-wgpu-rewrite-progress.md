@@ -25,7 +25,7 @@ Started: 2026-11-11 (Asia/Bangkok). Overall Goal: active; full M0–M9 scope rem
 - M2: in progress. Paint/Swash/Parley pipeline and native/foreign hosts work; batching, resource lifetime budgets and full text/input parity remain.
 - M3: in progress. Every active built-in TheWidget implementation now has a command paint path, including procedural controls and the legacy node canvas. Complex Creator integration, full widget catalog parity and legacy adapter retirement remain.
 - M4: in progress. CPU schema/identity extraction, shared `GameSession`, CPU startup preparation, message/party/world-target policies and terminal adoption are implemented and tested. Per-session routing, local players, world values, runtime IDs and region context ownership now pass controlled overlapping-session and parallel assembled-player regressions. Graphical/Creator adoption and remaining bitmap/value data extraction remain; this evidence does not establish full simultaneous Creator Play workflows.
-- M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Immutable ordinary editor-view preparation, exact reference/native view outputs and retained CPU chunk publication are now available through SceneViews. Common HUD, paint/props panels, profile displays and ViewCube now have retained command frames, guarded input and actual GPU composition/reconstruction evidence. Six standard tools additionally emit ordered typed overlay aggregates with exact presented-frame and detail-profile source guards; main viewport adoption remains pending. Application/global/document/Play ownership, main world/tool/HUD integration, remaining producers, full visual/workflow/performance acceptance and canonical retirement remain.
+- M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Immutable ordinary editor-view preparation, exact reference/native view outputs and retained CPU chunk publication are now available through SceneViews. Common HUD, paint/props panels, profile displays and ViewCube now have retained command frames, guarded input and actual GPU composition/reconstruction evidence. Six standard tools additionally emit ordered typed overlay aggregates with exact presented-frame and detail-profile source guards. Full-viewport profile editing is now connected to the actual native Creator root with document/widget binding, presentation-gated input and inline commit/cancel; the world/tool viewport handoff remains pending. Application/global/document/Play ownership, main world/tool/HUD integration, remaining producers, full visual/workflow/performance acceptance and canonical retirement remain.
 - M6: in progress. Independent GPU game views, common player/input/camera components, authored screen paint, private world descriptions, view-owned speech, acknowledged-frame world pointer gestures, relative first-person mouse look, default/world-intent cursors, world/UI item drag previews and acknowledged authored inventory/equipment pointer/keyboard gestures are implemented. Application-owned audio is integrated into the common player with cancellable CPU preparation jobs. The native container HUD now includes acknowledged paint/input, real server transfers, scrolling, GPU recovery and navigation lifetime. Floating inventory/equipment, action catalogue/spellbook and preferences now use typed native HUD owners, retained text/source resources and acknowledged input. Acknowledged UI-origin tooltips now use retained text and host deadlines. UI-origin Drop cursors and acknowledged drag/assignment highlighting now have GPU and authoritative transfer evidence. Native isometric source production, shared CPU source publication, game-view outputs and acknowledged input receipts now have GPU/CPU and shipped-source device-reconstruction evidence. Browser worker hosting, remaining game-mode/HUD policy parity, performance acceptance remain. Canonical native desktop launchers now share the common application/host; see launcher verification below.
 - M7/M8/M9: Retirement and platform/full acceptance pending. Canonical desktop clients share one common player; the Xcode client now uses it through the retained ABI over a Rust-created CAMetalLayer surface. Native/ARM64 simulator app bundles link, and real Swift/static-library and registered-scene layer checks pass. Browser bootstrap, native text/platform parity, Creator wrapper and complete physical/release acceptance remain; this is not complete application/platform parity.
 
@@ -3999,3 +3999,87 @@ integration requires them; avoid another round of isolated component testing
 before making the assembled application more complete. Run focused compile/
 interaction checks for changed paths and defer broad platform/whole-Creator
 regressions to the integration checkpoint. Full M0–M9 goal remains active.
+
+### Main Creator viewport integration started: native profile mode
+
+Previous goal turn was progress: committed source-scoped tool routing as
+`54c53500` and intentionally stopped the over-broad matrix following the user's
+cadence correction. Revalidated worktree state before starting the actual parent
+handoff. The only unrelated untracked file remains the networking concept.
+
+Implemented the real application profile-mode handoff, not another standalone
+renderer: `editor/native_viewport.rs` owns current document-session/widget/
+context/owner/size/epoch bindings, and NativeViewTokens retains the actual typed
+DisplayFrame until the complete root's receipt is confirmed. `prepare_native_views`
+now receives the shared UiFrameImages service, paints profile commands with the
+existing Swash text service, and publishes them through the real PolyView/
+PrefabView. The existing update_ui viewport allocation/world draw block is
+bypassed while that full profile display owns the native viewport. Other main
+world/Play modes remain on their existing path until their adoption; this is not
+whole-Creator cutover or global retirement.
+
+`toollist/native_display.rs` bridges the existing persistent tool/action session
+with explicit document binding, actual widget UUID checks, source validation,
+presentation-gated input and inline commit intent. Entering Play/text/game input,
+layout/widget/owner changes, suspend/reconstruction and missing root receipts
+revoke old profile input. Name-based compatibility focus requests resolve to the
+actual widget UUID at native publication. Native profile events bypass the old
+reference handler; queued generic Apply is replaced by same-thread validated
+Sidebar dispatch for native Return commits, before another document event runs.
+The existing ToolList/ActionList global controller bridge remains explicit and
+still requires extraction; this path adds no global renderer ownership.
+
+Profile update/cancel now compares the owner's current display with the expected
+working display under its existing owner lock. Concurrent owner changes win;
+a stale cancellation cannot blindly restore the original over newer work.
+Document synchronization runs at native update/frame and between pending
+application events, so a tab switch followed by a new profile selection cannot
+reattach the previous document's draft. Serialized representations are unchanged.
+
+Focused native library compilation passes, **8.92 s**:
+`/private/tmp/eldiron-native-viewport-check-second.log`. Extended the existing
+assembled Creator GPU check to exercise this real mode, presentation-gated grid
+input and Escape. No new fixture suite or broad matrix was added. Its initial
+compilation caught a legacy test-only NativeViewTokens literal; changed that
+caller to the encapsulated previews constructor. The corrected assembled check
+is currently live in unified session **84155**, log
+`/private/tmp/eldiron-native-profile-root-third.log`; inspect this handle before
+restarting anything. Changes are uncommitted. Next: resolve any integration
+failures, a focused reference compilation, then continue the parent world/tool/
+scene handoff. Full M0–M9 and all text/DPI/platform acceptance remain open.
+
+
+### Native profile viewport integrated checkpoint
+
+The extended existing assembled Creator GPU check passes, **1 case / 15.57 s**:
+`/private/tmp/eldiron-native-profile-root-commit.log`. It renders the actual root
+with a native profile viewport; verifies root receipts, inactive pre-presentation
+input, active grid editing after presentation, real widget focus, Escape, and
+Return creating an actual revolved geometry object in the current document.
+Normal profile composition adds no full-color readback on the injected device.
+This is headless application integration evidence, not a physical-window or
+all-density appearance result. Session 9351 is terminal exit 0.
+
+Reference static-library configuration compiles, **8.81 s**:
+`/private/tmp/eldiron-native-profile-reference-check.log`. Final native library
+configuration compiles, **9.12 s**:
+`/private/tmp/eldiron-native-profile-final-check.log`, session 22690 terminal 0.
+Final guard polish clears profile capture on native focus loss, requests redraw
+when a concurrent owner edit drops a draft, preserves the tool-owned display
+Apply policy, and reloads a changed same-owner display rather than retaining a
+stale session. These extra transition branches have compile evidence; their full
+interactive platform/workflow acceptance remains open. No jobs remain live.
+No broad matrix or separate component fixture suite was run for this handoff.
+
+Next implementation: extend the same application viewport owner to world/scene
+outputs and the six standard tool overlays, resolving parent action slots/assets
+and using the shared procedural GPU icon owner finalized against the complete
+root. Remove the old viewport allocation/draw at that mode boundary, retain the
+actual typed tool aggregate through presentation/input, and avoid duplicate old
+HUD/Props interception. Carry the profile-mode document/actual-widget/Play/
+visibility/reconstruction guards forward. Adopt remaining custom overlays,
+profile/surface/screen and isometric modes, then Creator Play; move the explicit
+ToolList/ActionList/scene-build/global bridges under application owners before
+claiming M5/M7. Main world/Play rendering still uses its previous implementation.
+Full text/DPI/physical/browser/Apple/release verification and all M0–M9 gates
+remain open. The user's implementation-first testing cadence remains in force.
