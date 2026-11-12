@@ -8,6 +8,7 @@ use rusterix::{
 };
 use scenevm::prelude::{Vec2, Vec3};
 use theframework::platform::{InputEvent, PhysicalKey, PointerButton};
+mod hover;
 mod item_pointer;
 pub(super) use item_pointer::{ItemControl, ItemReceipt};
 mod mouse_look;
@@ -86,6 +87,7 @@ struct Frame {
     items: Vec<item_pointer::ItemSlot>,
     controls: Vec<UiControl>,
     commands: Vec<CommandTarget>,
+    hovers: Vec<hover::Target>,
 }
 #[derive(Clone)]
 struct UiControl {
@@ -330,6 +332,8 @@ impl GameScreenController {
         };
         self.hovered_item = self.world.hover.and_then(|hit| hit.item);
         self.refresh_mouse_look(world, self.captures_world_input());
+        let hover = self.hover_content(world);
+        self.tooltips.observe(hover, self.ui_preferences());
     }
     pub fn world_pointer_hit(&self) -> Option<WorldHit> {
         self.world.hover
@@ -559,6 +563,7 @@ impl GameScreenController {
                     items: self.item_slots(world),
                     controls: self.pointer_controls(world),
                     commands: self.command_targets(world),
+                    hovers: self.hover_targets(world),
                 },
             )
         } else {
@@ -596,6 +601,7 @@ impl GameScreenController {
             .unwrap_or_default();
         let controls = self.pointer_controls(world);
         let commands = self.command_targets(world);
+        let hovers = self.hover_targets(world);
         let frame = self.world.staged.as_mut().unwrap();
         frame.occluders = occluders;
         frame.drops = drops;
@@ -604,6 +610,7 @@ impl GameScreenController {
         frame.items = items;
         frame.controls = controls;
         frame.commands = commands;
+        frame.hovers = hovers;
     }
     fn frame_matches(&self, world: &RuntimeView<'_>) -> bool {
         world.state == ServerState::Running && self.ui_frame_matches(world)

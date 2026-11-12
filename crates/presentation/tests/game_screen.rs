@@ -1860,3 +1860,6 @@ mod catalog;
 
 #[path = "game_screen/preferences.rs"]
 mod preferences;
+
+#[path = "game_screen/tooltip.rs"]
+mod tooltip;

@@ -226,6 +226,16 @@ impl PlayerApplication {
             self.revision,
             animation_frame,
         )?;
+        let shortcuts = self
+            .screen
+            .tooltip_commands(&self.player.runtime.view())
+            .into_iter()
+            .filter_map(|command| {
+                let binding = rusterix::client::command::parse_client_command(&command)?;
+                Some((command, self.player.shortcut_labels_for_binding(&binding)))
+            })
+            .collect();
+        self.screen.set_tooltip_shortcuts(shortcuts);
         let capture = self.screen.control_capture();
         if capture != self.control_capture {
             let stop = self.player.cancel_controls();
@@ -544,11 +554,18 @@ impl GpuApplication for PlayerApplication {
         if self.suspended {
             FrameRequest::idle()
         } else {
-            self.frames.request(
-                self.visual_elapsed,
-                self.player.settings.target_fps,
-                self.services.wake_after(),
-            )
+            let tooltip_redraw = self.screen.advance_presentation(elapsed);
+            let wake = self
+                .services
+                .wake_after()
+                .into_iter()
+                .chain(self.screen.presentation_wake_after())
+                .min();
+            let mut request =
+                self.frames
+                    .request(self.visual_elapsed, self.player.settings.target_fps, wake);
+            request.redraw |= tooltip_redraw;
+            request
         }
     }
     fn frame(&mut self, host: &mut HostContext, images: &mut ImageRegistry) -> Result<PaintList> {

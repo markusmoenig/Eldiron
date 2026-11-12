@@ -1862,3 +1862,18 @@ mod tests {
         assert_eq!(template.tiles.slot.as_deref(), Some("bag_slot"));
     }
 }
+
+/// Shared shortcut wording; binding resolution remains with the input owner.
+pub fn add_shortcut_line(description: &mut RulesDescription, shortcuts: Vec<String>) {
+    if shortcuts.is_empty() {
+        return;
+    }
+    let label = if shortcuts.len() == 1 {
+        "Shortcut"
+    } else {
+        "Shortcuts"
+    };
+    description
+        .lines
+        .push(format!("{}: {}", label, shortcuts.join(", ")));
+}

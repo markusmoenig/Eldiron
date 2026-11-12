@@ -14,6 +14,7 @@ mod keyboard;
 mod router;
 mod speech;
 pub use speech::SpeechOverlay;
+mod tooltip;
 mod transcript;
 mod world_pointer;
 mod world_text;
@@ -57,6 +58,8 @@ struct ScreenGeometry {
 pub struct GameScreenController {
     session: Uuid,
     hud: hud::Hud,
+    tooltips: tooltip::Tooltips,
+    tooltip_shortcuts: FxHashMap<String, Vec<String>>,
     pointer_visuals: cursor::PointerVisuals,
     world: world_pointer::WorldPointer,
     pub speech: SpeechOverlay,
@@ -183,6 +186,8 @@ impl GameScreenController {
         Self {
             session: world.session_id,
             hud: Default::default(),
+            tooltips: Default::default(),
+            tooltip_shortcuts: Default::default(),
             pointer_visuals: Default::default(),
             world: world_pointer::WorldPointer::default(),
             speech: SpeechOverlay::default(),
@@ -226,6 +231,8 @@ impl GameScreenController {
         }
         self.session = world.session_id;
         self.hud = Default::default();
+        self.tooltips.clear();
+        self.tooltip_shortcuts.clear();
         self.pointer_visuals = Default::default();
         self.speech.bind_runtime(world);
         self.world_texts.bind_runtime(world);

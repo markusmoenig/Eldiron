@@ -1111,3 +1111,5 @@ fn capture(gpu: &GpuContext, target: Arc<GpuImage>, path: &str) {
 mod container;
 
 mod preferences;
+
+mod tooltip;

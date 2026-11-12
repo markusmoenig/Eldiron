@@ -85,6 +85,9 @@ pub(super) struct Hud {
     pending_command: Option<command::CommandReceipt>,
 }
 impl Hud {
+    pub(super) fn gesturing(&self) -> bool {
+        self.capture.is_some() || self.command_capture.is_some()
+    }
     pub(super) fn cancel_commands(&mut self) {
         self.pending_command = None;
         if let Some(capture) = &mut self.command_capture {

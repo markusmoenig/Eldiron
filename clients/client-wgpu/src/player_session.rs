@@ -258,6 +258,9 @@ impl PlayerSession {
     pub fn pending_action_count(&self) -> usize {
         self.pending_actions.len()
     }
+    pub fn shortcut_labels_for_binding(&self, binding: &ClientCommandBinding) -> Vec<String> {
+        self.controls.shortcut_labels_for_binding(binding)
+    }
     pub fn binding_for_key(&self, key: &str) -> Option<ClientCommandBinding> {
         self.controls.binding_for_key(key)
     }
@@ -363,6 +366,14 @@ fn control_focus_release_keeps_bindings_and_does_not_emit_ui_or_intent_commands(
     };
     state.controls.set_input_data(
         "[input]\nw='forward'\na='strafe_left'\ni='ui.inventory'\nf='intent.attack'",
+    );
+    assert_eq!(
+        state.shortcut_labels_for_binding(&ClientCommandBinding::Ui("inventory".into())),
+        vec!["I"]
+    );
+    assert_eq!(
+        state.shortcut_labels_for_binding(&ClientCommandBinding::Intent("attack".into())),
+        vec!["F"]
     );
     assert_eq!(
         state.control_key("w", false),

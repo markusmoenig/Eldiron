@@ -662,17 +662,7 @@ impl Client {
     }
 
     fn add_shortcut_line(description: &mut RulesDescription, shortcuts: Vec<String>) {
-        if shortcuts.is_empty() {
-            return;
-        }
-        let label = if shortcuts.len() == 1 {
-            "Shortcut"
-        } else {
-            "Shortcuts"
-        };
-        description
-            .lines
-            .push(format!("{}: {}", label, shortcuts.join(", ")));
+        rules_ui::add_shortcut_line(description, shortcuts);
     }
 
     fn draw_deco_widgets_with_layer<F>(
@@ -9366,33 +9356,14 @@ impl Client {
         let height = cursor_y + padding;
 
         let target_dim = self.target.dim();
-        let (mut x, mut y) = if prefer_below {
-            (
-                (anchor.x + (anchor.width - width as f32) * 0.5).round() as i32,
-                (anchor.y + anchor.height + 8.0).round() as i32,
-            )
-        } else {
-            let right_x = (anchor.x + anchor.width + 8.0).round() as i32;
-            let left_x = (anchor.x.round() as i32 - width - 8).max(2);
-            let x = if right_x + width <= target_dim.width {
-                right_x
-            } else {
-                left_x
-            };
-            (x, (anchor.y + 2.0).round() as i32)
-        };
-        if x + width > target_dim.width {
-            x = (target_dim.width - width - 2).max(2);
-        }
-        x = x.max(2);
-        if y + height > target_dim.height {
-            y = if prefer_below {
-                (anchor.y.round() as i32 - height - 8).max(2)
-            } else {
-                (target_dim.height - height - 2).max(2)
-            };
-        }
-        y = y.max(2);
+        let bounds = screen_model::tooltip_bounds(
+            anchor,
+            width as f32,
+            height as f32,
+            Vec2::new(target_dim.width, target_dim.height),
+            prefer_below,
+        );
+        let (x, y) = (bounds.x.round() as i32, bounds.y.round() as i32);
 
         let stride = self.target.stride();
         let safe = (

@@ -25,9 +25,9 @@ impl ItemControl {
 }
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct ItemSlot {
-    control: ItemControl,
-    rect: Rect,
-    source: ItemSource,
+    pub(super) control: ItemControl,
+    pub(super) rect: Rect,
+    pub(super) source: ItemSource,
     index: Option<usize>,
     slot: Option<String>,
     drag_drop: bool,

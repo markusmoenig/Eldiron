@@ -57,6 +57,17 @@ impl GameScreenController {
             self.revision
                 .ok_or("Prepare screen layout before painting")?,
         )?;
+        let hover = self.hover_content(world);
+        self.tooltips.prepare(
+            hover,
+            self.ui_preferences(),
+            fonts,
+            &self.elements.toolbar_preferences_panel_config.font,
+            (
+                self.elements.layout.viewport.x,
+                self.elements.layout.viewport.y,
+            ),
+        );
         let geometry_cache = self
             .geometry
             .as_mut()
@@ -299,6 +310,7 @@ impl GameScreenController {
                 }
             }
         }
+        self.tooltips.paint(&mut p);
         cursor::paint(&mut p, &self.pointer_visuals, assets, self.animation_frame)?;
         p.list.ops.push(PaintOp::PopClip);
         self.finish_world_frame(world);
