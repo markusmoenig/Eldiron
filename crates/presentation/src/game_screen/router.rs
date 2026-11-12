@@ -89,6 +89,7 @@ impl GameScreenController {
             }
         }
         if matches!(event, InputEvent::Focus(false)) {
+            self.world_texts.input(event);
             self.pointer_capture = None;
             self.keyboard_capture = None;
             self.focus_control(fonts, None);
@@ -307,6 +308,17 @@ impl GameScreenController {
             if let Some(message) = self.message_input_event(fonts, event) {
                 return Ok(message);
             }
+        }
+        if !response.input.consumed && self.world_texts.input(event) {
+            let press = matches!(event, InputEvent::PointerButton { pressed: true, .. });
+            if press {
+                self.focus_control(fonts, None);
+                self.pointer_capture = Some(PointerCapture::Cancelled);
+            }
+            return Ok(ScreenInputResponse {
+                cancel_controls: press,
+                ..ScreenInputResponse::handled(true)
+            });
         }
         if matches!(
             event,

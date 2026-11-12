@@ -134,28 +134,28 @@ pub use crate::{
 use image;
 #[cfg(feature = "gpu")]
 use std::borrow::Cow;
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", feature = "gpu"))]
 use std::cell::RefCell;
 #[cfg(all(not(target_arch = "wasm32"), feature = "gpu"))]
 use std::ffi::c_void;
 #[cfg(all(not(target_arch = "wasm32"), feature = "gpu"))]
 use std::sync::OnceLock;
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", feature = "gpu"))]
 use std::{cell::Cell, future::Future, rc::Rc};
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", feature = "gpu"))]
 use std::{
     pin::Pin,
     task::{Context, Poll},
 };
 #[cfg(all(not(target_arch = "wasm32"), feature = "windowing"))]
 use vek::Mat3;
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", feature = "gpu"))]
 use wasm_bindgen::JsCast;
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", feature = "gpu"))]
 use wasm_bindgen::prelude::*;
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", feature = "gpu"))]
 use wasm_bindgen_futures::spawn_local;
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", feature = "gpu"))]
 use web_sys::{CanvasRenderingContext2d, Document, HtmlCanvasElement, Window as WebWindow};
 #[cfg(all(feature = "windowing", not(target_arch = "wasm32")))]
 use winit::window::Window;
@@ -2948,12 +2948,12 @@ impl SceneVM {
 }
 
 // --- Global GPU helpers ---
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", feature = "gpu"))]
 fn global_gpu_get() -> Option<GlobalGpu> {
     GLOBAL_GPU_WASM.with(|c| c.borrow().clone())
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", feature = "gpu"))]
 async fn global_gpu_init_async() {
     if global_gpu_get().is_some() {
         return;
@@ -3448,7 +3448,7 @@ impl SceneVMRenderCtx for WasmRenderCtx {
     }
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", feature = "gpu"))]
 fn create_or_get_canvas(document: &Document) -> Result<HtmlCanvasElement, JsValue> {
     if let Some(existing) = document
         .get_element_by_id("canvas")

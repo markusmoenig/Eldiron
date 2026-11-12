@@ -15,3 +15,12 @@ pub struct WorldText {
     pub anchor: TextAnchor,
     pub text: String,
 }
+
+mod passages;
+mod policy;
+pub use passages::{WorldPassage, WorldTexts, lifetime};
+pub use policy::{anchor_position, carrier, resolve_for_player};
+#[cfg(feature = "graphics")]
+mod projection;
+#[cfg(feature = "graphics")]
+pub use projection::project;

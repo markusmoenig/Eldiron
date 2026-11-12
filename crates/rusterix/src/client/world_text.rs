@@ -1,6 +1,8 @@
 //! Interactive descriptions drawn above their current world targets, in every camera.
 use super::*;
-use crate::world_text::{TextAnchor, WorldText};
+use crate::world_text::{
+    WorldText, anchor_position, carrier, lifetime, project, resolve_for_player,
+};
 
 pub(super) struct Passage {
     pub message: WorldText,
@@ -18,28 +20,12 @@ impl Client {
         assets: &Assets,
         messages: Vec<(u32, WorldText)>,
     ) {
-        for (receiver, mut message) in messages {
-            if !screen_model::resolve_party_entity(map, Some("leader")).is_some_and(|e| e.id == receiver)
-                || message.text.trim().is_empty()
-            {
+        for (receiver, message) in messages {
+            let Some(message) =
+                resolve_for_player(map, assets, &self.server_time, receiver, message)
+            else {
                 continue;
-            }
-            let (sender_entity, sender_item) = match message.anchor {
-                TextAnchor::Entity(id) => (Some(id), None),
-                TextAnchor::Item(id) => (None, Some(id)),
-                _ => (None, None),
             };
-            message.text = resolver::MsgResolver::new().resolve_with_context(
-                parser::MsgParser::new().parse(&message.text),
-                map,
-                assets,
-                resolver::MessageContext {
-                    sender_entity,
-                    sender_item,
-                    receiver_entity: Some(receiver),
-                    world_time: Some(self.server_time),
-                },
-            );
             self.world_texts
                 .retain(|p| p.map == map.id && p.message.anchor != message.anchor);
             // Bound concurrent passages so repeated inspecting cannot cover the scene.
@@ -76,10 +62,7 @@ impl Client {
 
     pub(super) fn draw_world_texts(&mut self, map: &Map, assets: &Assets) {
         self.world_texts.retain(|p| {
-            p.map == map.id
-                && (p.pages > 1
-                    || p.opened.elapsed().as_secs_f32()
-                        < (p.message.text.chars().count() as f32 * 0.07 + 5.).clamp(6., 18.))
+            p.map == map.id && (p.pages > 1 || p.opened.elapsed() < lifetime(&p.message.text))
         });
         let Some(font) = self
             .messages_font
@@ -226,99 +209,10 @@ impl Client {
     }
 }
 
-fn anchor_position(anchor: &TextAnchor, map: &Map, assets: &Assets) -> Option<Vec3<f32>> {
-    match anchor {
-        TextAnchor::Position(p) => Some(*p),
-        TextAnchor::Entity(id) => map.entities.iter().find(|e| e.id == *id).map(|e| {
-            e.position
-                + Vec3::new(
-                    0.,
-                    e.attributes.get_float_default("height", 1.8).max(0.1),
-                    0.,
-                )
-        }),
-        TextAnchor::Item(id) => map
-            .items
-            .iter()
-            .find(|i| i.id == *id)
-            .map(|item| {
-                if let Some(a) = crate::procedural_avatar::Runtime::resolve_item(item, assets) {
-                    let s = item.attributes.get_float_default("appearance_scale", 1.);
-                    let yaw = item
-                        .attributes
-                        .get_float_default("appearance_yaw", 0.)
-                        .to_radians();
-                    let x = (a.bounds.0[0] + a.bounds.1[0]) * 0.5 * s;
-                    let z = (a.bounds.0[2] + a.bounds.1[2]) * 0.5 * s;
-                    item.position
-                        + Vec3::new(
-                            x * yaw.cos() + z * yaw.sin(),
-                            a.bounds.1[1] * s + 0.12,
-                            -x * yaw.sin() + z * yaw.cos(),
-                        )
-                } else {
-                    item.position
-                        + Vec3::new(
-                            0.,
-                            item.attributes.get_float_default("height", 1.).max(0.1),
-                            0.,
-                        )
-                }
-            })
-            .or_else(|| carrier(anchor, map).map(|e| e.position + Vec3::new(0., 1.8, 0.))),
-        TextAnchor::Prefab(id) => map
-            .block_prop_instances
-            .iter()
-            .find(|i| i.id == *id)
-            .and_then(|i| {
-                let asset = assets.block_props.get(&i.asset_id)?;
-                let part = asset.parts.first()?;
-                crate::block_prop_part_world_anchor(asset, i, part.id)
-                    .map(|p| p + Vec3::new(0., 1., 0.))
-            }),
-    }
-}
-
-fn carrier<'a>(anchor: &TextAnchor, map: &'a Map) -> Option<&'a crate::Entity> {
-    let TextAnchor::Item(id) = anchor else {
-        return None;
-    };
-    map.entities
-        .iter()
-        .find(|e| e.get_item(*id).is_some() || e.equipped.values().any(|i| i.id == *id))
-}
-
-fn project(game: &GameWidget, world: Vec3<f32>) -> Option<Vec2<f32>> {
-    let p = if game.camera.is_isometric_2d() {
-        game.isometric_projection?
-            .screen(Vec2::new(world.x, world.z), world.y)
-    } else if Client::is_2d_camera(&game.camera) {
-        game.ground_to_screen(Vec2::new(world.x, world.z)) - Vec2::new(0., world.y * game.grid_size)
-    } else {
-        let vp = game
-            .camera_d3
-            .projection_matrix(game.rect.width, game.rect.height)
-            * game
-                .camera_d3
-                .view_matrix_for_surface(game.rect.width, game.rect.height);
-        let c = vp * Vec4::new(world.x, world.y, world.z, 1.);
-        if c.w <= 0. || (c.z / c.w).abs() > 1. {
-            return None;
-        }
-        Vec2::new(
-            (c.x / c.w * 0.5 + 0.5) * game.rect.width,
-            (0.5 - c.y / c.w * 0.5) * game.rect.height,
-        )
-    };
-    if p.x < 0. || p.y < 0. || p.x > game.rect.width || p.y > game.rect.height {
-        return None;
-    }
-    Some(p + Vec2::new(game.rect.x, game.rect.y))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::world_text::TextAnchor;
     fn fixture() -> (Client, Map, Assets) {
         let mut map = Map::default();
         let mut player = crate::Entity::new();

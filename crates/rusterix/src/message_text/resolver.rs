@@ -1,6 +1,6 @@
 use crate::{Assets, Map, MsgParser, Tok};
 use std::collections::HashMap;
-use theframework::prelude::TheTime;
+use theframework_core::TheTime;
 
 #[derive(Clone, Copy, Default)]
 pub struct MessageContext {

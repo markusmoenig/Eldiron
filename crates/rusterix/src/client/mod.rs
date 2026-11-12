@@ -8,8 +8,12 @@ pub mod command {
 pub mod daylight;
 pub mod draw2d;
 mod intent_cursor;
-pub mod parser;
-pub mod resolver;
+pub mod parser {
+    pub use crate::message_text::parser::*;
+}
+pub mod resolver {
+    pub use crate::message_text::resolver::*;
+}
 pub mod rules_ui;
 pub mod text_command;
 pub mod widget;

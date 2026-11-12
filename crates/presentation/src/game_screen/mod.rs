@@ -10,7 +10,9 @@ mod input;
 mod keyboard;
 mod router;
 mod transcript;
+mod world_text;
 pub use router::ScreenInputResponse;
+pub use world_text::WorldTextOverlay;
 mod paint;
 use crate::{GameSceneInput, SceneViews, ViewId, ViewImage, screen::*};
 use eldiron_runtime::{RegionEvents, RuntimeView};
@@ -47,6 +49,7 @@ struct ScreenGeometry {
 }
 
 pub struct GameScreenController {
+    pub world_texts: WorldTextOverlay,
     pub elements: ScreenElements,
     pub name: String,
     pub cursor: [f32; 2],
@@ -138,6 +141,7 @@ impl GameScreenController {
     }
     fn with_elements(name: &str, world: &RuntimeView<'_>, elements: ScreenElements) -> Self {
         Self {
+            world_texts: WorldTextOverlay::default(),
             elements,
             name: name.into(),
             cursor: [0.; 2],
@@ -171,6 +175,7 @@ impl GameScreenController {
     /// Distribute each addressed batch once. Reflow/painting do not consume it
     /// again; the application can also deliver it to audio/world-text consumers.
     pub fn receive(&mut self, world: &RuntimeView<'_>, events: &RegionEvents) {
+        self.world_texts.receive(world, events);
         let map = world.map.unwrap_or(&self.empty_map);
         for widget in &mut self.elements.messages_widgets {
             widget.queue_messages(
@@ -189,6 +194,7 @@ impl GameScreenController {
         ));
         if changed {
             self.geometry = None;
+            self.world_texts.invalidate_geometry();
         }
         changed
     }
@@ -355,6 +361,7 @@ impl GameScreenController {
         }
         self.message_scroll
             .retain(|id, _| self.elements.messages_widgets.iter().any(|w| w.id == *id));
+        self.world_texts.prepare(world, &self.elements, fonts);
         Ok(())
     }
     pub fn prepare_game_views(

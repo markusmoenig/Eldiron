@@ -26,11 +26,13 @@ pub mod isometric;
 pub mod map;
 pub mod material_library;
 pub mod material_profile;
+pub mod message_text;
 #[cfg(feature = "graphics")]
 pub mod orthographic_bake;
 pub mod particleharness;
-pub mod procedural;
+pub mod party;
 pub mod player_start;
+pub mod procedural;
 pub mod rasterizer;
 pub mod ray;
 pub mod rect;
@@ -121,12 +123,9 @@ pub const WHITE: Pixel = [255, 255, 255, 255];
 
 // Re-exports
 #[cfg(feature = "graphics")]
-pub use crate::client::{
-    Client,
-    daylight::Daylight,
-    parser::{MsgParser, Tok},
-};
+pub use crate::client::{Client, daylight::Daylight};
 pub use crate::command::Command;
+pub use crate::message_text::{MsgParser, Tok};
 #[cfg(feature = "graphics")]
 pub use crate::orthographic_bake::{
     OrthographicBakeController, OrthographicBakeLighting, OrthographicBakeStatus,
@@ -312,8 +311,8 @@ pub mod prelude {
     pub use crate::{pixel_to_vec4, vec4_to_pixel};
 }
 
-pub mod procedural_avatar;
 pub mod item_state;
+pub mod procedural_avatar;
 
 pub mod ruleset_material;
 

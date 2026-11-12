@@ -25,6 +25,13 @@ pub struct TextOptions<'a> {
     pub width: Option<f32>,
     pub line_height: Option<f32>,
 }
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TextAlignment {
+    #[default]
+    Start,
+    Center,
+    End,
+}
 #[derive(Clone, Debug, PartialEq)]
 pub struct TextStyleSpan {
     pub range: std::ops::Range<usize>,
@@ -39,6 +46,7 @@ pub struct TextLine {
 }
 pub struct TextLayout {
     pub runs: Vec<Arc<GlyphRun>>,
+    line_runs: Vec<std::ops::Range<usize>>,
     layout: Layout<usize>,
     pub styled_runs: Vec<(Arc<GlyphRun>, Option<crate::paint::Color>)>,
     pub source: Arc<str>,
@@ -110,6 +118,29 @@ impl TextLayout {
     }
     pub fn height(&self) -> f32 {
         self.layout.height()
+    }
+    pub fn line_count(&self) -> usize {
+        self.layout.len()
+    }
+    pub fn line(&self, index: usize) -> Option<TextLine> {
+        let line = self.layout.get(index)?;
+        let m = line.metrics();
+        Some(TextLine {
+            range: line.text_range(),
+            top: m.block_min_coord,
+            bottom: m.block_max_coord,
+            baseline: m.baseline,
+            advance: m.advance,
+        })
+    }
+    /// Slice retained glyph runs by visual line without visiting or cloning
+    /// runs belonging to another page. Empty lines have empty run ranges.
+    pub fn runs_for_lines(&self, lines: std::ops::Range<usize>) -> &[Arc<GlyphRun>] {
+        let end = lines.end.min(self.line_runs.len());
+        if lines.start >= end {
+            return &[];
+        }
+        &self.runs[self.line_runs[lines.start].start..self.line_runs[end - 1].end]
     }
     pub fn lines(&self) -> Vec<TextLine> {
         self.layout
@@ -353,6 +384,17 @@ impl TextSystem {
         options: TextOptions<'_>,
         styles: &[TextStyleSpan],
     ) -> TextLayout {
+        self.layout_aligned(text, options, styles, TextAlignment::Start)
+    }
+    /// Alignment is applied by the shaper to each visual line, preserving bidi
+    /// order and the same glyph/line metrics used by pagination and clipping.
+    pub fn layout_aligned(
+        &mut self,
+        text: &str,
+        options: TextOptions<'_>,
+        styles: &[TextStyleSpan],
+        alignment: TextAlignment,
+    ) -> TextLayout {
         let TextOptions {
             family,
             size,
@@ -379,7 +421,14 @@ impl TextSystem {
         }
         let mut layout: Layout<usize> = builder.build(text);
         layout.break_all_lines(width);
-        layout.align(Alignment::Start, AlignmentOptions::default());
+        layout.align(
+            match alignment {
+                TextAlignment::Start => Alignment::Start,
+                TextAlignment::Center => Alignment::Center,
+                TextAlignment::End => Alignment::End,
+            },
+            AlignmentOptions::default(),
+        );
         self.snapshot_layout(text, layout, styles)
     }
     fn snapshot_layout(
@@ -390,7 +439,9 @@ impl TextSystem {
     ) -> TextLayout {
         let mut runs = Vec::new();
         let mut styled_runs = Vec::new();
+        let mut line_runs = Vec::new();
         for line in layout.lines() {
+            let start = runs.len();
             for item in line.items() {
                 if let PositionedLayoutItem::GlyphRun(gr) = item {
                     let r = gr.run();
@@ -424,9 +475,11 @@ impl TextSystem {
                     runs.push(run);
                 }
             }
+            line_runs.push(start..runs.len());
         }
         TextLayout {
             runs,
+            line_runs,
             styled_runs,
             layout,
             source: Arc::from(text),
@@ -557,6 +610,42 @@ impl GlyphCache {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn aligned_pages_keep_bidi_clusters_and_slice_only_the_addressed_visual_lines() {
+        let mut fonts = TextSystem::default();
+        fonts.register_font(include_bytes!("../embedded/fonts/Roboto-Bold.ttf").to_vec());
+        let source = "AB\r\nمرحبا e\u{301}\n\n".repeat(200);
+        let layout = fonts.layout_aligned(
+            &source,
+            TextOptions {
+                family: "Roboto",
+                size: 15.,
+                width: Some(400.),
+                line_height: Some(20.),
+            },
+            &[],
+            TextAlignment::Center,
+        );
+        assert_eq!(layout.source.as_ref(), source);
+        assert_eq!(layout.line_count(), 601);
+        let runs = layout.runs_for_lines(450..452);
+        assert!(!runs.is_empty() && runs.len() < 10);
+        for run in runs {
+            for glyph in run.glyphs.iter() {
+                assert!(glyph.position[1] >= layout.line(450).unwrap().top);
+                assert!(glyph.position[1] <= layout.line(451).unwrap().bottom);
+            }
+        }
+        assert!(layout.runs_for_lines(2..3).is_empty());
+        assert!(layout.runs_for_lines(700..800).is_empty());
+        let first = &layout.runs_for_lines(0..1)[0];
+        assert!(
+            first.glyphs[0].position[0] > 100.,
+            "centering belongs to the shaper, including mixed-script lines"
+        );
+        let caret = layout.caret(0);
+        assert_eq!(layout.hit_test([caret.x, caret.y + caret.height * 0.5]), 0);
+    }
     #[test]
     fn swash_cache_and_cluster_caret_share_layout() {
         let mut text = TextSystem::default();

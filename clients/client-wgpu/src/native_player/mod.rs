@@ -172,6 +172,8 @@ impl PlayerApplication {
         // Only identities belonging to the last GPU frame need delayed cleanup.
         // Repeated navigation while occluded cannot retain whole old screens.
         self.retired_views.extend(self.screen.detach_game_views());
+        next.world_texts = std::mem::take(&mut self.screen.world_texts);
+        next.world_texts.invalidate_geometry();
         self.screen = next;
         self.pending_clipboard = None;
         let stop = self.player.cancel_controls();
@@ -375,6 +377,7 @@ impl PlayerApplication {
             return Ok(());
         }
         self.visual_elapsed = self.visual_elapsed.saturating_add(elapsed);
+        self.screen.world_texts.advance(elapsed);
         self.player.advance(elapsed);
         let isometric=self.player.runtime.view().map.and_then(|map|map.entities.iter().find(|e|e.is_player()))
             .is_some_and(|e|matches!(e.attributes.get("player_camera"),Some(rusterix::Value::PlayerCamera(camera)) if camera.is_isometric_2d()));

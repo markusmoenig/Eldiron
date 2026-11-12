@@ -190,12 +190,35 @@ fn assembled_player_keeps_runtime_edits_and_clock_across_gpu_replacement() {
     // Suspend twice must not lose the original resume policy or advance time.
     app.suspended(&mut host);
     app.suspended(&mut host);
+    let world = app.player.runtime.view();
+    let player = world
+        .map
+        .unwrap()
+        .entities
+        .iter()
+        .find(|e| e.is_player())
+        .unwrap();
+    app.screen.world_texts.receive(
+        &world,
+        &RegionEvents {
+            world_text: vec![(
+                player.id,
+                rusterix::world_text::WorldText {
+                    anchor: rusterix::world_text::TextAnchor::Position(player.position),
+                    text: "Retained runtime description.".into(),
+                },
+            )],
+            ..Default::default()
+        },
+    );
+    let passage = app.screen.world_texts.passages()[0].id;
     let time = app.player.runtime.project.time;
     assert_eq!(
         app.update(&mut host, Duration::from_secs(300)).wake_after,
         None
     );
     assert_eq!(app.player.runtime.project.time, time);
+    assert_eq!(app.screen.world_texts.passages()[0].id, passage);
     app.resumed(&mut host);
     assert!(app.player.runtime.server.state == ServerState::Running);
     app.command(ClientCommandBinding::Game("start".into()))
@@ -497,9 +520,12 @@ fn assembled_player_keeps_runtime_edits_and_clock_across_gpu_replacement() {
     );
     // Repeated off-frame navigation retains view IDs, never old CPU screens.
     app.navigate("Setup").unwrap();
+    assert_eq!(app.screen.world_texts.passages()[0].id, passage);
+    assert!(app.screen.world_texts.visible_bounds().next().is_none());
     assert_eq!(app.retired_views.len(), old.len());
     app.navigate("Dungeon").unwrap();
     app.navigate("Setup").unwrap();
+    assert_eq!(app.screen.world_texts.passages()[0].id, passage);
     assert_eq!(app.retired_views.len(), old.len());
     render(&mut app, &mut host, &mut images2, &mut renderer2, &target2);
     assert!(app.retired_views.is_empty());

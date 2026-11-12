@@ -43,6 +43,10 @@ impl GameScreenController {
         if self.font_version != Some(fonts.version()) {
             return Err("Prepare screen layouts after changing their font owner".into());
         }
+        // Scene preparation updates each view's camera. Reproject retained
+        // overlays against those cameras before painting; unchanged text reuses
+        // its shaped layout. Input uses the last prepared display geometry.
+        self.world_texts.prepare(world, &self.elements, fonts);
         let geometry_cache = self
             .geometry
             .as_mut()
@@ -122,6 +126,7 @@ impl GameScreenController {
                 p.decoration(widget, assets)?;
             }
         }
+        self.world_texts.paint(p.list);
         for key in ordered(&model.text_widgets) {
             let widget = &model.text_widgets[&key];
             if !hidden(&widget.name) {
