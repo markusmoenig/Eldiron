@@ -43,6 +43,12 @@ impl Binding {
     }
 }
 enum Projection {
+    Unavailable,
+    TextIso {
+        projection: rusterix::isometric::Projection,
+        elevation: rusterix::isometric::elevation::ElevationMap,
+        logical: [f32; 2],
+    },
     Isometric(Arc<crate::isometric::IsometricWorldTargets>),
     Flat {
         origin: Vec2<f32>,
@@ -56,6 +62,7 @@ struct ViewFrame {
     rect: Rect,
     camera: PlayerCamera,
     source_size: [f32; 2],
+    text_game: bool,
     projection: Projection,
     look: Option<mouse_look::LookSettings>,
 }
@@ -225,6 +232,7 @@ impl WorldPointer {
             key,
             rect: widget.rect,
             camera: widget.camera.clone(),
+            text_game: false,
             source_size: [
                 output.descriptor.width as f32,
                 output.descriptor.height as f32,
@@ -233,6 +241,52 @@ impl WorldPointer {
             look: mouse_look::LookSettings::from_widget(widget),
         });
         Ok(())
+    }
+    /// Text backends retain the established logical cell/ground click policy.
+    /// Their glyph output has no scene image; acknowledgement still owns input.
+    pub(super) fn push_text_view(
+        &mut self,
+        key: Uuid,
+        widget: &rusterix::client::widget::game::GameWidget,
+        map: &Map,
+    ) {
+        let Some(frame) = &mut self.staged else {
+            return;
+        };
+        let logical = widget.scene_surface_size();
+        let logical = [logical.0 as f32, logical.1 as f32];
+        let projection = if !screen_model::is_2d_camera(&widget.camera) {
+            Projection::Unavailable
+        } else {
+            if widget.camera.is_isometric_2d() {
+                widget
+                    .isometric_projection
+                    .map(|projection| Projection::TextIso {
+                        projection,
+                        elevation: widget.mapmini.elevation.clone(),
+                        logical,
+                    })
+            } else {
+                None
+            }
+            .unwrap_or(Projection::Flat {
+                origin: widget.top_left,
+                grid: widget.grid_size,
+                logical,
+            })
+        };
+        frame
+            .cells
+            .get_or_insert_with(|| Arc::new(CellTargets::capture_visible(map)));
+        frame.views.push(ViewFrame {
+            key,
+            rect: widget.rect,
+            camera: widget.camera.clone(),
+            source_size: logical,
+            text_game: true,
+            projection,
+            look: mouse_look::LookSettings::from_widget(widget),
+        });
     }
     fn owner(&self) -> Option<ScreenCapture> {
         if let Some(item) = &self.ui_item {
@@ -678,7 +732,8 @@ impl GameScreenController {
         let Some(current) = self.elements.game_widgets.get(&view.key) else {
             return Err(Query::Unavailable);
         };
-        if current.rect != view.rect
+        if (current.backend_name == "text") != view.text_game
+            || current.rect != view.rect
             || current.camera != view.camera
             || screen_model::widget_name_is_hidden(&current.name, &self.elements.widgets_to_hide)
         {
@@ -713,6 +768,21 @@ impl GameScreenController {
         ];
         let uv = [uv[0] / view.source_size[0], uv[1] / view.source_size[1]];
         let hit = match &view.projection {
+            Projection::Unavailable => return Query::Unavailable,
+            Projection::TextIso {
+                projection,
+                elevation,
+                logical,
+            } => {
+                let point = elevation.pick(
+                    *projection,
+                    Vec2::new(uv[0] * logical[0], uv[1] * logical[1]),
+                );
+                frame
+                    .cells
+                    .as_ref()
+                    .and_then(|cells| cells.hit(Vec2::new(point.x, point.z), prefer_item))
+            }
             Projection::Isometric(targets) => targets.hit(uv, prefer_item),
             Projection::Flat {
                 origin,

@@ -62,6 +62,7 @@ fn stage(
         key,
         rect: widget.rect,
         camera: widget.camera.clone(),
+        text_game: false,
         source_size: [64., 48.],
         projection: Projection::Flat {
             origin: widget.top_left,
@@ -458,6 +459,56 @@ fn acknowledged_ray_frames_route_actual_geometry_and_reject_newer_dirty_or_unack
         vec![ScreenEffect::Action(EntityAction::LookYaw(2.))]
     );
     assert!((screen.elements.game_widgets[&key].mouse_look_pitch - 2.).abs() < 0.001);
+    // A text presentation cannot borrow a still-pickable, previously displayed
+    // scene image as its own geometry. Its movement/look protocol is separate.
+    assert!(matches!(
+        views.pick_game(output, [0.5, 0.5]),
+        ViewPick::Hit(_)
+    ));
+    screen
+        .elements
+        .game_widgets
+        .get_mut(&key)
+        .unwrap()
+        .backend_name = "text".into();
+    screen.begin_world_frame(&session.view()).unwrap();
+    let widget = screen.elements.game_widgets.get_mut(&key).unwrap();
+    widget
+        .prepare_text_view((128, 96), session.view().map.unwrap())
+        .unwrap();
+    screen
+        .world
+        .push_text_view(key, widget, session.view().map.unwrap());
+    screen.acknowledge_world_frame(&session.view(), Some(&views));
+    assert!(
+        screen
+            .world_input(&session.view(), Some(&views), &press, false)
+            .effects
+            .is_empty()
+    );
+    assert!(screen.world_pointer_hit().is_none());
+    assert!(
+        matches!(views.pick_game(output, [0.5, 0.5]), ViewPick::Hit(_)),
+        "the scene remains pickable for its actual owner"
+    );
+    screen
+        .elements
+        .game_widgets
+        .get_mut(&key)
+        .unwrap()
+        .backend_name = "graphical".into();
+    screen.begin_world_frame(&session.view()).unwrap();
+    screen
+        .world
+        .push_view(
+            key,
+            &screen.elements.game_widgets[&key],
+            output,
+            session.view().map.unwrap(),
+            None,
+        )
+        .unwrap();
+    screen.acknowledge_world_frame(&session.view(), Some(&views));
     views
         .scene_mut(view)
         .unwrap()
@@ -500,4 +551,102 @@ fn acknowledged_ray_frames_route_actual_geometry_and_reject_newer_dirty_or_unack
     assert!(!views.has_cpu_target_storage(view).unwrap());
     assert_eq!(gpu.transfers().capture_requests, 0);
     assert_eq!(gpu.transfers().readback_bytes, 0);
+}
+
+#[test]
+fn text_game_cell_targets_are_acknowledged_and_cannot_reuse_a_graphical_mode_receipt() {
+    let (mut session, mut screen, mut fonts, key) = setup();
+    stage(&session, &mut screen, &mut fonts, key);
+    ack(&session, &mut screen);
+    screen
+        .elements
+        .game_widgets
+        .get_mut(&key)
+        .unwrap()
+        .backend_name = "text".into();
+    assert!(click(&session, &mut screen, [24., 24.]).is_empty());
+    for frame in 0..2 {
+        screen
+            .prepare(&session.view(), &mut fonts, ContentRevision(1), frame)
+            .unwrap();
+        screen.begin_world_frame(&session.view()).unwrap();
+        let widget = screen.elements.game_widgets.get_mut(&key).unwrap();
+        widget
+            .prepare_text_view((128, 96), session.view().map.unwrap())
+            .unwrap();
+        screen
+            .world
+            .push_text_view(key, widget, session.view().map.unwrap());
+        if frame == 1 {
+            assert!(matches!(
+                &click(&session, &mut screen, [24., 24.])[..],
+                [ScreenEffect::Action(EntityAction::EntityClicked(
+                    1,
+                    _,
+                    None
+                ))]
+            ));
+        }
+        ack(&session, &mut screen);
+        assert!(
+            matches!(&click(&session,&mut screen,[24.,24.])[..],[ScreenEffect::Action(EntityAction::EntityClicked(id,_,None))] if *id==frame as u32+1)
+        );
+        if frame == 0 {
+            let map = &mut session.project.regions[0].map;
+            map.entities[0].position.x = 2.5;
+            map.entities.push(actor(2, 1.5, 1.5));
+        }
+    }
+    screen
+        .elements
+        .game_widgets
+        .get_mut(&key)
+        .unwrap()
+        .backend_name = "graphical".into();
+    assert!(click(&session, &mut screen, [24., 24.]).is_empty());
+}
+
+#[test]
+fn text_game_elevation_projection_is_frozen_until_its_frame_is_acknowledged() {
+    let (session, mut screen, mut fonts, key) = setup();
+    let widget = screen.elements.game_widgets.get_mut(&key).unwrap();
+    widget.camera = PlayerCamera::D2Iso;
+    widget.backend_name = "text".into();
+    widget.isometric_projection = Some(rusterix::isometric::Projection {
+        origin: Vec2::new(64., 48.),
+        unit: 16.,
+    });
+    for pass in 0..2 {
+        screen
+            .prepare(&session.view(), &mut fonts, ContentRevision(1), pass)
+            .unwrap();
+        screen.begin_world_frame(&session.view()).unwrap();
+        let widget = screen.elements.game_widgets.get_mut(&key).unwrap();
+        widget
+            .prepare_text_view((128, 96), session.view().map.unwrap())
+            .unwrap();
+        screen
+            .world
+            .push_text_view(key, widget, session.view().map.unwrap());
+        if pass == 1 {
+            move_to(&session, &mut screen, [112., 48.]);
+            assert_eq!(screen.world_pointer_hit().and_then(|h| h.entity), Some(1));
+        }
+        ack(&session, &mut screen);
+        move_to(&session, &mut screen, [112., 48.]);
+        assert_eq!(
+            screen.world_pointer_hit().and_then(|h| h.entity),
+            if pass == 0 { Some(1) } else { None }
+        );
+        screen
+            .elements
+            .game_widgets
+            .get_mut(&key)
+            .unwrap()
+            .isometric_projection
+            .as_mut()
+            .unwrap()
+            .origin
+            .x = 128.;
+    }
 }

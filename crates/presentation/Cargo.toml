@@ -13,6 +13,7 @@ scenevm = {path="../scenevm",default-features=false,features=["gpu"]}
 rusterix = {path="../rusterix",default-features=false,features=["graphics"]}
 theframework-core = {path="../theframework-core"}
 rustc-hash = "2"
+unicode-segmentation = "1.12"
 theframework = {path="../theframework",default-features=false,features=["text"]}
 [dev-dependencies]
 serde_json = "1"

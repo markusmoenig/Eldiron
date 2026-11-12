@@ -1866,3 +1866,6 @@ mod tooltip;
 
 #[path = "game_screen/ui_feedback.rs"]
 mod ui_feedback;
+
+#[path = "game_screen/text_game.rs"]
+mod text_game;

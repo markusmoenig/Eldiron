@@ -80,6 +80,7 @@ impl GameScreenController {
         let layout = model.layout;
         let bounds = Rect::new(0., 0., layout.viewport.x as f32, layout.viewport.y as f32);
         let hidden = |name: &str| screen_model::widget_name_is_hidden(name, &model.widgets_to_hide);
+        let font_version = fonts.version();
         let mut list = PaintList::default();
         let mut p = ScreenPainter {
             list: &mut list,
@@ -93,7 +94,10 @@ impl GameScreenController {
             if hidden(&widget.name) || widget.rect.width <= 0. || widget.rect.height <= 0. {
                 continue;
             }
-            if let Some(image) = self.view_images.get(&key) {
+            if widget.backend_name == "text" && world.map.is_some() {
+                self.text_games.paint(key, widget, font_version, &mut p)?;
+                self.speech.paint_view(key, p.list);
+            } else if let Some(image) = self.view_images.get(&key) {
                 p.list.ops.push(PaintOp::Image {
                     image: image.image,
                     rect: rect(widget.rect),

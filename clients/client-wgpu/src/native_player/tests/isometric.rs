@@ -84,7 +84,7 @@ fn assembled_isometric_player_renders_shipped_sources_and_rebuilds_only_gpu_owne
     assert_eq!(gpu.transfers().capture_requests, 0);
     capture(
         &gpu,
-        target,
+        target.clone(),
         "/private/tmp/eldiron-native-isometric-player.png",
     );
     let decoder = png::Decoder::new(std::io::BufReader::new(
@@ -102,6 +102,41 @@ fn assembled_isometric_player_renders_shipped_sources_and_rebuilds_only_gpu_owne
         "shipped scene must contain authored content, not just its background: {} colors",
         colors.len()
     );
+    // Exercise the same assembled host through text presentation and back.
+    let old_images = app
+        .screen
+        .view_images()
+        .values()
+        .map(|o| o.image)
+        .collect::<Vec<_>>();
+    let transfers = gpu.transfers();
+    for widget in app.screen.elements.game_widgets.values_mut() {
+        widget.backend_name = "text".into();
+    }
+    render(&mut app, &mut host, &mut images, &mut renderer, &target);
+    app.presented(&mut host);
+    assert!(app.screen.view_images().is_empty());
+    assert!(old_images.into_iter().all(|id| images.get(id).is_none()));
+    assert!(
+        app.screen
+            .elements
+            .game_widgets
+            .values()
+            .all(|w| w.text_font.is_none() && w.buffer.pixels().is_empty())
+    );
+    assert_eq!(gpu.transfers().readback_bytes, transfers.readback_bytes);
+    assert_eq!(gpu.transfers().capture_requests, transfers.capture_requests);
+    capture(
+        &gpu,
+        target.clone(),
+        "/private/tmp/eldiron-native-text-game-player.png",
+    );
+    for widget in app.screen.elements.game_widgets.values_mut() {
+        widget.backend_name = "graphical".into();
+    }
+    render(&mut app, &mut host, &mut images, &mut renderer, &target);
+    app.presented(&mut host);
+    assert!(!app.screen.view_images().is_empty());
     let second = futures::executor::block_on(GpuContext::headless()).unwrap();
     let mut images2 = ImageRegistry::new(second.clone());
     let mut renderer2 = PaintRenderer::new(second.clone()).unwrap();

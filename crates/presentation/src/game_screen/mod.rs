@@ -14,6 +14,7 @@ mod keyboard;
 mod router;
 mod speech;
 pub use speech::SpeechOverlay;
+mod text_game;
 mod tooltip;
 mod transcript;
 mod world_pointer;
@@ -86,6 +87,7 @@ pub struct GameScreenController {
     view_ids: FxHashMap<Uuid, ViewId>,
     configured_views: FxHashMap<ViewId, ContentRevision>,
     view_images: FxHashMap<Uuid, ViewImage>,
+    text_games: text_game::TextGames,
     inputs: FxHashMap<ScreenTextTarget, theframework::text_edit::EditorView>,
     input_modifiers: theframework::platform::Modifiers,
     pub animation_frame: usize,
@@ -214,6 +216,7 @@ impl GameScreenController {
             view_ids: FxHashMap::default(),
             configured_views: FxHashMap::default(),
             view_images: FxHashMap::default(),
+            text_games: Default::default(),
             inputs: FxHashMap::default(),
             input_modifiers: Default::default(),
             animation_frame: 0,
@@ -496,6 +499,7 @@ impl GameScreenController {
             return Err("Prepare screen layouts after changing their runtime session".into());
         }
         self.view_images.clear();
+        self.text_games.retain(&self.elements);
         self.begin_world_frame(world)?;
         let Some(map) = world.map else {
             return Ok(());
@@ -512,6 +516,22 @@ impl GameScreenController {
         };
         for (key, widget) in &mut self.elements.game_widgets {
             if screen_model::widget_name_is_hidden(&widget.name, &self.elements.widgets_to_hide) {
+                continue;
+            }
+            if widget.backend_name == "text" {
+                if let Some(id) = self.view_ids.remove(key) {
+                    views.remove(id, images).map_err(|e| e.to_string())?;
+                    self.configured_views.remove(&id);
+                }
+                let size = (
+                    widget.rect.width.round().max(0.) as u32,
+                    widget.rect.height.round().max(0.) as u32,
+                );
+                if size.0 > 0 && size.1 > 0 {
+                    let lines = widget.prepare_text_view(size, map)?;
+                    self.text_games.prepare(*key, widget, lines)?;
+                    self.world.push_text_view(*key, widget, map);
+                }
                 continue;
             }
             let id = *self.view_ids.entry(*key).or_default();
@@ -574,6 +594,9 @@ impl GameScreenController {
     }
     pub fn view_images(&self) -> &FxHashMap<Uuid, ViewImage> {
         &self.view_images
+    }
+    pub fn text_game_layout_builds(&self) -> u64 {
+        self.text_games.layout_builds()
     }
     pub fn source_builds(&self) -> u64 {
         self.sources.builds()

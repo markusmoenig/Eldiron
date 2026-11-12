@@ -192,3 +192,33 @@ fn relative_look_revokes_on_modal_focus_leave_escape_and_source_visibility_chang
     session.project.regions[0].map.id = Uuid::new_v4();
     assert!(motion(&session, &mut screen, [10., 0.]).effects.is_empty());
 }
+
+#[test]
+fn text_game_keeps_acknowledged_relative_look_without_fabricating_a_geometry_pick() {
+    let (session, mut screen, mut fonts, key) = setup_look();
+    screen
+        .elements
+        .game_widgets
+        .get_mut(&key)
+        .unwrap()
+        .backend_name = "text".into();
+    screen
+        .prepare(&session.view(), &mut fonts, ContentRevision(1), 0)
+        .unwrap();
+    screen.begin_world_frame(&session.view()).unwrap();
+    let widget = screen.elements.game_widgets.get_mut(&key).unwrap();
+    widget
+        .prepare_text_view((128, 96), session.view().map.unwrap())
+        .unwrap();
+    screen
+        .world
+        .push_text_view(key, widget, session.view().map.unwrap());
+    move_to(&session, &mut screen, [24., 24.]);
+    assert!(motion(&session, &mut screen, [10., 0.]).effects.is_empty());
+    ack(&session, &mut screen);
+    assert!(screen.world_pointer_hit().is_none());
+    assert_eq!(
+        motion(&session, &mut screen, [10., 0.]).effects,
+        vec![ScreenEffect::Action(EntityAction::LookYaw(2.))]
+    );
+}

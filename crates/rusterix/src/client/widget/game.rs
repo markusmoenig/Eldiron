@@ -628,6 +628,30 @@ impl GameWidget {
         (title, description)
     }
 
+    /// Update text-view metadata without loading the CPU font adapter or
+    /// allocating a destination image. Both presenters share text_lines below.
+    pub fn prepare_text_view(&mut self, logical: (u32, u32), map: &Map) -> Result<Vec<String>, String> {
+        if logical.0 == 0
+            || logical.1 == 0
+            || logical.0 > i32::MAX as u32
+            || logical.1 > i32::MAX as u32
+        {
+            return Err("Invalid text game view extent".into());
+        }
+        self.gpu_surface_size = Some(logical);
+        self.buffer = TheRGBABuffer::default();
+        self.upscale_buffer = TheRGBABuffer::default();
+        self.isometric_ground = Default::default();
+        self.text_font = None;
+        if let Some(bbox) = map.bounding_box() {
+            self.map_bbox = bbox;
+        }
+        self.build_region_name = map.name.clone();
+        self.build_map_changed = map.changed;
+        self.update_player_context(map);
+        Ok(self.text_lines(map))
+    }
+
     fn text_lines(&self, map: &Map) -> Vec<String> {
         let mut lines = Vec::new();
         let Some(sector) = self.current_sector(map) else {
