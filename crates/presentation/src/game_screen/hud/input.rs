@@ -106,6 +106,14 @@ impl GameScreenController {
                             self.hud.state.activate(action, &mut self.elements);
                             if matches!(
                                 action,
+                                model::HudAction::CatalogAssign
+                                    | model::HudAction::CatalogPage(_)
+                                    | model::HudAction::CatalogTab(_)
+                            ) {
+                                self.hud.pending_command = None;
+                            }
+                            if matches!(
+                                action,
                                 model::HudAction::Category(_) | model::HudAction::Sort(_)
                             ) {
                                 self.geometry = None;
@@ -242,7 +250,23 @@ impl GameScreenController {
                         .is_some_and(|point| rect(frame.rect).contains(point)) =>
             {
                 if self.hud_frame_valid(world, frame.control(HudPart::Body), frame.rect) {
-                    self.hud.state.scroll(frame, *delta, *precise);
+                    if frame
+                        .detail
+                        .as_ref()
+                        .is_some_and(|detail| rect(detail.rect).contains(self.cursor))
+                    {
+                        self.hud.scroll_detail(
+                            frame.id,
+                            delta[1]
+                                * if *precise {
+                                    1.
+                                } else {
+                                    frame.style.font_size * 3.
+                                },
+                        );
+                    } else {
+                        self.hud.state.scroll(frame, *delta, *precise);
+                    }
                 }
                 Some(ScreenInputResponse::handled(true))
             }
@@ -287,6 +311,10 @@ impl GameScreenController {
                                             | HudPart::Sort
                                             | HudPart::PreviousPage
                                             | HudPart::NextPage
+                                            | HudPart::CatalogEntry(_)
+                                            | HudPart::CatalogTab(_)
+                                            | HudPart::Assign
+                                            | HudPart::Detail
                                     )
                                 }
                             })
@@ -353,8 +381,33 @@ impl GameScreenController {
                             PhysicalKey::Home => [frame.scroll[0] as f32, frame.scroll[1] as f32],
                             _ => [-frame.max_scroll[0] as f32, -frame.max_scroll[1] as f32],
                         };
-                        self.hud.state.scroll(frame, delta, true);
-                        self.hud.focused = Some(frame.control(HudPart::Body));
+                        if self
+                            .hud
+                            .focused
+                            .is_some_and(|id| id.part == HudPart::Detail)
+                        {
+                            let detail = self
+                                .hud
+                                .prepared
+                                .iter()
+                                .find(|panel| panel.frame.id == frame.id)
+                                .and_then(|panel| panel.detail.as_ref());
+                            let amount = match physical {
+                                PhysicalKey::Home => detail.map_or(0., |detail| detail.scroll),
+                                PhysicalKey::End => -detail.map_or(0., |detail| detail.max_scroll),
+                                _ => delta[1],
+                            };
+                            self.hud.scroll_detail(frame.id, amount);
+                        } else {
+                            self.hud.state.scroll(frame, delta, true);
+                        }
+                        if !self
+                            .hud
+                            .focused
+                            .is_some_and(|id| id.part == HudPart::Detail)
+                        {
+                            self.hud.focused = Some(frame.control(HudPart::Body));
+                        }
                     }
                     return Some(ScreenInputResponse::handled(true));
                 }

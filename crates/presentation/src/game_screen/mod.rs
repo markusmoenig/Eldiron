@@ -317,6 +317,7 @@ impl GameScreenController {
             .world
             .sync(world, revision, self.elements.layout.viewport)
         {
+            self.hud.cancel_commands();
             self.configured_views.clear();
             for widget in self.elements.game_widgets.values_mut() {
                 widget.force_dynamics_rebuild = true;

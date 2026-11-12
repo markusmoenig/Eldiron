@@ -1,6 +1,7 @@
 use super::*;
 use eldiron_runtime::{GameSession, Project};
 use rusterix::{Entity, Item, Value, client::widget::Widget};
+mod catalog;
 mod cursor;
 mod hud;
 mod item_pointer;

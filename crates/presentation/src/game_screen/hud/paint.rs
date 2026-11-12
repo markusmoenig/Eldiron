@@ -13,6 +13,9 @@ impl Hud {
             let frame = &prepared.frame;
             p.list.ops.push(PaintOp::PushClip(rect(frame.rect)));
             p.fill(frame.rect, frame.style.background);
+            if let Some(source) = &prepared.skin.frame {
+                sources::blit(p, source, frame.rect, prepared.skin.frame_slice)?;
+            }
             for (tile, bounds) in &frame.tiles {
                 tile_reference(
                     p,
@@ -24,7 +27,7 @@ impl Hud {
                     animation,
                 )?;
             }
-            p.border(frame.rect, 1., frame.style.border);
+            p.border(frame.rect, frame.style.border_width, frame.style.border);
             if let Some(title) = frame.title_bar {
                 p.fill(title, frame.style.title_background);
             }
@@ -84,9 +87,6 @@ impl Hud {
                 if let Some(avatar) = &prepared.avatar {
                     paint_source(p, avatar, bounds.with_border(4.))?;
                 }
-            }
-            for (spec, layout) in prepared.labels.iter().filter(|(spec, _)| spec.content) {
-                paint_label(p, spec, layout);
             }
             for slot in &frame.slots {
                 if !frame
@@ -163,7 +163,14 @@ impl Hud {
                     p.list.ops.push(PaintOp::PopClip);
                 }
             }
+            card::paint(p, prepared, cursor, self.command_capture.as_ref())?;
+            for (spec, layout) in prepared.labels.iter().filter(|(spec, _)| spec.content) {
+                paint_label(p, spec, layout);
+            }
             p.list.ops.push(PaintOp::PopClip);
+            if let (Some(spec), Some(detail)) = (&frame.detail, &prepared.detail) {
+                detail::paint(p, spec, detail, frame.style.border);
+            }
             if frame.max_scroll[1] > 0. && frame.clip.height > 0. {
                 let height = (frame.clip.height as f64 * frame.clip.height as f64
                     / (frame.clip.height as f64 + frame.max_scroll[1]))
@@ -223,6 +230,7 @@ impl Hud {
             }
             p.list.ops.push(PaintOp::PopClip);
         }
+        card::ghost(p, &self.prepared, self.command_capture.as_ref(), cursor)?;
         Ok(())
     }
 }
@@ -254,9 +262,10 @@ fn paint_source(
     let image = source.image();
     let mut uv = Uv::new(0., 0., 1., 1.);
     let (width, height) = if source.avatar {
-        let Some([x, y, width, height]) = source.alpha_bounds else {
+        let Some([x, y, max_x, max_y]) = source.alpha_bounds else {
             return Ok(());
         };
+        let (width, height) = (max_x - x, max_y - y);
         uv = Uv::new(
             x as f32 / image.width() as f32,
             y as f32 / image.height() as f32,

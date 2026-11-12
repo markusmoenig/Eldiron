@@ -243,12 +243,19 @@ fn native_inventory_and_equipment_share_retained_sources_glyphs_and_typed_transf
     let tile = Tile::from_texture(Texture::from_color([0, 255, 255, 255]));
     let tile_id = tile.id;
     session.assets.tiles.insert(tile_id, tile);
+    let mut avatar_pixels = vec![0; 8 * 8 * 4];
+    for y in 1..7 {
+        for x in 2..6 {
+            avatar_pixels[(y * 8 + x) * 4..(y * 8 + x) * 4 + 4]
+                .copy_from_slice(&[24, 128, 240, 255]);
+        }
+    }
     session.assets.avatars.insert(
         "Human".into(),
         Avatar {
             id: Default::default(),
             name: "Human".into(),
-            resolution: 1,
+            resolution: 8,
             perspective_count: AvatarPerspectiveCount::Four,
             animations: vec![AvatarAnimation {
                 id: Default::default(),
@@ -256,9 +263,7 @@ fn native_inventory_and_equipment_share_retained_sources_glyphs_and_typed_transf
                 speed: 1.,
                 perspectives: vec![AvatarPerspective {
                     direction: AvatarDirection::Front,
-                    frames: vec![AvatarAnimationFrame::new(Texture::from_color([
-                        24, 128, 240, 255,
-                    ]))],
+                    frames: vec![AvatarAnimationFrame::new(Texture::new(avatar_pixels, 8, 8))],
                     weapon_main_anchor: None,
                     weapon_off_anchor: None,
                 }],
@@ -489,6 +494,16 @@ fn native_inventory_and_equipment_share_retained_sources_glyphs_and_typed_transf
         pixel(avatar.x + avatar.width / 2., avatar.y + avatar.height / 2.),
         &[24, 128, 240, 255],
         "retained equipment avatar source"
+    );
+    let available = avatar.with_border(4.);
+    let fitted_width = (available.width / 4.).min(available.height / 6.) * 4.;
+    assert_eq!(
+        pixel(
+            avatar.x + avatar.width / 2. + fitted_width * 0.4,
+            avatar.y + avatar.height / 2.
+        ),
+        &[24, 128, 240, 255],
+        "cropped avatar end coordinates are not extents"
     );
     write_panel_evidence("/private/tmp/eldiron-native-equipment-hud.png", &pixels);
 }

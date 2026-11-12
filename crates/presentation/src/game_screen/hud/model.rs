@@ -5,6 +5,7 @@ use rusterix::item_interaction::ItemDestination;
 use rusterix::{ServerState, client::rules_ui, world_interaction::item_is_container};
 use scenevm::prelude::Vec2;
 mod actor_panels;
+pub(super) mod catalog;
 
 struct OpenContainer {
     source: ItemRef,
@@ -28,6 +29,8 @@ pub(super) struct HudState {
     page: usize,
     sort_open: bool,
     selected: Option<u32>,
+    catalog: Option<catalog::OpenCatalog>,
+    catalog_cache: std::cell::RefCell<Option<catalog::CatalogCache>>,
 }
 #[derive(Clone, PartialEq)]
 pub(in crate::game_screen) struct PanelFrame {
@@ -50,6 +53,9 @@ pub(in crate::game_screen) struct PanelFrame {
     pub scroll: [f64; 2],
     pub max_scroll: [f64; 2],
     pub position: Vec2<i32>,
+    pub cards: Vec<CommandCard>,
+    pub detail: Option<DetailSpec>,
+    pub catalog_skin: Option<screen_model::CatalogPanelKind>,
 }
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::game_screen) struct PanelSlot {
@@ -68,6 +74,14 @@ pub(in crate::game_screen) enum HudAction {
     ToggleSort,
     Sort(String),
     Page(usize),
+    CatalogTab(String),
+    CatalogPage(usize),
+    CatalogAssign,
+    CatalogCommand {
+        command: String,
+        assignment: bool,
+        class: Option<String>,
+    },
 }
 #[derive(Clone, PartialEq)]
 pub(in crate::game_screen) struct PanelLabel {
@@ -88,6 +102,28 @@ pub(in crate::game_screen) struct PanelButton {
     pub selected: bool,
     pub popup: bool,
 }
+#[derive(Clone, PartialEq)]
+pub(in crate::game_screen) struct CommandCard {
+    pub index: usize,
+    pub rect: Rect,
+    pub hit: Rect,
+    pub icon_rect: Rect,
+    pub command: String,
+    pub name: String,
+    pub state: rules_ui::CommandState,
+    pub selected: bool,
+    pub action: HudAction,
+}
+#[derive(Clone, PartialEq)]
+pub(in crate::game_screen) struct DetailSpec {
+    pub rect: Rect,
+    pub description: rules_ui::RulesDescription,
+    pub rows: Vec<screen_model::CatalogDetailRow>,
+    pub scroll: f32,
+    pub font_size: f32,
+    pub small_size: f32,
+    pub background: [u8; 4],
+}
 impl PanelFrame {
     pub fn control(&self, part: HudPart) -> HudControlId {
         HudControlId {
@@ -97,10 +133,18 @@ impl PanelFrame {
     }
     pub fn controls(&self) -> Vec<(HudControlId, Rect)> {
         let mut controls = vec![(self.control(HudPart::Body), self.rect)];
+        if let Some(detail) = &self.detail {
+            controls.push((self.control(HudPart::Detail), detail.rect));
+        }
         controls.extend(
             self.slots
                 .iter()
                 .map(|slot| (self.control(HudPart::Slot(slot.index)), slot.hit)),
+        );
+        controls.extend(
+            self.cards
+                .iter()
+                .map(|card| (self.control(HudPart::CatalogEntry(card.index)), card.hit)),
         );
         if let Some(title) = self.title_bar {
             controls.push((self.control(HudPart::Title), title));
@@ -149,6 +193,14 @@ impl PanelFrame {
             .iter()
             .find(|button| button.part == part)
             .map(|button| button.action.clone())
+            .or_else(|| match part {
+                HudPart::CatalogEntry(index) => self
+                    .cards
+                    .iter()
+                    .find(|card| card.index == index)
+                    .map(|card| card.action.clone()),
+                _ => None,
+            })
     }
 }
 impl HudState {
@@ -322,6 +374,9 @@ impl HudState {
                 .unwrap_or("Container")
                 .to_string(),
             clip,
+            cards: Vec::new(),
+            detail: None,
+            catalog_skin: None,
             style: PanelStyle::container(&template),
             tiles: screen_model::container_frame_tiles(bounds, &template)
                 .into_iter()
@@ -340,6 +395,10 @@ impl HudState {
         })
     }
     pub fn retain_placement(&mut self, frame: &PanelFrame) {
+        if let Some(open) = self.catalog_panel_mut(frame.id) {
+            open.panel.position = Some(frame.position);
+            open.panel.scroll = frame.scroll;
+        }
         if let Some(open) = self.actor_panel_mut(frame.id) {
             open.position = Some(frame.position);
             open.scroll = frame.scroll;
@@ -356,6 +415,12 @@ impl HudState {
         }
     }
     pub fn move_to(&mut self, id: HudPanelId, position: Vec2<i32>, size: Vec2<i32>) {
+        if let Some(open) = self.catalog_panel_mut(id) {
+            open.panel.position = Some(Vec2::new(
+                position.x.clamp(2, (size.x - 24).max(2)),
+                position.y.clamp(2, (size.y - 24).max(2)),
+            ));
+        }
         if let Some(open) = self.actor_panel_mut(id) {
             open.position = Some(Vec2::new(
                 position.x.clamp(2, (size.x - 24).max(2)),
@@ -383,7 +448,9 @@ impl HudState {
         } else {
             frame.style.scroll_step as f64
         };
-        let scroll = if let Some(open) = self.actor_panel_mut(frame.id) {
+        let scroll = if let Some(open) = self.catalog_panel_mut(frame.id) {
+            Some(&mut open.panel.scroll)
+        } else if let Some(open) = self.actor_panel_mut(frame.id) {
             Some(&mut open.scroll)
         } else {
             self.open

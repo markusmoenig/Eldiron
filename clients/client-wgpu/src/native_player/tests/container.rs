@@ -529,5 +529,84 @@ fn native_container_routes_one_real_server_transfer_and_keeps_its_owner_through_
         "native inventory commands never reach application service fallback"
     );
     assert_eq!(gpu2.transfers().readback_bytes, 0);
+    // The native catalogue sends its addressed action through the same live
+    // session; verify both authoritative mutation and normal delta publication.
+    let config = screen_model::CatalogPanelConfig {
+        columns: 2,
+        rows: Some(1),
+        cell_size: 40.,
+        padding: 8.,
+        title_height: 26.,
+        tab_height: 24.,
+        show_details: false,
+        authored_rect: Some(ScreenRect::new(24., 24., 400., 220.)),
+        ..Default::default()
+    };
+    let geometry = {
+        let world = app.player.runtime.view();
+        let actor = world
+            .map
+            .unwrap()
+            .entities
+            .iter()
+            .find(|actor| actor.id == actor_id)
+            .unwrap();
+        let groups = rules_ui::action_catalog(world.assets, Some(actor));
+        screen_model::catalog_panel_geometry(&groups, &config, "all", 0, None, Vec2::new(960, 540))
+    };
+    let entry = geometry
+        .entries
+        .first()
+        .expect("starter player has rules catalogue actions");
+    let command = entry.command.clone();
+    let source = [
+        entry.rect.x + entry.rect.width / 2.,
+        entry.rect.y + entry.rect.height / 2.,
+    ];
+    let mut target_widget = rusterix::client::widget::Widget::new();
+    target_widget.id = 81;
+    target_widget.name = "Command assignment".into();
+    target_widget.rect = ScreenRect::new(700., 360., 40., 40.);
+    target_widget.command_slot = Some("main.9".into());
+    app.screen.elements.button_widgets.insert(81, target_widget);
+    app.screen.elements.custom_actions_panel_config = Some(config);
+    app.command(ClientCommandBinding::Ui("actions".into()))
+        .unwrap();
+    render(&mut app, &mut host, &mut images2, &mut renderer2, &target2);
+    app.presented(&mut host);
+    pointer(&mut app, &mut host, source, true);
+    assert!(
+        matches!(app.screen.control_capture(), Some(ScreenCapture::Hud(id))
+        if matches!(id.part, HudPart::CatalogEntry(_)))
+    );
+    pointer(&mut app, &mut host, [720., 380.], false);
+    pump_until(&mut app, &mut host, "native command assignment", |_| {
+        context
+            .lock()
+            .unwrap()
+            .map
+            .entities
+            .iter()
+            .find(|actor| actor.id == actor_id)
+            .and_then(|actor| actor.attributes.get_str("command_slot_main_9"))
+            == Some(command.as_str())
+    });
+    pump_until(&mut app, &mut host, "native command publication", |app| {
+        app.player
+            .runtime
+            .view()
+            .map
+            .unwrap()
+            .entities
+            .iter()
+            .find(|actor| actor.id == actor_id)
+            .and_then(|actor| actor.attributes.get_str("command_slot_main_9"))
+            == Some(command.as_str())
+    });
+    assert!(
+        observed.lock().unwrap().effects.is_empty(),
+        "catalogue commands stay in the common session"
+    );
+    assert_eq!(gpu2.transfers().readback_bytes, 0);
     app.player.runtime.stop();
 }

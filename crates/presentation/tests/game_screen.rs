@@ -1854,3 +1854,6 @@ mod restart;
 
 #[path = "game_screen/hud.rs"]
 mod hud;
+
+#[path = "game_screen/catalog.rs"]
+mod catalog;

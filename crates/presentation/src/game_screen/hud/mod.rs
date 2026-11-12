@@ -1,7 +1,11 @@
 //! Retained floating HUDs have identities independent of authored screen widgets.
+mod card;
+mod command;
+mod detail;
 mod input;
 pub(in crate::game_screen) mod model;
 mod paint;
+mod sources;
 mod style;
 use super::*;
 use model::{HudState, PanelFrame};
@@ -10,9 +14,23 @@ use theframework::text::TextLayout;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum HudPanelId {
-    Container { source: ItemRef, incarnation: u64 },
-    Inventory { entity: u32, incarnation: u64 },
-    Equipment { entity: u32, incarnation: u64 },
+    Container {
+        source: ItemRef,
+        incarnation: u64,
+    },
+    Inventory {
+        entity: u32,
+        incarnation: u64,
+    },
+    Equipment {
+        entity: u32,
+        incarnation: u64,
+    },
+    Catalog {
+        kind: screen_model::CatalogPanelKind,
+        entity: Option<u32>,
+        incarnation: u64,
+    },
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum HudPart {
@@ -26,6 +44,10 @@ pub enum HudPart {
     SortPopup,
     PreviousPage,
     NextPage,
+    CatalogEntry(usize),
+    CatalogTab(usize),
+    Assign,
+    Detail,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct HudControlId {
@@ -34,6 +56,11 @@ pub struct HudControlId {
 }
 struct PreparedHud {
     frame: PanelFrame,
+    icons: FxHashMap<(usize, u8), Arc<PreparedContent>>,
+    card_names: FxHashMap<usize, Arc<TextLayout>>,
+    cooldowns: FxHashMap<usize, (String, Arc<TextLayout>)>,
+    skin: sources::PreparedSkin,
+    detail: Option<detail::PreparedDetail>,
     title_key: (String, String, u32, GameFontVersion),
     labels: Vec<(model::PanelLabel, Arc<TextLayout>)>,
     avatar: Option<Arc<PreparedContent>>,
@@ -48,10 +75,29 @@ pub(super) struct Hud {
     capture: Option<input::HudCapture>,
     focused: Option<HudControlId>,
     pointer_present: bool,
+    command_capture: Option<command::CommandCapture>,
+    pending_command: Option<command::CommandReceipt>,
 }
 impl Hud {
+    pub(super) fn cancel_commands(&mut self) {
+        self.pending_command = None;
+        if let Some(capture) = &mut self.command_capture {
+            capture.cancelled = true;
+        }
+    }
     pub(super) fn select_item(&mut self, id: HudControlId, item: u32) {
         self.state.select_item(id, item);
+    }
+    fn scroll_detail(&mut self, id: HudPanelId, delta: f32) {
+        if let Some(detail) = self
+            .prepared
+            .iter()
+            .find(|panel| panel.frame.id == id)
+            .and_then(|panel| panel.detail.as_ref())
+        {
+            self.state
+                .scroll_catalog_detail(id, delta, detail.max_scroll);
+        }
     }
     pub(super) fn popup_open(&self) -> bool {
         self.state.popup_open()
@@ -100,13 +146,23 @@ impl Hud {
         {
             self.focused = None;
         }
+        if let Some(capture) = &mut self.command_capture {
+            capture.cancelled |= !frames.iter().any(|frame| {
+                frame.id == capture.receipt.control.panel
+                    && frame.controls().iter().any(|(id, bounds)| {
+                        *id == capture.receipt.control && *bounds == capture.receipt.bounds
+                    })
+                    && frame.action(capture.receipt.control.part).as_ref()
+                        == Some(&capture.receipt.action)
+            });
+        }
         let old_panels = std::mem::take(&mut self.prepared);
         for frame in frames {
             self.state.retain_placement(&frame);
             let old = old_panels.iter().find(|old| old.frame.id == frame.id);
             let title_key = (
                 frame.title.clone(),
-                frame.style.font.clone(),
+                frame.style.title_font.clone(),
                 frame.style.title_size.to_bits(),
                 fonts.version(),
             );
@@ -116,7 +172,7 @@ impl Hud {
                 .unwrap_or_else(|| {
                     Arc::new(fonts.text.layout(
                         &frame.title,
-                        &frame.style.font,
+                        &frame.style.title_font,
                         frame.style.title_size,
                         None,
                     ))
@@ -213,7 +269,30 @@ impl Hud {
             } else {
                 None
             };
+            let (icons, card_names, cooldowns, skin) = sources::prepare(
+                world,
+                elements,
+                &frame,
+                old,
+                fonts,
+                sources,
+                revision,
+                animation_frame,
+            )?;
+            let detail = frame.detail.as_ref().map(|spec| {
+                detail::prepare(
+                    spec,
+                    &frame.style,
+                    old.and_then(|old| old.detail.as_ref()),
+                    fonts,
+                )
+            });
             self.prepared.push(PreparedHud {
+                icons,
+                card_names,
+                cooldowns,
+                skin,
+                detail,
                 frame,
                 title_key,
                 title,
@@ -245,14 +324,27 @@ impl Hud {
         self.focused = None;
         self.capture = None;
         self.pointer_present = false;
+        self.command_capture = None;
+        self.pending_command = None;
     }
     pub(super) fn clear_focus(&mut self) {
         self.focused = None;
+        self.pending_command = None;
+        if let Some(capture) = &mut self.command_capture {
+            capture.cancelled = true;
+        }
         if let Some(capture) = &mut self.capture {
             capture.cancelled = true;
         }
     }
     pub(super) fn owner(&self) -> Option<ScreenCapture> {
+        if let Some(capture) = &self.command_capture {
+            return Some(if capture.cancelled {
+                ScreenCapture::Cancelled
+            } else {
+                ScreenCapture::Hud(capture.receipt.control)
+            });
+        }
         self.capture
             .as_ref()
             .map(|capture| {

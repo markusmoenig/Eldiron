@@ -45,7 +45,7 @@ fn layout(session: &GameSession, screen: &GameScreenController) -> hud::model::P
 fn center(rect: Rect) -> [f32; 2] {
     [rect.x + rect.width / 2., rect.y + rect.height / 2.]
 }
-fn dispatch(
+pub(super) fn dispatch(
     session: &GameSession,
     screen: &mut GameScreenController,
     fonts: &mut GameFonts,

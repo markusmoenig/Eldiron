@@ -33,6 +33,14 @@ pub struct ContentArtwork {
 
 #[derive(Clone, Copy)]
 pub enum ContentRecipe<'a> {
+    CommandIcon {
+        command: &'a str,
+        state: super::widget::ButtonVisualState,
+        frame: usize,
+    },
+    Texture {
+        texture: &'a Texture,
+    },
     Portrait {
         entity: &'a Entity,
         frame: usize,
@@ -113,6 +121,20 @@ impl ContentRecipe<'_> {
                 }
                 // Some procedural equipment policies inspect the inventory too.
                 crate::fingerprint::hash_character_items(&mut h, entity);
+            }
+            Self::CommandIcon {
+                command,
+                state,
+                frame,
+            } => {
+                4u8.hash(&mut h);
+                command.hash(&mut h);
+                (state as u8).hash(&mut h);
+                frame.hash(&mut h);
+            }
+            Self::Texture { texture } => {
+                5u8.hash(&mut h);
+                (texture as *const Texture as usize).hash(&mut h);
             }
             Self::Item { item, frame } => {
                 2u8.hash(&mut h);

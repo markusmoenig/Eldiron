@@ -610,3 +610,87 @@ fn resolved_animation_phases_keep_cpu_leases_and_gpu_images_across_advancing_clo
     assert_eq!(gpu.transfers().capture_requests, 0);
     assert_eq!(gpu.transfers().readback_bytes, 0);
 }
+
+#[test]
+fn command_icon_phases_and_visual_fallbacks_share_source_leases_without_absolute_frame_churn() {
+    use rusterix::client::widget::ButtonVisualState;
+    let mut assets = Assets::default();
+    let tile = Tile::from_textures(vec![
+        Texture::from_color([20, 180, 240, 255]),
+        Texture::from_color([240, 80, 20, 255]),
+    ]);
+    let id = tile.id;
+    assets.tiles.insert(id, tile);
+    assets.rules =
+        format!("[actions.pulse]\nkind='attack'\nname='Pulse'\n[actions.pulse.ui]\nicon='{id}'");
+    let mut sources = ContentSources::default();
+    let mut retained = Vec::new();
+    for frame in [0, 1, 2, 3, 100, 101] {
+        let source = sources
+            .prepare(
+                ContentRecipe::CommandIcon {
+                    command: "rules.pulse",
+                    state: ButtonVisualState::Normal,
+                    frame,
+                },
+                &assets,
+                ContentRevision(1),
+            )
+            .unwrap()
+            .unwrap();
+        if retained.len() < 2 {
+            retained.push(source.clone());
+        }
+        assert!(Arc::ptr_eq(&source, &retained[frame % 2]));
+    }
+    for state in [
+        ButtonVisualState::Hover,
+        ButtonVisualState::Pressed,
+        ButtonVisualState::Selected,
+        ButtonVisualState::Disabled,
+    ] {
+        let source = sources
+            .prepare(
+                ContentRecipe::CommandIcon {
+                    command: "rules.pulse",
+                    state,
+                    frame: 100,
+                },
+                &assets,
+                ContentRevision(1),
+            )
+            .unwrap()
+            .unwrap();
+        assert!(Arc::ptr_eq(&source, &retained[0]));
+    }
+    assert_eq!((sources.builds(), sources.len()), (2, 2));
+    let texture = &assets.tiles[&id].textures[0];
+    let direct = sources
+        .prepare(
+            ContentRecipe::Texture { texture },
+            &assets,
+            ContentRevision(1),
+        )
+        .unwrap()
+        .unwrap();
+    assert!(
+        Arc::ptr_eq(&direct, &retained[0]),
+        "a shared source texture has one retained lease across UI recipes"
+    );
+    assets.tiles.get_mut(&id).unwrap().textures[0].data[..4].copy_from_slice(&[1, 2, 3, 255]);
+    let changed = sources
+        .prepare(
+            ContentRecipe::CommandIcon {
+                command: "rules.pulse",
+                state: ButtonVisualState::Normal,
+                frame: 0,
+            },
+            &assets,
+            ContentRevision(2),
+        )
+        .unwrap()
+        .unwrap();
+    assert!(!Arc::ptr_eq(&changed, &retained[0]));
+    assert_eq!(changed.image().pixels(), &[1, 2, 3, 255]);
+    assert_eq!(retained[0].image().pixels(), &[20, 180, 240, 255]);
+}

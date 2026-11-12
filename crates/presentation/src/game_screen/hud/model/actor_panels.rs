@@ -21,6 +21,7 @@ impl HudState {
         self.close();
         self.inventory = None;
         self.equipment = None;
+        self.catalog = None;
         self.sort_open = false;
         self.page = 0;
         self.selected = None;
@@ -35,9 +36,13 @@ impl HudState {
                 self.selected = None;
             }
             HudPanelId::Equipment { .. } => self.equipment = None,
+            HudPanelId::Catalog { .. } => self.catalog = None,
         }
     }
     pub fn toggle(&mut self, command: &str) -> bool {
+        if self.toggle_catalog(command) {
+            return true;
+        }
         let inventory = match command.trim().to_ascii_lowercase().as_str() {
             "inventory" | "items" | "bag" => true,
             "equipment" | "gear" | "character" => false,
@@ -74,6 +79,9 @@ impl HudState {
         self.sort_open = false;
     }
     pub fn activate(&mut self, action: &HudAction, elements: &mut ScreenElements) {
+        if self.activate_catalog(action) {
+            return;
+        }
         if self.inventory.is_none() {
             return;
         }
@@ -90,6 +98,7 @@ impl HudState {
             }
             HudAction::ToggleSort => self.sort_open = !self.sort_open,
             HudAction::Page(page) => self.page = *page,
+            _ => return,
         }
         if let Some(open) = &mut self.inventory {
             open.scroll = [0.; 2];
@@ -107,6 +116,9 @@ impl HudState {
             || self.scope != Some((world.session_id, map.id))
         {
             return frames;
+        }
+        if let Some(frame) = self.catalog_frame(world, elements) {
+            frames.push(frame);
         }
         let Some(actor) = screen_model::resolve_party_entity(map, None) else {
             return frames;
@@ -463,11 +475,11 @@ impl HudState {
         frame
     }
 }
-fn clipped(bounds: Rect, clip: Rect) -> Option<Rect> {
+pub(super) fn clipped(bounds: Rect, clip: Rect) -> Option<Rect> {
     let hit = rect(bounds).intersection(rect(clip));
     (hit.width > 0. && hit.height > 0.).then(|| Rect::new(hit.x, hit.y, hit.width, hit.height))
 }
-fn actor_frame(
+pub(super) fn actor_frame(
     id: HudPanelId,
     raw: Rect,
     title_height: f32,
@@ -513,11 +525,14 @@ fn actor_frame(
         slots: Vec::new(),
         scroll: [0.; 2],
         max_scroll: [0.; 2],
+        cards: Vec::new(),
+        detail: None,
+        catalog_skin: None,
         position: Vec2::new(bounds.x.round() as i32, bounds.y.round() as i32),
     }
 }
 impl PanelFrame {
-    fn button(
+    pub(super) fn button(
         &mut self,
         part: HudPart,
         bounds: Rect,

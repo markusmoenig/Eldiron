@@ -25,6 +25,7 @@ pub struct PreparedContent {
     key: String,
     pub fit: SourceFit,
     pub avatar: bool,
+    /// Nontransparent bounds: [min_x, min_y, max_x_exclusive, max_y_exclusive].
     pub alpha_bounds: Option<[u32; 4]>,
 }
 impl PreparedContent {

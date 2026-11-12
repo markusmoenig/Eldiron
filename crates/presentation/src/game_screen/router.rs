@@ -96,6 +96,9 @@ impl GameScreenController {
         if let Some(response) = self.captured_item_input(world, None, event) {
             return Ok(response);
         }
+        if let Some(response) = self.hud_command_input(world, fonts, event)? {
+            return Ok(response);
+        }
         if let Some(response) = self.hud_input(world, fonts, event) {
             return Ok(response);
         }

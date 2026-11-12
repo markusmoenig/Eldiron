@@ -105,6 +105,13 @@ impl<'e> ContentRecipe<'e> {
         'e: 'a,
     {
         let texture = match *self {
+            Self::CommandIcon {
+                command,
+                state,
+                frame,
+            } => Widget::command_icon_texture(assets, Some(command), state, frame)
+                .map(TexturePlan::Texture),
+            Self::Texture { texture } => Some(TexturePlan::Texture(texture)),
             Self::Portrait { entity, frame } => Widget::portrait_tile_source(entity, assets)
                 .and_then(|source| TexturePlan::tile(source, frame)),
             Self::Profile {
@@ -124,6 +131,16 @@ impl<'e> ContentRecipe<'e> {
             };
         }
         let (artwork, fingerprint) = match *self {
+            Self::CommandIcon { command, state, .. } => (
+                Artwork::Missing,
+                Self::CommandIcon {
+                    command,
+                    state,
+                    frame: 0,
+                }
+                .fingerprint(),
+            ),
+            Self::Texture { .. } => unreachable!("borrowed source textures resolve above"),
             Self::Item { item, .. } => (
                 Artwork::Item(item),
                 Self::Item { item, frame: 0 }.fingerprint(),

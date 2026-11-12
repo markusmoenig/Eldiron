@@ -62,6 +62,12 @@ struct DropTarget {
     rect: Rect,
     destination: rusterix::item_interaction::ItemDestination,
 }
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct CommandTarget {
+    pub button: u32,
+    pub slot: String,
+    pub rect: Rect,
+}
 struct Frame {
     binding: Binding,
     views: Vec<ViewFrame>,
@@ -73,6 +79,7 @@ struct Frame {
     immediate: bool,
     items: Vec<item_pointer::ItemSlot>,
     controls: Vec<UiControl>,
+    commands: Vec<CommandTarget>,
 }
 #[derive(Clone)]
 struct UiControl {
@@ -278,6 +285,7 @@ impl GameScreenController {
         item_pointer::dragged(self, world)
     }
     pub fn invalidate_world_input(&mut self) {
+        self.hud.cancel_commands();
         self.world.invalidate();
         self.world.pointer = None;
         self.hovered_item = None;
@@ -544,6 +552,7 @@ impl GameScreenController {
                     immediate,
                     items: self.item_slots(world),
                     controls: self.pointer_controls(world),
+                    commands: self.command_targets(world),
                 },
             )
         } else {
@@ -580,6 +589,7 @@ impl GameScreenController {
             .map(|_| self.item_slots(world))
             .unwrap_or_default();
         let controls = self.pointer_controls(world);
+        let commands = self.command_targets(world);
         let frame = self.world.staged.as_mut().unwrap();
         frame.occluders = occluders;
         frame.drops = drops;
@@ -587,6 +597,7 @@ impl GameScreenController {
         frame.author_modal = author_modal;
         frame.items = items;
         frame.controls = controls;
+        frame.commands = commands;
     }
     fn frame_matches(&self, world: &RuntimeView<'_>) -> bool {
         world.state == ServerState::Running && self.ui_frame_matches(world)
@@ -1120,5 +1131,78 @@ impl GameScreenController {
     }
     pub(super) fn hud_capture_valid(&self, world: &RuntimeView<'_>, binding: Binding) -> bool {
         self.hud_binding(world) == Some(binding) && !self.author_modal()
+    }
+}
+
+impl GameScreenController {
+    fn command_targets(&self, _world: &RuntimeView<'_>) -> Vec<CommandTarget> {
+        screen_model::ordered_button_ids(&self.elements.button_widgets)
+            .into_iter()
+            .filter_map(|id| {
+                let widget = &self.elements.button_widgets[&id];
+                if screen_model::widget_name_is_hidden(&widget.name, &self.elements.widgets_to_hide)
+                    || !visible_control_rect(&self.elements, widget.rect)
+                {
+                    return None;
+                }
+                let slot = widget.command_slot.as_deref()?.trim();
+                (!slot.is_empty()).then(|| CommandTarget {
+                    button: id,
+                    slot: slot.to_string(),
+                    rect: widget.rect,
+                })
+            })
+            .collect()
+    }
+    pub(super) fn hud_displayed_immediate(&self, world: &RuntimeView<'_>) -> Option<bool> {
+        self.ui_frame_matches(world)
+            .then(|| self.world.displayed.as_ref().unwrap().immediate)
+    }
+    pub(super) fn command_target_at(
+        &self,
+        world: &RuntimeView<'_>,
+        point: [f32; 2],
+    ) -> Option<CommandTarget> {
+        if !self.ui_frame_matches(world) || self.pointer_modal() {
+            return None;
+        }
+        let frame = self.world.displayed.as_ref()?;
+        let owner = frame
+            .controls
+            .iter()
+            .rev()
+            .find(|control| control.rect.contains(point))?
+            .owner?;
+        let DropOwner::Button(button) = owner else {
+            return None;
+        };
+        let old = frame
+            .commands
+            .iter()
+            .find(|target| target.button == button && rect(target.rect).contains(point))?;
+        let live = self
+            .command_targets(world)
+            .into_iter()
+            .find(|target| target.button == button)?;
+        if live != *old
+            || self
+                .pointer_controls(world)
+                .iter()
+                .rev()
+                .find(|control| control.rect.contains(point))
+                .and_then(|control| control.owner)
+                != Some(owner)
+        {
+            return None;
+        }
+        Some(live)
+    }
+    pub(super) fn command_target_valid(
+        &self,
+        world: &RuntimeView<'_>,
+        target: &CommandTarget,
+        point: [f32; 2],
+    ) -> bool {
+        self.command_target_at(world, point).as_ref() == Some(target)
     }
 }
