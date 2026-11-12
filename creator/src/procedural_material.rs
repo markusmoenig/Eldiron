@@ -23,6 +23,8 @@ mod model_source;
 pub(crate) mod palette;
 pub(crate) mod pixel_style;
 mod row_inputs;
+#[cfg(feature = "native-render")]
+mod native_preview;
 pub(crate) mod starters;
 #[cfg(test)]
 mod woodland_demo;

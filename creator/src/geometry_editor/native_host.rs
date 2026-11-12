@@ -197,6 +197,14 @@ impl GeometryEditor {
             }
             return Ok(None);
         }
+        if ui
+            .get_widget(PREVIEW)
+            .is_none_or(|view| view.dim().width < 16 || view.dim().height < 16)
+        {
+            self.invalidate_gpu_preview(ui);
+            self.native.drain(images);
+            return Ok(None);
+        }
         let use_baked = self.camera == 4 && self.native.baked.is_some();
         let (epoch, revision) = if use_baked {
             let request = self.native.baked.as_ref().unwrap();
@@ -287,6 +295,9 @@ impl GeometryEditor {
                 self.native.waiting = true;
                 return Ok(self.native_preview_fallback_token());
             };
+            // A completed compatible animation frame owns its own pose and
+            // revision. Schedule catch-up if a newer request is still waiting.
+            self.native.waiting = frame.revision != request.job.revision;
             let mut scene = self.scene.clone();
             scene.projection = Some(frame.projection.clone());
             scene.posed = frame.posed.clone();
@@ -1030,6 +1041,27 @@ mod tests {
         );
         assert!(replacement.get(old_image).is_none());
         assert_eq!(serde_json::to_value(&project).unwrap(), original);
+        let dim = *ui.get_widget(PREVIEW).unwrap().dim();
+        let visible_image = editor.native.displayed.as_ref().unwrap().image.unwrap();
+        ui.get_widget(PREVIEW)
+            .unwrap()
+            .set_dim(TheDim::zero(), &mut ctx);
+        assert!(
+            editor
+                .prepare_gpu_preview(&mut ui, &mut ctx, &mut replacement)
+                .unwrap()
+                .is_none()
+        );
+        assert!(!editor.presented_gpu_preview(rebuilt));
+        assert!(!editor.native_pick_ready(&project));
+        assert!(replacement.get(visible_image).is_none());
+        ui.get_widget(PREVIEW).unwrap().set_dim(dim, &mut ctx);
+        let visible = editor
+            .prepare_gpu_preview(&mut ui, &mut ctx, &mut replacement)
+            .unwrap()
+            .unwrap();
+        assert!(editor.presented_gpu_preview(visible));
+        assert!(editor.native_pick_ready(&project));
         let mut changed = Document::load(&project.procedural_appearances[&id]).unwrap();
         changed.label = "External edit".into();
         project

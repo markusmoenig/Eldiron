@@ -265,7 +265,10 @@ impl AppearanceWorkspace {
         if !self.native.enabled {
             return None;
         }
-        if !self.visible(ui) || self.owner.is_none() {
+        let drawable = ui
+            .get_render_view(VIEW)
+            .is_some_and(|view| view.dim().is_valid());
+        if !self.visible(ui) || self.owner.is_none() || !drawable {
             self.native.latest = None;
             self.native.retire_gpu();
             self.native.drain(images);
@@ -729,6 +732,27 @@ mod tests {
             .prepare_gpu_preview(&mut ui, &mut ctx, &mut replacement)
             .unwrap();
         assert!(host.presented_gpu_preview(reopened, &mut ui, &mut ctx));
+        let image = host.native.displayed.as_ref().unwrap().image;
+        let dim = *ui.get_render_view(VIEW).unwrap().dim();
+        ui.get_render_view(VIEW)
+            .unwrap()
+            .set_dim(TheDim::zero(), &mut ctx);
+        assert!(
+            host.prepare_gpu_preview(&mut ui, &mut ctx, &mut replacement)
+                .is_none(),
+            "a zero-sized view cannot acknowledge unpainted output"
+        );
+        assert!(replacement.get(image).is_none());
+        assert!(Arc::ptr_eq(
+            host.native.cpu.resources.as_ref().unwrap(),
+            &source_cpu
+        ));
+        ui.get_render_view(VIEW).unwrap().set_dim(dim, &mut ctx);
+        assert!(host.update(&project, &mut ui, &mut ctx, 0));
+        let visible = host
+            .prepare_gpu_preview(&mut ui, &mut ctx, &mut replacement)
+            .unwrap();
+        assert!(host.presented_gpu_preview(visible, &mut ui, &mut ctx));
         let image = host.native.displayed.as_ref().unwrap().image;
         host.reset(&mut ui, &mut ctx);
         assert!(host.native.enabled);

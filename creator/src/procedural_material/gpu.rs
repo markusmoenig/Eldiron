@@ -602,7 +602,7 @@ pub(crate) fn render_grid_time(
 }
 /// Evaluate on a shared surface grid, then enlarge every channel with nearest
 /// sampling. The logical footprint reaches MaterialZ before masks/filtering run.
-fn render_styled_domain_time(
+pub(super) fn render_styled_domain_time(
     runtime: &MaterialZ,
     instance: &MaterialInstance,
     device: &wgpu::Device,

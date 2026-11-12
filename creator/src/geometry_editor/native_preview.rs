@@ -65,7 +65,11 @@ impl NativePreview {
             return Err("Geometry preview device was lost".into());
         }
         let key = (request.epoch, request.job.revision, density.to_bits());
-        if self.pending.as_ref().is_some_and(|(old, _)| *old != key) {
+        if self
+            .pending
+            .as_ref()
+            .is_some_and(|(old, _)| old.0 != key.0 || old.2 != key.2)
+        {
             self.pending = None;
         }
         if self.pending.is_some() {
@@ -316,6 +320,47 @@ mod tests {
             .unwrap()
             .pixels()
             .to_vec()
+    }
+    #[test]
+    #[ignore = "requires actual native GPU"]
+    fn native_geometry_pending_materials_publish_compatible_frames_when_animation_advances() {
+        let context = pollster::block_on(GpuContext::headless()).unwrap();
+        let mut preview = NativePreview::new(context.clone());
+        let mut request = request(true);
+        assert!(preview.render(&request, 1.).unwrap().is_none());
+        context
+            .device
+            .poll(wgpu::PollType::Wait {
+                submission_index: None,
+                timeout: Some(std::time::Duration::from_secs(30)),
+            })
+            .unwrap();
+        request.job.revision += 1;
+        request.job.yaw = 43.;
+        request.job.surface_seconds = 1.5;
+        let completed = preview
+            .render(&request, 1.)
+            .unwrap()
+            .expect("a newer animation request must not discard a completed compatible output");
+        assert_eq!(completed.revision, 1);
+        assert_eq!(
+            completed.projection.project([0.3, 0.1, 0.2]),
+            request.projection.project([0.3, 0.1, 0.2])
+        );
+        assert!(preview.render(&request, 1.).unwrap().is_none());
+        context
+            .device
+            .poll(wgpu::PollType::Wait {
+                submission_index: None,
+                timeout: Some(std::time::Duration::from_secs(30)),
+            })
+            .unwrap();
+        let current = preview.render(&request, 1.).unwrap().unwrap();
+        assert_eq!(current.revision, 2);
+        assert_ne!(
+            current.projection.project([0.3, 0.1, 0.2]),
+            completed.projection.project([0.3, 0.1, 0.2])
+        );
     }
     #[test]
     #[ignore = "requires actual native GPU"]

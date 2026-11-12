@@ -2248,3 +2248,78 @@ color readback. The reusable reader's status counters do not change project/FFI
 serialization or color-capture accounting. Continue directly with native material
 map evaluation/display and explicit bake separation; this foundation checkpoint
 is not acceptance of the still-unconverted interactive material producer.
+
+## Direct material GPU producer (after 3282eb5c, in progress)
+
+New `procedural_material/native_preview.rs`/`.wgsl` evaluates MaterialZ maps on
+the injected device and performs preview byte quantization, channel selection,
+384px source sampling, pixel-density grid sampling, checker/alpha and viewport
+resampling on the GPU. A source's four-byte status must validate asynchronously
+before color output publication; its independent mailbox cancels on superseding
+or dropping the evaluation. Outputs use immutable, bounded three-image leases.
+Channel changes reuse evaluated float maps. No interactive map/viewport readback
+is required by this producer.
+
+First actual GPU matrix passes all **25 channel/style/domain/time comparisons**
+against the existing independent readback reference, byte-for-byte (1.56 s,
+`/private/tmp/eldiron-native-material-maps-correct-grammar.log`). It also checks
+compositor-only display, metadata counts, output backpressure and density. The
+initial test fixture used unsupported output-constant syntax/kernel names and
+was corrected to the repository's actual `default ... to`/Perlin Noise/Loop Flow
+grammar; no production behavior was waived. An expanded matrix adds narrow/wide
+viewports, shifted snapped domains, cancellation, actual device replacement and
+pending-owner teardown (`...native-material-maps-expanded.log`, in flight).
+
+This producer is **not connected to the material panel yet**. Its unused-method
+warnings reflect that pending integration. Controller/root/selection/input/
+material target resolution, animation metadata, acknowledgements, error retention,
+reset/device cleanup, explicit authored bake/thumbnail separation, full material
+regressions and common Creator gates remain next. The reference helper's
+`render_styled_domain_time` visibility is widened only within its parent module
+for the independent comparison. This slice is uncommitted; full M5/M7/M9 and
+whole-goal acceptance remain open.
+
+Low-FPS correctness review found a shared async publication hazard: animation
+can advance between submitting a material status and observing its completion.
+Dropping a completed compatible output on every newer timestamp could starve the
+view indefinitely at low host FPS. Native material outputs now carry the actual
+evaluated time and first consume a completed compatible source. Geometry's
+already submitted mesh output likewise retains its own revision/pose/projection
+until consumed; the host schedules catch-up for the newer request. Source/layout/
+device changes still invalidate incompatibly scoped results. Expanded GPU checks
+are running (`...native-material-expanded-final.log`,
+`...native-geometry-compatible-animation.log`). An intermediate expanded fixture
+needed its compiled reference made mutable and its old image lease released
+before testing another bounded output; do not waive backpressure failures.
+
+Zero-sized auxiliary view guards are also being added: they must retire GPU
+receipts and cannot acknowledge content omitted by widget painting. Appearance
+keeps CPU effect/source state and forces a new request when the view returns.
+This work remains uncommitted alongside the unintegrated material producer.
+
+Expanded producer/correctness verification passes: all **40 material channel/
+style/domain/time comparisons** match the independent CPU/readback reference
+byte-for-byte, including tall/narrow and wide viewports and a shifted snapped
+domain. Actual status cancellation, device replacement, compatible older-time
+publication/catch-up, lease backpressure, density, compositor-only display and
+pending drop also pass (1.88 s,
+`/private/tmp/eldiron-native-material-expanded-final.log`). Native material frame
+metadata carries the actual evaluated time, not the latest requested clock.
+
+All **8 actual native geometry tests pass**, 4.28 s, including the new compatible
+material/pose revision and zero-sized receipt/lease reconstruction cases:
+`/private/tmp/eldiron-native-geometry-zero-size-final.log`. Appearance's expanded
+host recovery/painted-status/paused-reopen/zero-size case passes, 2.94 s:
+`/private/tmp/eldiron-native-preview-zero-size-recovery.log`. Source/inspector/
+layout/device changes keep their invalidation guards. A completed compatible
+geometry frame retains its projection/pose and schedules the newer request.
+Zero-sized views emit no receipt for omitted paint and retain CPU state for return.
+
+These are verified producer/failure/lifecycle changes, **not material-panel
+integration**. The direct material producer remains unused by the panel and its
+source/operation/input/material/animation/controller integration is the immediate
+next step. Existing CPU graph thumbnails remain an explicit migration adapter;
+separate native display from required authored tile/surface-page bake readbacks,
+inject the shared context into those bake jobs, and stop selection/channel/resize
+changes from requesting CPU display maps. Preserve Worker::new and the independent
+legacy reference for comparison. Full M0–M9 acceptance remains open.
