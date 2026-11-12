@@ -153,6 +153,15 @@ fn native_container_routes_one_real_server_transfer_and_keeps_its_owner_through_
     render(&mut app, &mut host, &mut images, &mut renderer, &target);
     app.presented(&mut host);
     let session_id = app.player.runtime.view().session_id;
+    let source_builds = app.screen.source_builds();
+    app.navigate("Setup").unwrap();
+    render(&mut app, &mut host, &mut images, &mut renderer, &target);
+    app.presented(&mut host);
+    assert_eq!(
+        app.screen.source_builds(),
+        source_builds,
+        "navigation retains the project's HUD source cache and missing-source memoization"
+    );
     pointer(&mut app, &mut host, point, true);
     let original = match app.screen.control_capture().unwrap() {
         ScreenCapture::Hud(id) => id,

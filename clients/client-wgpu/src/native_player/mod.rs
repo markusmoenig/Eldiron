@@ -177,19 +177,22 @@ impl PlayerApplication {
             self.screen.elements.layout,
             self.screen.elements.ui_state.clone(),
         )?;
-        next.prepare(
+        next.retain_session_presentation_from(&mut self.screen, &mut self.fonts);
+        if let Err(error) = next.prepare(
             &world,
             &mut self.fonts,
             self.revision,
             self.screen.animation_frame,
-        )?;
+        ) {
+            self.screen
+                .retain_session_presentation_from(&mut next, &mut self.fonts);
+            let stop = self.player.cancel_controls();
+            self.player.submit_action(stop)?;
+            return Err(error);
+        }
         // Only identities belonging to the last GPU frame need delayed cleanup.
         // Repeated navigation while occluded cannot retain whole old screens.
         self.retired_views.extend(self.screen.detach_game_views());
-        next.speech = std::mem::take(&mut self.screen.speech);
-        next.speech.invalidate_geometry();
-        next.world_texts = std::mem::take(&mut self.screen.world_texts);
-        next.world_texts.invalidate_geometry();
         self.screen = next;
         self.pending_clipboard = None;
         let stop = self.player.cancel_controls();

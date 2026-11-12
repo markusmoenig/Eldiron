@@ -81,6 +81,21 @@ fn key(key: PhysicalKey, pressed: bool, repeat: bool) -> InputEvent {
         repeat,
     }
 }
+fn focus_first_slot(
+    session: &GameSession,
+    screen: &mut GameScreenController,
+    fonts: &mut GameFonts,
+) {
+    let frame = layout(session, screen);
+    let point = [frame.rect.x + 3., frame.rect.y + 5.];
+    dispatch(session, screen, fonts, button(point, true));
+    dispatch(session, screen, fonts, button(point, false));
+    dispatch(session, screen, fonts, key(PhysicalKey::Tab, true, false));
+    dispatch(session, screen, fonts, key(PhysicalKey::Tab, false, false));
+    assert!(
+        matches!(screen.control_capture(), Some(ScreenCapture::Hud(id)) if id.part == HudPart::Slot(0))
+    );
+}
 #[test]
 fn native_container_waits_for_presentation_and_commits_one_addressed_child_click() {
     let (session, mut screen, mut fonts, view) = fixture();
@@ -250,8 +265,7 @@ fn container_keyboard_uses_the_original_receipt_and_closes_without_world_fallthr
     let (mut session, mut screen, mut fonts, view) = fixture();
     open(&session, &mut screen);
     ready(&session, &mut screen, &mut fonts, view);
-    let frame = layout(&session, &screen);
-    screen.hud.focused = Some(frame.control(HudPart::Slot(0)));
+    focus_first_slot(&session, &mut screen, &mut fonts);
     dispatch(
         &session,
         &mut screen,
@@ -327,7 +341,7 @@ fn overflow_scroll_stays_virtual_and_uses_absolute_slot_addresses() {
     ready(&session, &mut screen, &mut fonts, view);
     let frame = layout(&session, &screen);
     assert!(frame.slots.len() <= 4);
-    screen.hud.focused = Some(frame.control(HudPart::Body));
+    focus_first_slot(&session, &mut screen, &mut fonts);
     dispatch(
         &session,
         &mut screen,
@@ -417,7 +431,7 @@ fn leaving_hud_focus_for_a_world_press_restores_world_ownership_and_modified_key
     open(&session, &mut screen);
     ready(&session, &mut screen, &mut fonts, view);
     let frame = layout(&session, &screen);
-    screen.hud.focused = Some(frame.control(HudPart::Slot(0)));
+    focus_first_slot(&session, &mut screen, &mut fonts);
     dispatch(
         &session,
         &mut screen,
@@ -477,4 +491,94 @@ fn small_viewports_clip_every_interactive_container_control_to_its_painted_panel
         assert!(control.x + control.width <= frame.rect.x + frame.rect.width);
         assert!(control.y + control.height <= frame.rect.y + frame.rect.height);
     }
+}
+
+#[test]
+fn screen_handoff_retains_panel_sources_and_positions_but_revokes_old_input_and_rejects_other_sessions()
+ {
+    let (session, mut screen, mut fonts, view) = fixture();
+    open(&session, &mut screen);
+    ready(&session, &mut screen, &mut fonts, view);
+    let before = layout(&session, &screen);
+    let point = center(before.slots[0].hit);
+    dispatch(&session, &mut screen, &mut fonts, button(point, true));
+    let builds = screen.source_builds();
+    let mut next = GameScreenController::region_fallback(
+        &session.view(),
+        screen.elements.layout,
+        Default::default(),
+    )
+    .unwrap();
+    next.retain_session_presentation_from(&mut screen, &mut fonts);
+    let next_view = *next.elements.game_widgets.keys().next().unwrap();
+    ready(&session, &mut next, &mut fonts, next_view);
+    assert_eq!(next.source_builds(), builds);
+    assert_eq!(layout(&session, &next).id, before.id);
+    assert_eq!(layout(&session, &next).rect, before.rect);
+    assert!(
+        dispatch(&session, &mut next, &mut fonts, button(point, false))
+            .effects
+            .is_empty()
+    );
+    dispatch(&session, &mut next, &mut fonts, button(point, true));
+    assert_eq!(
+        dispatch(&session, &mut next, &mut fonts, button(point, false))
+            .effects
+            .len(),
+        1
+    );
+    let (foreign, mut other, mut other_fonts, foreign_view) = fixture();
+    other.retain_session_presentation_from(&mut next, &mut other_fonts);
+    ready(&foreign, &mut other, &mut other_fonts, foreign_view);
+    assert!(
+        other
+            .hud
+            .current(&foreign.view(), other.elements.layout.viewport)
+            .is_none()
+    );
+    assert!(
+        next.hud
+            .current(&session.view(), next.elements.layout.viewport)
+            .is_some()
+    );
+}
+
+#[test]
+fn rejected_screen_preparation_can_return_presentation_owners_without_losing_panel_state() {
+    let (session, mut screen, mut fonts, view) = fixture();
+    open(&session, &mut screen);
+    ready(&session, &mut screen, &mut fonts, view);
+    let before = layout(&session, &screen);
+    let builds = screen.source_builds();
+    let mut staged = GameScreenController::region_fallback(
+        &session.view(),
+        screen.elements.layout,
+        Default::default(),
+    )
+    .unwrap();
+    staged.retain_session_presentation_from(&mut screen, &mut fonts);
+    // This is the ownership return path used by the host on preparation error.
+    screen.retain_session_presentation_from(&mut staged, &mut fonts);
+    assert_eq!(layout(&session, &screen).id, before.id);
+    assert_eq!(layout(&session, &screen).rect, before.rect);
+    assert_eq!(screen.source_builds(), builds);
+    assert!(
+        screen.world.displayed.is_none(),
+        "a returned owner needs a fresh presentation acknowledgement"
+    );
+    assert!(
+        staged
+            .hud
+            .current(&session.view(), staged.elements.layout.viewport)
+            .is_none()
+    );
+    ready(&session, &mut screen, &mut fonts, view);
+    let point = center(before.slots[0].hit);
+    dispatch(&session, &mut screen, &mut fonts, button(point, true));
+    assert_eq!(
+        dispatch(&session, &mut screen, &mut fonts, button(point, false))
+            .effects
+            .len(),
+        1
+    );
 }

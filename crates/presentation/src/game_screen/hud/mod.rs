@@ -35,7 +35,7 @@ pub(super) struct Hud {
     state: HudState,
     prepared: Option<PreparedHud>,
     capture: Option<input::HudCapture>,
-    pub(in crate::game_screen) focused: Option<HudControlId>,
+    focused: Option<HudControlId>,
     pointer_present: bool,
 }
 impl Hud {
@@ -146,6 +146,11 @@ impl Hud {
             return Err("Prepare HUD geometry after changing its content or layout".into());
         }
         Ok(())
+    }
+    pub(super) fn after_navigation(&mut self) {
+        self.focused = None;
+        self.capture = None;
+        self.pointer_present = false;
     }
     pub(super) fn clear_focus(&mut self) {
         self.focused = None;

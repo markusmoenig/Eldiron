@@ -86,6 +86,41 @@ fn native_container_composes_template_tiles_swash_title_quantities_and_child_dra
     assert!(screen.elements.game_widgets.values().all(
         |widget| widget.buffer.pixels().is_empty() && widget.upscale_buffer.pixels().is_empty()
     ));
+    let image_count = images.len();
+    let source_builds = screen.source_builds();
+    let rasters = renderer.glyphs.rasterizations;
+    let mut next = GameScreenController::from_screen("Main", &session.view(), layout()).unwrap();
+    next.retain_session_presentation_from(&mut screen, &mut fonts);
+    screen
+        .release_game_views(&mut views, &mut registry)
+        .unwrap();
+    screen = next;
+    render(
+        &session,
+        &mut screen,
+        &mut fonts,
+        &mut views,
+        &mut registry,
+        &mut images,
+        &mut renderer,
+        &target,
+    );
+    assert_eq!(
+        screen.source_builds(),
+        source_builds,
+        "source recipes remain owned by the session across navigation"
+    );
+    assert_eq!(
+        images.len(),
+        image_count,
+        "retained HUD artwork resolves to the same GPU source handles"
+    );
+    assert_eq!(renderer.glyphs.rasterizations, rasters);
+    let counts = (
+        gpu.transfers().uploaded_bytes,
+        renderer.glyphs.rasterizations,
+        screen.source_builds(),
+    );
     let down = InputEvent::PointerButton {
         button: PointerButton::Primary,
         pressed: true,

@@ -91,6 +91,30 @@ pub struct GameScreenController {
     message_scroll: FxHashMap<u32, f32>,
 }
 impl GameScreenController {
+    /// Move project/session presentation owners into a replacement screen.
+    /// Authored controls, editor/clipboard targets, scene outputs and input
+    /// captures are not transferred. Hosts call this before preparing the new
+    /// screen, and return the owners to the old screen if preparation fails.
+    pub fn retain_session_presentation_from(&mut self, previous: &mut Self, fonts: &mut GameFonts) {
+        if self.session == previous.session {
+            self.sources = std::mem::take(&mut previous.sources);
+            self.hud = std::mem::take(&mut previous.hud);
+            self.speech = std::mem::take(&mut previous.speech);
+            self.world_texts = std::mem::take(&mut previous.world_texts);
+            self.speech.invalidate_geometry();
+            self.world_texts.invalidate_geometry();
+        }
+        self.hud.after_navigation();
+        self.focus_control(fonts, None);
+        self.cancel_keyboard_capture();
+        self.pointer_capture = self
+            .pointer_capture
+            .take()
+            .map(|_| router::PointerCapture::Cancelled);
+        self.pressed_button = None;
+        self.elements.release_button_state();
+        self.invalidate_world_input();
+    }
     /// Runtime incarnation last observed by this retained screen. Hosts can
     /// revoke asynchronous platform requests before delivering their results.
     pub fn runtime_session(&self) -> Uuid {
