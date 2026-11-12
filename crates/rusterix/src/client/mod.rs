@@ -4373,113 +4373,18 @@ impl Client {
         })
     }
 
-    fn inventory_item_category(item: &Item) -> &'static str {
-        let slot = item
-            .attributes
-            .get_str("slot")
-            .unwrap_or("")
-            .trim()
-            .to_ascii_lowercase();
-        if matches!(
-            slot.as_str(),
-            "head"
-                | "neck"
-                | "torso"
-                | "chest"
-                | "hands"
-                | "belt"
-                | "legs"
-                | "feet"
-                | "boots"
-                | "cloak"
-                | "main_hand"
-                | "off_hand"
-                | "shield"
-                | "focus"
-                | "ammunition"
-        ) {
-            return "equipment";
-        }
-        if matches!(slot.as_str(), "material" | "reagent" | "resource") {
-            return "materials";
-        }
-
-        let category = item
-            .attributes
-            .get_str("category")
-            .unwrap_or("")
-            .trim()
-            .to_ascii_lowercase();
-        if ["potion", "food", "drink", "scroll"]
-            .iter()
-            .any(|value| category.contains(value))
-            || item.attributes.get_bool_default("consumable", false)
-        {
-            return "consumables";
-        }
-        if [
-            "material", "wood", "ore", "dust", "resin", "salt", "shard", "feather", "herb",
-            "liquid", "oil", "mineral",
-        ]
-        .iter()
-        .any(|value| category.contains(value))
-            || item.attributes.get_str("reagent_for").is_some()
-            || item.attributes.get_bool_default("stackable", false)
-        {
-            return "materials";
-        }
-        "misc"
-    }
-
     fn inventory_panel_items<'a>(&self, actor: &'a Entity) -> Vec<(usize, &'a Item)> {
-        let category = self
-            .ui_state
-            .get("inventory.category")
-            .map(String::as_str)
-            .unwrap_or("all");
-        let mut items = actor
-            .inventory
-            .iter()
-            .enumerate()
-            .filter_map(|(index, item)| item.as_ref().map(|item| (index, item)))
-            .filter(|(_, item)| {
-                category.eq_ignore_ascii_case("all")
-                    || Self::inventory_item_category(item).eq_ignore_ascii_case(category)
-            })
-            .collect::<Vec<_>>();
-
-        match self
-            .ui_state
-            .get("inventory.sort")
-            .map(String::as_str)
-            .unwrap_or("newest")
-        {
-            "name" => items.sort_by(|left, right| {
-                let left = left
-                    .1
-                    .attributes
-                    .get_str("name")
-                    .unwrap_or(&left.1.item_type);
-                let right = right
-                    .1
-                    .attributes
-                    .get_str("name")
-                    .unwrap_or(&right.1.item_type);
-                left.to_ascii_lowercase().cmp(&right.to_ascii_lowercase())
-            }),
-            "value" => items.sort_by(|left, right| {
-                right
-                    .1
-                    .attributes
-                    .get_float_default("worth", 0.0)
-                    .total_cmp(&left.1.attributes.get_float_default("worth", 0.0))
-            }),
-            "quantity" => {
-                items.sort_by(|left, right| right.1.stack_quantity().cmp(&left.1.stack_quantity()))
-            }
-            _ => items.sort_by_key(|(index, _)| *index),
-        }
-        items
+        screen_model::inventory_items(
+            actor,
+            self.ui_state
+                .get("inventory.category")
+                .map(String::as_str)
+                .unwrap_or("all"),
+            self.ui_state
+                .get("inventory.sort")
+                .map(String::as_str)
+                .unwrap_or("newest"),
+        )
     }
 
     fn inventory_panel_choice(
@@ -5117,9 +5022,7 @@ impl Client {
     fn container_panel_layout(&self, map: &Map, assets: &Assets) -> Option<ContainerPanelLayout> {
         let item = self.open_container_item(map)?;
         let template = rules_ui::container_template_for_item(assets, item);
-        let slots = item.attributes.get_int_default("container_slots", 0).max(0) as usize;
-        let item_count = item.container.as_ref().map(Vec::len).unwrap_or(0);
-        let slot_count = slots.max(item.max_capacity as usize).max(item_count).max(1);
+        let slot_count = screen_model::container_slot_count(item);
         Some(Self::build_container_panel_layout(
             self.open_container_panel?.position,
             &template,
@@ -5206,74 +5109,25 @@ impl Client {
         target_width: i32,
         target_height: i32,
     ) -> ContainerPanelLayout {
-        let columns = template.columns.max(1);
-        let rows = template
-            .rows
-            .unwrap_or_else(|| slot_count.div_ceil(columns))
-            .max(1);
-        let slot_size = template.slot_size.max(8);
-        let gap = template.gap.max(0);
-        let padding = template.padding.max(0);
-        let title_h = if template.title { 26 } else { 0 };
-        let content_w = columns as i32 * slot_size + (columns.saturating_sub(1) as i32 * gap);
-        let content_h = rows as i32 * slot_size + (rows.saturating_sub(1) as i32 * gap);
-        let width = content_w + padding * 2;
-        let height = content_h + padding * 2 + title_h;
-
-        let mut x = position.x;
-        let mut y = position.y;
-        if x + width > target_width {
-            x = (target_width - width - 2).max(2);
-        }
-        x = x.max(2);
-        if y + height > target_height {
-            y = (target_height - height - 2).max(2);
-        }
-        y = y.max(2);
-
-        let title_bar_rect = template.title.then_some(Rect {
-            x: x as f32,
-            y: y as f32,
-            width: width as f32,
-            height: title_h as f32,
-        });
-        let close_rect = template.title.then_some(Rect {
-            x: (x + width - 27) as f32,
-            y: (y + 3) as f32,
-            width: 22.0,
-            height: 20.0,
-        });
-
-        let start_x = x + padding;
-        let start_y = y + padding + title_h;
-        let mut slot_rects = Vec::with_capacity(slot_count);
-        for index in 0..slot_count {
-            let col = index % columns;
-            let row = index / columns;
-            slot_rects.push(Rect {
-                x: (start_x + col as i32 * (slot_size + gap)) as f32,
-                y: (start_y + row as i32 * (slot_size + gap)) as f32,
-                width: slot_size as f32,
-                height: slot_size as f32,
-            });
-        }
-
+        let geometry = screen_model::ContainerGeometry::new(
+            position,
+            template,
+            slot_count,
+            Vec2::new(target_width, target_height),
+        );
         ContainerPanelLayout {
-            rect: Rect {
-                x: x as f32,
-                y: y as f32,
-                width: width as f32,
-                height: height as f32,
-            },
-            slots: slot_rects,
-            title_bar_rect,
-            close_rect,
-            title_rect: template.title.then_some((
-                (x + padding) as isize,
-                (y + 3) as isize,
-                (width - padding * 2 - 30).max(1) as isize,
-                20,
-            )),
+            rect: geometry.rect,
+            slots: geometry.slots().map(|(_, rect)| rect).collect(),
+            title_bar_rect: geometry.title_bar,
+            close_rect: geometry.close,
+            title_rect: geometry.title.map(|rect| {
+                (
+                    rect.x as isize,
+                    rect.y as isize,
+                    rect.width as isize,
+                    rect.height as isize,
+                )
+            }),
         }
     }
 
@@ -10027,90 +9881,8 @@ impl Client {
         template: &ContainerUiTemplate,
         assets: &Assets,
     ) {
-        let rect = layout.rect;
-        let edge = template
-            .slot_size
-            .min((rect.width as i32 / 3).max(1))
-            .min((rect.height as i32 / 3).max(1))
-            .max(8) as f32;
-
-        if let Some(tile) = template.tiles.center.as_deref() {
-            self.draw_tile_reference(assets, tile, rect);
-        }
-        if let Some(tile) = template.tiles.top.as_deref() {
-            self.draw_tile_reference(
-                assets,
-                tile,
-                Rect::new(
-                    rect.x + edge,
-                    rect.y,
-                    (rect.width - edge * 2.0).max(1.0),
-                    edge,
-                ),
-            );
-        }
-        if let Some(tile) = template.tiles.bottom.as_deref() {
-            self.draw_tile_reference(
-                assets,
-                tile,
-                Rect::new(
-                    rect.x + edge,
-                    rect.y + rect.height - edge,
-                    (rect.width - edge * 2.0).max(1.0),
-                    edge,
-                ),
-            );
-        }
-        if let Some(tile) = template.tiles.left.as_deref() {
-            self.draw_tile_reference(
-                assets,
-                tile,
-                Rect::new(
-                    rect.x,
-                    rect.y + edge,
-                    edge,
-                    (rect.height - edge * 2.0).max(1.0),
-                ),
-            );
-        }
-        if let Some(tile) = template.tiles.right.as_deref() {
-            self.draw_tile_reference(
-                assets,
-                tile,
-                Rect::new(
-                    rect.x + rect.width - edge,
-                    rect.y + edge,
-                    edge,
-                    (rect.height - edge * 2.0).max(1.0),
-                ),
-            );
-        }
-        for (tile, tile_rect) in [
-            (
-                template.tiles.top_left.as_deref(),
-                Rect::new(rect.x, rect.y, edge, edge),
-            ),
-            (
-                template.tiles.top_right.as_deref(),
-                Rect::new(rect.x + rect.width - edge, rect.y, edge, edge),
-            ),
-            (
-                template.tiles.bottom_left.as_deref(),
-                Rect::new(rect.x, rect.y + rect.height - edge, edge, edge),
-            ),
-            (
-                template.tiles.bottom_right.as_deref(),
-                Rect::new(
-                    rect.x + rect.width - edge,
-                    rect.y + rect.height - edge,
-                    edge,
-                    edge,
-                ),
-            ),
-        ] {
-            if let Some(tile) = tile {
-                self.draw_tile_reference(assets, tile, tile_rect);
-            }
+        for (source, rect) in screen_model::container_frame_tiles(layout.rect, template) {
+            self.draw_tile_reference(assets, source, rect);
         }
     }
 
