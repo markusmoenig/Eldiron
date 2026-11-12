@@ -1015,3 +1015,106 @@ fn raw_gpu_images_filter_in_linear_premultiplied_color_before_composition() {
         "raw GPU sources differ from normalized reference: {results:?}"
     );
 }
+
+#[test]
+#[ignore = "requires native GPU"]
+fn opaque_display_policy_preserves_encoded_blending_groups_and_surface_formats() {
+    let ctx = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let images = ImageRegistry::new(ctx.clone());
+    let mut renderer = PaintRenderer::new(ctx.clone()).unwrap();
+    let mut list = PaintList::default();
+    list.ops.push(PaintOp::DisplayCompositing(
+        DisplayCompositing::LegacyOpaque,
+    ));
+    list.rect(Rect::new(0., 0., 16., 8.), 0., [0.1, 0.1, 0.1, 1.]);
+    list.rect(Rect::new(0., 0., 8., 8.), 0., [1., 0., 0., 0.5]);
+    list.ops.push(PaintOp::PushClip(Rect::new(8., 0., 8., 8.)));
+    list.ops.push(PaintOp::PushOpacity(0.5));
+    list.rect(Rect::new(8., 0., 8., 8.), 0., [1., 0., 0., 1.]);
+    list.ops.push(PaintOp::PushOpacity(0.5));
+    list.rect(Rect::new(8., 0., 8., 8.), 0., [0., 0., 1., 1.]);
+    list.ops.push(PaintOp::PopOpacity);
+    list.ops.push(PaintOp::PopOpacity);
+    list.ops.push(PaintOp::PopClip);
+    for format in [
+        wgpu::TextureFormat::Rgba8UnormSrgb,
+        wgpu::TextureFormat::Bgra8UnormSrgb,
+        wgpu::TextureFormat::Rgba8Unorm,
+        wgpu::TextureFormat::Bgra8Unorm,
+    ] {
+        let output = GpuImage::new(
+            &ctx,
+            ImageDescriptor {
+                width: 16,
+                height: 8,
+                format,
+                color_space: ColorSpace::Srgb,
+                alpha_mode: AlphaMode::Opaque,
+            },
+        )
+        .unwrap();
+        let before = ctx.transfers();
+        renderer
+            .render(&list, &images, &output.view, format, (16, 8), 1., [0.; 4])
+            .unwrap();
+        assert_eq!(
+            ctx.transfers(),
+            before,
+            "compatibility composition remains GPU-only"
+        );
+        let mut read = ReadbackTicket::capture(&ctx, output).unwrap();
+        ctx.device
+            .poll(wgpu::PollType::Wait {
+                submission_index: None,
+                timeout: Some(std::time::Duration::from_secs(30)),
+            })
+            .unwrap();
+        let image = read.try_finish(&ctx).unwrap().unwrap();
+        let pixel = |x: usize| &image.pixels()[(3 * 16 + x) * 4..(3 * 16 + x + 1) * 4];
+        for (x, expected) in [(3, [140u8, 13, 13, 255]), (12, [77u8, 13, 77, 255])] {
+            assert!(
+                pixel(x)
+                    .iter()
+                    .zip(expected)
+                    .all(|(a, b)| a.abs_diff(b) <= 1),
+                "{format:?}: {x}: {:?} vs {expected:?}",
+                pixel(x)
+            );
+        }
+    }
+    let mut invalid = list.clone();
+    invalid
+        .ops
+        .insert(0, PaintOp::PushClip(Rect::new(0., 0., 16., 8.)));
+    invalid.ops.push(PaintOp::PopClip);
+    assert!(
+        invalid.validate().is_err(),
+        "display encoding cannot be installed by a nested widget"
+    );
+    let output = GpuImage::new(&ctx, ImageDescriptor::rgba(16, 8)).unwrap();
+    // A renderer can return to its standard linear policy on the next frame.
+    list.ops.remove(0);
+    renderer
+        .render(
+            &list,
+            &images,
+            &output.view,
+            output.descriptor.format,
+            (16, 8),
+            1.,
+            [0.; 4],
+        )
+        .unwrap();
+    let mut read = ReadbackTicket::capture(&ctx, output).unwrap();
+    ctx.device
+        .poll(wgpu::PollType::Wait {
+            submission_index: None,
+            timeout: Some(std::time::Duration::from_secs(30)),
+        })
+        .unwrap();
+    let image = read.try_finish(&ctx).unwrap().unwrap();
+    assert!(
+        image.pixels()[(3 * 16 + 3) * 4] > 180,
+        "standard linear blending remains available and distinct"
+    );
+}

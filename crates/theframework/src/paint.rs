@@ -232,8 +232,18 @@ pub fn new_receipt_owner() -> u64 {
         }
     }
 }
+/// Root composition policy. Source image data keeps its declared color space.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DisplayCompositing {
+    Linear,
+    /// Match the old opaque window's encoded-channel UI blending. Rendering
+    /// stays on the GPU; final presentation preserves encoded RGB and is opaque.
+    LegacyOpaque,
+}
 #[derive(Clone, Debug)]
 pub enum PaintOp {
+    /// Root-only metadata, valid only as the first operation.
+    DisplayCompositing(DisplayCompositing),
     Receipt(FrameReceipt),
     /// Circular alpha dilation behind an image. Width is in local logical units;
     /// samples outside the supplied UV crop are transparent. The caller paints
@@ -356,8 +366,11 @@ impl PaintList {
     }
     pub fn validate(&self) -> Result<(), &'static str> {
         let mut scopes = Vec::new();
-        for op in &self.ops {
+        for (index, op) in self.ops.iter().enumerate() {
             match op {
+                PaintOp::DisplayCompositing(_) if index != 0 => {
+                    return Err("display composition metadata must be the first root operation");
+                }
                 PaintOp::ThresholdImage {
                     rect,
                     uv,

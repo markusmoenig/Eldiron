@@ -130,7 +130,13 @@ impl UiApplication for NativeCreatorApplication {
             .editor
             .prepare_native_views(&mut ui.ui, &mut ui.context, images.registry)
             .map_err(RenderError)?;
-        let list = ui.paint(images).map_err(|e| RenderError(e.to_string()))?;
+        let mut list = ui.paint(images).map_err(|e| RenderError(e.to_string()))?;
+        list.ops.insert(
+            0,
+            theframework::paint::PaintOp::DisplayCompositing(
+                theframework::paint::DisplayCompositing::LegacyOpaque,
+            ),
+        );
         if let Some(tokens) = &mut self.pending {
             tokens.retain_painted(&list);
         }

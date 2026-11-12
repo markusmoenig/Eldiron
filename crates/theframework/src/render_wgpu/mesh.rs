@@ -12,6 +12,17 @@ pub struct Vertex {
     pub uv: Point,
     pub color: Color,
 }
+impl Vertex {
+    const ATTRIBUTES: [renderkit::wgpu::VertexAttribute; 4] =
+        renderkit::wgpu::vertex_attr_array![0=>Float32x2,1=>Float32x2,2=>Float32x2,3=>Float32x4];
+    pub(super) fn layout() -> renderkit::wgpu::VertexBufferLayout<'static> {
+        renderkit::wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<Self>() as u64,
+            step_mode: renderkit::wgpu::VertexStepMode::Vertex,
+            attributes: &Self::ATTRIBUTES,
+        }
+    }
+}
 pub fn rect_path(rect: Rect, radius: f32) -> Path {
     let r = radius
         .max(0.)

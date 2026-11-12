@@ -46,6 +46,15 @@ struct Out{@builtin(position)position:vec4<f32>,@location(0)local:vec2<f32>,@loc
 }
 fn linear(c:vec3<f32>)->vec3<f32>{return select(c/12.92,pow((c+vec3<f32>(0.055))/1.055,vec3<f32>(2.4)),c>vec3<f32>(0.04045));}
 fn srgb(c:vec3<f32>)->vec3<f32>{let v=max(c,vec3<f32>(0.));return select(v*12.92,1.055*pow(v,vec3<f32>(1./2.4))-vec3<f32>(0.055),v>vec3<f32>(0.0031308));}
+fn target_color(color:vec3<f32>)->vec3<f32> {
+    if((params.mode&256u)!=0u){return color;}
+    return linear(color);
+}
+fn target_image(texel:vec4<f32>)->vec4<f32> {
+    if((params.mode&256u)==0u || (params.source&32u)!=0u){return texel;}
+    if(texel.a>0.){return vec4<f32>(srgb(texel.rgb/texel.a)*texel.a,texel.a);}
+    return vec4<f32>(0.);
+}
 // All sampled image colors leave these helpers linear and premultiplied.
 // Normalized sources keep hardware filtering; raw GPU sources normalize each
 // contributing texel before bilinear interpolation to preserve alpha edges.
@@ -103,28 +112,32 @@ fn outline(uv: vec2<f32>) -> vec4<f32> {
     return vec4<f32>(params.color0.rgb*alpha,alpha);
 }
 @fragment fn fs(i:Out)->@location(0)vec4<f32>{
+    let mode=params.mode&255u;
+    if(mode==8u){return vec4<f32>(linear(textureSample(image,image_sampler,i.uv).rgb),1.);}
+    if(mode==9u){return vec4<f32>(textureSample(image,image_sampler,i.uv).rgb,1.);}
     var c=params.color0;
-    if(params.mode==6u){return outline(i.uv);}
-    if(params.mode==4u){return field_color(i.local-params.gradient.xy,c);}
-    if(params.mode==3u){c=vec4<f32>(linear(i.color.rgb),i.color.a);}
-    if(params.mode==1u){let d=params.gradient.zw-params.gradient.xy;let t=clamp(dot(i.local-params.gradient.xy,d)/max(dot(d,d),0.000001),0.,1.);c=mix(params.color0,params.color1,t);}
-    if(params.mode==2u || params.mode==5u || params.mode==7u){
+    if(mode==6u){return outline(i.uv);}
+    if(mode==4u){return field_color(i.local-params.gradient.xy,c);}
+    if(mode==3u){c=vec4<f32>(target_color(i.color.rgb),i.color.a);}
+    if(mode==1u){let d=params.gradient.zw-params.gradient.xy;let t=clamp(dot(i.local-params.gradient.xy,d)/max(dot(d,d),0.000001),0.,1.);c=mix(params.color0,params.color1,t);}
+    if(mode==2u || mode==5u || mode==7u){
         let tex=sampled_image(i.uv);
-        if(params.mode==7u){
+        if(mode==7u){
             let straight=straight_sample(tex);
             let bytes=round(clamp(srgb(straight),vec3<f32>(0.),vec3<f32>(1.))*255.);
             let tone=select(params.color0,params.color1,dot(bytes,params.gradient.rgb)>=params.gradient.a);
             let alpha=tex.a*tone.a;
             return vec4<f32>(tone.rgb*alpha,alpha);
         }
-        if(params.mode==5u){
+        if(mode==5u){
             let straight=straight_sample(tex);
             let encoded=srgb(straight);
             let gray=dot(encoded,vec3<f32>(0.299,0.587,0.114));
             let adjusted=clamp(max(mix(vec3<f32>(gray),encoded,params.color1.a)*params.color1.rgb+params.gradient.rgb,vec3<f32>(params.gradient.a)),vec3<f32>(0.),vec3<f32>(1.));
-            return vec4<f32>(linear(adjusted)*tex.a*c.rgb*c.a,tex.a*c.a);
+            return vec4<f32>(target_color(adjusted)*tex.a*c.rgb*c.a,tex.a*c.a);
         }
-        return vec4<f32>(tex.rgb*c.rgb*c.a,tex.a*c.a);
+        let blended=target_image(tex);
+        return vec4<f32>(blended.rgb*c.rgb*c.a,blended.a*c.a);
     }
     return vec4<f32>(c.rgb*c.a,c.a);
 }

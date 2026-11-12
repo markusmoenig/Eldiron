@@ -2720,3 +2720,72 @@ which mixes encoded byte channels. Record an explicit compatibility policy if
 needed; do not compensate with a different font or theme-specific colors.
 Main world/tool/HUD/Play/document/global ownership and all other full-goal gates
 continue after this checkpoint. No M0–M9 completion claim.
+
+## Explicit opaque Creator display composition (after 8a9f76d7, in progress)
+
+Creator now requests a root-only `LegacyOpaque` display policy. The reference
+`mix_color` blends encoded byte channels, while the common renderer's default
+remains linear-premultiplied. An explicit policy preserves the existing UI
+appearance without changing fonts, themes, serialized assets or other clients.
+The common renderer composes that policy into a cached GPU-only RGBA8 unorm
+target and performs one final GPU blit to RGBA/BGRA SRGB/unorm window targets.
+Glyphs still come from Swash and GPU atlases. Source images retain their declared
+color/alpha metadata; opacity groups avoid decoding their internal pixels twice.
+No CPU display image, color readback or extra source upload is introduced.
+
+All **10 common paint GPU cases pass**, including encoded alpha blending, nested
+opacity and clipping, all four display formats, metadata placement validation,
+and switching a renderer back to standard linear composition:
+`/private/tmp/eldiron-display-compositing-gpu-second.log`. The isolated Creator
+root passes, 14.43 s: `/private/tmp/eldiron-display-compositing-native-root-second.log`.
+Initial compile issues (missing static vertex layout and a temporary attribute
+lifetime) were corrected before those successful runs.
+
+Independent CPU startup comparison improves from 907,456 to **923,561 exact RGB
+pixels of 960,000**; absolute RGB error decreases from 6,062,099 to 5,628,005.
+Before: `/private/tmp/eldiron-native-creator-startup-before-display-compositing.png`.
+Current: `/private/tmp/eldiron-native-creator-startup.png`.
+Reference: `/private/tmp/eldiron-reference-creator-startup-framebuffer.png`.
+Both current and independent reference captures were visually inspected. Text
+metrics/raster coverage and some control/border placement still differ and remain
+open; this is not full visual acceptance. Broader affected builds/regressions
+are running before checkpoint. Main world/tool/HUD/Play/document/global ownership
+and physical/browser/platform/release gates remain open.
+
+Text-spacing diagnosis: the local Fontdue 0.9.3 `layout.rs` rounds every
+`advance_width` upward and rounds line metrics, whereas the new Parley layout
+retains shaped fractional advances. Both startup paths use the same embedded
+Roboto-Bold face. This accounts for narrower native labels and requires a
+deliberate metrics policy with reference coverage; no arbitrary tracking/font
+substitution or ASCII-only shaping change has been made. Current Swash uses
+hinting and quarter-pixel phases; the CPU reference raster is unhinted with
+integer positions. These raster/layout issues remain distinct from the now
+verified encoded blending correction.
+
+Main-view inventory was rechecked before further extraction: Creator's
+`Editor::update_ui` still owns the `PolyView`/`PrefabView` CPU draw branches,
+Rusterix state, camera/tool/iso-paint updates and HUD pixels. The existing
+`SceneViews` owner supports injected independent SceneHandlers/targets, but
+`GameSceneInput` alone does not describe authoring overlays/custom profile maps.
+Do not call the player bridge a main-Creator conversion or inject a shared GPU
+into the mutable global VM as a substitute for per-view ownership. Retain
+existing CPU reference behavior while extracting reusable scene preparation,
+view-owned source state and acknowledged tool/HUD hit layout.
+
+### Opaque display policy checkpoint verified
+
+All 17 checks in `/private/tmp/eldiron-display-compositing-matrix-results.log`
+pass: reference Creator configuration; UI/command/DPI/GPU contracts; 52 ordinary
+geometry and 36 material controls; 10 material, 10 geometry, 2 appearance and
+10 common paint GPU cases; framework library and actual detached CAMetalLayer
+application; 13 screen/message/isometric cases; isolated Creator root; linked
+native Creator binary; four application builds; browser-player and ARM64 iOS
+simulator builds; all 11 dependency boundaries and diff validation. The isolated
+root also verifies unchanged warm-frame source transfers/glyph rasterizations
+and unchanged serialized project state. These builds do not establish physical
+desktop, browser-runtime, iOS-runtime or full M0–M9 acceptance.
+
+Original checkout rechecked: `f8d880110366e8638305493ac7c4bc6c58b9313d`, tracked
+source unchanged, only its existing untracked `concepts/`. The unrelated
+`concepts/networking-mmo-concept.md` in the implementation checkout remains
+untracked and excluded from the rewrite checkpoint. Overall Goal stays active.

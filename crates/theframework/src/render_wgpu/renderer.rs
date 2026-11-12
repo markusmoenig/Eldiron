@@ -29,6 +29,8 @@ struct Geometry {
 }
 #[derive(Clone, Copy)]
 enum ImageEffect {
+    Group,
+    Present(bool),
     Filter(ImageColorFilter),
     Threshold {
         dark: Color,
@@ -90,6 +92,9 @@ pub struct PaintRenderer {
     atlas: GlyphAtlas,
     pub glyphs: GlyphCache,
     stats: FrameStats,
+    legacy_display: bool,
+    display_target: Option<Arc<GpuImage>>,
+    display_pipelines: HashMap<wgpu::TextureFormat, wgpu::RenderPipeline>,
 }
 impl PaintRenderer {
     pub fn new(context: Arc<GpuContext>) -> Result<Self> {
@@ -213,7 +218,17 @@ impl PaintRenderer {
             atlas: GlyphAtlas::default(),
             glyphs: GlyphCache::default(),
             stats: FrameStats::default(),
+            legacy_display: false,
+            display_target: None,
+            display_pipelines: HashMap::new(),
         })
+    }
+    fn color(&self, color: Color) -> Color {
+        if self.legacy_display {
+            color
+        } else {
+            linear(color)
+        }
     }
     pub fn frame_stats(&self) -> FrameStats {
         self.stats
@@ -258,7 +273,7 @@ impl PaintRenderer {
             };
             self.context.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor{
                 label:Some("ui-paint-pipeline"),layout:Some(&self.pipeline_layout),
-                vertex:wgpu::VertexState{module:&self.shader,entry_point:Some("vs"),compilation_options:Default::default(),buffers:&[wgpu::VertexBufferLayout{array_stride:std::mem::size_of::<Vertex>() as u64,step_mode:wgpu::VertexStepMode::Vertex,attributes:&wgpu::vertex_attr_array![0=>Float32x2,1=>Float32x2,2=>Float32x2,3=>Float32x4]}]},
+                vertex:wgpu::VertexState{module:&self.shader,entry_point:Some("vs"),compilation_options:Default::default(),buffers:&[Vertex::layout()]},
                 fragment:Some(wgpu::FragmentState{module:&self.shader,entry_point:Some("fs"),compilation_options:Default::default(),targets:&[Some(wgpu::ColorTargetState{format,blend:Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),write_mask:if phase==0{wgpu::ColorWrites::ALL}else{wgpu::ColorWrites::empty()}})]}),
                 primitive:wgpu::PrimitiveState::default(),depth_stencil:Some(wgpu::DepthStencilState{format:wgpu::TextureFormat::Depth24PlusStencil8,depth_write_enabled:Some(false),depth_compare:Some(wgpu::CompareFunction::Always),stencil:wgpu::StencilState{front:stencil,back:stencil,read_mask:255,write_mask:if phase==0{0}else{255}},bias:Default::default()}),
                 multisample:wgpu::MultisampleState{count:samples,..Default::default()},multiview_mask:None,cache:None,
@@ -320,7 +335,7 @@ impl PaintRenderer {
         effect: Option<ImageEffect>,
     ) -> Draw {
         let (mode, color0, color1, gradient) = match brush {
-            Brush::Solid(c) => (0, linear(*c), [0.; 4], [0.; 4]),
+            Brush::Solid(c) => (0, self.color(*c), [0.; 4], [0.; 4]),
             Brush::LinearGradient {
                 start,
                 end,
@@ -328,8 +343,8 @@ impl PaintRenderer {
                 end_color,
             } => (
                 1,
-                linear(*start_color),
-                linear(*end_color),
+                self.color(*start_color),
+                self.color(*end_color),
                 [start[0], start[1], end[0], end[1]],
             ),
         };
@@ -337,18 +352,35 @@ impl PaintRenderer {
             let encoded = image.descriptor.color_space == ColorSpace::Srgb
                 && !image.descriptor.format.is_srgb();
             let premultiplied = image.descriptor.alpha_mode == AlphaMode::Premultiplied;
-            let linear = matches!(sampling, Sampling::Linear | Sampling::RepeatLinear
-                | Sampling::RepeatLinearX | Sampling::RepeatLinearY);
+            let linear = matches!(
+                sampling,
+                Sampling::Linear
+                    | Sampling::RepeatLinear
+                    | Sampling::RepeatLinearX
+                    | Sampling::RepeatLinearY
+            );
             // Raw GPU images must decode and premultiply individual texels
             // before interpolation. Already normalized images retain hardware
             // filtering, including the shared glyph/source-asset atlases.
             let manual = linear && (encoded || image.descriptor.alpha_mode == AlphaMode::Straight);
-            let repeat_x = matches!(sampling, Sampling::RepeatLinear | Sampling::RepeatNearest
-                | Sampling::RepeatLinearX | Sampling::RepeatNearestX);
-            let repeat_y = matches!(sampling, Sampling::RepeatLinear | Sampling::RepeatNearest
-                | Sampling::RepeatLinearY | Sampling::RepeatNearestY);
-            u32::from(encoded) | (u32::from(premultiplied) << 1)
-                | (u32::from(manual) << 2) | (u32::from(repeat_x) << 3)
+            let repeat_x = matches!(
+                sampling,
+                Sampling::RepeatLinear
+                    | Sampling::RepeatNearest
+                    | Sampling::RepeatLinearX
+                    | Sampling::RepeatNearestX
+            );
+            let repeat_y = matches!(
+                sampling,
+                Sampling::RepeatLinear
+                    | Sampling::RepeatNearest
+                    | Sampling::RepeatLinearY
+                    | Sampling::RepeatNearestY
+            );
+            u32::from(encoded)
+                | (u32::from(premultiplied) << 1)
+                | (u32::from(manual) << 2)
+                | (u32::from(repeat_x) << 3)
                 | (u32::from(repeat_y) << 4)
         });
         let filter = match effect {
@@ -364,12 +396,15 @@ impl PaintRenderer {
                 dark,
                 light,
                 threshold,
-            }) => Some((linear(dark), linear(light), threshold)),
+            }) => Some((self.color(dark), self.color(light), threshold)),
             _ => None,
         };
+        let internal_image = matches!(effect, Some(ImageEffect::Group | ImageEffect::Present(_)));
         let params = Params {
             viewport: [size.0 as f32, size.1 as f32],
-            mode: if outline.is_some() {
+            mode: (if let Some(ImageEffect::Present(srgb)) = effect {
+                if srgb { 8 } else { 9 }
+            } else if outline.is_some() {
                 6
             } else if threshold.is_some() {
                 7
@@ -383,8 +418,10 @@ impl PaintRenderer {
                 2
             } else {
                 mode
-            },
-            source: field.map_or(source, |(f, _)| f.primitives.len() as u32),
+            }) | if self.legacy_display { 256 } else { 0 },
+            source: field.map_or(source | if internal_image { 32 } else { 0 }, |(f, _)| {
+                f.primitives.len() as u32
+            }),
             color0: threshold.map_or_else(
                 || {
                     filter.map_or(color0, |f| {
@@ -431,7 +468,7 @@ impl PaintRenderer {
             });
         let texture = image.map_or(&*self.white, |(image, _)| image);
         let sampler = &self.samplers[&image.map(|(_, s)| s).unwrap_or(Sampling::Linear)];
-        let field_data = field.map(|(f, _)| distance_data(f));
+        let field_data = field.map(|(f, _)| distance_data(f, self.legacy_display));
         let field_buffer = field_data.as_ref().filter(|v| !v.is_empty()).map(|data| {
             self.context
                 .device
@@ -497,6 +534,15 @@ impl PaintRenderer {
                 "paint registry belongs to another device".into(),
             ));
         }
+        self.legacy_display = matches!(
+            list.ops.first(),
+            Some(PaintOp::DisplayCompositing(
+                DisplayCompositing::LegacyOpaque
+            ))
+        );
+        if self.legacy_display {
+            return self.render_display(list, images, target, format, size, density, clear);
+        }
         self.render_ops(
             &list.ops,
             images,
@@ -507,6 +553,134 @@ impl PaintRenderer {
             clear,
             Transform::default(),
         )
+    }
+    fn render_display(
+        &mut self,
+        list: &PaintList,
+        images: &ImageRegistry,
+        target: &wgpu::TextureView,
+        format: wgpu::TextureFormat,
+        size: (u32, u32),
+        density: f32,
+        clear: Color,
+    ) -> Result<()> {
+        if !matches!(
+            format,
+            wgpu::TextureFormat::Rgba8Unorm
+                | wgpu::TextureFormat::Rgba8UnormSrgb
+                | wgpu::TextureFormat::Bgra8Unorm
+                | wgpu::TextureFormat::Bgra8UnormSrgb
+        ) {
+            return Err(RenderError(
+                "opaque display compatibility requires an 8-bit display target".into(),
+            ));
+        }
+        if self
+            .display_target
+            .as_ref()
+            .is_none_or(|image| (image.descriptor.width, image.descriptor.height) != size)
+        {
+            self.display_target = Some(GpuImage::new(
+                &self.context,
+                ImageDescriptor {
+                    width: size.0,
+                    height: size.1,
+                    format: wgpu::TextureFormat::Rgba8Unorm,
+                    color_space: ColorSpace::Linear,
+                    alpha_mode: AlphaMode::Premultiplied,
+                },
+            )?);
+        }
+        let image = self.display_target.as_ref().unwrap().clone();
+        self.render_ops(
+            &list.ops,
+            images,
+            &image.view,
+            image.descriptor.format,
+            size,
+            density,
+            clear,
+            Transform::default(),
+        )?;
+        if !self.display_pipelines.contains_key(&format) {
+            let pipeline =
+                self.context
+                    .device
+                    .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                        label: Some("opaque compatibility display"),
+                        layout: Some(&self.pipeline_layout),
+                        vertex: wgpu::VertexState {
+                            module: &self.shader,
+                            entry_point: Some("vs"),
+                            compilation_options: Default::default(),
+                            buffers: &[Vertex::layout()],
+                        },
+                        fragment: Some(wgpu::FragmentState {
+                            module: &self.shader,
+                            entry_point: Some("fs"),
+                            compilation_options: Default::default(),
+                            targets: &[Some(wgpu::ColorTargetState {
+                                format,
+                                blend: None,
+                                write_mask: wgpu::ColorWrites::ALL,
+                            })],
+                        }),
+                        primitive: Default::default(),
+                        depth_stencil: None,
+                        multisample: Default::default(),
+                        multiview_mask: None,
+                        cache: None,
+                    });
+            self.display_pipelines.insert(format, pipeline);
+        }
+        let (vertices, indices) = mesh::quad(
+            Rect::new(0., 0., size.0 as f32, size.1 as f32),
+            Rect::new(0., 0., 1., 1.),
+            Transform::default(),
+            1.,
+        );
+        let draw = self.draw_with_effects(
+            self.geometry(&vertices, &indices),
+            &Brush::Solid([1.; 4]),
+            Some((&image, Sampling::Nearest)),
+            size,
+            0,
+            0,
+            None,
+            Some(ImageEffect::Present(format.is_srgb())),
+        );
+        let mut encoder =
+            self.context
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("opaque compatibility display"),
+                });
+        {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("opaque compatibility display"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: target,
+                    resolve_target: None,
+                    depth_slice: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            pass.set_pipeline(&self.display_pipelines[&format]);
+            pass.set_bind_group(0, &draw.bind, &[]);
+            pass.set_vertex_buffer(0, draw.geometry.vertices.slice(..));
+            pass.set_index_buffer(draw.geometry.indices.slice(..), wgpu::IndexFormat::Uint32);
+            pass.draw_indexed(0..draw.geometry.count, 0, 0..1);
+        }
+        self.context.queue.submit([encoder.finish()]);
+        self.stats.draw_calls += 1;
+        Ok(())
     }
     fn render_ops(
         &mut self,
@@ -692,7 +866,7 @@ impl PaintRenderer {
                         draws.push(self.draw(self.geometry(&v, &ix), brush, None, size, level, 0));
                     }
                 }
-                PaintOp::Receipt(_) => {}
+                PaintOp::Receipt(_) | PaintOp::DisplayCompositing(_) => {}
                 PaintOp::Fill { path, rule, brush } => {
                     let (v, ix) = mesh::tessellate(path, *rule, None, transform, density)?;
                     draws.push(self.draw(self.geometry(&v, &ix), brush, None, size, level, 0));
@@ -893,13 +1067,15 @@ impl PaintRenderer {
                         Transform::default(),
                         1.,
                     );
-                    draws.push(self.draw(
+                    draws.push(self.draw_with_effects(
                         self.geometry(&v, &ix),
                         &Brush::Solid([1., 1., 1., opacity.clamp(0., 1.)]),
                         Some((&group, Sampling::Nearest)),
                         size,
                         level,
                         0,
+                        None,
+                        Some(ImageEffect::Group),
                     ));
                     i = end;
                 }
@@ -944,7 +1120,7 @@ impl PaintRenderer {
                 .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                     label: Some("ui-paint-frame"),
                 });
-        let c = linear(clear);
+        let c = self.color(clear);
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("ui-ordered-paint"),
@@ -1005,7 +1181,7 @@ struct DistanceData {
     border: Color,
     meta: [f32; 4],
 }
-fn distance_data(field: &DistanceField) -> Vec<DistanceData> {
+fn distance_data(field: &DistanceField, encoded: bool) -> Vec<DistanceData> {
     field
         .primitives
         .iter()
@@ -1036,8 +1212,8 @@ fn distance_data(field: &DistanceField) -> Vec<DistanceData> {
             DistanceData {
                 bounds,
                 radii,
-                fill: linear(p.fill),
-                border: linear(p.border),
+                fill: if encoded { p.fill } else { linear(p.fill) },
+                border: if encoded { p.border } else { linear(p.border) },
                 meta: [kind, p.border_width.max(0.), 0., 0.],
             }
         })
