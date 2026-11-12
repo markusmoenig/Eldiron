@@ -2880,3 +2880,38 @@ Creator tests are additionally running in a separate process:
 passed until that run finishes. None of these checks establishes physical
 workflow or complete M0–M9 acceptance. Continue the world/tool/HUD ownership
 and painting integration from this verified source/preparation boundary.
+
+### Full ordinary Creator verification and HUD source ownership
+
+Scene/preparation/source checkpoint **74547135** also passes the complete
+ordinary Creator suite: **573 passed, 97 explicitly ignored**, 251.63 s:
+`/private/tmp/eldiron-editor-source-creator-ordinary.log`. This run used the
+scene/source checkpoint before the subsequent HUD icon helper change.
+
+Continued the HUD source split: `Hud::get_icon` now resolves all action-slot,
+selected geometry, floor and ceiling icons through the explicitly supplied
+Assets owner. `Hud::draw` already receives that owner from its caller; it no
+longer re-enters the global renderer merely to find source pixels. The regression
+uses two separate asset stores binding the same tile ID to different opaque/
+translucent pixels, checks all four source routes and missing-source behavior,
+preserves light flags and verifies unchanged serialized maps.
+
+All **10 HUD cases pass including the previously ignored native drawing/pointer
+case**, 0.41 s: `/private/tmp/eldiron-hud-source-owner-tests.log`. Reference
+staticlib configuration (7.56 s) and native Creator binary configuration
+(18.25 s) pass: `/private/tmp/eldiron-hud-source-owner-reference.log` and
+`/private/tmp/eldiron-hud-source-owner-native.log`. This is asset lookup ownership,
+not native HUD painting or tool/global retirement. The ordinary 573-case result
+is not being relabeled as a full run after adding this new HUD test.
+
+Original checkout rechecked: tracked sources unchanged at f8d8801103, existing
+untracked `concepts/` preserved. Implementation networking concept remains
+untracked/excluded. The next integration step is staged HUD commands/hit layout
+and GPU paint adapters for tool/action/paint/props/collision/view-cube overlays,
+then Creator main view publication through the owned SceneViews/source APIs.
+Use distinct view IDs for distinct authoring and game owners; the static source
+publication cache assumes those base chunks are updated through its source
+method, not replaced by another owner through low-level VM access. Preserve
+source/presented revisions and hidden/resized document guards during integration.
+The full M0–M9 Goal is active and incomplete; all physical/browser/runtime/
+release, text/visual, ownership and adapter-retirement gates remain required.

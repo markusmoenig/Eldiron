@@ -434,7 +434,7 @@ impl Hud {
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
         id: Option<u32>,
-        _assets: &Assets,
+        assets: &Assets,
     ) {
         if (self.mode == HudMode::Linedef || self.mode == HudMode::Sector)
             && self.light_icon.is_none()
@@ -655,6 +655,7 @@ impl Hud {
                 id,
                 icon_size as usize,
                 action_material_slots.as_deref(),
+                assets,
             );
             if let Some(tile) = tile {
                 let texture = tile.textures[0].resized(icon_size as usize, icon_size as usize);
@@ -1136,15 +1137,14 @@ impl Hud {
         id: Option<u32>,
         icon_size: usize,
         action_material_slots: Option<&[ActionMaterialSlot]>,
+        assets: &Assets,
     ) -> (Option<rusterix::Tile>, bool) {
         if let Some(slots) = action_material_slots
             && let Some(slot) = slots.get(index as usize)
         {
             if let Some(pixelsource) = &slot.source {
                 let props = ValueContainer::default();
-                if let Some(tile) =
-                    pixelsource.to_tile(&RUSTERIX.read().unwrap().assets, icon_size, &props, map)
-                {
+                if let Some(tile) = pixelsource.to_tile(assets, icon_size, &props, map) {
                     return (Some(tile), false);
                 }
             }
@@ -1156,9 +1156,7 @@ impl Hud {
             && let Some(pixelsource) = Self::selected_geometry_source(map)
         {
             let props = ValueContainer::default();
-            if let Some(tile) =
-                pixelsource.to_tile(&RUSTERIX.read().unwrap().assets, icon_size, &props, map)
-            {
+            if let Some(tile) = pixelsource.to_tile(assets, icon_size, &props, map) {
                 return (Some(tile), false);
             }
             return (None, false);
@@ -1172,12 +1170,9 @@ impl Hud {
                 if index == 0 {
                     let has_light = sector.properties.get("floor_light").is_some();
                     if let Some(pixelsource) = sector.properties.get_default_source() {
-                        if let Some(tile) = pixelsource.to_tile(
-                            &RUSTERIX.read().unwrap().assets,
-                            icon_size,
-                            &sector.properties,
-                            map,
-                        ) {
+                        if let Some(tile) =
+                            pixelsource.to_tile(assets, icon_size, &sector.properties, map)
+                        {
                             return (Some(tile), has_light);
                         }
                     }
@@ -1187,12 +1182,9 @@ impl Hud {
                     if let Some(Value::Source(pixelsource)) =
                         &sector.properties.get("ceiling_source")
                     {
-                        if let Some(tile) = pixelsource.to_tile(
-                            &RUSTERIX.read().unwrap().assets,
-                            icon_size,
-                            &sector.properties,
-                            map,
-                        ) {
+                        if let Some(tile) =
+                            pixelsource.to_tile(assets, icon_size, &sector.properties, map)
+                        {
                             return (Some(tile), has_light);
                         }
                     }
@@ -1208,6 +1200,61 @@ impl Hud {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hud_icons_resolve_only_the_supplied_asset_owner_and_preserve_source_maps() {
+        let id = Uuid::new_v4();
+        let hud = Hud::new(HudMode::Sector);
+        let slots = [ActionMaterialSlot {
+            label: "Surface".into(),
+            source: Some(PixelSource::TileId(id)),
+        }];
+        let (mut geometry, object) = box_map();
+        geometry.geometry_objects[0].faces[0].tile = Some(PixelSource::TileId(id));
+        geometry.selected_geometry_faces.push((object, 0));
+        let mut sectors = Map::default();
+        let mut sector = rusterix::Sector::new(42, vec![]);
+        sector
+            .properties
+            .set("source", Value::Source(PixelSource::TileId(id)));
+        sector
+            .properties
+            .set("ceiling_source", Value::Source(PixelSource::TileId(id)));
+        sector.properties.set("floor_light", Value::Bool(true));
+        sector.properties.set("ceiling_light", Value::Bool(true));
+        sectors.sectors.push(sector);
+        let authored_geometry = serde_json::to_vec(&geometry).unwrap();
+        let authored_sectors = serde_json::to_vec(&sectors).unwrap();
+        let colors = [[210, 30, 50, 255], [30, 180, 210, 90]];
+        // Two documents may bind the same asset ID to different editable pixels.
+        // Resolving a HUD source must not consult the global renderer's assets.
+        for color in colors {
+            let mut assets = Assets::default();
+            let mut tile = rusterix::Tile::from_texture(rusterix::Texture::from_color(color));
+            tile.id = id;
+            assets.tiles.insert(id, tile);
+            for (map, index, selected, slots, light) in [
+                (&sectors, 0, None, Some(slots.as_slice()), false),
+                (&geometry, 0, None, None, false),
+                (&sectors, 0, Some(42), None, true),
+                (&sectors, 1, Some(42), None, true),
+            ] {
+                let (tile, has_light) = hud.get_icon(index, map, selected, 40, slots, &assets);
+                let tile = tile.expect("the supplied owner contains this tile");
+                assert_eq!(tile.textures[0].data.as_slice(), &color);
+                assert_eq!(has_light, light);
+                let (missing, has_light) =
+                    hud.get_icon(index, map, selected, 40, slots, &Assets::default());
+                assert!(
+                    missing.is_none(),
+                    "a missing source cannot fall through to another owner"
+                );
+                assert_eq!(has_light, light);
+            }
+        }
+        assert_eq!(serde_json::to_vec(&geometry).unwrap(), authored_geometry);
+        assert_eq!(serde_json::to_vec(&sectors).unwrap(), authored_sectors);
+    }
 
     fn box_map() -> (Map, Uuid) {
         let mut map = Map::new();
