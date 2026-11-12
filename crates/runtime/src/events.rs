@@ -48,7 +48,33 @@ pub struct RegionEvents {
     pub world_text: Vec<(u32, WorldText)>,
     pub containers: Vec<OpenContainerRequest>,
 }
+/// Cheap borrowed fan-out. A service which owns one output family can forward
+/// the remaining slices without cloning payloads or draining the session again.
+#[derive(Clone, Copy, Debug)]
+pub struct RegionOutputs<'a> {
+    pub messages: &'a [Message],
+    pub says: &'a [Say],
+    pub choices: &'a [MultipleChoice],
+    pub audio: &'a [AudioCommand],
+    pub world_text: &'a [(u32, WorldText)],
+    pub containers: &'a [OpenContainerRequest],
+}
+impl<'a> RegionOutputs<'a> {
+    pub fn without_audio(self) -> Self {
+        Self { audio: &[], ..self }
+    }
+}
 impl RegionEvents {
+    pub fn outputs(&self) -> RegionOutputs<'_> {
+        RegionOutputs {
+            messages: &self.messages,
+            says: &self.says,
+            choices: &self.choices,
+            audio: &self.audio,
+            world_text: &self.world_text,
+            containers: &self.containers,
+        }
+    }
     pub(crate) fn collect(
         &mut self,
         server: &mut rusterix::Server,
@@ -79,5 +105,35 @@ impl RegionEvents {
         if interest.containers {
             self.containers.extend(containers);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn borrowed_output_fanout_keeps_the_original_payload_and_can_assign_audio_once() {
+        let events = RegionEvents {
+            messages: vec![(None, None, 7, "Hello".into(), "status".into())],
+            audio: vec![AudioCommand::ClearAll],
+            ..Default::default()
+        };
+        let outputs = events.outputs();
+        let other = outputs.without_audio();
+        assert_eq!(outputs.audio.len(), 1);
+        assert!(other.audio.is_empty());
+        assert!(std::ptr::eq(
+            outputs.messages.as_ptr(),
+            other.messages.as_ptr()
+        ));
+        assert!(std::ptr::eq(
+            other.messages.as_ptr(),
+            events.messages.as_ptr()
+        ));
+        assert_eq!(
+            events.audio.len(),
+            1,
+            "borrowing does not drain or copy the session batch"
+        );
     }
 }

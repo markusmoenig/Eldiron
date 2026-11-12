@@ -74,8 +74,10 @@ features = [
 ]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+cpal = { version = "0.17", features = ["wasm-bindgen"] }
 wasm-bindgen = "0.2"
-web-sys = { version = "0.3", features = ["Window", "Navigator"] }
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = ["Window", "Navigator", "AudioContext", "AudioContextState"] }
 console_error_panic_hook = "0.1"
 instant = { version = "0.1", features = ["wasm-bindgen"] }
 

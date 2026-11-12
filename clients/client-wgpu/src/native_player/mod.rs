@@ -1,13 +1,15 @@
 //! Common graphical player application for native windows, foreign layers and
 //! Creator Play. Runtime, CPU screen state and GPU resources have distinct owners.
+mod audio;
 mod viewport;
 use crate::player_session::PlayerSession;
+pub use audio::AudioServices;
 use eldiron_presentation::{
     GameFonts, GameScreenController, SceneViews, ScreenCapture, ScreenEffect, ScreenTextResponse,
     ScreenTextTarget, ViewId,
     screen::{ContentRevision, ScreenImageCache},
 };
-use eldiron_runtime::{Project, RegionEvents, RuntimeView};
+use eldiron_runtime::{Project, RegionOutputs, RuntimeView};
 use renderkit::{ImageRegistry, RenderError, Result};
 use rusterix::{
     ServerState,
@@ -27,7 +29,10 @@ pub use viewport::ScreenViewport;
 /// exactly once after the active screen has received its messages/choices.
 /// Audio, world text and container consumers must not drain the server again.
 pub trait PlayerServices {
-    fn region_events(&mut self, region: Uuid, world: &RuntimeView<'_>, events: &RegionEvents);
+    fn update(&mut self, _world: &RuntimeView<'_>, _revision: u64, _elapsed: Duration) {}
+    fn user_gesture(&mut self, _world: &RuntimeView<'_>, _revision: u64) {}
+    fn set_suspended(&mut self, _suspended: bool) {}
+    fn region_events(&mut self, region: Uuid, world: &RuntimeView<'_>, events: RegionOutputs<'_>);
     fn screen_effect(
         &mut self,
         world: &RuntimeView<'_>,
@@ -274,6 +279,17 @@ impl PlayerApplication {
         if self.suspended && !matches!(event, InputEvent::Focus(false)) {
             return Ok(InputResponse::default());
         }
+        if matches!(
+            event,
+            InputEvent::Key {
+                pressed: true,
+                repeat: false,
+                ..
+            } | InputEvent::PointerButton { pressed: true, .. }
+        ) {
+            self.services
+                .user_gesture(&self.player.runtime.view(), self.revision.0);
+        }
         if let InputEvent::Clipboard { request, result } = event {
             let Some((widget, pending)) = self.pending_clipboard else {
                 return Ok(InputResponse::default());
@@ -387,6 +403,8 @@ impl PlayerApplication {
             self.player.submit_action(action)?;
         }
         let current = self.player.runtime.view().map.map(|m| m.id);
+        self.services
+            .update(&self.player.runtime.view(), self.revision.0, elapsed);
         // Every addressed region batch is drained once, including off-screen
         // regions. Services can decide which audio/world-text outputs to retain.
         let ids = self
@@ -407,7 +425,7 @@ impl PlayerApplication {
             if current == Some(id) {
                 self.screen.receive(&world, &events);
             }
-            self.services.region_events(id, &world, &events);
+            self.services.region_events(id, &world, events.outputs());
         }
         self.sync_host(host)
     }
@@ -519,6 +537,7 @@ impl GpuApplication for PlayerApplication {
             return;
         }
         self.suspended = true;
+        self.services.set_suspended(true);
         self.route(&InputEvent::Focus(false), host)
             .unwrap_or_else(|error| {
                 self.fail(host, error);
@@ -531,6 +550,9 @@ impl GpuApplication for PlayerApplication {
         self.player.runtime.clock.reset_elapsed();
     }
     fn resumed(&mut self, host: &mut HostContext) {
+        if self.suspended {
+            self.services.set_suspended(false);
+        }
         self.suspended = false;
         if self.resume_simulation {
             self.player.runtime.server.continue_instances();

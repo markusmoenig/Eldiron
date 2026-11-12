@@ -43,12 +43,14 @@ impl RegionAssets {
         Self(Arc::new(assets.clone()))
     }
 
-    /// World-map lookup belongs to the server/client registry; each region owns
-    /// its own runtime map. Exclude the registry without first cloning its geometry.
+    /// World maps and raw playback bytes belong to the outward registry; region
+    /// workers emit named audio commands. Exclude both without cloning them.
     pub fn for_regions(assets: &mut Assets) -> Self {
         let maps = std::mem::take(&mut assets.maps);
+        let audio = std::mem::take(&mut assets.audio);
         let snapshot = Self::new(assets);
         assets.maps = maps;
+        assets.audio = audio;
         snapshot
     }
 }
@@ -829,9 +831,12 @@ mod tests {
         let map = Map::default();
         let map_id = map.id;
         assets.maps.insert("Britannia".into(), map);
+        assets.audio.insert("Song".into(), vec![1, 2, 3]);
         let snapshot = RegionAssets::for_regions(&mut assets);
         assert!(snapshot.maps.is_empty());
+        assert!(snapshot.audio.is_empty());
         assert_eq!(assets.maps["Britannia"].id, map_id);
+        assert_eq!(assets.audio["Song"], vec![1, 2, 3]);
     }
 
     #[test]

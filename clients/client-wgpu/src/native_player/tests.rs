@@ -1,23 +1,67 @@
 use super::*;
+use eldiron_runtime::RegionEvents;
 use renderkit::{GpuContext, GpuImage, ImageDescriptor, ReadbackTicket, wgpu};
 use rusterix::{Map, Rect as ScreenRect, Value};
+use rusterix::{
+    audio::{
+        AudioError,
+        output::{AudioDevice, AudioLimits, AudioOutput},
+    },
+    server::message::AudioCommand,
+};
 use std::{
     sync::{Arc, Mutex},
     time::Instant,
 };
 use theframework::render_wgpu::PaintRenderer;
 #[derive(Default)]
+struct AudioObservation {
+    created: usize,
+    loads: Vec<String>,
+    commands: Vec<AudioCommand>,
+    suspensions: Vec<bool>,
+}
+struct RecordedAudio(Arc<Mutex<AudioObservation>>);
+impl AudioDevice for RecordedAudio {
+    fn healthy(&self) -> bool {
+        true
+    }
+    fn ready(&self) -> bool {
+        true
+    }
+    fn unlock(&mut self) -> std::result::Result<(), String> {
+        Ok(())
+    }
+    fn set_suspended(&mut self, value: bool) -> std::result::Result<(), String> {
+        self.0.lock().unwrap().suspensions.push(value);
+        Ok(())
+    }
+    fn load(&mut self, name: &str, _: &[u8], _: usize) -> std::result::Result<(), AudioError> {
+        self.0.lock().unwrap().loads.push(name.into());
+        Ok(())
+    }
+    fn unload(&mut self, _: &str) {}
+    fn stop_loops(&mut self, _: &str) {}
+    fn reset(&mut self) {}
+    fn command(&mut self, command: &AudioCommand, _: usize) -> bool {
+        self.0.lock().unwrap().commands.push(command.clone());
+        true
+    }
+}
+#[derive(Default)]
 struct Observation {
     batches: usize,
     messages: usize,
+    audio_forwarded: usize,
     effects: Vec<ScreenEffect>,
 }
 struct Services(Arc<Mutex<Observation>>);
 impl PlayerServices for Services {
-    fn region_events(&mut self, _: Uuid, _: &RuntimeView<'_>, events: &RegionEvents) {
+    fn region_events(&mut self, _: Uuid, _: &RuntimeView<'_>, events: RegionOutputs<'_>) {
         let mut o = self.0.lock().unwrap();
         o.batches += 1;
         o.messages += events.messages.len();
+        o.audio_forwarded += events.audio.len();
     }
     fn screen_effect(
         &mut self,
@@ -109,10 +153,30 @@ fn key(physical: PhysicalKey) -> InputEvent {
 #[ignore = "requires native GPU and real starter runtime"]
 fn assembled_player_keeps_runtime_edits_and_clock_across_gpu_replacement() {
     let observed = Arc::new(Mutex::new(Observation::default()));
+    let audio_trace = Arc::new(Mutex::new(AudioObservation::default()));
+    let factory = audio_trace.clone();
+    let audio = AudioOutput::new(AudioLimits::default(), move || {
+        factory.lock().unwrap().created += 1;
+        Ok(RecordedAudio(factory.clone()))
+    });
+    let mut project = starter_with_menu();
+    project
+        .audio_fx
+        .push_str("\n[sfx._rewrite_test_loop]\nwave='sine'\nduration=0.01\n");
+    let mut imported = shared::asset::Asset::new();
+    imported.name = "_rewrite_imported".into();
+    imported.buffer = shared::asset::AssetBuffer::Audio(
+        rusterix::audio::synthesize_audio_fx_wav("[sfx.sample]\nduration=0.01\n", "sample")
+            .unwrap(),
+    );
+    project.assets.insert(imported.id, imported);
     let mut app = PlayerApplication::new(
-        starter_with_menu(),
+        project,
         false,
-        Box::new(Services(observed.clone())),
+        Box::new(AudioServices::with_output(
+            Services(observed.clone()),
+            audio,
+        )),
     )
     .unwrap();
     app.player.runtime.server.print_log_messages = false;
@@ -456,8 +520,60 @@ fn assembled_player_keeps_runtime_edits_and_clock_across_gpu_replacement() {
             (output.view, count)
         })
         .collect::<Vec<_>>();
-    let time = app.player.runtime.project.time;
     let fonts = app.fonts.version();
+    let region = app.player.runtime.view().map.unwrap().id;
+    let instance = app.player.runtime.server.region_id_map[&region];
+    app.player
+        .runtime
+        .server
+        .audio_commands
+        .entry(instance)
+        .or_default()
+        .push(AudioCommand::Play {
+            name: "_rewrite_test_loop".into(),
+            bus: "music".into(),
+            gain: 0.25,
+            looping: true,
+        });
+    app.advance(Duration::ZERO, &mut host).unwrap();
+    app.player
+        .runtime
+        .server
+        .audio_commands
+        .entry(instance)
+        .or_default()
+        .push(AudioCommand::Play {
+            name: "_rewrite_imported".into(),
+            bus: "sfx".into(),
+            gain: 0.25,
+            looping: false,
+        });
+    app.advance(Duration::ZERO, &mut host).unwrap();
+    assert!(
+        audio_trace
+            .lock()
+            .unwrap()
+            .loads
+            .iter()
+            .any(|name| name == "_rewrite_imported")
+    );
+    let time = app.player.runtime.project.time;
+    assert_eq!(
+        audio_trace
+            .lock()
+            .unwrap()
+            .commands
+            .iter()
+            .filter(|c| matches!(c,AudioCommand::Play {name,..} if name=="_rewrite_test_loop"))
+            .count(),
+        1
+    );
+    assert_eq!(
+        observed.lock().unwrap().audio_forwarded,
+        0,
+        "the inner service cannot consume the audio owner's commands a second time"
+    );
+    let audio_before_recreation = audio_trace.lock().unwrap().commands.clone();
     let speech = {
         let world = app.player.runtime.view();
         let player = world
@@ -488,6 +604,15 @@ fn assembled_player_keeps_runtime_edits_and_clock_across_gpu_replacement() {
     let target2 = GpuImage::new(&gpu2, ImageDescriptor::rgba(1200, 900)).unwrap();
     app.gpu_recreated(&mut host, &mut images2).unwrap();
     render(&mut app, &mut host, &mut images2, &mut renderer2, &target2);
+    assert_eq!(
+        audio_trace.lock().unwrap().commands,
+        audio_before_recreation
+    );
+    assert_eq!(
+        audio_trace.lock().unwrap().created,
+        1,
+        "GPU recovery cannot replace the audio device"
+    );
     assert_eq!(app.player.runtime.project.time, time);
     assert_eq!(app.fonts.version(), fonts);
     assert_eq!(app.screen.speech.messages()[0].id, speech);

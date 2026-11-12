@@ -165,7 +165,7 @@ pub fn setup_client(rusterix: &mut Rusterix, project: &mut Project) -> Vec<Comma
     sync_item_icon_assets(rusterix, project);
     sync_procedural_avatar_assets(&mut rusterix.assets, project);
     rusterix.assets.fonts.clear();
-    rusterix.assets.audio.clear();
+    crate::runtime_assets::sync_audio_sources(&mut rusterix.assets, project);
     for (_, asset) in project.assets.iter() {
         if let AssetBuffer::Font(bytes) = &asset.buffer {
             if let Ok(font) =
@@ -173,11 +173,6 @@ pub fn setup_client(rusterix: &mut Rusterix, project: &mut Project) -> Vec<Comma
             {
                 rusterix.assets.fonts.insert(asset.name.clone(), font);
             }
-        } else if let AssetBuffer::Audio(bytes) = &asset.buffer {
-            rusterix
-                .assets
-                .audio
-                .insert(asset.name.clone(), bytes.clone());
         }
     }
     // Client setup can swap maps/widgets while keeping SceneVM alive.

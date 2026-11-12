@@ -1,19 +1,17 @@
 //! Native assembly smoke host. Canonical launchers switch after HUD/input parity.
 use eldiron_presentation::ScreenEffect;
-use eldiron_runtime::{RegionEvents, RuntimeView};
+use eldiron_runtime::{RegionOutputs, RuntimeView};
 use renderkit::{ImageRegistry, Result as GpuResult};
-use scenevm_unified_app::native_player::{PlayerApplication, PlayerServices};
+use scenevm_unified_app::native_player::{AudioServices, PlayerApplication, PlayerServices};
 use std::time::Duration;
 use theframework::{paint::PaintList, platform::*};
 struct Services;
 impl PlayerServices for Services {
-    fn region_events(&mut self, _: uuid::Uuid, _: &RuntimeView<'_>, events: &RegionEvents) {
+    fn region_events(&mut self, _: uuid::Uuid, _: &RuntimeView<'_>, events: RegionOutputs<'_>) {
         // This explicit smoke consumer verifies screen/runtime integration.
-        // Production audio/world-text/container services are integrated next.
-        if !events.audio.is_empty()
-            || !events.world_text.is_empty()
-            || !events.containers.is_empty()
-        {
+        // Audio is owned by AudioServices; text/speech by the screen controller.
+        // Container/HUD service adoption remains explicit work.
+        if !events.containers.is_empty() {
             eprintln!(
                 "native smoke outputs: {} audio, {} world text, {} containers",
                 events.audio.len(),
@@ -107,7 +105,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or("game.eldiron".into());
     let mut project = shared::project_io::decode_project(&std::fs::read(path)?)?;
     project.migrate_default_ruleset();
-    let app = PlayerApplication::new(project, false, Box::new(Services))?;
+    let app = PlayerApplication::new(project, false, Box::new(AudioServices::new(Services)))?;
     theframework::platform::winit::run(Box::new(NativeExample {
         player: app,
         smoke,

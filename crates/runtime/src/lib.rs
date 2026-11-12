@@ -4,7 +4,7 @@ mod clock;
 mod events;
 mod view;
 pub use clock::SessionClock;
-pub use events::{EventInterests, RegionEvents};
+pub use events::{EventInterests, RegionEvents, RegionOutputs};
 use rustc_hash::FxHashMap;
 pub use rusterix::player_start::{PlayerStartInfo, PlayerStartOptions};
 use rusterix::{Assets, EntityAction, Server, ServerState};

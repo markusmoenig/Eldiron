@@ -1,9 +1,11 @@
 use std::f32::consts::TAU;
 use std::io::Cursor;
 use std::sync::Arc as StdArc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+pub mod output;
 
 #[derive(Debug, Clone, Copy)]
 pub struct AudioConfig {
@@ -35,6 +37,7 @@ pub enum AudioError {
     DefaultOutputConfig(cpal::DefaultStreamConfigError),
     BuildStream(cpal::BuildStreamError),
     PlayStream(cpal::PlayStreamError),
+    PcmBudget,
     Decode(String),
 }
 
@@ -47,6 +50,7 @@ impl std::fmt::Display for AudioError {
             }
             Self::BuildStream(e) => write!(f, "failed to build audio output stream: {e}"),
             Self::PlayStream(e) => write!(f, "failed to start audio output stream: {e}"),
+            Self::PcmBudget => write!(f, "audio PCM budget exceeded"),
             Self::Decode(e) => write!(f, "failed to decode audio clip: {e}"),
         }
     }
@@ -74,9 +78,10 @@ struct DecodedClip {
 
 #[derive(Debug)]
 struct ClipVoice {
+    name: String,
     samples: StdArc<[f32]>,
-    pos: f32,
-    step: f32,
+    pos: f64,
+    step: f64,
     gain: f32,
     bus: String,
     looping: bool,
@@ -111,6 +116,20 @@ impl MixerState {
         }
     }
 
+    fn pcm_bytes_without_cache(&self, excluded: &str) -> usize {
+        let mut pointers = std::collections::HashSet::new();
+        self.clips
+            .iter()
+            .filter(|(name, _)| name.as_str() != excluded)
+            .map(|(_, clip)| &clip.samples)
+            .chain(self.clip_voices.iter().map(|voice| &voice.samples))
+            .filter_map(|samples| {
+                pointers
+                    .insert(Arc::as_ptr(samples) as *const f32 as usize)
+                    .then_some(samples.len().saturating_mul(4))
+            })
+            .fold(0usize, usize::saturating_add)
+    }
     fn set_master_volume(&mut self, volume: f32) {
         self.master_volume = volume.clamp(0.0, 4.0);
     }
@@ -185,8 +204,9 @@ impl MixerState {
         if clip.samples.is_empty() || clip.sample_rate == 0 || output_sample_rate == 0 {
             return false;
         }
-        let step = clip.sample_rate as f32 / output_sample_rate as f32;
+        let step = clip.sample_rate as f64 / output_sample_rate as f64;
         self.clip_voices.push(ClipVoice {
+            name: name.to_string(),
             samples: clip.samples,
             pos: 0.0,
             step,
@@ -198,6 +218,17 @@ impl MixerState {
             self.bus_volumes.insert(bus.to_string(), 1.0);
         }
         true
+    }
+    fn play_clip_bounded(
+        &mut self,
+        rate: u32,
+        name: &str,
+        bus: &str,
+        gain: f32,
+        looping: bool,
+        voices: usize,
+    ) -> bool {
+        self.clip_voices.len() < voices && self.play_clip(rate, name, bus, gain, looping)
     }
 
     fn mix_next_sample(&mut self) -> f32 {
@@ -212,23 +243,26 @@ impl MixerState {
                 voice.samples_left -= 1;
             }
         }
-        let bus_volumes = self.bus_volumes.clone();
+        let bus_volumes = &self.bus_volumes;
         for voice in &mut self.clip_voices {
             let bus_volume = bus_volumes.get(&voice.bus).copied().unwrap_or(1.0);
+            if voice.looping && !voice.samples.is_empty() {
+                voice.pos %= voice.samples.len() as f64;
+            }
             let i0 = voice.pos.floor() as usize;
             let i1 = i0.saturating_add(1);
             if i0 < voice.samples.len() {
                 let s0 = voice.samples[i0];
                 let s1 = if i1 < voice.samples.len() {
                     voice.samples[i1]
+                } else if voice.looping {
+                    voice.samples[0]
                 } else {
                     s0
                 };
-                let frac = voice.pos - i0 as f32;
+                let frac = (voice.pos - i0 as f64) as f32;
                 out += (s0 + (s1 - s0) * frac) * voice.gain * bus_volume;
                 voice.pos += voice.step;
-            } else if voice.looping && !voice.samples.is_empty() {
-                voice.pos = 0.0;
             }
         }
         self.voices.retain(|v| v.samples_left > 0);
@@ -239,9 +273,10 @@ impl MixerState {
 }
 
 pub struct AudioEngine {
-    _stream: cpal::Stream,
+    stream: cpal::Stream,
     mixer: Arc<Mutex<MixerState>>,
     output: OutputInfo,
+    healthy: Arc<AtomicBool>,
 }
 
 impl AudioEngine {
@@ -276,24 +311,153 @@ impl AudioEngine {
         };
 
         let mixer = Arc::new(Mutex::new(MixerState::new(config.master_volume)));
+        let healthy = Arc::new(AtomicBool::new(true));
         let stream = build_stream(
             &device,
             &stream_config,
             default_cfg.sample_format(),
             mixer.clone(),
+            healthy.clone(),
         )
         .map_err(AudioError::BuildStream)?;
         stream.play().map_err(AudioError::PlayStream)?;
 
         Ok(Self {
-            _stream: stream,
+            stream,
             mixer,
             output,
+            healthy,
         })
     }
 
     pub fn output_info(&self) -> &OutputInfo {
         &self.output
+    }
+    pub fn is_healthy(&self) -> bool {
+        let healthy = self.healthy.load(Ordering::Relaxed) && !self.mixer.is_poisoned();
+        #[cfg(target_arch = "wasm32")]
+        return healthy
+            && self
+                .web_context()
+                .is_some_and(|ctx| ctx.state() != web_sys::AudioContextState::Closed);
+        #[cfg(not(target_arch = "wasm32"))]
+        healthy
+    }
+    pub fn is_ready(&self) -> bool {
+        #[cfg(target_arch = "wasm32")]
+        return self.is_healthy()
+            && self
+                .web_context()
+                .is_some_and(|ctx| ctx.state() == web_sys::AudioContextState::Running);
+        #[cfg(not(target_arch = "wasm32"))]
+        self.is_healthy()
+    }
+    #[cfg(target_arch = "wasm32")]
+    fn web_context(&self) -> Option<&web_sys::AudioContext> {
+        // CPAL adds enum variants when optional host features are enabled.
+        #[allow(unreachable_patterns)]
+        match self.stream.as_inner() {
+            cpal::platform::StreamInner::WebAudio(stream) => Some(stream.audio_context()),
+            _ => None,
+        }
+    }
+    /// Resume the existing browser context in a user gesture. CPAL's play()
+    /// bootstraps buffer callbacks and must not be called again for each gesture.
+    pub fn unlock(&self) -> Result<(), String> {
+        #[cfg(target_arch = "wasm32")]
+        if let Some(ctx) = self.web_context() {
+            let promise = ctx.resume().map_err(|e| format!("{e:?}"))?;
+            wasm_bindgen_futures::spawn_local(async move {
+                let _ = wasm_bindgen_futures::JsFuture::from(promise).await;
+            });
+        }
+        Ok(())
+    }
+    pub fn set_suspended(&self, suspended: bool) -> Result<(), String> {
+        #[cfg(target_arch = "wasm32")]
+        if let Some(ctx) = self.web_context() {
+            if suspended {
+                let promise = ctx.suspend().map_err(|e| format!("{e:?}"))?;
+                wasm_bindgen_futures::spawn_local(async move {
+                    let _ = wasm_bindgen_futures::JsFuture::from(promise).await;
+                });
+            } else {
+                let promise = ctx.resume().map_err(|e| format!("{e:?}"))?;
+                wasm_bindgen_futures::spawn_local(async move {
+                    let _ = wasm_bindgen_futures::JsFuture::from(promise).await;
+                });
+            }
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        if suspended {
+            self.stream.pause().map_err(|e| e.to_string())?;
+        } else {
+            self.stream.play().map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+    /// Load only if cached and actively playing unique PCM buffers fit the
+    /// budget. Active voices pin their old data across cache removal/replacement.
+    pub fn load_clip_bounded(
+        &self,
+        name: &str,
+        bytes: &[u8],
+        budget: usize,
+    ) -> Result<(), AudioError> {
+        let occupied = self
+            .mixer
+            .lock()
+            .map_err(|_| AudioError::Decode("audio mixer is unavailable".into()))?
+            .pcm_bytes_without_cache(name);
+        let clip = decode_clip_limited(
+            bytes,
+            budget.saturating_sub(occupied) / std::mem::size_of::<f32>(),
+        )?;
+        let mut mixer = self
+            .mixer
+            .lock()
+            .map_err(|_| AudioError::Decode("audio mixer is unavailable".into()))?;
+        if mixer
+            .pcm_bytes_without_cache(name)
+            .saturating_add(clip.samples.len().saturating_mul(4))
+            > budget
+        {
+            return Err(AudioError::PcmBudget);
+        }
+        mixer.insert_clip(name.to_owned(), clip);
+        Ok(())
+    }
+    pub fn remove_cached_clip(&self, name: &str) {
+        if let Ok(mut mixer) = self.mixer.lock() {
+            mixer.clips.remove(name);
+        }
+    }
+    pub fn reset_project(&self) {
+        if let Ok(mut mixer) = self.mixer.lock() {
+            let next = mixer.next_id;
+            let mut fresh = MixerState::new(mixer.master_volume);
+            fresh.next_id = next;
+            *mixer = fresh;
+        }
+    }
+    pub fn stop_looping_clip(&self, name: &str) {
+        if let Ok(mut mixer) = self.mixer.lock() {
+            mixer
+                .clip_voices
+                .retain(|voice| !voice.looping || voice.name != name);
+        }
+    }
+    pub fn play_bounded(
+        &self,
+        name: &str,
+        bus: &str,
+        gain: f32,
+        looping: bool,
+        voices: usize,
+    ) -> bool {
+        self.mixer.lock().is_ok_and(|mut mixer| {
+            mixer.play_clip_bounded(self.output.sample_rate, name, bus, gain, looping, voices)
+        })
     }
 
     pub fn set_master_volume(&self, volume: f32) {
@@ -374,9 +538,12 @@ fn build_stream(
     config: &cpal::StreamConfig,
     sample_format: cpal::SampleFormat,
     mixer: Arc<Mutex<MixerState>>,
+    healthy: Arc<AtomicBool>,
 ) -> Result<cpal::Stream, cpal::BuildStreamError> {
-    let err_fn = |err| {
-        eprintln!("[audio] output stream error: {err}");
+    let err_fn = move |err| {
+        if healthy.swap(false, Ordering::Relaxed) {
+            eprintln!("[audio] output stream error: {err}");
+        }
     };
 
     match sample_format {
@@ -420,95 +587,119 @@ where
 }
 
 fn decode_clip(bytes: &[u8]) -> Result<DecodedClip, AudioError> {
-    if is_wav(bytes) {
-        return decode_wav(bytes);
+    decode_clip_limited(bytes, usize::MAX)
+}
+fn decode_clip_limited(bytes: &[u8], samples: usize) -> Result<DecodedClip, AudioError> {
+    if bytes.len() >= 12 && &bytes[0..4] == b"RIFF" && &bytes[8..12] == b"WAVE" {
+        return decode_wav(bytes, samples);
     }
-    if is_ogg(bytes) {
-        return decode_ogg(bytes);
+    if bytes.len() >= 4 && &bytes[0..4] == b"OggS" {
+        return decode_ogg(bytes, samples);
     }
-    decode_wav(bytes).or_else(|_| decode_ogg(bytes))
+    decode_wav(bytes, samples).or_else(|_| decode_ogg(bytes, samples))
 }
-
-fn is_wav(bytes: &[u8]) -> bool {
-    bytes.len() >= 12 && &bytes[0..4] == b"RIFF" && &bytes[8..12] == b"WAVE"
+struct MonoPcm {
+    samples: Vec<f32>,
+    channels: usize,
+    sum: f32,
+    count: usize,
+    limit: usize,
 }
-
-fn is_ogg(bytes: &[u8]) -> bool {
-    bytes.len() >= 4 && &bytes[0..4] == b"OggS"
+impl MonoPcm {
+    fn new(channels: usize, limit: usize) -> Self {
+        Self {
+            samples: Vec::new(),
+            channels: channels.max(1),
+            sum: 0.,
+            count: 0,
+            limit,
+        }
+    }
+    fn push(&mut self, sample: f32) -> Result<(), AudioError> {
+        if !sample.is_finite() {
+            return Err(AudioError::Decode("non-finite audio sample".into()));
+        }
+        self.sum += sample;
+        self.count += 1;
+        if self.count == self.channels {
+            self.flush()?;
+        }
+        Ok(())
+    }
+    fn flush(&mut self) -> Result<(), AudioError> {
+        if self.samples.len() >= self.limit {
+            return Err(AudioError::PcmBudget);
+        }
+        if self.samples.len() == self.samples.capacity() {
+            let extra = self
+                .samples
+                .capacity()
+                .max(4096)
+                .min(self.limit - self.samples.len());
+            self.samples
+                .try_reserve_exact(extra)
+                .map_err(|_| AudioError::Decode("unable to allocate audio PCM".into()))?;
+        }
+        self.samples.push(self.sum / self.channels as f32);
+        self.sum = 0.;
+        self.count = 0;
+        Ok(())
+    }
+    fn finish(mut self, rate: u32) -> Result<DecodedClip, AudioError> {
+        if self.count > 0 {
+            self.flush()?;
+        }
+        Ok(DecodedClip {
+            sample_rate: rate.max(1),
+            samples: self.samples.into(),
+        })
+    }
 }
-
-fn decode_wav(bytes: &[u8]) -> Result<DecodedClip, AudioError> {
-    let cursor = Cursor::new(bytes);
-    let mut reader = hound::WavReader::new(cursor)
+fn decode_wav(bytes: &[u8], limit: usize) -> Result<DecodedClip, AudioError> {
+    let mut reader = hound::WavReader::new(Cursor::new(bytes))
         .map_err(|e| AudioError::Decode(format!("wav reader error: {e}")))?;
     let spec = reader.spec();
-    let channels = spec.channels.max(1) as usize;
-    let sample_rate = spec.sample_rate.max(1);
-
-    let mut interleaved = Vec::<f32>::new();
+    let mut mono = MonoPcm::new(spec.channels as usize, limit);
     match spec.sample_format {
         hound::SampleFormat::Float => {
-            for s in reader.samples::<f32>() {
-                interleaved.push(
-                    s.map_err(|e| AudioError::Decode(format!("wav float sample error: {e}")))?,
-                );
+            for sample in reader.samples::<f32>() {
+                mono.push(
+                    sample
+                        .map_err(|e| AudioError::Decode(format!("wav float sample error: {e}")))?,
+                )?;
             }
         }
         hound::SampleFormat::Int => {
-            let bits = spec.bits_per_sample.clamp(1, 32) as i32;
-            let denom = (1_i64 << (bits - 1)) as f32;
-            for s in reader.samples::<i32>() {
-                let v = s.map_err(|e| AudioError::Decode(format!("wav int sample error: {e}")))?;
-                interleaved.push((v as f32 / denom).clamp(-1.0, 1.0));
+            let denominator = (1_i64 << (spec.bits_per_sample.clamp(1, 32) - 1)) as f32;
+            for sample in reader.samples::<i32>() {
+                mono.push(
+                    (sample.map_err(|e| AudioError::Decode(format!("wav int sample error: {e}")))?
+                        as f32
+                        / denominator)
+                        .clamp(-1., 1.),
+                )?;
             }
         }
     }
-
-    let mono = downmix_to_mono(&interleaved, channels);
-    Ok(DecodedClip {
-        sample_rate,
-        samples: mono.into(),
-    })
+    mono.finish(spec.sample_rate)
 }
-
-fn decode_ogg(bytes: &[u8]) -> Result<DecodedClip, AudioError> {
-    let cursor = Cursor::new(bytes);
-    let mut reader = lewton::inside_ogg::OggStreamReader::new(cursor)
+fn decode_ogg(bytes: &[u8], limit: usize) -> Result<DecodedClip, AudioError> {
+    let mut reader = lewton::inside_ogg::OggStreamReader::new(Cursor::new(bytes))
         .map_err(|e| AudioError::Decode(format!("ogg reader error: {e}")))?;
-    let channels = reader.ident_hdr.audio_channels.max(1) as usize;
-    let sample_rate = reader.ident_hdr.audio_sample_rate.max(1);
-
-    let mut interleaved = Vec::<f32>::new();
+    let rate = reader.ident_hdr.audio_sample_rate;
+    let mut mono = MonoPcm::new(reader.ident_hdr.audio_channels as usize, limit);
     while let Some(packet) = reader
         .read_dec_packet_itl()
         .map_err(|e| AudioError::Decode(format!("ogg packet decode error: {e}")))?
     {
-        interleaved.extend(packet.into_iter().map(|s| s as f32 / 32768.0));
-    }
-
-    let mono = downmix_to_mono(&interleaved, channels);
-    Ok(DecodedClip {
-        sample_rate,
-        samples: mono.into(),
-    })
-}
-
-fn downmix_to_mono(interleaved: &[f32], channels: usize) -> Vec<f32> {
-    if channels <= 1 {
-        return interleaved.to_vec();
-    }
-    let mut out = Vec::with_capacity(interleaved.len() / channels);
-    for frame in interleaved.chunks(channels) {
-        let mut sum = 0.0f32;
-        for s in frame {
-            sum += *s;
+        for sample in packet {
+            mono.push(sample as f32 / 32768.)?;
         }
-        out.push(sum / channels as f32);
     }
-    out
+    mono.finish(rate)
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Hash)]
 enum FxWave {
     Sine,
     Square,
@@ -660,6 +851,46 @@ pub fn list_audio_fx_names(src: &str) -> Vec<String> {
     out
 }
 
+/// Fingerprint normalized playback definitions rather than the source document.
+/// An unrelated effect, comment or shadowed import cannot invalidate live music.
+fn audio_fx_fingerprints(src: &str) -> rustc_hash::FxHashMap<String, u64> {
+    use std::hash::{Hash, Hasher};
+    let Ok(root) = parse_audio_fx_table(src) else {
+        return Default::default();
+    };
+    let tables = root
+        .get("sfx")
+        .and_then(toml::Value::as_table)
+        .unwrap_or(&root);
+    tables
+        .iter()
+        .filter_map(|(name, value)| {
+            let fx = parse_audio_fx_definition(value.as_table()?);
+            let mut hash = rustc_hash::FxHasher::default();
+            fx.wave.hash(&mut hash);
+            fx.repeat.hash(&mut hash);
+            [
+                fx.duration,
+                fx.attack,
+                fx.decay,
+                fx.sustain_level,
+                fx.release,
+                fx.gain,
+                fx.freq,
+                fx.freq_end,
+                fx.noise,
+                fx.lowpass,
+                fx.repeat_gap,
+                fx.tremolo_depth,
+                fx.tremolo_freq,
+            ]
+            .map(f32::to_bits)
+            .hash(&mut hash);
+            Some((name.clone(), hash.finish()))
+        })
+        .collect()
+}
+
 fn sample_wave(wave: FxWave, phase: f32) -> f32 {
     match wave {
         FxWave::Sine => phase.sin(),
@@ -798,3 +1029,33 @@ pub fn synthesize_audio_fx_wav(src: &str, name: &str) -> Result<Vec<u8>, String>
     let samples = synthesize_audio_fx_samples(&fx, 44_100);
     encode_wav_from_mono_f32(&samples, 44_100)
 }
+/// Guard generated PCM before the synthesizer allocates its output buffer.
+pub fn synthesize_audio_fx_wav_bounded(
+    src: &str,
+    name: &str,
+    pcm_bytes: usize,
+) -> Result<Vec<u8>, AudioError> {
+    let root = parse_audio_fx_table(src).map_err(AudioError::Decode)?;
+    let table = find_audio_fx_table(&root, name)
+        .ok_or_else(|| AudioError::Decode(format!("audio fx '{name}' not found")))?;
+    let fx = parse_audio_fx_definition(table);
+    let single = (fx.duration.max(0.001) * 44100.).ceil() as usize;
+    let gap = (fx.repeat_gap.max(0.) * 44100.).ceil() as usize;
+    // The synthesizer computes rep * (single + gap), even for a single repeat.
+    single.checked_add(gap).ok_or(AudioError::PcmBudget)?;
+    let samples = single
+        .checked_mul(fx.repeat.max(1))
+        .and_then(|s| {
+            gap.checked_mul(fx.repeat.saturating_sub(1))
+                .and_then(|g| s.checked_add(g))
+        })
+        .ok_or(AudioError::PcmBudget)?;
+    if samples.max(1) > pcm_bytes / 4 {
+        return Err(AudioError::PcmBudget);
+    }
+    encode_wav_from_mono_f32(&synthesize_audio_fx_samples(&fx, 44100), 44100)
+        .map_err(AudioError::Decode)
+}
+
+#[cfg(test)]
+mod tests;

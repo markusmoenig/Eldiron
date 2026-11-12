@@ -1363,6 +1363,54 @@ pub fn sync_item_icons(assets: &mut rusterix::Assets, project: &Project) {
     insert_project_item_icons(assets, project);
 }
 
+/// Publish authored audio bytes and FX source without creating a device,
+/// decoding clips or initializing the graphical client/font registry.
+pub fn sync_audio_sources(assets: &mut rusterix::Assets, project: &Project) {
+    assets.audio.clear();
+    assets.audio_fx_src = project.audio_fx.clone();
+    for asset in project.assets.values() {
+        if let crate::asset::AssetBuffer::Audio(bytes) = &asset.buffer {
+            assets.audio.insert(asset.name.clone(), bytes.clone());
+        }
+    }
+}
+
+#[cfg(test)]
+mod audio_source_tests {
+    use super::*;
+    use crate::asset::{Asset, AssetBuffer};
+    #[test]
+    fn audio_sources_publish_raw_wav_ogg_and_fx_without_a_device_font_or_project_mutation() {
+        let mut project = Project::default();
+        let mut sound = Asset::new();
+        sound.name = "Song".into();
+        sound.buffer = AssetBuffer::Audio(b"RIFF original bytes".to_vec());
+        let sound_id = sound.id;
+        project.assets.insert(sound.id, sound);
+        let mut ogg = Asset::new();
+        ogg.name = "Ogg".into();
+        ogg.buffer = AssetBuffer::Audio(b"OggS original bytes".to_vec());
+        project.assets.insert(ogg.id, ogg);
+        let mut font = Asset::new();
+        font.name = "Ignored font".into();
+        font.buffer = AssetBuffer::Font(vec![1, 2, 3]);
+        project.assets.insert(font.id, font);
+        project.audio_fx = "Exact uncompiled FX source e\u{301}\r\n".into();
+        let before = serde_json::to_value(&project).unwrap();
+        let mut assets = rusterix::Assets::default();
+        sync_audio_sources(&mut assets, &project);
+        assert_eq!(assets.audio["Song"], b"RIFF original bytes");
+        assert_eq!(assets.audio["Ogg"], b"OggS original bytes");
+        assert_eq!(assets.audio_fx_src, project.audio_fx);
+        assert!(assets.fonts.is_empty());
+        assert_eq!(serde_json::to_value(&project).unwrap(), before);
+        project.assets.shift_remove(&sound_id);
+        sync_audio_sources(&mut assets, &project);
+        assert!(!assets.audio.contains_key("Song"));
+        assert_eq!(assets.audio.len(), 1);
+    }
+}
+
 pub fn start_server(
     server: &mut rusterix::Server,
     assets: &mut rusterix::Assets,
@@ -1414,7 +1462,7 @@ pub fn start_server(
                 project.locales.clone()
             },
         );
-    assets.audio_fx_src = project.audio_fx.clone();
+    sync_audio_sources(assets, project);
     assets.authoring_src = project.authoring.clone();
     if debug && !project.world_source_debug.is_empty() {
         assets.world_source = project.world_source_debug.clone();
