@@ -1,6 +1,6 @@
 //! Ordered GPU floor/terrain rasterization into the shared deferred canvas.
 //! CPU preparation emits geometry/source/mask metadata, never viewport pixels.
-use super::GpuMaterialSource;
+use super::{GpuMaterialSource, GpuTerrainPaintSource};
 use bytemuck::{Pod, Zeroable};
 use renderkit::{GpuContext, RenderError, Result, wgpu};
 use rustc_hash::FxHashMap;
@@ -22,6 +22,7 @@ pub struct SurfaceTriangle<'a> {
     pub vertices: [[f32; 3]; 3],
     pub source: &'a GpuMaterialSource,
     pub secondary: Option<(&'a GpuMaterialSource, [f32; 4])>,
+    pub paint: Option<&'a GpuTerrainPaintSource>,
     pub kind: SurfaceKind,
     pub repeat: bool,
     pub uv_bounds: [f32; 4],
@@ -45,6 +46,8 @@ pub struct IsometricSurfaceRenderer {
     context: Arc<GpuContext>,
     layout: wgpu::BindGroupLayout,
     source_layout: wgpu::BindGroupLayout,
+    paint_layout: wgpu::BindGroupLayout,
+    empty_paint: wgpu::BindGroup,
     pipeline: wgpu::ComputePipeline,
     params: wgpu::Buffer,
     capacity: u64,
@@ -98,15 +101,43 @@ impl IsometricSurfaceRenderer {
                         count: None,
                     }),
                 });
+        let paint_layout =
+            context
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("iso-paint-source-layout"),
+                    entries: &[wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    }],
+                });
+        let empty = Self::buffer(&context.device, 4, false);
+        let empty_paint = context
+            .device
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("iso-empty-paint"),
+                layout: &paint_layout,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: empty.as_entire_binding(),
+                }],
+            });
         let shader = context
             .device
             .create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some("iso-gpu-surfaces"),
                 source: wgpu::ShaderSource::Wgsl(
                     format!(
-                        "{}\n{}",
+                        "{}\n{}\n{}",
                         include_str!("surface.wgsl"),
-                        include_str!("material_sample.wgsl")
+                        include_str!("material_sample.wgsl"),
+                        include_str!("paint_sample.wgsl")
                     )
                     .into(),
                 ),
@@ -116,7 +147,7 @@ impl IsometricSurfaceRenderer {
                 .device
                 .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: None,
-                    bind_group_layouts: &[Some(&layout), Some(&source_layout)],
+                    bind_group_layouts: &[Some(&layout), Some(&source_layout), Some(&paint_layout)],
                     immediate_size: 0,
                 });
         let pipeline = context
@@ -137,6 +168,8 @@ impl IsometricSurfaceRenderer {
             context,
             layout,
             source_layout,
+            paint_layout,
+            empty_paint,
             pipeline,
             params,
             capacity: stride,
@@ -204,7 +237,9 @@ impl IsometricSurfaceRenderer {
         let mut regions = Vec::with_capacity(triangles.len());
         let (width, height) = canvas.size();
         for (i, t) in triangles.iter().enumerate() {
-            if t.source.device_generation() != self.context.generation()
+            if t.paint
+                .is_some_and(|p| p.device_generation() != self.context.generation())
+                || t.source.device_generation() != self.context.generation()
                 || t.secondary
                     .is_some_and(|(s, _)| s.device_generation() != self.context.generation())
                 || !t.vertices.into_iter().flatten().all(f32::is_finite)
@@ -288,7 +323,7 @@ impl IsometricSurfaceRenderer {
                     t.contacts.owner,
                     offset,
                     t.contacts.protected.len() as u32,
-                    u32::from(t.secondary.is_some()),
+                    u32::from(t.secondary.is_some()) | (u32::from(t.paint.is_some()) << 1),
                 ],
                 cell,
             };
@@ -372,6 +407,23 @@ impl IsometricSurfaceRenderer {
                     })
             });
         }
+        let mut paints = FxHashMap::default();
+        for source in triangles.iter().filter_map(|t| t.paint) {
+            paints
+                .entry(source as *const _ as usize)
+                .or_insert_with(|| {
+                    self.context
+                        .device
+                        .create_bind_group(&wgpu::BindGroupDescriptor {
+                            label: Some("iso-surface-paint"),
+                            layout: &self.paint_layout,
+                            entries: &[wgpu::BindGroupEntry {
+                                binding: 0,
+                                resource: source.buffer().as_entire_binding(),
+                            }],
+                        })
+                });
+        }
         let mut encoder =
             self.context
                 .device
@@ -389,6 +441,13 @@ impl IsometricSurfaceRenderer {
             pass.set_pipeline(&self.pipeline);
             pass.set_bind_group(0, &bind, &[(i as u64 * self.stride) as u32]);
             pass.set_bind_group(1, &pairs[&key], &[]);
+            pass.set_bind_group(
+                2,
+                t.paint.map_or(&self.empty_paint, |source| {
+                    &paints[&(source as *const _ as usize)]
+                }),
+                &[],
+            );
             pass.dispatch_workgroups(
                 ((region[2] - region[0]) as u32).div_ceil(8),
                 ((region[3] - region[1]) as u32).div_ceil(8),

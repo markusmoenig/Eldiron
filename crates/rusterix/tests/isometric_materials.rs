@@ -270,3 +270,17 @@ fn scene_material_clock_keeps_animation_separate_from_spatial_pages() {
         );
     }
 }
+
+#[test]
+fn source_sampling_boundaries_own_signed_cells_and_half_paint_texels() {
+    use rusterix::isometric::materials::sampling_coordinate as sample;
+    for n in -192..=192 {
+        let boundary = n as f32 / 64.;
+        for delta in [-0.0000005, 0., 0.0000005] {
+            assert_eq!(sample(boundary + delta), boundary);
+        }
+        for delta in [-0.00001, 0.00001] {
+            assert_eq!(sample(boundary + delta), boundary + delta);
+        }
+    }
+}

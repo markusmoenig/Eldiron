@@ -8,6 +8,20 @@ pub fn animation_frame(seconds: f32) -> usize {
     (seconds.max(0.) / 0.25) as usize
 }
 
+/// Give source sampling a stable owner at exact cell and half-paint-texel
+/// boundaries. GPU reciprocal/FMA rounding can move an analytical boundary by
+/// a few ulps. Only values within one millionth of a world unit are snapped;
+/// geometry, depth, lighting and authored coordinates remain untouched.
+/// Keep synchronized with sampling_world in presentation/surface.wgsl.
+pub fn sampling_coordinate(value: f32) -> f32 {
+    let boundary = (value * 64.).round() / 64.;
+    if (value - boundary).abs() <= 0.000001 {
+        boundary
+    } else {
+        value
+    }
+}
+
 #[derive(Clone, Copy)]
 pub struct MaterialSelection<'a> {
     pub primary: &'a Tile,

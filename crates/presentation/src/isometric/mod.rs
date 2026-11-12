@@ -7,3 +7,6 @@ pub use material_sources::{GpuMaterialSource, IsometricMaterialSources};
 
 mod surface_renderer;
 pub use surface_renderer::{IsometricSurfaceRenderer, SurfaceKind, SurfaceTriangle};
+
+mod paint_sources;
+pub use paint_sources::{GpuTerrainPaintSource, IsometricPaintSources};

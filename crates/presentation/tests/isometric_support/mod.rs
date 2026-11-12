@@ -93,6 +93,7 @@ pub(super) fn triangles<'a>(
             vertices: t.vertices,
             source: &t.source,
             secondary: t.secondary.as_ref().map(|(s, w)| (s.as_ref(), *w)),
+            paint: None,
             kind,
             repeat,
             uv_bounds: bounds,

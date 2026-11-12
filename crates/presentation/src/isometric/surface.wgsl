@@ -11,6 +11,7 @@ struct SurfaceParams {
 @group(0) @binding(5) var<storage,read> protection:array<u32>;
 @group(1) @binding(0) var<storage,read> material_a:array<vec4<u32>>;
 @group(1) @binding(1) var<storage,read> material_b:array<vec4<u32>>;
+@group(2) @binding(0) var<storage,read> paint_data:array<u32>;
 fn project(v:vec3<f32>)->vec2<f32> {
     return p.projection.xy+vec2<f32>((v.x+v.z)*p.projection.z,(v.z-v.x)*p.projection.z*0.5-v.y*p.projection.z*1.2247449);
 }
@@ -45,6 +46,11 @@ fn raster_contains(corners:array<vec2<f32>,3>,q:vec2<f32>,area:f32)->bool {
     }
     return true;
 }
+// Same source-boundary ownership as rusterix::isometric::materials.
+fn sampling_world(world:vec2<f32>)->vec2<f32> {
+    let boundary=sign(world)*floor(abs(world*64.0)+0.5)/64.0;
+    return select(world,boundary,abs(world-boundary)<=vec2<f32>(0.000001));
+}
 @compute @workgroup_size(8,8)
 fn raster(@builtin(global_invocation_id) id:vec3<u32>) {
     let at=vec2<i32>(id.xy)+p.region.xy;if any(at>=p.region.zw){return;}
@@ -65,22 +71,30 @@ fn raster(@builtin(global_invocation_id) id:vec3<u32>) {
         let point=(q+vec2<f32>(0.0,h*p.projection.z*1.2247449)-p.projection.xy)/max(p.projection.z,0.001);
         world=vec3<f32>(point.x*0.5-point.y,h,point.x*0.5+point.y);
     }
-    if p.cell.z!=0 && any(vec2<i32>(floor(world.xz))!=p.cell.xy) {return;}
+    let sampled=sampling_world(world.xz);
+    if p.cell.z!=0 && any(vec2<i32>(floor(sampled))!=p.cell.xy) {return;}
     let dst=u32(at.y)*p.canvas.x+u32(at.x);let previous=owners[dst];
     if previous<p.contact.z&&protection[p.contact.y+previous]!=0u{return;}
     let depth=world.z-world.x+world.y*0.8164966;
     if p.canvas.z!=0u&&depth<=terrain[dst].x{return;}
-    var uv=world.xz;let repeat=p.canvas.w!=0u;
+    var uv=sampled;let repeat=p.canvas.w!=0u;
     if !repeat {uv=(uv-p.uv_bounds.xy)/max(p.uv_bounds.zw-p.uv_bounds.xy,vec2<f32>(0.001));}
     let base=sample_material(0u,uv,repeat);var color=base.color;var rme=base.rme;
-    if p.contact.w!=0u {
-        let t=fract(world.xz);let l=p.blend.x*(1.0-t.y)+p.blend.w*t.y;let r=p.blend.y*(1.0-t.y)+p.blend.z*t.y;
+    if (p.contact.w&1u)!=0u {
+        let t=fract(sampled);let l=p.blend.x*(1.0-t.y)+p.blend.w*t.y;let r=p.blend.y*(1.0-t.y)+p.blend.z*t.y;
         let amount=clamp(l*(1.0-t.x)+r*t.x,0.0,1.0);let other=sample_material(1u,uv,repeat);
         color=mix_color(color,other.color,amount);rme=rme*(1.0-amount)+other.rme*amount;
     }
-    let value=bytes(color);let alpha=value.a;if alpha==0u{return;}
-    let under=bytes(albedo[dst]);albedo[dst]=word(vec4<u32>((value.rgb*alpha+under.rgb*(255u-alpha)+127u)/255u,255u));
-    owners[dst]=p.contact.x;
+    // Reference terrain rejects a transparent base before paint; floor paint
+    // may create color on one. Erasure retains terrain geometry/depth.
+    if p.canvas.z!=0u && bytes(color).a==0u {return;}
+    if (p.contact.w&2u)!=0u {let painted=apply_paint(color,rme,sampled);color=painted.color;rme=painted.rme;}
+    let value=bytes(color);let alpha=value.a;
+    if alpha==0u && p.canvas.z==0u {return;}
+    if alpha>0u {
+        let under=bytes(albedo[dst]);albedo[dst]=word(vec4<u32>((value.rgb*alpha+under.rgb*(255u-alpha)+127u)/255u,255u));
+        owners[dst]=p.contact.x;
+    }
     if p.canvas.z!=0u {terrain[dst]=vec2<f32>(depth,world.y);surfaces[dst]=packed(p.normal.xyz,world.y,rme);}
     else {surfaces[dst]=packed(vec3<f32>(0.0,1.0,0.0),world.y,vec3<f32>(0.95,0.0,0.0));}
 }

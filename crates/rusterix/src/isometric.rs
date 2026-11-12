@@ -866,16 +866,17 @@ fn raster_floor_pixels(
                     continue;
                 }
                 let world = p.ground(q + Vec2::new(0., floor * p.unit * 1.2247449));
+                let sampled = world.map(materials::sampling_coordinate);
                 let uv = if repeat {
-                    world
+                    sampled
                 } else {
-                    (world - bbox.min) / (bbox.max - bbox.min).map(|v| v.max(0.001))
+                    (sampled - bbox.min) / (bbox.max - bbox.min).map(|v| v.max(0.001))
                 };
-                let cell = (world.x.floor() as i32, world.y.floor() as i32);
+                let cell = (sampled.x.floor() as i32, sampled.y.floor() as i32);
                 let selection = materials.cell(cell).expect("floor has its explicit base source");
                 let mut color = sample(selection.primary, uv);
                 if let Some((weights, secondary)) = selection.secondary {
-                    let (u, v) = (world.x.rem_euclid(1.), world.y.rem_euclid(1.));
+                    let (u, v) = (sampled.x.rem_euclid(1.), sampled.y.rem_euclid(1.));
                     let left = weights[0] * (1. - v) + weights[3] * v;
                     let right = weights[1] * (1. - v) + weights[2] * v;
                     color = mix_floor_colors(
@@ -886,7 +887,7 @@ fn raster_floor_pixels(
                 }
                 if floor.abs() < 0.001 {
                     if let Some(paint) = assets.terrain_paint.get(&map.id) {
-                        color = paint.composite(color, [world.x, world.y]);
+                        color = paint.composite(color, [sampled.x, sampled.y]);
                     }
                 }
                 if color[3] > 0 {

@@ -583,6 +583,7 @@ fn surface_batches_reject_bad_geometry_and_foreign_resources_before_touching_the
         vertices: [[0., 0., 0.], [0., 0., 1.], [1., 0., 0.]],
         source,
         secondary: None,
+        paint: None,
         kind: SurfaceKind::Floor,
         repeat: true,
         uv_bounds: [0., 0., 1., 1.],

@@ -122,12 +122,12 @@ pub(super) fn render(
                         if d <= depth[at][0] {
                             continue;
                         }
-                        let sample =
-                            |tile: &Tile| tile.sample_surface_2d([world.x, world.z], frame);
+                        let sampled = [world.x, world.z].map(super::materials::sampling_coordinate);
+                        let sample = |tile: &Tile| tile.sample_surface_2d(sampled, frame);
                         let (mut color, mut material) = sample(facet.tile);
                         if let Some((weights, tile)) = facet.mix {
-                            let u = world.x.rem_euclid(1.);
-                            let v = world.z.rem_euclid(1.);
+                            let u = sampled[0].rem_euclid(1.);
+                            let v = sampled[1].rem_euclid(1.);
                             let a = weights[0] * (1. - v) + weights[3] * v;
                             let b = weights[1] * (1. - v) + weights[2] * v;
                             let amount = a * (1. - u) + b * u;
@@ -141,8 +141,8 @@ pub(super) fn render(
                             continue;
                         }
                         if let Some(paint) = paint {
-                            color = paint.composite(color, [world.x, world.z]);
-                            material = paint.surface_material(material, [world.x, world.z]);
+                            color = paint.composite(color, sampled);
+                            material = paint.surface_material(material, sampled);
                         }
                         blend(pixels, at * 4, color);
                         depth[at] = [
