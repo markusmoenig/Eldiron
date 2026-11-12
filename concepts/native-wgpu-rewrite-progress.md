@@ -4335,3 +4335,33 @@ beyond the top-down cache key; complete source revisions/idle performance remain
 open. CPU assets/build/camera/tool globals and their reference GPU lifetimes still
 require ownership extraction and retirement. No milestone or overall completion
 is claimed.
+
+
+### Sprite-isometric editor guide source extraction (2026-11-13)
+
+Advanced the next viewport mode after the 3D application checkpoint. Existing
+isometric construction-grid/topology/selection/cursor geometry now emits ordered
+segments through `isometric::editor::guide_segments(map, size, projection,
+guides, emit)`. Terrain brush perimeters share
+`isometric::terrain_rectangle_segments`. These producers allocate no destination
+bitmap. The reference raster adapters call the same producers and retain the
+original `isometric::line` capped DDA sampler, including repeated rounded samples
+and endpoint order.
+
+Native Creator compilation passed, 17.06 s:
+`/private/tmp/eldiron-native-iso-guides-check.log`. No isolated test suite or broad
+matrix was added/rerun for this extraction. This is source preparation, not
+native isometric viewport adoption or verified pixel parity.
+
+Immediate next work: connect the existing injected `IsometricSceneRenderer` to
+the Creator world owner and consume these guide segments with GPU capped-DDA
+coverage (including repeated alpha samples). Do not silently substitute the
+existing symmetric-Bresenham `PaintOp::PixelLine`. Relevant implementation:
+`crates/theframework/src/render_wgpu/{renderer.rs,paint.wgsl}` currently uses the
+common 64-byte Params uniform and image-effect modes 12 (PixelLine) and 13
+(PixelTriangle); the neutral operation lives in `paint.rs`. Decide logical/DPI
+sampling explicitly; old editor buffers are nearest-scaled logical rasters and
+full density parity remains open. Then connect the source-scoped iso picking and
+actual root/tool handoff, extending the existing assembled integration checkpoint
+when that whole mode is ready. All prior acceptance gaps and the full M0–M9 Goal
+remain active.

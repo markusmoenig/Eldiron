@@ -978,6 +978,18 @@ pub fn terrain_rectangle_guide(
     b: Vec2<f32>,
     color: [u8; 4],
 ) {
+    terrain_rectangle_segments(map, p, a, b, &mut |a, b| line(buffer, a, b, color));
+}
+
+/// Terrain-conforming perimeter geometry for reference and native consumers.
+/// No framebuffer or rasterization policy belongs to this source producer.
+pub fn terrain_rectangle_segments(
+    map: &Map,
+    p: Projection,
+    a: Vec2<f32>,
+    b: Vec2<f32>,
+    emit: &mut impl FnMut(Vec2<f32>, Vec2<f32>),
+) {
     let surface = (map
         .properties
         .get_float_default("iso_edit_height", 0.)
@@ -986,7 +998,10 @@ pub fn terrain_rectangle_guide(
         .then(|| crate::chunkbuilder::terrain_surface::TerrainSurface::cached(map))
         .flatten();
     let Some(surface) = surface else {
-        rectangle_guide(buffer, p, a, b, color);
+        let corners = [a, Vec2::new(b.x, a.y), b, Vec2::new(a.x, b.y)];
+        for i in 0..4 {
+            emit(p.screen(corners[i], 0.), p.screen(corners[(i + 1) % 4], 0.));
+        }
         return;
     };
     let corners = [a, Vec2::new(b.x, a.y), b, Vec2::new(a.x, b.y)];
@@ -1000,7 +1015,7 @@ pub fn terrain_rectangle_guide(
         let mut prev = screen(a);
         for k in 1..=steps {
             let next = screen(a + (b - a) * (k as f32 / steps as f32));
-            line(buffer, prev, next, color);
+            emit(prev, next);
             prev = next;
         }
     }

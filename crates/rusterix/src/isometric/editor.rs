@@ -1,5 +1,5 @@
 //! Authoring overlays for the sprite iso view. Picking shares the same geometry filter.
-use super::{Projection, line, terrain_rectangle_guide};
+use super::{Projection, line, terrain_rectangle_segments};
 use crate::editor_colors::{EDITOR_CURSOR_COLOR, EDITOR_GEOMETRY_COLOR, EDITOR_SELECTION_COLOR};
 use crate::{Map, MapToolType};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -115,12 +115,29 @@ fn projected_segment_at_height(
         .collect()
 }
 
-/// Guides sit on terrain or the active construction plane, over the rendered scene.
+/// Reference raster adapter over the same ordered guide geometry consumed by
+/// native editor views. The line sampler remains the legacy capped DDA.
 pub(super) fn draw_guides(
     map: &Map,
     buffer: &mut TheRGBABuffer,
+    projection: Projection,
+    guides: EditorGuides,
+) {
+    let size = Vec2::new(buffer.dim().width as f32, buffer.dim().height as f32);
+    guide_segments(map, size, projection, guides, |a, b, color| {
+        line(buffer, a, b, color)
+    });
+}
+
+/// Emit authoring geometry without allocating or painting a destination image.
+/// Segment order, repeated endpoints, terrain faceting and subpixel endpoints
+/// are significant: the consumer uses the capped DDA sampler, not Bresenham.
+pub fn guide_segments(
+    map: &Map,
+    size: Vec2<f32>,
     p: Projection,
     guides: EditorGuides,
+    mut emit: impl FnMut(Vec2<f32>, Vec2<f32>, [u8; 4]),
 ) {
     let surface = if map
         .properties
@@ -139,8 +156,8 @@ pub(super) fn draw_guides(
         )
     };
     if guides.grid {
-        let w = buffer.dim().width as f32;
-        let h = buffer.dim().height as f32;
+        let w = size.x;
+        let h = size.y;
         let corners = [
             Vec2::zero(),
             Vec2::new(w, 0.),
@@ -184,7 +201,7 @@ pub(super) fn draw_guides(
                 let mut previous = screen(a);
                 for k in 1..=steps.max(1) {
                     let next = screen(a + (b - a) * (k as f32 / steps.max(1) as f32));
-                    line(buffer, previous, next, color);
+                    emit(previous, next, color);
                     previous = next;
                 }
             }
@@ -254,7 +271,7 @@ pub(super) fn draw_guides(
                 .unwrap_or(edit_height);
             let projection = p.at_height(height - edit_height);
             for segment in projected_segment_at_height(map, projection, a, b, height).windows(2) {
-                line(buffer, segment[0], segment[1], color);
+                emit(segment[0], segment[1], color);
             }
         }
     }
@@ -282,23 +299,13 @@ pub(super) fn draw_guides(
                 EDITOR_GEOMETRY_COLOR
             };
         let radius = if selected || terrain_control { 3. } else { 2. };
-        line(
-            buffer,
-            q - Vec2::new(radius, 0.),
-            q + Vec2::new(radius, 0.),
-            color,
-        );
-        line(
-            buffer,
-            q - Vec2::new(0., radius),
-            q + Vec2::new(0., radius),
-            color,
-        );
+        emit(q - Vec2::new(radius, 0.), q + Vec2::new(radius, 0.), color);
+        emit(q - Vec2::new(0., radius), q + Vec2::new(0., radius), color);
     }
     if topology {
         if let (Some(a), Some(b)) = (map.curr_grid_pos, map.curr_mouse_pos) {
             for segment in projected_segment(map, p, a, b).windows(2) {
-                line(buffer, segment[0], segment[1], [255, 255, 255, 255]);
+                emit(segment[0], segment[1], [255, 255, 255, 255]);
             }
         }
         if let Some((a, b)) = map.curr_rectangle {
@@ -307,33 +314,28 @@ pub(super) fn draw_guides(
             let max = Vec2::new(a.x.max(b.x), a.y.max(b.y));
             let corners = [min, Vec2::new(max.x, min.y), max, Vec2::new(min.x, max.y)];
             for i in 0..4 {
-                line(
-                    buffer,
-                    corners[i],
-                    corners[(i + 1) % 4],
-                    [255, 255, 255, 255],
-                );
+                emit(corners[i], corners[(i + 1) % 4], [255, 255, 255, 255]);
             }
         }
     }
     if let Some(hover) = guides.hover {
         if topology {
             let q = screen(hover);
-            line(
-                buffer,
+            emit(
                 q - Vec2::new(4., 0.),
                 q + Vec2::new(4., 0.),
                 EDITOR_CURSOR_COLOR,
             );
-            line(
-                buffer,
+            emit(
                 q - Vec2::new(0., 4.),
                 q + Vec2::new(0., 4.),
                 EDITOR_CURSOR_COLOR,
             );
         } else {
             let a = hover.map(|v| v.floor());
-            terrain_rectangle_guide(buffer, map, p, a, a + 1., [196, 211, 179, 150]);
+            terrain_rectangle_segments(map, p, a, a + 1., &mut |a, b| {
+                emit(a, b, [196, 211, 179, 150])
+            });
         }
     }
 }
