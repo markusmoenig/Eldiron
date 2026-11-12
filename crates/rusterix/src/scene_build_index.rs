@@ -1,21 +1,40 @@
 use rustc_hash::{FxHashMap, FxHashSet};
 use scenevm::{Chunk, GeoId, Line3D, LineStrip2D, Poly2D, Poly3D};
+use std::{
+    collections::BTreeMap,
+    sync::{Arc, OnceLock},
+};
 use vek::Vec2;
 
 /// Reverse index from scene owners to streamed chunk origins.
 ///
-/// Scene geometry is still stored in SceneVM chunks. This index is derived when
-/// chunks are streamed in and lets editor/runtime code ask which chunks contain
-/// geometry owned by a sector, terrain tile, item, etc.
+/// Retains immutable CPU geometry independently of any renderer. This index is
+/// derived when chunks stream in and lets editor/runtime code find geometry
+/// owned by a sector, terrain tile, item, etc. Native views consume a cheap
+/// retained snapshot, including after their GPU/device has been reconstructed.
 #[derive(Debug, Default, Clone)]
 pub struct SceneBuildIndex {
     owner_to_chunks: FxHashMap<GeoId, FxHashSet<(i32, i32)>>,
     chunk_to_owners: FxHashMap<(i32, i32), FxHashSet<GeoId>>,
-    chunk_cache: FxHashMap<(i32, i32), Chunk>,
+    chunk_cache: FxHashMap<(i32, i32), Arc<Chunk>>,
+    snapshot: OnceLock<Arc<SceneBuildSnapshot>>,
     chunk_to_polys2d: FxHashMap<(i32, i32), FxHashMap<GeoId, Poly2D>>,
     chunk_to_lines2d_px: FxHashMap<(i32, i32), FxHashMap<GeoId, LineStrip2D>>,
     chunk_to_polys3d: FxHashMap<(i32, i32), FxHashMap<GeoId, Vec<Poly3D>>>,
     chunk_to_lines3d: FxHashMap<(i32, i32), FxHashMap<GeoId, Vec<Line3D>>>,
+}
+
+/// One immutable publication of CPU world geometry. Chunk Arc identity survives
+/// unrelated edits, allowing each view to upload only changed chunks. The outer
+/// Arc is stable across repeated `snapshot()` calls until a source mutation.
+#[derive(Debug)]
+pub struct SceneBuildSnapshot {
+    chunks: BTreeMap<(i32, i32), Arc<Chunk>>,
+}
+impl SceneBuildSnapshot {
+    pub fn chunks(&self) -> &BTreeMap<(i32, i32), Arc<Chunk>> {
+        &self.chunks
+    }
 }
 
 #[derive(Debug, Default, Clone)]
@@ -28,7 +47,23 @@ pub struct SceneOwnerGeometry {
 }
 
 impl SceneBuildIndex {
+    pub fn snapshot(&self) -> Arc<SceneBuildSnapshot> {
+        self.snapshot
+            .get_or_init(|| {
+                Arc::new(SceneBuildSnapshot {
+                    chunks: self
+                        .chunk_cache
+                        .iter()
+                        .map(|(origin, chunk)| (*origin, chunk.clone()))
+                        .collect(),
+                })
+            })
+            .clone()
+    }
     pub fn clear(&mut self) {
+        if !self.chunk_cache.is_empty() {
+            self.snapshot.take();
+        }
         self.owner_to_chunks.clear();
         self.chunk_to_owners.clear();
         self.chunk_cache.clear();
@@ -50,7 +85,8 @@ impl SceneBuildIndex {
                 .insert(origin);
         }
         self.chunk_to_owners.insert(origin, owners);
-        self.chunk_cache.insert(origin, chunk.clone());
+        self.chunk_cache.insert(origin, Arc::new(chunk.clone()));
+        self.snapshot.take();
         self.chunk_to_polys2d
             .insert(origin, chunk.polys_map.clone());
         self.chunk_to_lines2d_px
@@ -65,7 +101,9 @@ impl SceneBuildIndex {
         self.chunk_to_lines2d_px.remove(&origin);
         self.chunk_to_polys3d.remove(&origin);
         self.chunk_to_lines3d.remove(&origin);
-        self.chunk_cache.remove(&origin);
+        if self.chunk_cache.remove(&origin).is_some() {
+            self.snapshot.take();
+        }
 
         let Some(owners) = self.chunk_to_owners.remove(&origin) else {
             return;
@@ -112,7 +150,7 @@ impl SceneBuildIndex {
         origin: (i32, i32),
         excluded: &FxHashSet<GeoId>,
     ) -> Option<Chunk> {
-        let mut chunk = self.chunk_cache.get(&origin)?.clone();
+        let mut chunk = self.chunk_cache.get(&origin)?.as_ref().clone();
         for owner in excluded {
             chunk.polys_map.remove(owner);
             chunk.lines2d_px.remove(owner);
@@ -228,5 +266,74 @@ impl SceneBuildIndex {
         }
 
         replacement_chunks.into_values().collect()
+    }
+}
+
+#[cfg(test)]
+mod snapshot_tests {
+    use super::*;
+    #[test]
+    fn retained_chunk_publications_survive_edits_removals_and_index_forks() {
+        let mut index = SceneBuildIndex::default();
+        let empty = index.snapshot();
+        assert!(empty.chunks().is_empty());
+        assert!(Arc::ptr_eq(&empty, &index.snapshot()));
+        let mut first = Chunk::new(Vec2::zero(), 8);
+        first.add(Poly2D::quad(
+            GeoId::Sector(1),
+            uuid::Uuid::new_v4(),
+            [0., 0.],
+            1.,
+            0,
+            true,
+        ));
+        index.index_chunk(&first);
+        let a = index.snapshot();
+        let a_chunk = a.chunks().get(&(0, 0)).unwrap();
+        assert!(!Arc::ptr_eq(&a, &empty));
+        assert!(empty.chunks().is_empty());
+        let mut other = Chunk::new(Vec2::new(8, 0), 8);
+        other.add(Poly2D::quad(
+            GeoId::Sector(2),
+            uuid::Uuid::new_v4(),
+            [8., 0.],
+            1.,
+            0,
+            true,
+        ));
+        index.index_chunk(&other);
+        let b = index.snapshot();
+        assert_eq!(b.chunks().len(), 2);
+        assert_eq!(a.chunks().len(), 1);
+        assert!(
+            Arc::ptr_eq(a_chunk, b.chunks().get(&(0, 0)).unwrap()),
+            "unrelated edits retain chunk identity"
+        );
+        let mut fork = index.clone();
+        assert!(Arc::ptr_eq(&b, &fork.snapshot()));
+        fork.remove_chunk_origin((0, 0));
+        assert_eq!(fork.snapshot().chunks().len(), 1);
+        assert_eq!(index.snapshot().chunks().len(), 2);
+        assert_eq!(fork.chunks_for_owner(GeoId::Sector(1)).len(), 0);
+        assert_eq!(index.chunks_for_owner(GeoId::Sector(1)).len(), 1);
+        // Owner replacement clones an editable chunk; it cannot mutate snapshots.
+        let mut excluded = FxHashSet::default();
+        excluded.insert(GeoId::Sector(1));
+        let edited = index.chunk_without_owners((0, 0), &excluded).unwrap();
+        assert!(edited.polys_map.is_empty());
+        assert_eq!(a_chunk.polys_map.len(), 1);
+        index.index_chunk(&edited);
+        let c = index.snapshot();
+        assert!(!Arc::ptr_eq(a_chunk, c.chunks().get(&(0, 0)).unwrap()));
+        assert_eq!(a_chunk.polys_map.len(), 1);
+        let unchanged = index.snapshot();
+        index.remove_chunk_origin((99, 99));
+        assert!(Arc::ptr_eq(&unchanged, &index.snapshot()));
+        index.clear();
+        assert!(index.snapshot().chunks().is_empty());
+        assert_eq!(b.chunks().len(), 2);
+        let empty = index.snapshot();
+        index.clear();
+        assert!(Arc::ptr_eq(&empty, &index.snapshot()));
     }
 }

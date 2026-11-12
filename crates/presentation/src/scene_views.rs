@@ -6,6 +6,7 @@ use rusterix::SceneHandler;
 use scenevm::{SceneVM, SharedAtlas, render_output::SceneRenderTarget};
 use std::sync::Arc;
 use theframework_core::Uuid;
+mod editor;
 mod isometric;
 mod picking;
 pub use picking::{ViewPick, ViewPickHit};
@@ -42,6 +43,7 @@ pub struct ViewCapture {
 }
 struct SceneView {
     scene: SceneHandler,
+    editor_source: Option<Arc<rusterix::scene_build_index::SceneBuildSnapshot>>,
     isometric: bool,
     isometric_renderer: Option<crate::isometric::IsometricSceneRenderer>,
     isometric_frame: Option<crate::isometric::IsometricPreparedFrame>,
@@ -114,6 +116,7 @@ impl SceneViews {
             id,
             SceneView {
                 scene: SceneHandler::with_vm(vm),
+                editor_source: None,
                 isometric: false,
                 isometric_renderer: None,
                 isometric_frame: None,

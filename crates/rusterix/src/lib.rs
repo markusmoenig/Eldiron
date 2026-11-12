@@ -17,6 +17,8 @@ pub mod collision_world;
 pub mod command;
 pub mod edge;
 pub mod editor_colors;
+#[cfg(feature = "graphics")]
+pub mod editor_view;
 pub(crate) mod fingerprint;
 pub mod hitinfo;
 #[path = "client/command.rs"]

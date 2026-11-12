@@ -25,7 +25,7 @@ Started: 2026-11-11 (Asia/Bangkok). Overall Goal: active; full M0–M9 scope rem
 - M2: in progress. Paint/Swash/Parley pipeline and native/foreign hosts work; batching, resource lifetime budgets and full text/input parity remain.
 - M3: in progress. Every active built-in TheWidget implementation now has a command paint path, including procedural controls and the legacy node canvas. Complex Creator integration, full widget catalog parity and legacy adapter retirement remain.
 - M4: in progress. CPU schema/identity extraction, shared `GameSession`, CPU startup preparation, message/party/world-target policies and terminal adoption are implemented and tested. Per-session routing, local players, world values, runtime IDs and region context ownership now pass controlled overlapping-session and parallel assembled-player regressions. Graphical/Creator adoption and remaining bitmap/value data extraction remain; this evidence does not establish full simultaneous Creator Play workflows.
-- M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Application/global/document/Play ownership, main world/tool/HUD, remaining graph/preview producers, full visual/workflow/performance acceptance and canonical retirement remain.
+- M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Immutable ordinary editor-view preparation, exact reference/native view outputs and retained CPU chunk publication are now available through SceneViews. Application/global/document/Play ownership, main world/tool/HUD integration, remaining producers, full visual/workflow/performance acceptance and canonical retirement remain.
 - M6: in progress. Independent GPU game views, common player/input/camera components, authored screen paint, private world descriptions, view-owned speech, acknowledged-frame world pointer gestures, relative first-person mouse look, default/world-intent cursors, world/UI item drag previews and acknowledged authored inventory/equipment pointer/keyboard gestures are implemented. Application-owned audio is integrated into the common player with cancellable CPU preparation jobs. The native container HUD now includes acknowledged paint/input, real server transfers, scrolling, GPU recovery and navigation lifetime. Floating inventory/equipment, action catalogue/spellbook and preferences now use typed native HUD owners, retained text/source resources and acknowledged input. Acknowledged UI-origin tooltips now use retained text and host deadlines. UI-origin Drop cursors and acknowledged drag/assignment highlighting now have GPU and authoritative transfer evidence. Native isometric source production, shared CPU source publication, game-view outputs and acknowledged input receipts now have GPU/CPU and shipped-source device-reconstruction evidence. Browser worker hosting, remaining game-mode/HUD policy parity, performance acceptance remain. Canonical native desktop launchers now share the common application/host; see launcher verification below.
 - M7/M8/M9: Retirement and platform/full acceptance pending. Canonical desktop clients share one common player; the Xcode client now uses it through the retained ABI over a Rust-created CAMetalLayer surface. Native/ARM64 simulator app bundles link, and real Swift/static-library and registered-scene layer checks pass. Browser bootstrap, native text/platform parity, Creator wrapper and complete physical/release acceptance remain; this is not complete application/platform parity.
 
@@ -2789,3 +2789,94 @@ Original checkout rechecked: `f8d880110366e8638305493ac7c4bc6c58b9313d`, tracked
 source unchanged, only its existing untracked `concepts/`. The unrelated
 `concepts/networking-mmo-concept.md` in the implementation checkout remains
 untracked and excluded from the rewrite checkpoint. Overall Goal stays active.
+
+## Owned ordinary editor-view preparation and CPU chunk publication (after 0f96555c, in progress)
+
+Extracted the ordinary 2D/3D viewport setup from `Client::draw_d2` and
+`draw_d3_with_camera_override` into immutable `editor_view::EditorViewFrame`
+descriptions. They capture camera(s), viewport, map transform, grid, time,
+animation and neutral-background policy without retaining a Client, Map,
+window, pixel target or simulation owner. The reference client now applies
+that same preparation before its existing explicit legacy rendering, visibility
+mask and speech pixels. The new SceneViews authoring API installs editor source
+atlases/shaders and independent guide layers, accepts frozen frame descriptions,
+and produces ordinary GPU outputs on the injected host device. Native frames
+do not call the reference draw/readback methods.
+
+Before refactoring, eight actual Metal reference captures were recorded from
+the unchanged draw methods. They are committed regression fixtures under
+`crates/presentation/tests/data/editor_views/` (96x80 RGBA). Baseline run passed
+in 3.18 s: `/private/tmp/eldiron-editor-view-baseline.log`. After extraction,
+all eight reference outputs remain byte-exact; the independent native SceneViews
+outputs also match every original RGBA byte. Cases cover raster/compute 2D,
+grids, disabled overlays, theme colors, orbit neutral/sky/transparent backgrounds,
+base-camera override and independently maintained guide camera/layers. Native
+output tests cover eight retained views, direct paint composition, source
+mutation after frame capture, warm idle, hidden/resume and foreign registry
+rejection. Actual output strip visually inspected:
+`/private/tmp/eldiron-native-editor-view-strip.png`.
+
+`SceneBuildIndex` now retains immutable Arc chunks and lazily publishes an
+immutable CPU snapshot. Warm snapshot requests are O(1); unchanged chunk identity
+survives unrelated mutations and index forks. Native views apply changed/removed
+origins independently without borrowing/swapping another renderer or erasing
+guide layers, and keep the reverse owner index current. CPU publications survive
+source mutation/clear and reconstruct on a separately created actual GPU device
+from retained source assets. No new serialized fields or project format changes.
+
+The GPU-free source-publication test passes, 0.01 s:
+`/private/tmp/eldiron-editor-source-cpu.log`. All **3 actual editor-view GPU
+cases pass**, 5.57 s (including the 8+8 exact reference/native comparisons):
+`/private/tmp/eldiron-editor-source-gpu.log`. Native targets have no CPU target
+storage or implicit color captures; explicit test captures remain intentional.
+The first extraction check exposed missing local RGBA aliases; replaced those
+with the existing CPU Pixel type before the successful runs.
+
+This is scene-preparation/source ownership work, not a main-Creator viewport
+cutover. The Editor's world/tool/HUD/minimap/Play orchestration and reference
+rendered buffers remain active; sprite-isometric authoring source preparation,
+custom/profile maps, billboard metadata, dynamic/view snapshots and acknowledged
+tool/HUD hit/input layout still need integration. Source chunks published by the
+new API must be updated through source snapshots; `scene_mut` is for other scene
+state rather than out-of-band replacement of those base chunks. Shared immutable
+GPU geometry-buffer ownership/resource acceptance and complete workflow/platform/
+release gates remain open. Broader affected application/presentation/CPU/feature
+verification is running before checkpoint. Overall M0–M9 Goal remains active.
+
+The full presentation suite has passed after these source/preparation changes:
+**189 tests across 15 suites, zero ignored**, including all native player HUD,
+normal/isometric views, source publication, authored UI and the new ordinary
+authoring cases: `/private/tmp/eldiron-editor-source-matrix-presentation-all.log`.
+The selected ordinary geometry/material and all auxiliary GPU regressions also
+pass. Remaining matrix builds and an ordinary Creator suite are being checked.
+
+HUD inventory for the next integration: `Tool::draw_hud` has ten active tool
+implementations. ToolList additionally paints editor-display sessions, shortcut
+guidance and the orbit view cube. `Hud::draw` currently mutates icon/subdivision/
+gizmo hit rectangles and selected indices while drawing; native preparation
+must stage those rectangles and commit them only for a painted/presented receipt,
+with tool/document/map source guards. Plain HUD rect/text operations have legacy
+copy/encoded-background semantics, while image overlays blend source alpha. Do
+not route the complete HUD through a transparent full-viewport CPU framebuffer
+and call that the finished conversion. Explicit assets already enter `draw_hud`,
+but `Hud::get_icon` still reaches the global Rusterix assets; remove that source
+lookup as part of the source/painter split. Iso/terrain/selection/collision guides,
+paint/props/action overlays and ViewCube must keep their existing geometry/input.
+Ordinary 2D visibility masks, speech, fractional-DPI guide widths, isometric
+authoring and custom/profile display also remain integration requirements; the
+new narrow 1x fixtures do not verify those features.
+
+### Ordinary view/source checkpoint matrix verified
+
+All **19 matrix checks pass**:
+`/private/tmp/eldiron-editor-source-matrix-results.log`. In addition to the 189
+presentation tests and GPU-free source test, this includes reference Creator,
+UI/command/DPI, ordinary geometry/material controls, all auxiliary and common
+paint GPU regressions, framework plus actual detached-layer host, isolated
+Creator root, linked native binary, four applications, browser-player and ARM64
+iOS-simulator compilation, all 11 boundaries and diff checks. Full ordinary
+Creator tests are additionally running in a separate process:
+`/private/tmp/eldiron-editor-source-creator-ordinary.log`; do not report them as
+passed until that run finishes. None of these checks establishes physical
+workflow or complete M0–M9 acceptance. Continue the world/tool/HUD ownership
+and painting integration from this verified source/preparation boundary.
