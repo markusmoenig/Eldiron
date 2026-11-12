@@ -27,16 +27,20 @@ impl MouseLook {
         if !self.active || !delta.x.is_finite() || !delta.y.is_finite() {
             return None;
         }
-        let yaw = (delta.x * self.sensitivity).to_radians();
+        let yaw = delta.x * self.sensitivity;
+        let pitch = delta.y * self.sensitivity;
+        if !yaw.is_finite() || !pitch.is_finite() {
+            return None;
+        }
+        let yaw = yaw.to_radians();
         let (sin, cos) = yaw.sin_cos();
         self.facing = Vec2::new(
             self.facing.x * cos - self.facing.y * sin,
             self.facing.x * sin + self.facing.y * cos,
         )
         .normalized();
-        self.pitch = (self.pitch
-            + delta.y * self.sensitivity * if self.invert_y { 1.0 } else { -1.0 })
-        .clamp(-85.0, 85.0);
+        self.pitch =
+            (self.pitch + pitch * if self.invert_y { 1.0 } else { -1.0 }).clamp(-85.0, 85.0);
         Some(self.facing)
     }
 }
@@ -56,5 +60,9 @@ mod tests {
         look.begin(facing, 1.0, true);
         look.motion(Vec2::new(0.0, -10.0));
         assert_eq!(look.pitch, 75.0);
+        look.begin(facing, 5.0, false);
+        assert!(look.motion(Vec2::new(f32::MAX, 0.)).is_none());
+        assert_eq!(look.pitch, 75.0);
+        assert!(look.facing.x.is_finite() && look.facing.y.is_finite());
     }
 }

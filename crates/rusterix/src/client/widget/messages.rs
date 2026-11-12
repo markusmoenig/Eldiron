@@ -92,6 +92,24 @@ impl Default for MessagesWidget {
 impl MessagesWidget {
     const CHOICE_COLUMN_SEPARATOR: char = '\u{1f}';
 
+    /// Revoke runtime-owned transcript/choice state without rebuilding authored
+    /// style, locale, font or host input capabilities. A new session can reuse
+    /// all actor/question IDs; none of the old pending actions can survive it.
+    pub fn reset_runtime(&mut self) {
+        self.messages.clear();
+        self.pending_messages.clear();
+        self.active_choices.clear();
+        self.clicked = Uuid::nil();
+        self.command_text.clear();
+        self.command_active = false;
+        self.return_to_choices_rect = Rect::default();
+        self.paused = false;
+        self.pause_until = None;
+        self.scroll_offset = 0;
+        self.page_start_index = 0;
+        self.native_metrics = None;
+    }
+
     pub fn command_input_enabled(&self) -> bool {
         self.command_input && self.text_input_available
     }

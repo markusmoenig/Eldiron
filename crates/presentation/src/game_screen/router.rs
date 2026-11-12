@@ -63,6 +63,7 @@ impl GameScreenController {
         fonts: &mut GameFonts,
         event: &InputEvent,
     ) -> Result<ScreenInputResponse, String> {
+        let rebound = self.bind_runtime(world);
         let old_focus = self.focus;
         let held = self
             .keyboard_capture
@@ -74,8 +75,9 @@ impl GameScreenController {
         {
             self.focus_next(world, fonts, backwards);
         }
-        response.cancel_controls |=
-            old_focus != self.focus || (held && self.keyboard_capture.is_some_and(|c| c.cancelled));
+        response.cancel_controls |= rebound
+            || old_focus != self.focus
+            || (held && self.keyboard_capture.is_some_and(|c| c.cancelled));
         Ok(response)
     }
     fn input_inner(

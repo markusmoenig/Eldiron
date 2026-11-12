@@ -8,6 +8,7 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 use theframework::text::TextSystem;
+use theframework_core::Uuid;
 static NEXT_OWNER: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -21,7 +22,7 @@ pub struct GameFonts {
     diagnostics: Vec<String>,
     owner: u64,
     revision: u64,
-    checked: Option<ContentRevision>,
+    checked: Option<(Uuid, ContentRevision)>,
     fingerprint: Option<u64>,
 }
 fn builtin_fonts() -> TextSystem {
@@ -76,10 +77,11 @@ impl GameFonts {
         world: &RuntimeView<'_>,
         revision: ContentRevision,
     ) -> GameFontVersion {
-        if self.checked == Some(revision) {
+        let publication = (world.session_id, revision);
+        if self.checked == Some(publication) {
             return self.version();
         }
-        self.checked = Some(revision);
+        self.checked = Some(publication);
         let mut hash = FxHasher::default();
         for font in world.fonts() {
             (font.id, font.name, font.bytes).hash(&mut hash);

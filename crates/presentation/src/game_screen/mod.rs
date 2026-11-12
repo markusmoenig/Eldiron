@@ -52,6 +52,7 @@ struct ScreenGeometry {
 }
 
 pub struct GameScreenController {
+    session: Uuid,
     world: world_pointer::WorldPointer,
     pub speech: SpeechOverlay,
     pub world_texts: WorldTextOverlay,
@@ -85,6 +86,11 @@ pub struct GameScreenController {
     message_scroll: FxHashMap<u32, f32>,
 }
 impl GameScreenController {
+    /// Runtime incarnation last observed by this retained screen. Hosts can
+    /// revoke asynchronous platform requests before delivering their results.
+    pub fn runtime_session(&self) -> Uuid {
+        self.session
+    }
     pub fn from_screen(
         name: &str,
         world: &RuntimeView<'_>,
@@ -146,6 +152,7 @@ impl GameScreenController {
     }
     fn with_elements(name: &str, world: &RuntimeView<'_>, elements: ScreenElements) -> Self {
         Self {
+            session: world.session_id,
             world: world_pointer::WorldPointer::default(),
             speech: SpeechOverlay::default(),
             world_texts: WorldTextOverlay::default(),
@@ -179,9 +186,50 @@ impl GameScreenController {
             message_scroll: FxHashMap::default(),
         }
     }
+    /// Bind before receiving or routing events, not only at frame preparation:
+    /// the first fresh batch must survive, and stale choices/IME must not act
+    /// during the interval before the next frame. Authored bindings survive.
+    fn bind_runtime(&mut self, world: &RuntimeView<'_>) -> bool {
+        if self.session == world.session_id {
+            return false;
+        }
+        self.session = world.session_id;
+        self.speech.bind_runtime(world);
+        self.world_texts.bind_runtime(world);
+        self.invalidate_world_input();
+        self.focus = None;
+        self.inputs.clear();
+        self.input_modifiers = Default::default();
+        self.keyboard_capture = None;
+        self.pointer_capture = self
+            .pointer_capture
+            .map(|_| router::PointerCapture::Cancelled);
+        self.pressed_button = None;
+        self.suppress_activation_slash = false;
+        self.intent.clear();
+        self.choice_controller
+            .cancel(&mut self.elements.choice_widgets);
+        self.choice_controller = screen_model::ChoiceController::default();
+        self.elements.release_button_state();
+        for widget in &mut self.elements.messages_widgets {
+            widget.reset_runtime();
+        }
+        self.message_scroll.clear();
+        self.messages.clear();
+        self.profiles.clear();
+        self.avatars.clear();
+        self.buttons.clear();
+        self.sources.clear();
+        self.revision = None;
+        self.geometry = None;
+        self.configured_views.clear();
+        self.view_images.clear();
+        true
+    }
     /// Distribute each addressed batch once. Reflow/painting do not consume it
     /// again; the application can also deliver it to audio/world-text consumers.
     pub fn receive(&mut self, world: &RuntimeView<'_>, events: &RegionEvents) {
+        self.bind_runtime(world);
         self.speech.receive(world, events);
         self.world_texts.receive(world, events);
         let map = world.map.unwrap_or(&self.empty_map);
@@ -217,6 +265,7 @@ impl GameScreenController {
         revision: ContentRevision,
         animation_frame: usize,
     ) -> Result<(), String> {
+        self.bind_runtime(world);
         let font_version = fonts.refresh(world, revision);
         if self.font_version != Some(font_version) {
             self.font_version = Some(font_version);
@@ -390,6 +439,9 @@ impl GameScreenController {
         views: &mut SceneViews,
         images: &mut ImageRegistry,
     ) -> Result<(), String> {
+        if self.session != world.session_id {
+            return Err("Prepare screen layouts after changing their runtime session".into());
+        }
         self.view_images.clear();
         self.begin_world_frame(world)?;
         let Some(map) = world.map else {

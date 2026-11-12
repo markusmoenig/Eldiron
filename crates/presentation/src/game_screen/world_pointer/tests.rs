@@ -1,6 +1,7 @@
 use super::*;
 use eldiron_runtime::{GameSession, Project};
 use rusterix::{Entity, Item, Value, client::widget::Widget};
+mod mouse_look;
 fn actor(id: u32, x: f32, z: f32) -> Entity {
     let mut actor = Entity::new();
     actor.id = id;
@@ -59,6 +60,7 @@ fn stage(
             grid: widget.grid_size,
             logical: [128., 96.],
         },
+        look: None,
     });
 }
 fn ack(session: &GameSession, screen: &mut GameScreenController) {
@@ -359,12 +361,13 @@ fn acknowledged_ray_frames_route_actual_geometry_and_reject_newer_dirty_or_unack
     use renderkit::{GpuContext, ImageRegistry};
     use scenevm::{Atom, Camera3D, Chunk, GeoId, Poly3D, RenderMode, SharedAtlas};
     let (mut session, mut screen, mut fonts, key) = setup();
+    session.project.regions[0].map.entities[0].set_attribute("player", Value::Bool(true));
     let mut item = Item::new();
     item.id = 7;
     item.position = Vec3::zero();
     item.set_attribute("visible", Value::Bool(true));
     session.project.regions[0].map.items.push(item);
-    screen.elements.game_widgets.get_mut(&key).unwrap().camera = PlayerCamera::D3FirstP;
+    screen.elements.game_widgets.get_mut(&key).unwrap().camera = PlayerCamera::D3FirstPMouse;
     screen
         .prepare(&session.view(), &mut fonts, ContentRevision(1), 0)
         .unwrap();
@@ -427,6 +430,25 @@ fn acknowledged_ray_frames_route_actual_geometry_and_reject_newer_dirty_or_unack
             .effects
             .is_empty()
     );
+    screen.world_input(
+        &session.view(),
+        Some(&views),
+        &InputEvent::PointerMoved {
+            position: [64., 48.],
+        },
+        false,
+    );
+    let look = screen.world_input(
+        &session.view(),
+        Some(&views),
+        &InputEvent::RelativeMotion { delta: [10., -10.] },
+        false,
+    );
+    assert_eq!(
+        look.effects,
+        vec![ScreenEffect::Action(EntityAction::LookYaw(2.))]
+    );
+    assert!((screen.elements.game_widgets[&key].mouse_look_pitch - 2.).abs() < 0.001);
     views
         .scene_mut(view)
         .unwrap()

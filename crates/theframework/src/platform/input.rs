@@ -104,6 +104,8 @@ pub enum InputEvent {
         position: [f32; 2],
     },
     PointerLeft,
+    /// Relative device motion in host units. Unlike absolute pointer positions
+    /// and precise scrolling, camera deltas are independent of UI/window scale.
     RelativeMotion {
         delta: [f32; 2],
     },

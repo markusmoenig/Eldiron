@@ -228,6 +228,64 @@ fn audio_owner_revokes_old_session_loops_without_replacing_a_healthy_device_or_r
 }
 
 #[test]
+fn clipboard_result_before_next_frame_cannot_edit_a_stopped_runtime_incarnation() {
+    use theframework::text_edit::EditorClipboard;
+    let mut app = PlayerApplication::new(
+        starter_with_menu(),
+        false,
+        Box::new(Services(Arc::new(Mutex::new(Observation::default())))),
+    )
+    .unwrap();
+    let mut host = HostContext::new(app.initial_size());
+    app.screen.focus_input(&mut app.fonts, Some(1));
+    let target = app.screen.text_input_state(&mut app.fonts).unwrap().target;
+    app.screen.text_input_event(
+        &mut app.fonts,
+        &InputEvent::Modifiers(Modifiers {
+            control: true,
+            ..Default::default()
+        }),
+    );
+    let result = app.screen.text_input_event(
+        &mut app.fonts,
+        &InputEvent::Key {
+            physical: PhysicalKey::Letter(b'v'),
+            logical: LogicalKey::Other,
+            pressed: true,
+            repeat: false,
+        },
+    );
+    let Some(EditorClipboard::Read { request }) = result.editor.clipboard else {
+        panic!("clipboard request")
+    };
+    app.pending_clipboard = Some((ScreenTextTarget::Input(1), request));
+    app.player.runtime.stop();
+    assert_ne!(
+        app.player.runtime.view().session_id,
+        app.screen.runtime_session()
+    );
+    assert!(
+        !app.route(
+            &InputEvent::Clipboard {
+                request,
+                result: theframework::platform::ClipboardResult::Text(Some("stale".into()))
+            },
+            &mut host
+        )
+        .unwrap()
+        .consumed
+    );
+    assert!(app.pending_clipboard.is_none());
+    assert_eq!(app.screen.elements.text_input_widgets[&1].text, "Hero");
+    assert!(app.screen.text_input_state(&mut app.fonts).is_none());
+    app.screen.focus_input(&mut app.fonts, Some(1));
+    assert_ne!(
+        app.screen.text_input_state(&mut app.fonts).unwrap().target,
+        target
+    );
+}
+
+#[test]
 #[ignore = "requires native GPU and real starter runtime"]
 fn assembled_player_keeps_runtime_edits_and_clock_across_gpu_replacement() {
     let observed = Arc::new(Mutex::new(Observation::default()));
@@ -844,6 +902,56 @@ fn assembled_player_keeps_runtime_edits_and_clock_across_gpu_replacement() {
             .game_widgets
             .values()
             .all(|w| w.buffer.pixels().is_empty() && w.upscale_buffer.pixels().is_empty())
+    );
+    assert_eq!(gpu2.transfers().readback_bytes, before_readback);
+    // The common application also routes host relative motion once, through
+    // its viewport, into the acknowledged first-person view and CPU session.
+    // Device deltas retain their units regardless of that viewport's scale.
+    for widget in app.screen.elements.game_widgets.values_mut() {
+        widget.set_camera_mode(rusterix::PlayerCamera::D3FirstPMouse);
+        widget.mouse_sensitivity = 0.5;
+        widget.mouse_invert_y = false;
+        widget.mouse_look_pitch = 0.;
+    }
+    app.revision.0 += 1;
+    render(&mut app, &mut host, &mut images2, &mut renderer2, &target2);
+    let point = app.viewport.host_rect(Rect::new(400., 200., 1., 1.));
+    app.input(
+        &InputEvent::PointerMoved {
+            position: [point.x, point.y],
+        },
+        &mut host,
+    );
+    let before = app.player.input_stats().submitted_actions;
+    app.input(
+        &InputEvent::RelativeMotion { delta: [10., -10.] },
+        &mut host,
+    );
+    assert_eq!(app.player.input_stats().submitted_actions, before);
+    app.presented(&mut host);
+    let look = app
+        .screen
+        .mouse_look_view()
+        .expect("acknowledged mouse-look view");
+    let camera = app.screen.elements.game_widgets[&look]
+        .camera_d3
+        .view_matrix();
+    app.input(
+        &InputEvent::RelativeMotion { delta: [10., -10.] },
+        &mut host,
+    );
+    assert_eq!(app.player.input_stats().submitted_actions, before + 1);
+    let expected_pitch = 5.;
+    assert!(
+        (app.screen.elements.game_widgets[&look].mouse_look_pitch - expected_pitch).abs() < 0.001
+    );
+    render(&mut app, &mut host, &mut images2, &mut renderer2, &target2);
+    assert_ne!(
+        app.screen.elements.game_widgets[&look]
+            .camera_d3
+            .view_matrix(),
+        camera,
+        "pitch reaches the prepared per-view camera"
     );
     assert_eq!(gpu2.transfers().readback_bytes, before_readback);
     app.screen.world_texts = saved_texts;

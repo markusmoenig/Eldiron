@@ -198,6 +198,13 @@ impl PlayerApplication {
         Ok(())
     }
     fn sync_host(&mut self, host: &mut HostContext) -> std::result::Result<(), String> {
+        if self.screen.runtime_session() != self.player.runtime.view().session_id {
+            self.pending_clipboard = None;
+            self.modifiers = Modifiers::default();
+            self.control_capture = None;
+            let stop = self.player.cancel_controls();
+            self.player.submit_action(stop)?;
+        }
         let metrics = (host.physical_size, host.density.to_bits());
         if self.input_metrics != Some(metrics) {
             self.screen.invalidate_world_input();
@@ -295,6 +302,9 @@ impl PlayerApplication {
     ) -> std::result::Result<InputResponse, String> {
         if self.suspended && !matches!(event, InputEvent::Focus(false)) {
             return Ok(InputResponse::default());
+        }
+        if self.screen.runtime_session() != self.player.runtime.view().session_id {
+            self.sync_host(host)?;
         }
         if matches!(
             event,

@@ -29,6 +29,7 @@ struct Placed {
 }
 #[derive(Default)]
 pub struct SpeechOverlay {
+    session: Option<Uuid>,
     state: SpeechMessages,
     source: String,
     config: toml::Table,
@@ -38,6 +39,16 @@ pub struct SpeechOverlay {
     layouts_built: u64,
 }
 impl SpeechOverlay {
+    pub(super) fn bind_runtime(&mut self, world: &RuntimeView<'_>) {
+        if self.session != Some(world.session_id) {
+            self.clear();
+            self.state = SpeechMessages::default();
+            self.session = Some(world.session_id);
+            self.source.clear();
+            self.config.clear();
+            self.styles.clear();
+        }
+    }
     pub fn messages(&self) -> &[Utterance] {
         self.state.messages()
     }
@@ -56,6 +67,7 @@ impl SpeechOverlay {
         self.prepared.clear();
     }
     pub fn receive(&mut self, world: &RuntimeView<'_>, events: &RegionEvents) {
+        self.bind_runtime(world);
         if world.state == ServerState::Off {
             return;
         }
@@ -69,6 +81,7 @@ impl SpeechOverlay {
         elements: &ScreenElements,
         fonts: &mut GameFonts,
     ) {
+        self.bind_runtime(world);
         self.placed.clear();
         self.state.synchronize(world.map, &world.time);
         if world.state == ServerState::Off {

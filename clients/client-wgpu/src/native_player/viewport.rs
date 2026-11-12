@@ -88,9 +88,14 @@ impl ScreenViewport {
                 delta: vector(*delta)?,
                 precise: true,
             },
-            InputEvent::RelativeMotion { delta } => InputEvent::RelativeMotion {
-                delta: vector(*delta)?,
-            },
+            // Relative camera motion is a device delta, not a screen-space
+            // displacement. Resizing/letterboxing cannot change sensitivity.
+            InputEvent::RelativeMotion { delta } => {
+                if self.scale <= 0. || !delta.iter().all(|value| value.is_finite()) {
+                    return None;
+                }
+                event.clone()
+            }
             _ => event.clone(),
         })
     }
@@ -133,6 +138,11 @@ mod tests {
                 precise: true
             })
         ));
+        assert_eq!(
+            viewport.input(&InputEvent::RelativeMotion { delta: [10., -10.] }),
+            Some(InputEvent::RelativeMotion { delta: [10., -10.] }),
+            "raw look sensitivity is independent of viewport scale"
+        );
         assert!(
             ScreenViewport::fit([400., 240.], [0., 0.])
                 .input(&InputEvent::PointerMoved { position: [1., 1.] })

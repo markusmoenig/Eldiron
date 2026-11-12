@@ -25,6 +25,7 @@ struct Placed {
 }
 #[derive(Default)]
 pub struct WorldTextOverlay {
+    session: Option<Uuid>,
     state: WorldTexts,
     prepared: FxHashMap<Uuid, Prepared>,
     placed: Vec<Placed>,
@@ -32,6 +33,14 @@ pub struct WorldTextOverlay {
     layouts_built: u64,
 }
 impl WorldTextOverlay {
+    pub(super) fn bind_runtime(&mut self, world: &RuntimeView<'_>) {
+        if self.session != Some(world.session_id) {
+            self.session = Some(world.session_id);
+            self.state = WorldTexts::default();
+            self.prepared.clear();
+            self.invalidate_geometry();
+        }
+    }
     pub fn passages(&self) -> &[rusterix::world_text::WorldPassage] {
         self.state.passages()
     }
@@ -51,6 +60,7 @@ impl WorldTextOverlay {
         self.state.advance(elapsed);
     }
     pub fn receive(&mut self, world: &RuntimeView<'_>, events: &RegionEvents) {
+        self.bind_runtime(world);
         if let Some(map) = world.map {
             self.state
                 .receive(map, world.assets, &world.time, &events.world_text);
@@ -62,6 +72,7 @@ impl WorldTextOverlay {
         elements: &ScreenElements,
         fonts: &mut GameFonts,
     ) {
+        self.bind_runtime(world);
         self.placed.clear();
         self.state.expire(world.map.map(|m| m.id));
         self.prepared

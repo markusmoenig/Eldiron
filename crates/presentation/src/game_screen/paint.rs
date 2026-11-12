@@ -40,6 +40,9 @@ impl GameScreenController {
         fonts: &mut GameFonts,
         images: &mut dyn ScreenImages,
     ) -> Result<PaintList, String> {
+        if self.session != world.session_id {
+            return Err("Prepare screen layouts after changing their runtime session".into());
+        }
         if self.font_version != Some(fonts.version()) {
             return Err("Prepare screen layouts after changing their font owner".into());
         }

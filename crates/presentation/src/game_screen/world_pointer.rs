@@ -8,6 +8,7 @@ use rusterix::{
 };
 use scenevm::prelude::{Vec2, Vec3};
 use theframework::platform::{InputEvent, PhysicalKey, PointerButton};
+mod mouse_look;
 
 #[derive(Clone, Copy, PartialEq)]
 struct Binding {
@@ -45,6 +46,7 @@ struct ViewFrame {
     camera: PlayerCamera,
     source_size: [f32; 2],
     projection: Projection,
+    look: Option<mouse_look::LookSettings>,
 }
 #[derive(Clone, Copy, PartialEq)]
 enum DropOwner {
@@ -87,6 +89,7 @@ pub(super) struct WorldPointer {
     capture: Option<Capture>,
     focused: bool,
     pointer: Option<[f32; 2]>,
+    look: Option<mouse_look::LookCapture>,
 }
 impl Default for WorldPointer {
     fn default() -> Self {
@@ -98,11 +101,13 @@ impl Default for WorldPointer {
             capture: None,
             focused: true,
             pointer: None,
+            look: None,
         }
     }
 }
 impl WorldPointer {
     fn invalidate(&mut self) {
+        self.look = None;
         self.staged = None;
         self.displayed = None;
         self.hover = None;
@@ -111,6 +116,7 @@ impl WorldPointer {
         }
     }
     fn cancel(&mut self) {
+        self.look = None;
         self.hover = None;
         if let Some(capture) = &mut self.capture {
             capture.cancelled = true;
@@ -171,6 +177,7 @@ impl WorldPointer {
                 output.descriptor.height as f32,
             ],
             projection,
+            look: mouse_look::LookSettings::from_widget(widget),
         });
         Ok(())
     }
@@ -235,6 +242,7 @@ impl GameScreenController {
             None
         };
         self.hovered_item = self.world.hover.and_then(|hit| hit.item);
+        self.refresh_mouse_look(world, self.captures_world_input());
     }
     pub fn world_pointer_hit(&self) -> Option<WorldHit> {
         self.world.hover
@@ -393,15 +401,9 @@ impl GameScreenController {
                     )
             })
     }
-    fn query_world(
-        &self,
-        world: &RuntimeView<'_>,
-        views: Option<&SceneViews>,
-        point: [f32; 2],
-        prefer_item: bool,
-    ) -> Query {
+    fn pointer_view(&self, world: &RuntimeView<'_>, point: [f32; 2]) -> Result<&ViewFrame, Query> {
         if !self.frame_matches(world) {
-            return Query::Unavailable;
+            return Err(Query::Unavailable);
         }
         let frame = self.world.displayed.as_ref().unwrap();
         let root = Uv::new(
@@ -411,7 +413,7 @@ impl GameScreenController {
             frame.binding.size.1 as f32,
         );
         if !inside_frame(frame.binding, point) || !root.contains(point) {
-            return Query::Outside;
+            return Err(Query::Outside);
         }
         if frame.modal
             || self.pointer_modal()
@@ -421,7 +423,7 @@ impl GameScreenController {
                 .chain(self.pointer_occluders().iter())
                 .any(|r| r.contains(point))
         {
-            return Query::Outside;
+            return Err(Query::Outside);
         }
         let Some(view) = frame
             .views
@@ -429,17 +431,31 @@ impl GameScreenController {
             .rev()
             .find(|view| rect(view.rect).contains(point))
         else {
-            return Query::Outside;
+            return Err(Query::Outside);
         };
         let Some(current) = self.elements.game_widgets.get(&view.key) else {
-            return Query::Unavailable;
+            return Err(Query::Unavailable);
         };
         if current.rect != view.rect
             || current.camera != view.camera
             || screen_model::widget_name_is_hidden(&current.name, &self.elements.widgets_to_hide)
         {
-            return Query::Unavailable;
+            return Err(Query::Unavailable);
         }
+        Ok(view)
+    }
+    fn query_world(
+        &self,
+        world: &RuntimeView<'_>,
+        views: Option<&SceneViews>,
+        point: [f32; 2],
+        prefer_item: bool,
+    ) -> Query {
+        let view = match self.pointer_view(world, point) {
+            Ok(view) => view,
+            Err(query) => return query,
+        };
+        let frame = self.world.displayed.as_ref().unwrap();
         let raw = [
             (point[0] - view.rect.x) / view.rect.width,
             (point[1] - view.rect.y) / view.rect.height,
@@ -657,9 +673,11 @@ impl GameScreenController {
                 pressed: true,
                 ..
             }
-        ) && self.world.capture.is_some()
+        ) && (self.world.capture.is_some() || self.world.look.is_some())
         {
             self.world.capture = None;
+            self.world.look = None;
+            self.world.pointer = None;
             self.world.hover = None;
             self.hovered_item = None;
             return ScreenInputResponse::handled(true);
@@ -678,6 +696,9 @@ impl GameScreenController {
         {
             self.world.invalidate();
         }
+        if let InputEvent::RelativeMotion { delta } = event {
+            return self.mouse_look_motion(world, *delta, blocked);
+        }
         let point = match event {
             InputEvent::PointerMoved { position } | InputEvent::PointerButton { position, .. } => {
                 *position
@@ -686,6 +707,7 @@ impl GameScreenController {
         };
         self.cursor = point;
         self.world.pointer = Some(point);
+        self.refresh_mouse_look(world, blocked);
         if let Some(capture) = &mut self.world.capture {
             if let InputEvent::PointerMoved { .. } = event {
                 capture.dragging |= (point[0] - capture.point[0]).powi(2)
