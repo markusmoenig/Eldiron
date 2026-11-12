@@ -1,13 +1,16 @@
 //! Main authoring-world viewport on the host device. CPU source/controller
 //! bridges remain explicit while the remaining Creator owners are extracted.
 use super::*;
+use crate::editor_overlay::panel::PanelScope;
 use crate::editor_overlay::procedural_gpu::GpuIcons;
 use crate::hud::{Hud, HudInputs, HudStyle};
 use crate::tools::overlay_frame::{
     ScopedToolOverlayEvent, ToolOverlayInputState, ToolOverlayRoute,
 };
 use crate::tools::{ToolOverlayFrame, ToolOverlayInputs, ToolOverlayTarget};
-use eldiron_presentation::{SceneViews, ViewId};
+use crate::viewcube::{CubeFrame, CubePick, CubeTarget, ViewCubeFrames};
+use eldiron_presentation::{EditorPick, SceneViews, ViewId, ViewImage};
+use rusterix::D3Camera;
 use rusterix::scene_build_index::SceneBuildSnapshot;
 use std::sync::Arc;
 use theframework::paint::{FrameReceipt, PaintList, PaintOp, Rect, Sampling};
@@ -30,6 +33,7 @@ struct Binding {
     context: ProjectContext,
     size: (usize, usize),
     map: Uuid,
+    mode: EditorViewMode,
     density: u32,
     assets: AssetKey,
     slots: Option<Vec<(String, Option<rusterix::PixelSource>)>>,
@@ -45,6 +49,18 @@ impl Binding {
             context: self.context,
             size: self.size,
             visible: true,
+        }
+    }
+    fn cube_target(&self, epoch: u64) -> CubeTarget {
+        CubeTarget {
+            view: self.view.uuid,
+            scope: PanelScope {
+                document: self.document,
+                tool: self.tool,
+                revision: epoch,
+            },
+            size: self.size,
+            visible: self.mode == EditorViewMode::Orbit,
         }
     }
 }
@@ -69,8 +85,37 @@ impl SourceStamp {
         }
     }
 }
+#[derive(Clone, PartialEq)]
+struct CameraStamp([u32; 16]);
+impl CameraStamp {
+    fn new(camera: &dyn D3Camera, size: (usize, usize)) -> Self {
+        let camera = camera.as_scenevm_camera_for_surface(size.0 as f32, size.1 as f32);
+        Self(
+            [
+                camera.pos.x,
+                camera.pos.y,
+                camera.pos.z,
+                camera.forward.x,
+                camera.forward.y,
+                camera.forward.z,
+                camera.right.x,
+                camera.right.y,
+                camera.right.z,
+                camera.up.x,
+                camera.up.y,
+                camera.up.z,
+                camera.vfov_deg,
+                camera.ortho_half_h,
+                camera.near,
+                camera.far,
+            ]
+            .map(f32::to_bits),
+        )
+    }
+}
 #[derive(PartialEq)]
 struct SceneInputKey {
+    camera: Option<CameraStamp>,
     stamp: SourceStamp,
     size: (usize, usize),
     tool: MapToolType,
@@ -99,6 +144,7 @@ struct WorldGpu {
     scene_source: Option<Arc<SceneBuildSnapshot>>,
     guides: rusterix::scenebuilder::d2preview::D2PreviewBuilder,
     guide_scene: rusterix::Scene,
+    paint: SharedIsoPaintRenderCache,
     icons: GpuIcons,
     images: UiImageCache,
     last_root_images: PaintList,
@@ -118,11 +164,50 @@ impl WorldGpu {
             scene_source: None,
             guides: Default::default(),
             guide_scene: Default::default(),
+            paint: Default::default(),
             icons: GpuIcons::new(images.context().clone(), 16 * 1024 * 1024, 512)
                 .map_err(|e| e.to_string())?,
             images: UiImageCache::default(),
             last_root_images: PaintList::default(),
         })
+    }
+    fn query(
+        &mut self,
+        frame: &NativeWorldFrame,
+        at: Vec2<i32>,
+        server: &ServerContext,
+        rectangle: Option<(Vec2<f32>, Vec2<f32>, scenevm::GeoId)>,
+    ) -> Option<(EditorPick, crate::tools::ToolViewInput)> {
+        let pick = self.scenes.pick_editor(
+            frame.output,
+            [
+                at.x as f32 / frame.binding.size.0 as f32,
+                at.y as f32 / frame.binding.size.1 as f32,
+            ],
+            matches!(
+                server.curr_map_tool_type,
+                MapToolType::Vertex | MapToolType::Linedef | MapToolType::Sector
+            ),
+            server.curr_map_tool_type != MapToolType::Sector,
+        )?;
+        let rectangle = match rectangle {
+            Some((top, bottom, kind)) => Some((
+                top,
+                bottom,
+                self.scenes
+                    .pick_editor_rectangle(frame.output, top, bottom, kind)?,
+            )),
+            None => None,
+        };
+        let input = crate::tools::ToolViewInput {
+            camera: pick.camera,
+            ray: pick.ray?,
+            base: pick.base.map(|(geo, at, depth, _)| (geo, at, depth)),
+            dynamic: pick.dynamic,
+            paint_geo: pick.paint_geo,
+            rectangle,
+        };
+        Some((pick, input))
     }
     fn finish(
         &mut self,
@@ -168,6 +253,9 @@ pub(super) struct NativeWorldFrame {
     stamp: SourceStamp,
     source: Arc<SceneBuildSnapshot>,
     ready: bool,
+    camera: Option<CameraStamp>,
+    output: ViewImage,
+    cube: Option<CubeFrame>,
     overlay: Arc<ToolOverlayFrame>,
     pub(super) receipts: Vec<FrameReceipt>,
     pub(super) receipt: FrameReceipt,
@@ -180,9 +268,17 @@ pub(crate) struct NativeWorld {
     presented: Option<Arc<NativeWorldFrame>>,
     overlay_input: ToolOverlayInputState,
     world_capture: Option<Binding>,
+    cube: ViewCubeFrames,
+    cube_capture: Option<CubeCapture>,
     events: std::collections::VecDeque<ScopedToolOverlayEvent>,
     published: Option<(TheId, Arc<PaintList>)>,
     gpu: Option<WorldGpu>,
+}
+struct CubeCapture {
+    binding: Binding,
+    origin: Vec2<i32>,
+    face: crate::viewcube::ViewCubeFace,
+    orbiting: bool,
 }
 impl Default for NativeWorld {
     fn default() -> Self {
@@ -194,6 +290,8 @@ impl Default for NativeWorld {
             presented: None,
             overlay_input: Default::default(),
             world_capture: None,
+            cube: Default::default(),
+            cube_capture: None,
             events: Default::default(),
             published: None,
             gpu: None,
@@ -226,6 +324,7 @@ impl NativeWorld {
             let mut tools = TOOLLIST.write().unwrap();
             for tool in &mut tools.game_tools {
                 tool.set_native_overlay_input(false);
+                tool.set_view_input(None);
                 tool.invalidate_overlay();
             }
         }
@@ -236,6 +335,10 @@ impl NativeWorld {
         self.presented = None;
         self.overlay_input.invalidate();
         self.world_capture = None;
+        self.cube.invalidate();
+        if self.cube_capture.take().is_some() {
+            EDITCAMERA.write().unwrap().reset_mouse_tracking();
+        }
         self.events.clear();
     }
     pub(super) fn device_reset(&mut self, ui: &mut TheUI) {
@@ -258,6 +361,80 @@ fn slots(
         })
         .map(|slots| slots.into_iter().map(|s| (s.label, s.source)).collect())
 }
+/// Project the acknowledged scene query into the existing authoring controller
+/// state. A miss clears previous hits while retaining its valid ground ray.
+fn apply_pick(pick: EditorPick, map: &Map, server: &mut ServerContext) {
+    server.hover_cursor_3d = None;
+    server.hover_ray_origin_3d = pick.ray.map(|ray| ray.0);
+    server.hover_ray_dir_3d = pick.ray.map(|ray| ray.1);
+    server.hover_surface = None;
+    server.hover_surface_hit_pos = None;
+    server.hover_surface_normal = None;
+    server.geo_hit = None;
+    server.geo_hit_pos = Vec3::zero();
+    if let Some((geo, at, _)) = pick.gizmo {
+        server.geo_hit = Some(geo);
+        server.geo_hit_pos = at;
+        return;
+    }
+    let mut base_preferred = false;
+    if let Some((geo, at, _, normal)) = pick.base {
+        server.hover_cursor_3d = Some(at);
+        server.hover_surface_normal = Some(normal);
+        server.hover_surface_hit_pos = Some(at);
+        server.hover_surface = map
+            .surfaces
+            .values()
+            .filter_map(|surface| {
+                let length = surface.plane.normal.magnitude();
+                (length > 1e-6).then(|| {
+                    (
+                        surface,
+                        ((at - surface.plane.origin).dot(surface.plane.normal / length)).abs(),
+                    )
+                })
+            })
+            .min_by(|a, b| a.1.total_cmp(&b.1))
+            .map(|(surface, _)| surface.clone());
+        base_preferred = (server.curr_map_tool_type == MapToolType::Sector
+            && server.geometry_edit_mode != GeometryEditMode::Detail)
+            || ((server.block_tool_active
+                || matches!(
+                    server.curr_map_tool_type,
+                    MapToolType::Selection
+                        | MapToolType::Vertex
+                        | MapToolType::Linedef
+                        | MapToolType::Sector
+                ))
+                && matches!(geo, scenevm::GeoId::GeometryObject(_)));
+    }
+    let hit = if base_preferred || server.curr_map_tool_type == MapToolType::Sector {
+        pick.base.map(|(geo, at, depth, _)| (geo, at, depth))
+    } else {
+        pick.guide
+    };
+    if let Some((geo, at, _)) = hit {
+        server.geo_hit = Some(geo);
+        server.geo_hit_pos = at;
+    } else if let Some((origin, direction)) = pick.ray {
+        if direction.y.abs() > 1e-6 {
+            let distance = -origin.y / direction.y;
+            if distance >= 0. {
+                server.hover_cursor_3d = Some(origin + direction * distance);
+            }
+        }
+    }
+}
+fn snap_cube(face: crate::viewcube::ViewCubeFace, ctx: &mut TheContext) {
+    let mut camera = EDITCAMERA.write().unwrap();
+    crate::viewcube::ViewCube::snap_camera(&mut camera.orbit_camera, face);
+    camera.reset_mouse_tracking();
+    ctx.ui.send(TheEvent::SetStatusText(
+        TheId::empty(),
+        fl!("status_viewcube_camera_aligned"),
+    ));
+    ctx.ui.redraw_all = true;
+}
 impl Editor {
     pub(crate) fn invalidate_native_world_viewport(&mut self, ui: &mut TheUI) {
         self.native_viewport.world.invalidate(ui);
@@ -268,7 +445,6 @@ impl Editor {
             || self.server_ctx.game_mode
             || self.server_ctx.game_input_mode
             || self.server_ctx.text_game_mode
-            || self.server_ctx.editor_view_mode != EditorViewMode::D2
             || !self.server_ctx.pc.is_region()
             || self.server_ctx.world_mode
             || self.server_ctx.profile_view.is_some()
@@ -280,8 +456,16 @@ impl Editor {
         let Some(map) = self.project.get_map(&self.server_ctx) else {
             return false;
         };
-        if map.camera != MapCamera::TwoD {
-            return false;
+        if self.server_ctx.editor_view_mode == EditorViewMode::D2 {
+            if map.camera != MapCamera::TwoD {
+                return false;
+            }
+        } else {
+            // Persisted/live orthographic bakes retain their explicit adapter
+            // until its progressive output and bake lifecycle are adopted.
+            if map.orthographic_bake.is_some() {
+                return false;
+            }
         }
         let tools = TOOLLIST.read().unwrap();
         if tools.editor_mode
@@ -300,11 +484,13 @@ impl Editor {
             return false;
         }
         let bridge = RUSTERIX.read().unwrap();
-        // Named remaining adapters: runtime speech/visibility and isometric,
-        // custom contexts/tools and Play are adopted in subsequent mode ports.
+        // Named remaining adapters: runtime speech/visibility, sprite-isometric,
+        // orthographic bakes, custom contexts/tools and Play.
         bridge.server.state == rusterix::ServerState::Off
             && bridge.client.messages_to_draw.is_empty()
-            && (bridge.scene_handler.settings.visibility_range_2d <= 0.
+            && !bridge.orthographic_bake.is_rendering()
+            && (self.server_ctx.editor_view_mode != EditorViewMode::D2
+                || bridge.scene_handler.settings.visibility_range_2d <= 0.
                 || bridge.scene_handler.settings.visibility_alpha_2d <= 0.)
     }
     fn native_world_binding(&self, ui: &mut TheUI, ctx: &TheContext) -> Option<Binding> {
@@ -329,6 +515,7 @@ impl Editor {
             context: self.server_ctx.pc,
             size: (dim.width as usize, dim.height as usize),
             map: map.id,
+            mode: self.server_ctx.editor_view_mode,
             density: ctx.scale_factor.to_bits(),
             style: HudStyle::current(),
             slots,
@@ -341,6 +528,30 @@ impl Editor {
                 geometry: self.procedural_appearance_revision,
             },
         })
+    }
+    /// CPU navigation belongs to update, before frame preparation. The renderer
+    /// receives an immutable camera snapshot and never advances navigation.
+    pub(crate) fn advance_native_world_camera(&mut self, ctx: &mut TheContext) -> bool {
+        if !self.native_world_owns_viewport()
+            || self.server_ctx.editor_view_mode == EditorViewMode::D2
+        {
+            return false;
+        }
+        let Some(region) = self.project.get_region_ctx_mut(&mut self.server_ctx) else {
+            return false;
+        };
+        let mut camera = EDITCAMERA.write().unwrap();
+        let moving = self.server_ctx.editor_fly_nav_active || camera.move_action.is_some();
+        camera.update_action(region, &mut self.server_ctx, ctx.get_time());
+        region.iso_paint.ensure_baked_paint_current();
+        moving
+    }
+    fn native_world_camera(&self) -> Option<Box<dyn D3Camera>> {
+        let region = self.project.get_region_ctx(&self.server_ctx)?;
+        EDITCAMERA
+            .read()
+            .unwrap()
+            .camera_for_view(region, &self.server_ctx)
     }
     pub(super) fn prepare_native_world_viewport(
         &mut self,
@@ -365,6 +576,10 @@ impl Editor {
             .project
             .get_map(&self.server_ctx)
             .ok_or("missing native world map")?;
+        let camera = self.native_world_camera();
+        let camera_stamp = camera
+            .as_ref()
+            .map(|camera| CameraStamp::new(camera.as_ref(), binding.size));
         let world = &mut self.native_viewport.world;
         if world
             .gpu
@@ -375,6 +590,8 @@ impl Editor {
                 world.presented = None;
                 world.overlay_input.invalidate();
                 world.world_capture = None;
+                world.cube.invalidate();
+                world.cube_capture = None;
                 world.events.clear();
                 world.epoch = world
                     .epoch
@@ -399,6 +616,7 @@ impl Editor {
             gpu.scene_source = None;
             gpu.guides = Default::default();
             gpu.guide_scene = Default::default();
+            gpu.paint = Default::default();
         }
         // CPU-only bridge inputs: no legacy VM is borrowed, swapped or rendered.
         let bridge = RUSTERIX.read().unwrap();
@@ -415,6 +633,7 @@ impl Editor {
             gpu.scene_key = None;
         }
         let key = SceneInputKey {
+            camera: camera_stamp.clone(),
             stamp: SourceStamp::new(map),
             size: binding.size,
             tool: self.server_ctx.curr_map_tool_type,
@@ -433,7 +652,11 @@ impl Editor {
             build: self.build_values.clone(),
             runtime: bridge.render_state_for_view(map, true),
         };
-        let same_scene = gpu.scene_key.as_ref() == Some(&key)
+        // The existing 3D guides include transient gizmos/ghosts beyond the 2D
+        // key. Prepare them on requested frames until their owner revisions are
+        // extracted; do not cache an incomplete description.
+        let same_scene = camera.is_none()
+            && gpu.scene_key.as_ref() == Some(&key)
             && gpu
                 .scene_source
                 .as_ref()
@@ -443,41 +666,119 @@ impl Editor {
                 .scenes
                 .apply_editor_source(gpu.view, source.clone())
                 .map_err(|e| e.to_string())?;
-            let mut description = bridge
-                .client
-                .editor_view_2d(map, (binding.size.0 as u32, binding.size.1 as u32));
-            if let rusterix::editor_view::EditorViewFrame::D2(frame) = &mut description {
-                frame.draw_grid = self.server_ctx.show_editor_grid;
-                frame.canvas_colors = bridge.client.editor_canvas_colors;
-            }
             let scene = gpu.scenes.scene_mut(gpu.view).map_err(|e| e.to_string())?;
             scene.runtime_render_state = key.runtime.clone();
             if source_changed {
                 scene.billboards = bridge.scene_handler.billboards.clone();
             }
-            scene.settings.backend_2d = rusterix::render_settings::RendererBackend::Raster;
-            gpu.guides.set_properties(&self.build_values);
-            gpu.guides
-                .set_map_tool_type(self.server_ctx.curr_map_tool_type);
-            gpu.guides
-                .set_map_hover_info(self.server_ctx.hover, self.server_ctx.hover_cursor);
-            gpu.guides.draw_grid = self.server_ctx.show_editor_grid;
-            gpu.guides.show_entity_markers = true;
-            gpu.guides.build_entities_items(
-                map,
-                &bridge.assets,
-                &mut gpu.guide_scene,
-                Vec2::new(binding.size.0 as f32, binding.size.1 as f32),
-                &None,
-                scene,
-                false,
-            );
-            scene.build_dynamics_2d(
-                map,
-                bridge.client.animation_frame,
-                &bridge.assets,
-                &Default::default(),
-            );
+            let description = if let Some(camera) = camera.as_ref() {
+                let camera_frame = camera
+                    .as_scenevm_camera_for_surface(binding.size.0 as f32, binding.size.1 as f32);
+                scene.set_entity_item_selection_visible(
+                    TOOLLIST.read().unwrap().current_game_tool_is("tool.entity"),
+                );
+                scene.build_dynamics_3d(
+                    map,
+                    camera.as_ref(),
+                    bridge.client.animation_frame,
+                    &bridge.assets,
+                    &Default::default(),
+                );
+                TOOLLIST.write().unwrap().prepare_geometry_overlay_3d(
+                    &self.project,
+                    &self.server_ctx,
+                    &bridge.assets,
+                    camera.as_ref(),
+                    scene,
+                );
+                let region = self
+                    .project
+                    .get_region_ctx(&self.server_ctx)
+                    .ok_or("native 3D region removed")?;
+                let mut paint = region.iso_paint.clone();
+                crate::block_props::merge_prefab_paint_for_map(
+                    &mut paint,
+                    map,
+                    &bridge.assets.block_props,
+                    &self.project.block_prop_paint,
+                );
+                paint.selection_visible =
+                    self.server_ctx.curr_map_tool_type == MapToolType::IsoPaint;
+                let has_paint = (paint.visible
+                    && (!paint.surface_commit_strokes.is_empty()
+                        || !paint.chunks.is_empty()
+                        || !paint.baked_chunks.is_empty()))
+                    || (paint.selection_visible && paint.active_selection().is_some());
+                scene.vm.set_active_vm(0);
+                if has_paint {
+                    scene.vm.execute(scenevm::Atom::SetCamera3D {
+                        camera: camera_frame,
+                    });
+                    IsoPaintRenderer::upload_overlay_cached(
+                        &mut gpu.paint,
+                        region.id,
+                        0,
+                        &mut paint,
+                        &mut scene.vm,
+                        camera_frame,
+                        camera
+                            .view_matrix_for_surface(binding.size.0 as f32, binding.size.1 as f32),
+                        camera.projection_matrix(binding.size.0 as f32, binding.size.1 as f32),
+                        binding.size.0 as u32,
+                        binding.size.1 as u32,
+                        Some(camera.scale()),
+                    );
+                } else {
+                    scene.vm.execute(scenevm::Atom::ClearRaster3DPaintOverlay);
+                    scene.vm.execute(scenevm::Atom::ClearPaintBillboards);
+                    gpu.paint = Default::default();
+                }
+                rusterix::editor_view::EditorViewFrame::D3(rusterix::editor_view::EditorView3D {
+                    size: (binding.size.0 as u32, binding.size.1 as u32),
+                    grid_size: map.grid_size,
+                    offset: map.offset,
+                    hour: bridge.client.server_time.to_f32(),
+                    animation_frame: bridge.client.animation_frame,
+                    camera: camera_frame,
+                    overlay_camera: camera_frame,
+                    canvas_colors: bridge.client.editor_canvas_colors,
+                    neutral_background: true,
+                    static_geometry: true,
+                    transparent_background: false,
+                })
+            } else {
+                let mut description = bridge
+                    .client
+                    .editor_view_2d(map, (binding.size.0 as u32, binding.size.1 as u32));
+                if let rusterix::editor_view::EditorViewFrame::D2(frame) = &mut description {
+                    frame.draw_grid = self.server_ctx.show_editor_grid;
+                    frame.canvas_colors = bridge.client.editor_canvas_colors;
+                }
+                scene.settings.backend_2d = rusterix::render_settings::RendererBackend::Raster;
+                gpu.guides.set_properties(&self.build_values);
+                gpu.guides
+                    .set_map_tool_type(self.server_ctx.curr_map_tool_type);
+                gpu.guides
+                    .set_map_hover_info(self.server_ctx.hover, self.server_ctx.hover_cursor);
+                gpu.guides.draw_grid = self.server_ctx.show_editor_grid;
+                gpu.guides.show_entity_markers = true;
+                gpu.guides.build_entities_items(
+                    map,
+                    &bridge.assets,
+                    &mut gpu.guide_scene,
+                    Vec2::new(binding.size.0 as f32, binding.size.1 as f32),
+                    &None,
+                    scene,
+                    false,
+                );
+                scene.build_dynamics_2d(
+                    map,
+                    bridge.client.animation_frame,
+                    &bridge.assets,
+                    &Default::default(),
+                );
+                description
+            };
             gpu.scenes
                 .prepare_editor(gpu.view, &description, images.registry)
                 .map_err(|e| e.to_string())?;
@@ -540,6 +841,22 @@ impl Editor {
                 .map_err(|e| e.to_string())?
                 .ops,
         );
+        let cube = if binding.mode == EditorViewMode::Orbit {
+            world.cube.prepare(
+                binding.cube_target(world.epoch),
+                &EDITCAMERA.read().unwrap().orbit_camera,
+            )
+        } else {
+            world.cube.invalidate();
+            None
+        };
+        if let Some(cube) = &cube {
+            list.ops.extend(
+                cube.paint(&mut ctx.text, &mut resources, ctx.scale_factor)
+                    .map_err(|e| e.to_string())?
+                    .ops,
+            );
+        }
         let help = crate::mapeditor::geometry_selection_status_text(map, &self.server_ctx);
         list.ops.extend(
             Hud::prepare_guidance(binding.size, help.as_deref(), binding.style.colors)
@@ -573,6 +890,9 @@ impl Editor {
             stamp: SourceStamp::new(map),
             source,
             ready,
+            camera: camera_stamp,
+            output,
+            cube,
             overlay,
             receipts,
             receipt,
@@ -586,6 +906,10 @@ impl Editor {
     ) {
         let next = self.native_world_binding(ui, ctx);
         self.native_viewport.world.bind(next.clone(), ui);
+        let current_camera = next.as_ref().and_then(|binding| {
+            self.native_world_camera()
+                .map(|camera| CameraStamp::new(camera.as_ref(), binding.size))
+        });
         let world = &mut self.native_viewport.world;
         let Some(frame) = frame else {
             if next.is_some() {
@@ -604,8 +928,19 @@ impl Editor {
         let Some(map) = self.project.get_map(&self.server_ctx) else {
             return;
         };
-        if SourceStamp::new(map) != frame.stamp {
+        if SourceStamp::new(map) != frame.stamp || current_camera != frame.camera {
             return;
+        }
+        if let Some(cube) = &frame.cube {
+            if !world.cube.presented(
+                cube,
+                &frame.receipts,
+                frame.binding.cube_target(world.epoch),
+                &EDITCAMERA.read().unwrap().orbit_camera,
+            ) {
+                ctx.ui.redraw_all = true;
+                return;
+            }
         }
         let accepted = TOOLLIST
             .write()
@@ -670,6 +1005,9 @@ impl Editor {
         if !self.native_viewport.enabled {
             return false;
         }
+        for tool in &mut TOOLLIST.write().unwrap().game_tools {
+            tool.set_view_input(None);
+        }
         if !matches!(
             event,
             TheEvent::RenderViewClicked(..)
@@ -719,9 +1057,74 @@ impl Editor {
                 return true;
             }
         }
+        let current_camera = self
+            .native_world_camera()
+            .map(|camera| CameraStamp::new(camera.as_ref(), binding.size));
         let world = &mut self.native_viewport.world;
         if matches!(input, MapEvent::MapClicked(_)) {
             world.world_capture = None;
+        }
+        if let Some(capture) = &mut world.cube_capture {
+            if capture.binding == binding {
+                match input {
+                    MapEvent::MapDragged(at) => {
+                        let delta = at - capture.origin;
+                        if delta.x as i64 * delta.x as i64 + delta.y as i64 * delta.y as i64 >= 4 {
+                            capture.orbiting = true;
+                        }
+                        if capture.orbiting {
+                            let mut camera = EDITCAMERA.write().unwrap();
+                            #[cfg(target_os = "macos")]
+                            camera.mouse_dragged_viewcube_macos_primary(&at);
+                            #[cfg(not(target_os = "macos"))]
+                            camera.mouse_dragged_orbit(&at);
+                            ctx.ui.redraw_all = true;
+                        }
+                        return true;
+                    }
+                    MapEvent::MapUp(_) | MapEvent::MapEscape => {
+                        let capture = world.cube_capture.take().unwrap();
+                        EDITCAMERA.write().unwrap().reset_mouse_tracking();
+                        if matches!(input, MapEvent::MapUp(_)) && !capture.orbiting {
+                            snap_cube(capture.face, ctx);
+                        }
+                        return true;
+                    }
+                    _ => {}
+                }
+            }
+        }
+        if let MapEvent::MapClicked(at) = input {
+            if TOOLLIST.read().unwrap().viewcube_navigation_enabled() {
+                let pick = world.cube.pick(
+                    binding.cube_target(world.epoch),
+                    &EDITCAMERA.read().unwrap().orbit_camera,
+                    at,
+                );
+                match pick {
+                    CubePick::Unavailable => {
+                        ctx.ui.redraw_all = true;
+                        return true;
+                    }
+                    CubePick::Face(face) => {
+                        #[cfg(target_os = "macos")]
+                        {
+                            EDITCAMERA.write().unwrap().reset_mouse_tracking();
+                            EDITCAMERA.write().unwrap().mouse_dragged_orbit(&at);
+                            world.cube_capture = Some(CubeCapture {
+                                binding: binding.clone(),
+                                origin: at,
+                                face,
+                                orbiting: false,
+                            });
+                        }
+                        #[cfg(not(target_os = "macos"))]
+                        snap_cube(face, ctx);
+                        return true;
+                    }
+                    CubePick::Outside => {}
+                }
+            }
         }
         let frame = world.presented.clone();
         let target = binding.target(world.epoch);
@@ -759,10 +1162,43 @@ impl Editor {
             ToolOverlayRoute::Outside { redraw } => ctx.ui.redraw_all |= redraw,
         }
         drop(tools);
+        let pointer = match input {
+            MapEvent::MapClicked(at)
+            | MapEvent::MapDragged(at)
+            | MapEvent::MapUp(at)
+            | MapEvent::MapHover(at) => Some(at),
+            _ => None,
+        };
         let continuation = matches!(
             input,
             MapEvent::MapDragged(_) | MapEvent::MapUp(_) | MapEvent::MapEscape
         );
+        if continuation
+            && world.world_capture.as_ref() == Some(&binding)
+            && binding.mode != EditorViewMode::D2
+        {
+            if let Some(at) = pointer {
+                let mut tools = TOOLLIST.write().unwrap();
+                let tool = tools.get_current_tool();
+                let rectangle = tool.view_rectangle_query(at);
+                let query = frame
+                    .as_ref()
+                    .filter(|frame| frame.camera == current_camera)
+                    .and_then(|frame| {
+                        world
+                            .gpu
+                            .as_mut()?
+                            .query(frame, at, &self.server_ctx, rectangle)
+                    });
+                if let Some((pick, input)) = query {
+                    apply_pick(pick, map, &mut self.server_ctx);
+                    tool.set_view_input(Some(input));
+                } else {
+                    ctx.ui.redraw_all = true;
+                    return true;
+                }
+            }
+        }
         if continuation && world.world_capture.as_ref() == Some(&binding) {
             if matches!(input, MapEvent::MapUp(_) | MapEvent::MapEscape) {
                 world.world_capture = None;
@@ -771,6 +1207,7 @@ impl Editor {
         }
         let fresh = frame.as_ref().is_some_and(|frame| {
             frame.ready
+                && frame.camera == current_camera
                 && frame.stamp == SourceStamp::new(map)
                 && {
                     let builds = SCENEMANAGER.read().unwrap();
@@ -789,6 +1226,34 @@ impl Editor {
         if !fresh || matches!(input, MapEvent::MapDragged(_) | MapEvent::MapUp(_)) {
             ctx.ui.redraw_all = true;
             return true;
+        }
+        if binding.mode != EditorViewMode::D2 {
+            if let Some(at) = pointer {
+                if at.x < 0
+                    || at.y < 0
+                    || at.x as usize >= binding.size.0
+                    || at.y as usize >= binding.size.1
+                {
+                    return true;
+                }
+                let query = frame
+                    .as_ref()
+                    .and_then(|frame| world.gpu.as_mut()?.query(frame, at, &self.server_ctx, None));
+                let Some((pick, input)) = query else {
+                    ctx.ui.redraw_all = true;
+                    return true;
+                };
+                apply_pick(pick, map, &mut self.server_ctx);
+                TOOLLIST
+                    .write()
+                    .unwrap()
+                    .get_current_tool()
+                    .set_view_input(Some(input));
+            }
+            if matches!(input, MapEvent::MapClicked(_)) {
+                world.world_capture = Some(binding);
+            }
+            return false;
         }
         if let MapEvent::MapClicked(at) = input {
             // Hover may have been discarded while source geometry was pending.
@@ -823,6 +1288,9 @@ impl Editor {
 
 #[cfg(test)]
 impl Editor {
+    pub(crate) fn native_world_has_ray_for_test(&self) -> bool {
+        self.server_ctx.hover_ray_origin_3d.is_some() && self.server_ctx.hover_ray_dir_3d.is_some()
+    }
     pub(crate) fn native_world_has_cpu_storage_for_test(&self) -> bool {
         let gpu = self
             .native_viewport

@@ -123,6 +123,7 @@ impl UiApplication for NativeCreatorApplication {
         }
         self.editor.synchronize_native_document();
         let mut redraw = ui.ui.update(&mut ui.context);
+        redraw |= self.editor.advance_native_world_camera(&mut ui.context);
         redraw |= self.editor.update_ui(&mut ui.ui, &mut ui.context);
         redraw |= self.editor.update(&mut ui.context);
         redraw |= self.editor.native_views_waiting();
@@ -209,6 +210,7 @@ impl UiApplication for NativeCreatorApplication {
 mod tests {
     use super::*;
     use renderkit::{GpuContext, GpuImage, ImageDescriptor, ImageRegistry, ReadbackTicket, wgpu};
+    use rusterix::D3Camera;
     use theframework::render_wgpu::PaintRenderer;
     #[test]
     #[ignore = "requires actual native GPU; exercises the assembled Creator UI"]
@@ -498,5 +500,131 @@ mod tests {
             "an acknowledged outside HUD hit reaches the actual Vertex tool once"
         );
         app.session.ui.shift = false;
+        app.session.context.ui.send(TheEvent::RenderViewUp(
+            world_view.clone(),
+            Vec2::new(250, 240),
+        ));
+        // Extend this existing assembled check through the real camera toolbar.
+        // This is one integration checkpoint, with no separate fixture matrix.
+        for camera_index in [2, 3, 4] {
+            app.session.context.ui.send(TheEvent::IndexChanged(
+                TheId::named("Editor View Switch"),
+                camera_index,
+            ));
+            for _ in 0..64 {
+                app.update(&mut host, Duration::from_millis(16));
+                if !crate::editor::SCENEMANAGER
+                    .read()
+                    .unwrap()
+                    .has_pending_geometry()
+                {
+                    break;
+                }
+            }
+            let world = app.frame(&mut host, &mut replacement).unwrap();
+            assert!(
+                app.application.pending.as_ref().unwrap().world_for_test(),
+                "camera {camera_index} must use the native world"
+            );
+            assert!(
+                !app.application
+                    .editor
+                    .native_world_has_cpu_storage_for_test()
+            );
+            let dim = *app
+                .session
+                .ui
+                .get_render_view(&world_view.name)
+                .unwrap()
+                .dim();
+            let cube_point = Vec2::new(dim.width - 52, 102);
+            let cube_click = TheEvent::RenderViewClicked(world_view.clone(), cube_point);
+            let pose = crate::editor::EDITCAMERA
+                .read()
+                .unwrap()
+                .orbit_camera
+                .as_scenevm_camera();
+            if camera_index == 2 {
+                assert!(app.application.editor.handle_native_world_input(
+                    &cube_click,
+                    &mut app.session.ui,
+                    &mut app.session.context
+                ));
+                assert_eq!(
+                    crate::editor::EDITCAMERA
+                        .read()
+                        .unwrap()
+                        .orbit_camera
+                        .as_scenevm_camera()
+                        .forward,
+                    pose.forward,
+                    "a prepared cube cannot change the camera before root acknowledgement"
+                );
+            }
+            let before = gpu.transfers().readback_bytes;
+            renderer
+                .render(
+                    &world,
+                    &replacement,
+                    &output.view,
+                    output.descriptor.format,
+                    (1200, 800),
+                    1.,
+                    [0.; 4],
+                )
+                .unwrap();
+            app.presented(&mut host);
+            assert_eq!(gpu.transfers().readback_bytes, before);
+            if camera_index == 2 {
+                assert!(app.application.editor.handle_native_world_input(
+                    &cube_click,
+                    &mut app.session.ui,
+                    &mut app.session.context
+                ));
+                assert!(app.application.editor.handle_native_world_input(
+                    &TheEvent::RenderViewUp(world_view.clone(), cube_point),
+                    &mut app.session.ui,
+                    &mut app.session.context
+                ));
+                assert_ne!(
+                    crate::editor::EDITCAMERA
+                        .read()
+                        .unwrap()
+                        .orbit_camera
+                        .as_scenevm_camera()
+                        .forward,
+                    pose.forward,
+                    "an acknowledged cube face snaps the actual authoring camera"
+                );
+            }
+            // A camera change must be rendered and acknowledged before picking.
+            app.update(&mut host, Duration::from_millis(16));
+            let world = app.frame(&mut host, &mut replacement).unwrap();
+            renderer
+                .render(
+                    &world,
+                    &replacement,
+                    &output.view,
+                    output.descriptor.format,
+                    (1200, 800),
+                    1.,
+                    [0.; 4],
+                )
+                .unwrap();
+            app.presented(&mut host);
+            let hover = TheEvent::RenderViewHoverChanged(
+                world_view.clone(),
+                Vec2::new(dim.width / 2, dim.height / 2),
+            );
+            assert!(
+                !app.application.editor.handle_native_world_input(
+                    &hover,
+                    &mut app.session.ui,
+                    &mut app.session.context
+                ),
+                "an acknowledged native 3D query reaches the existing tool dispatcher"
+            );
+            assert!(app.application.editor.native_world_has_ray_for_test());
+        }
     }
 }

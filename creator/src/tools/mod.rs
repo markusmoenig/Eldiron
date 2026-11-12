@@ -26,6 +26,8 @@ pub mod effects;
 pub mod entity;
 pub mod overlay_frame;
 pub mod vertex;
+mod view_input;
+pub use view_input::ToolViewInput;
 pub use overlay_frame::{
     ToolOverlayCommand, ToolOverlayFrame, ToolOverlayInputs, ToolOverlayTarget,
 };
@@ -122,6 +124,14 @@ pub trait Tool: Send + Sync {
         None
     }
 
+    /// The viewport supplies checked CPU queries immediately before dispatch.
+    fn set_view_input(&mut self, _input: Option<ToolViewInput>) {}
+    fn view_rectangle_query(
+        &self,
+        _point: Vec2<i32>,
+    ) -> Option<(Vec2<f32>, Vec2<f32>, scenevm::GeoId)> {
+        None
+    }
     /// Optional common HUD controller. Unconverted tools return no native frame.
     fn overlay_hud(&mut self) -> Option<&mut crate::hud::Hud> {
         None

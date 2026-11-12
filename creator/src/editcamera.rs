@@ -97,64 +97,56 @@ impl EditCamera {
         layout.add_widget(Box::new(fill));
     }
 
-    /// Update client camera
+    /// Snapshot the authoring camera without borrowing a renderer or mutating
+    /// the document. Native views and the reference client share this policy.
+    pub fn camera_for_view(
+        &self,
+        region: &Region,
+        server_ctx: &ServerContext,
+    ) -> Option<Box<dyn D3Camera>> {
+        let mut camera: Box<dyn D3Camera> = match server_ctx.editor_view_mode {
+            EditorViewMode::FirstP => Box::new(self.firstp_camera.clone()),
+            EditorViewMode::Iso => Box::new(self.iso_camera.clone()),
+            EditorViewMode::Orbit => Box::new(self.orbit_camera.clone()),
+            EditorViewMode::D2 => return None,
+        };
+        match server_ctx.editor_view_mode {
+            EditorViewMode::FirstP => {
+                camera.set_parameter_vec3(
+                    "position",
+                    region.editing_position_3d + Vec3::new(0.0, 1.5, 0.0),
+                );
+                camera.set_parameter_vec3(
+                    "center",
+                    region.editing_look_at_3d + Vec3::new(0.0, 1.5, 0.0),
+                );
+            }
+            EditorViewMode::Iso => {
+                camera.set_parameter_f32("azimuth_deg", self.iso_camera.azimuth_deg);
+                camera.set_parameter_f32("elevation_deg", self.iso_camera.elevation_deg);
+                camera.set_parameter_vec3("center", region.editing_position_3d);
+                camera.set_parameter_vec3(
+                    "position",
+                    region.editing_position_3d + Vec3::new(-20.0, 20.0, 20.0),
+                );
+            }
+            EditorViewMode::Orbit => {
+                camera.set_parameter_vec3("center", region.editing_position_3d)
+            }
+            EditorViewMode::D2 => unreachable!(),
+        }
+        Some(camera)
+    }
+
+    /// Compatibility adapter for the reference client.
     pub fn update_camera(
         &mut self,
         region: &mut Region,
         server_ctx: &mut ServerContext,
         rusterix: &mut Rusterix,
     ) {
-        if server_ctx.editor_view_mode == EditorViewMode::FirstP {
-            rusterix.client.camera_d3 = Box::new(self.firstp_camera.clone());
-
-            let height = 1.5;
-
-            // let h = region.map.terrain.get_height_unprocessed(
-            //     region.editing_position_3d.x as i32,
-            //     region.editing_position_3d.z as i32,
-            // );
-
-            // println!("{} {:?}", height, h);
-
-            let position = region.editing_position_3d + Vec3::new(0.0, height, 0.0);
-
-            rusterix
-                .client
-                .camera_d3
-                .set_parameter_vec3("position", position);
-            let center = region.editing_look_at_3d + Vec3::new(0.0, 1.5, 0.0);
-            rusterix
-                .client
-                .camera_d3
-                .set_parameter_vec3("center", center);
-        } else if server_ctx.editor_view_mode == EditorViewMode::Iso {
-            rusterix.client.camera_d3 = Box::new(self.iso_camera.clone());
-
-            rusterix.client.camera_d3.set_parameter_f32(
-                "azimuth_deg",
-                self.iso_camera.get_parameter_f32("azimuth_deg"),
-            );
-
-            rusterix.client.camera_d3.set_parameter_f32(
-                "elevation_deg",
-                self.iso_camera.get_parameter_f32("elevation_deg"),
-            );
-
-            rusterix
-                .client
-                .camera_d3
-                .set_parameter_vec3("center", region.editing_position_3d);
-            rusterix.client.camera_d3.set_parameter_vec3(
-                "position",
-                region.editing_position_3d + vek::Vec3::new(-20.0, 20.0, 20.0),
-            );
-        } else if server_ctx.editor_view_mode == EditorViewMode::Orbit {
-            rusterix.client.camera_d3 = Box::new(self.orbit_camera.clone());
-
-            rusterix
-                .client
-                .camera_d3
-                .set_parameter_vec3("center", region.editing_position_3d);
+        if let Some(camera) = self.camera_for_view(region, server_ctx) {
+            rusterix.client.camera_d3 = camera;
         }
     }
 

@@ -23,6 +23,7 @@ const GIZMO_PREFAB_LOCAL_Z: u32 = 203;
 
 pub struct GeometryTool {
     id: TheId,
+    view_input: Option<super::ToolViewInput>,
     hud: Hud,
     undo_map: Option<Map>,
     drag: Option<GeometryDrag>,
@@ -2944,6 +2945,7 @@ impl Tool for GeometryTool {
     {
         Self {
             id: TheId::named("Object Tool"),
+            view_input: None,
             hud: Hud::new(HudMode::Selection),
             undo_map: None,
             drag: None,
@@ -3030,7 +3032,14 @@ impl Tool for GeometryTool {
                     return None;
                 }
 
-                if super::entity::select_placed_content(_ui, ctx, map, server_ctx, coord) {
+                if super::entity::select_placed_content(
+                    _ui,
+                    ctx,
+                    map,
+                    server_ctx,
+                    coord,
+                    self.view_input.as_ref(),
+                ) {
                     self.drag = None;
                     self.rectangle_start = None;
                     self.rectangle_undo_map = None;
@@ -3387,7 +3396,9 @@ impl Tool for GeometryTool {
                         let bottom_right =
                             Vec2::new(start.x.max(current.x), start.y.max(current.y));
 
-                        let camera = {
+                        let camera = if let Some(view) = &self.view_input {
+                            view.camera
+                        } else {
                             let mut rusterix = RUSTERIX.write().unwrap();
                             let previous_vm = rusterix.scene_handler.vm.active_vm_index();
                             rusterix.scene_handler.vm.set_active_vm(2);
@@ -3990,6 +4001,9 @@ impl Tool for GeometryTool {
         }
     }
 
+    fn set_view_input(&mut self, input: Option<super::ToolViewInput>) {
+        self.view_input = input;
+    }
     fn overlay_hud(&mut self) -> Option<&mut crate::hud::Hud> {
         Some(&mut self.hud)
     }

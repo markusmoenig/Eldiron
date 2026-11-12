@@ -58,6 +58,7 @@ fn format_sector_linedefs_and_bbox(map: &Map, sector: &Sector, world_3d: bool) -
 
 pub struct SectorTool {
     id: TheId,
+    view_input: Option<super::ToolViewInput>,
     click_pos: Vec2<f32>,
     click_pos_3d: Vec3<f32>,
     /// The initial ray intersection point on the drag plane at click time
@@ -80,6 +81,7 @@ impl Tool for SectorTool {
     {
         Self {
             id: TheId::named("Sector / Face Tool"),
+            view_input: None,
             click_pos: Vec2::zero(),
             click_pos_3d: Vec3::zero(),
             click_ray_intersection_3d: None,
@@ -504,13 +506,16 @@ impl Tool for SectorTool {
                             coord.y as f32 / dim.height as f32,
                         ];
 
-                        let rusterix = RUSTERIX.read().unwrap();
-                        let ray = rusterix.client.camera_d3.create_ray(
-                            Vec2::new(screen_uv[0], 1.0 - screen_uv[1]),
-                            Vec2::new(dim.width as f32, dim.height as f32),
-                            Vec2::zero(),
-                        );
-                        drop(rusterix);
+                        let ray = if let Some(view) = &self.view_input {
+                            view.ray()
+                        } else {
+                            let rusterix = RUSTERIX.read().unwrap();
+                            rusterix.client.camera_d3.create_ray(
+                                Vec2::new(screen_uv[0], 1.0 - screen_uv[1]),
+                                Vec2::new(dim.width as f32, dim.height as f32),
+                                Vec2::zero(),
+                            )
+                        };
 
                         let plane_normal = surface.frame.normal;
                         let denom: f32 = plane_normal.dot(ray.dir);
@@ -564,13 +569,16 @@ impl Tool for SectorTool {
                                 coord.y as f32 / dim.height as f32,
                             ];
 
-                            let rusterix = RUSTERIX.read().unwrap();
-                            let ray = rusterix.client.camera_d3.create_ray(
-                                Vec2::new(screen_uv[0], 1.0 - screen_uv[1]),
-                                Vec2::new(dim.width as f32, dim.height as f32),
-                                Vec2::zero(),
-                            );
-                            drop(rusterix);
+                            let ray = if let Some(view) = &self.view_input {
+                                view.ray()
+                            } else {
+                                let rusterix = RUSTERIX.read().unwrap();
+                                rusterix.client.camera_d3.create_ray(
+                                    Vec2::new(screen_uv[0], 1.0 - screen_uv[1]),
+                                    Vec2::new(dim.width as f32, dim.height as f32),
+                                    Vec2::zero(),
+                                )
+                            };
 
                             let plane = server_ctx.gizmo_mode;
                             let plane_normal = match plane {
@@ -774,13 +782,16 @@ impl Tool for SectorTool {
                                 coord.y as f32 / dim.height as f32,
                             ];
 
-                            let rusterix = RUSTERIX.read().unwrap();
-                            let ray = rusterix.client.camera_d3.create_ray(
-                                Vec2::new(screen_uv[0], 1.0 - screen_uv[1]),
-                                Vec2::new(dim.width as f32, dim.height as f32),
-                                Vec2::zero(),
-                            );
-                            drop(rusterix);
+                            let ray = if let Some(view) = &self.view_input {
+                                view.ray()
+                            } else {
+                                let rusterix = RUSTERIX.read().unwrap();
+                                rusterix.client.camera_d3.create_ray(
+                                    Vec2::new(screen_uv[0], 1.0 - screen_uv[1]),
+                                    Vec2::new(dim.width as f32, dim.height as f32),
+                                    Vec2::zero(),
+                                )
+                            };
 
                             let plane_normal = surface.frame.normal;
                             let denom: f32 = plane_normal.dot(ray.dir);
@@ -869,13 +880,16 @@ impl Tool for SectorTool {
                                 coord.y as f32 / dim.height as f32,
                             ];
 
-                            let rusterix = RUSTERIX.read().unwrap();
-                            let ray = rusterix.client.camera_d3.create_ray(
-                                Vec2::new(screen_uv[0], 1.0 - screen_uv[1]),
-                                Vec2::new(dim.width as f32, dim.height as f32),
-                                Vec2::zero(),
-                            );
-                            drop(rusterix);
+                            let ray = if let Some(view) = &self.view_input {
+                                view.ray()
+                            } else {
+                                let rusterix = RUSTERIX.read().unwrap();
+                                rusterix.client.camera_d3.create_ray(
+                                    Vec2::new(screen_uv[0], 1.0 - screen_uv[1]),
+                                    Vec2::new(dim.width as f32, dim.height as f32),
+                                    Vec2::zero(),
+                                )
+                            };
 
                             let plane_normal = match plane {
                                 GizmoMode::XZ => Vec3::new(0.0, 1.0, 0.0),
@@ -1127,17 +1141,23 @@ impl Tool for SectorTool {
                         let bottom_right =
                             Vec2::new(click_pos.x.max(drag_pos.x), click_pos.y.max(drag_pos.y));
 
-                        let mut rusterix = RUSTERIX.write().unwrap();
-                        rusterix.scene_handler.vm.set_active_vm(2);
-                        let linedefs = rusterix.scene_handler.vm.active_vm().pick_geo_ids_in_rect(
-                            dim.width as u32,
-                            dim.height as u32,
-                            top_left,
-                            bottom_right,
-                            GeoId::Linedef(0),
-                            false,
-                            false,
-                        );
+                        let linedefs = if let Some(view) = &self.view_input {
+                            view.rectangle(top_left, bottom_right)
+                        } else {
+                            let mut rusterix = RUSTERIX.write().unwrap();
+                            rusterix.scene_handler.vm.set_active_vm(2);
+                            let hits = rusterix.scene_handler.vm.active_vm().pick_geo_ids_in_rect(
+                                dim.width as u32,
+                                dim.height as u32,
+                                top_left,
+                                bottom_right,
+                                GeoId::Linedef(0),
+                                false,
+                                false,
+                            );
+                            rusterix.scene_handler.vm.set_active_vm(0);
+                            hits
+                        };
                         for l in linedefs {
                             if let GeoId::Linedef(l) = l {
                                 if let Some(linedef) = map.find_linedef(l) {
@@ -1149,7 +1169,6 @@ impl Tool for SectorTool {
                                 }
                             }
                         }
-                        rusterix.scene_handler.vm.set_active_vm(0);
                         selection
                     };
 
@@ -1382,6 +1401,22 @@ impl Tool for SectorTool {
         undo_atom
     }
 
+    fn view_rectangle_query(&self, point: Vec2<i32>) -> Option<(Vec2<f32>, Vec2<f32>, GeoId)> {
+        let point = point.map(|v| v as f32);
+        Some((
+            Vec2::new(self.click_pos.x.min(point.x), self.click_pos.y.min(point.y)),
+            Vec2::new(self.click_pos.x.max(point.x), self.click_pos.y.max(point.y)),
+            GeoId::Linedef(0),
+        ))
+    }
+    fn set_view_input(&mut self, input: Option<super::ToolViewInput>) {
+        self.direct_geometry.set_view_input(input.clone());
+        self.view_input = input;
+    }
+    fn set_native_overlay_input(&mut self, native: bool) {
+        self.hud.set_native_input(native);
+        self.direct_geometry.set_native_overlay_input(native);
+    }
     fn overlay_hud(&mut self) -> Option<&mut crate::hud::Hud> {
         Some(&mut self.hud)
     }

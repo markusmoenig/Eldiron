@@ -10,6 +10,7 @@ use theframework::prelude::*;
 
 pub struct EntityTool {
     id: TheId,
+    view_input: Option<super::ToolViewInput>,
     hud: Hud,
 
     drag_state: Option<DragState>,
@@ -65,6 +66,7 @@ impl Tool for EntityTool {
     {
         Self {
             id: TheId::named("Entity Tool"),
+            view_input: None,
             hud: Hud::new(HudMode::Entity),
 
             drag_state: None,
@@ -509,6 +511,9 @@ impl Tool for EntityTool {
         None
     }
 
+    fn set_view_input(&mut self, input: Option<super::ToolViewInput>) {
+        self.view_input = input;
+    }
     fn overlay_hud(&mut self) -> Option<&mut crate::hud::Hud> {
         Some(&mut self.hud)
     }
@@ -655,25 +660,32 @@ impl EntityTool {
                 coord.x as f32 / dim.width as f32,
                 coord.y as f32 / dim.height as f32,
             ];
-            let mut rusterix = RUSTERIX.write().unwrap();
-            rusterix.scene_handler.vm.set_active_vm(0);
-            if let Some((geo_id, hit, _)) = rusterix.scene_handler.vm.pick_geo_id_at_uv(
-                dim.width as u32,
-                dim.height as u32,
-                screen_uv,
-                false,
-                false,
-            ) {
-                let rendered_object_id = match geo_id {
-                    scenevm::GeoId::GeometryObject(object_id) => Some(object_id),
-                    _ => None,
-                };
-                let paint_surface_id = rusterix
+            let (base, paint_surface_id) = if let Some(view) = &self.view_input {
+                (view.base, view.paint_geo)
+            } else {
+                let mut rusterix = RUSTERIX.write().unwrap();
+                rusterix.scene_handler.vm.set_active_vm(0);
+                let base = rusterix.scene_handler.vm.pick_geo_id_at_uv(
+                    dim.width as u32,
+                    dim.height as u32,
+                    screen_uv,
+                    false,
+                    false,
+                );
+                let paint = rusterix
                     .scene_handler
                     .vm
                     .pick_paint_surface_at_uv(dim.width as u32, dim.height as u32, screen_uv)
                     .filter(|surface| surface.valid)
                     .map(|surface| surface.paint_geo);
+                (base, paint)
+            };
+            if let Some((geo_id, hit, _)) = base {
+                let rusterix = RUSTERIX.read().unwrap(); // CPU asset catalogue only
+                let rendered_object_id = match geo_id {
+                    scenevm::GeoId::GeometryObject(object_id) => Some(object_id),
+                    _ => None,
+                };
                 let surface_hit = rendered_object_id
                     .and_then(|object_id| {
                         paint_surface_id.and_then(|paint_surface_id| {
@@ -1162,7 +1174,9 @@ impl EntityTool {
             coord.x as f32 / dim.width as f32,
             coord.y as f32 / dim.height as f32,
         ];
-        let geo_id = {
+        let geo_id = if let Some(view) = &self.view_input {
+            view.dynamic.map(|(geo, _, _)| geo)?
+        } else {
             let mut rusterix = RUSTERIX.write().unwrap();
             rusterix.scene_handler.vm.set_active_vm(0);
             rusterix
@@ -1348,8 +1362,10 @@ pub(crate) fn select_placed_content(
     map: &mut Map,
     server_ctx: &mut ServerContext,
     coord: Vec2<i32>,
+    input: Option<&super::ToolViewInput>,
 ) -> bool {
-    let tool = EntityTool::new();
+    let mut tool = EntityTool::new();
+    tool.view_input = input.cloned();
     let hit = tool
         .pick_rendered_hit_for_coord(ui, server_ctx, map, coord)
         .or_else(|| {

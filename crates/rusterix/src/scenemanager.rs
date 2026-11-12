@@ -427,7 +427,14 @@ impl SceneManager {
     /// Identity/projection of the CPU map currently installed in the builder.
     /// A queued camera/document switch must not authorize picking old chunks.
     pub fn source_matches(&self, map: Uuid, camera: MapCamera) -> bool {
-        self.map.id == map && self.map.camera == camera
+        // Orbit/orthographic and first-person share the same 3D geometry.
+        // The toolbar intentionally does not rebuild chunks between these modes.
+        self.map.id == map
+            && (self.map.camera == camera
+                || (matches!(
+                    self.map.camera,
+                    MapCamera::ThreeDIso | MapCamera::ThreeDFirstPerson
+                ) && matches!(camera, MapCamera::ThreeDIso | MapCamera::ThreeDFirstPerson)))
     }
 
     /// A new authoring pick also waits for built results not yet consumed by

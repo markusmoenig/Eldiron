@@ -25,7 +25,7 @@ Started: 2026-11-11 (Asia/Bangkok). Overall Goal: active; full M0–M9 scope rem
 - M2: in progress. Paint/Swash/Parley pipeline and native/foreign hosts work; batching, resource lifetime budgets and full text/input parity remain.
 - M3: in progress. Every active built-in TheWidget implementation now has a command paint path, including procedural controls and the legacy node canvas. Complex Creator integration, full widget catalog parity and legacy adapter retirement remain.
 - M4: in progress. CPU schema/identity extraction, shared `GameSession`, CPU startup preparation, message/party/world-target policies and terminal adoption are implemented and tested. Per-session routing, local players, world values, runtime IDs and region context ownership now pass controlled overlapping-session and parallel assembled-player regressions. Graphical/Creator adoption and remaining bitmap/value data extraction remain; this evidence does not establish full simultaneous Creator Play workflows.
-- M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Immutable ordinary editor-view preparation, exact reference/native view outputs and retained CPU chunk publication are now available through SceneViews. Common HUD, paint/props panels, profile displays and ViewCube now have retained command frames, guarded input and actual GPU composition/reconstruction evidence. Six standard tools additionally emit ordered typed overlay aggregates with exact presented-frame and detail-profile source guards. Full-viewport profile editing is now connected to the actual native Creator root with document/widget binding, presentation-gated input and inline commit/cancel; ordinary stopped top-down region rendering and the six standard tool overlays now use the same native application owner and real tool dispatch. Other world modes and Play remain on their explicit migration adapters. Application/global/document/Play ownership, main world/tool/HUD integration, remaining producers, full visual/workflow/performance acceptance and canonical retirement remain.
+- M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Immutable ordinary editor-view preparation, exact reference/native view outputs and retained CPU chunk publication are now available through SceneViews. Common HUD, paint/props panels, profile displays and ViewCube now have retained command frames, guarded input and actual GPU composition/reconstruction evidence. Six standard tools additionally emit ordered typed overlay aggregates with exact presented-frame and detail-profile source guards. Full-viewport profile editing is now connected to the actual native Creator root with document/widget binding, presentation-gated input and inline commit/cancel; ordinary stopped top-down and 3D region rendering and the six standard tool overlays now use the same native application owner and real tool dispatch. Orbit/orthographic/first-person views include depth-aware guides, retained ViewCube and explicit tool query snapshots; surface paint uses the view-owned GPU scene. Other world modes and Play remain on their explicit migration adapters. Application/global/document/Play ownership, main world/tool/HUD integration, remaining producers, full visual/workflow/performance acceptance and canonical retirement remain.
 - M6: in progress. Independent GPU game views, common player/input/camera components, authored screen paint, private world descriptions, view-owned speech, acknowledged-frame world pointer gestures, relative first-person mouse look, default/world-intent cursors, world/UI item drag previews and acknowledged authored inventory/equipment pointer/keyboard gestures are implemented. Application-owned audio is integrated into the common player with cancellable CPU preparation jobs. The native container HUD now includes acknowledged paint/input, real server transfers, scrolling, GPU recovery and navigation lifetime. Floating inventory/equipment, action catalogue/spellbook and preferences now use typed native HUD owners, retained text/source resources and acknowledged input. Acknowledged UI-origin tooltips now use retained text and host deadlines. UI-origin Drop cursors and acknowledged drag/assignment highlighting now have GPU and authoritative transfer evidence. Native isometric source production, shared CPU source publication, game-view outputs and acknowledged input receipts now have GPU/CPU and shipped-source device-reconstruction evidence. Browser worker hosting, remaining game-mode/HUD policy parity, performance acceptance remain. Canonical native desktop launchers now share the common application/host; see launcher verification below.
 - M7/M8/M9: Retirement and platform/full acceptance pending. Canonical desktop clients share one common player; the Xcode client now uses it through the retained ABI over a Rust-created CAMetalLayer surface. Native/ARM64 simulator app bundles link, and real Swift/static-library and registered-scene layer checks pass. Browser bootstrap, native text/platform parity, Creator wrapper and complete physical/release acceptance remain; this is not complete application/platform parity.
 
@@ -4259,3 +4259,79 @@ boundaries, and the successful assembled real-command GPU workflow recorded
 above. Later cache/input/mode guard polish has compile evidence; broad workflow
 and visual acceptance remain open. Temporary routing diagnostics are absent.
 The unrelated networking concept is excluded from the local checkpoint.
+
+
+### Main Creator 3D viewport integration (2026-11-13)
+
+Implemented the next application integration slice, following the user's reduced
+validation cadence; no new standalone test suite or broad platform matrix was
+added.
+
+- The native Creator world now adopts ordinary stopped region Orbit,
+  orthographic and first-person modes for the existing six standard tools, in
+  addition to top-down mode. The actual root blits the injected SceneViews GPU
+  output; the legacy viewport draw/readback block remains skipped for adopted
+  modes.
+- Extracted the existing 3D construction-grid, geometry/gizmo, ghost and fast-tool
+  guide producers into `creator/src/toollist/scene_guides.rs`. Both the reference
+  adapter and native viewport pass assets, CPU camera and their own SceneHandler;
+  the shared producer does not acquire/swap/render the global VM.
+- `EditCamera::camera_for_view` returns an immutable camera snapshot, shared with
+  the reference adapter. Native navigation advances during update rather than
+  paint preparation. The native scene prepares dynamics, entity-selection
+  visibility, background and guides using that snapshot.
+- ViewCube participates in the actual root receipt filtering and retains the
+  painted camera/view scope. A prepared cube cannot snap the camera. Acknowledged
+  clicks and macOS thresholded dragging update the real authoring camera; owner
+  changes/focus invalidation revoke cube input/capture.
+- Added SceneViews read queries for the exact completed editor output: base,
+  dynamic/entity, guide/gizmo, paint-surface and rectangle hits plus camera rays.
+  Layer selection is restored. These queries do not dirty or rebuild the view.
+  Captured editor drags may extrapolate the camera ray beyond viewport bounds;
+  fresh input still checks the viewport bounds.
+- Standard Vertex/Edge/Sector/Object/Entity controllers receive transient CPU
+  query snapshots immediately before dispatch. Their native rays, rectangle
+  selections, support-surface placement and rendered entity picks no longer
+  query the unrelated reference VM. Delegated Object controllers receive the
+  same input/native-HUD ownership. Reference branches remain explicit adapters.
+- Region and linked Prefab surface paint upload through a cache owned by the
+  native viewport's scene/device. CPU baked-paint housekeeping advances during
+  update. Empty paint clears only that view's paint overlay. Full paint-tool and
+  painted-source visual parity remain to verify.
+- Fixed an actual integration failure: switching orthographic -> first-person
+  intentionally reuses identical 3D source chunks, while the initial readiness
+  guard required exact MapCamera equality. `SceneManager::source_matches` now
+  recognizes that 3D source family; distinct 2D/sprite projections and document
+  IDs remain guarded. The displayed camera itself remains separately checked.
+
+Verification:
+
+- The existing assembled
+  `native_creator_application_paints_the_root_ui_without_a_root_framebuffer`
+  GPU check was extended through real camera toolbar commands. Passed: **1**,
+  16.81 s, `/private/tmp/eldiron-native-3d-root-final.log`. It retains the earlier
+  root/reconstruction/profile/2D Vertex mutation checks and now verifies all
+  three native 3D modes, no CPU target storage, no implicit readback, pre-present
+  ViewCube rejection, acknowledged camera snap and native 3D query/ray delivery.
+- Earlier integration attempts correctly rejected FirstP input while the source
+  guard was mismatched; logs `/private/tmp/eldiron-native-3d-root{,-debug}.log`
+  are failures, superseded by the corrected passing run above.
+- Native compilation of query/tool extraction passed, 18.52 s:
+  `/private/tmp/eldiron-native-3d-tool-check.log`. Final reference/native compile
+  builds also passed: reference 7.80 s,
+  `/private/tmp/eldiron-native-3d-reference-final.log`; native 18.52 s,
+  `/private/tmp/eldiron-native-3d-final-check.log`. These include the final nested
+  controller handoff. A hunk-formatting pass briefly dropped the new query-type
+  reexport; restored it before those final builds.
+
+Remaining adapters/acceptance: sprite-isometric editor output/guides; persisted
+and progressive orthographic bakes; Prefab/custom contexts and remaining tools;
+Play/common-session adoption; unavailable authoring-click resolution/retry;
+complete captured modelling/cancel/modal/document-transition workflows; painted
+sources and 3D tool visual/interaction parity at all DPI; physical presentation,
+release performance and platform acceptance. 3D guides currently prepare on
+requested frames because the old controller has additional transient inputs
+beyond the top-down cache key; complete source revisions/idle performance remain
+open. CPU assets/build/camera/tool globals and their reference GPU lifetimes still
+require ownership extraction and retirement. No milestone or overall completion
+is claimed.
