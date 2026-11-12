@@ -6,6 +6,8 @@ use rusterix::SceneHandler;
 use scenevm::{SceneVM, SharedAtlas, render_output::SceneRenderTarget};
 use std::sync::Arc;
 use theframework_core::Uuid;
+mod picking;
+pub use picking::{ViewPick, ViewPickHit};
 
 /// Stable application/controller identity, independent of window/device lifetime.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

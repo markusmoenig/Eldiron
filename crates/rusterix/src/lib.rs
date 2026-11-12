@@ -58,6 +58,7 @@ pub mod value_toml;
 pub mod vertexblend;
 pub mod vm;
 pub mod wavefront;
+pub mod world_interaction;
 
 #[cfg(feature = "single_thread")]
 pub const IS_THREADED: bool = false;

@@ -4028,9 +4028,7 @@ impl Client {
     }
 
     fn item_is_container(item: &crate::Item) -> bool {
-        item.is_container()
-            || item.attributes.get_bool_default("container", false)
-            || item.attributes.get_int_default("container_slots", 0) > 0
+        crate::world_interaction::item_is_container(item)
     }
 
     fn item_can_enter_container(item: &Item, container: &Item) -> bool {
@@ -5282,19 +5280,47 @@ impl Client {
         }
     }
 
-    fn item_click_distance(map: &Map, item_id: u32) -> f32 {
-        let Some(player_pos) = screen_model::resolve_party_entity(map, Some("leader"))
-            .or_else(|| map.entities.iter().find(|entity| entity.is_player()))
-            .map(|entity| entity.get_pos_xz())
-        else {
-            return 0.0;
-        };
-
-        map.items
-            .iter()
-            .find(|item| item.id == item_id)
-            .map(|item| player_pos.distance(item.get_pos_xz()))
-            .unwrap_or(0.0)
+    fn item_click_distance(map: &Map, item: u32) -> f32 {
+        crate::world_interaction::item_click_distance(map, item)
+    }
+    fn apply_world_click(
+        &mut self,
+        click: crate::world_interaction::WorldClick,
+        coord: Vec2<i32>,
+    ) -> Option<EntityAction> {
+        use crate::world_interaction::WorldClick;
+        match click {
+            WorldClick::Action {
+                action,
+                uses_intent,
+            } => {
+                if uses_intent {
+                    self.consume_one_shot_2d_intent();
+                }
+                Some(action)
+            }
+            WorldClick::BeginItemDrag(item) => {
+                self.dragging_item_id = Some(item);
+                self.dragging_item_owner_entity_id = None;
+                self.dragging_item_from_world = true;
+                self.drag_start_pos = self.screen_to_viewport(coord);
+                None
+            }
+            WorldClick::OpenContainer(item) => {
+                if self
+                    .open_container_panel
+                    .is_some_and(|panel| panel.item_id == item && panel.owner_entity_id.is_none())
+                {
+                    self.close_floaters();
+                    None
+                } else {
+                    Some(EntityAction::OpenContainer {
+                        item_id: item,
+                        owner_entity_id: None,
+                    })
+                }
+            }
+        }
     }
 
     fn find_dragged_item<'a>(&self, map: &'a Map) -> Option<&'a Item> {
@@ -6537,88 +6563,26 @@ impl Client {
         let clicked_3d_game_widget =
             !hit_button && self.refresh_3d_pick_at(p, map, assets, scene_handler);
 
-        if clicked_3d_game_widget && let Some(hit) = self.hovered_block_prop_target {
-            let explicit_intent = self.get_current_intent_for_action();
-            let contextual_verb = map
-                .block_prop_instances
-                .iter()
-                .find(|instance| instance.id == hit.instance_id)
-                .and_then(|instance| {
-                    assets
-                        .block_props
-                        .get(&instance.asset_id)
-                        .and_then(|asset| {
-                            hit.target_id.and_then(|target_id| {
-                                block_prop_interaction_verb(asset, instance, target_id)
-                            })
-                        })
-                })
-                .map(str::to_string);
-            let verb = match explicit_intent.as_deref() {
-                Some(intent) => Some(intent.trim().to_string()),
-                None => contextual_verb,
+        if clicked_3d_game_widget {
+            let hit = crate::world_interaction::WorldHit {
+                region: map.id,
+                entity: self.hovered_entity_id,
+                item: self.hovered_item_id,
+                prop: self.hovered_block_prop_target,
+                world: self.hovered_world_pos,
+                distance: self.hover_distance,
+                cell: None,
             };
-            if let Some(verb) = verb {
-                if explicit_intent.is_some() {
-                    self.consume_one_shot_2d_intent();
-                }
-                return Some(EntityAction::BlockPropInteract {
-                    instance_id: hit.instance_id,
-                    part_id: hit.part_id,
-                    target_id: hit.target_id,
-                    verb,
-                    explicit: explicit_intent.is_some(),
-                });
-            }
-        }
-
-        // If we hovered over an item in 3D, send an explicit ItemClicked intent
-        if clicked_3d_game_widget && let Some(entity_id) = self.hovered_entity_id {
             let intent = self.get_current_intent_for_action();
-            if intent.is_some() {
-                self.consume_one_shot_2d_intent();
+            if let Some(click) = crate::world_interaction::click(
+                map,
+                assets,
+                hit,
+                intent.as_deref(),
+                self.has_drag_drop_targets(),
+            ) {
+                return self.apply_world_click(click, coord);
             }
-            return Some(EntityAction::EntityClicked(
-                entity_id,
-                self.hover_distance,
-                intent,
-            ));
-        }
-
-        // If we hovered over an item in 3D, send an explicit ItemClicked intent or start a drag
-        if clicked_3d_game_widget && let Some(item_id) = self.hovered_item_id {
-            if self.has_drag_drop_targets() && self.get_current_intent_for_action().is_none() {
-                self.dragging_item_id = Some(item_id);
-                self.dragging_item_owner_entity_id = None;
-                self.dragging_item_from_world = true;
-                self.drag_start_pos = self.screen_to_viewport(coord);
-                return None;
-            }
-            let intent = self.get_current_intent_for_action();
-            if intent.is_none()
-                && let Some(item) = Self::find_container_item(map, item_id, None)
-                && Self::item_is_container(item)
-            {
-                if self.open_container_panel.is_some_and(|panel| {
-                    panel.item_id == item_id && panel.owner_entity_id.is_none()
-                }) {
-                    self.close_floaters();
-                    return None;
-                }
-                return Some(EntityAction::OpenContainer {
-                    item_id,
-                    owner_entity_id: None,
-                });
-            }
-            if intent.is_some() {
-                self.consume_one_shot_2d_intent();
-            }
-            return Some(EntityAction::ItemClicked(
-                item_id,
-                Self::item_click_distance(map, item_id),
-                intent,
-                None,
-            ));
         }
 
         for (id, widget) in self.button_widgets.iter() {
@@ -6797,11 +6761,6 @@ impl Client {
 
         // Test against clicks on the map
         if !hit_button && action.is_none() {
-            let player_pos = screen_model::resolve_party_entity(map, Some("leader"))
-                .or_else(|| map.entities.iter().find(|entity| entity.is_player()))
-                .map(|entity| entity.get_pos_xz())
-                .unwrap_or(Vec2::zero());
-
             for (_, widget) in self.game_widgets.iter() {
                 if widget.rect.contains(Vec2::new(p.x as f32, p.y as f32)) {
                     if Self::is_2d_camera(&widget.camera) {
@@ -6812,73 +6771,23 @@ impl Client {
                         let gx = ground.x;
                         let gy = ground.y;
 
-                        let pos = Vec2::new(gx, gy);
-                        let tile_pos = Self::quantize_2d_tile_pos(pos);
-
-                        // In 2D, items often share a tile with the player or another entity.
-                        // When drag-drop targets exist, prefer starting an item drag before
-                        // the broader entity click path consumes the cell.
-                        if self.has_drag_drop_targets()
-                            && self.get_current_intent_for_action().is_none()
-                            && let Some(item) = map.items.iter().rev().find(|item| {
-                                tile_pos == Self::quantize_2d_tile_pos(item.get_pos_xz())
-                            })
-                        {
-                            self.dragging_item_id = Some(item.id);
-                            self.dragging_item_owner_entity_id = None;
-                            self.dragging_item_from_world = true;
-                            self.drag_start_pos = self.screen_to_viewport(coord);
-                            return None;
-                        }
-
-                        for entity in map.entities.iter() {
-                            if entity.attributes.get_str_default("mode", "active".into()) == "dead"
-                            {
-                                continue;
-                            }
-                            let entity_pos = entity.get_pos_xz();
-                            if tile_pos == Self::quantize_2d_tile_pos(entity_pos) {
-                                let distance = player_pos.distance(entity_pos);
-                                let intent = self.get_current_intent_for_action();
-                                if intent.is_some() {
-                                    self.consume_one_shot_2d_intent();
-                                }
-                                return Some(EntityAction::EntityClicked(
-                                    entity.id, distance, intent,
-                                ));
+                        let intent = self.get_current_intent_for_action();
+                        let can_drag = self.has_drag_drop_targets();
+                        if let Some(hit) = crate::world_interaction::cell_hit(
+                            map,
+                            Vec2::new(gx, gy),
+                            can_drag && intent.is_none(),
+                        ) {
+                            if let Some(click) = crate::world_interaction::click(
+                                map,
+                                assets,
+                                hit,
+                                intent.as_deref(),
+                                can_drag,
+                            ) {
+                                return self.apply_world_click(click, coord);
                             }
                         }
-
-                        for item in map.items.iter().rev() {
-                            let item_pos = item.get_pos_xz();
-                            if tile_pos == Self::quantize_2d_tile_pos(item_pos) {
-                                let distance = player_pos.distance(item_pos);
-                                let intent = self.get_current_intent_for_action();
-                                if intent.is_some() {
-                                    self.consume_one_shot_2d_intent();
-                                }
-                                return Some(EntityAction::ItemClicked(
-                                    item.id, distance, intent, None,
-                                ));
-                            }
-                        }
-
-                        // Try entities again but include dead ones too
-                        for entity in map.entities.iter() {
-                            let entity_pos = entity.get_pos_xz();
-                            if tile_pos == Self::quantize_2d_tile_pos(entity_pos) {
-                                let distance = player_pos.distance(entity_pos);
-                                let intent = self.get_current_intent_for_action();
-                                if intent.is_some() {
-                                    self.consume_one_shot_2d_intent();
-                                }
-                                return Some(EntityAction::EntityClicked(
-                                    entity.id, distance, intent,
-                                ));
-                            }
-                        }
-
-                        return Some(EntityAction::TerrainClicked(tile_pos));
                     }
                 }
             }

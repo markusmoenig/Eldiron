@@ -20,6 +20,160 @@ fn finish(ctx: &GpuContext, mut ticket: ReadbackTicket) -> Vec<u8> {
         .unwrap();
     ticket.try_finish(ctx).unwrap().unwrap().pixels().to_vec()
 }
+
+#[test]
+#[ignore = "requires native GPU; run with --ignored"]
+fn world_picking_uses_completed_view_cameras_and_rejects_stale_outputs() {
+    use eldiron_presentation::ViewPick;
+    use scenevm::{Camera3D, CameraKind, Chunk, Poly3D, prelude::Vec3};
+    let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut images = ImageRegistry::new(gpu.clone());
+    let atlas = SharedAtlas::new(64, 64);
+    let tile = Uuid::new_v4();
+    atlas.add_tile(tile, 1, 1, vec![vec![255, 255, 255, 255]], vec![]);
+    let mut views = SceneViews::new(&images, atlas);
+    let a = ViewId::new();
+    let b = ViewId::new();
+    let object = Uuid::new_v4();
+    let camera = |x| {
+        Camera3D::builder()
+            .with_kind(CameraKind::OrthoIso)
+            .with_pos(Vec3::new(x, 0., 4.))
+            .with_basis(Vec3::new(0., 0., -1.), Vec3::unit_y())
+            .with_ortho_half_h(2.)
+    };
+    for (view, x, geo) in [
+        (a, 0., GeoId::GeometryObject(object)),
+        (b, 5., GeoId::Character(22)),
+    ] {
+        views.create(view, (64, 48)).unwrap();
+        let scene = views.scene_mut(view).unwrap();
+        scene.vm.execute(Atom::SetRenderMode(RenderMode::Raster3D));
+        scene.vm.execute(Atom::SetCamera3D { camera: camera(x) });
+        let mut cube = Poly3D::cube(geo, tile, Vec3::new(x, 0., 0.), 1.);
+        cube.paint_surface_id = Some([12, 34, 56, 78]);
+        // Persistent paint identity requires the separate per-vertex paint UVs;
+        // without them SceneVM deliberately uses legacy object-local identity.
+        cube.paint_uvs = cube.uvs.clone();
+        let mut chunk = Chunk::new(Vec2::zero(), 8);
+        chunk.add_3d(cube);
+        scene.vm.execute(Atom::AddChunk {
+            id: Uuid::new_v4(),
+            chunk,
+        });
+    }
+    let aa = views.render(a, 17, &mut images).unwrap().unwrap();
+    let bb = views.render(b, 23, &mut images).unwrap().unwrap();
+    let ViewPick::Hit(first) = views.pick_game(aa, [0.5, 0.5]) else {
+        panic!("first rendered view must hit its own geometry")
+    };
+    assert_eq!(first.geo, GeoId::GeometryObject(object));
+    assert_eq!(first.output, aa);
+    assert!(first.world[0].abs() < 0.1 && (first.world[2] - 0.5).abs() < 0.1);
+    assert_eq!(first.paint_geo, Some([12, 34, 56, 78]));
+    let ViewPick::Hit(second) = views.pick_game(bb, [0.5, 0.5]) else {
+        panic!("second rendered view must hit its own geometry")
+    };
+    assert_eq!(second.geo, GeoId::Character(22));
+    assert!((second.world[0] - 5.).abs() < 0.1);
+    assert_eq!(second.paint_geo, None);
+    // The typed CPU target resolver consumes a hit, not a renderer/VM/window.
+    let mut map = rusterix::Map::default();
+    let mut item = rusterix::Item::new();
+    item.id = 77;
+    item.set_attribute("geometry_object_id", rusterix::Value::Id(object));
+    map.items.push(item);
+    let assets = rusterix::Assets::default();
+    let hit = rusterix::world_interaction::geometry_hit(
+        &map,
+        &assets,
+        first.geo,
+        Vec3::new(first.world[0], first.world[1], first.world[2]),
+        first.distance,
+        first.paint_geo,
+    )
+    .unwrap();
+    assert!(matches!(
+        rusterix::world_interaction::click(&map, &assets, hit, None, false),
+        Some(rusterix::world_interaction::WorldClick::Action {
+            action: rusterix::EntityAction::ItemClicked(77, _, None, None),
+            ..
+        })
+    ));
+    for uv in [[-0.1, 0.5], [1., 0.5], [0.5, f32::NAN]] {
+        assert_eq!(views.pick_game(aa, uv), ViewPick::Unavailable);
+    }
+    assert_eq!(views.pick_game(aa, [0., 0.]), ViewPick::Miss(aa));
+    let mut wrong = aa;
+    wrong.content_revision += 1;
+    assert_eq!(views.pick_game(wrong, [0.5, 0.5]), ViewPick::Unavailable);
+    // A dynamic mesh can occlude a static paintable face. It must not inherit
+    // that face's persistent identity merely because both use GeometryObject.
+    let foreground = Uuid::new_v4();
+    let vertices = [
+        Vec3::new(-0.5, -0.5, 2.),
+        Vec3::new(0.5, -0.5, 2.),
+        Vec3::new(0., 0.5, 2.),
+    ]
+    .into_iter()
+    .map(|position| scenevm::dynamic::DynamicMeshVertex {
+        position,
+        uv: Vec2::zero(),
+        normal: Vec3::unit_z(),
+    })
+    .collect();
+    views.scene_mut(a).unwrap().vm.execute(Atom::AddDynamic {
+        object: scenevm::dynamic::DynamicObject::mesh(
+            GeoId::GeometryObject(foreground),
+            tile,
+            vertices,
+            vec![0, 1, 2],
+        ),
+    });
+    let occluded = views.render(a, 18, &mut images).unwrap().unwrap();
+    let ViewPick::Hit(front) = views.pick_game(occluded, [0.5, 0.5]) else {
+        panic!("dynamic foreground mesh must occlude the static cube")
+    };
+    assert_eq!(front.geo, GeoId::GeometryObject(foreground));
+    assert!((front.world[2] - 2.).abs() < 0.1);
+    assert_eq!(
+        front.paint_geo, None,
+        "a static surface behind the selected mesh is not its paint identity"
+    );
+    views
+        .scene_mut(a)
+        .unwrap()
+        .vm
+        .execute(Atom::SetCamera3D { camera: camera(5.) });
+    assert_eq!(
+        views.pick_game(occluded, [0.5, 0.5]),
+        ViewPick::Unavailable,
+        "a mutated VM cannot answer for an older display"
+    );
+    assert!(matches!(views.pick_game(bb, [0.5, 0.5]), ViewPick::Hit(_)));
+    let changed = views.render(a, 19, &mut images).unwrap().unwrap();
+    assert_eq!(changed.image, aa.image);
+    assert_eq!(
+        views.pick_game(aa, [0.5, 0.5]),
+        ViewPick::Unavailable,
+        "reused GPU handles do not make old revisions current"
+    );
+    assert_eq!(
+        views.pick_game(changed, [0.5, 0.5]),
+        ViewPick::Miss(changed)
+    );
+    views.resize(b, (0, 0), &mut images).unwrap();
+    assert_eq!(views.pick_game(bb, [0.5, 0.5]), ViewPick::Unavailable);
+    views.resize(a, (32, 24), &mut images).unwrap();
+    assert_eq!(views.pick_game(changed, [0.5, 0.5]), ViewPick::Unavailable);
+    let resized = views.render(a, 20, &mut images).unwrap().unwrap();
+    assert_ne!(resized.image, changed.image);
+    views.remove(a, &mut images).unwrap();
+    assert_eq!(views.pick_game(resized, [0.5, 0.5]), ViewPick::Unavailable);
+    assert!(!views.has_cpu_target_storage(b).unwrap());
+    assert_eq!(gpu.transfers().capture_requests, 0);
+    assert_eq!(gpu.transfers().readback_bytes, 0);
+}
 #[test]
 #[ignore = "requires native GPU; run with --ignored"]
 fn views_compose_independently_and_keep_handles_until_target_replacement() {

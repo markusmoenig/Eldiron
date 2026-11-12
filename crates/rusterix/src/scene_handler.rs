@@ -2749,57 +2749,18 @@ impl SceneHandler {
         None
     }
 
-    pub fn find_item_by_profile_attrs<'m>(
-        map: &'m Map,
-        host_sector: Option<u32>,
-        profile_sector: Option<u32>,
-    ) -> Option<&'m Item> {
-        let Some(host) = host_sector else { return None };
-        let Some(profile) = profile_sector else {
-            return None;
-        };
-
-        map.items.iter().find(|item| {
-            let host_matches = match item.attributes.get("profile_host_sector_id") {
-                Some(Value::UInt(v)) => *v == host,
-                _ => false,
-            };
-            let profile_matches = match item.attributes.get("profile_sector_id") {
-                Some(Value::UInt(v)) => *v == profile,
-                _ => false,
-            };
-            host_matches && profile_matches
-        })
+    pub fn find_item_by_profile_attrs(
+        map: &Map,
+        host: Option<u32>,
+        profile: Option<u32>,
+    ) -> Option<&Item> {
+        crate::world_interaction::find_item_by_profile_attrs(map, host, profile)
     }
-
-    /// Geometry-bound items use the same authored mesh for rendering and picking.
-    pub fn find_item_by_geometry_object_id(map: &Map, object_id: Uuid) -> Option<&Item> {
-        map.items
-            .iter()
-            .find(|item| item.attributes.get_id("geometry_object_id") == Some(object_id))
+    pub fn find_item_by_geometry_object_id(map: &Map, object: Uuid) -> Option<&Item> {
+        crate::world_interaction::find_item_by_geometry_object_id(map, object)
     }
-
-    pub fn find_item_by_sector_id(map: &Map, sector_id: u32) -> Option<&Item> {
-        if let Some(item) = map
-            .items
-            .iter()
-            .find(|item| match item.attributes.get("sector_id") {
-                Some(Value::UInt(v)) => *v == sector_id,
-                Some(Value::Int(v)) if *v >= 0 => *v as u32 == sector_id,
-                Some(Value::Int64(v)) if *v >= 0 => *v as u32 == sector_id,
-                _ => false,
-            })
-        {
-            return Some(item);
-        }
-
-        let group_id = map
-            .find_sector(sector_id)?
-            .properties
-            .get_id("door_group_id")?;
-        map.items
-            .iter()
-            .find(|item| item.attributes.get_id("door_group_id") == Some(group_id))
+    pub fn find_item_by_sector_id(map: &Map, sector: u32) -> Option<&Item> {
+        crate::world_interaction::find_item_by_sector_id(map, sector)
     }
 
     pub fn empty() -> Self {
@@ -4457,7 +4418,9 @@ impl SceneHandler {
 
         // Items
         for (item_index, item) in map.items.iter().enumerate() {
-            if camera.id() == "iso" && crate::isometric::item_cutaway(map,item) { continue; }
+            if camera.id() == "iso" && crate::isometric::item_cutaway(map, item) {
+                continue;
+            }
 
             // Skip items that are bound to a profile/host sector; they are rendered as billboards for gates/doors.
             let is_profile_bound = matches!(
@@ -4528,10 +4491,17 @@ impl SceneHandler {
                     item,
                     assets,
                     geo_id,
-                    Vec3::new(item.position.x,
+                    Vec3::new(
+                        item.position.x,
                         if crate::procedural_avatar::Runtime::resolve_item(item, assets)
-                            .is_some_and(|m| m.footprint.is_some()) { item.position.y } else { ground_y + 0.01 },
-                        item.position.z),
+                            .is_some_and(|m| m.footprint.is_some())
+                        {
+                            item.position.y
+                        } else {
+                            ground_y + 0.01
+                        },
+                        item.position.z,
+                    ),
                 )
             {
                 active_avatar_geo.insert(geo_id);
