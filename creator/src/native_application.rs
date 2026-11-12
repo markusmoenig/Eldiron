@@ -115,6 +115,7 @@ impl UiApplication for NativeCreatorApplication {
         let mut redraw = ui.ui.update(&mut ui.context);
         redraw |= self.editor.update_ui(&mut ui.ui, &mut ui.context);
         redraw |= self.editor.update(&mut ui.context);
+        redraw |= self.editor.native_views_waiting();
         FrameRequest {
             redraw,
             wake_after: Some(Duration::from_secs_f64(

@@ -26,6 +26,8 @@ struct Published {
 pub(super) struct Host {
     pub enabled: bool,
     pub latest: Option<preview::Request>,
+    pub waiting: bool,
+    pub error: Option<String>,
     owner: u64,
     serial: u64,
     registry: Option<u64>,
@@ -39,6 +41,8 @@ impl Default for Host {
         Self {
             enabled: false,
             latest: None,
+            waiting: false,
+            error: None,
             owner: NEXT_OWNER.fetch_add(1, Ordering::Relaxed),
             serial: 0,
             registry: None,
@@ -52,6 +56,8 @@ impl Default for Host {
 impl Host {
     pub fn invalidate(&mut self) {
         self.latest = None;
+        self.waiting = false;
+        self.error = None;
         if let Some(frame) = self.staged.take() {
             self.retired.push(frame.image);
         }
@@ -100,6 +106,7 @@ impl GeometryEditor {
         ctx: &mut TheContext,
         images: &mut ImageRegistry,
     ) -> Result<Option<PreviewToken>, String> {
+        self.native.waiting = false;
         let registry_changed = self.native.registry != Some(images.owner_id());
         // Keep the latest CPU request across GPU-domain replacement; all old
         // images/receipts belong to the previous registry and cannot be reused.
@@ -164,6 +171,7 @@ impl GeometryEditor {
         {
             self.native.producer = Some(NativePreview::new(images.context().clone()));
         }
+        self.native.waiting = false;
         let Some(frame) = self
             .native
             .producer
@@ -171,8 +179,10 @@ impl GeometryEditor {
             .unwrap()
             .render(request, ctx.scale_factor)?
         else {
-            return Ok(None);
+            self.native.waiting = true;
+            return Ok(self.native_preview_fallback_token());
         };
+        self.native.error = None;
         let mut scene = self.scene.clone();
         scene.projection = Some(frame.projection.clone());
         scene.posed = frame.posed.clone();
@@ -225,6 +235,24 @@ impl GeometryEditor {
             self.native.retired.push(old.image);
         }
         Ok(Some(token))
+    }
+    pub(crate) fn gpu_preview_waiting(&self) -> bool {
+        self.native.waiting
+    }
+    pub(crate) fn native_preview_fallback_token(&self) -> Option<PreviewToken> {
+        self.native
+            .staged
+            .as_ref()
+            .or(self.native.displayed.as_ref())
+            .map(|p| p.token)
+    }
+    pub(crate) fn report_gpu_preview_error(&mut self, message: String, ctx: &mut TheContext) {
+        self.native.waiting = false;
+        if self.native.error.as_ref() != Some(&message) {
+            ctx.ui
+                .send(TheEvent::SetStatusText(TheId::empty(), message.clone()));
+            self.native.error = Some(message);
+        }
     }
     /// Called only for the token included in a successful surface presentation.
     pub(crate) fn presented_gpu_preview(&mut self, token: PreviewToken) -> bool {
@@ -406,6 +434,33 @@ mod tests {
             )
             .unwrap();
         assert_eq!(gpu.transfers().readback_bytes, 0);
+        // A failed newer request keeps the actual staged paint and its receipt.
+        editor.yaw += 9.;
+        editor.preview_key.clear();
+        editor.update(&project, &mut ui, &mut ctx, &ServerContext::default());
+        let retained = editor
+            .prepare_gpu_preview(&mut ui, &mut ctx, &mut images.registry)
+            .unwrap()
+            .unwrap();
+        let valid = {
+            let job = &editor.native.latest.as_ref().unwrap().job;
+            (job.revision, job.yaw)
+        };
+        let bad = editor.native.latest.as_mut().unwrap();
+        bad.job.revision += 1;
+        bad.job.yaw = f32::NAN;
+        let error = editor
+            .prepare_gpu_preview(&mut ui, &mut ctx, &mut images.registry)
+            .unwrap_err();
+        editor.report_gpu_preview_error(error.clone(), &mut ctx);
+        assert_eq!(editor.native.error.as_ref(), Some(&error));
+        assert!(!editor.gpu_preview_waiting());
+        assert_eq!(editor.native_preview_fallback_token(), Some(retained));
+        assert!(editor.presented_gpu_preview(retained));
+        assert!(editor.native_pick_ready(&project));
+        let restored = &mut editor.native.latest.as_mut().unwrap().job;
+        restored.revision = valid.0;
+        restored.yaw = valid.1;
         let old_image = editor.native.displayed.as_ref().unwrap().image;
         let replacement_gpu = pollster::block_on(GpuContext::headless()).unwrap();
         let mut replacement = ImageRegistry::new(replacement_gpu.clone());

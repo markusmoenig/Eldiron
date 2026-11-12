@@ -4,7 +4,7 @@ use denrim_materials::{geometry::Texture, gpu::*, integration::InstanceRecord};
 use renderkit::GpuContext;
 use std::{
     collections::{HashMap, HashSet},
-    sync::Arc,
+    sync::{Arc, mpsc},
 };
 use theframework::prelude::ThePalette;
 use wgpu::util::DeviceExt;
@@ -15,12 +15,22 @@ pub(super) struct Stats {
     pub hits: u64,
     pub procedural_sources: u64,
     pub source_upload_bytes: u64,
+    pub diagnostic_readback_bytes: u64,
 }
 struct Atlas {
     key: String,
     submitted: bool,
+    failure: Option<String>,
     _textures: [wgpu::Texture; 3],
     sampled: [wgpu::TextureView; 3],
+}
+struct DiagnosticCompletion {
+    id: u64,
+    result: std::result::Result<(), String>,
+}
+struct DiagnosticMap {
+    id: u64,
+    ticket: RenderTicket,
 }
 pub(super) struct GpuTextures {
     context: Arc<GpuContext>,
@@ -32,6 +42,11 @@ pub(super) struct GpuTextures {
     initialization: wgpu::ComputePipeline,
     dummy: wgpu::TextureView,
     atlas: Option<Atlas>,
+    queued: Vec<RenderTicket>,
+    mapping: Vec<DiagnosticMap>,
+    diagnostic_tx: mpsc::Sender<DiagnosticCompletion>,
+    diagnostic_rx: mpsc::Receiver<DiagnosticCompletion>,
+    next_diagnostic: u64,
     pub stats: Stats,
 }
 impl GpuTextures {
@@ -113,7 +128,13 @@ impl GpuTextures {
                 view_formats: &[],
             })
             .create_view(&Default::default());
+        let (diagnostic_tx, diagnostic_rx) = mpsc::channel();
         Self {
+            queued: Vec::new(),
+            mapping: Vec::new(),
+            diagnostic_tx,
+            diagnostic_rx,
+            next_diagnostic: 0,
             context,
             metadata: Default::default(),
             runtime: None,
@@ -190,6 +211,70 @@ impl GpuTextures {
         if let Some(atlas) = &mut self.atlas {
             atlas.submitted = true;
         }
+        for ticket in self.queued.drain(..) {
+            self.next_diagnostic += 1;
+            let id = self.next_diagnostic;
+            let tx = self.diagnostic_tx.clone();
+            // The callback transports readiness only. This owner reads/unmaps
+            // the buffer later, so cancelling a ready-but-undelivered callback
+            // cannot race another thread's get_mapped_range.
+            ticket
+                .readback
+                .map_async(wgpu::MapMode::Read, .., move |result| {
+                    let _ = tx.send(DiagnosticCompletion {
+                        id,
+                        result: result.map_err(|e| e.to_string()),
+                    });
+                });
+            self.mapping.push(DiagnosticMap { id, ticket });
+            self.stats.diagnostic_readback_bytes += 4;
+        }
+    }
+    fn poll_diagnostics(&mut self) {
+        for result in self.diagnostic_rx.try_iter() {
+            let Some(index) = self.mapping.iter().position(|p| p.id == result.id) else {
+                continue;
+            };
+            let mapping = self.mapping.swap_remove(index);
+            let result = result.result.and_then(|_| {
+                let data = mapping.ticket.readback.get_mapped_range(..);
+                let flags = u32::from_le_bytes(data[..4].try_into().unwrap());
+                drop(data);
+                mapping.ticket.readback.unmap();
+                mapping
+                    .ticket
+                    .check_diagnostics(flags)
+                    .map_err(|e| e.to_string())
+            });
+            if let Err(error) = result {
+                if let Some(atlas) = &mut self.atlas {
+                    atlas.failure = Some(error);
+                }
+            }
+        }
+    }
+    /// Only bounded four-byte status buffers are mapped asynchronously. A new
+    /// source cancels old receipts; delayed old callbacks cannot poison it.
+    pub fn status(&mut self) -> Result<bool, String> {
+        self.poll_diagnostics();
+        let Some(atlas) = &self.atlas else {
+            return Ok(false);
+        };
+        if let Some(error) = &atlas.failure {
+            return Err(error.clone());
+        }
+        Ok(atlas.submitted && self.mapping.is_empty())
+    }
+    fn cancel_diagnostics(&mut self) {
+        if !self.mapping.is_empty() {
+            if let Some(atlas) = &mut self.atlas {
+                atlas.submitted = false;
+            }
+        }
+        for request in self.mapping.drain(..) {
+            request.ticket.readback.unmap();
+        }
+        self.queued.clear();
     }
     pub fn encode(
         &mut self,
@@ -198,6 +283,7 @@ impl GpuTextures {
         palette: &ThePalette,
         seconds: f32,
     ) -> Result<[wgpu::TextureView; 3], String> {
+        self.poll_diagnostics();
         if specs.len() > 16
             || specs.iter().any(|s| {
                 s.size == 0 || s.size > self.context.device.limits().max_texture_dimension_2d
@@ -217,9 +303,14 @@ impl GpuTextures {
             .collect::<Result<Vec<_>, _>>()?;
         let key = format!("{specs:?}:{frames:?}:{:?}", palette.colors);
         if let Some(atlas) = self.atlas.as_ref().filter(|a| a.submitted && a.key == key) {
+            if let Some(error) = &atlas.failure {
+                return Err(error.clone());
+            }
             self.stats.hits += 1;
             return Ok(atlas.sampled.clone());
         }
+        self.cancel_diagnostics();
+        let mut diagnostics = Vec::new();
         let textures = std::array::from_fn(|i| {
             self.context
                 .device
@@ -368,9 +459,10 @@ impl GpuTextures {
                 let surface = runtime
                     .create_surface(&request)
                     .map_err(|e| e.to_string())?;
-                let _diagnostics = runtime
+                let diagnostic = runtime
                     .encode(encoder, &self.instances[&key], &request, &surface)
                     .map_err(|e| e.to_string())?;
+                diagnostics.push(diagnostic);
                 self.dispatch(
                     encoder,
                     std::array::from_fn(|i| &surface.maps[i].view),
@@ -384,13 +476,21 @@ impl GpuTextures {
         self.stats.builds += 1;
         self.stats.procedural_sources += procedural;
         self.stats.source_upload_bytes += uploaded;
+        self.queued = diagnostics;
         self.atlas = Some(Atlas {
             key,
             submitted: false,
+            failure: None,
             _textures: textures,
             sampled: sampled.clone(),
         });
         Ok(sampled)
+    }
+}
+
+impl Drop for GpuTextures {
+    fn drop(&mut self) {
+        self.cancel_diagnostics();
     }
 }
 
@@ -582,5 +682,99 @@ material "surface" called "Geometry atlas fixture"
             cache.stats, before,
             "failed source replacement leaves the published atlas intact"
         );
+    }
+}
+
+#[cfg(test)]
+mod diagnostic_tests {
+    use super::*;
+    fn poll(context: &GpuContext) {
+        context
+            .device
+            .poll(wgpu::PollType::Wait {
+                submission_index: None,
+                timeout: Some(std::time::Duration::from_secs(30)),
+            })
+            .unwrap();
+    }
+    #[test]
+    #[ignore = "requires an actual native GPU"]
+    fn native_geometry_diagnostics_reject_failed_sources_cancel_stale_maps_and_recover() {
+        let context = pollster::block_on(GpuContext::headless()).unwrap();
+        let mut cache = GpuTextures::new(context.clone());
+        let palette = ThePalette::default();
+        let source = super::tests::material(16);
+        let mut encoder = context.device.create_command_encoder(&Default::default());
+        cache
+            .encode(&mut encoder, &[&source], &palette, 0.)
+            .unwrap();
+        // Inject a real GPU status flag after the MaterialZ pass. This exercises
+        // its exact diagnostic decoder and the adapter's asynchronous ownership.
+        let failure = context
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("test failed material status"),
+                contents: &1_u32.to_le_bytes(),
+                usage: wgpu::BufferUsages::COPY_SRC,
+            });
+        encoder.copy_buffer_to_buffer(&failure, 0, &cache.queued[0].readback, 0, 4);
+        context.queue.submit([encoder.finish()]);
+        cache.submitted();
+        assert_eq!(cache.stats.diagnostic_readback_bytes, 4);
+        poll(&context);
+        assert!(cache.status().unwrap_err().contains("channel flags 0x1"));
+        let before = cache.stats;
+        let mut rejected = context.device.create_command_encoder(&Default::default());
+        assert!(
+            cache
+                .encode(&mut rejected, &[&source], &palette, 0.)
+                .is_err()
+        );
+        assert_eq!(
+            cache.stats, before,
+            "an invalid source must not be reused as a ready atlas"
+        );
+        let replacement = super::tests::material(32);
+        let mut next = context.device.create_command_encoder(&Default::default());
+        cache
+            .encode(&mut next, &[&replacement], &palette, 0.)
+            .unwrap();
+        context.queue.submit([next.finish()]);
+        cache.submitted();
+        let old = cache.mapping.first().map(|m| m.id);
+        let mut newer = context.device.create_command_encoder(&Default::default());
+        cache
+            .encode(&mut newer, &[&replacement], &palette, 0.8)
+            .unwrap();
+        context.queue.submit([newer.finish()]);
+        cache.submitted();
+        if let Some(id) = old {
+            cache
+                .diagnostic_tx
+                .send(DiagnosticCompletion {
+                    id,
+                    result: Err("stale cancelled source".into()),
+                })
+                .unwrap();
+        }
+        poll(&context);
+        assert!(cache.status().unwrap());
+        assert!(cache.mapping.is_empty());
+        assert_eq!(cache.stats.diagnostic_readback_bytes, 12);
+        assert_eq!(
+            context.transfers().readback_bytes,
+            0,
+            "only four-byte status metadata is mapped, never displayed material/color pixels"
+        );
+        // Closing while a completion is still pending must not leave a callback
+        // that tries to read an already-unmapped buffer.
+        let mut closing = context.device.create_command_encoder(&Default::default());
+        cache
+            .encode(&mut closing, &[&source], &palette, 0.)
+            .unwrap();
+        context.queue.submit([closing.finish()]);
+        cache.submitted();
+        drop(cache);
+        poll(&context);
     }
 }

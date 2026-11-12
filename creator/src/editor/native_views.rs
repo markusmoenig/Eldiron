@@ -15,7 +15,16 @@ impl Editor {
             self.geometry_editor
                 .update(&self.project, ui, ctx, &self.server_ctx);
         }
-        self.geometry_editor.prepare_gpu_preview(ui, ctx, images)
+        match self.geometry_editor.prepare_gpu_preview(ui, ctx, images) {
+            Ok(token) => Ok(token),
+            Err(error) => {
+                self.geometry_editor.report_gpu_preview_error(error, ctx);
+                Ok(self.geometry_editor.native_preview_fallback_token())
+            }
+        }
+    }
+    pub(crate) fn native_views_waiting(&self) -> bool {
+        self.geometry_editor.gpu_preview_waiting()
     }
     pub(crate) fn presented_native_views(&mut self, token: crate::geometry_editor::PreviewToken) {
         self.geometry_editor.presented_gpu_preview(token);

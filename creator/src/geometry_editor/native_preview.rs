@@ -40,6 +40,7 @@ pub(super) struct NativePreview {
     materials: GpuTextures,
     targets: Vec<Arc<GpuImage>>,
     depth: Option<(u32, u32, wgpu::TextureView)>,
+    pending: Option<((u64, u64, u32), Frame)>,
 }
 impl NativePreview {
     pub fn new(context: Arc<GpuContext>) -> Self {
@@ -49,6 +50,7 @@ impl NativePreview {
             context,
             targets: Vec::new(),
             depth: None,
+            pending: None,
         }
     }
     pub fn generation(&self) -> u64 {
@@ -59,7 +61,22 @@ impl NativePreview {
     pub fn render(&mut self, request: &Request, density: f32) -> Result<Option<Frame>, String> {
         let job = &request.job;
         if self.context.is_lost() {
+            self.pending = None;
             return Err("Geometry preview device was lost".into());
+        }
+        let key = (request.epoch, request.job.revision, density.to_bits());
+        if self.pending.as_ref().is_some_and(|(old, _)| *old != key) {
+            self.pending = None;
+        }
+        if self.pending.is_some() {
+            match self.materials.status() {
+                Ok(true) => return Ok(self.pending.take().map(|(_, frame)| frame)),
+                Ok(false) => return Ok(None),
+                Err(error) => {
+                    self.pending = None;
+                    return Err(error);
+                }
+            }
         }
         if job.width < 16 || job.height < 16 {
             return Ok(None);
@@ -179,7 +196,7 @@ impl NativePreview {
         overlay.validate().map_err(str::to_owned)?;
         self.context.queue.submit([encoder.finish()]);
         self.materials.submitted();
-        Ok(Some(Frame {
+        let frame = Frame {
             epoch: request.epoch,
             revision: job.revision,
             image,
@@ -187,7 +204,13 @@ impl NativePreview {
             posed: request.posed.clone(),
             overlay,
             logical_size: [job.width as f32, job.height as f32],
-        }))
+        };
+        if self.materials.status()? {
+            Ok(Some(frame))
+        } else {
+            self.pending = Some((key, frame));
+            Ok(None)
+        }
     }
 }
 fn overlays(job: &Job, projection: &Projection, extent: f32) -> PaintList {
@@ -302,7 +325,28 @@ mod tests {
         let reference = Renderer::new(&context.device);
         for textured in [false, true] {
             let request = request(textured);
-            let frame = view.render(&request, 1.).unwrap().unwrap();
+            let first = view.render(&request, 1.).unwrap();
+            if textured {
+                assert!(
+                    first.is_none(),
+                    "unchecked material status must withhold publication"
+                );
+                assert!(view.pending.is_some());
+            }
+            let frame = if let Some(frame) = first {
+                frame
+            } else {
+                context
+                    .device
+                    .poll(wgpu::PollType::Wait {
+                        submission_index: None,
+                        timeout: Some(std::time::Duration::from_secs(30)),
+                    })
+                    .unwrap();
+                view.render(&request, 1.)
+                    .unwrap()
+                    .expect("completed diagnostics must release the held output")
+            };
             assert_eq!((frame.epoch, frame.revision), (71, 1));
             assert_eq!(
                 frame.projection.project([0.; 3]),

@@ -837,6 +837,11 @@ pub struct RenderTicket {
     location: Location,
 }
 impl RenderTicket {
+    /// Decode the existing four-byte diagnostic flags for callers that own a
+    /// cancellable asynchronous map/poll lifecycle instead of a callback reader.
+    pub fn check_diagnostics(&self, flags:u32) -> Result<()> {
+        check_render_diagnostics(self.location.clone(),flags)
+    }
     /// Call after submitting the host encoder, then let the host poll its device.
     pub fn map_diagnostics(&self, callback: impl FnOnce(Result<()>) + Send + 'static) {
         let buffer = self.readback.clone();
@@ -844,10 +849,14 @@ impl RenderTicket {
         self.readback.map_async(wgpu::MapMode::Read,..,move |result| {
             let result=result.map_err(|e|Diagnostic::new("readback",location.clone(),e)).and_then(|_| {
                 let data=buffer.get_mapped_range(..);let flags=u32::from_le_bytes(data[..4].try_into().unwrap());drop(data);buffer.unmap();
-                if flags==0 {Ok(())}else{Err(Diagnostic::new("render",location,format!("Nonfinite or out-of-format output; channel flags {flags:#x} (Color, Opacity, Roughness, Metallic, Emission, Height, Normal Map)")))}
+                check_render_diagnostics(location,flags)
             });callback(result);
         });
     }
+}
+
+fn check_render_diagnostics(location:Location,flags:u32)->Result<()> {
+    if flags==0 {Ok(())}else{Err(Diagnostic::new("render",location,format!("Nonfinite or out-of-format output; channel flags {flags:#x} (Color, Opacity, Roughness, Metallic, Emission, Height, Normal Map)")))}
 }
 
 struct CachePlan {

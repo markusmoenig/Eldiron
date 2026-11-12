@@ -2046,3 +2046,33 @@ should retain the last valid view and report a status instead of terminating the
 Creator host. Then convert the contour/baked preview paths and continue explicit
 application/document/world/Play ownership and remaining full-goal work. Full
 M0–M9 Goal remains active; none of these partial gates mark it complete.
+
+## Asynchronous native material diagnostics checkpoint (2026-11-12)
+
+Native geometry now consumes MaterialZ's existing four-byte GPU status buffer
+asynchronously before publishing a procedural frame. Completion callbacks send
+readiness only; the owning cache reads/unmaps the status on its own thread.
+Superseded source maps are cancelled, delayed receipts are ignored by ID, and
+dropping a cache cancels outstanding maps. The existing MaterialZ error decoder
+is shared without changing source or serialized representations. No displayed
+color/viewport buffer is mapped; status bytes are tracked separately.
+
+A pending output retains its immutable GPU image lease until diagnostics finish.
+Creator schedules another frame while waiting. Failure retains the last valid
+paint and its actual presentation token, reports a deduplicated status, and keeps
+the application running; subsequent valid sources recover. Bounds and device
+replacement continue to follow the shared host contract.
+
+All **four actual GPU geometry tests pass** (3.30 s), including injected GPU
+nonfinite flags, same-source rejection, cancelled/stale callbacks, recovery/drop,
+withheld unverified publication, strict reference pixels, source atlas parity,
+last-valid staged receipt retention, presented-frame picking and actual device
+replacement. Evidence: `/private/tmp/eldiron-native-geometry-diagnostics-final.log`.
+Native-host compilation passes; the only reported warning is the existing
+Rusterix atomic deprecation. The initial expanded test needed its test-only
+request restoration fixed (Request deliberately is not Clone); final run passes.
+
+Next: convert contour paint/layout and baked-image previews using the common
+publication receipts, then remaining interactive previews and Creator ownership.
+This correctness checkpoint does not accept M5/M7/M9 or close visual/platform/
+performance gates. Full M0–M9 remains active.
