@@ -111,11 +111,53 @@ fn outline(uv: vec2<f32>) -> vec4<f32> {
     let alpha=coverage*params.color0.a;
     return vec4<f32>(params.color0.rgb*alpha,alpha);
 }
+// Exact unsigned 32x32 -> 64 multiply, stored as (low,high). No f64 or
+// optional shader features are needed for panned lines with large endpoints.
+fn line_product(a:u32,b:u32)->vec2<u32>{
+    let a0=a&65535u;let a1=a>>16u;let b0=b&65535u;let b1=b>>16u;
+    let t=a0*b0;let u=a1*b0+(t>>16u);let v=a0*b1+(u&65535u);
+    return vec2<u32>((v<<16u)|(t&65535u),a1*b1+(u>>16u)+(v>>16u));
+}
+fn line_minor(k:u32,minor:u32,major:u32)->u32{
+    if(k==0u || minor==0u){return 0u;}if(k==major){return minor;}if(minor==major){return k;}
+    var product=line_product(k,minor);let before=product.x;product.x+=major/2u;
+    product.y+=select(0u,1u,product.x<before);
+    if(product.y==0u){return product.x/major;}
+    // The quotient fits u32 and the high-word remainder is below the divisor.
+    var remainder=product.y;var quotient=0u;
+    for(var bit=31;bit>=0;bit--){
+        let carry=remainder>>31u;
+        remainder=(remainder<<1u)|((product.x>>u32(bit))&1u);
+        if(carry!=0u || remainder>=major){remainder-=major;quotient|=1u<<u32(bit);}
+    }
+    return quotient;
+}
+fn line_coverage(point:vec2<i32>)->bool{
+    let packed=(vec4<u32>(params.color1)<<vec4<u32>(16u))|vec4<u32>(params.gradient);
+    let endpoints=bitcast<vec4<i32>>(packed);let a=endpoints.xy;let b=endpoints.zw;
+    if(all(a==b)){return all(point==a);}
+    let af=bitcast<vec2<u32>>(a);let bf=bitcast<vec2<u32>>(b);let pf=bitcast<vec2<u32>>(point);
+    let distance=select(af-bf,bf-af,b>=a);
+    if(distance.x>=distance.y){
+        if(point.x<min(a.x,b.x) || point.x>max(a.x,b.x)){return false;}
+        let k=select(af.x-pf.x,pf.x-af.x,b.x>=a.x);
+        let step=line_minor(k,distance.y,distance.x);
+        return pf.y==af.y+select(0u-step,step,b.y>=a.y);
+    }
+    if(point.y<min(a.y,b.y) || point.y>max(a.y,b.y)){return false;}
+    let k=select(af.y-pf.y,pf.y-af.y,b.y>=a.y);
+    let step=line_minor(k,distance.x,distance.y);
+    return pf.x==af.x+select(0u-step,step,b.x>=a.x);
+}
 @fragment fn fs(i:Out)->@location(0)vec4<f32>{
     let mode=params.mode&255u;
     if(mode==8u){return vec4<f32>(linear(textureSample(image,image_sampler,i.uv).rgb),1.);}
     if(mode==9u){return vec4<f32>(textureSample(image,image_sampler,i.uv).rgb,1.);}
     var c=params.color0;
+    if(mode==12u){
+        let alpha=select(0.,c.a,line_coverage(vec2<i32>(floor(i.position.xy))));
+        return vec4<f32>(c.rgb*alpha,alpha);
+    }
     if(mode==11u){
         let source=vec2<f32>(textureDimensions(image));
         let destination=max(params.gradient.xy,vec2<f32>(0.000001));

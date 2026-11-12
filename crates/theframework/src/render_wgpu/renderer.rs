@@ -29,6 +29,7 @@ struct Geometry {
 }
 #[derive(Clone, Copy)]
 enum ImageEffect {
+    PixelLine([i32; 4]),
     GlyphBackdrop(Color),
     PixelNearest(Point),
     Group,
@@ -413,10 +414,12 @@ impl PaintRenderer {
             _ => None,
         };
         let internal_image = matches!(effect, Some(ImageEffect::Group | ImageEffect::Present(_)));
-        let params = Params {
+        let mut params = Params {
             viewport: [size.0 as f32, size.1 as f32],
             mode: (if let Some(ImageEffect::Present(srgb)) = effect {
                 if srgb { 8 } else { 9 }
+            } else if matches!(effect, Some(ImageEffect::PixelLine(_))) {
+                12
             } else if pixel_size.is_some() {
                 11
             } else if glyph_background.is_some() {
@@ -485,6 +488,12 @@ impl PaintRenderer {
                 |size| [size[0], size[1], 0., 0.],
             ),
         };
+        if let Some(ImageEffect::PixelLine(points)) = effect {
+            // Numeric 16-bit halves are exact f32 values, including negative
+            // coordinates. Keep the common 64-byte UBO without NaN bit packing.
+            params.color1 = points.map(|p| ((p as u32) >> 16) as f32);
+            params.gradient = points.map(|p| ((p as u32) & 65535) as f32);
+        }
         let uniform = self
             .context
             .device
@@ -934,6 +943,25 @@ impl PaintRenderer {
                         level,
                         0,
                     ));
+                }
+                PaintOp::PixelLine { from, to, color } => {
+                    let physical = |point: Point| {
+                        transform.point(point).map(|v| (v * density).round() as i32)
+                    };
+                    let a = physical(*from);
+                    let b = physical(*to);
+                    if let Some((vertices, indices)) = mesh::pixel_line(a, b, size) {
+                        draws.push(self.draw_with_effects(
+                            self.geometry(&vertices, &indices),
+                            &Brush::Solid(*color),
+                            None,
+                            size,
+                            level,
+                            0,
+                            None,
+                            Some(ImageEffect::PixelLine([a[0], a[1], b[0], b[1]])),
+                        ));
+                    }
                 }
                 PaintOp::PixelImage { image, rect, tint } => {
                     let image = images.get(*image).ok_or_else(|| {

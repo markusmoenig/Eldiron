@@ -1292,3 +1292,7 @@ mod tests {
         assert!(session.zoom > 1.25);
     }
 }
+
+#[cfg(test)]
+#[path = "action_edit/native_tests.rs"]
+mod native_tests;

@@ -315,6 +315,13 @@ pub enum PaintOp {
     /// Full source image, using top-left aligned nearest sampling in destination
     /// physical pixels. Matches explicit CPU left-edge image resizing without
     /// allocating a resized source image or relying on half-texel UV biases.
+    /// Inclusive symmetric Bresenham coverage, one device pixel wide. The
+    /// transformed endpoints round to physical integer pixel locations.
+    PixelLine {
+        from: Point,
+        to: Point,
+        color: Color,
+    },
     PixelImage {
         image: ImageHandle,
         rect: Rect,

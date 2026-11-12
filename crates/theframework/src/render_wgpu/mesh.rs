@@ -215,3 +215,75 @@ pub fn textured(vertices: &[ImageVertex], transform: Transform, density: f32) ->
         })
         .collect()
 }
+
+/// Constant-size support geometry for an integer device-pixel line. Clip its
+/// support in f64 before converting to GPU vertices: huge panned coordinates
+/// must not lose a narrow strip to f32 cancellation or rasterize its full box.
+/// The fragment shader keeps original endpoints for exact coverage/phase.
+pub fn pixel_line(
+    a: [i32; 2],
+    b: [i32; 2],
+    viewport: (u32, u32),
+) -> Option<(Vec<Vertex>, Vec<u32>)> {
+    if viewport.0 == 0 || viewport.1 == 0 {
+        return None;
+    }
+    if a == b {
+        if a[0] < 0 || a[1] < 0 || a[0] as u32 >= viewport.0 || a[1] as u32 >= viewport.1 {
+            return None;
+        }
+        return Some(quad(
+            Rect::new(a[0] as f32, a[1] as f32, 1., 1.),
+            Rect::default(),
+            Transform::default(),
+            1.,
+        ));
+    }
+    let start = [a[0] as f64 + 0.5, a[1] as f64 + 0.5];
+    let delta = [b[0] as f64 - a[0] as f64, b[1] as f64 - a[1] as f64];
+    let mut low = 0f64;
+    let mut high = 1f64;
+    for (p, q) in [
+        (-delta[0], start[0] + 2.),
+        (delta[0], viewport.0 as f64 + 2. - start[0]),
+        (-delta[1], start[1] + 2.),
+        (delta[1], viewport.1 as f64 + 2. - start[1]),
+    ] {
+        if p == 0. {
+            if q < 0. {
+                return None;
+            }
+        } else if p < 0. {
+            low = low.max(q / p);
+        } else {
+            high = high.min(q / p);
+        }
+        if low > high {
+            return None;
+        }
+    }
+    let length = delta[0].hypot(delta[1]);
+    let direction = [delta[0] / length, delta[1] / length];
+    let normal = [-direction[1] * 2., direction[0] * 2.];
+    let p = [
+        start[0] + delta[0] * low - direction[0] * 2. - normal[0],
+        start[1] + delta[1] * low - direction[1] * 2. - normal[1],
+    ];
+    let d = [
+        delta[0] * (high - low) + direction[0] * 4.,
+        delta[1] * (high - low) + direction[1] * 4.,
+    ];
+    Some(quad(
+        Rect::new(0., 0., 1., 1.),
+        Rect::default(),
+        Transform([
+            d[0] as f32,
+            d[1] as f32,
+            (normal[0] * 2.) as f32,
+            (normal[1] * 2.) as f32,
+            p[0] as f32,
+            p[1] as f32,
+        ]),
+        1.,
+    ))
+}

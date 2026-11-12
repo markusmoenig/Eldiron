@@ -3349,3 +3349,111 @@ text parity result was inferred from these builds. Continue action displays,
 tool vector/terrain/iso overlays and ViewCube, then the application-owned world/
 tool root, source publication, input/presentation lifecycle, Creator Play/global
 retirement, and all remaining M0–M9 acceptance. Goal remains active/incomplete.
+
+## Action-display baseline and integer GPU lines (after e040e079, in progress)
+
+Prior goal turn made verified progress at **e040e079**: retained procedural HUD
+source descriptors and injected GPU generation, all 12 matrix checks green.
+The next main-world prerequisite is the profile/action display and tool vector
+overlays. Original source is still `actions/action_edit.rs`, re-exported by the
+neutral `editor_display` module; no full native action-display adoption is claimed.
+
+Captured **12 independent original action-display PNGs**, width 320/800 and
+height 360, six states each: ordinary/mirrored profiles, point/hover selection,
+32-way snap, scale slider, alternate presets, pan/zoom and clipped geometry.
+The original capture passes, 2.10 s:
+`/private/tmp/eldiron-action-display-baseline.log`. Writers have been replaced
+with immutable decoded-RGBA comparisons. All **15 selected action-display cases**
+(fourteen existing cases plus the new fixture comparison) pass, 1.32 s:
+`/private/tmp/eldiron-action-display-goldens.log`. Fixtures/provenance live under
+`creator/src/actions/action_edit/fixtures/`; do not regenerate them after porting.
+
+The old profile and tool overlays use inclusive symmetric Bresenham lines.
+Common `PaintOp::PixelLine` now gives that coverage directly on the GPU, one
+device pixel wide, after endpoint transform/density rounding. It supports every
+octant, ties, reversed/zero-length lines and full signed endpoint ranges. A
+constant-size support quad is clipped in CPU f64 before GPU vertex conversion,
+so huge offscreen/panned endpoints neither allocate per-pixel geometry nor lose
+the narrow support to f32 cancellation. Original endpoints remain unchanged for
+coverage phase. Exact shader multiplication/division uses u32 words, no optional
+shader f64/i64 feature; the usual small-product path uses ordinary u32 division.
+
+Line coordinates use exact numeric 16-bit halves in existing color1/gradient
+slots; the paint UBO stays **64 bytes**. Existing color/alpha, clips, transforms
+and opacity use the common compositor. CPU code emits geometry/parameters only;
+no line bitmap, CPU destination rasterization or image/glyph upload is involved.
+An initial shader field-access typo (`i.pos` versus `i.position`) failed the
+existing GPU paint suite and was corrected; no result/tolerance was weakened.
+
+All **12 existing paint GPU cases and four new line cases pass**, 1.87/0.79 s:
+`/private/tmp/eldiron-pixel-line-gpu-first.log`. New evidence includes all small
+integer endpoint combinations against the unchanged legacy iteration, every
+pixel at 100/125/150/200% densities and translated endpoints, clipped/reversed
+lines, full i32 extremes and billion-pixel spans against an independently
+validated u64 oracle, rotated endpoints, common clips and scoped opacity. Warm
+line frames cause no tracked image/glyph upload or implicit readback. These are
+primitive checks, not completed action-display controls or physical workflows.
+
+A **25-check shared-renderer/application matrix is running** from
+`/private/tmp/verify-pixel-lines.py`, results:
+`/private/tmp/eldiron-pixel-lines-matrix-results.log`, live unified exec session
+**85544**. Inspect authoritative completion; do not restart on an observation
+timeout. Source/checkpoint changes remain uncommitted. The networking concept
+must remain untracked/excluded.
+
+Next integration:
+
+1. Move the neutral display implementation out of action ownership with
+   compatibility re-exports; keep existing action/tool consumers and project data.
+2. Extract immutable overlay commands using PixelLine and shared Swash text.
+   Preparation must not publish last_transform/viewport/hits before presentation.
+3. Add source/session revision guards and root receipts. Avoid cloning full
+   original/working profiles on every frame merely to stamp ownership; mutations
+   through profile_mut can advance a session data revision. Bind presented
+   transform/viewport to document/tool/source scope, owner/context and view name.
+   Clone must get a fresh receipt identity and no active/captured native input.
+4. Preserve continuous captured draft drags even between renders. New point/
+   segment picking must use the acknowledged geometry; keyboard commit/cancel
+   must respect owner/source/focus. Distinguish unavailable input from outside,
+   and revoke hide/resize/suspend/device/document/tool lifetimes.
+5. Verify original RGBA fixtures, native non-text pixels, controls/undo/cancel,
+   recovery and source/presented guards before main tool/world root integration.
+   Common rect borders and text still need full fractional-DPI parity evidence;
+   do not infer that from the exact line-coverage tests or regenerate baselines.
+
+All full M0–M9 acceptance, canonical main Creator ownership/cutover, remaining
+overlays/ViewCube, text/AA, resource/idle/error-loop, platform and release work
+remain active. No milestone or full objective is complete.
+
+### Integer-line shared-renderer matrix verified
+
+All **25 affected checks pass**, matrix process exit 0:
+`/private/tmp/eldiron-pixel-lines-matrix-results.log`. The four new line cases
+also pass there. Additional native editing/graph-text integration passes all
+**19 + 20 cases**, 2.13/2.33 s:
+`/private/tmp/eldiron-pixel-lines-text-editing.log`. Results include:
+
+- Full ordinary Creator **593 passed, 104 explicitly ignored**, 257.75 s.
+- All **189 presentation tests/15 suites**; **171 framework unit cases** and the
+  actual foreign-layer host replacement case; **12 paint GPU**, **17 UI GPU**,
+  **8 command UI / 5 DPI** cases; normal/isometric screens and source recovery.
+- Material controls/10 GPU cases, geometry/appearance outputs, isolated Creator
+  root (14.27 s), linked native Creator and four application compilation.
+- Browser player and iOS simulator player compilation, all eleven dependency
+  boundary checks, and diff whitespace. These are not browser/simulator runtime
+  results or physical Creator-window presentation evidence.
+
+Current source includes only the verified primitive and original action display
+fixtures; the display itself still calls its original framebuffer draw method.
+The next action is the neutral display command/input port outlined above. Native
+PixelLine tests establish the primitive's device-pixel contract, not the complete
+old Creator DPI composition. `Editor::update_ui` resizes the RenderView source
+buffer from the view dimensions before drawing tool HUDs, and `TheRenderView`
+then scales/copies that source through its display rectangle. Audit that complete
+path before choosing profile line/border thickness at non-unit density; do not
+infer equivalent final display from the low-level Bresenham test alone. Full
+Swash text metrics/AA and all DPI workflow acceptance remain open.
+
+Original checkout was rechecked: tracked sources unchanged at f8d8801103 and
+existing untracked concepts intact. Unrelated networking concept stays excluded.
+No checks remain live for this slice. Full M0–M9 Goal remains active/incomplete.
