@@ -322,6 +322,7 @@ impl NativeNodesView {
     ) -> Self {
         let mut graph = TheGraphView::with_state(id, model);
         graph.set_auto_focus(true);
+        graph.set_scroll_behavior(-0.6, false);
         graph.set_connection_policy(NodeConnectionPolicy);
         Self {
             graph,
@@ -555,6 +556,12 @@ impl TheWidget for NativeNodesView {
     }
     fn supports_hover(&mut self) -> bool {
         true
+    }
+    fn supports_precise_scroll(&self) -> bool {
+        true
+    }
+    fn supports_pinch(&self) -> bool {
+        !self.is_panel()
     }
     fn uses_native_editor(&self) -> bool {
         true
@@ -932,8 +939,10 @@ impl TheWidget for NativeNodesView {
             }
         }
         let changed = self.graph.on_event(event, ctx);
-        if matches!(event, TheEvent::MouseDown(_) | TheEvent::LostFocus(_)) {
-            self.active = ctx.ui.has_focus(self.id());
+        match event {
+            TheEvent::MouseDown(_) => self.active = ctx.ui.has_focus(self.id()),
+            TheEvent::LostFocus(_) => self.active = false,
+            _ => {}
         }
         changed
     }
@@ -1818,5 +1827,21 @@ mod tests {
             );
             assert_eq!(f.model.lock().unwrap().document(), &after);
         }
+    }
+    #[test]
+    fn native_node_focus_loss_releases_active_paint_even_when_the_host_keeps_logical_focus() {
+        let mut f = Fixture::new();
+        f.panels.lock().unwrap().clear(&mut f.ctx.text);
+        let widget = f.ui.get_widget("Native Nodes").unwrap();
+        let view = widget.as_any().downcast_mut::<NativeNodesView>().unwrap();
+        view.on_event(&TheEvent::MouseDown(Vec2::new(800, 600)), &mut f.ctx);
+        assert!(view.active);
+        assert!(f.ctx.ui.has_focus(&f.id));
+        view.on_event(&TheEvent::LostFocus(f.id.clone()), &mut f.ctx);
+        assert!(
+            !view.active,
+            "window/host focus loss must end active native painting"
+        );
+        assert!(view.editor_input_state(&mut f.ctx).is_none());
     }
 }

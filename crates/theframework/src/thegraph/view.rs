@@ -265,6 +265,8 @@ pub struct TheGraphView {
     dragging: bool,
     dirty: bool,
     painted_revision: u64,
+    wheel_scale: f32,
+    aspect_scaled_scroll: bool,
 }
 impl TheGraphView {
     pub fn with_state(id: TheId, state: Arc<Mutex<GraphViewState>>) -> Self {
@@ -298,6 +300,12 @@ impl TheGraphView {
     pub fn set_theme(&mut self, theme: Option<GraphTheme>) {
         self.theme = theme;
         self.dirty = true;
+    }
+    /// Host-specific navigation policy, independent of the displayed graph.
+    /// Defaults match the generic reference render view.
+    pub fn set_scroll_behavior(&mut self, scale: f32, aspect_scaled: bool) {
+        self.wheel_scale = scale;
+        self.aspect_scaled_scroll = aspect_scaled;
     }
     pub fn set_auto_focus(&mut self, active: bool) {
         self.auto_focus = active;
@@ -426,9 +434,13 @@ impl TheGraphView {
         }
     }
     fn scroll(&mut self, delta: [f32; 2], ctx: &TheContext) {
-        let aspect = self.dim.width.max(1) as f32 / self.dim.height.max(1) as f32;
-        let dx = delta[0] * -0.4 / aspect.max(1.);
-        let dy = delta[1] * -0.4 * aspect.min(1.);
+        let aspect = if self.aspect_scaled_scroll {
+            self.dim.width.max(1) as f32 / self.dim.height.max(1) as f32
+        } else {
+            1.
+        };
+        let dx = delta[0] * self.wheel_scale / aspect.max(1.);
+        let dy = delta[1] * self.wheel_scale * aspect.min(1.);
         let mut state = self.state.lock().unwrap();
         if ctx.ui.input_modifiers.control || ctx.ui.input_modifiers.super_key {
             let cursor = state.editor.cursor;
@@ -460,6 +472,8 @@ impl TheWidget for TheGraphView {
             dragging: false,
             dirty: true,
             painted_revision: 0,
+            wheel_scale: -0.4,
+            aspect_scaled_scroll: true,
         }
     }
     fn id(&self) -> &TheId {
@@ -491,6 +505,12 @@ impl TheWidget for TheGraphView {
         self.dirty = dirty;
     }
     fn supports_hover(&mut self) -> bool {
+        true
+    }
+    fn supports_precise_scroll(&self) -> bool {
+        true
+    }
+    fn supports_pinch(&self) -> bool {
         true
     }
     fn supports_text_input(&self) -> bool {

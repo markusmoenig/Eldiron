@@ -908,3 +908,36 @@ fn app_owned_node_transactions_validate_source_and_group_multiple_rows_into_one_
     assert_eq!(model.document(), &source);
     assert!(model.pending_commits().next().is_none());
 }
+
+#[test]
+fn native_graph_scroll_policy_keeps_generic_defaults_and_fractional_equal_axis_navigation() {
+    for (width, height) in [(800, 300), (300, 800)] {
+        let mut f = Fixture::new();
+        let before = f.model.lock().unwrap().document().clone();
+        let widget = f.ui.get_widget("graph").unwrap();
+        let view = widget.as_any().downcast_mut::<TheGraphView>().unwrap();
+        view.set_dim(TheDim::new(80, 0, width, height), &mut f.ctx);
+        assert!(view.supports_precise_scroll());
+        assert!(view.supports_pinch());
+        f.model
+            .lock()
+            .unwrap()
+            .edit(|_, editor| editor.viewport.pan = [0.; 2]);
+        view.on_event(&TheEvent::PreciseScroll(Vec2::new(7.5, -12.25)), &mut f.ctx);
+        let pan = f.model.lock().unwrap().editor().viewport.pan;
+        let aspect = width as f32 / height as f32;
+        assert!((pan[0] - 3. / aspect.max(1.)).abs() < 0.0001);
+        assert!((pan[1] + 4.9 * aspect.min(1.)).abs() < 0.0001);
+        view.set_scroll_behavior(-0.6, false);
+        f.model
+            .lock()
+            .unwrap()
+            .edit(|_, editor| editor.viewport.pan = [0.; 2]);
+        view.on_event(&TheEvent::PreciseScroll(Vec2::new(7.5, -12.25)), &mut f.ctx);
+        let pan = f.model.lock().unwrap().editor().viewport.pan;
+        assert!((pan[0] - 4.5).abs() < 0.0001);
+        assert!((pan[1] + 7.35).abs() < 0.0001);
+        assert_eq!(f.model.lock().unwrap().document(), &before);
+        assert!(f.model.lock().unwrap().pending_commits().next().is_none());
+    }
+}

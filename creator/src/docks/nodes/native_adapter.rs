@@ -1220,4 +1220,55 @@ mod tests {
         assert_eq!(state.target, target);
         assert!(f.model().lock().unwrap().editor().text_focus().is_some());
     }
+    #[test]
+    fn native_nodes_dock_scroll_preserves_equal_axis_policy_in_a_rectangular_viewport() {
+        let mut f = Fixture::new();
+        let dim = *f.ui.get_widget(VIEW).unwrap().dim();
+        assert_ne!(dim.width, dim.height);
+        f.send(InputEvent::PointerMoved {
+            position: [dim.x as f32 + 8., dim.y as f32 + 8.],
+        });
+        let before = serde_json::to_value(&f.project).unwrap();
+        let model = f.model();
+        let pan = model.lock().unwrap().editor().viewport.pan;
+        f.send(InputEvent::Scroll {
+            delta: [7.5, -12.25],
+            precise: true,
+        });
+        let after = model.lock().unwrap().editor().viewport.pan;
+        assert!(
+            (after[0] - pan[0] - 4.5).abs() < 0.0001,
+            "horizontal sensitivity: {pan:?} -> {after:?}"
+        );
+        assert!(
+            (after[1] - pan[1] + 7.35).abs() < 0.0001,
+            "vertical sensitivity: {pan:?} -> {after:?}"
+        );
+        assert!(model.lock().unwrap().pending_commits().next().is_none());
+        assert_eq!(serde_json::to_value(&f.project).unwrap(), before);
+        f.paint();
+    }
+    #[test]
+    fn native_nodes_dock_pinch_preserves_the_graph_point_beneath_the_pointer() {
+        let mut f = Fixture::new();
+        let dim = *f.ui.get_widget(VIEW).unwrap().dim();
+        let anchor = [80., 80.];
+        f.send(InputEvent::PointerMoved {
+            position: [dim.x as f32 + anchor[0], dim.y as f32 + anchor[1]],
+        });
+        let model = f.model();
+        let before = model.lock().unwrap().editor().viewport;
+        let point = before.to_graph(anchor);
+        let source = serde_json::to_value(&f.project).unwrap();
+        f.send(InputEvent::Pinch(0.15));
+        let after = model.lock().unwrap().editor().viewport;
+        assert!(
+            (after.zoom() / before.zoom() - 1.15).abs() < 0.0001,
+            "pinch must reach the native graph"
+        );
+        let actual = after.to_graph(anchor);
+        assert!((actual[0] - point[0]).abs() < 0.0001 && (actual[1] - point[1]).abs() < 0.0001);
+        assert!(model.lock().unwrap().pending_commits().next().is_none());
+        assert_eq!(serde_json::to_value(&f.project).unwrap(), source);
+    }
 }

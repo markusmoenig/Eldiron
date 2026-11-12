@@ -370,6 +370,10 @@ impl TheWidget for TheRenderView {
         true
     }
 
+    fn supports_pinch(&self) -> bool {
+        true
+    }
+
     fn as_any(&mut self) -> &mut dyn std::any::Any {
         self
     }

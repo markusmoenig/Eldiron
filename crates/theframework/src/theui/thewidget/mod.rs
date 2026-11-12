@@ -296,6 +296,11 @@ pub trait TheWidget: Send {
         false
     }
 
+    /// Receive pointer-anchored pinch gestures without exposing a raster view.
+    fn supports_pinch(&self) -> bool {
+        false
+    }
+
     /// Own native text commands even when temporarily inactive, read-only or
     /// nonselectable. Such owners must never fall through to legacy clipboard.
     /// Default widgets keep their reference event adapter until migrated.

@@ -1554,18 +1554,26 @@ impl TheUI {
         redraw
     }
 
-    /// Sends a pinch gesture only to the render view under the pointer.
+    /// Send a pinch gesture to the opted-in widget under the current pointer.
     pub fn pinch(&mut self, delta: f32, ctx: &mut TheContext) -> bool {
         self.clear_hover_help(ctx);
-        let Some(id) = &ctx.ui.hover else {
+        let coord = self.mouse_coord;
+        let Some(id) = self
+            .get_widget_at_coord(coord)
+            .map(|widget| widget.id().clone())
+        else {
             return false;
         };
         let Some(widget) = self.get_widget_abs(Some(&id.name), Some(&id.uuid)) else {
             return false;
         };
-        if widget.as_render_view().is_none() {
+        if !widget.supports_pinch() {
             return false;
         }
+        widget.on_event(
+            &TheEvent::Hover(ctx.ui.local_position(widget.id(), widget.dim(), coord)),
+            ctx,
+        );
         let redraw = widget.on_event(&TheEvent::Pinch(delta), ctx);
         self.process_events(ctx);
         redraw
