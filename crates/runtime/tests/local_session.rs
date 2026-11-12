@@ -155,12 +155,16 @@ fn cpu_session_startup_publishes_authored_tiles_with_coherent_indices() {
     project.tiles.insert(id, tile.clone());
     let mut session = GameSession::new(project);
     session.server.print_log_messages = false;
+    session.server.state = rusterix::ServerState::Running;
+    session.tick_once();
+    assert_eq!(session.tick_sequence(), 1);
     session
         .start(SessionOptions {
             create_local_player: false,
             ..Default::default()
         })
         .unwrap();
+    assert_eq!(session.tick_sequence(), 0);
     let index = session
         .assets
         .tile_index(&id)
@@ -173,4 +177,32 @@ fn cpu_session_startup_publishes_authored_tiles_with_coherent_indices() {
     );
     assert!(session.assets.tiles_revision > 0);
     session.stop();
+}
+
+#[test]
+fn local_tick_sequence_counts_steps_and_catchup_without_render_or_poll_dependence() {
+    let mut frequent = GameSession::new(Project::new());
+    frequent.server.state = rusterix::ServerState::Running;
+    for _ in 0..100 {
+        frequent.advance(Duration::from_millis(10));
+        frequent.poll();
+        frequent.poll();
+    }
+    assert_eq!(frequent.tick_sequence(), 4);
+    let mut sparse = GameSession::new(Project::new());
+    sparse.server.state = rusterix::ServerState::Running;
+    sparse.advance(Duration::from_secs(1));
+    assert_eq!(sparse.tick_sequence(), 4);
+    sparse.advance(Duration::from_secs(3));
+    assert_eq!(sparse.tick_sequence(), 12);
+    sparse.advance(Duration::ZERO);
+    assert_eq!(sparse.tick_sequence(), 16);
+    sparse.server.state = rusterix::ServerState::Paused;
+    sparse.advance(Duration::from_secs(30));
+    sparse.tick_once();
+    assert_eq!(sparse.tick_sequence(), 16);
+    sparse.server.state = rusterix::ServerState::Running;
+    sparse.advance(Duration::from_millis(250));
+    sparse.tick_once();
+    assert_eq!(sparse.tick_sequence(), 18);
 }

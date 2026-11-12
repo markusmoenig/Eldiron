@@ -1115,3 +1115,49 @@ mod preferences;
 mod tooltip;
 
 mod isometric;
+
+#[test]
+fn common_player_animation_uses_local_game_ticks_across_fps_changes_pause_and_catchup() {
+    let mut project = starter_with_menu();
+    let mut config = project.config.parse::<toml::Table>().unwrap();
+    config
+        .get_mut("game")
+        .unwrap()
+        .as_table_mut()
+        .unwrap()
+        .insert("game_tick_ms".into(), 100.into());
+    project.config = toml::to_string(&config).unwrap();
+    let mut app = PlayerApplication::new(
+        project,
+        false,
+        Box::new(Services(Arc::new(Mutex::new(Observation::default())))),
+    )
+    .unwrap();
+    app.player.runtime.server.print_log_messages = false;
+    let mut host = HostContext::new(app.initial_size());
+    app.player.settings.target_fps = 240.;
+    for _ in 0..20 {
+        app.update(&mut host, Duration::from_millis(50));
+    }
+    assert_eq!(app.animation_frame(), 10);
+    assert_eq!(app.screen.animation_frame, 10);
+    app.player.settings.target_fps = 1.;
+    app.update(&mut host, Duration::from_secs(1));
+    assert_eq!(app.animation_frame(), 18);
+    app.update(&mut host, Duration::ZERO);
+    assert_eq!(app.animation_frame(), 20);
+    app.player.runtime.server.state = ServerState::Paused;
+    app.update(&mut host, Duration::from_secs(30));
+    assert_eq!(app.animation_frame(), 20);
+    app.player.runtime.server.state = ServerState::Running;
+    app.update(&mut host, Duration::from_millis(100));
+    assert_eq!(app.animation_frame(), 21);
+    app.player.runtime.tick_once();
+    app.sync_host(&mut host).unwrap();
+    assert_eq!(app.screen.animation_frame, 22);
+    assert!(app.failure().is_none());
+    assert!(
+        app.gpu.is_none(),
+        "animation scheduling must not initialize presentation"
+    );
+}

@@ -58,6 +58,7 @@ pub struct GameSession {
     started: bool,
     local_player_started: bool,
     session_id: Uuid,
+    tick_sequence: u64,
 }
 impl GameSession {
     pub fn new(project: Project) -> Self {
@@ -84,6 +85,7 @@ impl GameSession {
             started: false,
             local_player_started: false,
             session_id: Uuid::new_v4(),
+            tick_sequence: 0,
         }
     }
     pub fn start(&mut self, options: SessionOptions) -> Result<(), String> {
@@ -118,6 +120,7 @@ impl GameSession {
         )?;
         self.current_map = start_map;
         self.clock = SessionClock::new(Duration::from_millis(tick));
+        self.tick_sequence = 0;
         self.started = true;
         self.local_player_started = false;
         self.interests = options.events;
@@ -172,6 +175,11 @@ impl GameSession {
         self.local_player_started = true;
         Ok(Some(prepared.info))
     }
+    /// Monotonic count of local system ticks issued by this session. Resets on
+    /// successful start; rendering, polling and GPU lifetime do not advance it.
+    pub fn tick_sequence(&self) -> u64 {
+        self.tick_sequence
+    }
     pub fn has_started_player(&self) -> bool {
         self.local_player_started
     }
@@ -197,6 +205,7 @@ impl GameSession {
         self.update(0)
     }
     fn update(&mut self, ticks: u32) -> SessionUpdate {
+        self.tick_sequence = self.tick_sequence.saturating_add(u64::from(ticks));
         for _ in 0..ticks {
             self.server.system_tick();
         }

@@ -26,7 +26,7 @@ Started: 2026-11-11 (Asia/Bangkok). Overall Goal: active; full M0–M9 scope rem
 - M3: in progress. Every active built-in TheWidget implementation now has a command paint path, including procedural controls and the legacy node canvas. Complex Creator integration, full widget catalog parity and legacy adapter retirement remain.
 - M4: in progress. CPU schema/identity extraction, shared `GameSession`, CPU startup preparation, message/party/world-target policies and terminal adoption are implemented and tested. Per-session routing, local players, world values, runtime IDs and region context ownership now pass controlled overlapping-session and parallel assembled-player regressions. Graphical/Creator adoption and remaining bitmap/value data extraction remain; this evidence does not establish full simultaneous Creator Play workflows.
 - M5: in progress. Native Creator controls, material/palette integration and retained prefab/behavior/configuration graph editors are adopted. Application/global ownership, main world/tool/preview producers and complete Creator workflows remain.
-- M6: in progress. Independent GPU game views, common player/input/camera components, authored screen paint, private world descriptions, view-owned speech, acknowledged-frame world pointer gestures, relative first-person mouse look, default/world-intent cursors, world/UI item drag previews and acknowledged authored inventory/equipment pointer/keyboard gestures are implemented. Application-owned audio is integrated into the common player with cancellable CPU preparation jobs. The native container HUD now includes acknowledged paint/input, real server transfers, scrolling, GPU recovery and navigation lifetime. Floating inventory/equipment, action catalogue/spellbook and preferences now use typed native HUD owners, retained text/source resources and acknowledged input. Acknowledged UI-origin tooltips now use retained text and host deadlines. UI-origin Drop cursors and acknowledged drag/assignment highlighting now have GPU and authoritative transfer evidence. Native isometric source production, shared CPU source publication, game-view outputs and acknowledged input receipts now have GPU/CPU and shipped-source device-reconstruction evidence. Browser worker hosting, remaining game-mode/HUD policy parity, performance acceptance and common launcher adoption remain.
+- M6: in progress. Independent GPU game views, common player/input/camera components, authored screen paint, private world descriptions, view-owned speech, acknowledged-frame world pointer gestures, relative first-person mouse look, default/world-intent cursors, world/UI item drag previews and acknowledged authored inventory/equipment pointer/keyboard gestures are implemented. Application-owned audio is integrated into the common player with cancellable CPU preparation jobs. The native container HUD now includes acknowledged paint/input, real server transfers, scrolling, GPU recovery and navigation lifetime. Floating inventory/equipment, action catalogue/spellbook and preferences now use typed native HUD owners, retained text/source resources and acknowledged input. Acknowledged UI-origin tooltips now use retained text and host deadlines. UI-origin Drop cursors and acknowledged drag/assignment highlighting now have GPU and authoritative transfer evidence. Native isometric source production, shared CPU source publication, game-view outputs and acknowledged input receipts now have GPU/CPU and shipped-source device-reconstruction evidence. Browser worker hosting, remaining game-mode/HUD policy parity, performance acceptance remain. Canonical native desktop launchers now share the common application/host; see launcher verification below.
 - M7/M8/M9: Retirement and platform/full acceptance pending. Browser and iOS framework/presentation compile, and detached CAMetalLayer presentation passes; this is not complete application/platform parity.
 
 ## Native window validation correction (2026-11-12)
@@ -1450,3 +1450,91 @@ The input policy is now explicit: text uses acknowledged logical cell/elevation 
 Speech layering now has actual GPU evidence: per-view warning-colored glyphs appear above text views and remain clipped. The first speech fixture correctly suppressed speech because its server was Off; the corrected running-state fixture passes (`...text-game-speech-active.log`) and is included in the full suite. No policy was weakened. Source capture `native-wgpu-evidence/native-text-game.png` and font-edited/fractionally-upscaled `native-text-game-upscaled.png` were visually inspected. The latter intentionally preserves the reference's enlarged rows and bottom clipping. The assembled player text capture shows the engine's existing “No room text available.” fallback for that source fixture; it is a mode/lifetime check, not authored narrative evidence. The separate controlled room fixture verifies the title/description/ellipsis content. The isometric scene still reproduces byte-for-byte after text/graphical transitions and GPU reconstruction on the same runtime.
 
 Next: converge the desktop entry points on the tested common application/host, preserving CLI/project loading, explicit reference adapters and Apple export compatibility. Audit/implement any actual missing client command/target policies during convergence. Then continue main Creator/Play/document/history/tool/preview ownership, resource/performance and idle acceptance, browser/Xcode wrappers/physical platform checks and explicit legacy retirement. Full M0–M9 remains active; component and target compilation do not establish physical desktop/browser/Xcode or complete Creator parity.
+
+
+## Desktop launcher convergence and animation clock (2026-11-12, in progress)
+
+The canonical native `eldiron-client` and `eldiron-client-wgpu` launchers now
+assemble the same `native_player::desktop` application, audio services, session,
+game-screen presenter and application-owned WGPU host. This is an implementation
+cutover, not full M6 acceptance. Former entry points are preserved behind explicit
+`legacy-reference` binaries; the classic wasm entry retains its named browser
+compatibility adapter until M8. Apple static library names and exports are
+unchanged; their adapter still needs M9 migration.
+
+The desktop parser preserves the default `game.eldiron`, Unicode/non-UTF8 paths,
+debug behavior and project decoding/ruleset migration. Help/version return before
+file/session/GPU creation. Native `--smoke` requires three actual host presentation
+acknowledgements and fails after ten seconds; offscreen preparations do not count.
+Unknown UI commands keep the reference client's ignore/diagnostic behavior.
+
+Dependency changes disable SceneVM's window runner in both canonical desktop
+graphs. Foreign-library builds explicitly select `--no-default-features --features
+native-player --lib` to avoid Winit. Ten independent renderer boundary checks
+passed initially, including both canonical graphs and the foreign library graph
+(`/private/tmp/eldiron-native-launcher-boundaries-first.log`). Both launchers compile
+(`/private/tmp/eldiron-native-launcher-first.log`); two CLI parser cases pass
+(`/private/tmp/eldiron-native-launcher-cli-first.log`). Reference binary builds,
+actual CLI executables, cross-targets and final suites are running/pending.
+
+The reference audit found a timing defect in the previous common-player component:
+its animation frame followed render FPS while both existing clients advance it on
+game ticks. `GameSession::tick_sequence` now exposes the count of issued local
+system ticks, including deterministic manual ticks and bounded catchup. It resets
+on successful session start; poll/render/pause/GPU lifetime do not advance it. The
+common player consumes this metadata. No serialized or network representation
+changed. New CPU clock and common-player FPS/catchup/pause tests pass
+(`/private/tmp/eldiron-native-launcher-tick-cpu-first.log` and
+`...launcher-animation-first.log`). Final runtime/player regressions and startup
+reset coverage are pending in `/private/tmp/verify-native-launchers.py`.
+
+Next: inspect/fix the final verification results, validate executable help/version
+and bounded physical smoke where available, checkpoint this convergence, then
+continue Creator Play/main application/document/history/world/tool/preview
+ownership and all other outstanding acceptance. Full M0–M9 remains active.
+
+
+Launcher cross-target verification found the retained classic browser adapter's
+legacy Winit host imported desktop-only RFD unconditionally when UI was enabled.
+The common WGPU library's wasm compile did not previously select this adapter.
+The legacy host now gates RFD to desktop dialogs and uses the browser confirmation
+dialog for an unsaved close (unavailable confirmation preserves the document).
+This is a browser compatibility compile fix; it does not implement M8 WebGPU
+bootstrap/worker hosting. The failed first browser build is retained in
+`/private/tmp/eldiron-native-launcher-verified-web.log`; the corrected target and
+remaining checks are next.
+
+
+Final launcher convergence verification passed: **17 common-player tests**
+(96.25 s), **eight runtime tests** (three clock units, four local-session/startup
+cases, one overlapping-session isolation case). Explicit reference binaries build;
+window-free foreign-player and iOS simulator library configurations compile. Both
+canonical browser targets compile after the retained adapter dialog fix. All four
+applications with Creator native-render, the shared smoke example, both linked
+canonical executables and all **ten independent dependency boundaries** pass.
+Reproduce `/private/tmp/verify-native-launchers.py` plus corrected remaining
+checks `/private/tmp/verify-native-launchers-remaining.py`. Passing logs use
+`...launcher-verified-{runtime,player,references,foreign,ios}.log` and
+`...launcher-final-{web,apps,binaries,boundaries,diff,example}.log`.
+
+Actual executable checks for **both aliases** pass help/version, unknown-option
+and missing-file handling, before any GPU initialization
+(`/private/tmp/eldiron-native-launcher-executable-cli.log`). The common example
+now calls the canonical desktop bootstrap rather than maintaining another
+assembly/timing loop. The original checkout still has only its original untracked
+`concepts/`; the unrelated networking concept remains excluded from commits.
+
+The canonical shipped-project window smoke starts the authoritative server/player
+but correctly **fails with zero successful surface presentations** on the locked
+Mac. Full process 35.77 s including startup, then the host's bounded ten-second
+presentation deadline; exit 1. Evidence
+`/private/tmp/eldiron-native-launcher-surface-smoke.log`. This confirms error
+accounting and CPU startup, **not physical desktop rendering**. Detached-layer
+and headless pixel evidence remains valid; physical UI/workflow checks stay open.
+
+Next: adopt the common player in the Apple CAMetalLayer FFI/Swift host while
+preserving exported names/library identity, authored project bytes and explicit
+layer/thread/teardown contracts. This independent M9 work can proceed while the
+locked desktop prevents physical checks. Creator application/world/Play ownership,
+interactive previews, browser bootstrap/workers, performance/resource and complete
+release acceptance remain required. No complete milestone/full acceptance claimed.

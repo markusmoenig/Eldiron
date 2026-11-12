@@ -1,6 +1,10 @@
 use std::sync::Arc;
 
-#[cfg(feature = "ui")]
+#[cfg(all(
+    feature = "ui",
+    feature = "desktop-dialogs",
+    any(target_os = "macos", target_os = "windows", target_os = "linux")
+))]
 use rfd::MessageDialog;
 
 use crate::thecontext::TheCursorIcon;
@@ -437,15 +441,43 @@ impl ApplicationHandler for TheWinitApp {
                     #[cfg(feature = "ui")]
                     {
                         if self.app.has_changes() {
-                            let result = MessageDialog::new()
+                            #[cfg(all(
+                                feature = "desktop-dialogs",
+                                any(
+                                    target_os = "macos",
+                                    target_os = "windows",
+                                    target_os = "linux"
+                                )
+                            ))]
+                            let confirmed = MessageDialog::new()
                                 .set_title("Unsaved Changes")
                                 .set_description(
                                     "You have unsaved changes. Are you sure you want to quit?",
                                 )
                                 .set_buttons(rfd::MessageButtons::YesNo)
-                                .show();
-
-                            if result == rfd::MessageDialogResult::Yes {
+                                .show()
+                                == rfd::MessageDialogResult::Yes;
+                            #[cfg(target_arch = "wasm32")]
+                            let confirmed = web_sys::window()
+                                .and_then(|window| {
+                                    window.confirm_with_message(
+                                    "You have unsaved changes. Are you sure you want to quit?"
+                                ).ok()
+                                })
+                                .unwrap_or(false);
+                            #[cfg(not(any(
+                                target_arch = "wasm32",
+                                all(
+                                    feature = "desktop-dialogs",
+                                    any(
+                                        target_os = "macos",
+                                        target_os = "windows",
+                                        target_os = "linux"
+                                    )
+                                )
+                            )))]
+                            let confirmed = false;
+                            if confirmed {
                                 event_loop.exit();
                             }
                         } else {

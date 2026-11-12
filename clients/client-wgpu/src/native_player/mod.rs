@@ -1,6 +1,8 @@
 //! Common graphical player application for native windows, foreign layers and
 //! Creator Play. Runtime, CPU screen state and GPU resources have distinct owners.
 mod audio;
+#[cfg(all(feature = "native-window", not(target_arch = "wasm32")))]
+pub mod desktop;
 mod timing;
 mod viewport;
 use crate::player_session::PlayerSession;
@@ -265,7 +267,7 @@ impl PlayerApplication {
         Ok(())
     }
     fn animation_frame(&self) -> usize {
-        (self.visual_elapsed.as_secs_f64() * self.player.settings.target_fps).floor() as usize
+        usize::try_from(self.player.runtime.tick_sequence()).unwrap_or(usize::MAX)
     }
     fn clipboard(&mut self, response: &ScreenTextResponse, host: &mut HostContext) {
         if let (Some(widget), Some(clipboard)) = (response.target, &response.editor.clipboard) {

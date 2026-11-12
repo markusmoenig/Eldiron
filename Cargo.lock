@@ -1255,6 +1255,7 @@ name = "eldiron-client"
 version = "0.96.0"
 dependencies = [
  "console_error_panic_hook",
+ "eldiron-client-wgpu",
  "eldiron-shared",
  "fontdue",
  "instant",

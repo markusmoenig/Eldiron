@@ -1,19 +1,44 @@
 # Eldiron Client WGPU
 
-GPU-direct Eldiron player using `scenevm::SceneVMApp`.
+The native `eldiron-client-wgpu` and `eldiron-client` executables use the same
+application-owned WGPU host, runtime session and game-screen presenter. Scene
+views, UI and Swash glyph atlases compose on the shared GPU without a viewport
+framebuffer readback.
 
 ## Native
 
 ```bash
 cargo run -p eldiron-client-wgpu -- path/to/game.eldiron
+cargo run -p eldiron-client -- path/to/game.eldiron
 ```
 
-If no path is provided it tries `./game.eldiron`.
+Both default to `./game.eldiron`. Use `--help` for options, `--debug` for authored
+debug behaviors, and `--render-debug` for transfer/presentation diagnostics.
+`--smoke` requires three successful surface presentations within ten seconds;
+preparing an offscreen frame alone does not count as a presentation.
+
+The former launchers remain explicit comparison adapters during migration:
+
+```bash
+cargo run -p eldiron-client-wgpu --features legacy-reference --bin eldiron-client-wgpu-reference -- path/to/game.eldiron
+cargo run -p eldiron-client --features legacy-reference --bin eldiron-client-reference -- path/to/game.eldiron
+```
+
+The classic browser entry still uses its compatibility adapter. Browser WebGPU
+host/bootstrap and complete platform/workflow verification remain tracked in
+`concepts/native-wgpu-rewrite-progress.md`.
 
 ## Xcode / Apple Platforms
 
-This crate exports a static library named `libscenevm_unified_app.a` and
-compatibility FFI symbols (`unified_app_runner_*`) so it can be used with the
-SceneVM Swift wrapper template in:
+The static library keeps the name `libscenevm_unified_app.a` and compatibility
+exports `unified_app_runner_*` used by `Xcode/Client`:
 
-`Xcode/Client`.
+```bash
+cargo build --release -p eldiron-client-wgpu --lib --no-default-features --features native-player --target aarch64-apple-darwin
+```
+
+Disabling defaults excludes the Winit desktop host from this foreign-host build.
+The compatibility FFI still uses its former application adapter; migrating it to
+the common player and verifying the Xcode wrapper are separate pending work. The
+Rust-created WGPU surface over a supplied CAMetalLayer is already available in
+the shared presentation foundation.

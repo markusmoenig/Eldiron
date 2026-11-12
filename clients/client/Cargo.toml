@@ -1,4 +1,5 @@
 [package]
+default-run = "eldiron-client"
 name = "eldiron-client"
 version.workspace = true
 edition.workspace = true
@@ -15,7 +16,8 @@ name = "eldiron-client"
 path = "src/main.rs"
 
 [dependencies]
-theframework = { workspace = true, features = ["winit_app", "ui"] }
+theframework = { workspace = true }
+scenevm_unified_app = {package="eldiron-client-wgpu",path="../client-wgpu",version="0.96.0",default-features=false,features=["native-window"]}
 rusterix.workspace = true
 
 shared = { path = "../../crates/shared", version = "0.96.0", package = "eldiron-shared" }
@@ -30,6 +32,8 @@ fontdue = "0.9.3"
 instant = { version = "0.1", features = ["wasm-bindgen"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+# Explicit browser compatibility entry until the common WebGPU/worker host lands.
+theframework = {workspace=true,features=["winit_app","ui"]}
 wasm-bindgen = "0.2"
 web-sys = { version = "0.3", features = ["XmlHttpRequest", "Window"] }
 console_error_panic_hook = "0.1"
@@ -41,4 +45,10 @@ instant = { version = "0.1", features = ["wasm-bindgen"] }
 # crate-type = ["staticlib"]
 
 [features]
+legacy-reference = ["theframework/winit_app", "theframework/ui"]
 log = ["theframework/log"]
+
+[[bin]]
+name = "eldiron-client-reference"
+path = "src/reference_main.rs"
+required-features = ["legacy-reference"]

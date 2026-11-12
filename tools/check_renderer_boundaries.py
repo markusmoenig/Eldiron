@@ -21,12 +21,13 @@ def tree(package, features=None):
     return subprocess.check_output(args, cwd=ROOT, text=True)
 
 
-def check(package, forbidden, features=None, no_widget_ui=False):
+def check(package, forbidden, features=None, no_widget_ui=False, forbidden_features=()):
     output = tree(package, features)
     packages = set(re.findall(r"^([A-Za-z0-9_-]+) v[0-9]", output, re.MULTILINE))
     failures = sorted(packages & forbidden)
     if no_widget_ui and 'theframework feature "ui"' in output:
         failures.append('theframework/ui')
+    failures.extend(feature for feature in forbidden_features if feature in output)
     if failures:
         raise RuntimeError(f"{package}: unexpected dependencies: {', '.join(failures)}")
     print(f"{package}{' [' + features + ']' if features else ''}: boundary passed")
@@ -40,6 +41,9 @@ def main():
     check("theframework", GPU, features="ui-paint")
     check("theframework", {"winit", "pixels", "softbuffer"}, features="render-wgpu", no_widget_ui=True)
     check("theframework", {"pixels", "softbuffer"}, features="platform-winit", no_widget_ui=True)
+    check("eldiron-client", {"pixels", "softbuffer"}, forbidden_features=('scenevm feature "windowing"',))
+    check("eldiron-client-wgpu", {"pixels", "softbuffer"}, forbidden_features=('scenevm feature "windowing"',))
+    check("eldiron-client-wgpu", {"winit", "pixels", "softbuffer"}, features="native-player")
 
 
 if __name__ == "__main__":

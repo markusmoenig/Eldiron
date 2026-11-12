@@ -16,6 +16,18 @@ For more information visit [Eldiron.com](https://eldiron.com) or the [GitHub rep
 cargo install eldiron-client
 ```
 
+## Running a project
+
+```bash
+cargo run -p eldiron-client -- path/to/game.eldiron
+```
+
+The native executable shares the WGPU presentation host and runtime session with
+`eldiron-client-wgpu`; both default to `./game.eldiron`. Use `--help` for options.
+The previous launcher is available for comparisons with
+`--features legacy-reference --bin eldiron-client-reference`. The browser entry
+retains its compatibility adapter while the common browser host is implemented.
+
 ## License
 
 Licensed under the MIT License.

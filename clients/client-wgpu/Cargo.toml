@@ -1,4 +1,5 @@
 [package]
+default-run = "eldiron-client-wgpu"
 name = "eldiron-client-wgpu"
 version.workspace = true
 edition.workspace = true
@@ -11,12 +12,15 @@ description = "GPU-direct Eldiron player using SceneVMApp."
 [[bin]]
 name = "eldiron-client-wgpu"
 path = "src/main.rs"
+required-features = ["native-window"]
 
 [lib]
 name = "scenevm_unified_app"
 crate-type = ["rlib", "staticlib"]
 
 [features]
+default = ["native-window"]
+legacy-reference = ["scenevm/windowing"]
 native-player = ["dep:eldiron-presentation", "dep:theframework", "dep:renderkit"]
 native-window = ["native-player", "theframework/platform-winit"]
 
@@ -30,7 +34,7 @@ theframework = {path="../../crates/theframework", default-features=false, featur
 renderkit = {path="../../crates/renderkit", optional=true}
 eldiron-runtime = { path = "../../crates/runtime" }
 rustc-hash = "2"
-scenevm = { workspace = true, default-features = true }
+scenevm = { workspace = true, default-features = false, features=["gpu"] }
 rusterix.workspace = true
 shared = { path = "../../crates/shared", version = "0.96.0", package = "eldiron-shared" }
 serde = { version = "1.0", features = ["derive"] }
@@ -43,3 +47,8 @@ uuid = { version = "1.18", features = ["v4"] }
 [dev-dependencies]
 futures = "0.3"
 png = "0.18"
+
+[[bin]]
+name = "eldiron-client-wgpu-reference"
+path = "src/reference_main.rs"
+required-features = ["legacy-reference"]
