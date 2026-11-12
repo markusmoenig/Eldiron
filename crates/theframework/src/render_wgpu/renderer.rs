@@ -684,6 +684,7 @@ impl PaintRenderer {
                         draws.push(self.draw(self.geometry(&v, &ix), brush, None, size, level, 0));
                     }
                 }
+                PaintOp::Receipt(_) => {}
                 PaintOp::Fill { path, rule, brush } => {
                     let (v, ix) = mesh::tessellate(path, *rule, None, transform, density)?;
                     draws.push(self.draw(self.geometry(&v, &ix), brush, None, size, level, 0));

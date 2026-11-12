@@ -25,7 +25,7 @@ Started: 2026-11-11 (Asia/Bangkok). Overall Goal: active; full M0–M9 scope rem
 - M2: in progress. Paint/Swash/Parley pipeline and native/foreign hosts work; batching, resource lifetime budgets and full text/input parity remain.
 - M3: in progress. Every active built-in TheWidget implementation now has a command paint path, including procedural controls and the legacy node canvas. Complex Creator integration, full widget catalog parity and legacy adapter retirement remain.
 - M4: in progress. CPU schema/identity extraction, shared `GameSession`, CPU startup preparation, message/party/world-target policies and terminal adoption are implemented and tested. Per-session routing, local players, world values, runtime IDs and region context ownership now pass controlled overlapping-session and parallel assembled-player regressions. Graphical/Creator adoption and remaining bitmap/value data extraction remain; this evidence does not establish full simultaneous Creator Play workflows.
-- M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews and injected 2D/3D appearance outputs with acknowledged input/playback receipts. Application/global/document/Play ownership, main world/tool/HUD and interactive material producers, full visual/workflow/performance acceptance and canonical retirement remain.
+- M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Application/global/document/Play ownership, main world/tool/HUD, remaining graph/preview producers, full visual/workflow/performance acceptance and canonical retirement remain.
 - M6: in progress. Independent GPU game views, common player/input/camera components, authored screen paint, private world descriptions, view-owned speech, acknowledged-frame world pointer gestures, relative first-person mouse look, default/world-intent cursors, world/UI item drag previews and acknowledged authored inventory/equipment pointer/keyboard gestures are implemented. Application-owned audio is integrated into the common player with cancellable CPU preparation jobs. The native container HUD now includes acknowledged paint/input, real server transfers, scrolling, GPU recovery and navigation lifetime. Floating inventory/equipment, action catalogue/spellbook and preferences now use typed native HUD owners, retained text/source resources and acknowledged input. Acknowledged UI-origin tooltips now use retained text and host deadlines. UI-origin Drop cursors and acknowledged drag/assignment highlighting now have GPU and authoritative transfer evidence. Native isometric source production, shared CPU source publication, game-view outputs and acknowledged input receipts now have GPU/CPU and shipped-source device-reconstruction evidence. Browser worker hosting, remaining game-mode/HUD policy parity, performance acceptance remain. Canonical native desktop launchers now share the common application/host; see launcher verification below.
 - M7/M8/M9: Retirement and platform/full acceptance pending. Canonical desktop clients share one common player; the Xcode client now uses it through the retained ABI over a Rust-created CAMetalLayer surface. Native/ARM64 simulator app bundles link, and real Swift/static-library and registered-scene layer checks pass. Browser bootstrap, native text/platform parity, Creator wrapper and complete physical/release acceptance remain; this is not complete application/platform parity.
 
@@ -2323,3 +2323,91 @@ separate native display from required authored tile/surface-page bake readbacks,
 inject the shared context into those bake jobs, and stop selection/channel/resize
 changes from requesting CPU display maps. Preserve Worker::new and the independent
 legacy reference for comparison. Full M0–M9 acceptance remains open.
+
+## Material panel integration and painted receipts (after d07b7d0f, in progress)
+
+`procedural_material/native_host.rs` now resolves root/operation/source/input/
+material targets into immutable CPU assets, normalizes existing animation ticks,
+queues GPU map/display requests, retains last valid output on errors, and owns
+reset/hidden/device reconstruction and presentation receipts. `preview_metadata`
+shares the unchanged animation resolver with the reference worker. Native Creator
+now assembles geometry, appearance and material through the same frame callback.
+
+The injected `Worker::new_asset_bakes` keeps authored tile/surface-page bakes and
+the explicitly retained CPU graph-thumbnail adapter. It omits 384px display maps
+and transient selection images, reusing its unit-domain bake maps. Worker::new
+remains the independent unchanged legacy-purpose reference. Selection/channel/
+resize requests are routed to native display; asset jobs receive the same device
+through injection and retain validated source data while initializing. Reset
+cancels the native bake domain; inactive sources do not initialize workers unless
+CPU update reports actual asset work. CPU graph thumbnails remain a tracked M5
+adapter, not accepted as fully migrated interactive preview production.
+
+The first actual material panel/bake/producer suite passes **8 tests**, 4.93 s:
+`/private/tmp/eldiron-native-material-panel-tests-first.log`. It includes actual
+GPU UI composition without a root framebuffer, channel-map reuse, invalid target
+retention, unchanged project data during view preparation, actual device/registry
+replacement, hidden reopen/reset, exact authored bake/thumbnail pixels against
+the reference, retained native text/preedit scope cases and all 40 producer
+reference comparisons. Native-only Creator configuration compiles.
+
+Visibility review found that preparing a widget is insufficient evidence that a
+visible ancestor includes it in the root paint. Added backend-neutral
+`PaintOp::Receipt(FrameReceipt)` metadata and one shared non-reusing owner-ID
+allocator. It emits no GPU work. All three preview hosts place their token's
+receipt in the published local list, and NativeCreatorApplication filters
+acknowledgements against the actual assembled root paint before presentation.
+A hidden ancestor thus cannot promote unpainted geometry or playheads. The actual
+GPU receipt/scoped-opacity/clip test passes with identical pixels and draw stats
+(0.23 s, `/private/tmp/eldiron-painted-receipts-gpu-test.log`). The expanded
+paint-only contour ancestor/filter test and broader framework/Creator/reference
+gates still need running. These changes remain uncommitted.
+
+Next: inspect/fix the expanded receipt and material integration tests; verify
+selection-only changes submit no CPU display work, animation and target variants,
+pending-close/device behavior, actual native automatic bake publication and the
+common root/reference/build/dependency matrix. Then migrate CPU graph thumbnail
+production and remaining model/terrain/paint/appearance preview adapters; continue
+main Creator document/world/tool/HUD/Play ownership and full-goal gates.
+
+### Material integration verification and selected-domain correction
+
+The expanded actual panel update test passes (1.76 s,
+`/private/tmp/eldiron-native-material-autobake-and-display.log`): the injected
+asset worker publishes the exact authored tile/cache key, while channel and
+selection events submit no extra CPU worker jobs. The authored recipe stays
+unchanged and view preparation does not mutate the project. The real root paint
+contains the material receipt without allocating a root pixel buffer. The
+expanded geometry/actual-hidden-ancestor suite passes all 8 GPU cases (4.24 s,
+`/private/tmp/eldiron-native-painted-geometry-receipts.log`); the two appearance
+receipt/recovery cases pass (4.17 s,
+`/private/tmp/eldiron-native-material-panel-appearance-receipts.log`).
+
+Independent selected-output comparisons found a real domain regression: the
+operation/input helpers intentionally clear instance overrides, but the legacy
+worker still evaluates those transient sources using the root material's shifted
+preview domain. Native Request now accepts that domain explicitly, independently
+of the resolved transient asset. The host retains the root domain before source
+resolution. All **24 exact comparisons** pass across operation/source/input/
+material selection, three animation phases and tiled/continuous narrow/wide
+views (9.02 s, `/private/tmp/eldiron-native-material-selected-targets.log`).
+The complete native material filter passes **9 cases**, including these and the
+40 root producer comparisons (14.04 s,
+`/private/tmp/eldiron-native-material-panel-matrix-material-gpu.log`).
+
+Creator's full ordinary serial suite passes **573 passed, 0 failed, 93 ignored**
+(254.05 s, `/private/tmp/eldiron-native-material-panel-matrix-creator-ordinary.log`).
+That binary predates the added ignored selected-target case; the later native
+filter above includes it. The reference static-library configuration also passes.
+The broader framework/root/native binary/app/browser/iOS/dependency matrix is
+still running; do not infer those results from the ordinary suite. Next migrate
+GPU graph thumbnails, retaining explicit authored bakes and independent reference
+consumers. Full M0–M9 acceptance remains open.
+
+Before the local integration checkpoint, the matrix also passed all 8 common
+paint GPU tests (0.83 s), all 8 native geometry regressions, framework library
+and detached CAMetalLayer application tests, and the isolated actual native
+Creator root paint test. Logs use
+`/private/tmp/eldiron-native-material-panel-matrix-{paint-gpu,geometry-regression,framework,root-isolated}.log`.
+Native binary/application/web/iOS and dependency checks continue after this local
+checkpoint; no full platform or visual acceptance is implied.

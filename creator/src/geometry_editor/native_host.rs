@@ -2,16 +2,21 @@
 use super::*;
 use crate::geometry_editor::native_preview::{Frame as MeshFrame, NativePreview};
 use renderkit::{ImageHandle, ImageRegistry};
-use std::sync::{
-    Arc,
-    atomic::{AtomicU64, Ordering},
-};
-static NEXT_OWNER: AtomicU64 = AtomicU64::new(1);
+use std::sync::Arc;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct PreviewToken {
     owner: u64,
     serial: u64,
 }
+impl PreviewToken {
+    pub(crate) fn receipt(self) -> theframework::paint::FrameReceipt {
+        theframework::paint::FrameReceipt {
+            owner: self.owner,
+            serial: self.serial,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub(super) struct ContourRequest {
     pub epoch: u64,
@@ -84,7 +89,7 @@ impl Default for Host {
             baked: None,
             waiting: false,
             error: None,
-            owner: NEXT_OWNER.fetch_add(1, Ordering::Relaxed),
+            owner: theframework::paint::new_receipt_owner(),
             serial: 0,
             registry: None,
             producer: None,
@@ -326,6 +331,20 @@ impl GeometryEditor {
             (Frame::Mesh(frame), Some(image), Arc::new(paint), handles)
         };
         self.native.error = None;
+        self.native.serial = self
+            .native
+            .serial
+            .checked_add(1)
+            .expect("preview receipt space exhausted");
+        let token = PreviewToken {
+            owner: self.native.owner,
+            serial: self.native.serial,
+        };
+        let mut paint = (*paint).clone();
+        paint
+            .ops
+            .push(theframework::paint::PaintOp::Receipt(token.receipt()));
+        let paint = Arc::new(paint);
         let Some(view) = ui.get_widget(PREVIEW).and_then(|w| w.as_render_view()) else {
             if let Some(image) = image {
                 images.remove(image);
@@ -338,11 +357,6 @@ impl GeometryEditor {
             }
             return Err(error.to_string());
         }
-        self.native.serial += 1;
-        let token = PreviewToken {
-            owner: self.native.owner,
-            serial: self.native.serial,
-        };
         if let Some(old) = self.native.staged.replace(Published {
             token,
             frame,
@@ -712,6 +726,40 @@ mod tests {
             .prepare_gpu_preview(&mut ui, &mut ctx, &mut images)
             .unwrap()
             .unwrap();
+        assert_eq!(
+            gpu.transfers().uploaded_bytes,
+            0,
+            "profiles upload no source/viewport bitmaps"
+        );
+        // The real canvas traversal, not the controller's active flag, decides
+        // which receipts can be acknowledged after presenting the root list.
+        let mut cache = theframework::render_wgpu::UiImageCache::default();
+        let list = ui
+            .paint_commands(&mut ctx, &mut cache.frame(&mut images))
+            .unwrap();
+        assert!(list.receipts().any(|receipt| receipt == token.receipt()));
+        let mut tokens = crate::editor::native_views::NativeViewTokens {
+            geometry: Some(token),
+            appearance: None,
+            material: None,
+        };
+        tokens.retain_painted(&list);
+        assert_eq!(tokens.geometry, Some(token));
+        ui.get_stack_layout(super::super::layout::MAIN_STACK)
+            .unwrap()
+            .set_index(0);
+        let hidden = ui
+            .paint_commands(&mut ctx, &mut cache.frame(&mut images))
+            .unwrap();
+        tokens.retain_painted(&hidden);
+        assert!(
+            tokens.geometry.is_none(),
+            "a hidden ancestor must discard the unpainted receipt"
+        );
+        ui.get_stack_layout(super::super::layout::MAIN_STACK)
+            .unwrap()
+            .set_index(1);
+        ui.prepare_paint_layout(&mut ctx);
         assert!(
             editor.native.producer.is_none(),
             "contours allocate neither mesh targets nor material runtimes"
@@ -792,11 +840,7 @@ mod tests {
             .unwrap()
             .unwrap();
         assert!(editor.presented_gpu_preview(restored));
-        assert_eq!(
-            gpu.transfers().uploaded_bytes,
-            0,
-            "profiles upload no source/viewport bitmaps"
-        );
+
         let mut painter = PaintRenderer::new(gpu.clone()).unwrap();
         let output = GpuImage::new(
             &gpu,

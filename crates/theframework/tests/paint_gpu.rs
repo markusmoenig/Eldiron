@@ -740,3 +740,62 @@ fn threshold_images_reuse_sources_preserve_coverage_and_match_encoded_luminance_
         "threshold image obeys its outer clip"
     );
 }
+
+#[test]
+#[ignore = "requires native GPU"]
+fn paint_receipts_survive_scopes_without_changing_pixels_or_gpu_work() {
+    let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let images = ImageRegistry::new(gpu.clone());
+    let output = GpuImage::new(&gpu, ImageDescriptor::rgba(32, 32)).unwrap();
+    let mut painter = PaintRenderer::new(gpu.clone()).unwrap();
+    let a = FrameReceipt {
+        owner: new_receipt_owner(),
+        serial: 1,
+    };
+    let b = FrameReceipt {
+        owner: new_receipt_owner(),
+        serial: 1,
+    };
+    assert_ne!(a.owner, b.owner);
+    let mut list = PaintList::default();
+    list.ops
+        .push(PaintOp::PushClip(Rect::new(4., 4., 24., 24.)));
+    list.ops.push(PaintOp::Receipt(a));
+    list.rect(Rect::new(0., 0., 32., 32.), 0., [0.7, 0.2, 0.1, 1.]);
+    list.ops.push(PaintOp::PushOpacity(0.5));
+    list.ops.push(PaintOp::Receipt(b));
+    list.rect(Rect::new(8., 8., 20., 20.), 0., [0.1, 0.7, 0.2, 1.]);
+    list.ops.push(PaintOp::PopOpacity);
+    list.ops.push(PaintOp::PopClip);
+    list.validate().unwrap();
+    assert_eq!(list.receipts().collect::<Vec<_>>(), [a, b]);
+    let mut captures = Vec::new();
+    let mut draws = Vec::new();
+    for with_receipts in [true, false] {
+        if !with_receipts {
+            list.ops.retain(|op| !matches!(op, PaintOp::Receipt(_)));
+        }
+        painter
+            .render(
+                &list,
+                &images,
+                &output.view,
+                output.descriptor.format,
+                (32, 32),
+                1.,
+                [0.; 4],
+            )
+            .unwrap();
+        draws.push(painter.frame_stats());
+        let mut capture = ReadbackTicket::capture(&gpu, output.clone()).unwrap();
+        gpu.device
+            .poll(wgpu::PollType::Wait {
+                submission_index: None,
+                timeout: Some(std::time::Duration::from_secs(30)),
+            })
+            .unwrap();
+        captures.push(capture.try_finish(&gpu).unwrap().unwrap());
+    }
+    assert_eq!(captures[0].pixels(), captures[1].pixels());
+    assert_eq!(draws[0], draws[1]);
+}

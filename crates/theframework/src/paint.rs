@@ -210,8 +210,31 @@ pub struct DistanceField {
     pub background: Color,
     pub primitives: Arc<[DistancePrimitive]>,
 }
+/// CPU metadata identifying one application's immutable view contribution.
+/// A host may acknowledge it only after presenting the assembled list containing
+/// this marker. Renderers emit no GPU work for receipts.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct FrameReceipt {
+    pub owner: u64,
+    pub serial: u64,
+}
+pub fn new_receipt_owner() -> u64 {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static NEXT: AtomicU64 = AtomicU64::new(1);
+    let mut current = NEXT.load(Ordering::Relaxed);
+    loop {
+        let next = current
+            .checked_add(1)
+            .expect("paint receipt owner space exhausted");
+        match NEXT.compare_exchange_weak(current, next, Ordering::Relaxed, Ordering::Relaxed) {
+            Ok(_) => return current,
+            Err(actual) => current = actual,
+        }
+    }
+}
 #[derive(Clone, Debug)]
 pub enum PaintOp {
+    Receipt(FrameReceipt),
     /// Circular alpha dilation behind an image. Width is in local logical units;
     /// samples outside the supplied UV crop are transparent. The caller paints
     /// the image separately and clips the silhouette to its widget if required.
@@ -297,6 +320,12 @@ pub struct PaintList {
     pub ops: Vec<PaintOp>,
 }
 impl PaintList {
+    pub fn receipts(&self) -> impl Iterator<Item = FrameReceipt> + '_ {
+        self.ops.iter().filter_map(|op| match op {
+            PaintOp::Receipt(receipt) => Some(*receipt),
+            _ => None,
+        })
+    }
     pub fn rect(&mut self, rect: Rect, radius: f32, brush: impl Into<Brush>) {
         self.ops.push(PaintOp::Rect {
             rect,

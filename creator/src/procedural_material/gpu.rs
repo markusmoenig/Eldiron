@@ -155,13 +155,23 @@ impl ThumbnailCache {
 pub(super) struct Worker {
     jobs: mpsc::Sender<Job>,
     pub results: mpsc::Receiver<Completed>,
+    submitted: std::sync::atomic::AtomicU64,
 }
 impl Worker {
     pub fn new(device: wgpu::Device, queue: wgpu::Queue) -> Self {
+        Self::with_purpose(device, queue, false)
+    }
+    /// Native display has its own GPU outputs. This worker returns authored
+    /// tile/surface-page assets and the explicitly retained CPU graph thumbnails.
+    #[cfg(feature = "native-render")]
+    pub(super) fn new_asset_bakes(device: wgpu::Device, queue: wgpu::Queue) -> Self {
+        Self::with_purpose(device, queue, true)
+    }
+    fn with_purpose(device: wgpu::Device, queue: wgpu::Queue, asset_bakes: bool) -> Self {
         let (jobs, rx) = mpsc::channel::<Job>();
         let (tx, results) = mpsc::channel();
         std::thread::Builder::new()
-            .name("MaterialZ preview".into())
+            .name(if asset_bakes { "MaterialZ asset bake" } else { "MaterialZ preview" }.into())
             .spawn(move || {
                 let runtime =
                     pollster::block_on(MaterialZ::new(&device, &queue)).map_err(|e| e.to_string());
@@ -201,7 +211,7 @@ impl Worker {
                             );
                         }
                         let instance = compiled.as_ref().unwrap();
-                        let animation = animation_settings(&asset)?;
+                        let animation = super::preview_metadata::animation_settings(&asset)?;
                         let mut layout = super::composition::surface_pages::decode(&asset)?;
                         let root = asset.root.project.materials.iter().find(|m|m.id==asset.selected_material).ok_or("Missing material")?;
                         let repeat = (root.tiling.mode != denrim_materials::periodic::Mode::Raw).then_some(root.tiling.period);
@@ -260,29 +270,23 @@ impl Worker {
                             // Background bakes are never shown in the minimap.
                             // Keep them at bake resolution instead of shading a
                             // second 384px image for every tile during a batch.
-                            let size = if job.revision == 0 { tile_size } else { 384 };
+                            let size = if asset_bakes || job.revision == 0 { tile_size } else { 384 };
                             let span = if job.continuous {
                                 [2. * job.preview_aspect.max(0.1), 2.]
                             } else {
                                 [1., 1.]
                             };
-                            let maps = render_styled_domain_time(
-                                runtime,
-                                instance,
-                                &device,
-                                &queue,
-                                size,
-                                span,
-                                origin,
-                                job.pixels_per_tile,
-                                time,
-                            )?;
+                            let maps = if asset_bakes { single } else {
+                                render_styled_domain_time(
+                                    runtime,instance, &device, &queue, size, span, origin, job.pixels_per_tile, time,
+                                )?
+                            };
                             let mut warnings: Vec<_> = instance
                                 .diagnostics()
                                 .into_iter()
                                 .map(|d| d.message)
                                 .collect();
-                            let selection = if let Some(target) = &job.selection {
+                            let selection = if let Some(target) = job.selection.as_ref().filter(|_| !asset_bakes) {
                                 let selection_asset = match target {
                                     PreviewSelection::Operation(id) => super::operation_preview_asset(&asset, id),
                                     PreviewSelection::Source(id) => super::source_preview_asset(id),
@@ -468,45 +472,19 @@ impl Worker {
                 }
             })
             .expect("Material preview worker");
-        Self { jobs, results }
+        Self { jobs, results, submitted: std::sync::atomic::AtomicU64::new(0) }
     }
     pub fn send(&self, job: Job) {
-        let _ = self.jobs.send(job);
+        if self.jobs.send(job).is_ok() {
+            self.submitted.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        }
+    }
+    #[cfg(test)]
+    pub(super) fn submitted_jobs(&self) -> u64 {
+        self.submitted.load(std::sync::atomic::Ordering::Relaxed)
     }
 }
 
-fn animation_settings(
-    asset: &EditableMaterialAsset,
-) -> Result<denrim_materials::format::Animation, String> {
-    let document = asset
-        .resolved(&InstanceRecord::new("animation-metadata"))
-        .map_err(|e| e.to_string())?;
-    let mut result = denrim_materials::format::Animation::default();
-    let mut pending = vec![asset.selected_material.clone()];
-    let mut visited = HashSet::new();
-    while let Some(id) = pending.pop() {
-        if !visited.insert(id.clone()) {
-            continue;
-        }
-        let material = document
-            .materials
-            .iter()
-            .find(|m| m.id == id)
-            .ok_or("Animation source is missing")?;
-        let animation = material.animation.validate().map_err(|e| e.to_string())?;
-        if animation.frames > 1 {
-            if result.frames > 1 && result.frames != animation.frames {
-                return Err("Animated composition sources must share frame count".into());
-            }
-            result = animation;
-        }
-        if let Some(mix) = &material.mixing {
-            pending.extend(mix.inputs.iter().flatten().cloned());
-            pending.extend(mix.mask_material.iter().cloned());
-        }
-    }
-    Ok(result)
-}
 
 type Maps = [Vec<[f32; 4]>; 5];
 #[cfg(test)]

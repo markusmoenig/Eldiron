@@ -130,7 +130,11 @@ impl UiApplication for NativeCreatorApplication {
             .editor
             .prepare_native_views(&mut ui.ui, &mut ui.context, images.registry)
             .map_err(RenderError)?;
-        ui.paint(images).map_err(|e| RenderError(e.to_string()))
+        let list = ui.paint(images).map_err(|e| RenderError(e.to_string()))?;
+        if let Some(tokens) = &mut self.pending {
+            tokens.retain_painted(&list);
+        }
+        Ok(list)
     }
     fn presented(&mut self, ui: &mut UiSession) {
         if let Some(token) = self.pending.take() {

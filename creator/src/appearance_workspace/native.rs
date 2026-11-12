@@ -2,14 +2,21 @@
 use super::*;
 use renderkit::{GpuContext, GpuImage, ImageHandle, ImageRegistry};
 use scenevm::{SceneVM, render_output::SceneRenderTarget};
-use std::sync::atomic::{AtomicU64, Ordering};
-static NEXT_OWNER: AtomicU64 = AtomicU64::new(1);
 const TARGET_BYTES: u64 = 128 * 1024 * 1024;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct PreviewToken {
     owner: u64,
     serial: u64,
 }
+impl PreviewToken {
+    pub(crate) fn receipt(self) -> theframework::paint::FrameReceipt {
+        theframework::paint::FrameReceipt {
+            owner: self.owner,
+            serial: self.serial,
+        }
+    }
+}
+
 struct Frame {
     image: Arc<GpuImage>,
     phase: f32,
@@ -165,7 +172,7 @@ impl Default for Host {
     fn default() -> Self {
         Self {
             enabled: false,
-            owner: NEXT_OWNER.fetch_add(1, Ordering::Relaxed),
+            owner: theframework::paint::new_receipt_owner(),
             serial: 0,
             request_serial: 0,
             latest: None,
@@ -369,6 +376,17 @@ impl AppearanceWorkspace {
             ),
             theframework::paint::Sampling::Nearest,
         );
+        self.native.serial = self
+            .native
+            .serial
+            .checked_add(1)
+            .expect("preview receipt space exhausted");
+        let token = PreviewToken {
+            owner: self.native.owner,
+            serial: self.native.serial,
+        };
+        list.ops
+            .push(theframework::paint::PaintOp::Receipt(token.receipt()));
         let Some(view) = ui.get_render_view(VIEW) else {
             images.remove(image);
             return Ok(None);
@@ -377,11 +395,6 @@ impl AppearanceWorkspace {
             images.remove(image);
             return Err(error.to_string());
         }
-        self.native.serial += 1;
-        let token = PreviewToken {
-            owner: self.native.owner,
-            serial: self.native.serial,
-        };
         if let Some(old) = self.native.staged.replace(Published {
             token,
             image,

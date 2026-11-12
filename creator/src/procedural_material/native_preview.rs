@@ -13,6 +13,8 @@ const TARGET_BYTES: u64 = 128 * 1024 * 1024;
 pub(super) struct Request {
     pub asset: Arc<EditableMaterialAsset>,
     pub time: f32,
+    /// The root material owns the preview domain, including transient selections.
+    pub origin: Option<[f32; 2]>,
     pub pixels: u32,
     pub continuous: bool,
     /// Runtime map order: Color/Opacity/Roughness/Metallic/Emission.
@@ -246,12 +248,14 @@ impl Preview {
         } else {
             [1.; 2]
         };
-        let origin = request
-            .asset
-            .instances
-            .iter()
-            .find(|r| r.id == super::composition::SURFACE_DOMAIN)
-            .map_or([-0.5; 2], |r| [r.uv_transform[4], r.uv_transform[5]]);
+        let origin = request.origin.unwrap_or_else(|| {
+            request
+                .asset
+                .instances
+                .iter()
+                .find(|r| r.id == super::composition::SURFACE_DOMAIN)
+                .map_or([-0.5; 2], |r| [r.uv_transform[4], r.uv_transform[5]])
+        });
         if origin.iter().chain(&span).any(|v| !v.is_finite()) {
             return Err("Invalid material preview domain".into());
         }
@@ -526,6 +530,7 @@ material "m" called "Native maps"
         let mut request = Request {
             asset,
             time: 0.,
+            origin: None,
             pixels: 16,
             continuous: false,
             channel: 0,
