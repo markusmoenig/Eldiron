@@ -1,5 +1,7 @@
 //! Application-owned view sessions around the shared CPU authoring workspace.
 //! No renderer, window, Project clone or raster/font cache is created here.
+#[path = "native_commands.rs"]
+mod commands;
 #[path = "native_history.rs"]
 mod history;
 use super::native_view::NativeNodePanels;
@@ -19,6 +21,7 @@ pub(super) struct NativeNodeSourceView {
     revision: u64,
     pub session: GraphId,
     history: history::SourceHistory,
+    command_error: Option<String>,
 }
 #[derive(Default)]
 pub(super) struct NativeNodesWorkspace {
@@ -206,41 +209,7 @@ impl NativeNodesWorkspace {
                     .unwrap()
                     .replace_document("retired-source", GraphDocument::default());
             }
-            let mut model = GraphViewState::new(model_owner(&key), document);
-            let shown = if key.kind() == NodeGraphKind::Configuration {
-                graph_branches(model.document(), &definitions)
-                    .branches
-                    .first()
-                    .map(|branch| branch.root)
-            } else {
-                key.branch
-            };
-            let visible = if key.kind() == NodeGraphKind::Configuration {
-                let branches = graph_branches(model.document(), &definitions);
-                shown.and_then(|root| branches.branch(root).map(|branch| branch.nodes.clone()))
-            } else {
-                None
-            };
-            model.edit(|_, editor| {
-                *editor = node_editor();
-                editor.set_visible(visible);
-            });
-            self.cpu
-                .bind(&key, model.binding())
-                .map_err(|error| error.to_string())?;
-            self.views.insert(
-                key.clone(),
-                NativeNodeSourceView {
-                    model: Arc::new(Mutex::new(model)),
-                    panels: Arc::new(Mutex::new(NativeNodePanels::default())),
-                    id: TheId::named(VIEW),
-                    context,
-                    shown,
-                    revision,
-                    session: GraphId::new_v4(),
-                    history: history::SourceHistory::default(),
-                },
-            );
+            self.install_view(&key, document, &definitions, context, revision)?;
         } else {
             let view = &self.views[&key];
             let mut model = view.model.lock().unwrap();
@@ -258,6 +227,52 @@ impl NativeNodesWorkspace {
         self.selected.insert(owner, chosen);
         self.refresh_errors();
         Ok(Some(key))
+    }
+    fn install_view(
+        &mut self,
+        key: &NodeSourceKey,
+        document: GraphDocument,
+        definitions: &GraphDefinitions,
+        context: ProjectContext,
+        revision: u64,
+    ) -> Result<(), String> {
+        let mut model = GraphViewState::new(model_owner(key), document);
+        let shown = if key.kind() == NodeGraphKind::Configuration {
+            graph_branches(model.document(), &definitions)
+                .branches
+                .first()
+                .map(|branch| branch.root)
+        } else {
+            key.branch
+        };
+        let visible = if key.kind() == NodeGraphKind::Configuration {
+            let branches = graph_branches(model.document(), &definitions);
+            shown.and_then(|root| branches.branch(root).map(|branch| branch.nodes.clone()))
+        } else {
+            None
+        };
+        model.edit(|_, editor| {
+            *editor = node_editor();
+            editor.set_visible(visible);
+        });
+        self.cpu
+            .bind(key, model.binding())
+            .map_err(|error| error.to_string())?;
+        self.views.insert(
+            key.clone(),
+            NativeNodeSourceView {
+                model: Arc::new(Mutex::new(model)),
+                panels: Arc::new(Mutex::new(NativeNodePanels::default())),
+                id: TheId::named(VIEW),
+                context,
+                shown,
+                revision,
+                session: GraphId::new_v4(),
+                history: history::SourceHistory::default(),
+                command_error: None,
+            },
+        );
+        Ok(())
     }
     fn show_configuration_branch(
         &mut self,
@@ -289,12 +304,16 @@ impl NativeNodesWorkspace {
     }
     fn refresh_errors(&mut self) {
         for (key, view) in &self.views {
-            let error = self.cpu.source(key).and_then(|source| {
-                source
-                    .error()
-                    .map(ToString::to_string)
-                    .or_else(|| source.validation().map(str::to_owned))
-            });
+            let error = self
+                .cpu
+                .source(key)
+                .and_then(|source| {
+                    source
+                        .error()
+                        .map(ToString::to_string)
+                        .or_else(|| source.validation().map(str::to_owned))
+                })
+                .or_else(|| view.command_error.clone());
             let mut model = view.model.lock().unwrap();
             if model.editor().error != error {
                 model.edit(|_, editor| editor.error = error);
@@ -352,6 +371,7 @@ impl NativeNodesWorkspace {
                 Ok(outcome) => {
                     if let Some(change) = outcome.change {
                         if let Some(view) = self.views.get_mut(&key) {
+                            view.command_error = None;
                             view.history.record(
                                 shared::graph_authoring::NodeSourceTransaction::from_change(
                                     &change,
@@ -1088,6 +1108,7 @@ mod tests {
                 revision,
                 session,
                 history: history::SourceHistory::default(),
+                command_error: None,
             },
         );
         let before = serde_json::to_value(&f.project).unwrap();

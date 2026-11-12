@@ -4,6 +4,8 @@ mod entity;
 mod list;
 mod live;
 #[cfg(feature = "native-ui")]
+mod native_adapter;
+#[cfg(feature = "native-ui")]
 mod native_images;
 #[cfg(feature = "native-ui")]
 mod native_picker;
@@ -56,6 +58,18 @@ struct History {
 
 /// Creator adapter. Graph drawing, input, schemas and storage remain independent.
 pub struct NodesDock {
+    #[cfg(feature = "native-ui")]
+    native: native_workspace::NativeNodesWorkspace,
+    #[cfg(feature = "native-ui")]
+    native_enabled: bool,
+    #[cfg(feature = "native-ui")]
+    native_blank: Option<native_adapter::BlankView>,
+    #[cfg(feature = "native-ui")]
+    native_prepared: std::collections::HashSet<(GraphId, Option<GraphId>)>,
+    #[cfg(feature = "native-ui")]
+    native_fit_pending: bool,
+    #[cfg(feature = "native-ui")]
+    native_toolbar_scope: Option<(GraphId, Option<GraphId>)>,
     doc: GraphDocument,
     editor: GraphEditor,
     definitions: GraphDefinitions,
@@ -218,6 +232,11 @@ impl NodesDock {
         GraphRasterResources::new(font)
     }
     fn render(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+        #[cfg(feature = "native-ui")]
+        if ctx.ui.command_paint {
+            self.render_native(ui, ctx);
+            return;
+        }
         self.apply_branch_filter();
         self.update_particle_preview();
         let theme = ui.style.theme();
@@ -1149,6 +1168,18 @@ impl NodesDock {
 impl Dock for NodesDock {
     fn new() -> Self {
         Self {
+            #[cfg(feature = "native-ui")]
+            native: Default::default(),
+            #[cfg(feature = "native-ui")]
+            native_enabled: false,
+            #[cfg(feature = "native-ui")]
+            native_blank: None,
+            #[cfg(feature = "native-ui")]
+            native_prepared: Default::default(),
+            #[cfg(feature = "native-ui")]
+            native_fit_pending: false,
+            #[cfg(feature = "native-ui")]
+            native_toolbar_scope: None,
             doc: GraphDocument::default(),
             committed: GraphDocument::default(),
             editor: node_editor(),
@@ -1179,10 +1210,17 @@ impl Dock for NodesDock {
             particle_preview_updated: None,
         }
     }
-    fn setup(&mut self, _: &mut TheContext) -> TheCanvas {
+    fn setup(&mut self, ctx: &mut TheContext) -> TheCanvas {
         let mut canvas = TheCanvas::new();
         canvas.set_top(Self::graph_toolbar());
         canvas.set_left(branch_list_canvas());
+        #[cfg(feature = "native-ui")]
+        if ctx.ui.command_paint {
+            let (id, model, panels) = self.blank_native_view();
+            canvas.set_widget(native_view::NativeNodesView::with_state(id, model, panels));
+            return canvas;
+        }
+        let _ = ctx;
         let mut view = TheRenderView::new(TheId::named(VIEW));
         // A graph canvas needs equal sensitivity on both axes, independent of
         // the dock's aspect ratio. The shared widget keeps its existing defaults.
@@ -1200,6 +1238,11 @@ impl Dock for NodesDock {
         project: &Project,
         server: &mut ServerContext,
     ) {
+        #[cfg(feature = "native-ui")]
+        if ctx.ui.command_paint {
+            self.activate_native(ui, ctx, project, server.pc, None);
+            return;
+        }
         sync_node_list(ui, ctx, server.pc);
         if let Some(layout) = ui.get_hlayout("Node Graph Actions") {
             Self::populate_toolbar(layout, server.pc == ProjectContext::GameRules);
@@ -1326,6 +1369,14 @@ impl Dock for NodesDock {
         project: &mut Project,
         server: &mut ServerContext,
     ) -> bool {
+        #[cfg(feature = "native-ui")]
+        if self.native_enabled {
+            if self.refresh_live(project, server) {
+                self.render_native(ui, ctx);
+                return true;
+            }
+            return false;
+        }
         if self.is_rules() {
             if self
                 .doc
@@ -1358,12 +1409,37 @@ impl Dock for NodesDock {
         true
     }
     fn has_changes(&self) -> bool {
+        #[cfg(feature = "native-ui")]
+        if self.native_enabled {
+            return self.dirty || self.native.has_pending();
+        }
         self.dirty
+    }
+    fn commit_pending_edits(
+        &mut self,
+        ctx: &mut TheContext,
+        project: &mut Project,
+    ) -> Result<bool, String> {
+        #[cfg(feature = "native-ui")]
+        if self.native_enabled {
+            return self.commit_native(ctx, project);
+        }
+        let _ = (ctx, project);
+        Ok(false)
     }
     fn mark_saved(&mut self) {
         self.dirty = false;
     }
     fn reset_for_project_switch(&mut self) {
+        #[cfg(feature = "native-ui")]
+        {
+            self.native.reset();
+            self.native_enabled = false;
+            self.native_blank = None;
+            self.native_prepared.clear();
+            self.native_fit_pending = false;
+            self.native_toolbar_scope = None;
+        }
         self.rules_error = None;
         self.configuration_error = None;
         self.branch_filter.clear();
@@ -1389,6 +1465,21 @@ impl Dock for NodesDock {
         self.dirty = false;
     }
     fn set_undo_state_to_ui(&self, ctx: &mut TheContext) {
+        #[cfg(feature = "native-ui")]
+        if self.native_enabled {
+            let key = self.native.active.as_ref();
+            if key.is_some_and(|key| self.native.can_undo(key)) {
+                ctx.ui.set_enabled("Undo");
+            } else {
+                ctx.ui.set_disabled("Undo");
+            }
+            if key.is_some_and(|key| self.native.can_redo(key)) {
+                ctx.ui.set_enabled("Redo");
+            } else {
+                ctx.ui.set_disabled("Redo");
+            }
+            return;
+        }
         let h = self
             .history_key()
             .as_ref()
@@ -1411,6 +1502,11 @@ impl Dock for NodesDock {
         project: &mut Project,
         _: &mut ServerContext,
     ) {
+        #[cfg(feature = "native-ui")]
+        if self.native_enabled {
+            self.history_native(false, ui, ctx, project);
+            return;
+        }
         self.finish(project);
         self.configuration_error = None;
         let key = self.history_key();
@@ -1436,6 +1532,11 @@ impl Dock for NodesDock {
         project: &mut Project,
         _: &mut ServerContext,
     ) {
+        #[cfg(feature = "native-ui")]
+        if self.native_enabled {
+            self.history_native(true, ui, ctx, project);
+            return;
+        }
         self.finish(project);
         self.configuration_error = None;
         let key = self.history_key();
@@ -1462,6 +1563,10 @@ impl Dock for NodesDock {
         project: &mut Project,
         server: &mut ServerContext,
     ) -> bool {
+        #[cfg(feature = "native-ui")]
+        if self.native_enabled {
+            return self.native_event(event, ui, ctx, project);
+        }
         if let TheEvent::Custom(id, _) = event
             && id.name == "Creator Theme Changed"
         {

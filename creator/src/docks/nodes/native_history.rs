@@ -29,7 +29,7 @@ impl NativeNodesWorkspace {
     }
     /// End only the command's source input/gesture. Independent invalid drafts
     /// are reported by Save without preventing this valid source's command.
-    fn flush_command(
+    pub fn prepare_source_command(
         &mut self,
         project: &mut Project,
         key: &NodeSourceKey,
@@ -108,6 +108,7 @@ impl NativeNodesWorkspace {
             .map_err(|error| error.to_string())?;
         view.model = Arc::new(Mutex::new(model));
         view.panels = Arc::new(Mutex::new(NativeNodePanels::default()));
+        view.command_error = None;
         view.revision = revision;
         view.id = TheId::named(VIEW);
         self.views.insert(to.clone(), view);
@@ -131,7 +132,7 @@ impl NativeNodesWorkspace {
     where
         F: FnOnce(&mut GraphDocument, &GraphDefinitions) -> Result<NodeSourceKey, String>,
     {
-        self.flush_command(project, key, fonts)?;
+        self.prepare_source_command(project, key, fonts)?;
         let definitions = source_definitions(project, key);
         let before = self.cpu.source(key).unwrap().document().clone();
         let mut document = before.clone();
@@ -181,7 +182,7 @@ impl NativeNodesWorkspace {
         fonts: &mut TextSystem,
         forward: bool,
     ) -> Result<bool, String> {
-        self.flush_command(project, key, fonts)?;
+        self.prepare_source_command(project, key, fonts)?;
         let history = &self.views[key].history;
         let Some(mut transaction) = (if forward {
             history.redo.last()

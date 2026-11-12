@@ -32,6 +32,9 @@ pub(super) struct NativeNodePanels {
     error: Option<String>,
 }
 impl NativeNodePanels {
+    pub(super) fn is_open(&self) -> bool {
+        self.panel.is_some()
+    }
     pub(super) fn has_changes(&self) -> bool {
         match &self.panel {
             Some(Panel::Text(draft)) => draft.has_changes(),
@@ -335,6 +338,9 @@ impl NativeNodesView {
             editor_click: None,
         }
     }
+    pub(super) fn model(&self) -> Arc<Mutex<GraphViewState>> {
+        self.graph.model()
+    }
     pub(super) fn set_assets(&mut self, assets: tiles::TileControls) {
         self.graph.set_controls(assets.clone());
         self.assets = assets;
@@ -564,7 +570,7 @@ impl TheWidget for NativeNodesView {
         }
     }
     fn supports_undo_redo(&mut self) -> bool {
-        self.supports_text_input()
+        !self.is_panel() || self.supports_text_input()
     }
     fn supports_clipboard(&mut self) -> bool {
         self.supports_text_input()
@@ -925,7 +931,11 @@ impl TheWidget for NativeNodesView {
                 }
             }
         }
-        self.graph.on_event(event, ctx)
+        let changed = self.graph.on_event(event, ctx);
+        if matches!(event, TheEvent::MouseDown(_) | TheEvent::LostFocus(_)) {
+            self.active = ctx.ui.has_focus(self.id());
+        }
+        changed
     }
     fn draw(&mut self, _: &mut TheRGBABuffer, _: &mut Box<dyn TheStyle>, _: &mut TheContext) {
         panic!("NativeNodesView requires command painting");

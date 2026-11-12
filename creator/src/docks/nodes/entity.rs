@@ -119,6 +119,68 @@ pub(super) fn help(id: &str) -> String {
         _ => fl!("entity_configuration_help"),
     }
 }
+/// Pure domain edit shared by the reference and native adapters. The caller
+/// resolves a stable target before checkpointing input; no screen transform or
+/// Project mutation is needed to validate and construct the equipment row.
+pub(super) fn apply_equipment_item(
+    document: &mut GraphDocument,
+    project: &Project,
+    owner: &str,
+    target: GraphId,
+    item: Uuid,
+) -> Result<bool, String> {
+    if !owner.starts_with("entity/character/") || !project.items.contains_key(&item) {
+        return Ok(false);
+    }
+    let rules = project
+        .rules_source()?
+        .parse::<shared::entity_graph::RulesTable>()
+        .map_err(|e| e.to_string())?;
+    let data = shared::entity_graph::project_data(
+        document,
+        shared::entity_graph::owner_data(project, owner).unwrap_or(""),
+        &rules,
+    )?;
+    let catalog = shared::equipment::EquipmentCatalog::new(project)?;
+    let Some(row) = document
+        .nodes
+        .iter_mut()
+        .find(|n| n.id == target)
+        .and_then(|n| {
+            n.rows
+                .iter_mut()
+                .find(|r| r.key.as_deref() == Some("start_equipped_items"))
+        })
+    else {
+        return Ok(false);
+    };
+    let GraphControlValue::List { rows, row_ids, .. } = &mut row.value else {
+        return Ok(false);
+    };
+    let existing = rows
+        .iter()
+        .map(|r| {
+            r.first()
+                .map(|v| match v {
+                    GraphControlValue::Text(s) => s.clone(),
+                    _ => String::new(),
+                })
+                .unwrap_or_default()
+        })
+        .collect::<Vec<_>>();
+    let next = catalog.replace_for_drop(&data, &existing, item)?;
+    if next != existing {
+        *rows = next
+            .into_iter()
+            .map(|s| vec![GraphControlValue::Text(s)])
+            .collect();
+        row_ids.truncate(rows.len());
+        while row_ids.len() < rows.len() {
+            row_ids.push(Uuid::new_v4());
+        }
+    }
+    Ok(true)
+}
 impl NodesDock {
     pub(super) fn is_configuration(&self) -> bool {
         self.owner
@@ -156,54 +218,14 @@ impl NodesDock {
             return Ok(false);
         };
         self.finish(project);
-        let rules = project
-            .rules_source()?
-            .parse::<shared::entity_graph::RulesTable>()
-            .map_err(|e| e.to_string())?;
-        let owner = self.owner.as_deref().unwrap();
-        let data = shared::entity_graph::project_data(
-            &self.doc,
-            shared::entity_graph::owner_data(project, owner).unwrap_or(""),
-            &rules,
-        )?;
-        let catalog = shared::equipment::EquipmentCatalog::new(project)?;
-        let Some(row) = self
-            .doc
-            .nodes
-            .iter_mut()
-            .find(|n| n.id == target)
-            .and_then(|n| {
-                n.rows
-                    .iter_mut()
-                    .find(|r| r.key.as_deref() == Some("start_equipped_items"))
-            })
-        else {
+        if !apply_equipment_item(
+            &mut self.doc,
+            project,
+            self.owner.as_deref().unwrap(),
+            target,
+            drop.id.references,
+        )? {
             return Ok(false);
-        };
-        let GraphControlValue::List { rows, row_ids, .. } = &mut row.value else {
-            return Ok(false);
-        };
-        let existing = rows
-            .iter()
-            .map(|r| {
-                r.first()
-                    .map(|v| match v {
-                        GraphControlValue::Text(s) => s.clone(),
-                        _ => String::new(),
-                    })
-                    .unwrap_or_default()
-            })
-            .collect::<Vec<_>>();
-        let next = catalog.replace_for_drop(&data, &existing, drop.id.references)?;
-        if next != existing {
-            *rows = next
-                .into_iter()
-                .map(|s| vec![GraphControlValue::Text(s)])
-                .collect();
-            row_ids.truncate(rows.len());
-            while row_ids.len() < rows.len() {
-                row_ids.push(Uuid::new_v4());
-            }
         }
         self.configuration_error = None;
         self.editor.selected = Some(target);
