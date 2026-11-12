@@ -138,7 +138,9 @@ pub struct Assets {
     pub atlas: Texture,
 
     pub fonts: FxHashMap<String, fontdue::Font>,
-    pub audio: FxHashMap<String, Vec<u8>>,
+    /// Immutable source publication; CPU jobs retain bytes without copying a
+    /// whole recording from input/update or cloning it into region workers.
+    pub audio: FxHashMap<String, Arc<[u8]>>,
     /// Project palette shared by world art, avatars, items and game UI.
     pub palette: ThePalette,
     /// Palette-fitted runtime copies of canonical ruleset tile artwork.
@@ -764,7 +766,7 @@ impl Assets {
                                 if let Some(base_name) =
                                     file_path.file_stem().and_then(|stem| stem.to_str())
                                 {
-                                    self.audio.insert(base_name.to_string(), bytes);
+                                    self.audio.insert(base_name.to_string(), bytes.into());
                                 }
                             }
                         }
@@ -831,12 +833,12 @@ mod tests {
         let map = Map::default();
         let map_id = map.id;
         assets.maps.insert("Britannia".into(), map);
-        assets.audio.insert("Song".into(), vec![1, 2, 3]);
+        assets.audio.insert("Song".into(), vec![1, 2, 3].into());
         let snapshot = RegionAssets::for_regions(&mut assets);
         assert!(snapshot.maps.is_empty());
         assert!(snapshot.audio.is_empty());
         assert_eq!(assets.maps["Britannia"].id, map_id);
-        assert_eq!(assets.audio["Song"], vec![1, 2, 3]);
+        assert_eq!(assets.audio["Song"].as_ref(), &[1, 2, 3]);
     }
 
     #[test]

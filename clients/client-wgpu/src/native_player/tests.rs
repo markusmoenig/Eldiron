@@ -36,7 +36,12 @@ impl AudioDevice for RecordedAudio {
         self.0.lock().unwrap().suspensions.push(value);
         Ok(())
     }
-    fn load(&mut self, name: &str, _: &[u8], _: usize) -> std::result::Result<(), AudioError> {
+    fn install(
+        &mut self,
+        name: &str,
+        _: &rusterix::audio::PreparedClip,
+        _: usize,
+    ) -> std::result::Result<(), AudioError> {
         self.0.lock().unwrap().loads.push(name.into());
         Ok(())
     }
@@ -155,10 +160,14 @@ fn assembled_player_keeps_runtime_edits_and_clock_across_gpu_replacement() {
     let observed = Arc::new(Mutex::new(Observation::default()));
     let audio_trace = Arc::new(Mutex::new(AudioObservation::default()));
     let factory = audio_trace.clone();
-    let audio = AudioOutput::new(AudioLimits::default(), move || {
-        factory.lock().unwrap().created += 1;
-        Ok(RecordedAudio(factory.clone()))
-    });
+    let audio = AudioOutput::with_preparer(
+        AudioLimits::default(),
+        move || {
+            factory.lock().unwrap().created += 1;
+            Ok(RecordedAudio(factory.clone()))
+        },
+        Box::new(rusterix::audio::preparation::InlinePreparation::default()),
+    );
     let mut project = starter_with_menu();
     project
         .audio_fx

@@ -1366,11 +1366,15 @@ pub fn sync_item_icons(assets: &mut rusterix::Assets, project: &Project) {
 /// Publish authored audio bytes and FX source without creating a device,
 /// decoding clips or initializing the graphical client/font registry.
 pub fn sync_audio_sources(assets: &mut rusterix::Assets, project: &Project) {
-    assets.audio.clear();
+    let mut previous = std::mem::take(&mut assets.audio);
     assets.audio_fx_src = project.audio_fx.clone();
     for asset in project.assets.values() {
         if let crate::asset::AssetBuffer::Audio(bytes) = &asset.buffer {
-            assets.audio.insert(asset.name.clone(), bytes.clone());
+            let source = previous
+                .remove(&asset.name)
+                .filter(|old| old.as_ref() == bytes.as_slice())
+                .unwrap_or_else(|| bytes.as_slice().into());
+            assets.audio.insert(asset.name.clone(), source);
         }
     }
 }
@@ -1399,11 +1403,21 @@ mod audio_source_tests {
         let before = serde_json::to_value(&project).unwrap();
         let mut assets = rusterix::Assets::default();
         sync_audio_sources(&mut assets, &project);
-        assert_eq!(assets.audio["Song"], b"RIFF original bytes");
-        assert_eq!(assets.audio["Ogg"], b"OggS original bytes");
+        assert_eq!(assets.audio["Song"].as_ref(), b"RIFF original bytes");
+        assert_eq!(assets.audio["Ogg"].as_ref(), b"OggS original bytes");
         assert_eq!(assets.audio_fx_src, project.audio_fx);
         assert!(assets.fonts.is_empty());
         assert_eq!(serde_json::to_value(&project).unwrap(), before);
+        let published = assets.audio["Song"].clone();
+        sync_audio_sources(&mut assets, &project);
+        assert!(
+            std::sync::Arc::ptr_eq(&published, &assets.audio["Song"]),
+            "unchanged publication must retain immutable source storage"
+        );
+        assert!(std::sync::Arc::ptr_eq(
+            &published,
+            &assets.clone().audio["Song"]
+        ));
         project.assets.shift_remove(&sound_id);
         sync_audio_sources(&mut assets, &project);
         assert!(!assets.audio.contains_key("Song"));

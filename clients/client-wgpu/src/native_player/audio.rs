@@ -45,6 +45,13 @@ impl<S: PlayerServices, D: AudioDevice> PlayerServices for AudioServices<S, D> {
         self.audio.set_suspended(suspended);
         self.inner.set_suspended(suspended);
     }
+    fn wake_after(&self) -> Option<Duration> {
+        self.audio
+            .wake_after()
+            .into_iter()
+            .chain(self.inner.wake_after())
+            .min()
+    }
     fn region_events(&mut self, region: Uuid, world: &RuntimeView<'_>, events: RegionOutputs<'_>) {
         if world.state != ServerState::Off {
             self.audio

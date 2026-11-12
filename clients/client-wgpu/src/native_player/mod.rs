@@ -1,6 +1,7 @@
 //! Common graphical player application for native windows, foreign layers and
 //! Creator Play. Runtime, CPU screen state and GPU resources have distinct owners.
 mod audio;
+mod timing;
 mod viewport;
 use crate::player_session::PlayerSession;
 pub use audio::AudioServices;
@@ -32,6 +33,9 @@ pub trait PlayerServices {
     fn update(&mut self, _world: &RuntimeView<'_>, _revision: u64, _elapsed: Duration) {}
     fn user_gesture(&mut self, _world: &RuntimeView<'_>, _revision: u64) {}
     fn set_suspended(&mut self, _suspended: bool) {}
+    fn wake_after(&self) -> Option<Duration> {
+        None
+    }
     fn region_events(&mut self, region: Uuid, world: &RuntimeView<'_>, events: RegionOutputs<'_>);
     fn screen_effect(
         &mut self,
@@ -63,6 +67,7 @@ pub struct PlayerApplication {
     viewport: ScreenViewport,
     revision: ContentRevision,
     visual_elapsed: Duration,
+    frames: timing::FrameSchedule,
     frame_count: u64,
     modifiers: Modifiers,
     control_capture: Option<ScreenCapture>,
@@ -128,6 +133,7 @@ impl PlayerApplication {
             ),
             revision: ContentRevision(1),
             visual_elapsed: Duration::ZERO,
+            frames: timing::FrameSchedule::default(),
             frame_count: 0,
             modifiers: Modifiers::default(),
             control_capture: None,
@@ -486,7 +492,11 @@ impl GpuApplication for PlayerApplication {
         if self.suspended {
             FrameRequest::idle()
         } else {
-            FrameRequest::continuous(self.player.settings.target_fps)
+            self.frames.request(
+                self.visual_elapsed,
+                self.player.settings.target_fps,
+                self.services.wake_after(),
+            )
         }
     }
     fn frame(&mut self, host: &mut HostContext, images: &mut ImageRegistry) -> Result<PaintList> {
