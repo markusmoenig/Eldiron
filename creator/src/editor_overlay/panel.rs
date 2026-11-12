@@ -176,6 +176,19 @@ impl<S: PartialEq, A: Clone> PanelFrames<S, A> {
             && receipts.contains(&frame.receipt())
             && self.acknowledge_reference(frame, scope, size, state)
     }
+    pub(crate) fn is_presented_frame(&self, frame: &PanelFrame<S, A>) -> bool {
+        frame.owner == self.owner
+            && frame.serial == self.last_presented
+            && self
+                .displayed
+                .as_ref()
+                .is_some_and(|(source, _, _)| Arc::ptr_eq(source, &frame.source))
+    }
+    pub(crate) fn input_current(&self, scope: PanelScope, size: (usize, usize), state: &S) -> bool {
+        self.displayed.as_ref().is_some_and(|(source, _, _)| {
+            source.scope == scope && source.size == size && &source.state == state
+        })
+    }
     pub(crate) fn hit_test(
         &self,
         scope: PanelScope,

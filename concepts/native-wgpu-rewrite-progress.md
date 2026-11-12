@@ -25,7 +25,7 @@ Started: 2026-11-11 (Asia/Bangkok). Overall Goal: active; full M0–M9 scope rem
 - M2: in progress. Paint/Swash/Parley pipeline and native/foreign hosts work; batching, resource lifetime budgets and full text/input parity remain.
 - M3: in progress. Every active built-in TheWidget implementation now has a command paint path, including procedural controls and the legacy node canvas. Complex Creator integration, full widget catalog parity and legacy adapter retirement remain.
 - M4: in progress. CPU schema/identity extraction, shared `GameSession`, CPU startup preparation, message/party/world-target policies and terminal adoption are implemented and tested. Per-session routing, local players, world values, runtime IDs and region context ownership now pass controlled overlapping-session and parallel assembled-player regressions. Graphical/Creator adoption and remaining bitmap/value data extraction remain; this evidence does not establish full simultaneous Creator Play workflows.
-- M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Immutable ordinary editor-view preparation, exact reference/native view outputs and retained CPU chunk publication are now available through SceneViews. Common HUD and paint/props panels now have retained command frames, guarded actions and actual GPU composition/reconstruction evidence; main viewport adoption remains pending. Application/global/document/Play ownership, main world/tool/HUD integration, remaining producers, full visual/workflow/performance acceptance and canonical retirement remain.
+- M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Immutable ordinary editor-view preparation, exact reference/native view outputs and retained CPU chunk publication are now available through SceneViews. Common HUD, paint/props panels, profile displays and ViewCube now have retained command frames, guarded input and actual GPU composition/reconstruction evidence. Six standard tools additionally emit ordered typed overlay aggregates with exact presented-frame and detail-profile source guards; main viewport adoption remains pending. Application/global/document/Play ownership, main world/tool/HUD integration, remaining producers, full visual/workflow/performance acceptance and canonical retirement remain.
 - M6: in progress. Independent GPU game views, common player/input/camera components, authored screen paint, private world descriptions, view-owned speech, acknowledged-frame world pointer gestures, relative first-person mouse look, default/world-intent cursors, world/UI item drag previews and acknowledged authored inventory/equipment pointer/keyboard gestures are implemented. Application-owned audio is integrated into the common player with cancellable CPU preparation jobs. The native container HUD now includes acknowledged paint/input, real server transfers, scrolling, GPU recovery and navigation lifetime. Floating inventory/equipment, action catalogue/spellbook and preferences now use typed native HUD owners, retained text/source resources and acknowledged input. Acknowledged UI-origin tooltips now use retained text and host deadlines. UI-origin Drop cursors and acknowledged drag/assignment highlighting now have GPU and authoritative transfer evidence. Native isometric source production, shared CPU source publication, game-view outputs and acknowledged input receipts now have GPU/CPU and shipped-source device-reconstruction evidence. Browser worker hosting, remaining game-mode/HUD policy parity, performance acceptance remain. Canonical native desktop launchers now share the common application/host; see launcher verification below.
 - M7/M8/M9: Retirement and platform/full acceptance pending. Canonical desktop clients share one common player; the Xcode client now uses it through the retained ABI over a Rust-created CAMetalLayer surface. Native/ARM64 simulator app bundles link, and real Swift/static-library and registered-scene layer checks pass. Browser bootstrap, native text/platform parity, Creator wrapper and complete physical/release acceptance remain; this is not complete application/platform parity.
 
@@ -3738,3 +3738,145 @@ lines 9308/9986; native production composition must bypass it and consume the
 existing independent SceneViews/EditorViewFrame/immutable chunk-source contracts.
 The whole editor world, Play, source-owner retirement, text/AA/DPI visual parity,
 resource/error/idle workflows, physical hosts and release gates remain active.
+
+
+### Standard tool aggregation baselines captured
+
+Continued after the verified **7501e4d7** ViewCube checkpoint. Captured **36
+independent original tool-overlay PNGs**, six tools × three selection/view states
+× two widths, from their unchanged `draw_hud` methods. Original capture passed
+in **5.89 s**: `/private/tmp/eldiron-tool-overlays-baseline.log` (terminal success).
+The generator was immediately replaced with a read-only fixture test; no
+regeneration is allowed. Reader is in `tools/overlay_frame/tests.rs`, currently
+included as `tools::legacy_overlay_baselines` from the tools module. Fixtures
+cover Vertex/Linedef/Sector/Entity/Geometry/Blocks, empty 2D, selected 3D screen
+rectangles, Detail profiles with distinct selection IDs, and Props controls.
+These baseline changes are uncommitted; native aggregate implementation is next.
+No verification jobs remain live. Preserve the networking concept and original
+checkout. Full goal remains active and no milestone is newly complete.
+
+
+### Typed standard-tool overlay aggregation in progress
+
+Added backend-neutral typed `ToolOverlayFrame` and source-only inputs/targets to
+Tool. Vertex/Linedef/Sector/Entity/Geometry/Blocks now prepare ordered shared HUD,
+screen-rectangle and Props frames. Selection/detail-profile and rectangle rules
+are single methods shared by old drawing and new preparation. Frame preparation
+accepts no context, font, destination or GPU; parent-resolved material slots,
+source icons and style are explicit. Other tools remain explicitly unsupported
+by this new boundary until their guides/controllers are converted; no raster
+fallback or complete main Creator adoption is claimed.
+
+Both unchanged legacy draw and the aggregate's reference commands reproduce all
+**36 original RGBA fixtures byte-exactly**. All **seven aggregate reference/input
+cases pass**, 7.31 s: `/private/tmp/eldiron-tool-aggregate-guards-second.log`.
+Guards include actual document/tool/widget/context/binding epoch, logical size,
+visibility, base map changes, independent detail-profile identity/revision/full
+selection and screen-rectangle geometry. Parts retain typed original frames.
+Exact acknowledged frame identity is checked, so preparing another frame with
+unchanged source cannot borrow the previous frame's input authority. Visible
+Props require both receipts; any partial promotion failure revokes the aggregate
+controllers. Hidden Props do not block valid 2D HUD input. Parent binding/source
+epoch must include resolved action-slot and asset changes.
+
+The initial aggregate compile missed a local detail-mode binding during selector
+extraction; it was moved into the shared helper, and all original pixels pass.
+The first actual GPU aggregate comparison passed the empty narrow Vertex case,
+then failed at selected 3D pixel (3,6): `[48,48,50,255]` versus
+`[73,73,75,239]`. Source investigation found **legacy text_rect row wrapping**:
+its opaque label writer directly indexes X>stride into later rows, so the final
+3D grid button and offscreen step labels contaminate the left edge in a narrow
+viewport. Native root clipping correctly omits those out-of-bounds glyphs.
+This is an open legacy typography/clipping difference, not accepted geometry
+parity or a reason to reproduce framebuffer row wrapping on the GPU.
+
+The test-only original glyph-box helper now reports the actual wrapped old
+linear-address glyph boxes, rather than incorrectly declaring those pixels
+non-text. Added an explicit known wrapped-pixel / non-text-row regression. No
+PNG, whole-image threshold, non-text RGB tolerance or native production clipping
+was changed. Native all-36 comparison, warm frame/resource lifetimes, all five
+densities and real second-device reconstruction are being rerun, unified session
+(to be recorded after launch), log `/private/tmp/eldiron-tool-aggregate-gpu-second.log`.
+New aggregate source/fixtures and edits remain uncommitted. Full affected matrix
+and actual main viewport/global/Play/canonical retirement remain required.
+
+
+### Standard tool aggregate native verification passed
+
+All **10 focused aggregate cases pass**, **16.32 s**:
+`/private/tmp/eldiron-tool-aggregate-gpu-second.log`. Every non-text pixel of all
+**36 original fixtures** is within **one RGB unit**, with at least
+112,993/115,200 narrow or 281,288/288,000 wide pixels compared. Glyph masks are
+only the union of actual old/new glyph boxes, now including proven old wrapped
+addresses. The original PNGs and both reference command paths remain byte-exact;
+typography/legacy row-wrap clipping and full old Creator DPI appearance remain
+explicitly open. No native production clipping was weakened to mimic the bug.
+
+Native aggregate painting uses injected source/icon services, common geometry,
+Swash glyph runs and complete-root receipts. Preparation has no GPU work. All
+five density/resource lifetimes, a newly prepared warm frame with no additional
+tracked image/glyph upload/rasterization, and complete RGBA reconstruction on a
+second actual device pass. Nested HUD/Props frame identities are checked against
+their exact acknowledged serial/source, so pending same-source frames remain
+inactive while unchanged old displayed geometry remains valid until replacement.
+Foreign nested owners, independent profile changes before acknowledgement,
+partial root receipts and all current source/lifetime guards pass. Serialized
+fixture maps are unchanged by preparation. Main native ToolList/world input,
+semantic action routing and actual Creator-window cutover are still pending.
+
+A **19-check affected matrix** is starting via
+`/private/tmp/verify-tool-aggregate.py`, summary
+`/private/tmp/eldiron-tool-aggregate-matrix-results.log`; inspect its live handle
+from the current tool result. It covers reference aggregate/native profile/cube,
+existing panel/HUD paths, full ordinary Creator, feature configurations, CPU source
+publication, all presentation suites, assembled native root, linked native
+Creator/four apps, Creator iOS render-library compilation, all dependency
+boundaries and whitespace. No other verification jobs are live. Do not repeat
+the final aggregate GPU case without source changes or a new unresolved concern.
+All current aggregate changes remain uncommitted, and all full M0–M9 criteria
+remain active. Next: finish/review/checkpoint, then connect the parent tool frame
+owner and native viewport path; convert remaining terrain/iso/collision/rect
+producers and source-bound action/cancel/commit routing during that integration.
+
+
+### Standard tool aggregate checkpoint verified
+
+All **19 affected matrix checks pass**, terminal exit 0:
+`/private/tmp/eldiron-tool-aggregate-matrix-results.log`. Evidence includes:
+
+- Full ordinary Creator **613 passed, 107 explicitly ignored**, **274.83 s**.
+- Reference aggregate **3**, native profile **23**, native cube **6**, native
+  panel/procedural **15**, reference profile **21**, reference panels **10**,
+  native HUD **20**, reference HUD **17**, all **189 presentation cases** pass.
+- Native-ui/reference feature compilation, CPU chunk publication, isolated
+  assembled native Creator root, linked native Creator, four application checks,
+  Creator iOS render-library compilation, all eleven dependency boundaries and
+  whitespace pass. Physical-window/browser/Apple runtime and complete canonical
+  Creator/world integration are not implied by this matrix.
+
+The final native aggregate suite passed separately (10 cases / 16.32 s) with all
+36 independent fixture comparisons, exact reference RGBA, complete-part root
+receipts, all densities, unchanged warm frames and real new-device reconstruction.
+No jobs remain live. Original sources/fixtures were preserved; no serialized
+project representation changed. Reference fixture generator is absent. Expected
+unused native view/display warnings remain until production ownership adoption.
+The unrelated networking concept is excluded. Full M0–M9 goal remains active.
+
+Next integration must retain the actual aggregate object until presentation and
+for input; querying only current controller state can incorrectly borrow an old
+same-source frame's authority. The parent owns current document-session UUID
+(already available as Editor.sessions[active_session].id), actual widget UUID,
+context/tool/binding epoch, size and final visibility. Parent-resolved action-slot
+and asset revisions must advance the source epoch. A captured own world/draft
+gesture needs its binding lifetime separated from local source data changes.
+
+Current native API prepares/paints/acknowledges tool geometry; it does not yet
+route native semantic tool events through ToolList. In particular, legacy Props
+map_event derives a reference scope, so native parent routing must pass the actual
+scope into existing route_map_event logic and avoid a second stale reference
+intercept. Profile cancellation/updates need compare-and-set against the expected
+working source plus document lifetime, and queued commit intents must be scoped
+at delivery. These are required integration work, not optional polish. Full
+terrain/iso/collision/rect conversion, scene/native root ownership, Play/global
+retirement, typography/clipping/DPI visual parity and complete host/performance
+acceptance remain outstanding.

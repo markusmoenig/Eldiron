@@ -104,7 +104,19 @@ impl GpuPanel {
         reference: &[u8],
         name: &str,
     ) {
-        let size = commands.size;
+        self.compare_reference_many(&[commands], list, ctx, pixels, reference, name);
+    }
+    pub(crate) fn compare_reference_many(
+        &mut self,
+        commands: &[&EditorOverlay],
+        list: &PaintList,
+        ctx: &TheContext,
+        pixels: &[u8],
+        reference: &[u8],
+        name: &str,
+    ) {
+        let size = commands.first().expect("nonempty overlay parts").size;
+        assert!(commands.iter().all(|part| part.size == size));
         let mut mask = vec![false; size.0 * size.1];
         let mut mark = |rect: Rect| {
             let x0 = rect.x.floor().max(0.).min(size.0 as f32) as usize;
@@ -117,8 +129,10 @@ impl GpuPanel {
                 }
             }
         };
-        for rect in commands.reference_text_bounds(ctx) {
-            mark(rect);
+        for commands in commands {
+            for rect in commands.reference_text_bounds(ctx) {
+                mark(rect);
+            }
         }
         let mut clips = vec![Rect::new(0., 0., size.0 as f32, size.1 as f32)];
         for op in &list.ops {

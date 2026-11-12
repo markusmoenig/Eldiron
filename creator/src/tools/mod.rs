@@ -7,31 +7,36 @@ use rusterix::Assets;
 pub mod game;
 pub mod geometry;
 pub mod iso_paint;
-pub(crate) mod paint_picker;
 pub(crate) mod paint_overlay;
+pub(crate) mod paint_picker;
 // pub mod info;
 pub mod blocks;
-pub(crate) mod props_recipe;
-pub(crate) mod props_overlay;
 pub mod collision_probe;
 pub mod linedef;
 pub mod palette;
+pub(crate) mod props_overlay;
+pub(crate) mod props_recipe;
 pub mod rect;
 // pub mod render;
 pub mod sector;
-pub mod tile_picker;
 pub mod terrain;
+pub mod tile_picker;
 // pub mod tileset;
 pub mod effects;
 pub mod entity;
+pub mod overlay_frame;
 pub mod vertex;
+pub use overlay_frame::{ToolOverlayFrame, ToolOverlayInputs, ToolOverlayTarget};
 
 pub enum PanelIndices {
     TilePicker,
     ShadeGridFx,
 }
 
-pub fn draw_screen_rectangle_preview(buffer: &mut TheRGBABuffer, rect: (Vec2<f32>, Vec2<f32>)) {
+fn screen_rectangle_preview_dim(
+    size: (usize, usize),
+    rect: (Vec2<f32>, Vec2<f32>),
+) -> Option<TheDim> {
     let min_x = rect.0.x.min(rect.1.x).round().max(0.0) as i32;
     let min_y = rect.0.y.min(rect.1.y).round().max(0.0) as i32;
     let max_x = rect
@@ -39,16 +44,16 @@ pub fn draw_screen_rectangle_preview(buffer: &mut TheRGBABuffer, rect: (Vec2<f32
         .x
         .max(rect.1.x)
         .round()
-        .min((buffer.dim().width - 1).max(0) as f32) as i32;
+        .min((size.0 as i32 - 1).max(0) as f32) as i32;
     let max_y = rect
         .0
         .y
         .max(rect.1.y)
         .round()
-        .min((buffer.dim().height - 1).max(0) as f32) as i32;
+        .min((size.1 as i32 - 1).max(0) as f32) as i32;
 
     if max_x < min_x || max_y < min_y {
-        return;
+        return None;
     }
 
     let dim = TheDim::new(
@@ -57,7 +62,27 @@ pub fn draw_screen_rectangle_preview(buffer: &mut TheRGBABuffer, rect: (Vec2<f32
         (max_x - min_x).max(1) + 1,
         (max_y - min_y).max(1) + 1,
     );
-    buffer.draw_rect_outline(&dim, &[255, 255, 255, 255]);
+    Some(dim)
+}
+
+pub fn draw_screen_rectangle_preview(buffer: &mut TheRGBABuffer, rect: (Vec2<f32>, Vec2<f32>)) {
+    let size = (
+        buffer.dim().width.max(0) as usize,
+        buffer.dim().height.max(0) as usize,
+    );
+    if let Some(dim) = screen_rectangle_preview_dim(size, rect) {
+        buffer.draw_rect_outline(&dim, &[255, 255, 255, 255]);
+    }
+}
+pub(crate) fn prepare_screen_rectangle_preview(
+    size: (usize, usize),
+    rect: (Vec2<f32>, Vec2<f32>),
+) -> crate::editor_overlay::EditorOverlay {
+    let mut commands = crate::editor_overlay::EditorOverlay::new(size);
+    if let Some(dim) = screen_rectangle_preview_dim(size, rect) {
+        commands.signed_outline(&dim, &[255, 255, 255, 255]);
+    }
+    commands
 }
 
 #[derive(PartialEq, Clone, Debug, Copy)]
@@ -93,6 +118,54 @@ pub trait Tool: Send + Sync {
 
     fn accel(&self) -> Option<char> {
         None
+    }
+
+    /// Optional common HUD controller. Unconverted tools return no native frame.
+    fn overlay_hud(&mut self) -> Option<&mut crate::hud::Hud> {
+        None
+    }
+    fn hud_selected_id(&self, _map: &Map, _server: &ServerContext) -> Option<u32> {
+        None
+    }
+    fn overlay_screen_rectangle(
+        &self,
+        _map: &Map,
+        _server: &ServerContext,
+    ) -> Option<(Vec2<f32>, Vec2<f32>)> {
+        None
+    }
+    fn prepare_overlay(&mut self, input: ToolOverlayInputs<'_>) -> Option<ToolOverlayFrame> {
+        ToolOverlayFrame::prepare_standard(self, input)
+    }
+    fn invalidate_overlay(&mut self) {
+        if let Some(hud) = self.overlay_hud() {
+            hud.invalidate_frame();
+        }
+    }
+    fn overlay_input_current(
+        &mut self,
+        frame: &ToolOverlayFrame,
+        target: ToolOverlayTarget,
+        map: &Map,
+        server: &ServerContext,
+    ) -> bool {
+        self.overlay_hud()
+            .is_some_and(|hud| frame.hud_input_current(hud, target, map, server))
+    }
+    #[cfg(feature = "native-ui")]
+    fn presented_overlay(
+        &mut self,
+        frame: &ToolOverlayFrame,
+        receipts: &[theframework::paint::FrameReceipt],
+        target: ToolOverlayTarget,
+        map: &Map,
+        server: &mut ServerContext,
+    ) -> bool {
+        let accepted = frame.presented_hud(self, receipts, target, map, server);
+        if !accepted {
+            self.invalidate_overlay();
+        }
+        accepted
     }
 
     /// Optional full-viewport editor owned by this persistent tool.

@@ -509,6 +509,17 @@ impl Tool for EntityTool {
         None
     }
 
+    fn overlay_hud(&mut self) -> Option<&mut crate::hud::Hud> {
+        Some(&mut self.hud)
+    }
+    fn hud_selected_id(&self, map: &Map, _server_ctx: &ServerContext) -> Option<u32> {
+        let id = if !map.selected_linedefs.is_empty() {
+            Some(map.selected_linedefs[0])
+        } else {
+            None
+        };
+        id
+    }
     fn draw_hud(
         &mut self,
         buffer: &mut TheRGBABuffer,
@@ -517,11 +528,7 @@ impl Tool for EntityTool {
         server_ctx: &mut ServerContext,
         assets: &Assets,
     ) {
-        let id = if !map.selected_linedefs.is_empty() {
-            Some(map.selected_linedefs[0])
-        } else {
-            None
-        };
+        let id = self.hud_selected_id(map, server_ctx);
         self.hud.draw(buffer, map, ctx, server_ctx, id, assets);
     }
 

@@ -143,6 +143,9 @@ pub(crate) struct HudFrame {
     pub(crate) token: HudToken,
 }
 impl HudFrame {
+    pub(crate) fn commands(&self) -> &EditorOverlay {
+        &self.commands
+    }
     #[cfg(feature = "native-ui")]
     pub(crate) fn paint(
         &self,
@@ -245,6 +248,14 @@ impl Hud {
         self.last_presented = frame.token.serial;
         self.displayed_source = Some(frame.source.clone());
         true
+    }
+    pub(crate) fn is_presented_frame(&self, frame: &HudFrame) -> bool {
+        frame.token.owner == self.frame_owner
+            && frame.token.serial == self.last_presented
+            && self
+                .displayed_source
+                .as_ref()
+                .is_some_and(|source| Arc::ptr_eq(source, &frame.source))
     }
     pub(crate) fn frame_input_current(
         &self,

@@ -1163,20 +1163,10 @@ impl Tool for VertexTool {
         undo_atom
     }
 
-    fn draw_hud(
-        &mut self,
-        buffer: &mut TheRGBABuffer,
-        map: &mut Map,
-        ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
-        assets: &Assets,
-    ) {
-        if server_ctx.editor_view_mode != EditorViewMode::D2
-            && let Some(rect) = map.curr_rectangle
-        {
-            crate::tools::draw_screen_rectangle_preview(buffer, rect);
-        }
-
+    fn overlay_hud(&mut self) -> Option<&mut crate::hud::Hud> {
+        Some(&mut self.hud)
+    }
+    fn hud_selected_id(&self, map: &Map, server_ctx: &ServerContext) -> Option<u32> {
         let id = if server_ctx.editor_view_mode != EditorViewMode::D2
             && server_ctx.geometry_edit_mode == GeometryEditMode::Detail
             && let Some(surface) = server_ctx.active_detail_surface.as_ref()
@@ -1190,6 +1180,32 @@ impl Tool for VertexTool {
         } else {
             None
         };
+        id
+    }
+    fn overlay_screen_rectangle(
+        &self,
+        map: &Map,
+        server: &ServerContext,
+    ) -> Option<(Vec2<f32>, Vec2<f32>)> {
+        if server.editor_view_mode != EditorViewMode::D2 {
+            map.curr_rectangle
+        } else {
+            None
+        }
+    }
+    fn draw_hud(
+        &mut self,
+        buffer: &mut TheRGBABuffer,
+        map: &mut Map,
+        ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+        assets: &Assets,
+    ) {
+        if let Some(rect) = self.overlay_screen_rectangle(map, server_ctx) {
+            crate::tools::draw_screen_rectangle_preview(buffer, rect);
+        }
+
+        let id = self.hud_selected_id(map, server_ctx);
         self.hud.draw(buffer, map, ctx, server_ctx, id, assets);
     }
 }

@@ -603,12 +603,44 @@ impl EditorOverlay {
                 if glyph.width == 0 || glyph.height == 0 {
                     continue;
                 }
-                boxes.push(Rect::new(
-                    (position.0 + glyph.x as usize) as f32,
-                    (position.1 + glyph.y as usize) as f32,
-                    glyph.width as f32,
-                    glyph.height as f32,
-                ));
+                let x = position.0 + glyph.x as usize;
+                let y = position.1 + glyph.y as usize;
+                if matches!(
+                    command,
+                    Command::Label {
+                        background: Some(_),
+                        ..
+                    }
+                ) && self.size.0 > 0
+                    && x.saturating_add(glyph.width) > self.size.0
+                {
+                    // The unchanged CPU text_rect writes linear addresses with
+                    // no per-row X check. Out-of-viewport labels wrap glyph
+                    // pixels into following rows. Report their *actual* old
+                    // boxes; native clipping/typography parity remains open.
+                    for row in 0..glyph.height {
+                        let mut at = (y + row).saturating_mul(self.size.0).saturating_add(x);
+                        let mut remaining = glyph.width;
+                        while remaining > 0 && at < self.size.0.saturating_mul(self.size.1) {
+                            let width = remaining.min(self.size.0 - at % self.size.0);
+                            boxes.push(Rect::new(
+                                (at % self.size.0) as f32,
+                                (at / self.size.0) as f32,
+                                width as f32,
+                                1.,
+                            ));
+                            at += width;
+                            remaining -= width;
+                        }
+                    }
+                } else {
+                    boxes.push(Rect::new(
+                        x as f32,
+                        y as f32,
+                        glyph.width as f32,
+                        glyph.height as f32,
+                    ));
+                }
             }
         }
         boxes

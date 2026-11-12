@@ -57,7 +57,7 @@ pub(crate) struct HudStyle {
     pub(crate) geometry_labels: [String; 2],
 }
 impl HudStyle {
-    fn current() -> Self {
+    pub(crate) fn current() -> Self {
         Self {
             colors: colors(),
             geometry_labels: [fl!("hud_geometry_op_move"), fl!("hud_geometry_op_size")],
@@ -66,12 +66,14 @@ impl HudStyle {
 }
 
 /// Borrowed CPU icon source; never a destination or GPU resource.
+#[derive(Clone, Copy)]
 pub(crate) struct HudImageSource<'a> {
     pub(crate) width: usize,
     pub(crate) height: usize,
     pub(crate) pixels: &'a [u8],
 }
 /// Resolved authoring inputs: no action callbacks, UI context or renderer borrow.
+#[derive(Clone, Copy)]
 pub(crate) struct HudInputs<'a> {
     pub(crate) map: &'a Map,
     pub(crate) server: &'a ServerContext,

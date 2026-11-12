@@ -335,6 +335,16 @@ impl PropsOverlay {
         self.frames
             .presented_paint(frame, receipts, scope, size, &self.source(server))
     }
+    pub(crate) fn frame_input_current(
+        &self,
+        frame: &PanelFrame<PropsSource, Action>,
+        scope: PanelScope,
+        size: (usize, usize),
+        server: &ServerContext,
+    ) -> bool {
+        self.frames.is_presented_frame(frame)
+            && self.frames.input_current(scope, size, &self.source(server))
+    }
     pub(crate) fn hit_test(
         &self,
         scope: PanelScope,

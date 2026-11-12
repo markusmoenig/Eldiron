@@ -1474,6 +1474,50 @@ impl Tool for BlockTool {
         handled
     }
 
+    fn overlay_hud(&mut self) -> Option<&mut crate::hud::Hud> {
+        Some(&mut self.hud)
+    }
+    fn prepare_overlay(&mut self, input: ToolOverlayInputs<'_>) -> Option<ToolOverlayFrame> {
+        let mut frame = ToolOverlayFrame::prepare_standard(self, input)?;
+        frame.push_props(self.overlay.prepare_frame(
+            input.target.panel_scope(),
+            input.target.size,
+            input.style.colors,
+            input.hud.server,
+        ));
+        Some(frame)
+    }
+    fn invalidate_overlay(&mut self) {
+        self.hud.invalidate_frame();
+        self.overlay.invalidate_frame();
+    }
+    fn overlay_input_current(
+        &mut self,
+        frame: &ToolOverlayFrame,
+        target: ToolOverlayTarget,
+        map: &Map,
+        server: &ServerContext,
+    ) -> bool {
+        frame.hud_input_current(&self.hud, target, map, server)
+            && frame.props_input_current(&self.overlay, target, server)
+    }
+    #[cfg(feature = "native-ui")]
+    fn presented_overlay(
+        &mut self,
+        frame: &ToolOverlayFrame,
+        receipts: &[theframework::paint::FrameReceipt],
+        target: ToolOverlayTarget,
+        map: &Map,
+        server: &mut ServerContext,
+    ) -> bool {
+        let hud = frame.presented_hud(self, receipts, target, map, server);
+        let props = frame.presented_props(&mut self.overlay, receipts, target, server);
+        let accepted = hud && props;
+        if !accepted {
+            self.invalidate_overlay();
+        }
+        accepted
+    }
     fn draw_hud(
         &mut self,
         buffer: &mut TheRGBABuffer,
