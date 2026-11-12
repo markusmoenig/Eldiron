@@ -420,22 +420,10 @@ impl GameScreenController {
                 .pointer_drops(map)
                 .into_iter()
                 .find(|target| target.source == owner)?;
-            if live.rect != target.rect
-                || live.entity != target.entity
-                || live.index != target.index
-                || live.slot != target.slot
-            {
+            if live != *target {
                 return None;
             }
-            return item_interaction::transfer(
-                map,
-                source,
-                ItemDestination::Actor {
-                    entity: Some(target.entity),
-                    inventory: target.index,
-                    equipped: target.slot.clone(),
-                },
-            );
+            return item_interaction::transfer(map, source, target.destination.clone());
         }
         if front.is_some() || current.is_some() {
             return None;

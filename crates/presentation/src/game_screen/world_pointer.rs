@@ -55,13 +55,11 @@ enum DropOwner {
     Button(u32),
     Profile(Uuid),
 }
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 struct DropTarget {
     source: DropOwner,
     rect: Rect,
-    entity: u32,
-    index: Option<usize>,
-    slot: Option<String>,
+    destination: rusterix::item_interaction::ItemDestination,
 }
 struct Frame {
     binding: Binding,
@@ -450,9 +448,11 @@ impl GameScreenController {
                 targets.push(DropTarget {
                     source: DropOwner::Profile(id),
                     rect: w.rect,
-                    entity: entity.id,
-                    index: None,
-                    slot: None,
+                    destination: rusterix::item_interaction::ItemDestination::Actor {
+                        entity: Some(entity.id),
+                        inventory: None,
+                        equipped: None,
+                    },
                 });
             }
         }
@@ -469,9 +469,11 @@ impl GameScreenController {
                 targets.push(DropTarget {
                     source: DropOwner::Button(id),
                     rect: w.rect,
-                    entity: entity.id,
-                    index: w.inventory_index,
-                    slot: w.equipped_slot.clone(),
+                    destination: rusterix::item_interaction::ItemDestination::Actor {
+                        entity: Some(entity.id),
+                        inventory: w.inventory_index,
+                        equipped: w.equipped_slot.clone(),
+                    },
                 });
             }
         }
