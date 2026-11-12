@@ -1,82 +1,64 @@
-//
-//  SceneVMDocument.swift
-//  SceneVM Unified Template
-//
-//  Document-based model for SceneVM projects
-//  File extension: .scenevm
-//
-
 import SwiftUI
 import Combine
 import UniformTypeIdentifiers
 
-// Define custom UTI for SceneVM documents (.scenevm)
 extension UTType {
-    static let scenevm = UTType(exportedAs: "com.scenevm.project")
+    nonisolated static let eldironProject = UTType(exportedAs: "com.moenig.eldiron.project", conformingTo: .data)
+    nonisolated static let legacySceneVMProject = UTType(exportedAs: "com.scenevm.project", conformingTo: .data)
 }
 
-/// SceneVM Document class for both macOS and iOS
-final class SceneVMDocument: ReferenceFileDocument, ObservableObject {
-    /// The SceneVM handle for this document
-    var sceneVMHandle: SceneVMHandle?
-    
-    /// The project JSON data (in-memory representation)
-    var projectJSON: String = "{}"
-    
-    // MARK: - ReferenceFileDocument Conformance
-    
-    static var readableContentTypes: [UTType] { [.scenevm] }
-    
-    required init(configuration: ReadConfiguration) throws {
-        guard let data = configuration.file.regularFileContents else {
-            throw CocoaError(.fileReadCorruptFile)
-        }
-        
-        guard let jsonString = String(data: data, encoding: .utf8) else {
-            throw CocoaError(.fileReadInapplicableStringEncoding)
-        }
-        
-        self.projectJSON = jsonString
+@MainActor
+final class PlayerViewState: ObservableObject {
+    var handle: SceneVMHandle?
+    @Published var errorMessage: String?
+    nonisolated init() {}
+}
+
+/// A player keeps authored bytes independent of the running session. Both legacy
+/// JSON and ZIP Eldiron projects reach the existing Rust decoder unchanged.
+nonisolated final class SceneVMDocument: ReferenceFileDocument, ObservableObject {
+    let player = PlayerViewState()
+    let projectData: Data
+    @MainActor var sceneVMHandle: SceneVMHandle? {
+        get { player.handle }
+        set { player.handle = newValue }
     }
-    
+    @MainActor var errorMessage: String? {
+        get { player.errorMessage }
+        set { player.errorMessage = newValue }
+    }
+    static var readableContentTypes: [UTType] { [.eldironProject, .legacySceneVMProject] }
+    convenience init(configuration: ReadConfiguration) throws {
+        guard let data = configuration.file.regularFileContents else { throw CocoaError(.fileReadCorruptFile) }
+        self.init(data: data)
+    }
+    init(data: Data) { projectData = data }
     init() {
-        // Create empty project
-        self.projectJSON = "{\"version\":\"1.0\"}"
+        projectData = Bundle.main.url(forResource: "game", withExtension: "eldiron")
+            .flatMap { try? Data(contentsOf: $0) } ?? Data()
     }
-    
     func snapshot(contentType: UTType) throws -> Data {
-        guard let handle = sceneVMHandle else {
-            // Return current JSON if SceneVM not ready yet
-            guard let data = projectJSON.data(using: .utf8) else {
-                throw CocoaError(.fileWriteInapplicableStringEncoding)
-            }
-            return data
-        }
-        
-        guard let jsonString = handle.saveProject() else {
-            throw CocoaError(.coderInvalidValue)
-        }
-        
-        guard let data = jsonString.data(using: .utf8) else {
-            throw CocoaError(.fileWriteInapplicableStringEncoding)
-        }
-        
-        self.projectJSON = jsonString
-        return data
+        // Playing changes runtime maps, time and UI state, never this source.
+        projectData
     }
-    
     func fileWrapper(snapshot: Data, configuration: WriteConfiguration) throws -> FileWrapper {
-        return FileWrapper(regularFileWithContents: snapshot)
+        FileWrapper(regularFileWithContents: snapshot)
     }
 }
-
-// MARK: - SwiftUI Document View
-
 struct DocumentView: View {
     @ObservedObject var document: SceneVMDocument
-    
+    @ObservedObject private var state: PlayerViewState
+    init(document: SceneVMDocument) {
+        self.document = document
+        self.state = document.player
+    }
     var body: some View {
         SceneVMView(document: document)
+            .alert("Unable to play project", isPresented: Binding(
+                get: { state.errorMessage != nil },
+                set: { if !$0 { state.errorMessage = nil } }
+            )) { Button("OK") { state.errorMessage = nil } }
+            message: { Text(state.errorMessage ?? "") }
             #if !os(macOS)
             .ignoresSafeArea()
             #endif

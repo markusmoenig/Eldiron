@@ -34,11 +34,12 @@ The static library keeps the name `libscenevm_unified_app.a` and compatibility
 exports `unified_app_runner_*` used by `Xcode/Client`:
 
 ```bash
-cargo build --release -p eldiron-client-wgpu --lib --no-default-features --features native-player --target aarch64-apple-darwin
+MACOSX_DEPLOYMENT_TARGET=26.1 cargo build --release -p eldiron-client-wgpu --lib --no-default-features --features native-player --target aarch64-apple-darwin
 ```
 
-Disabling defaults excludes the Winit desktop host from this foreign-host build.
-The compatibility FFI still uses its former application adapter; migrating it to
-the common player and verifying the Xcode wrapper are separate pending work. The
-Rust-created WGPU surface over a supplied CAMetalLayer is already available in
-the shared presentation foundation.
+Disabling defaults excludes Winit. This configuration now connects the retained
+Apple ABI to the common player and Rust-created surface over the host's retained
+CAMetalLayer. The former adapter remains only in builds without `native-player`.
+See `Xcode/Client/README.md` for build, document/layer lifetime and verification
+instructions. Physical platform, native IME and complete release acceptance remain
+pending in `concepts/native-wgpu-rewrite-progress.md`.

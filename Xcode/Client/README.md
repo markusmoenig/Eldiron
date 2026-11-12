@@ -1,26 +1,51 @@
-# Client Xcode Wrapper
+# Eldiron player Xcode host
 
-This folder contains a SceneVM Swift wrapper project template wired for
-`unified_app_runner_*` FFI symbols.
+`Xcode/Client` drives the same `PlayerApplication`, runtime session, scene/UI
+compositor and Swash glyph atlases as the native desktop clients. Swift supplies
+a retained CAMetalLayer, input, file bytes and display callbacks. Rust creates the
+WGPU surface, configures its device/format and exclusively presents its drawables.
 
-The Rust crate providing those symbols is:
-
-`clients/client-wgpu` (`package = eldiron-client-wgpu`)
-
-## Build Rust Library
+The static library remains `libscenevm_unified_app.a`; the established
+`unified_app_runner_*` and `eldiron_player_runner_*` exports are preserved. The
+foreign-host build explicitly excludes Winit:
 
 ```bash
-cargo build --release --package eldiron-client-wgpu --lib --no-default-features --features native-player --target aarch64-apple-darwin
+MACOSX_DEPLOYMENT_TARGET=26.1 cargo build --release -p eldiron-client-wgpu --lib --no-default-features --features native-player --target aarch64-apple-darwin
 ```
 
-Output library:
+For iOS device/simulator, use `aarch64-apple-ios` / `aarch64-apple-ios-sim`.
+Build a matching slice for each requested architecture. Xcode resolves its
+library through `ELDIRON_RUST_LIB_DIR`, defaulting to the corresponding target's
+release directory. Override it for a different Cargo target directory/profile:
 
-`target/aarch64-apple-darwin/release/libscenevm_unified_app.a`
+```bash
+xcodebuild -project Xcode/Client/Client.xcodeproj -scheme SceneVM -sdk macosx \
+  ELDIRON_RUST_LIB_DIR=/absolute/path/to/target/debug CODE_SIGNING_ALLOWED=NO build
+```
 
-For iOS/tvOS, build additional target slices as needed and add them to Xcode.
+Use `ARCHS=arm64` when validating a single ARM64 simulator slice. Generic
+simulator builds otherwise also request Intel. Universal/XCFramework packaging
+and signed/device distribution remain separate work.
 
-The foreign-host library build excludes the default Winit desktop launcher. The
-`unified_app_runner_*` compatibility ABI and library name remain stable. The FFI
-application adapter still needs convergence on the common native player; building
-this slice is not verification of complete Xcode application parity. Rust owns
-the WGPU surface/acquisition/presentation over the host's retained CAMetalLayer.
+Open an `.eldiron` project (legacy `.scenevm` document associations also remain).
+Both JSON and ZIP archives pass to the existing Rust decoder as binary Data.
+Saving preserves the original authored bytes, including after playing. An optional
+bundled `game.eldiron` supplies the new-document default. Each document retains its
+CPU session across Swift view/layer recreation; only GPU presentation is rebuilt.
+
+All FFI calls and destruction run on the main/creation thread. The Swift handle
+strongly retains the backing layer until Rust destroys/replaces its surface.
+See [eldiron_player.h](eldiron_player.h) for buffer ownership, scale, input-token
+and return-code contracts. Swift does not create a separate Metal renderer or
+acquire its own drawables.
+
+Run `CARGO_TARGET_DIR=/absolute/path/to/target python3 tools/check_native_player_apple.py`
+from the repository root to exercise the real Swift/static-library bridge on
+retained detached layers. This checks actual presentations, zero implicit
+readback, authored source preservation and session survival across replacement.
+It requires macOS/Xcode/Metal and does not open a Winit window.
+
+Full physical macOS/iOS interaction, native IME/surrounding-text parity (including
+UIKit composition), release measurements and Creator's separate Xcode wrapper
+remain tracked in `concepts/native-wgpu-rewrite-progress.md`. An SDK build or
+detached-layer test does not establish those acceptance criteria.

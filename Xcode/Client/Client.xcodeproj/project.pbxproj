@@ -7,12 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		DD5921952EEA9BA500F3EEE5 /* libunified_app.a in Frameworks */ = {isa = PBXBuildFile; fileRef = DD5921942EEA99DF00F3EEE5 /* libunified_app.a */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		DD5921942EEA99DF00F3EEE5 /* libunified_app.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libunified_app.a; sourceTree = "<group>"; };
-		DD8E37372EE9684F00896C33 /* libscenevm_unified_app.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libscenevm_unified_app.a; sourceTree = "<group>"; };
 		DDCDBECE2EE964E90071B4CB /* SceneVM.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SceneVM.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -42,7 +39,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				DD5921952EEA9BA500F3EEE5 /* libunified_app.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -52,8 +48,6 @@
 		DD8E37362EE9684F00896C33 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				DD5921942EEA99DF00F3EEE5 /* libunified_app.a */,
-				DD8E37372EE9684F00896C33 /* libscenevm_unified_app.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -306,11 +300,10 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				LIBRARY_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(SRCROOT)/../../target/aarch64-apple-darwin/release",
-					"$(SRCROOT)/../../target/aarch64-apple-darwin/release/deps",
-				);
+				ELDIRON_RUST_LIB_DIR = "$(SRCROOT)/../../target/aarch64-apple-darwin/release";
+				"ELDIRON_RUST_LIB_DIR[sdk=iphoneos*]" = "$(SRCROOT)/../../target/aarch64-apple-ios/release";
+				"ELDIRON_RUST_LIB_DIR[sdk=iphonesimulator*]" = "$(SRCROOT)/../../target/aarch64-apple-ios-sim/release";
+				LIBRARY_SEARCH_PATHS = ("$(inherited)", "$(ELDIRON_RUST_LIB_DIR)");
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
@@ -318,9 +311,43 @@
 				"OTHER_LDFLAGS[sdk=macosx*]" = (
 					"$(inherited)",
 					"-framework",
-					Carbon,
+					"AppKit",
+					"-lSystem",
+					"-lc",
+					"-lm",
 				);
-				OTHER_LDFLAGS = "$(inherited)";
+				"OTHER_LDFLAGS[sdk=iphone*]" = (
+					"$(inherited)",
+					"-framework",
+					"UIKit",
+					"-framework",
+					"AVFAudio",
+					"-lSystem",
+					"-lc",
+					"-lm",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lscenevm_unified_app",
+					"-framework",
+					"CoreGraphics",
+					"-framework",
+					"CoreText",
+					"-framework",
+					"QuartzCore",
+					"-framework",
+					"Metal",
+					"-framework",
+					"AudioToolbox",
+					"-framework",
+					"CoreAudio",
+					"-framework",
+					"Foundation",
+					"-framework",
+					"CoreFoundation",
+					"-liconv",
+					"-lobjc",
+				);
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -373,20 +400,53 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				LIBRARY_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(SRCROOT)/../../target/aarch64-apple-darwin/release",
-					"$(SRCROOT)/../../target/aarch64-apple-darwin/release/deps",
-				);
+				ELDIRON_RUST_LIB_DIR = "$(SRCROOT)/../../target/aarch64-apple-darwin/release";
+				"ELDIRON_RUST_LIB_DIR[sdk=iphoneos*]" = "$(SRCROOT)/../../target/aarch64-apple-ios/release";
+				"ELDIRON_RUST_LIB_DIR[sdk=iphonesimulator*]" = "$(SRCROOT)/../../target/aarch64-apple-ios-sim/release";
+				LIBRARY_SEARCH_PATHS = ("$(inherited)", "$(ELDIRON_RUST_LIB_DIR)");
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				"OTHER_LDFLAGS[sdk=macosx*]" = (
 					"$(inherited)",
 					"-framework",
-					Carbon,
+					"AppKit",
+					"-lSystem",
+					"-lc",
+					"-lm",
 				);
-				OTHER_LDFLAGS = "$(inherited)";
+				"OTHER_LDFLAGS[sdk=iphone*]" = (
+					"$(inherited)",
+					"-framework",
+					"UIKit",
+					"-framework",
+					"AVFAudio",
+					"-lSystem",
+					"-lc",
+					"-lm",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lscenevm_unified_app",
+					"-framework",
+					"CoreGraphics",
+					"-framework",
+					"CoreText",
+					"-framework",
+					"QuartzCore",
+					"-framework",
+					"Metal",
+					"-framework",
+					"AudioToolbox",
+					"-framework",
+					"CoreAudio",
+					"-framework",
+					"Foundation",
+					"-framework",
+					"CoreFoundation",
+					"-liconv",
+					"-lobjc",
+				);
 				SWIFT_COMPILATION_MODE = wholemodule;
 			};
 			name = Release;

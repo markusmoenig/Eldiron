@@ -66,23 +66,6 @@ impl DesktopCommand {
         }))
     }
 }
-struct DesktopServices;
-impl PlayerServices for DesktopServices {
-    fn region_events(&mut self, _: Uuid, _: &RuntimeView<'_>, _: RegionOutputs<'_>) {}
-    fn screen_effect(
-        &mut self,
-        _: &RuntimeView<'_>,
-        effect: &ScreenEffect,
-    ) -> std::result::Result<(), String> {
-        // The controller consumes every supported UI command. The reference
-        // client ignores unknown ui.* commands; keep that behavior here.
-        if let ScreenEffect::Command(ClientCommandBinding::Ui(command)) = effect {
-            eprintln!("Unknown UI command ignored: {command}");
-            return Ok(());
-        }
-        Err(format!("Unhandled player effect: {effect:?}"))
-    }
-}
 struct DesktopApplication {
     player: PlayerApplication,
     presentations: u64,
@@ -194,7 +177,7 @@ pub fn run(
     let player = PlayerApplication::new(
         project,
         options.debug,
-        Box::new(AudioServices::new(DesktopServices)),
+        Box::new(AudioServices::new(StandardServices)),
     )?;
     theframework::platform::winit::run(Box::new(DesktopApplication {
         player,

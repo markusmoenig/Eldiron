@@ -82,255 +82,227 @@ func unified_app_runner_redo_description(_ vm: UnsafeMutableRawPointer?, _ out_s
 @_silgen_name("unified_app_runner_free_string")
 func unified_app_runner_free_string(_ str_ptr: UnsafePointer<UInt8>?, _ str_len: Int)
 
-/// Thin Swift wrapper around the SceneVM FFI for CAMetalLayer presentation.
+@_silgen_name("unified_app_runner_host_state")
+func unified_app_runner_host_state(_ vm: UnsafeMutableRawPointer?, _ out: UnsafeMutablePointer<UnsafePointer<UInt8>?>?, _ len: UnsafeMutablePointer<Int>?) -> Int32
+@_silgen_name("unified_app_runner_take_requests")
+func unified_app_runner_take_requests(_ vm: UnsafeMutableRawPointer?, _ out: UnsafeMutablePointer<UnsafePointer<UInt8>?>?, _ len: UnsafeMutablePointer<Int>?) -> Int32
+@_silgen_name("unified_app_runner_last_error")
+func unified_app_runner_last_error(_ vm: UnsafeMutableRawPointer?, _ out: UnsafeMutablePointer<UnsafePointer<UInt8>?>?, _ len: UnsafeMutablePointer<Int>?) -> Int32
+@_silgen_name("unified_app_runner_suspend")
+func unified_app_runner_suspend(_ vm: UnsafeMutableRawPointer?)
+@_silgen_name("unified_app_runner_resume")
+func unified_app_runner_resume(_ vm: UnsafeMutableRawPointer?)
+@_silgen_name("unified_app_runner_focus")
+func unified_app_runner_focus(_ vm: UnsafeMutableRawPointer?, _ focused: Int32)
+@_silgen_name("unified_app_runner_modifiers")
+func unified_app_runner_modifiers(_ vm: UnsafeMutableRawPointer?, _ bits: UInt32)
+@_silgen_name("unified_app_runner_key")
+func unified_app_runner_key(_ vm: UnsafeMutableRawPointer?, _ code: UInt32, _ pressed: Int32, _ repeated: Int32) -> Int32
+@_silgen_name("unified_app_runner_text")
+func unified_app_runner_text(_ vm: UnsafeMutableRawPointer?, _ target: UInt64, _ bytes: UnsafePointer<UInt8>?, _ len: Int) -> Int32
+@_silgen_name("unified_app_runner_composition")
+func unified_app_runner_composition(_ vm: UnsafeMutableRawPointer?, _ target: UInt64, _ bytes: UnsafePointer<UInt8>?, _ len: Int, _ start: Int, _ end: Int) -> Int32
+@_silgen_name("unified_app_runner_clipboard")
+func unified_app_runner_clipboard(_ vm: UnsafeMutableRawPointer?, _ request: UInt64, _ write: Int32, _ success: Int32, _ bytes: UnsafePointer<UInt8>?, _ len: Int) -> Int32
+@_silgen_name("unified_app_runner_pointer_button")
+func unified_app_runner_pointer_button(_ vm: UnsafeMutableRawPointer?, _ button: UInt16, _ pressed: Int32, _ x: Float, _ y: Float) -> Int32
+
+@_silgen_name("unified_app_runner_replace_layer")
+func unified_app_runner_replace_layer(_ vm: UnsafeMutableRawPointer?, _ layer: UnsafeMutableRawPointer?, _ width: UInt32, _ height: UInt32, _ scale: Float) -> Int32
+
+#if os(macOS)
+import AppKit
+#else
+import UIKit
+#endif
+
+struct NativeTextInput: Decodable, Equatable {
+    let target: UInt64
+    let area: [Float]
+}
+struct NativeHostState: Decodable {
+    let title: String
+    let cursor: String
+    let cursorVisible: Bool
+    let textInput: NativeTextInput?
+    let presentations: UInt64
+    let sessionId: String?
+    let tickSequence: UInt64
+    let frameCount: UInt64
+    let readbackBytes: UInt64
+}
+private struct NativeHostRequest: Decodable {
+    let kind: String
+    let request: UInt64?
+    let text: String?
+    let message: String?
+}
+
+/// The host retains the backing layer until Rust destroys its surface. Every
+/// callback, including destruction, runs serially on the main/creation thread.
+@MainActor
 final class SceneVMHandle {
     private var vm: UnsafeMutableRawPointer?
-    private weak var layer: CAMetalLayer?
+    private var layer: CAMetalLayer
     private var scale: CGFloat
+    private(set) var state: NativeHostState?
+    var onState: ((NativeHostState) -> Void)?
+    var onError: ((String) -> Void)?
+    private var reportedError: String?
 
+    private static func pixels(_ value: CGFloat) -> UInt32 {
+        value.isFinite ? UInt32(min(max(value.rounded(), 0), CGFloat(UInt32.max))) : 0
+    }
     init?(layer: CAMetalLayer, size: CGSize, scale: CGFloat) {
+        self.layer = layer
         self.scale = scale
         let ptr = Unmanaged.passUnretained(layer).toOpaque()
-        let w = UInt32(max(max(layer.drawableSize.width, size.width * scale), 1))
-        let h = UInt32(max(max(layer.drawableSize.height, size.height * scale), 1))
-        guard let handle = unified_app_runner_create(ptr, w, h, Float(scale)) else {
-            return nil
-        }
-        self.layer = layer
-        self.vm = handle
+        let w = Self.pixels(size.width * scale)
+        let h = Self.pixels(size.height * scale)
+        guard let handle = unified_app_runner_create(ptr, w, h, Float(scale)) else { return nil }
+        vm = handle
+        refresh()
     }
-
+    // Explicit teardown is called by the owning view before releasing its layer.
+    func close() {
+        guard let handle = vm else { return }
+        unified_app_runner_destroy(handle)
+        vm = nil
+    }
+    isolated deinit {
+        // SceneVMHandle is main-actor owned by its view/document. The explicit
+        // close path normally consumed this handle already.
+        if let vm { unified_app_runner_destroy(vm) }
+    }
+    private func read(_ body: (UnsafeMutablePointer<UnsafePointer<UInt8>?>, UnsafeMutablePointer<Int>) -> Int32) -> Data? {
+        var bytes: UnsafePointer<UInt8>?
+        var count = 0
+        guard body(&bytes, &count) == 0, count >= 0 else { return nil }
+        guard let bytes else { return count == 0 ? Data() : nil }
+        defer { unified_app_runner_free_data(bytes, count) }
+        return Data(bytes: bytes, count: count)
+    }
+    private func reportError() {
+        guard let vm, let data = read({ unified_app_runner_last_error(vm, $0, $1) }),
+              let message = String(data: data, encoding: .utf8), !message.isEmpty else { return }
+        if message != reportedError { reportedError = message; onError?(message) }
+    }
+    private func refresh() {
+        guard let vm else { return }
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        if let data = read({ unified_app_runner_host_state(vm, $0, $1) }),
+           let state = try? decoder.decode(NativeHostState.self, from: data) {
+            let previous = self.state
+            self.state = state
+            if previous?.title != state.title || previous?.cursor != state.cursor || previous?.cursorVisible != state.cursorVisible || previous?.textInput != state.textInput { onState?(state) }
+        }
+        if let data = read({ unified_app_runner_take_requests(vm, $0, $1) }),
+           let requests = try? decoder.decode([NativeHostRequest].self, from: data) {
+            for request in requests {
+                switch request.kind {
+                case "clipboard_read":
+                    guard let id = request.request else { continue }
+                    #if os(macOS)
+                    let value = NSPasteboard.general.string(forType: .string)
+                    #else
+                    let value = UIPasteboard.general.string
+                    #endif
+                    completeClipboard(id, write: false, text: value, success: value != nil)
+                case "clipboard_write":
+                    guard let text = request.text else { continue }
+                    #if os(macOS)
+                    NSPasteboard.general.clearContents()
+                    let success = NSPasteboard.general.setString(text, forType: .string)
+                    #else
+                    UIPasteboard.general.string = text
+                    let success = true
+                    #endif
+                    if let id = request.request { completeClipboard(id, write: true, text: nil, success: success) }
+                case "error": onError?(request.message ?? "Unable to update the player")
+                default: break
+                }
+            }
+        }
+    }
+    private func completeClipboard(_ id: UInt64, write: Bool, text: String?, success: Bool) {
+        guard let vm else { return }
+        let bytes = Array((text ?? "").utf8)
+        bytes.withUnsafeBufferPointer {
+            _ = unified_app_runner_clipboard(vm, id, write ? 1 : 0, success ? 1 : 0, $0.baseAddress, $0.count)
+        }
+    }
+    func synchronizeHost() { if let state { onState?(state) } }
+    func loadProject(data: Data) -> Bool {
+        guard let vm, !data.isEmpty else { return false }
+        let result = data.withUnsafeBytes {
+            unified_app_runner_load_project(vm, $0.bindMemory(to: UInt8.self).baseAddress, $0.count)
+        }
+        if result < 0 { reportError() } else { reportedError = nil }
+        refresh()
+        return result == 0
+    }
+    func saveProject() -> Data? {
+        guard let vm else { return nil }
+        return read { unified_app_runner_save_project(vm, $0, $1) }
+    }
+    /// Keep the existing CPU session when Swift recreates its view/layer. The
+    /// previous layer remains strongly retained until Rust drops its surface.
+    func replaceLayer(_ next: CAMetalLayer, size: CGSize, scale: CGFloat) -> Bool {
+        guard let vm else { return false }
+        let result = unified_app_runner_replace_layer(vm, Unmanaged.passUnretained(next).toOpaque(), Self.pixels(size.width * scale), Self.pixels(size.height * scale), Float(scale))
+        guard result == 0 else { reportError(); return false }
+        layer = next
+        self.scale = scale
+        refresh()
+        return true
+    }
     func resize(to size: CGSize, scale: CGFloat) {
         guard let vm else { return }
         self.scale = scale
-        let drawable = layer?.drawableSize ?? CGSize(width: size.width * scale, height: size.height * scale)
-        let w = UInt32(max(drawable.width, 1))
-        let h = UInt32(max(drawable.height, 1))
-        unified_app_runner_resize(vm, w, h, Float(scale))
+        unified_app_runner_resize(vm, Self.pixels(size.width * scale), Self.pixels(size.height * scale), Float(scale))
+        refresh()
     }
-
     func render() {
         guard let vm else { return }
-        _ = unified_app_runner_render(vm)
+        if unified_app_runner_render(vm) < 0 { reportError() }
+        refresh()
     }
-
-    func mouseDown(x: CGFloat, y: CGFloat) {
-        guard let vm else { return }
-        unified_app_runner_mouse_down(vm, Float(x), Float(y))
-    }
-
-    func mouseUp(x: CGFloat, y: CGFloat) {
-        guard let vm else { return }
-        unified_app_runner_mouse_up(vm, Float(x), Float(y))
-    }
-
-    func mouseMove(x: CGFloat, y: CGFloat) {
-        guard let vm else { return }
-        unified_app_runner_mouse_move(vm, Float(x), Float(y))
-    }
-
-    func mouseMotion(dx: CGFloat, dy: CGFloat) {
-        guard let vm else { return }
-        unified_app_runner_mouse_motion(vm, Float(dx), Float(dy))
-    }
-
-    func mouseLeave() {
-        guard let vm else { return }
-        unified_app_runner_mouse_leave(vm)
-    }
-
-    func scroll(dx: CGFloat, dy: CGFloat) {
-        guard let vm else { return }
-        unified_app_runner_scroll(vm, Float(dx), Float(dy))
-    }
-
-    func pinch(scale: CGFloat, center: CGPoint) {
-        guard let vm else { return }
-        unified_app_runner_pinch(vm, Float(scale), Float(center.x), Float(center.y))
-    }
-
-    func setTheme(isDark: Bool, size: CGSize) {
-        guard let vm else { return }
-        let w = UInt32(max(size.width * scale, 1))
-        let h = UInt32(max(size.height * scale, 1))
-        unified_app_runner_set_theme(vm, isDark ? 1 : 0, w, h)
-    }
-
-    // MARK: - Undo/Redo Support
-
-    /// Perform undo operation
-    /// Returns true if undo was performed, false if nothing to undo
-    func undo() -> Bool {
+    func suspend() { if let vm { unified_app_runner_suspend(vm) }; refresh() }
+    func resume() { if let vm { unified_app_runner_resume(vm) }; refresh() }
+    func focus(_ focused: Bool) { if let vm { unified_app_runner_focus(vm, focused ? 1 : 0) }; refresh() }
+    func modifiers(_ bits: UInt32) { if let vm { unified_app_runner_modifiers(vm, bits) } }
+    @discardableResult
+    func key(_ code: UInt32, pressed: Bool, repeated: Bool = false) -> Bool {
         guard let vm else { return false }
-        return unified_app_runner_undo(vm) > 0
+        let result = unified_app_runner_key(vm, code, pressed ? 1 : 0, repeated ? 1 : 0)
+        refresh()
+        return result > 0
     }
-
-    /// Perform redo operation
-    /// Returns true if redo was performed, false if nothing to redo
-    func redo() -> Bool {
-        guard let vm else { return false }
-        return unified_app_runner_redo(vm) > 0
+    func text(_ text: String, target: UInt64) {
+        guard let vm, target != 0 else { return }
+        Array(text.utf8).withUnsafeBufferPointer { _ = unified_app_runner_text(vm, target, $0.baseAddress, $0.count) }
+        refresh()
     }
-
-    /// Check if undo is available
-    func canUndo() -> Bool {
-        guard let vm else { return false }
-        return unified_app_runner_can_undo(vm) > 0
+    func composition(_ text: String, selection: NSRange?, target: UInt64) {
+        guard let vm, target != 0 else { return }
+        var start = -1, end = -1
+        if let selection, let range = Range(selection, in: text) {
+            start = text[..<range.lowerBound].utf8.count
+            end = text[..<range.upperBound].utf8.count
+        }
+        Array(text.utf8).withUnsafeBufferPointer { _ = unified_app_runner_composition(vm, target, $0.baseAddress, $0.count, start, end) }
+        refresh()
     }
-
-    /// Check if redo is available
-    func canRedo() -> Bool {
-        guard let vm else { return false }
-        return unified_app_runner_can_redo(vm) > 0
+    func mouseDown(x: CGFloat, y: CGFloat, button: UInt16 = 0) { pointer(x, y, button, true) }
+    func mouseUp(x: CGFloat, y: CGFloat, button: UInt16 = 0) { pointer(x, y, button, false) }
+    private func pointer(_ x: CGFloat, _ y: CGFloat, _ button: UInt16, _ pressed: Bool) {
+        if let vm { _ = unified_app_runner_pointer_button(vm, button, pressed ? 1 : 0, Float(x), Float(y)) }
+        refresh()
     }
-
-    /// Get description of next undo action (e.g., "Undo Change Slider")
-    func undoDescription() -> String? {
-        guard let vm else { return nil }
-
-        var strPtr: UnsafePointer<UInt8>? = nil
-        var strLen: Int = 0
-
-        let result = unified_app_runner_undo_description(vm, &strPtr, &strLen)
-
-        guard result == 0, let ptr = strPtr, strLen > 0 else {
-            return nil
-        }
-
-        defer {
-            unified_app_runner_free_string(ptr, strLen)
-        }
-
-        let data = Data(bytes: ptr, count: strLen)
-        return String(data: data, encoding: .utf8)
-    }
-
-    /// Get description of next redo action (e.g., "Redo Change Slider")
-    func redoDescription() -> String? {
-        guard let vm else { return nil }
-
-        var strPtr: UnsafePointer<UInt8>? = nil
-        var strLen: Int = 0
-
-        let result = unified_app_runner_redo_description(vm, &strPtr, &strLen)
-
-        guard result == 0, let ptr = strPtr, strLen > 0 else {
-            return nil
-        }
-
-        defer {
-            unified_app_runner_free_string(ptr, strLen)
-        }
-
-        let data = Data(bytes: ptr, count: strLen)
-        return String(data: data, encoding: .utf8)
-    }
-
-    deinit {
-        if let vm {
-            unified_app_runner_destroy(vm)
-        }
-    }
-
-    // MARK: - Project Management
-
-    /// Save the current project state to JSON string
-    /// Returns nil if save fails or app doesn't implement save_project
-    func saveProject() -> String? {
-        guard let vm else { return nil }
-
-        var jsonPtr: UnsafePointer<UInt8>? = nil
-        var jsonLen: Int = 0
-
-        let result = unified_app_runner_save_project(vm, &jsonPtr, &jsonLen)
-
-        guard result == 0, let ptr = jsonPtr, jsonLen > 0 else {
-            return nil
-        }
-
-        defer {
-            unified_app_runner_free_json(ptr, jsonLen)
-        }
-
-        let data = Data(bytes: ptr, count: jsonLen)
-        return String(data: data, encoding: .utf8)
-    }
-
-    /// Load project state from JSON string
-    /// Returns true if load was successful
-    func loadProject(json: String) -> Bool {
-        guard let vm else { return false }
-
-        guard let data = json.data(using: .utf8) else {
-            return false
-        }
-
-        return data.withUnsafeBytes { (buffer: UnsafeRawBufferPointer) -> Bool in
-            guard let baseAddress = buffer.baseAddress else {
-                return false
-            }
-
-            let ptr = baseAddress.assumingMemoryBound(to: UInt8.self)
-            let result = unified_app_runner_load_project(vm, ptr, buffer.count)
-            return result == 0
-        }
-    }
-
-    /// Check if the app has unsaved changes
-    func hasUnsavedChanges() -> Bool {
-        guard let vm else { return false }
-        return unified_app_runner_has_unsaved_changes(vm) > 0
-    }
-
-    /// Export project data in the specified format
-    /// Returns exported data as Data, or nil if export fails
-    func exportData(format: String) -> Data? {
-        guard let vm else { return nil }
-        guard let formatData = format.data(using: .utf8) else { return nil }
-
-        var dataPtr: UnsafePointer<UInt8>? = nil
-        var dataLen: Int = 0
-
-        let result = formatData.withUnsafeBytes { (buffer: UnsafeRawBufferPointer) -> Int32 in
-            guard let baseAddress = buffer.baseAddress else {
-                return -2
-            }
-            let ptr = baseAddress.assumingMemoryBound(to: UInt8.self)
-            return unified_app_runner_export_data(vm, ptr, buffer.count, &dataPtr, &dataLen)
-        }
-
-        guard result == 0, let ptr = dataPtr, dataLen > 0 else {
-            return nil
-        }
-
-        defer {
-            unified_app_runner_free_data(ptr, dataLen)
-        }
-
-        return Data(bytes: ptr, count: dataLen)
-    }
-
-    /// Import data into the project
-    /// Returns true if import was successful
-    func importData(_ data: Data, fileType: String) -> Bool {
-        guard let vm else { return false }
-        guard let fileTypeData = fileType.data(using: .utf8) else { return false }
-
-        return data.withUnsafeBytes { (dataBuffer: UnsafeRawBufferPointer) -> Bool in
-            guard let dataAddress = dataBuffer.baseAddress else {
-                return false
-            }
-
-            return fileTypeData.withUnsafeBytes { (typeBuffer: UnsafeRawBufferPointer) -> Bool in
-                guard let typeAddress = typeBuffer.baseAddress else {
-                    return false
-                }
-
-                let dataPtr = dataAddress.assumingMemoryBound(to: UInt8.self)
-                let typePtr = typeAddress.assumingMemoryBound(to: UInt8.self)
-                let result = unified_app_runner_import_data(vm, dataPtr, dataBuffer.count, typePtr, typeBuffer.count)
-                return result == 0
-            }
-        }
-    }
+    func mouseMove(x: CGFloat, y: CGFloat) { if let vm { unified_app_runner_mouse_move(vm, Float(x), Float(y)) }; refresh() }
+    func mouseMotion(dx: CGFloat, dy: CGFloat) { if let vm { unified_app_runner_mouse_motion(vm, Float(dx), Float(dy)) }; refresh() }
+    func mouseLeave() { if let vm { unified_app_runner_mouse_leave(vm) }; refresh() }
+    func scroll(dx: CGFloat, dy: CGFloat) { if let vm { unified_app_runner_scroll(vm, Float(dx), Float(dy)) }; refresh() }
+    func pinch(scale: CGFloat, center: CGPoint) { if let vm { unified_app_runner_pinch(vm, Float(scale), Float(center.x), Float(center.y)) }; refresh() }
 }

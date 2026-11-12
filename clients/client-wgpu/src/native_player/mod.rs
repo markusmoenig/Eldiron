@@ -3,6 +3,7 @@
 mod audio;
 #[cfg(all(feature = "native-window", not(target_arch = "wasm32")))]
 pub mod desktop;
+pub mod foreign;
 mod timing;
 mod viewport;
 use crate::player_session::PlayerSession;
@@ -45,6 +46,23 @@ pub trait PlayerServices {
         world: &RuntimeView<'_>,
         effect: &ScreenEffect,
     ) -> std::result::Result<(), String>;
+}
+pub(crate) struct StandardServices;
+impl PlayerServices for StandardServices {
+    fn region_events(&mut self, _: Uuid, _: &RuntimeView<'_>, _: RegionOutputs<'_>) {}
+    fn screen_effect(
+        &mut self,
+        _: &RuntimeView<'_>,
+        effect: &ScreenEffect,
+    ) -> std::result::Result<(), String> {
+        // The controller consumes every supported UI command. The reference
+        // client ignores unknown ui.* commands; keep that behavior here.
+        if let ScreenEffect::Command(ClientCommandBinding::Ui(command)) = effect {
+            eprintln!("Unknown UI command ignored: {command}");
+            return Ok(());
+        }
+        Err(format!("Unhandled player effect: {effect:?}"))
+    }
 }
 struct PlayerGpu {
     owner: u64,
@@ -684,4 +702,4 @@ fn binding_key(physical: PhysicalKey, logical: &LogicalKey) -> Option<String> {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

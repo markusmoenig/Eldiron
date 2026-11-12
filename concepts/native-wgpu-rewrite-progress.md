@@ -27,7 +27,7 @@ Started: 2026-11-11 (Asia/Bangkok). Overall Goal: active; full M0–M9 scope rem
 - M4: in progress. CPU schema/identity extraction, shared `GameSession`, CPU startup preparation, message/party/world-target policies and terminal adoption are implemented and tested. Per-session routing, local players, world values, runtime IDs and region context ownership now pass controlled overlapping-session and parallel assembled-player regressions. Graphical/Creator adoption and remaining bitmap/value data extraction remain; this evidence does not establish full simultaneous Creator Play workflows.
 - M5: in progress. Native Creator controls, material/palette integration and retained prefab/behavior/configuration graph editors are adopted. Application/global ownership, main world/tool/preview producers and complete Creator workflows remain.
 - M6: in progress. Independent GPU game views, common player/input/camera components, authored screen paint, private world descriptions, view-owned speech, acknowledged-frame world pointer gestures, relative first-person mouse look, default/world-intent cursors, world/UI item drag previews and acknowledged authored inventory/equipment pointer/keyboard gestures are implemented. Application-owned audio is integrated into the common player with cancellable CPU preparation jobs. The native container HUD now includes acknowledged paint/input, real server transfers, scrolling, GPU recovery and navigation lifetime. Floating inventory/equipment, action catalogue/spellbook and preferences now use typed native HUD owners, retained text/source resources and acknowledged input. Acknowledged UI-origin tooltips now use retained text and host deadlines. UI-origin Drop cursors and acknowledged drag/assignment highlighting now have GPU and authoritative transfer evidence. Native isometric source production, shared CPU source publication, game-view outputs and acknowledged input receipts now have GPU/CPU and shipped-source device-reconstruction evidence. Browser worker hosting, remaining game-mode/HUD policy parity, performance acceptance remain. Canonical native desktop launchers now share the common application/host; see launcher verification below.
-- M7/M8/M9: Retirement and platform/full acceptance pending. Browser and iOS framework/presentation compile, and detached CAMetalLayer presentation passes; this is not complete application/platform parity.
+- M7/M8/M9: Retirement and platform/full acceptance pending. Canonical desktop clients share one common player; the Xcode client now uses it through the retained ABI over a Rust-created CAMetalLayer surface. Native/ARM64 simulator app bundles link, and real Swift/static-library and registered-scene layer checks pass. Browser bootstrap, native text/platform parity, Creator wrapper and complete physical/release acceptance remain; this is not complete application/platform parity.
 
 ## Native window validation correction (2026-11-12)
 
@@ -1538,3 +1538,156 @@ layer/thread/teardown contracts. This independent M9 work can proceed while the
 locked desktop prevents physical checks. Creator application/world/Play ownership,
 interactive previews, browser bootstrap/workers, performance/resource and complete
 release acceptance remain required. No complete milestone/full acceptance claimed.
+
+
+## Common foreign-layer player host (2026-11-12, in progress)
+
+After canonical desktop checkpoint `5074552d`, independent M9 client bridge work
+is underway while physical Winit validation is unavailable. `ForeignPlayerHost`
+now assembles the same `PlayerApplication`/services with `GpuPresenter`, owns no
+window/SceneVM runner, separates simulation updates from drawable acquisition,
+and acknowledges input receipts only on actual presentation. Load prepares a new
+CPU session/registry before replacing the old document, preserving exact authored
+input bytes for player-document saving. GPU presenter replacement keeps the CPU
+session/controller. These new paths are not yet compiled/tested or connected to
+FFI/Swift. The previous Apple ABI adapter still exists unchanged at this point.
+
+Next: compile/verify the host, connect the retained ABI names to it, implement
+addressed input/platform requests and Swift layer/document/lifecycle forwarding,
+then actual detached-layer player tests, target/static-library/wrapper checks.
+Physical Xcode/macOS/iOS interaction remains separate acceptance.
+
+
+Foreign host foundation passes its actual common-player Metal test (29.23 s),
+`cargo test -p eldiron-client-wgpu --no-default-features --features native-player
+--lib --offline foreign_player_presents -- --include-ignored`, with no Winit.
+Log `/private/tmp/eldiron-native-foreign-host-gpu-first.log`. Four actual surface
+presentations are asserted, including after replacement with a new layer/device.
+Zero-size acquisition prepares no frame while simulation ticks continue. Explicit
+suspend pauses simulation; resume/replacement preserve session, edited text and
+tick identity. Invalid project bytes preserve the old session/registry; player
+saving retains the exact original archive bytes rather than transient runtime
+maps/time. No implicit readback occurs.
+
+The native-player Apple ABI is now routed through this host (`src/apple.rs`),
+with the former implementation isolated in `apple_reference.rs` for configurations
+without native-player. Both established symbol families/static-library identity
+are retained. Added addressed text/composition/clipboard, physical keys/modifiers,
+focus/buttons, suspend/resume/layer replacement, host state/request/error outputs.
+Rust owns acquisition/composition/presentation; FFI callbacks enforce the creation
+thread and catch unwinding panics. New allocated byte outputs have matching
+existing free functions. The window-free native-player library compiles
+(`/private/tmp/eldiron-native-foreign-ffi-first.log`). New ABI validation, null/error
+and ownership cases, Swift byte-preserving document/input/lifecycle forwarding and
+static-library/Xcode target verification are still pending. No full M9 acceptance
+claimed; current Swift wrapper still has its old JSON-only template behavior.
+
+
+Actual Apple ABI validation passes **two cases**, including a registered 3D world
+plus authored UI presented through the supplied layer, with zero viewport CPU
+pixels/readback. It verifies byte-exact archive saving after play, invalid-load
+rollback, null handling, UTF-8/cursor validation, matching allocated-output frees,
+wrong-thread callback rejection, and stale text/clipboard callbacks after a
+successful document replacement. Log
+`/private/tmp/eldiron-native-foreign-ffi-gpu-tests.log`, 45.30 s. The first test
+compile failed only because its fixture module was private; test-only visibility
+was corrected rather than bypassing the real player fixture.
+
+Swift wrappers now forward common host state/requests, addressed input,
+macOS preedit/commits, clipboard, keyboard/mouse/touch and lifecycle. Document
+source is immutable binary Data, preserving JSON and archives. Each document
+retains its own common player; recreated Swift views replace only their Rust GPU
+surface/device over a new strongly retained layer. Callbacks are main-thread
+serialized and renderer destruction uses an isolated main-actor finalizer.
+Direct macOS/iOS typechecks passed; first concurrency warnings were corrected by
+separating immutable file data from main-actor view state. Xcode's stronger member
+import settings then found a missing explicit Combine import (corrected), followed
+by an incorrectly inherited UIKit link flag on macOS (being corrected). These
+failed logs remain `...foreign-xcode-macos-{first,linked}.log`. The installed
+CoreSimulator service is older than Xcode (1171.7.0 versus 1174.21.0); simulator
+runtime launch is unavailable. SDK compilation/linking can continue independently.
+
+The actual native and iOS simulator Rust static libraries build without Winit;
+native-static-libs outputs are recorded in `...foreign-staticlib-first.log` and
+`...foreign-staticlib-ios-first.log` (simulator 38.57 s). Final bundle links, Swift
+bridge/view-recreation harness, complete affected feature/boundary regressions,
+full native IME/surrounding-text parity (especially UIKit composition), physical
+Xcode interactions, Creator wrapper conversion and release verification remain
+pending. Native/SDK builds and detached surfaces do not establish these gates.
+
+
+Latest assembled verification: **20 default-feature common-player tests pass**,
+67.84 s, including the new foreign-host and real Apple ABI cases. Window-free
+native-player, explicit former Apple adapter, both reference binaries and both
+browser client targets pass so far in `/private/tmp/verify-native-foreign-player.py`;
+remaining target/app/boundary results are being finalized. Logs use
+`/private/tmp/eldiron-native-foreign-verified-*.log`.
+
+Both unsigned **macOS and ARM64 iOS simulator Xcode app bundles now compile and
+link against the actual Rust static library** (`...foreign-xcode-macos-build.log`
+and `...foreign-xcode-ios-arm64.log`). The first generic simulator attempt requested
+an unavailable Intel simulator slice; scoping validation to the built ARM64 slice
+resolved that link failure. Intel simulator/universal packaging is not verified.
+The CoreSimulator version mismatch remains a separate runtime-launch limitation.
+The macOS linker also reported C objects built for the host's newer macOS 27
+minimum; the repeatable bridge tool now sets MACOSX_DEPLOYMENT_TARGET=26.1 to
+match Xcode and is rebuilding/verifying that corrected library configuration.
+
+The actual **Swift-to-Rust bridge executable passes** with real detached-layer
+presentations and zero readback, source-byte saving/snapshots and preserved runtime
+session across layer replacement. It deliberately drops local layer references to
+verify Swift's strong layer ownership, and tests zero-size suppression and safe
+teardown. Evidence `/private/tmp/eldiron-native-foreign-swift-host-final.log` and
+`/var/folders/h0/565dc64n6d39c2lrzq1lf6zm0000gn/T/eldiron-apple-host-uc_2_e_m/`.
+Reproduce `CARGO_TARGET_DIR=/Users/markusmoenig/Eldiron/target python3
+tools/check_native_player_apple.py`. The tool additionally checks preserved ABI
+exports in the built archive; this newly added gate and the deployment-target
+correction are next to run. The C ownership/input header parses with clang.
+
+Remaining before an Apple client checkpoint: final dependency results, deployment
+minimum/export gate and corresponding macOS re-link; inspect final diffs and
+preserve unrelated work. Then native IME/surrounding-text and range replacement,
+UIKit composition and service parity, device/physical workflows, Creator wrapper,
+packaging/performance/release acceptance and all other full-goal work remain.
+
+
+Apple client integration checkpoint results: **20 common-player tests**, all
+native/foreign/reference/browser/iOS target configurations, all four applications
+and all **ten renderer dependency boundaries** pass. Reproduce
+`/private/tmp/verify-native-foreign-player.py`; all `...foreign-verified-*.log`
+checks exited zero. The final public presenter-replacement size correction has an
+additional passing actual Metal test (29.01 s), adopting a new 640×480 surface
+while retaining 150% input density, session, UI edits and clock:
+`...foreign-host-replacement-size.log`. No gameplay/source format implementation
+was changed by this correction.
+
+The repeatable Swift tool now passes its deployment-minimum, **37 established
+ABI exports**, warning-free Swift compile/link and real GPU bridge checks:
+`...foreign-swift-host-exports.log`, detailed logs/artifacts in
+`/var/folders/h0/565dc64n6d39c2lrzq1lf6zm0000gn/T/eldiron-apple-host-8k8mg6eg/`.
+Xcode's nm cannot parse Rust 1.99's newer standard-library LLVM bitcode. The gate
+therefore extracts and scans **every application Mach-O object** owning these
+exports, with nm required to succeed; it does not ignore a failed archive scan's
+partial output. The diagnostic failure remains
+`...foreign-swift-host-deployment.log`. All expected exports are preserved.
+
+With MACOSX_DEPLOYMENT_TARGET=26.1, the final macOS bundle re-links without the
+newer-OS C-object mismatch (`...foreign-xcode-macos-deployment.log`, BUILD
+SUCCEEDED). ARM64 simulator bundle link remains successful in
+`...foreign-xcode-ios-arm64.log`. Runtime launch remains unavailable because the
+installed CoreSimulator service predates Xcode. These are unsigned development
+builds and detached-layer checks; no signed distribution, iOS hardware, physical
+Xcode workflow, full locale/IME or release/performance acceptance is claimed.
+
+The new C header documents thread, scale, source-byte, opaque target/request and
+output-freeing contracts. Legacy implementation callers remain explicitly
+isolated when native-player is disabled; canonical Xcode build instructions
+select the common window-free host. The unrelated networking concept and original
+checkout remain untouched. Overall M0–M9 Goal stays active.
+
+Next: expose an addressed native text snapshot/selection/replacement contract
+from the existing shared editor, complete macOS surrounding text/range semantics
+and UIKit composition via that same controller, with real bridge/undo/stale-token
+checks. Then continue Creator main application/document/history/world/tool/preview
+and Play ownership, Creator Apple wrapper, browser bootstrap/workers, resource and
+release performance budgets, physical matrices and explicit legacy retirement.

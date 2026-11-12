@@ -100,7 +100,7 @@ fn sector(map: &mut Map, id: u32, r: ScreenRect, data: &str) {
     sector.properties.set("data", Value::Str(data.into()));
     map.sectors.push(sector);
 }
-fn starter_with_menu() -> Project {
+pub(crate) fn starter_with_menu() -> Project {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../test_projects/3DStarter.eldiron");
     let mut project = shared::project_io::decode_project(&std::fs::read(path).unwrap()).unwrap();
