@@ -184,11 +184,43 @@ impl EditorOverlay {
         for command in &self.commands {
             match command {
                 Command::Rect(rect, color) => {
-                    ctx.draw.rect(buffer.pixels_mut(), rect, stride, color)
+                    let width = (buffer.dim().width.max(0) as usize)
+                        .saturating_sub(rect.0)
+                        .min(rect.2);
+                    let height = (buffer.dim().height.max(0) as usize)
+                        .saturating_sub(rect.1)
+                        .min(rect.3);
+                    if width > 0 && height > 0 {
+                        ctx.draw.rect(
+                            buffer.pixels_mut(),
+                            &(rect.0, rect.1, width, height),
+                            stride,
+                            color,
+                        );
+                    }
                 }
                 Command::Outline(rect, color) => {
-                    ctx.draw
-                        .rect_outline(buffer.pixels_mut(), rect, stride, color)
+                    if rect.2 == 0 || rect.3 == 0 {
+                        continue;
+                    }
+                    if rect.0.saturating_add(rect.2) <= buffer.dim().width.max(0) as usize
+                        && rect.1.saturating_add(rect.3) <= buffer.dim().height.max(0) as usize
+                    {
+                        ctx.draw
+                            .rect_outline(buffer.pixels_mut(), rect, stride, color);
+                    } else {
+                        // Clip the original border rather than moving its far
+                        // edges to the viewport boundary. This is reference-only.
+                        buffer.draw_rect_outline(
+                            &TheDim::rect(
+                                rect.0 as i32,
+                                rect.1 as i32,
+                                rect.2 as i32,
+                                rect.3 as i32,
+                            ),
+                            color,
+                        );
+                    }
                 }
                 Command::Text {
                     position,
@@ -540,3 +572,8 @@ fn fit_label(
     }
     "...".into()
 }
+
+pub(crate) mod panel;
+
+#[cfg(test)]
+pub(crate) mod test_support;

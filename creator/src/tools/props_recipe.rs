@@ -188,7 +188,7 @@ pub fn placement_transform(
     ]
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct Published {
     pub path: Vec<String>,
     pub operation: String,

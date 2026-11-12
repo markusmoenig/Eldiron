@@ -439,7 +439,7 @@ impl EditorController {
         if self.style.as_ref() != Some(&key) {
             let styles = self.editor.edit_styles();
             styles.insert(StyleProperty::FontFamily(
-                parley::FontFamily::from(options.family).into_owned(),
+                crate::text::font_family(options.family).into_owned(),
             ));
             styles.insert(StyleProperty::FontSize(size));
             styles.insert(StyleProperty::LineHeight(

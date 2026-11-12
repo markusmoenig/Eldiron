@@ -275,6 +275,27 @@ fn color_intervals(
     }
     result
 }
+/// The embedded UI and code faces are each other's ordered fallback, matching
+/// the reference painter's font preference without depending on installed fonts.
+/// Keep the same family stack in shaping and the editing driver so measurement,
+/// glyphs, carets and IME geometry all describe the same text.
+pub(crate) fn font_family(family: &str) -> parley::FontFamily<'_> {
+    use parley::{FontFamily, FontFamilyName};
+    static UI: [FontFamilyName<'static>; 2] = [
+        FontFamilyName::named("Roboto"),
+        FontFamilyName::named("Source Code Pro"),
+    ];
+    static CODE: [FontFamilyName<'static>; 2] = [
+        FontFamilyName::named("Source Code Pro"),
+        FontFamilyName::named("Roboto"),
+    ];
+    match family {
+        "Roboto" => FontFamily::List(std::borrow::Cow::Borrowed(&UI)),
+        "Source Code Pro" => FontFamily::List(std::borrow::Cow::Borrowed(&CODE)),
+        _ => FontFamily::from(family),
+    }
+}
+
 pub struct TextSystem {
     owner: u64,
     fonts: FontContext,
@@ -434,7 +455,7 @@ impl TextSystem {
                 height,
             )));
         }
-        builder.push_default(parley::FontFamily::from(family));
+        builder.push_default(font_family(family));
         builder.push_default(StyleProperty::Brush(usize::MAX));
         for (i, span) in styles.iter().enumerate() {
             builder.push(StyleProperty::Brush(i), span.range.clone());
@@ -630,6 +651,91 @@ impl GlyphCache {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn bundled_ui_symbols_keep_registered_fallback_in_labels_and_editing() {
+        const UI: &[u8] = include_bytes!("../embedded/fonts/Roboto-Bold.ttf");
+        const CODE: &[u8] = include_bytes!("../embedded/fonts/SourceCodePro-Bold.ttf");
+        let ui = FontRef::from_index(UI, 0).unwrap();
+        let code = FontRef::from_index(CODE, 0).unwrap();
+        let mut fonts = TextSystem::default();
+        fonts.register_font(UI.to_vec());
+        fonts.register_font(CODE.to_vec());
+        for symbol in ['▾', '◉', '○'] {
+            assert_eq!(
+                ui.charmap().map(symbol),
+                0,
+                "fixture requires actual fallback"
+            );
+            assert_ne!(
+                code.charmap().map(symbol),
+                0,
+                "bundled code font supplies {symbol}"
+            );
+            let source = symbol.to_string();
+            let label = fonts.layout(&source, "Roboto", 13., None);
+            assert_eq!(
+                label.runs.iter().map(|run| run.glyphs.len()).sum::<usize>(),
+                1
+            );
+            assert!(label.width() > 0.);
+            assert!(
+                label
+                    .runs
+                    .iter()
+                    .flat_map(|run| run.glyphs.iter())
+                    .all(|glyph| glyph.id != 0),
+                "label {symbol} must not become a missing-glyph box"
+            );
+            assert!(label.runs.iter().all(|run| run.font.data.as_ref() == CODE));
+            let mut editor = crate::text_edit::EditorController::new(false);
+            editor.prepare(
+                &mut fonts,
+                TextOptions {
+                    family: "Roboto",
+                    size: 13.,
+                    width: None,
+                    line_height: None,
+                },
+            );
+            editor.set_text(&mut fonts, &source);
+            let editable = editor.layout(&mut fonts);
+            assert_eq!(
+                editable
+                    .runs
+                    .iter()
+                    .map(|run| run.glyphs.len())
+                    .sum::<usize>(),
+                1
+            );
+            assert!(
+                editable
+                    .runs
+                    .iter()
+                    .flat_map(|run| run.glyphs.iter())
+                    .all(|glyph| glyph.id != 0),
+                "editor {symbol} must use the same fallback policy"
+            );
+            assert_eq!(editable.width(), label.width());
+            assert!(
+                editable
+                    .runs
+                    .iter()
+                    .all(|run| run.font.data.as_ref() == CODE)
+            );
+        }
+        for family in ["Roboto", "Source Code Pro"] {
+            let layout = fonts.layout("ABC123", family, 13., None);
+            let expected = if family == "Roboto" { UI } else { CODE };
+            assert!(
+                layout
+                    .runs
+                    .iter()
+                    .all(|run| run.font.data.as_ref() == expected),
+                "fallback must preserve primary Latin font"
+            );
+        }
+    }
+
     #[test]
     fn aligned_pages_keep_bidi_clusters_and_slice_only_the_addressed_visual_lines() {
         let mut fonts = TextSystem::default();

@@ -1,8 +1,11 @@
 //! Rect-style in-viewport Paint controls. Artwork stays in project MZ recipes.
+use crate::editor_overlay::panel::{
+    PanelBuilder, PanelEvent, PanelFrame, PanelFrames, PanelHit, PanelScope, box_rect,
+};
 use crate::prelude::*;
 use shared::paint_source::Spec;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct Controls {
     pub title: String,
     pub source: Option<Uuid>,
@@ -59,7 +62,7 @@ impl Controls {
 }
 
 #[derive(Clone)]
-enum Action {
+pub(crate) enum Action {
     Mode(usize),
     Number(&'static str, f32),
     Input(&'static str, f32),
@@ -71,7 +74,9 @@ enum Action {
 #[derive(Default)]
 pub struct PaintOverlay {
     controls: Option<Controls>,
-    buttons: Vec<(TheDim, Action)>,
+    frames: PanelFrames<Option<Controls>, Action>,
+    reference_context: Option<ProjectContext>,
+    last_size: (usize, usize),
     bounds: TheDim,
     down: bool,
 }
@@ -80,55 +85,15 @@ impl PaintOverlay {
         self.controls.is_some()
     }
     pub fn sync(&mut self, project: &mut Project, server: &ServerContext) {
-        self.controls = Controls::read(project, server);
-    }
-    fn button(
-        &mut self,
-        buffer: &mut TheRGBABuffer,
-        ctx: &mut TheContext,
-        rect: TheDim,
-        label: &str,
-        selected: bool,
-        action: Action,
-    ) {
-        let stride = buffer.stride();
-        let c = crate::hud::colors();
-        ctx.draw.rect(
-            buffer.pixels_mut(),
-            &(
-                rect.x as usize,
-                rect.y as usize,
-                rect.width as usize,
-                rect.height as usize,
-            ),
-            stride,
-            &if selected { c.selected } else { c.panel },
-        );
-        buffer.draw_rect_outline(&rect, &if selected { c.accent } else { c.border });
-        ctx.draw.text_rect_blend(
-            buffer.pixels_mut(),
-            &(
-                rect.x as usize + 4,
-                rect.y as usize,
-                rect.width as usize - 8,
-                rect.height as usize,
-            ),
-            stride,
-            label,
-            TheFontSettings {
-                size: 13.,
-                ..Default::default()
-            },
-            &c.selected_text,
-            TheHorizontalAlign::Center,
-            TheVerticalAlign::Center,
-        );
-        self.buttons.push((rect, action));
+        let next = Controls::read(project, server);
+        if self.controls != next || self.reference_context != Some(server.pc) {
+            self.frames.invalidate();
+        }
+        self.controls = next;
+        self.reference_context = Some(server.pc);
     }
     fn step(
-        &mut self,
-        buffer: &mut TheRGBABuffer,
-        ctx: &mut TheContext,
+        frame: &mut PanelBuilder<Action>,
         x: i32,
         y: i32,
         w: i32,
@@ -137,12 +102,9 @@ impl PaintOverlay {
         value: f32,
         step: f32,
     ) {
-        let stride = buffer.stride();
-        let c = crate::hud::colors();
-        ctx.draw.text_rect_blend(
-            buffer.pixels_mut(),
+        let c = frame.colors;
+        frame.commands.text_rect_blend(
             &(x as usize, y as usize, (w - 60) as usize, 28),
-            stride,
             &label,
             TheFontSettings {
                 size: 13.,
@@ -152,34 +114,39 @@ impl PaintOverlay {
             TheHorizontalAlign::Left,
             TheVerticalAlign::Center,
         );
-        self.buttons
+        frame
+            .buttons
             .push((TheDim::rect(x, y, w - 62, 28), Action::Input(key, value)));
-        self.button(
-            buffer,
-            ctx,
+        frame.button(
             TheDim::rect(x + w - 58, y, 26, 28),
             "−",
             false,
             Action::Number(key, value - step),
         );
-        self.button(
-            buffer,
-            ctx,
+        frame.button(
             TheDim::rect(x + w - 28, y, 26, 28),
             "+",
             false,
             Action::Number(key, value + step),
         );
     }
-    pub fn draw(&mut self, buffer: &mut TheRGBABuffer, ctx: &mut TheContext) {
-        let stride = buffer.stride();
+    pub(crate) fn prepare_frame(
+        &mut self,
+        scope: PanelScope,
+        size: (usize, usize),
+        colors: crate::hud::HudColors,
+    ) -> PanelFrame<Option<Controls>, Action> {
+        let source = self.controls.clone();
+        let mut frame = PanelBuilder::new(size, colors);
+        let viewport_width = i32::try_from(size.0).unwrap_or(i32::MAX);
+        let viewport_height = i32::try_from(size.1).unwrap_or(i32::MAX);
         let Some(c) = self.controls.clone() else {
-            return;
+            return frame.finish(&mut self.frames, scope, source);
         };
-        if buffer.dim().width < 340 || buffer.dim().height < 260 {
-            return;
+        if viewport_width < 340 || viewport_height < 260 {
+            return frame.finish(&mut self.frames, scope, source);
         }
-        let width = 504.min(buffer.dim().width - 16);
+        let width = 504.min(viewport_width - 16);
         let x = 16;
         let y = 34;
         let inner = width - 16;
@@ -187,25 +154,22 @@ impl PaintOverlay {
         let stamp = c.mode == "stamp";
         let pattern = c.spec.as_ref().is_some_and(|s| s.brush == "brick");
         let height = if pattern { 274 } else { 240 };
-        self.bounds = TheDim::rect(8, 26, width, height);
-        let theme = crate::hud::colors();
-        ctx.draw.rect(
-            buffer.pixels_mut(),
+        frame.bounds = TheDim::rect(8, 26, width, height);
+        let theme = frame.colors;
+        frame.commands.rect(
             &(
-                self.bounds.x as usize,
-                self.bounds.y as usize,
-                self.bounds.width as usize,
-                self.bounds.height as usize,
+                frame.bounds.x as usize,
+                frame.bounds.y as usize,
+                frame.bounds.width as usize,
+                frame.bounds.height as usize,
             ),
-            stride,
             &theme.background,
         );
-        buffer.draw_rect_outline(&self.bounds, &theme.border);
-        self.buttons.clear();
-        ctx.draw.text_rect_blend(
-            buffer.pixels_mut(),
+        frame
+            .commands
+            .rect_outline(&box_rect(frame.bounds), &theme.border);
+        frame.commands.text_rect_blend(
             &(x as usize, y as usize, (inner - 230) as usize, 28),
-            stride,
             &c.title,
             TheFontSettings {
                 size: 14.,
@@ -215,25 +179,19 @@ impl PaintOverlay {
             TheHorizontalAlign::Left,
             TheVerticalAlign::Center,
         );
-        self.button(
-            buffer,
-            ctx,
+        frame.button(
             TheDim::rect(x + inner - 224, y, 36, 28),
             if c.visible { "◉" } else { "○" },
             c.visible,
             Action::Command("Visible"),
         );
-        self.button(
-            buffer,
-            ctx,
+        frame.button(
             TheDim::rect(x + inner - 182, y, 98, 28),
             &fl!("paint_overlay_settings"),
             false,
             Action::Settings,
         );
-        self.button(
-            buffer,
-            ctx,
+        frame.button(
             TheDim::rect(x + inner - 78, y, 78, 28),
             &fl!("paint_overlay_advanced"),
             false,
@@ -255,9 +213,7 @@ impl PaintOverlay {
         };
         let cell = (inner - 4 * gap) / 5;
         for (i, label) in labels.iter().enumerate() {
-            self.button(
-                buffer,
-                ctx,
+            frame.button(
                 TheDim::rect(x + i as i32 * (cell + gap), y + 34, cell, 30),
                 label,
                 selected == i,
@@ -265,9 +221,8 @@ impl PaintOverlay {
             );
         }
         let half = (inner - gap) / 2;
-        self.step(
-            buffer,
-            ctx,
+        Self::step(
+            &mut frame,
             x,
             y + 70,
             half,
@@ -276,9 +231,8 @@ impl PaintOverlay {
             c.size,
             0.1,
         );
-        self.step(
-            buffer,
-            ctx,
+        Self::step(
+            &mut frame,
             x + half + gap,
             y + 70,
             half,
@@ -288,10 +242,8 @@ impl PaintOverlay {
             0.05,
         );
         let palette_label = fl!("iso_paint_section_colors");
-        ctx.draw.text_rect_blend(
-            buffer.pixels_mut(),
+        frame.commands.text_rect_blend(
             &(x as usize, (y + 105) as usize, 74, 28),
-            stride,
             &palette_label,
             TheFontSettings {
                 size: 13.,
@@ -303,42 +255,35 @@ impl PaintOverlay {
         );
         for (i, color) in c.colors.iter().take(8).enumerate() {
             let rect = TheDim::rect(x + 82 + i as i32 * 36, y + 105, 30, 28);
-            ctx.draw.rect(
-                buffer.pixels_mut(),
+            frame.commands.rect(
                 &(
                     rect.x as usize,
                     rect.y as usize,
                     rect.width as usize,
                     rect.height as usize,
                 ),
-                stride,
                 color,
             );
-            buffer.draw_rect_outline(&rect, &theme.border);
-            self.buttons.push((rect, Action::Color(i)));
+            frame.commands.rect_outline(&box_rect(rect), &theme.border);
+            frame.buttons.push((rect, Action::Color(i)));
         }
         let families = crate::docks::iso_paint::IsoPaintDock::material_preset_labels();
         let finishes = crate::docks::iso_paint::IsoPaintDock::material_finish_labels();
-        self.button(
-            buffer,
-            ctx,
+        frame.button(
             TheDim::rect(x, y + 140, half, 28),
             &format!("{} ▾", families[c.material as usize / 4]),
             false,
             Action::Choice("Material", families, c.material as usize / 4),
         );
-        self.button(
-            buffer,
-            ctx,
+        frame.button(
             TheDim::rect(x + half + gap, y + 140, half, 28),
             &format!("{} ▾", finishes[c.material as usize % 4]),
             false,
             Action::Choice("Finish", finishes, c.material as usize % 4),
         );
         if stamp {
-            self.step(
-                buffer,
-                ctx,
+            Self::step(
+                &mut frame,
                 x,
                 y + 174,
                 half,
@@ -351,9 +296,8 @@ impl PaintOverlay {
                 c.density,
                 0.05,
             );
-            self.step(
-                buffer,
-                ctx,
+            Self::step(
+                &mut frame,
                 x + half + gap,
                 y + 174,
                 half,
@@ -363,17 +307,13 @@ impl PaintOverlay {
                 0.05,
             );
         } else if selected == 4 {
-            self.button(
-                buffer,
-                ctx,
+            frame.button(
                 TheDim::rect(x, y + 174, half, 28),
                 &fl!("iso_paint_fill_selection"),
                 false,
                 Action::Command("Fill"),
             );
-            self.button(
-                buffer,
-                ctx,
+            frame.button(
                 TheDim::rect(x + half + gap, y + 174, half, 28),
                 &fl!("iso_paint_clear_selection"),
                 false,
@@ -395,26 +335,20 @@ impl PaintOverlay {
             .iter()
             .position(|s| *s == c.shape)
             .unwrap_or(0);
-            self.button(
-                buffer,
-                ctx,
+            frame.button(
                 TheDim::rect(x, y + 174, half, 28),
                 &format!("{} ▾", shapes[index]),
                 false,
                 Action::Choice("Shape", shapes, index),
             );
             let quarter = (half - gap) / 2;
-            self.button(
-                buffer,
-                ctx,
+            frame.button(
                 TheDim::rect(x + half + gap, y + 174, quarter, 28),
                 &fl!("iso_paint_material_mode_coat"),
                 c.mode == "coat",
                 Action::Command("Coat"),
             );
-            self.button(
-                buffer,
-                ctx,
+            frame.button(
                 TheDim::rect(x + half + gap + quarter + gap, y + 174, quarter, 28),
                 &fl!("iso_paint_material_mode_replace"),
                 c.mode == "replace",
@@ -423,9 +357,8 @@ impl PaintOverlay {
         }
         if pattern {
             if let Some(s) = &c.spec {
-                self.step(
-                    buffer,
-                    ctx,
+                Self::step(
+                    &mut frame,
                     x,
                     y + 208,
                     half,
@@ -434,9 +367,8 @@ impl PaintOverlay {
                     s.scale,
                     0.1,
                 );
-                self.step(
-                    buffer,
-                    ctx,
+                Self::step(
+                    &mut frame,
                     x + half + gap,
                     y + 208,
                     half,
@@ -447,6 +379,58 @@ impl PaintOverlay {
                 );
             }
         }
+        frame.finish(&mut self.frames, scope, source)
+    }
+    fn reference_scope(&self) -> PanelScope {
+        PanelScope {
+            document: self
+                .reference_context
+                .and_then(ProjectContext::id)
+                .unwrap_or_default(),
+            tool: self.frames.owner(),
+            revision: 0,
+        }
+    }
+    pub fn draw(&mut self, buffer: &mut TheRGBABuffer, ctx: &mut TheContext) {
+        let size = (
+            buffer.dim().width.max(0) as usize,
+            buffer.dim().height.max(0) as usize,
+        );
+        let scope = self.reference_scope();
+        let frame = self.prepare_frame(scope, size, crate::hud::colors());
+        frame.commands.draw_reference(buffer, ctx);
+        self.last_size = size;
+        if self
+            .frames
+            .acknowledge_reference(&frame, scope, size, &self.controls)
+        {
+            self.bounds = frame.bounds;
+        } else {
+            self.bounds = TheDim::default();
+        }
+    }
+    pub(crate) fn invalidate_frame(&mut self) {
+        self.frames.invalidate();
+        self.down = false;
+    }
+    #[cfg(feature = "native-ui")]
+    pub(crate) fn presented_paint(
+        &mut self,
+        frame: &PanelFrame<Option<Controls>, Action>,
+        receipts: &[theframework::paint::FrameReceipt],
+        scope: PanelScope,
+        size: (usize, usize),
+    ) -> bool {
+        self.frames
+            .presented_paint(frame, receipts, scope, size, &self.controls)
+    }
+    pub(crate) fn hit_test(
+        &self,
+        scope: PanelScope,
+        size: (usize, usize),
+        point: Vec2<i32>,
+    ) -> PanelHit<Action> {
+        self.frames.hit_test(scope, size, &self.controls, point)
     }
     pub fn map_event(
         &mut self,
@@ -455,243 +439,280 @@ impl PaintOverlay {
         ctx: &mut TheContext,
         server: &ServerContext,
     ) -> bool {
-        match event {
-            MapEvent::MapClicked(at) if self.bounds.contains(*at) => {
-                self.down = true;
-                let Some(c) = self.controls.as_ref() else {
-                    return true;
-                };
-                let action = self.buttons.iter().find(|(r, _)| r.contains(*at)).cloned();
-                if let Some((rect, action)) = action {
-                    match action {
-                        Action::Mode(index) => ctx.ui.send(TheEvent::IndexChanged(
-                            TheId::named(super::paint_picker::MODE),
-                            index,
-                        )),
-                        Action::Number(key, value) => ctx.ui.send(TheEvent::ValueChanged(
-                            TheId::named(&format!("Paint Overlay {key}")),
-                            TheValue::Float(value),
-                        )),
-                        Action::Settings => {
-                            let mut fields = TheNodeUI::default();
-                            fields.add_item(TheNodeUIItem::Selector(
-                                "Paint Overlay Clip".into(),
-                                fl!("iso_paint_clip"),
-                                String::new(),
-                                vec![fl!("iso_paint_clip_none"), fl!("iso_paint_clip_object")],
-                                if c.clip == "surface" { 1 } else { 0 },
-                            ));
-                            if let Some(spec) = &c.spec {
-                                if spec.brush == "brick" {
-                                    fields.add_item(TheNodeUIItem::Selector(
-                                        "Paint Overlay Pattern".into(),
-                                        fl!("iso_paint_pattern_kind"),
-                                        String::new(),
-                                        vec![
-                                            fl!("iso_paint_pattern_tiles"),
-                                            fl!("iso_paint_pattern_bricks"),
-                                            fl!("iso_paint_pattern_arch"),
-                                        ],
-                                        ["tiles", "bricks", "arch"]
-                                            .iter()
-                                            .position(|p| *p == spec.pattern)
-                                            .unwrap_or(1)
-                                            as i32,
-                                    ));
-                                    for (key, label, value, min, max) in [
-                                        (
-                                            "Scale",
-                                            fl!("iso_paint_pattern_scale"),
-                                            spec.scale,
-                                            0.25,
-                                            4.,
-                                        ),
-                                        ("Mortar", fl!("iso_paint_mortar"), spec.mortar, 0., 0.4),
-                                        (
-                                            "Detail",
-                                            fl!("iso_paint_pattern_detail"),
-                                            spec.detail,
-                                            0.,
-                                            1.,
-                                        ),
-                                        (
-                                            "Variation",
-                                            fl!("iso_paint_pattern_variation"),
-                                            spec.variation,
-                                            0.,
-                                            1.,
-                                        ),
-                                    ] {
-                                        fields.add_item(TheNodeUIItem::FloatEditSlider(
-                                            format!("Paint Overlay {key}"),
-                                            label,
-                                            String::new(),
-                                            value,
-                                            min..=max,
-                                            true,
-                                        ));
-                                    }
-                                }
-                                if spec.stamp && !IsoPaintStamp::keeps_upright(&spec.brush) {
-                                    fields.add_item(TheNodeUIItem::FloatEditSlider(
-                                        "Paint Overlay Rotate".into(),
-                                        fl!("paint_picker_rotate"),
-                                        String::new(),
-                                        c.rotation,
-                                        0.0..=1.0,
-                                        true,
-                                    ));
-                                }
-                            }
-                            let mut layout =
-                                TheTextLayout::new(TheId::named("Paint Overlay Settings"));
-                            layout.set_margin(Vec4::new(10, 10, 10, 10));
-                            layout.set_text_margin(8);
-                            layout.set_fixed_text_width(120);
-                            fields.apply_to_text_layout(&mut layout);
-                            let mut canvas = TheCanvas::new();
-                            canvas.limiter_mut().set_max_size(Vec2::new(
-                                420,
-                                if c.spec.as_ref().is_some_and(|s| s.brush == "brick") {
-                                    240
-                                } else {
-                                    96
-                                },
-                            ));
-                            canvas.set_layout(layout);
-                            let dim = *crate::utils::map_editor_render_view(ui, server)
-                                .unwrap()
-                                .dim();
-                            ui.show_popover(
-                                TheId::named("Paint Overlay Settings"),
-                                TheDim::rect(
-                                    dim.x + rect.x,
-                                    dim.y + rect.y,
-                                    rect.width,
-                                    rect.height,
-                                ),
-                                canvas,
-                                ctx,
-                            );
-                        }
-                        Action::Input(key, value) => {
-                            let dim = *crate::utils::map_editor_render_view(ui, server)
-                                .unwrap()
-                                .dim();
-                            let mut field =
-                                TheTextLineEdit::new(TheId::named(&format!("Paint Overlay {key}")));
-                            field.set_value(TheValue::Float(value));
-                            let range = match key {
-                                "Size" => 0.05..=16.,
-                                "Scale" => 0.25..=4.,
-                                "Mortar" => 0.0..=0.4,
-                                _ => 0.0..=1.,
-                            };
-                            field.set_range(TheValue::RangeF32(range));
-                            field.limiter_mut().set_max_width(180);
-                            let mut row = TheHLayout::new(TheId::empty());
-                            row.set_margin(Vec4::new(8, 8, 8, 8));
-                            row.add_widget(Box::new(field));
-                            let mut canvas = TheCanvas::new();
-                            canvas.limiter_mut().set_max_size(Vec2::new(204, 42));
-                            canvas.set_layout(row);
-                            ui.show_popover(
-                                TheId::named("Paint Overlay Number"),
-                                TheDim::rect(
-                                    dim.x + rect.x,
-                                    dim.y + rect.y,
-                                    rect.width,
-                                    rect.height,
-                                ),
-                                canvas,
-                                ctx,
-                            );
-                        }
-                        Action::Command(key) => ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Paint Overlay Command"),
-                            TheValue::Text(key.into()),
-                        )),
-                        Action::Choice(key, choices, index) => {
-                            let items = choices
-                                .into_iter()
-                                .enumerate()
-                                .map(|(i, label)| {
-                                    TheContextMenuItem::new(
-                                        format!("{}{}", if i == index { "✓ " } else { "" }, label),
-                                        TheId::named(&format!("Paint Overlay Choice {key} {i}")),
-                                    )
-                                })
-                                .collect();
-                            let dim = *crate::utils::map_editor_render_view(ui, server)
-                                .unwrap()
-                                .dim();
-                            ctx.ui.send(TheEvent::ShowContextMenu(
-                                TheId::named("Paint Overlay Choices"),
-                                Vec2::new(dim.x + rect.x, dim.y + rect.y + rect.height),
-                                TheContextMenu {
-                                    items,
-                                    ..Default::default()
-                                },
-                            ));
-                        }
-                        Action::Color(slot) => {
-                            let dim = *crate::utils::map_editor_render_view(ui, server)
-                                .unwrap()
-                                .dim();
-                            let mut picker = ThePalettePicker::new(TheId::named_with_id(
-                                &format!("Paint Overlay Palette {slot}"),
-                                c.source.unwrap_or_default(),
-                            ));
-                            picker.set_palette(c.palette.clone());
-                            picker.set_rows_columns(16, 16);
-                            picker.set_adaptive_cell_size(true);
-                            picker.set_index(
-                                c.spec
-                                    .as_ref()
-                                    .and_then(|s| s.palette.get(slot))
-                                    .copied()
-                                    .flatten()
-                                    .unwrap_or(0) as usize,
-                            );
-                            picker.limiter_mut().set_max_size(Vec2::new(352, 352));
-                            let mut canvas = TheCanvas::new();
-                            canvas.limiter_mut().set_max_size(Vec2::new(352, 352));
-                            canvas.set_widget(picker);
-                            ui.show_popover(
-                                TheId::named("Paint Overlay Colors"),
-                                TheDim::rect(
-                                    dim.x + rect.x,
-                                    dim.y + rect.y,
-                                    rect.width,
-                                    rect.height,
-                                ),
-                                canvas,
-                                ctx,
-                            );
-                        }
-                    }
+        let size = crate::utils::map_editor_render_view(ui, server)
+            .map(|view| {
+                (
+                    view.dim().width.max(0) as usize,
+                    view.dim().height.max(0) as usize,
+                )
+            })
+            .unwrap_or(self.last_size);
+        if self.reference_context.is_some_and(|pc| pc != server.pc) {
+            self.frames.invalidate();
+        }
+        let scope = self.reference_scope();
+        match self.route_map_event(scope, size, event, ui, ctx, server) {
+            PanelEvent::Consumed => true,
+            PanelEvent::Outside => false,
+            // The reference image may still be on screen while a new source is
+            // pending. Consume its old panel without applying an action to it.
+            PanelEvent::Unavailable => match event {
+                MapEvent::MapClicked(at) if self.bounds.contains(*at) => {
+                    self.down = true;
+                    true
                 }
-                ctx.ui.redraw_all = true;
-                true
-            }
-            // A popover can consume the release of the click that opened it.
-            // The next scene press must always start a fresh painting gesture.
-            MapEvent::MapClicked(_) => {
-                self.down = false;
-                false
-            }
+                MapEvent::MapHover(at) if self.bounds.contains(*at) => true,
+                _ => false,
+            },
+        }
+    }
+    pub(crate) fn route_map_event(
+        &mut self,
+        scope: PanelScope,
+        size: (usize, usize),
+        event: &MapEvent,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        server: &ServerContext,
+    ) -> PanelEvent {
+        match event {
             MapEvent::MapDragged(_) | MapEvent::MapUp(_) if self.down => {
                 if matches!(event, MapEvent::MapUp(_)) {
                     self.down = false;
                 }
-                true
+                return PanelEvent::Consumed;
             }
-            MapEvent::MapHover(at) if self.bounds.contains(*at) => true,
             MapEvent::MapEscape => {
                 self.down = false;
-                false
+                return PanelEvent::Outside;
             }
-            _ => false,
+            _ => (),
+        }
+        let at = match event {
+            MapEvent::MapClicked(at) | MapEvent::MapHover(at) => *at,
+            _ => return PanelEvent::Outside,
+        };
+        if matches!(event, MapEvent::MapClicked(_)) {
+            self.down = false;
+        }
+        let hit = self.hit_test(scope, size, at);
+        match hit {
+            PanelHit::Unavailable => PanelEvent::Unavailable,
+            PanelHit::Outside => PanelEvent::Outside,
+            PanelHit::Inside(action) => {
+                if matches!(event, MapEvent::MapClicked(_)) {
+                    self.down = true;
+                    if let Some((rect, action)) = action {
+                        self.dispatch_action(rect, action, ui, ctx, server);
+                    }
+                    ctx.ui.redraw_all = true;
+                }
+                PanelEvent::Consumed
+            }
+        }
+    }
+    fn dispatch_action(
+        &self,
+        rect: TheDim,
+        action: Action,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        server: &ServerContext,
+    ) {
+        let Some(c) = self.controls.as_ref() else {
+            return;
+        };
+        match action {
+            Action::Mode(index) => ctx.ui.send(TheEvent::IndexChanged(
+                TheId::named(super::paint_picker::MODE),
+                index,
+            )),
+            Action::Number(key, value) => ctx.ui.send(TheEvent::ValueChanged(
+                TheId::named(&format!("Paint Overlay {key}")),
+                TheValue::Float(value),
+            )),
+            Action::Settings => {
+                let mut fields = TheNodeUI::default();
+                fields.add_item(TheNodeUIItem::Selector(
+                    "Paint Overlay Clip".into(),
+                    fl!("iso_paint_clip"),
+                    String::new(),
+                    vec![fl!("iso_paint_clip_none"), fl!("iso_paint_clip_object")],
+                    if c.clip == "surface" { 1 } else { 0 },
+                ));
+                if let Some(spec) = &c.spec {
+                    if spec.brush == "brick" {
+                        fields.add_item(TheNodeUIItem::Selector(
+                            "Paint Overlay Pattern".into(),
+                            fl!("iso_paint_pattern_kind"),
+                            String::new(),
+                            vec![
+                                fl!("iso_paint_pattern_tiles"),
+                                fl!("iso_paint_pattern_bricks"),
+                                fl!("iso_paint_pattern_arch"),
+                            ],
+                            ["tiles", "bricks", "arch"]
+                                .iter()
+                                .position(|p| *p == spec.pattern)
+                                .unwrap_or(1) as i32,
+                        ));
+                        for (key, label, value, min, max) in [
+                            (
+                                "Scale",
+                                fl!("iso_paint_pattern_scale"),
+                                spec.scale,
+                                0.25,
+                                4.,
+                            ),
+                            ("Mortar", fl!("iso_paint_mortar"), spec.mortar, 0., 0.4),
+                            (
+                                "Detail",
+                                fl!("iso_paint_pattern_detail"),
+                                spec.detail,
+                                0.,
+                                1.,
+                            ),
+                            (
+                                "Variation",
+                                fl!("iso_paint_pattern_variation"),
+                                spec.variation,
+                                0.,
+                                1.,
+                            ),
+                        ] {
+                            fields.add_item(TheNodeUIItem::FloatEditSlider(
+                                format!("Paint Overlay {key}"),
+                                label,
+                                String::new(),
+                                value,
+                                min..=max,
+                                true,
+                            ));
+                        }
+                    }
+                    if spec.stamp && !IsoPaintStamp::keeps_upright(&spec.brush) {
+                        fields.add_item(TheNodeUIItem::FloatEditSlider(
+                            "Paint Overlay Rotate".into(),
+                            fl!("paint_picker_rotate"),
+                            String::new(),
+                            c.rotation,
+                            0.0..=1.0,
+                            true,
+                        ));
+                    }
+                }
+                let mut layout = TheTextLayout::new(TheId::named("Paint Overlay Settings"));
+                layout.set_margin(Vec4::new(10, 10, 10, 10));
+                layout.set_text_margin(8);
+                layout.set_fixed_text_width(120);
+                fields.apply_to_text_layout(&mut layout);
+                let mut canvas = TheCanvas::new();
+                canvas.limiter_mut().set_max_size(Vec2::new(
+                    420,
+                    if c.spec.as_ref().is_some_and(|s| s.brush == "brick") {
+                        240
+                    } else {
+                        96
+                    },
+                ));
+                canvas.set_layout(layout);
+                let dim = *crate::utils::map_editor_render_view(ui, server)
+                    .unwrap()
+                    .dim();
+                ui.show_popover(
+                    TheId::named("Paint Overlay Settings"),
+                    TheDim::rect(dim.x + rect.x, dim.y + rect.y, rect.width, rect.height),
+                    canvas,
+                    ctx,
+                );
+            }
+            Action::Input(key, value) => {
+                let dim = *crate::utils::map_editor_render_view(ui, server)
+                    .unwrap()
+                    .dim();
+                let mut field = TheTextLineEdit::new(TheId::named(&format!("Paint Overlay {key}")));
+                field.set_value(TheValue::Float(value));
+                let range = match key {
+                    "Size" => 0.05..=16.,
+                    "Scale" => 0.25..=4.,
+                    "Mortar" => 0.0..=0.4,
+                    _ => 0.0..=1.,
+                };
+                field.set_range(TheValue::RangeF32(range));
+                field.limiter_mut().set_max_width(180);
+                let mut row = TheHLayout::new(TheId::empty());
+                row.set_margin(Vec4::new(8, 8, 8, 8));
+                row.add_widget(Box::new(field));
+                let mut canvas = TheCanvas::new();
+                canvas.limiter_mut().set_max_size(Vec2::new(204, 42));
+                canvas.set_layout(row);
+                ui.show_popover(
+                    TheId::named("Paint Overlay Number"),
+                    TheDim::rect(dim.x + rect.x, dim.y + rect.y, rect.width, rect.height),
+                    canvas,
+                    ctx,
+                );
+            }
+            Action::Command(key) => ctx.ui.send(TheEvent::Custom(
+                TheId::named("Paint Overlay Command"),
+                TheValue::Text(key.into()),
+            )),
+            Action::Choice(key, choices, index) => {
+                let items = choices
+                    .into_iter()
+                    .enumerate()
+                    .map(|(i, label)| {
+                        TheContextMenuItem::new(
+                            format!("{}{}", if i == index { "✓ " } else { "" }, label),
+                            TheId::named(&format!("Paint Overlay Choice {key} {i}")),
+                        )
+                    })
+                    .collect();
+                let dim = *crate::utils::map_editor_render_view(ui, server)
+                    .unwrap()
+                    .dim();
+                ctx.ui.send(TheEvent::ShowContextMenu(
+                    TheId::named("Paint Overlay Choices"),
+                    Vec2::new(dim.x + rect.x, dim.y + rect.y + rect.height),
+                    TheContextMenu {
+                        items,
+                        ..Default::default()
+                    },
+                ));
+            }
+            Action::Color(slot) => {
+                let dim = *crate::utils::map_editor_render_view(ui, server)
+                    .unwrap()
+                    .dim();
+                let mut picker = ThePalettePicker::new(TheId::named_with_id(
+                    &format!("Paint Overlay Palette {slot}"),
+                    c.source.unwrap_or_default(),
+                ));
+                picker.set_palette(c.palette.clone());
+                picker.set_rows_columns(16, 16);
+                picker.set_adaptive_cell_size(true);
+                picker.set_index(
+                    c.spec
+                        .as_ref()
+                        .and_then(|s| s.palette.get(slot))
+                        .copied()
+                        .flatten()
+                        .unwrap_or(0) as usize,
+                );
+                picker.limiter_mut().set_max_size(Vec2::new(352, 352));
+                let mut canvas = TheCanvas::new();
+                canvas.limiter_mut().set_max_size(Vec2::new(352, 352));
+                canvas.set_widget(picker);
+                ui.show_popover(
+                    TheId::named("Paint Overlay Colors"),
+                    TheDim::rect(dim.x + rect.x, dim.y + rect.y, rect.width, rect.height),
+                    canvas,
+                    ctx,
+                );
+            }
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

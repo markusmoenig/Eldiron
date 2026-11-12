@@ -25,7 +25,7 @@ Started: 2026-11-11 (Asia/Bangkok). Overall Goal: active; full M0–M9 scope rem
 - M2: in progress. Paint/Swash/Parley pipeline and native/foreign hosts work; batching, resource lifetime budgets and full text/input parity remain.
 - M3: in progress. Every active built-in TheWidget implementation now has a command paint path, including procedural controls and the legacy node canvas. Complex Creator integration, full widget catalog parity and legacy adapter retirement remain.
 - M4: in progress. CPU schema/identity extraction, shared `GameSession`, CPU startup preparation, message/party/world-target policies and terminal adoption are implemented and tested. Per-session routing, local players, world values, runtime IDs and region context ownership now pass controlled overlapping-session and parallel assembled-player regressions. Graphical/Creator adoption and remaining bitmap/value data extraction remain; this evidence does not establish full simultaneous Creator Play workflows.
-- M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Immutable ordinary editor-view preparation, exact reference/native view outputs and retained CPU chunk publication are now available through SceneViews. Application/global/document/Play ownership, main world/tool/HUD integration, remaining producers, full visual/workflow/performance acceptance and canonical retirement remain.
+- M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Immutable ordinary editor-view preparation, exact reference/native view outputs and retained CPU chunk publication are now available through SceneViews. Common HUD and paint/props panels now have retained command frames, guarded actions and actual GPU composition/reconstruction evidence; main viewport adoption remains pending. Application/global/document/Play ownership, main world/tool/HUD integration, remaining producers, full visual/workflow/performance acceptance and canonical retirement remain.
 - M6: in progress. Independent GPU game views, common player/input/camera components, authored screen paint, private world descriptions, view-owned speech, acknowledged-frame world pointer gestures, relative first-person mouse look, default/world-intent cursors, world/UI item drag previews and acknowledged authored inventory/equipment pointer/keyboard gestures are implemented. Application-owned audio is integrated into the common player with cancellable CPU preparation jobs. The native container HUD now includes acknowledged paint/input, real server transfers, scrolling, GPU recovery and navigation lifetime. Floating inventory/equipment, action catalogue/spellbook and preferences now use typed native HUD owners, retained text/source resources and acknowledged input. Acknowledged UI-origin tooltips now use retained text and host deadlines. UI-origin Drop cursors and acknowledged drag/assignment highlighting now have GPU and authoritative transfer evidence. Native isometric source production, shared CPU source publication, game-view outputs and acknowledged input receipts now have GPU/CPU and shipped-source device-reconstruction evidence. Browser worker hosting, remaining game-mode/HUD policy parity, performance acceptance remain. Canonical native desktop launchers now share the common application/host; see launcher verification below.
 - M7/M8/M9: Retirement and platform/full acceptance pending. Canonical desktop clients share one common player; the Xcode client now uses it through the retained ABI over a Rust-created CAMetalLayer surface. Native/ARM64 simulator app bundles link, and real Swift/static-library and registered-scene layer checks pass. Browser bootstrap, native text/platform parity, Creator wrapper and complete physical/release acceptance remain; this is not complete application/platform parity.
 
@@ -3073,3 +3073,144 @@ paint/props/action/collision/terrain/iso overlays and ViewCube, text spacing/AA,
 physical input/window and all platform/release/retirement acceptance remain.
 Original tracked sources remain unchanged at f8d8801103; unrelated networking
 concept stays untracked and excluded. The complete M0–M9 Goal remains active.
+
+## Paint/props command and action migration (after 4114b24c, in progress)
+
+Prior goal turn made verified progress: committed the common HUD/source/text
+paint primitives and staged input as **4114b24c**. This turn continues M5 tool
+integration; no milestone or full acceptance completion is claimed.
+
+Captured **20 independent pre-extraction PNGs** from the old paint/props drawing
+methods (paint six modes at 360/640 width, props builtin/prefab/empty-recipe/
+published-recipe at both widths). The initial capture passes both cases, 3.32 s:
+`/private/tmp/eldiron-tool-panel-baseline.log`. After command extraction, all
+20 original RGBA images still match exactly, 2.06 s:
+`/private/tmp/eldiron-tool-panel-reference-first.log`. Fixtures are immutable;
+writers were removed from tests after the independent capture.
+
+The shared `editor_overlay::panel` owner freezes source snapshots, scope
+(document/tool/revision), logical viewport, bounds and typed actions. Preparation
+stages commands and hit metadata without a TheContext, font service, GPU or
+output bitmap. Native root receipts are required for activation. Foreign owners,
+unpainted/hidden/resized/replaced sources, source A/B/A restoration and stale
+serials cannot reactivate old input. Hits distinguish Unavailable/Outside/Inside;
+viewport clipping also applies to controls extending beyond its logical edges.
+
+`PaintOverlay`/`PropsOverlay` now build common commands and retain their old draw
+entry points as explicit reference adapters. Both native and reference event
+routing use the same existing action dispatcher (selectors, numbers, palette,
+popovers, prefab/recipe actions), with source checks before dispatch. A captured
+panel gesture consumes its drag/release after a source change; new stale presses
+cannot apply an old action. Reference input consumes the still-visible stale
+panel pending its next draw. Hidden/too-small paint output now revokes old hits,
+fixing the previous early-return retention.
+
+Native fixture/device/DPI tests and final source/input checks are running:
+`/private/tmp/eldiron-tool-panel-final-tests.log`. An earlier native run found
+that a blanket one-pixel expansion of every glyph exclusion masked 10.2% of the
+dense narrow brick panel. The final comparison uses the actual reference/native
+glyph boxes without extra expansion, making the non-text check stricter while
+keeping the >90% comparison floor. No tolerance or accepted text difference was
+expanded. Inspect results before checkpointing. Reference rect/outline commands
+also clip at the true viewport edges, preserving full-size fixtures while
+avoiding the old partially-visible panel buffer overflow. Native composition
+already uses the common GPU clip.
+
+This does not yet integrate these panels into the canonical main Creator world
+viewport. Tool terrain/iso outlines, action displays, ViewCube, other tool HUDs,
+procedural HUD Color/Noise production and the main application-owned world/tool
+controller still require conversion and root/presentation lifecycle wiring.
+Fontdue-versus-Parley/Swash text metrics/AA remain open. All full M0–M9 physical,
+platform, performance/release, ownership and retirement gates remain required.
+
+### Panel native verification and shared font-fallback correction
+
+The final stricter native run passes all **20 cases selected by panel_**, 12.34 s:
+`/private/tmp/eldiron-tool-panel-final-tests.log`. This selection also includes
+existing material/geometry panel regressions. Both new GPU cases cover all 20
+independent source images, warm glyph reuse with no extra tracked glyph/image
+uploads or implicit color captures, 100/125/150/200% output and actual replacement
+devices. Every replacement-device RGBA byte, including native text, matches the
+retained original native frame. Native explicit-scope routing emits the existing
+paint/props events and distinguishes Unavailable from Outside. New small
+reference viewport tests pass without buffer overflow.
+
+All non-text pixels in all 20 native fixtures match within one RGB unit. The
+comparison uses only actual reference/native glyph boxes, with no blanket extra
+pixel expansion, and retains >90% of each image. Narrow paint comparisons retain
+119,506–121,767 of 129,600 pixels; wide paint 219,364–221,923 of 230,400. Native
+and independent narrow brick images were visually inspected:
+`/private/tmp/eldiron-native-panel-paint-5-360.png` and
+`creator/src/tools/paint_overlay/fixtures/paint-5-360.png`.
+
+That inspection exposed missing symbols, not merely spacing/AA: the native
+arrow/visibility marks became missing-glyph boxes. The reference painter uses
+Source Code Pro after Roboto (and the reverse for code text), while shared Parley
+layout/editing had requested only one family. A focused regression first fails
+on the dropdown mark, 0.19 s:
+`/private/tmp/eldiron-symbol-fallback-before.log`. It verifies Roboto truly lacks
+the symbols and the bundled code font supplies them. Shared text now uses the
+same ordered embedded family stack for both labels and editing; primary Latin
+faces and authored family selection stay intact. The focused regression passes,
+0.21 s: `/private/tmp/eldiron-symbol-fallback-after.log`. Final native panel,
+framework text/editing and related GPU validation after this correction is next;
+the earlier 20-case output is not being relabeled as post-fallback evidence.
+
+A nine-check affected Creator/reference/native/boundary matrix is running:
+`/private/tmp/eldiron-tool-panel-matrix-results.log` from
+`/private/tmp/verify-tool-panels.py`. Its full ordinary Creator executable was
+built before the font-fallback correction; later check results must retain their
+actual scope. Keep the live handle rather than restarting on an observation
+timeout. Main Creator world/tool cutover and full acceptance remain incomplete.
+
+### Affected panel/text matrices verified so far
+
+The nine-check panel matrix is now entirely green:
+`/private/tmp/eldiron-tool-panel-matrix-results.log`. The full ordinary Creator
+executable, compiled before the fallback fix, passes **591 tests with 101
+explicitly ignored**, 259.68 s. Final source has native common HUD **18 passed**,
+6.15 s; reference panel selection **12 passed**, 1.40 s; reference HUD **16
+passed**, 1.16 s; standalone native-ui compilation; linked native Creator; four
+application compilation; all eleven renderer-boundary checks and diff check.
+
+Post-fallback framework validation passes **252 cases across seven suites**:
+171 unit, 8 command UI, 5 DPI, 19 native editing, 20 native graph text, 12 paint
+GPU and 17 UI GPU. Log: `/private/tmp/eldiron-panel-text-matrix-framework.log`.
+The final fallback assertion also requires actual glyph output and nonzero
+advance (not merely an empty all-glyph predicate); its focused rerun passes,
+0.22 s: `/private/tmp/eldiron-symbol-fallback-final.log`.
+
+Post-fallback native panel selection passes all **20 cases**, 12.79 s:
+`/private/tmp/eldiron-panel-text-matrix-panels.log`. It repeats all twenty raw
+fixtures, native input/source guards, warm tracked-transfer checks, fractional
+scale and exact full-native-RGBA device reconstruction after the symbol change.
+Actual glyph boxes still leave >90% of every image under strict non-text RGB
+comparison. Post-fix narrow paint retains 119,516–121,768/129,600 compared pixels;
+wide paint 219,374–221,924/230,400; props narrow 122,101–123,452/129,600 and wide
+222,903–224,254/230,400. Native narrow brick and wide recipe props were visually
+inspected after the fix; dropdown/visibility marks now appear correctly. Text
+spacing, weight/rasterization and complete visual acceptance remain open.
+
+All **189 presentation tests/15 suites** also pass after the shared text change;
+browser player and iOS simulator player compilation pass. These are compilation
+checks, not browser/simulator runtime acceptance. The isolated Creator root also passes, 14.46 s. All seven post-fallback matrix
+checks are green: `/private/tmp/eldiron-panel-text-matrix-results.log`. Both
+matrix processes completed with exit code 0; no live checks remain for this slice.
+
+Reproduction uses the implementation worktree, offline dependencies and
+`MACOSX_DEPLOYMENT_TARGET=26.1 CARGO_TARGET_DIR=/Users/markusmoenig/Eldiron/target`:
+
+```sh
+cargo test -p eldiron-creator --features native-host --lib panel_ --offline -- --include-ignored --test-threads=1 --nocapture
+cargo test -p eldiron-creator --no-default-features --features staticlib --lib panel_ --offline -- --include-ignored --test-threads=1
+cargo test -p theframework --no-default-features --features ui,platform-winit --lib --test ui_gpu --test dpi_rendering --test command_ui --test native_editor --test native_graph_text --test paint_gpu --offline -- --include-ignored --test-threads=1
+```
+
+Original checkout rechecked at f8d8801103: tracked sources unchanged, existing
+untracked concepts preserved. Networking concept in implementation worktree
+remains excluded. New native panel APIs still produce dead-code warnings until
+the main tool/world owner adopts them; no warning suppression or canonical
+cutover is claimed. Continue into procedural Color/Noise HUD GPU production,
+action displays and tool vector overlays/ViewCube, then main owned world/tool
+composition, source publication, input lifecycle and Creator Play/global
+retirement. All other M0–M9 acceptance gates remain active and incomplete.
