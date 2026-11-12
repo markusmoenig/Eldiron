@@ -279,6 +279,7 @@ impl GameScreenController {
             }
         }
         p.list.ops.push(PaintOp::PopClip);
+        self.finish_world_frame(world);
         list.validate().map_err(str::to_string)?;
         Ok(list)
     }

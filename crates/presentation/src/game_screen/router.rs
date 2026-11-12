@@ -51,7 +51,8 @@ impl GameScreenController {
             .contains(position)
     }
     pub fn captures_world_input(&self) -> bool {
-        self.control_capture().is_some()
+        self.control_capture()
+            .is_some_and(|capture| !matches!(capture, ScreenCapture::World(_)))
     }
     /// Coordinates are in the same logical screen space used by `paint`.
     /// Modal choices precede buttons, fields and world input, matching paint order.

@@ -299,3 +299,28 @@ fn stale_target_ids_never_retarget_the_ground_and_namespaces_remain_distinct() {
     assert_eq!(click(&map, &assets, entity_hit, None, false), None);
     assert_eq!(click(&map, &assets, item_hit, None, true), None);
 }
+
+#[test]
+fn frozen_flat_targets_preserve_float_cell_identity_and_skip_hidden_runtime_anchors() {
+    let mut map = Map::default();
+    let mut visible = entity(1, -0., 0.5, false);
+    visible.set_attribute("visible", Value::Bool(true));
+    map.entities.push(visible);
+    let mut hidden = item(2, 0., 0.5);
+    hidden.set_attribute("visible", Value::Bool(false));
+    map.items.push(hidden);
+    let targets = CellTargets::capture_visible(&map);
+    assert_eq!(
+        targets.hit(Vec2::new(0., 0.5), true).unwrap().entity,
+        Some(1)
+    );
+    map.entities[0].position.x = 4.;
+    assert_eq!(
+        targets.hit(Vec2::new(-0., 0.5), false).unwrap().entity,
+        Some(1)
+    );
+    let fresh = CellTargets::capture_visible(&map);
+    assert_eq!(fresh.hit(Vec2::new(0., 0.5), true).unwrap().item, None);
+    assert_eq!(fresh.hit(Vec2::new(0., 0.5), false).unwrap().entity, None);
+    assert!(targets.hit(Vec2::new(f32::INFINITY, 0.), false).is_none());
+}

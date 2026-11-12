@@ -65,6 +65,7 @@ pub struct PlayerApplication {
     gpu: Option<PlayerGpu>,
     retired_views: Vec<ViewId>,
     viewport: ScreenViewport,
+    input_metrics: Option<((u32, u32), u32)>,
     revision: ContentRevision,
     visual_elapsed: Duration,
     frames: timing::FrameSchedule,
@@ -132,6 +133,7 @@ impl PlayerApplication {
                 [size.0 as f32, size.1 as f32],
             ),
             revision: ContentRevision(1),
+            input_metrics: None,
             visual_elapsed: Duration::ZERO,
             frames: timing::FrameSchedule::default(),
             frame_count: 0,
@@ -196,6 +198,11 @@ impl PlayerApplication {
         Ok(())
     }
     fn sync_host(&mut self, host: &mut HostContext) -> std::result::Result<(), String> {
+        let metrics = (host.physical_size, host.density.to_bits());
+        if self.input_metrics != Some(metrics) {
+            self.screen.invalidate_world_input();
+            self.input_metrics = Some(metrics);
+        }
         let logical = (
             host.logical_size[0].round().max(0.) as u32,
             host.logical_size[1].round().max(0.) as u32,
@@ -215,7 +222,11 @@ impl PlayerApplication {
         }
         self.control_capture = capture;
         let size = self.screen.elements.layout.viewport;
-        self.viewport = ScreenViewport::fit([size.x as f32, size.y as f32], host.logical_size);
+        let viewport = ScreenViewport::fit([size.x as f32, size.y as f32], host.logical_size);
+        if viewport != self.viewport {
+            self.screen.invalidate_world_input();
+        }
+        self.viewport = viewport;
         host.text_input = if self.viewport.scale > 0. {
             self.screen
                 .text_input_state(&mut self.fonts)
@@ -322,9 +333,23 @@ impl PlayerApplication {
         let Some(event) = self.viewport.input(event) else {
             return Ok(InputResponse::default());
         };
-        let result = self
-            .screen
-            .input(&self.player.runtime.view(), &mut self.fonts, &event)?;
+        let mut result = if self.screen.route_world_first(&event) {
+            Default::default()
+        } else {
+            self.screen
+                .input(&self.player.runtime.view(), &mut self.fonts, &event)?
+        };
+        let blocked = result.input.consumed || self.screen.captures_world_input();
+        let world = self.screen.world_input(
+            &self.player.runtime.view(),
+            self.gpu.as_ref().map(|gpu| &gpu.views),
+            &event,
+            blocked,
+        );
+        result.input.consumed |= world.input.consumed;
+        result.input.redraw |= world.input.redraw;
+        result.cancel_controls |= world.cancel_controls;
+        result.effects.extend(world.effects);
         if result.cancel_controls {
             let action = self.player.cancel_controls();
             self.player.submit_action(action)?;
@@ -451,6 +476,7 @@ impl GpuApplication for PlayerApplication {
         self.sync_host(host).map_err(RenderError)
     }
     fn gpu_recreated(&mut self, host: &mut HostContext, images: &mut ImageRegistry) -> Result<()> {
+        self.screen.invalidate_world_input();
         if let Some(gpu) = self
             .gpu
             .as_mut()
@@ -560,6 +586,7 @@ impl GpuApplication for PlayerApplication {
         self.player.runtime.clock.reset_elapsed();
     }
     fn resumed(&mut self, host: &mut HostContext) {
+        self.screen.resume_world_input();
         if self.suspended {
             self.services.set_suspended(false);
         }
@@ -572,6 +599,12 @@ impl GpuApplication for PlayerApplication {
         if let Err(error) = self.sync_host(host) {
             self.fail(host, error);
         }
+    }
+    fn presented(&mut self, _host: &mut HostContext) {
+        self.screen.acknowledge_world_frame(
+            &self.player.runtime.view(),
+            self.gpu.as_ref().map(|gpu| &gpu.views),
+        );
     }
 }
 fn binding_key(physical: PhysicalKey, logical: &LogicalKey) -> Option<String> {

@@ -4,7 +4,7 @@ use theframework::{
 };
 /// Authored screen space is independent of host logical units and physical DPI.
 /// This single mapping is used for painting, hit testing, scroll and IME areas.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ScreenViewport {
     pub scale: f32,
     pub offset: [f32; 2],

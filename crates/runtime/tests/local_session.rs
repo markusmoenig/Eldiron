@@ -75,6 +75,7 @@ fn real_project_supports_automatic_and_deferred_idempotent_player_registration()
         project.migrate_default_ruleset();
         let original_ids = project.regions.iter().map(|r| r.id).collect::<Vec<_>>();
         let mut session = GameSession::new(project);
+        let created_session = session.view().session_id;
         session.server.print_log_messages = false;
         session
             .start(SessionOptions {
@@ -136,7 +137,11 @@ fn real_project_supports_automatic_and_deferred_idempotent_player_registration()
             restored.regions.iter().map(|r| r.id).collect::<Vec<_>>(),
             original_ids
         );
+        let active_session = session.view().session_id;
+        assert_ne!(created_session, active_session);
+        assert_eq!(session.view().session_id, active_session);
         session.stop();
+        assert_ne!(session.view().session_id, active_session);
         assert!(session.server.state == rusterix::ServerState::Off);
         assert!(!session.has_started_player());
     }

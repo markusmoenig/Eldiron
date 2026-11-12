@@ -27,7 +27,7 @@ pub struct ScreenActivation {
     pub effects: Vec<ScreenEffect>,
 }
 impl GameScreenController {
-    fn immediate_intents(&self, world: &RuntimeView<'_>) -> Result<bool, String> {
+    pub(super) fn immediate_intents(&self, world: &RuntimeView<'_>) -> Result<bool, String> {
         let config = world
             .config()
             .parse::<toml::Table>()

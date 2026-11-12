@@ -8,6 +8,8 @@ use crate::{
 use scenevm::GeoId;
 use theframework_core::Uuid;
 use vek::{Vec2, Vec3};
+mod cells;
+pub use cells::CellTargets;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct WorldHit {

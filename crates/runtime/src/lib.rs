@@ -57,6 +57,7 @@ pub struct GameSession {
     interests: EventInterests,
     started: bool,
     local_player_started: bool,
+    session_id: Uuid,
 }
 impl GameSession {
     pub fn new(project: Project) -> Self {
@@ -82,6 +83,7 @@ impl GameSession {
             interests: EventInterests::default(),
             started: false,
             local_player_started: false,
+            session_id: Uuid::new_v4(),
         }
     }
     pub fn start(&mut self, options: SessionOptions) -> Result<(), String> {
@@ -107,6 +109,7 @@ impl GameSession {
         if !start_map.is_empty() && !self.project.regions.iter().any(|r| r.name == start_map) {
             return Err(format!("Start region '{}' not found", start_map));
         }
+        self.session_id = Uuid::new_v4();
         shared::runtime_assets::start_server(
             &mut self.server,
             &mut self.assets,
@@ -240,6 +243,7 @@ impl GameSession {
     }
     pub fn stop(&mut self) {
         if self.started {
+            self.session_id = Uuid::new_v4();
             self.server.stop();
             self.started = false;
             self.local_player_started = false;

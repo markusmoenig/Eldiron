@@ -19,6 +19,9 @@ pub struct ScreenSource<'a> {
 /// A graphical/text consumer borrows this snapshot without owning a server,
 /// advancing time or draining addressed outputs. Render settings are plain CPU data.
 pub struct RuntimeView<'a> {
+    /// Ephemeral incarnation, unchanged by polling/pause/GPU recovery. Restart
+    /// and document replacement revoke input even when serialized IDs match.
+    pub session_id: theframework_core::Uuid,
     project: &'a Project,
     pub assets: &'a Assets,
     pub map: Option<&'a Map>,
@@ -64,6 +67,7 @@ impl GameSession {
     pub fn view_region(&self, id: &theframework_core::Uuid) -> Option<RuntimeView<'_>> {
         let map = &self.project.regions.iter().find(|r| &r.map.id == id)?.map;
         Some(RuntimeView {
+            session_id: self.session_id,
             project: &self.project,
             assets: &self.assets,
             map: Some(map),
@@ -80,6 +84,7 @@ impl GameSession {
             .find(|r| r.map.name == self.current_map)
             .map(|r| &r.map);
         RuntimeView {
+            session_id: self.session_id,
             project: &self.project,
             assets: &self.assets,
             map,

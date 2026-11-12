@@ -20,6 +20,7 @@ struct AudioObservation {
     loads: Vec<String>,
     commands: Vec<AudioCommand>,
     suspensions: Vec<bool>,
+    resets: usize,
 }
 struct RecordedAudio(Arc<Mutex<AudioObservation>>);
 impl AudioDevice for RecordedAudio {
@@ -47,7 +48,9 @@ impl AudioDevice for RecordedAudio {
     }
     fn unload(&mut self, _: &str) {}
     fn stop_loops(&mut self, _: &str) {}
-    fn reset(&mut self) {}
+    fn reset(&mut self) {
+        self.0.lock().unwrap().resets += 1;
+    }
     fn command(&mut self, command: &AudioCommand, _: usize) -> bool {
         self.0.lock().unwrap().commands.push(command.clone());
         true
@@ -152,6 +155,76 @@ fn key(physical: PhysicalKey) -> InputEvent {
         pressed: true,
         repeat: false,
     }
+}
+
+#[test]
+fn audio_owner_revokes_old_session_loops_without_replacing_a_healthy_device_or_replaying_commands()
+{
+    let trace = Arc::new(Mutex::new(AudioObservation::default()));
+    let factory = trace.clone();
+    let audio = AudioOutput::with_preparer(
+        AudioLimits::default(),
+        move || {
+            factory.lock().unwrap().created += 1;
+            Ok(RecordedAudio(factory.clone()))
+        },
+        Box::new(rusterix::audio::preparation::InlinePreparation::default()),
+    );
+    let mut services = AudioServices::with_output(Services(Default::default()), audio);
+    let mut first = eldiron_runtime::GameSession::new(Project::new());
+    first.current_map = first.project.regions[0].map.name.clone();
+    first.server.state = ServerState::Running;
+    first.assets.audio.insert(
+        "song".into(),
+        rusterix::audio::synthesize_audio_fx_wav("[sfx.note]\nduration=0.01\n", "note")
+            .unwrap()
+            .into(),
+    );
+    let region = first.project.regions[0].map.id;
+    let events = RegionEvents {
+        audio: vec![AudioCommand::Play {
+            name: "song".into(),
+            bus: "music".into(),
+            gain: 0.5,
+            looping: true,
+        }],
+        ..Default::default()
+    };
+    services.update(&first.view(), 1, Duration::ZERO);
+    services.region_events(region, &first.view(), events.outputs());
+    assert_eq!(services.audio.desired_loops(), 1);
+    let mut next = eldiron_runtime::GameSession::new(first.project.clone());
+    next.current_map = first.current_map.clone();
+    next.server.state = ServerState::Running;
+    next.assets.audio = first.assets.audio.clone();
+    assert_ne!(next.view().session_id, first.view().session_id);
+    services.update(&next.view(), 1, Duration::ZERO);
+    services.update(&next.view(), 1, Duration::ZERO);
+    assert_eq!(services.audio.desired_loops(), 0);
+    assert_eq!(trace.lock().unwrap().resets, 1);
+    assert_eq!(
+        trace
+            .lock()
+            .unwrap()
+            .commands
+            .iter()
+            .filter(|c| matches!(c, AudioCommand::Play { .. }))
+            .count(),
+        1
+    );
+    services.region_events(region, &next.view(), events.outputs());
+    assert_eq!(trace.lock().unwrap().created, 1);
+    assert_eq!(trace.lock().unwrap().loads.len(), 2);
+    assert_eq!(
+        trace
+            .lock()
+            .unwrap()
+            .commands
+            .iter()
+            .filter(|c| matches!(c, AudioCommand::Play { .. }))
+            .count(),
+        2
+    );
 }
 
 #[test]
@@ -286,11 +359,13 @@ fn assembled_player_keeps_runtime_edits_and_clock_across_gpu_replacement() {
     );
     let passage = app.screen.world_texts.passages()[0].id;
     let time = app.player.runtime.project.time;
+    let session_id = app.player.runtime.view().session_id;
     assert_eq!(
         app.update(&mut host, Duration::from_secs(300)).wake_after,
         None
     );
     assert_eq!(app.player.runtime.project.time, time);
+    assert_eq!(app.player.runtime.view().session_id, session_id);
     assert_eq!(app.screen.world_texts.passages()[0].id, passage);
     app.resumed(&mut host);
     assert!(app.player.runtime.server.state == ServerState::Running);
@@ -676,6 +751,103 @@ fn assembled_player_keeps_runtime_edits_and_clock_across_gpu_replacement() {
         target2.clone(),
         "/private/tmp/eldiron-native-player-world.png",
     );
+    // Input uses an acknowledged scene receipt in the same host mapping as
+    // paint. Isolate one visible actor in the real runtime's 2D GPU projection.
+    let saved_texts = std::mem::take(&mut app.screen.world_texts);
+    let saved_speech = std::mem::take(&mut app.screen.speech);
+    app.screen.elements.button_widgets.clear();
+    app.screen.elements.text_input_widgets.clear();
+    app.screen.elements.choice_widgets.clear();
+    app.screen.elements.messages_widgets.clear();
+    app.screen.elements.profile_widgets.clear();
+    app.screen.elements.avatar_widgets.clear();
+    app.screen.elements.widgets_to_hide.clear();
+    app.screen.intent.clear();
+    let map = app
+        .player
+        .runtime
+        .project
+        .regions
+        .iter_mut()
+        .find(|r| r.map.name == app.player.runtime.current_map)
+        .map(|r| &mut r.map)
+        .unwrap();
+    let actor = map
+        .entities
+        .iter()
+        .find(|entity| entity.is_player())
+        .unwrap()
+        .id;
+    map.entities.retain(|entity| entity.id == actor);
+    map.items.clear();
+    map.entities[0].set_attribute("visible", Value::Bool(true));
+    let cell = map.entities[0].get_pos_xz().map(f32::floor) + Vec2::broadcast(0.5);
+    let size = app.screen.elements.layout.viewport;
+    for widget in app.screen.elements.game_widgets.values_mut() {
+        widget.follow_player_camera = false;
+        widget.set_camera_mode(rusterix::PlayerCamera::D2);
+        widget.rect = ScreenRect::new(0., 0., size.x as f32, size.y as f32);
+    }
+    app.revision = ContentRevision(app.revision.0 + 1);
+    app.screen.invalidate_world_input();
+    let before_readback = gpu2.transfers().readback_bytes;
+    render(&mut app, &mut host, &mut images2, &mut renderer2, &target2);
+    let widget = app.screen.elements.game_widgets.values().next().unwrap();
+    let local = widget.ground_to_screen(cell);
+    let point = app.viewport().host_rect(Rect::new(
+        local.x + widget.rect.x,
+        local.y + widget.rect.y,
+        1.,
+        1.,
+    ));
+    let point = [point.x, point.y];
+    let before = app.player.input_stats().submitted_actions;
+    for pressed in [true, false] {
+        app.input(
+            &InputEvent::PointerButton {
+                button: PointerButton::Primary,
+                pressed,
+                position: point,
+            },
+            &mut host,
+        );
+    }
+    assert_eq!(
+        app.player.input_stats().submitted_actions,
+        before,
+        "preparation is not presentation acknowledgement"
+    );
+    app.presented(&mut host);
+    app.input(&InputEvent::PointerMoved { position: point }, &mut host);
+    assert_eq!(
+        app.screen.world_pointer_hit().and_then(|hit| hit.entity),
+        Some(actor)
+    );
+    for pressed in [true, false, false] {
+        app.input(
+            &InputEvent::PointerButton {
+                button: PointerButton::Primary,
+                pressed,
+                position: point,
+            },
+            &mut host,
+        );
+    }
+    assert_eq!(
+        app.player.input_stats().submitted_actions,
+        before + 2,
+        "one balanced world gesture submits one control cancellation and one click"
+    );
+    assert!(
+        app.screen
+            .elements
+            .game_widgets
+            .values()
+            .all(|w| w.buffer.pixels().is_empty() && w.upscale_buffer.pixels().is_empty())
+    );
+    assert_eq!(gpu2.transfers().readback_bytes, before_readback);
+    app.screen.world_texts = saved_texts;
+    app.screen.speech = saved_speech;
     // Repeated off-frame navigation retains view IDs, never old CPU screens.
     app.navigate("Setup").unwrap();
     assert_eq!(app.screen.world_texts.passages()[0].id, passage);

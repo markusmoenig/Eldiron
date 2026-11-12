@@ -20,6 +20,7 @@ impl ScreenFocus {
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ScreenCapture {
+    World(Uuid),
     Text(TextInputTarget),
     Button(u32),
     Choice(u32),
@@ -209,5 +210,6 @@ impl GameScreenController {
                     && !screen_model::widget_name_is_hidden(&w.name, &self.elements.widgets_to_hide)
             })
             .map(|w| ScreenCapture::Message(w.id))
+            .or_else(|| self.world_capture_owner())
     }
 }

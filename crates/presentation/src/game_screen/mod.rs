@@ -12,6 +12,7 @@ mod router;
 mod speech;
 pub use speech::SpeechOverlay;
 mod transcript;
+mod world_pointer;
 mod world_text;
 pub use router::ScreenInputResponse;
 pub use world_text::WorldTextOverlay;
@@ -51,6 +52,7 @@ struct ScreenGeometry {
 }
 
 pub struct GameScreenController {
+    world: world_pointer::WorldPointer,
     pub speech: SpeechOverlay,
     pub world_texts: WorldTextOverlay,
     pub elements: ScreenElements,
@@ -144,6 +146,7 @@ impl GameScreenController {
     }
     fn with_elements(name: &str, world: &RuntimeView<'_>, elements: ScreenElements) -> Self {
         Self {
+            world: world_pointer::WorldPointer::default(),
             speech: SpeechOverlay::default(),
             world_texts: WorldTextOverlay::default(),
             elements,
@@ -198,6 +201,7 @@ impl GameScreenController {
             logical.1.min(i32::MAX as u32) as i32,
         ));
         if changed {
+            self.invalidate_world_input();
             self.geometry = None;
             self.speech.invalidate_geometry();
             self.world_texts.invalidate_geometry();
@@ -223,6 +227,15 @@ impl GameScreenController {
             self.currencies = Currencies::from_rules_source(&world.assets.rules);
             self.geometry = None;
             self.revision = Some(revision);
+        }
+        if self
+            .world
+            .sync(world, revision, self.elements.layout.viewport)
+        {
+            self.configured_views.clear();
+            for widget in self.elements.game_widgets.values_mut() {
+                widget.force_dynamics_rebuild = true;
+            }
         }
         self.animation_frame = animation_frame;
         self.choice_controller.prepare(
@@ -378,6 +391,7 @@ impl GameScreenController {
         images: &mut ImageRegistry,
     ) -> Result<(), String> {
         self.view_images.clear();
+        self.begin_world_frame(world)?;
         let Some(map) = world.map else {
             return Ok(());
         };
@@ -422,6 +436,7 @@ impl GameScreenController {
                 .render(id, self.animation_frame as u64, images)
                 .map_err(|e| e.to_string())?
             {
+                self.world.push_view(*key, widget, output, map)?;
                 self.view_images.insert(*key, output);
             }
         }
@@ -434,6 +449,7 @@ impl GameScreenController {
         views: &mut SceneViews,
         images: &mut ImageRegistry,
     ) -> Result<(), String> {
+        self.invalidate_world_input();
         for id in self.view_ids.values() {
             views.remove(*id, images).map_err(|e| e.to_string())?;
         }
@@ -445,6 +461,7 @@ impl GameScreenController {
     /// frame callback. The application retires these on its next registry borrow.
     /// No old screen, source pixels or text layouts need to wait for that frame.
     pub fn detach_game_views(&mut self) -> Vec<ViewId> {
+        self.invalidate_world_input();
         self.configured_views.clear();
         self.view_images.clear();
         self.view_ids.drain().map(|(_, id)| id).collect()
