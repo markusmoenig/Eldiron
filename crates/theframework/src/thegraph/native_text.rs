@@ -150,6 +150,27 @@ impl GraphTextSession {
         self.view = None;
         self.target = None;
     }
+    pub fn native_text_query(
+        &mut self,
+        graph: &mut GraphEditor,
+        doc: &GraphDocument,
+        fonts: &mut TextSystem,
+        active: bool,
+        request: &crate::text_edit::NativeTextRequest,
+    ) -> Option<crate::text_edit::NativeTextAnswer> {
+        self.prepare(graph, doc, fonts, active);
+        self.view.as_mut()?.native_text_query(fonts, request)
+    }
+    pub fn native_text_snapshot(
+        &mut self,
+        graph: &mut GraphEditor,
+        doc: &GraphDocument,
+        fonts: &mut TextSystem,
+        active: bool,
+    ) -> Option<crate::text_edit::NativeTextSnapshot> {
+        self.prepare(graph, doc, fonts, active);
+        self.view.as_mut()?.editor.native_text_snapshot(fonts)
+    }
     pub fn input_state(
         &mut self,
         graph: &mut GraphEditor,

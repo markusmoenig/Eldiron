@@ -13,7 +13,8 @@ foreign-host build explicitly excludes Winit:
 MACOSX_DEPLOYMENT_TARGET=26.1 cargo build --release -p eldiron-client-wgpu --lib --no-default-features --features native-player --target aarch64-apple-darwin
 ```
 
-For iOS device/simulator, use `aarch64-apple-ios` / `aarch64-apple-ios-sim`.
+For iOS device/simulator, use `aarch64-apple-ios` / `aarch64-apple-ios-sim`
+and set `IPHONEOS_DEPLOYMENT_TARGET=26.1` for the Rust/C dependency build.
 Build a matching slice for each requested architecture. Xcode resolves its
 library through `ELDIRON_RUST_LIB_DIR`, defaulting to the corresponding target's
 release directory. Override it for a different Cargo target directory/profile:
@@ -45,7 +46,17 @@ retained detached layers. This checks actual presentations, zero implicit
 readback, authored source preservation and session survival across replacement.
 It requires macOS/Xcode/Metal and does not open a Winit window.
 
-Full physical macOS/iOS interaction, native IME/surrounding-text parity (including
-UIKit composition), release measurements and Creator's separate Xcode wrapper
-remain tracked in `concepts/native-wgpu-rewrite-progress.md`. An SDK build or
-detached-layer test does not establish those acceptance criteria.
+Native macOS input uses one retained NSTextInputContext/client per logical editor.
+UIKit uses one zero-size, non-drawing UITextInput responder per editor. Both query
+surrounding text, selection, marked text and geometry from the shared Parley
+controller; revisioned UTF-16 ranges reject stale owners and surrogate splits.
+The Rust editor owns composition, typed insertion, backspace and undo; Swift does
+not draw or maintain a separate editable document. The bridge tool executes the
+macOS client ownership/Unicode checks and typechecks the UIKit protocol harness
+against the simulator SDK. `Tests/NativeUIKitTextClientCheck.swift` is ready for a
+runtime harness; SDK compilation does not execute it.
+
+Full physical macOS/iOS and locale/IME interaction, UIKit runtime behavior,
+release measurements and Creator's separate Xcode wrapper remain tracked in
+`concepts/native-wgpu-rewrite-progress.md`. An SDK build or detached-layer test
+does not establish those acceptance criteria.

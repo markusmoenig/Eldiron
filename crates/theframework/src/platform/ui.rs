@@ -42,6 +42,42 @@ impl UiSession {
         self.ui.prepare_paint_layout(&mut self.context);
         self.ui.dispatch_input(event, &mut self.context)
     }
+    /// Snapshot only the foremost shared editor; modal/focus changes retire its
+    /// native input target before a host can issue a range-based operation.
+    pub fn native_text_snapshot(&mut self) -> Option<crate::text_edit::NativeTextSnapshot> {
+        self.ui.prepare_paint_layout(&mut self.context);
+        self.ui.process_events(&mut self.context);
+        if !self.ui.synchronize_editor_scope(&mut self.context) {
+            return None;
+        }
+        let id = self.context.ui.focus.clone()?;
+        self.ui
+            .get_widget_abs(None, Some(&id.uuid))?
+            .editor_native_text_snapshot(&mut self.context)
+    }
+    pub fn native_text_query(
+        &mut self,
+        request: &crate::text_edit::NativeTextRequest,
+    ) -> Option<crate::text_edit::NativeTextAnswer> {
+        self.ui.prepare_paint_layout(&mut self.context);
+        self.ui.process_events(&mut self.context);
+        if !self.ui.synchronize_editor_scope(&mut self.context) {
+            return None;
+        }
+        let id = self.context.ui.focus.clone()?;
+        let transform = self
+            .context
+            .ui
+            .input_transforms
+            .get(&id.uuid)
+            .copied()
+            .unwrap_or_default();
+        let local = request.map_hit(transform.inverse()?);
+        self.ui
+            .get_widget_abs(None, Some(&id.uuid))?
+            .editor_native_text_query(&local, &mut self.context)
+            .map(|answer| answer.transformed(transform))
+    }
     pub fn paint(
         &mut self,
         images: &mut dyn UiImageResources,
@@ -203,6 +239,23 @@ impl<A: UiApplication> GpuApplication for UiApplicationAdapter<A> {
     fn resize(&mut self, host: &mut HostContext) {
         self.session.resize(host.physical_size, host.density);
     }
+    fn native_text_snapshot(
+        &mut self,
+        host: &mut HostContext,
+    ) -> Option<crate::text_edit::NativeTextSnapshot> {
+        let source = self.session.native_text_snapshot();
+        self.platform_state(host);
+        source
+    }
+    fn native_text_query(
+        &mut self,
+        host: &mut HostContext,
+        request: &crate::text_edit::NativeTextRequest,
+    ) -> Option<crate::text_edit::NativeTextAnswer> {
+        let answer = self.session.native_text_query(request);
+        self.platform_state(host);
+        answer
+    }
     fn input(&mut self, event: &InputEvent, host: &mut HostContext) -> InputResponse {
         let addressed;
         let event = match event {
@@ -234,6 +287,14 @@ impl<A: UiApplication> GpuApplication for UiApplicationAdapter<A> {
                     };
                     &addressed
                 }
+            }
+            InputEvent::NativeText { target, .. } => {
+                if !self.native_editor
+                    || self.text_target.as_ref().map(|(_, owner)| owner) != Some(target)
+                {
+                    return InputResponse::default();
+                }
+                event
             }
             _ => event,
         };

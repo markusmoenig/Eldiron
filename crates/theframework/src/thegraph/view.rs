@@ -667,6 +667,40 @@ impl TheWidget for TheGraphView {
         self.response(&response, ctx);
         Some(response)
     }
+    fn editor_native_text_query(
+        &mut self,
+        request: &crate::text_edit::NativeTextRequest,
+        ctx: &mut TheContext,
+    ) -> Option<crate::text_edit::NativeTextAnswer> {
+        self.prepare_session(ctx);
+        let active = self.focused(ctx);
+        let offset = crate::paint::Transform::translate(self.dim.x as f32, self.dim.y as f32);
+        let local = request.map_hit(offset.inverse()?);
+        let mut state = self.state.lock().unwrap();
+        let GraphViewState {
+            document,
+            editor,
+            text,
+            ..
+        } = &mut *state;
+        text.native_text_query(editor, document, &mut ctx.text, active, &local)
+            .map(|answer| answer.transformed(offset))
+    }
+    fn editor_native_text_snapshot(
+        &mut self,
+        ctx: &mut TheContext,
+    ) -> Option<crate::text_edit::NativeTextSnapshot> {
+        self.prepare_session(ctx);
+        let active = self.focused(ctx);
+        let mut state = self.state.lock().unwrap();
+        let GraphViewState {
+            document,
+            editor,
+            text,
+            ..
+        } = &mut *state;
+        text.native_text_snapshot(editor, document, &mut ctx.text, active)
+    }
     fn editor_input_state(&mut self, ctx: &mut TheContext) -> Option<TextInputState> {
         self.prepare_session(ctx);
         let active = self.focused(ctx);

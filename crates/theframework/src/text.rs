@@ -142,6 +142,26 @@ impl TextLayout {
         }
         &self.runs[self.line_runs[lines.start].start..self.line_runs[end - 1].end]
     }
+    /// Locate one visual line without allocating metadata for the full document.
+    /// A soft-wrap boundary belongs to the following line (downstream affinity).
+    pub fn line_range_at(&self, position: usize) -> Option<std::ops::Range<usize>> {
+        if !self.source.is_char_boundary(position) {
+            return None;
+        }
+        let mut low = 0;
+        let mut high = self.layout.len();
+        while low < high {
+            let mid = low + (high - low) / 2;
+            if self.layout.get(mid)?.text_range().end <= position {
+                low = mid + 1;
+            } else {
+                high = mid;
+            }
+        }
+        self.layout
+            .get(low.min(self.layout.len().saturating_sub(1)))
+            .map(|line| line.text_range())
+    }
     pub fn lines(&self) -> Vec<TextLine> {
         self.layout
             .lines()

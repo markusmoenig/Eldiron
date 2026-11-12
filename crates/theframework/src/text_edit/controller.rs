@@ -13,6 +13,13 @@ use parley::{PlainEditor, PlainEditorDriver, StyleProperty};
 use std::collections::VecDeque;
 use unicode_segmentation::UnicodeSegmentation;
 
+#[path = "native.rs"]
+mod native;
+pub use native::{
+    NativeTextAnswer, NativeTextDirection, NativeTextQuery, NativeTextRequest, NativeTextSnapshot,
+    utf16_byte_offset,
+};
+
 #[derive(Clone, PartialEq, Eq)]
 struct Snapshot {
     text: String,
@@ -110,6 +117,7 @@ pub struct EditorController {
     style: Option<LayoutKey>,
     fonts: Option<(u64, u64)>,
     snapshot: Option<TextLayout>,
+    native_snapshot: Option<native::NativeTextCache>,
     snapshots_built: u64,
     boundaries: Vec<usize>,
     boundaries_dirty: bool,
@@ -134,6 +142,7 @@ impl EditorController {
             style: None,
             fonts: None,
             snapshot: None,
+            native_snapshot: None,
             snapshots_built: 0,
             boundaries: vec![0],
             boundaries_dirty: false,
@@ -292,6 +301,7 @@ impl EditorController {
             self.cancel_composition(fonts);
             self.clipboard = None;
             self.input_target = crate::platform::TextInputTarget::new();
+            self.native_snapshot = None;
         }
         if self.policy.undo != policy.undo {
             self.undo.clear();
@@ -320,6 +330,10 @@ impl EditorController {
     pub fn history_bytes(&self) -> usize {
         self.history_bytes
     }
+    fn invalidate_source(&mut self) {
+        self.edit_revision = self.edit_revision.wrapping_add(1);
+        self.native_snapshot = None;
+    }
     fn state(&self) -> Snapshot {
         let selection = self.editor.raw_selection();
         Snapshot {
@@ -328,7 +342,7 @@ impl EditorController {
         }
     }
     fn restore(&mut self, fonts: &mut TextSystem, state: &Snapshot) {
-        self.edit_revision = self.edit_revision.wrapping_add(1);
+        self.invalidate_source();
 
         fonts.editor_driver(&mut self.editor).clear_compose();
         self.editor.set_text(&state.text);
@@ -352,6 +366,7 @@ impl EditorController {
         }
         self.focused = focused;
         if !focused {
+            self.native_snapshot = None;
             self.cancel_edit_group(fonts);
             self.cancel_composition(fonts);
             self.clipboard = None;
@@ -370,7 +385,7 @@ impl EditorController {
             .collect()
     }
     pub fn set_text(&mut self, fonts: &mut TextSystem, text: &str) {
-        self.edit_revision = self.edit_revision.wrapping_add(1);
+        self.invalidate_source();
 
         self.input_target = crate::platform::TextInputTarget::new();
         self.edit_group = None;
@@ -664,7 +679,7 @@ impl EditorController {
         if before.text == self.editor.raw_text() {
             return false;
         }
-        self.edit_revision = self.edit_revision.wrapping_add(1);
+        self.invalidate_source();
         self.snapshot = None;
         self.boundaries_dirty = true;
         self.snap_selection(fonts, true);
@@ -814,6 +829,12 @@ impl EditorController {
         {
             return EditorResponse::default();
         }
+        if let InputEvent::NativeText {
+            revision, action, ..
+        } = event
+        {
+            return self.native_input(fonts, *revision, action);
+        }
         self.ensure_fonts(fonts);
         if self.policy.read_only
             && matches!(
@@ -833,14 +854,18 @@ impl EditorController {
             InputEvent::Text(text) | InputEvent::TextFor { text, .. } => {
                 let text = self.clean(text);
                 let composing = self.is_composing();
-                let cancelled = self.cancel_composition(fonts);
                 if text.is_empty() {
+                    let cancelled = self.cancel_composition(fonts);
                     return if cancelled {
                         EditorResponse::handled(false)
                     } else {
                         EditorResponse::default()
                     };
                 }
+                if composing && let Some(range) = self.editor.raw_compose().clone() {
+                    return EditorResponse::handled(self.replace_native_range(fonts, range, &text));
+                }
+                self.cancel_composition(fonts);
                 if self.policy.auto_brackets && !composing && text.chars().count() == 1 {
                     if let Some(plan) =
                         policy::brackets(self.selection_bytes(), text.chars().next().unwrap())
@@ -873,9 +898,15 @@ impl EditorController {
                     self.cancel_composition(fonts);
                     return EditorResponse::handled(false);
                 }
+                let changed_source = self.editor.raw_compose().as_ref().is_none_or(|range| {
+                    self.editor.raw_text().get(range.clone()) != Some(text.as_str())
+                });
                 fonts
                     .editor_driver(&mut self.editor)
                     .set_compose(&text, cursor);
+                if changed_source {
+                    self.invalidate_source();
+                }
                 self.snapshot = None;
                 self.boundaries_dirty = true;
                 EditorResponse::handled(false)
@@ -1174,14 +1205,28 @@ fn visual_grapheme(
     right: bool,
     extend: bool,
 ) {
-    let mut selection = *driver.editor.raw_selection();
-    let limit = driver
-        .editor
-        .raw_text()
-        .len()
+    let selection = visual_grapheme_selection(
+        *driver.editor.raw_selection(),
+        driver.layout(),
+        boundaries,
+        right,
+        extend,
+    );
+    driver.set_selection(selection);
+}
+fn visual_grapheme_selection(
+    mut selection: parley::Selection,
+    layout: &parley::Layout<usize>,
+    boundaries: &[usize],
+    right: bool,
+    extend: bool,
+) -> parley::Selection {
+    let limit = boundaries
+        .last()
+        .copied()
+        .unwrap_or(0)
         .saturating_mul(2)
         .saturating_add(1);
-    let layout = driver.layout();
     for _ in 0..limit {
         let next = if right {
             selection.next_visual(layout, extend)
@@ -1196,8 +1241,9 @@ fn visual_grapheme(
             break;
         }
     }
-    driver.set_selection(selection);
+    selection
 }
+
 fn grapheme_cursor(
     cursor: parley::Cursor,
     layout: &parley::Layout<usize>,

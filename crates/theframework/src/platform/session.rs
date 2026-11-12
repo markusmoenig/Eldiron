@@ -97,6 +97,21 @@ pub trait GpuApplication {
         Ok(())
     }
     fn resize(&mut self, _host: &mut HostContext) {}
+    /// CPU text/source metadata for native IME and accessibility. The target and
+    /// source revision address subsequent range edits; this never captures pixels.
+    fn native_text_snapshot(
+        &mut self,
+        _host: &mut HostContext,
+    ) -> Option<crate::text_edit::NativeTextSnapshot> {
+        None
+    }
+    fn native_text_query(
+        &mut self,
+        _host: &mut HostContext,
+        _request: &crate::text_edit::NativeTextRequest,
+    ) -> Option<crate::text_edit::NativeTextAnswer> {
+        None
+    }
     fn input(&mut self, _event: &InputEvent, _host: &mut HostContext) -> InputResponse {
         InputResponse::default()
     }

@@ -141,6 +141,7 @@ impl TheUI {
                     | InputEvent::TextFor { .. }
                     | InputEvent::Composition { .. }
                     | InputEvent::CompositionFor { .. }
+                    | InputEvent::NativeText { .. }
                     | InputEvent::Clipboard { .. }
             )
         {
@@ -155,6 +156,7 @@ impl TheUI {
                     | InputEvent::TextFor { .. }
                     | InputEvent::Composition { .. }
                     | InputEvent::CompositionFor { .. }
+                    | InputEvent::NativeText { .. }
                     | InputEvent::Clipboard { .. }
             )
         {
@@ -375,7 +377,8 @@ impl TheUI {
             | InputEvent::FileDropped(_)
             | InputEvent::Clipboard { .. }
             | InputEvent::TextFor { .. }
-            | InputEvent::CompositionFor { .. } => {}
+            | InputEvent::CompositionFor { .. }
+            | InputEvent::NativeText { .. } => {}
         }
         result
     }

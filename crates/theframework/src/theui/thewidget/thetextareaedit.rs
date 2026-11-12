@@ -180,6 +180,23 @@ impl TheWidget for TheTextAreaEdit {
         Some(response)
     }
     #[cfg(feature = "text")]
+    fn editor_native_text_query(
+        &mut self,
+        request: &crate::text_edit::NativeTextRequest,
+        ctx: &mut TheContext,
+    ) -> Option<crate::text_edit::NativeTextAnswer> {
+        self.ensure_native_editor(ctx);
+        self.native.view.native_text_query(&mut ctx.text, request)
+    }
+    #[cfg(feature = "text")]
+    fn editor_native_text_snapshot(
+        &mut self,
+        ctx: &mut TheContext,
+    ) -> Option<crate::text_edit::NativeTextSnapshot> {
+        self.ensure_native_editor(ctx);
+        self.native.view.editor.native_text_snapshot(&mut ctx.text)
+    }
+    #[cfg(feature = "text")]
     fn editor_input_state(
         &mut self,
         ctx: &mut TheContext,

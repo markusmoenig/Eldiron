@@ -421,6 +421,17 @@ impl EditorView {
         }
         response
     }
+    pub fn native_text_query(
+        &mut self,
+        fonts: &mut TextSystem,
+        request: &super::NativeTextRequest,
+    ) -> Option<super::NativeTextAnswer> {
+        let origin = self.origin(fonts);
+        let local = request.map_hit(crate::paint::Transform::translate(-origin[0], -origin[1]));
+        self.editor.native_text_query(fonts, &local).map(|answer| {
+            answer.transformed(crate::paint::Transform::translate(origin[0], origin[1]))
+        })
+    }
     pub fn text_input_state(
         &mut self,
         fonts: &mut TextSystem,
@@ -656,6 +667,56 @@ mod tests {
             !multiline,
         );
         (fonts, view)
+    }
+    #[test]
+    fn native_queries_follow_fractional_scroll_and_centering_without_new_layout() {
+        use crate::text_edit::{NativeTextAnswer as A, NativeTextQuery as Q, NativeTextRequest};
+        for multiline in [false, true] {
+            let bounds = Rect::new(37.5, 29.25, 80., 36.);
+            let (mut fonts, mut view) =
+                fixture(multiline, "Long filename 東京\nSecond line\nThird", bounds);
+            view.set_focused(&mut fonts, true);
+            view.set_scroll(&mut fonts, if multiline { [0., 17.25] } else { [12.5, 0.] });
+            let source = view.editor.native_text_snapshot(&mut fonts).unwrap();
+            let before = (
+                view.scroll(),
+                view.editor.selection_bytes(),
+                view.editor.history_bytes(),
+                view.editor.snapshots_built(),
+            );
+            let origin = view.origin(&mut fonts);
+            let index = 5;
+            let local = view.editor.layout(&mut fonts).caret(index);
+            let request = |query| NativeTextRequest {
+                target: source.target,
+                revision: source.revision,
+                query,
+            };
+            let A::Geometry { caret, .. } = view
+                .native_text_query(&mut fonts, &request(Q::Geometry(index..index)))
+                .unwrap()
+            else {
+                panic!("geometry")
+            };
+            assert!((caret.x - local.x - origin[0]).abs() < 0.001);
+            assert!((caret.y - local.y - origin[1]).abs() < 0.001);
+            assert_eq!(
+                view.native_text_query(
+                    &mut fonts,
+                    &request(Q::Hit([caret.x, caret.y + caret.height / 2.]))
+                ),
+                Some(A::Hit(index))
+            );
+            assert_eq!(
+                (
+                    view.scroll(),
+                    view.editor.selection_bytes(),
+                    view.editor.history_bytes(),
+                    view.editor.snapshots_built()
+                ),
+                before
+            );
+        }
     }
     #[test]
     fn translated_scrolled_editor_keeps_caret_candidate_and_hits_consistent() {

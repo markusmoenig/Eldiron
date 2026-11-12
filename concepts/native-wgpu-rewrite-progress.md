@@ -1691,3 +1691,183 @@ and UIKit composition via that same controller, with real bridge/undo/stale-toke
 checks. Then continue Creator main application/document/history/world/tool/preview
 and Play ownership, Creator Apple wrapper, browser bootstrap/workers, resource and
 release performance budgets, physical matrices and explicit legacy retirement.
+
+
+## Shared native text snapshot/range contract (2026-11-12, in progress)
+
+After Apple client checkpoint `ccc40eaf`, the existing Parley editor now exposes
+an immutable displayed-text snapshot (including preedit), UTF-8 selection/marked
+ranges, native input target and source/composition revision. UTF-16 conversion
+rejects surrogate splits rather than clamping to a different edit. Source revisions
+survive font/layout/DPI and selection-only changes, but invalidate edits after
+source/marked identity changes. New addressed native select/replace/compose/
+commit/cancel operations retain shared undo, single-line filtering, readonly and
+focus policies; no second editing or drawing model is introduced.
+
+Six new CPU tests pass, along with three existing native-filter cases (nine total,
+0.29 s): source/layout reuse and UTF conversion, transient/cancel preservation,
+atomic unmark/undo, replacement through preedit as one transaction, invalid/stale
+source/target/readonly rejection, selection inside/outside marked text. Logs
+`/private/tmp/eldiron-native-text-snapshot-{first,units}.log`. Text-only compilation
+also passes. No serialized project/undo-state fields were added.
+
+Widget, embedded tree, graph draft, common UI application and authored player
+snapshot/routing adapters are now being connected; higher-level compile/tests
+are pending. Next: finish generic routing coverage, add end-to-end UI/game/graph
+range cases, expose the revisioned UTF-16 Apple ABI, complete macOS surrounding
+text/replacement semantics and UIKit UITextInput composition, then actual bridge
+and platform/ownership regressions. This work is not yet a verified checkpoint.
+
+
+Native range routing now compiles through Creator and the common player
+(`...text-snapshot-routing-first.log`). Three additional CPU integration cases
+pass through real focused widgets, graph drafts and authored game-screen routing:
+preedit never publishes to bindings/documents, commit shares undo, source/owner
+changes reject old callbacks, and game queries/edits do not tick simulation or
+mutate serialized project content (`...text-snapshot-framework-routing.log` and
+`...text-snapshot-game-routing.log`). Native operations also finish any active
+numeric-field gesture through its existing owner before editing.
+
+The Apple ABI now exposes an explicit surrounding-text snapshot and revisioned
+UTF-16 select/replace/compose/commit/cancel operations. Conversion rejects surrogate
+splits and source revisions are checked before touching the shared controller.
+Host state carries only the input's revision/selection metadata, while full text
+is queried on demand. The Swift facade has matching cached snapshot/range APIs;
+macOS/UIKit protocol methods still need migration to them. Extended actual ABI
+checks and final framework/platform regression coverage are pending.
+
+
+The extended actual Apple ABI cases pass (44.51 s,
+`...text-snapshot-apple-gpu.log`): full displayed text/marked UTF-16 metadata,
+surrogate-split rejection, revisioned replacement/preedit/commit, shared undo and
+stale-source rejection. Full earlier framework/editor/graph CPU regressions passed
+159 + 18 + 19 cases; source-epoch and mixed legacy/native commit refinements are
+now running their updated suite. New epoch coverage prevents an old receipt from
+reviving even when unobserved edits/undo or preedit updates restore identical text.
+Source mutations release the previous cached native source immediately.
+
+Mac input now uses **one NSTextInputContext/client per opaque logical editor
+owner**, with an explicit strong client retained by its context (AppKit's base
+context does not retain it). Delayed callbacks therefore retain their original
+owner rather than looking up the newest field. Full surrounding-text queries and
+range operations use the shared controller; unmark commits and deactivation
+cancels. Typed native insertion retains typing-only policy, and captures selection
+as well as source to reject intervening caret movement. Existing IME commits now
+also replace the actual marked range after an explicit native replacement request,
+with the pre-operation caret restored by undo. No new editor model is introduced.
+
+The macOS source typechecks cleanly with concurrency/member warnings as errors
+(`...text-snapshot-swift-macos-client.log`). A scripted native-client ownership/
+UTF-16/dispatch check has been added to the real Swift/static-library harness;
+execution is next. UIKit still needs UITextInput migration. Arbitrary native text
+hit/caret/selection geometry queries remain to implement; the current macOS
+candidate rectangle uses the existing active caret area, and arbitrary hit returns
+NSNotFound rather than a fabricated position. No complete native text/platform
+parity is claimed at this stage.
+
+Native text integration continues through shared paint-layout queries (not frame
+captures). The controller/view, widget/tree/graph, common UI and player/foreign
+hosts now route revisioned caret, selection, first visual range, hit and visual
+navigation queries. Geometry includes the exact viewport/scroll/centering/host
+transforms; bidi/grapheme navigation reuses the physical-key operation without
+moving live selection. The Apple UTF-16 query ABI and macOS candidate/hit adapters
+now use these results. Native single-line typing and explicit replacements retain
+their separate existing policies.
+
+The macOS client harness passed actual context ownership, UTF-16 surrounding-text,
+surrogate rejection, marked/unmark and stale-field dispatch checks plus the real
+Swift/Metal host (`...text-snapshot-swift-client-boundaries.log`, artifacts
+`/var/folders/h0/565dc64n6d39c2lrzq1lf6zm0000gn/T/eldiron-apple-host-_6jfts9p/`).
+Earlier framework source/commit suites passed 161 + 18 + 19 tests. Geometry unit
+coverage subsequently passed 19 focused cases, including exact painted selection,
+bidi/grapheme/vertical navigation, fractional scrolled/centered view coordinates,
+stale/invalid rejection and nonmutation/no reshaping
+(`...text-geometry-units-fixed.log`).
+
+UIKit now has a zero-size non-drawing UITextInput responder per logical owner,
+revisioned UTF-16 positions/ranges, surrounding text, marked/unmark/typed/range
+operations, input-delegate notifications, geometry/hit/visual navigation and
+retirement. Old responder/range callbacks cannot target another field or source.
+It typechecks against the installed iOS SDK; a protocol harness is included for
+later runtime execution. Actual iOS runtime/locale keyboard testing is still
+blocked by the previously recorded CoreSimulator mismatch, and is not claimed.
+
+New empty-marked/backspace coverage exposed a Parley assertion when applying an
+underline to an empty provisional range. Its editor now retains composition
+identity but skips the empty underline style; the shared native controller keeps
+that empty range transient until commit/cancel and owns one undo boundary.
+Winit's distinct empty-preedit cancellation remains unchanged. This fix and final
+framework/player/Swift/Apple cross-target regressions are in flight; do not count
+this slice or M0–M9 complete. Current logs use
+`/private/tmp/eldiron-native-text-geometry-*`. Next: inspect/fix all results, verify
+Apple query/UTF-16 ABI on actual Metal, SDK/build linkage and ownership regressions,
+checkpoint only the rewrite changes, then advance Creator main host/document and
+preview ownership and the remaining browser/platform/performance acceptance work.
+
+Final focused CPU suites now pass **165 framework library + 18 native widget +
+19 native graph cases**, plus the text-only suite and authored game-screen native
+range/geometry case. Reproduce `/private/tmp/verify-native-text-complete.py`;
+results currently in `...text-final-results.log`. Tree queries match the exact
+child-to-row paint origin, and graph hit queries match actual grapheme-safe
+pointer selection at 50%, 100% and 225% zoom. Candidate metadata intentionally
+includes nearby context and clips fallback-font bounds to the visible cell;
+it is not the raw caret rectangle. Initial integration assertions incorrectly
+equated these two contracts; diagnostics and the corrected paint-origin/clip
+comparisons remain in `...text-final-framework.log` / `...text-geometry-graph-diagnostic.log`.
+The Parley empty-range fix has a separate review/rebase patch and scope note in
+`vendor/parley/ELDIRON-PATCH.md`. Remaining checks continue; no milestone is closed.
+
+## Shared native text integration checkpoint (2026-11-12)
+
+Verified final source/range/geometry integration:
+
+- CPU `ui,text`: **165 library + 18 widget + 19 graph** tests pass; text-only:
+  **77** pass. GPU UI feature configuration: **167 library + 19 widget + 20 graph**
+  tests pass, plus **all seven actual GPU paint tests**. The empty native marked
+  state paints with the existing Swash atlas without new glyph rasterization or
+  implicit readback (`...text-final-framework-gpu.log`). Visually inspected
+  `/private/tmp/eldiron-native-editors.png`: shared mixed-script/emoji, selection,
+  underlined preedit and scrolled multiline glyphs remain aligned.
+- Authored game-screen snapshot/range/geometry case passes, retaining source bytes,
+  bindings until commit and unchanged tick sequence. **20 common-player tests**
+  pass (57.99 s). Separate window-free **two actual Apple ABI cases** pass
+  (46.29 s), including UTF-16 surrounding/marked ranges, surrogate rejection,
+  shared undo, hit/caret/visual navigation, stale revision/owner rejection, actual
+  registered scene/UI presentations and zero implicit readback.
+- Reference FFI/launchers, browser aliases, ARM64 iOS player, all four applications
+  with Creator native-render, **ten dependency boundaries** and diff checks pass.
+  Reproduce `/private/tmp/verify-native-text-complete.py`; final matrix logs:
+  `/private/tmp/eldiron-native-text-final-{framework,text-only,game,player,foreign-abi,reference-ffi,references,web,ios,apps,boundaries,swift,diff}.log`.
+- Strict final Swift gate preserves **37 established exports**, compiles with
+  Xcode's exact Swift 5/Approachable Concurrency flags and warnings as errors,
+  typechecks UIKit including its protocol harness, and executes the macOS client
+  harness plus the real Metal-layer host successfully:
+  `...text-final-swift-strict.log`; artifacts
+  `/var/folders/h0/565dc64n6d39c2lrzq1lf6zm0000gn/T/eldiron-apple-host-a2rtu162/`.
+- Both unsigned **macOS and ARM64 iOS simulator app bundles BUILD SUCCEEDED** with
+  Swift warnings treated as errors. Build current Rust libraries first; scope
+  MACOSX_DEPLOYMENT_TARGET=26.1 to macOS and IPHONEOS_DEPLOYMENT_TARGET=26.1 to iOS
+  so C dependencies match Xcode. Reproduce
+  `/private/tmp/verify-native-text-apple-bundles.py`; final results
+  `...text-apple-bundle-final-results.log`, individual `...text-apple-bundle-*.log`.
+  The initial bundle build found a pure geometry helper's implicit actor isolation
+  in compactMap and iOS C objects targeting SDK 27.2; both are corrected. Final
+  bundles have no source actor-isolation or newer-OS link warnings. Xcode still
+  reports its unavailable simulator service and unused AppIntents metadata step.
+
+The native UIKit responder retires on document/owner changes, preserves fixed
+owner/source ranges, returns shared geometry in the Metal container coordinate
+space, and allows hardware IME keys through UIKit while marked text is active.
+Touch can reacquire the same editor after keyboard dismissal. Source/selection
+queries and edits are CPU model operations; only the established Swash glyph atlas
+and GPU compositor draw text. No serialized project/undo-state schema changed.
+
+This is a verified integration checkpoint, **not full M2/M7/M9 or whole-rewrite
+acceptance**. The UIKit protocol harness was SDK-compiled, not executed; the
+CoreSimulator version mismatch remains. Physical keyboard/locale/IME matrices,
+mobile menu/undo/accessibility/service parity, unlocked desktop interaction,
+signed/device packaging and release performance remain required. Main Creator
+application/document/history/world/tool/Play ownership, interactive GPU previews,
+Creator Apple wrapper, browser bootstrap/workers and legacy retirement remain.
+Continue directly with Creator ownership/GPU view integration; do not wait for
+approval. The unrelated networking concept and original checkout remain intact.

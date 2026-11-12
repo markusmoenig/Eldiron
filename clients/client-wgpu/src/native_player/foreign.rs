@@ -78,6 +78,19 @@ impl ForeignPlayerHost {
         }
         self.dirty = true;
     }
+    pub fn native_text_snapshot(&mut self) -> Option<theframework::text_edit::NativeTextSnapshot> {
+        self.application
+            .as_mut()?
+            .native_text_snapshot(&mut self.host)
+    }
+    pub fn native_text_query(
+        &mut self,
+        request: &theframework::text_edit::NativeTextRequest,
+    ) -> Option<theframework::text_edit::NativeTextAnswer> {
+        self.application
+            .as_mut()?
+            .native_text_query(&mut self.host, request)
+    }
     pub fn input(&mut self, event: &InputEvent) -> InputResponse {
         let response = self
             .application

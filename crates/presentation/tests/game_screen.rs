@@ -1869,3 +1869,98 @@ mod ui_feedback;
 
 #[path = "game_screen/text_game.rs"]
 mod text_game;
+
+#[test]
+fn native_source_ranges_preserve_authored_game_bindings_until_commit_and_reject_stale_sources() {
+    use theframework::platform::*;
+    let session = fixture(false);
+    let before = serde_json::to_value(&session.project).unwrap();
+    let ticks = session.tick_sequence();
+    let mut fonts = GameFonts::default();
+    let mut screen = GameScreenController::from_screen("Main", &session.view(), layout()).unwrap();
+    screen
+        .prepare(&session.view(), &mut fonts, ContentRevision(1), 0)
+        .unwrap();
+    screen.focus_input(&mut fonts, Some(3));
+    let source = screen.native_text_snapshot(&mut fonts).unwrap();
+    assert_eq!(&*source.text, "Éowyn");
+    use theframework::text_edit::{NativeTextAnswer as A, NativeTextQuery as Q, NativeTextRequest};
+    let request = |query| NativeTextRequest {
+        target: source.target,
+        revision: source.revision,
+        query,
+    };
+    let A::Geometry { caret, .. } = screen
+        .native_text_query(&mut fonts, &request(Q::Geometry(0..0)))
+        .unwrap()
+    else {
+        panic!("geometry")
+    };
+    assert!(
+        caret.x >= 208. && caret.y >= 176.,
+        "screen-local geometry: {caret:?}"
+    );
+    assert_eq!(
+        screen.native_text_query(
+            &mut fonts,
+            &request(Q::Hit([caret.x, caret.y + caret.height / 2.]))
+        ),
+        Some(A::Hit(0))
+    );
+    let event = InputEvent::NativeText {
+        target: source.target,
+        revision: source.revision,
+        action: NativeTextAction::Compose {
+            range: Some(0..source.text.len()),
+            text: "日本".into(),
+            cursor: Some((6, 6)),
+        },
+    };
+    assert!(
+        screen
+            .input(&session.view(), &mut fonts, &event)
+            .unwrap()
+            .input
+            .consumed
+    );
+    assert_eq!(screen.elements.text_input_widgets[&3].text, "Éowyn");
+    let marked = screen.native_text_snapshot(&mut fonts).unwrap();
+    assert_eq!(&*marked.text, "日本");
+    let commit = InputEvent::NativeText {
+        target: marked.target,
+        revision: marked.revision,
+        action: NativeTextAction::CommitComposition,
+    };
+    assert!(
+        screen
+            .input(&session.view(), &mut fonts, &commit)
+            .unwrap()
+            .input
+            .consumed
+    );
+    assert_eq!(screen.elements.text_input_widgets[&3].text, "日本");
+    assert_eq!(screen.elements.ui_state["start.name"], "日本");
+    assert!(
+        !screen
+            .input(&session.view(), &mut fonts, &event)
+            .unwrap()
+            .input
+            .consumed
+    );
+    assert_eq!(screen.elements.text_input_widgets[&3].text, "日本");
+    screen.focus_input(&mut fonts, None);
+    assert!(screen.native_text_snapshot(&mut fonts).is_none());
+    assert!(
+        !screen
+            .input(&session.view(), &mut fonts, &commit)
+            .unwrap()
+            .input
+            .consumed
+    );
+    assert_eq!(serde_json::to_value(&session.project).unwrap(), before);
+    assert_eq!(
+        session.tick_sequence(),
+        ticks,
+        "native text queries/edits must not advance simulation"
+    );
+}

@@ -110,6 +110,14 @@ func unified_app_runner_pointer_button(_ vm: UnsafeMutableRawPointer?, _ button:
 @_silgen_name("unified_app_runner_replace_layer")
 func unified_app_runner_replace_layer(_ vm: UnsafeMutableRawPointer?, _ layer: UnsafeMutableRawPointer?, _ width: UInt32, _ height: UInt32, _ scale: Float) -> Int32
 
+@_silgen_name("unified_app_runner_text_snapshot")
+func unified_app_runner_text_snapshot(_ vm: UnsafeMutableRawPointer?, _ out: UnsafeMutablePointer<UnsafePointer<UInt8>?>?, _ len: UnsafeMutablePointer<Int>?) -> Int32
+@_silgen_name("unified_app_runner_text_edit")
+func unified_app_runner_text_edit(_ vm: UnsafeMutableRawPointer?, _ target: UInt64, _ revision: UInt64, _ kind: UInt32, _ start: Int, _ end: Int, _ bytes: UnsafePointer<UInt8>?, _ len: Int, _ cursorStart: Int, _ cursorEnd: Int) -> Int32
+
+@_silgen_name("unified_app_runner_text_query")
+func unified_app_runner_text_query(_ vm: UnsafeMutableRawPointer?, _ target: UInt64, _ revision: UInt64, _ kind: UInt32, _ start: Int, _ end: Int, _ x: Float, _ y: Float, _ out: UnsafeMutablePointer<UnsafePointer<UInt8>?>?, _ len: UnsafeMutablePointer<Int>?) -> Int32
+
 #if os(macOS)
 import AppKit
 #else
@@ -118,7 +126,43 @@ import UIKit
 
 struct NativeTextInput: Decodable, Equatable {
     let target: UInt64
+    let revision: UInt64?
+    let selection: [Int]?
     let area: [Float]
+}
+struct NativeTextSnapshot: Decodable {
+    let target: UInt64
+    let revision: UInt64
+    let text: String
+    var selection: [Int]
+    let marked: [Int]?
+    var length: Int { (text as NSString).length }
+    func isScalarBoundary(_ position: Int) -> Bool {
+        let units = text.utf16
+        guard position >= 0, position <= units.count else { return false }
+        if position == 0 || position == units.count { return true }
+        let index = units.index(units.startIndex, offsetBy: position)
+        let previous = units[units.index(before: index)]
+        return !(0xDC00...0xDFFF).contains(units[index]) || !(0xD800...0xDBFF).contains(previous)
+    }
+    var selectedRange: NSRange {
+        guard selection.count == 2 else { return NSRange(location: 0, length: 0) }
+        return NSRange(location: min(selection[0], selection[1]), length: abs(selection[1] - selection[0]))
+    }
+    var markedRange: NSRange {
+        guard let marked, marked.count == 2 else { return NSRange(location: NSNotFound, length: 0) }
+        return NSRange(location: marked[0], length: marked[1] - marked[0])
+    }
+}
+struct NativeTextAnswer: Decodable {
+    let caret: [Float]?
+    let selection: [[Float]]?
+    let firstRange: [Int]?
+    let position: Int?
+    nonisolated static func rect(_ a: [Float]) -> CGRect? {
+        guard a.count == 4 else { return nil }
+        return CGRect(x: CGFloat(a[0]), y: CGFloat(a[1]), width: CGFloat(a[2]), height: CGFloat(a[3]))
+    }
 }
 struct NativeHostState: Decodable {
     let title: String
@@ -138,17 +182,37 @@ private struct NativeHostRequest: Decodable {
     let message: String?
 }
 
+/// Native input clients own a fixed input target and only forward source/range
+/// operations. Editing, undo and glyph rendering remain in the Rust controller.
+@MainActor
+protocol NativeTextHost: AnyObject {
+    var nativeInputState: NativeTextInput? { get }
+    func nativeTextSnapshot() -> NativeTextSnapshot?
+    func queryNativeText(source: NativeTextSnapshot, range: NSRange?, point: CGPoint?) -> NativeTextAnswer?
+    func navigateNativeText(source: NativeTextSnapshot, position: Int, direction: Int, count: Int) -> Int?
+    @discardableResult
+    func editNativeText(kind: UInt32, source: NativeTextSnapshot, range: NSRange?, text: String, selection: NSRange?) -> Bool
+}
+extension NativeTextHost {
+    @discardableResult
+    func editText(kind: UInt32, source: NativeTextSnapshot, range: NSRange? = nil, text: String = "", selection: NSRange? = nil) -> Bool {
+        editNativeText(kind: kind, source: source, range: range, text: text, selection: selection)
+    }
+}
+
 /// The host retains the backing layer until Rust destroys its surface. Every
 /// callback, including destruction, runs serially on the main/creation thread.
 @MainActor
-final class SceneVMHandle {
+final class SceneVMHandle: NativeTextHost {
     private var vm: UnsafeMutableRawPointer?
     private var layer: CAMetalLayer
     private var scale: CGFloat
     private(set) var state: NativeHostState?
+    var nativeInputState: NativeTextInput? { state?.textInput }
     var onState: ((NativeHostState) -> Void)?
     var onError: ((String) -> Void)?
     private var reportedError: String?
+    private var sourceSnapshot: NativeTextSnapshot?
 
     private static func pixels(_ value: CGFloat) -> UInt32 {
         value.isFinite ? UInt32(min(max(value.rounded(), 0), CGFloat(UInt32.max))) : 0
@@ -187,16 +251,23 @@ final class SceneVMHandle {
               let message = String(data: data, encoding: .utf8), !message.isEmpty else { return }
         if message != reportedError { reportedError = message; onError?(message) }
     }
-    private func refresh() {
+    private func refreshState() {
         guard let vm else { return }
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         if let data = read({ unified_app_runner_host_state(vm, $0, $1) }),
            let state = try? decoder.decode(NativeHostState.self, from: data) {
             let previous = self.state
+            if sourceSnapshot?.target != state.textInput?.target { sourceSnapshot = nil }
             self.state = state
             if previous?.title != state.title || previous?.cursor != state.cursor || previous?.cursorVisible != state.cursorVisible || previous?.textInput != state.textInput { onState?(state) }
         }
+    }
+    private func refresh() {
+        guard let vm else { return }
+        refreshState()
+        let decoder = JSONDecoder()
+        var completedClipboard = false
         if let data = read({ unified_app_runner_take_requests(vm, $0, $1) }),
            let requests = try? decoder.decode([NativeHostRequest].self, from: data) {
             for request in requests {
@@ -209,6 +280,7 @@ final class SceneVMHandle {
                     let value = UIPasteboard.general.string
                     #endif
                     completeClipboard(id, write: false, text: value, success: value != nil)
+                    completedClipboard = true
                 case "clipboard_write":
                     guard let text = request.text else { continue }
                     #if os(macOS)
@@ -218,12 +290,15 @@ final class SceneVMHandle {
                     UIPasteboard.general.string = text
                     let success = true
                     #endif
-                    if let id = request.request { completeClipboard(id, write: true, text: nil, success: success) }
+                    if let id = request.request { completeClipboard(id, write: true, text: nil, success: success); completedClipboard = true }
                 case "error": onError?(request.message ?? "Unable to update the player")
                 default: break
                 }
             }
         }
+        // A completion can change text/selection before the next display tick.
+        // Publish its new source epoch now so the next native key is not stale.
+        if completedClipboard { refreshState() }
     }
     private func completeClipboard(_ id: UInt64, write: Bool, text: String?, success: Bool) {
         guard let vm else { return }
@@ -231,6 +306,55 @@ final class SceneVMHandle {
         bytes.withUnsafeBufferPointer {
             _ = unified_app_runner_clipboard(vm, id, write ? 1 : 0, success ? 1 : 0, $0.baseAddress, $0.count)
         }
+    }
+    /// Source text is queried on demand, separately from frame/host metrics.
+    /// Selection-only changes can reuse the same immutable string/source epoch.
+    func nativeTextSnapshot() -> NativeTextSnapshot? {
+        guard let vm, let input = state?.textInput else { sourceSnapshot = nil; return nil }
+        if var cached = sourceSnapshot, cached.target == input.target, cached.revision == input.revision {
+            if let selection = input.selection { cached.selection = selection }
+            sourceSnapshot = cached
+            return cached
+        }
+        guard let data = read({ unified_app_runner_text_snapshot(vm, $0, $1) }) else { reportError(); return nil }
+        sourceSnapshot = try? JSONDecoder().decode(NativeTextSnapshot.self, from: data)
+        return sourceSnapshot
+    }
+    func queryNativeText(source: NativeTextSnapshot, range: NSRange?, point: CGPoint?) -> NativeTextAnswer? {
+        guard let vm else { return nil }
+        var start = -1, end = -1
+        if let range {
+            guard range.location >= 0, range.location != NSNotFound, range.length >= 0 else { return nil }
+            let sum = range.location.addingReportingOverflow(range.length)
+            guard !sum.overflow else { return nil }
+            start = range.location; end = sum.partialValue
+        }
+        guard let data = read({ unified_app_runner_text_query(vm, source.target, source.revision, point == nil ? 0 : 1, start, end, Float(point?.x ?? 0), Float(point?.y ?? 0), $0, $1) }) else { return nil }
+        let decoder = JSONDecoder(); decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return try? decoder.decode(NativeTextAnswer.self, from: data)
+    }
+    func navigateNativeText(source: NativeTextSnapshot, position: Int, direction: Int, count: Int) -> Int? {
+        guard let vm, (0...3).contains(direction), count >= 0 else { return nil }
+        guard let data = read({ unified_app_runner_text_query(vm, source.target, source.revision, UInt32(direction + 2), position, count, 0, 0, $0, $1) }) else { return nil }
+        return (try? JSONDecoder().decode(NativeTextAnswer.self, from: data))?.position
+    }
+    @discardableResult
+    func editNativeText(kind: UInt32, source: NativeTextSnapshot, range: NSRange?, text: String, selection: NSRange?) -> Bool {
+        guard let vm else { return false }
+        func endpoints(_ range: NSRange?) -> (Int, Int)? {
+            guard let range, range.location != NSNotFound else { return (-1, -1) }
+            guard range.location >= 0, range.length >= 0 else { return nil }
+            let end = range.location.addingReportingOverflow(range.length)
+            return end.overflow ? nil : (range.location, end.partialValue)
+        }
+        guard var range = endpoints(range), let cursor = endpoints(selection) else { return false }
+        if (kind == 5 || kind == 6) && range.0 == -1 && source.selection.count == 2 { range = (source.selection[0], source.selection[1]) }
+        let result = Array(text.utf8).withUnsafeBufferPointer {
+            unified_app_runner_text_edit(vm, source.target, source.revision, kind, range.0, range.1, $0.baseAddress, $0.count, cursor.0, cursor.1)
+        }
+        if result < 0 { reportError() }
+        refresh()
+        return result > 0
     }
     func synchronizeHost() { if let state { onState?(state) } }
     func loadProject(data: Data) -> Bool {

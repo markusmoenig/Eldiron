@@ -69,12 +69,24 @@ def main():
         raise RuntimeError(f"Missing compatibility exports: {sorted(expected - exported)}")
     print(f"abi: {len(expected)} established exports preserved", flush=True)
     sources = [ROOT / "Xcode/Client/SceneVM" / (name + ".swift")
-               for name in ["SceneVMDocument", "SceneVMFFI", "SceneVMView"]]
+               for name in ["SceneVMDocument", "SceneVMFFI", "SceneVMView", "NativeTextClient", "NativeUIKitTextClient"]]
+    # Match Xcode's Swift 5 mode and Approachable Concurrency flags. A plain
+    # typecheck can otherwise miss closure actor-isolation diagnostics in the
+    # actual bundle build.
+    swift_flags = ["-warnings-as-errors", "-swift-version", "5", "-default-isolation", "MainActor"]
+    for feature in ["DisableOutwardActorInference", "InferSendableFromCaptures",
+                    "GlobalActorIsolatedTypesUsability", "MemberImportVisibility",
+                    "InferIsolatedConformances", "NonisolatedNonsendingByDefault"]:
+        swift_flags += ["-enable-upcoming-feature", feature]
+    sdk = subprocess.check_output(["xcrun", "--sdk", "iphonesimulator", "--show-sdk-path"], text=True).strip()
+    run("ios-sdk", ["xcrun", "swiftc", "-typecheck", *swift_flags, "-sdk", sdk,
+                    "-target", "arm64-apple-ios26.1-simulator", *map(str, sources),
+                    str(ROOT / "Xcode/Client/Tests/NativeUIKitTextClientCheck.swift")])
     executable = OUTPUT / "NativePlayerHostCheck"
-    run("swift", ["xcrun", "swiftc", "-warnings-as-errors", "-default-isolation", "MainActor",
-                  "-enable-upcoming-feature", "MemberImportVisibility", "-target",
+    run("swift", ["xcrun", "swiftc", *swift_flags, "-target",
                   f"{platform.machine()}-apple-macosx26.1", *map(str, sources),
                   str(ROOT / "Xcode/Client/Tests/NativePlayerHostCheck.swift"),
+                  str(ROOT / "Xcode/Client/Tests/NativeTextClientCheck.swift"),
                   "-L", str(TARGET / "debug"), "-lscenevm_unified_app",
                   *shlex.split(match.group(1)), "-o", str(executable)])
     run("host", [str(executable), str(ROOT / "test_projects/3DStarter.eldiron")], timeout=90)

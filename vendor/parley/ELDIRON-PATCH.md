@@ -95,3 +95,20 @@ still not claimed as passed. Remove this patch when upstream provides equivalent
 CRLF width-layout behavior. The review patch uses zero context; validate it
 against this checkout with `git apply --unidiff-zero --check --reverse
 vendor/parley/eldiron-crlf-line-break.patch`.
+
+## Empty provisional native marked range
+
+`src/editing/editor.rs` skips an underline style for an empty `compose` range.
+The existing `set_compose_byte_range` API accepts a zero-length range, which
+UIKit can retain after deleting all provisional text. The range still carries
+composition identity, and native commit/cancel retain the original shared undo
+boundary. An empty style span previously reached the analysis assertion that
+style ranges must contain text. No glyph shaping or nonempty marked style is
+changed. The framework's native backspace test deletes a combining grapheme and
+an emoji, keeps the empty range transient, then verifies both commit/undo and
+cancel/original-selection restoration. Winit's empty-preedit cancellation policy
+is separate and unchanged. Review/rebase diff: `eldiron-empty-marked-range.patch`;
+check with `git apply --unidiff-zero --check --reverse
+vendor/parley/eldiron-empty-marked-range.patch`. Remove when upstream supplies the
+equivalent empty-range styling guard. These are scoped framework checks; the
+unpublished full upstream fixture suite is not claimed as passed.

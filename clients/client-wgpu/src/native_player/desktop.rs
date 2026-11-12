@@ -88,6 +88,19 @@ impl GpuApplication for DesktopApplication {
     fn resize(&mut self, h: &mut HostContext) {
         self.player.resize(h)
     }
+    fn native_text_snapshot(
+        &mut self,
+        h: &mut HostContext,
+    ) -> Option<theframework::text_edit::NativeTextSnapshot> {
+        self.player.native_text_snapshot(h)
+    }
+    fn native_text_query(
+        &mut self,
+        h: &mut HostContext,
+        request: &theframework::text_edit::NativeTextRequest,
+    ) -> Option<theframework::text_edit::NativeTextAnswer> {
+        self.player.native_text_query(h, request)
+    }
     fn input(&mut self, e: &InputEvent, h: &mut HostContext) -> InputResponse {
         self.player.input(e, h)
     }

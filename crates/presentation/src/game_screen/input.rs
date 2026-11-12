@@ -383,6 +383,32 @@ impl GameScreenController {
     ) -> ScreenTextResponse {
         self.complete_editor_clipboard(fonts, ScreenTextTarget::Input(widget), request, result)
     }
+    pub fn native_text_query(
+        &mut self,
+        fonts: &mut GameFonts,
+        request: &theframework::text_edit::NativeTextRequest,
+    ) -> Option<theframework::text_edit::NativeTextAnswer> {
+        let target = self.focused_text()?;
+        if !self.text_targets().contains(&target) {
+            return None;
+        }
+        self.inputs
+            .get_mut(&target)?
+            .native_text_query(&mut fonts.text, request)
+    }
+    pub fn native_text_snapshot(
+        &mut self,
+        fonts: &mut GameFonts,
+    ) -> Option<theframework::text_edit::NativeTextSnapshot> {
+        let target = self.focused_text()?;
+        if !self.text_targets().contains(&target) {
+            return None;
+        }
+        self.inputs
+            .get_mut(&target)?
+            .editor
+            .native_text_snapshot(&mut fonts.text)
+    }
     pub fn text_input_state(
         &mut self,
         fonts: &mut GameFonts,

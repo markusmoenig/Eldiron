@@ -555,6 +555,35 @@ impl GpuApplication for PlayerApplication {
             self.fail(host, error);
         }
     }
+    fn native_text_snapshot(
+        &mut self,
+        host: &mut HostContext,
+    ) -> Option<theframework::text_edit::NativeTextSnapshot> {
+        if self.suspended || self.failure.is_some() {
+            return None;
+        }
+        if let Err(error) = self.sync_host(host) {
+            self.fail(host, error);
+            return None;
+        }
+        host.text_input?;
+        self.screen.native_text_snapshot(&mut self.fonts)
+    }
+    fn native_text_query(
+        &mut self,
+        host: &mut HostContext,
+        request: &theframework::text_edit::NativeTextRequest,
+    ) -> Option<theframework::text_edit::NativeTextAnswer> {
+        let source = self.native_text_snapshot(host)?;
+        if source.target != request.target || source.revision != request.revision {
+            return None;
+        }
+        let transform = self.viewport.transform();
+        let local = request.map_hit(transform.inverse()?);
+        self.screen
+            .native_text_query(&mut self.fonts, &local)
+            .map(|answer| answer.transformed(transform))
+    }
     fn input(&mut self, event: &InputEvent, host: &mut HostContext) -> InputResponse {
         match self.route(event, host) {
             Ok(response) => response,

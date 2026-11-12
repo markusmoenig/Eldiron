@@ -101,6 +101,201 @@ fn apple_abi_presents_shared_scene_ui_and_preserves_project_and_callback_ownersh
             .unwrap()
             .contains("UTF-8 byte boundaries")
     );
+    // The new native protocol uses displayed-source revisions and UTF-16 ranges.
+    let native: serde_json::Value = serde_json::from_slice(&unsafe {
+        read_output(|out, len| unified_app_runner_text_snapshot(ptr, out, len))
+    })
+    .unwrap();
+    let end = native["text"].as_str().unwrap().encode_utf16().count() as isize;
+    let value = "A👩Z";
+    assert_eq!(
+        unsafe {
+            unified_app_runner_text_edit(
+                ptr,
+                target,
+                native["revision"].as_u64().unwrap(),
+                1,
+                0,
+                end,
+                value.as_ptr(),
+                value.len(),
+                -1,
+                -1,
+            )
+        },
+        1
+    );
+    let native: serde_json::Value = serde_json::from_slice(&unsafe {
+        read_output(|out, len| unified_app_runner_text_snapshot(ptr, out, len))
+    })
+    .unwrap();
+    assert_eq!(native["text"], value);
+    let revision = native["revision"].as_u64().unwrap();
+    assert_eq!(
+        unsafe {
+            unified_app_runner_text_edit(ptr, target, revision, 1, 1, 2, b"bad".as_ptr(), 3, -1, -1)
+        },
+        -1,
+        "do not split the emoji surrogate pair"
+    );
+    let geometry: serde_json::Value = serde_json::from_slice(&unsafe {
+        read_output(|out, len| {
+            unified_app_runner_text_query(ptr, target, revision, 0, 1, 3, 0., 0., out, len)
+        })
+    })
+    .unwrap();
+    assert_eq!(geometry["first_range"], serde_json::json!([1, 3]));
+    let caret: serde_json::Value = serde_json::from_slice(&unsafe {
+        read_output(|out, len| {
+            unified_app_runner_text_query(ptr, target, revision, 0, 3, 3, 0., 0., out, len)
+        })
+    })
+    .unwrap();
+    let rect = caret["caret"].as_array().unwrap();
+    let x = rect[0].as_f64().unwrap() as f32;
+    let y = (rect[1].as_f64().unwrap() + rect[3].as_f64().unwrap() / 2.) as f32;
+    let hit: serde_json::Value = serde_json::from_slice(&unsafe {
+        read_output(|out, len| {
+            unified_app_runner_text_query(ptr, target, revision, 1, -1, -1, x, y, out, len)
+        })
+    })
+    .unwrap();
+    assert_eq!(hit["position"], 3);
+    let moved: serde_json::Value = serde_json::from_slice(&unsafe {
+        read_output(|out, len| {
+            unified_app_runner_text_query(ptr, target, revision, 2, 3, 1, 0., 0., out, len)
+        })
+    })
+    .unwrap();
+    assert_eq!(
+        moved["position"], 1,
+        "native visual movement crosses the emoji as one grapheme"
+    );
+    let stale: serde_json::Value = serde_json::from_slice(&unsafe {
+        read_output(|out, len| {
+            unified_app_runner_text_query(
+                ptr,
+                target,
+                revision.wrapping_sub(1),
+                0,
+                0,
+                0,
+                0.,
+                0.,
+                out,
+                len,
+            )
+        })
+    })
+    .unwrap();
+    assert!(stale.is_null());
+    let preedit = "日本";
+    assert_eq!(
+        unsafe {
+            unified_app_runner_text_edit(
+                ptr,
+                target,
+                revision,
+                2,
+                1,
+                3,
+                preedit.as_ptr(),
+                preedit.len(),
+                2,
+                2,
+            )
+        },
+        1
+    );
+    assert_eq!(
+        unsafe {
+            (*ptr)
+                .core
+                .application
+                .as_ref()
+                .unwrap()
+                .screen
+                .elements
+                .ui_state["start.name"]
+                .as_str()
+        },
+        value
+    );
+    let marked: serde_json::Value = serde_json::from_slice(&unsafe {
+        read_output(|out, len| unified_app_runner_text_snapshot(ptr, out, len))
+    })
+    .unwrap();
+    assert_eq!(marked["text"], "A日本Z");
+    assert_eq!(marked["marked"], serde_json::json!([1, 3]));
+    assert_eq!(
+        unsafe {
+            unified_app_runner_text_edit(
+                ptr,
+                target,
+                revision,
+                1,
+                0,
+                1,
+                b"stale".as_ptr(),
+                5,
+                -1,
+                -1,
+            )
+        },
+        0
+    );
+    assert_eq!(
+        unsafe {
+            unified_app_runner_text_edit(
+                ptr,
+                target,
+                marked["revision"].as_u64().unwrap(),
+                3,
+                -1,
+                -1,
+                ptr::null(),
+                0,
+                -1,
+                -1,
+            )
+        },
+        1
+    );
+    assert_eq!(
+        unsafe {
+            (*ptr)
+                .core
+                .application
+                .as_ref()
+                .unwrap()
+                .screen
+                .elements
+                .ui_state["start.name"]
+                .as_str()
+        },
+        "A日本Z"
+    );
+    unsafe {
+        unified_app_runner_modifiers(ptr, 8);
+        unified_app_runner_key(ptr, b'Z' as u32, 1, 0);
+        unified_app_runner_key(ptr, b'Z' as u32, 0, 0);
+        unified_app_runner_modifiers(ptr, 0);
+    }
+    assert_eq!(
+        unsafe {
+            (*ptr)
+                .core
+                .application
+                .as_ref()
+                .unwrap()
+                .screen
+                .elements
+                .ui_state["start.name"]
+                .as_str()
+        },
+        value,
+        "native unmark participates in shared undo"
+    );
     let saved = unsafe { read_output(|out, len| unified_app_runner_save_project(ptr, out, len)) };
     assert_eq!(saved, source);
     let session = unsafe {

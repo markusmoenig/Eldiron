@@ -38,6 +38,20 @@ int32_t unified_app_runner_last_error(EldironPlayerRunner *, const uint8_t **, s
  * Returned input status is 1 consumed, 0 unconsumed/stale, -1 error. */
 int32_t unified_app_runner_host_state(EldironPlayerRunner *, const uint8_t **, size_t *);
 int32_t unified_app_runner_take_requests(EldironPlayerRunner *, const uint8_t **, size_t *);
+/* Explicit surrounding-text JSON includes displayed text/preedit, UTF-16
+ * selection/marked endpoints, target and source revision. Range edit kinds:
+ * select=0, replace=1, compose=2, commit marked=3, cancel marked=4, typed insert=5, delete backward=6.
+ * Typed insertion preserves automatic bracket policy and validates its captured
+ * directional selection. Both source
+ * endpoints -1 mean the current selection/preedit for compose. Cursor -1/-1
+ * means hidden/no cursor. Stale source/target returns 0 without mutation. */
+int32_t unified_app_runner_text_snapshot(EldironPlayerRunner *, const uint8_t **, size_t *);
+/* Explicit geometry (kind 0, UTF-16 range), hit (kind 1, logical point), or
+ * visual movement (kinds 2/3/4/5 left/right/up/down; start=UTF-16 position,
+ * end=nonnegative step count). Movement queries never alter live selection.
+ * Answers use the shared paint layout; stale sources return JSON null. */
+int32_t unified_app_runner_text_query(EldironPlayerRunner *, uint64_t target, uint64_t revision, uint32_t kind, intptr_t start, intptr_t end, float x, float y, const uint8_t **, size_t *);
+int32_t unified_app_runner_text_edit(EldironPlayerRunner *, uint64_t target, uint64_t revision, uint32_t kind, intptr_t start, intptr_t end, const uint8_t *, size_t, intptr_t cursor_start, intptr_t cursor_end);
 int32_t unified_app_runner_text(EldironPlayerRunner *, uint64_t target, const uint8_t *, size_t);
 /* Composition cursor endpoints are UTF-8 byte offsets, or -1 for no selection. */
 int32_t unified_app_runner_composition(EldironPlayerRunner *, uint64_t target, const uint8_t *, size_t, intptr_t start, intptr_t end);

@@ -1150,3 +1150,684 @@ fn crlf_layout_is_one_break_with_exact_source_and_cursor_positions() {
     assert!(editor.undo(&mut fonts));
     assert_eq!(editor.text(), source);
 }
+
+fn native(
+    editor: &mut EditorController,
+    fonts: &mut TextSystem,
+    action: crate::platform::NativeTextAction,
+) -> EditorResponse {
+    let source = editor.native_text_snapshot(fonts).unwrap();
+    editor.input(
+        fonts,
+        &InputEvent::NativeText {
+            target: source.target,
+            revision: source.revision,
+            action,
+        },
+    )
+}
+#[test]
+fn native_snapshot_preserves_utf16_boundaries_and_reuses_layout_across_selection_and_fonts() {
+    use crate::platform::NativeTextAction;
+    let (mut fonts, mut editor) = fixture(true, "A👩‍👩‍👧‍👦e\u{301}東京");
+    let first = editor.native_text_snapshot(&mut fonts).unwrap();
+    for (index, _) in first
+        .text
+        .char_indices()
+        .chain(std::iter::once((first.text.len(), '\0')))
+    {
+        let utf16 = first.utf16_from_byte(index).unwrap();
+        assert_eq!(first.byte_from_utf16(utf16), Some(index));
+    }
+    assert_eq!(
+        first.byte_from_utf16(2),
+        None,
+        "a surrogate pair cannot be split"
+    );
+    assert_eq!(
+        first.utf16_from_byte(2),
+        None,
+        "an encoded scalar cannot be split"
+    );
+    assert!(first.byte_range_from_utf16(3, 1).is_none());
+    assert!(first.byte_from_utf16(usize::MAX).is_none());
+    let builds = editor.snapshots_built();
+    let second = editor.native_text_snapshot(&mut fonts).unwrap();
+    assert!(std::sync::Arc::ptr_eq(&first.text, &second.text));
+    assert_eq!(editor.snapshots_built(), builds);
+    assert_eq!(first.revision, second.revision);
+    native(
+        &mut editor,
+        &mut fonts,
+        NativeTextAction::Select {
+            anchor: 0,
+            focus: 1,
+        },
+    );
+    let selected = editor.native_text_snapshot(&mut fonts).unwrap();
+    assert_eq!(selected.revision, first.revision);
+    assert_eq!(selected.selection, (0, 1));
+    editor.prepare(
+        &mut fonts,
+        TextOptions {
+            family: "Roboto",
+            size: 24.,
+            width: Some(77.),
+            line_height: Some(29.),
+        },
+    );
+    assert_eq!(
+        editor.native_text_snapshot(&mut fonts).unwrap().revision,
+        first.revision
+    );
+}
+#[test]
+fn native_preedit_snapshot_and_cancel_preserve_committed_source_and_undo() {
+    use crate::platform::NativeTextAction;
+    let (mut fonts, mut editor) = fixture(false, "A東京Z");
+    editor.select_bytes(&mut fonts, 1, 7);
+    let first = editor.native_text_snapshot(&mut fonts).unwrap();
+    assert!(
+        !native(
+            &mut editor,
+            &mut fonts,
+            NativeTextAction::Compose {
+                range: Some(1..7),
+                text: "にほん".into(),
+                cursor: Some((3, 6))
+            }
+        )
+        .changed
+    );
+    let preedit = editor.native_text_snapshot(&mut fonts).unwrap();
+    assert_eq!(editor.text(), "A東京Z");
+    assert_eq!(&*preedit.text, "AにほんZ");
+    assert_eq!(preedit.composition, Some(1..10));
+    assert_ne!(preedit.revision, first.revision);
+    assert_eq!(editor.committed_selection_bytes(), (1, 7));
+    assert_eq!(editor.history_bytes(), 0);
+    native(&mut editor, &mut fonts, NativeTextAction::CancelComposition);
+    assert_eq!(editor.text(), "A東京Z");
+    assert_eq!(editor.selection_bytes(), (1, 7));
+    assert_eq!(editor.history_bytes(), 0);
+}
+#[test]
+fn native_unmark_commits_one_shared_undo_step_and_restores_the_original_selection() {
+    use crate::platform::NativeTextAction;
+    let (mut fonts, mut editor) = fixture(false, "A東京Z");
+    editor.select_bytes(&mut fonts, 1, 7);
+    native(
+        &mut editor,
+        &mut fonts,
+        NativeTextAction::Compose {
+            range: None,
+            text: "にほん".into(),
+            cursor: None,
+        },
+    );
+    native(
+        &mut editor,
+        &mut fonts,
+        NativeTextAction::Compose {
+            range: None,
+            text: "日本".into(),
+            cursor: Some((6, 6)),
+        },
+    );
+    assert!(native(&mut editor, &mut fonts, NativeTextAction::CommitComposition).changed);
+    assert_eq!(editor.text(), "A日本Z");
+    assert!(!editor.is_composing());
+    assert!(editor.undo(&mut fonts));
+    assert_eq!(editor.text(), "A東京Z");
+    assert_eq!(editor.selection_bytes(), (1, 7));
+    assert!(
+        !editor.undo(&mut fonts),
+        "preedit updates must not each create an undo entry"
+    );
+    assert!(editor.redo(&mut fonts));
+    assert_eq!(editor.text(), "A日本Z");
+}
+#[test]
+fn native_range_replacement_commits_preedit_and_correction_as_one_transaction() {
+    use crate::platform::NativeTextAction;
+    let (mut fonts, mut editor) = fixture(false, "A東京Z");
+    editor.select_bytes(&mut fonts, 1, 7);
+    native(
+        &mut editor,
+        &mut fonts,
+        NativeTextAction::Compose {
+            range: None,
+            text: "にほん".into(),
+            cursor: None,
+        },
+    );
+    assert!(
+        native(
+            &mut editor,
+            &mut fonts,
+            NativeTextAction::Replace {
+                range: 1..10,
+                text: "日本".into()
+            }
+        )
+        .changed
+    );
+    assert_eq!(editor.text(), "A日本Z");
+    assert!(editor.undo(&mut fonts));
+    assert_eq!(editor.text(), "A東京Z");
+    assert!(!editor.undo(&mut fonts));
+    let (mut fonts, mut editor) = fixture(false, "a");
+    editor.set_policy(
+        &mut fonts,
+        EditorPolicy {
+            auto_brackets: true,
+            ..Default::default()
+        },
+    );
+    native(
+        &mut editor,
+        &mut fonts,
+        NativeTextAction::Replace {
+            range: 0..1,
+            text: "(\n".into(),
+        },
+    );
+    assert_eq!(
+        editor.text(),
+        "(",
+        "native replacement keeps exact insertion policy, without typing-only completion"
+    );
+    assert!(editor.undo(&mut fonts));
+    assert_eq!(editor.text(), "a");
+}
+#[test]
+fn native_ranges_reject_stale_sources_invalid_boundaries_and_retired_input_targets() {
+    use crate::platform::NativeTextAction;
+    let (mut fonts, mut editor) = fixture(false, "東京");
+    let before = editor.native_text_snapshot(&mut fonts).unwrap();
+    assert!(
+        !native(
+            &mut editor,
+            &mut fonts,
+            NativeTextAction::Replace {
+                range: 1..3,
+                text: "bad".into()
+            }
+        )
+        .input
+        .consumed
+    );
+    assert_eq!(editor.text(), "東京");
+    text(&mut editor, &mut fonts, "!");
+    let event = InputEvent::NativeText {
+        target: before.target,
+        revision: before.revision,
+        action: NativeTextAction::Replace {
+            range: 0..6,
+            text: "stale".into(),
+        },
+    };
+    assert!(!editor.input(&mut fonts, &event).input.consumed);
+    assert_eq!(editor.text(), "東京!");
+    let current = editor.native_text_snapshot(&mut fonts).unwrap();
+    editor.set_focused(&mut fonts, false);
+    assert!(editor.native_text_snapshot(&mut fonts).is_none());
+    editor.set_focused(&mut fonts, true);
+    assert_ne!(editor.input_target(), current.target);
+    assert!(!editor.input(&mut fonts, &event).input.consumed);
+    editor.set_policy(
+        &mut fonts,
+        EditorPolicy {
+            read_only: true,
+            ..Default::default()
+        },
+    );
+    assert!(editor.native_text_snapshot(&mut fonts).is_none());
+    assert_eq!(editor.text(), "東京!");
+}
+#[test]
+fn native_selection_inside_marked_text_stays_transient_and_outside_commits_once() {
+    use crate::platform::NativeTextAction;
+    let (mut fonts, mut editor) = fixture(false, "A東京Z");
+    editor.select_bytes(&mut fonts, 1, 7);
+    native(
+        &mut editor,
+        &mut fonts,
+        NativeTextAction::Compose {
+            range: None,
+            text: "日本".into(),
+            cursor: Some((6, 6)),
+        },
+    );
+    assert!(
+        !native(
+            &mut editor,
+            &mut fonts,
+            NativeTextAction::Select {
+                anchor: 1,
+                focus: 4
+            }
+        )
+        .changed
+    );
+    assert!(editor.is_composing());
+    assert_eq!(editor.text(), "A東京Z");
+    assert_eq!(editor.history_bytes(), 0);
+    assert!(
+        native(
+            &mut editor,
+            &mut fonts,
+            NativeTextAction::Select {
+                anchor: 0,
+                focus: 0
+            }
+        )
+        .changed
+    );
+    assert!(!editor.is_composing());
+    assert_eq!(editor.text(), "A日本Z");
+    assert_eq!(editor.selection_bytes(), (0, 0));
+    assert!(editor.undo(&mut fonts));
+    assert_eq!(editor.text(), "A東京Z");
+}
+
+#[test]
+fn native_source_epochs_do_not_revive_after_unobserved_edit_undo_or_preedit_roundtrips() {
+    use crate::platform::NativeTextAction;
+    let (mut fonts, mut editor) = fixture(false, "東京");
+    let before = editor.native_text_snapshot(&mut fonts).unwrap();
+    text(&mut editor, &mut fonts, "!");
+    assert!(editor.undo(&mut fonts));
+    assert_eq!(editor.text(), "東京");
+    let event = InputEvent::NativeText {
+        target: before.target,
+        revision: before.revision,
+        action: NativeTextAction::Replace {
+            range: 0..6,
+            text: "stale".into(),
+        },
+    };
+    assert!(!editor.input(&mut fonts, &event).input.consumed);
+    assert_ne!(
+        editor.native_text_snapshot(&mut fonts).unwrap().revision,
+        before.revision
+    );
+    editor.input(
+        &mut fonts,
+        &InputEvent::Composition {
+            text: "X".into(),
+            cursor: None,
+        },
+    );
+    let marked = editor.native_text_snapshot(&mut fonts).unwrap();
+    editor.input(
+        &mut fonts,
+        &InputEvent::Composition {
+            text: "Y".into(),
+            cursor: None,
+        },
+    );
+    editor.input(
+        &mut fonts,
+        &InputEvent::Composition {
+            text: "X".into(),
+            cursor: None,
+        },
+    );
+    let event = InputEvent::NativeText {
+        target: marked.target,
+        revision: marked.revision,
+        action: NativeTextAction::CommitComposition,
+    };
+    assert!(!editor.input(&mut fonts, &event).input.consumed);
+    assert_eq!(editor.text(), "東京");
+    assert!(editor.is_composing());
+}
+#[test]
+fn native_explicit_replacement_ranges_during_preedit_share_the_initial_undo_boundary() {
+    use crate::platform::NativeTextAction;
+    let (mut fonts, mut editor) = fixture(false, "abcdef");
+    native(
+        &mut editor,
+        &mut fonts,
+        NativeTextAction::Compose {
+            range: Some(1..3),
+            text: "XY".into(),
+            cursor: None,
+        },
+    );
+    native(
+        &mut editor,
+        &mut fonts,
+        NativeTextAction::Compose {
+            range: Some(4..6),
+            text: "Z".into(),
+            cursor: Some((1, 1)),
+        },
+    );
+    assert_eq!(
+        &*editor.native_text_snapshot(&mut fonts).unwrap().text,
+        "aXYdZ"
+    );
+    assert_eq!(editor.text(), "abcdef");
+    assert!(native(&mut editor, &mut fonts, NativeTextAction::CommitComposition).changed);
+    assert_eq!(editor.text(), "aXYdZ");
+    assert!(editor.undo(&mut fonts));
+    assert_eq!(editor.text(), "abcdef");
+    assert!(!editor.undo(&mut fonts));
+}
+
+#[test]
+fn native_typed_commits_keep_typing_policy_and_reject_a_changed_selection() {
+    use crate::platform::NativeTextAction;
+    let (mut fonts, mut editor) = fixture(false, "ab");
+    editor.set_policy(
+        &mut fonts,
+        EditorPolicy {
+            auto_brackets: true,
+            ..Default::default()
+        },
+    );
+    let source = editor.native_text_snapshot(&mut fonts).unwrap();
+    editor.select_bytes(&mut fonts, 0, 0);
+    let event = InputEvent::NativeText {
+        target: source.target,
+        revision: source.revision,
+        action: NativeTextAction::Insert {
+            selection: source.selection,
+            text: "(".into(),
+        },
+    };
+    assert!(!editor.input(&mut fonts, &event).input.consumed);
+    assert_eq!(editor.text(), "ab");
+    assert!(
+        native(
+            &mut editor,
+            &mut fonts,
+            NativeTextAction::Insert {
+                selection: (0, 0),
+                text: "(".into()
+            }
+        )
+        .changed
+    );
+    assert_eq!(editor.text(), "()ab");
+    assert_eq!(editor.selection_bytes(), (1, 1));
+    assert!(editor.undo(&mut fonts));
+    assert_eq!(editor.text(), "ab");
+}
+
+#[test]
+fn legacy_and_native_ime_commits_replace_an_explicit_marked_range_and_restore_original_caret() {
+    use crate::platform::NativeTextAction;
+    for native_commit in [false, true] {
+        let (mut fonts, mut editor) = fixture(false, "A東京Z");
+        assert_eq!(editor.selection_bytes(), (8, 8));
+        native(
+            &mut editor,
+            &mut fonts,
+            NativeTextAction::Compose {
+                range: Some(1..7),
+                text: "にほん".into(),
+                cursor: Some((9, 9)),
+            },
+        );
+        if native_commit {
+            let selection = editor.native_text_snapshot(&mut fonts).unwrap().selection;
+            assert!(
+                native(
+                    &mut editor,
+                    &mut fonts,
+                    NativeTextAction::Insert {
+                        selection,
+                        text: "日本".into()
+                    }
+                )
+                .changed
+            );
+        } else {
+            assert!(text(&mut editor, &mut fonts, "日本").changed);
+        }
+        assert_eq!(editor.text(), "A日本Z");
+        assert!(editor.undo(&mut fonts));
+        assert_eq!(editor.text(), "A東京Z");
+        assert_eq!(
+            editor.selection_bytes(),
+            (8, 8),
+            "undo retains the caret before the native range operation"
+        );
+        assert!(!editor.undo(&mut fonts));
+    }
+}
+
+#[test]
+fn native_layout_queries_share_painted_geometry_and_do_not_edit_or_reshape() {
+    use super::{
+        NativeTextAnswer as A, NativeTextDirection as D, NativeTextQuery as Q, NativeTextRequest,
+    };
+    let (mut fonts, mut editor) = fixture(true, "Ae\u{301}👩Z\nשלום test\nThird line");
+    let source = editor.native_text_snapshot(&mut fonts).unwrap();
+    let state = editor.state();
+    let history = editor.history_bytes();
+    let builds = editor.snapshots_built();
+    let query = |query| NativeTextRequest {
+        target: source.target,
+        revision: source.revision,
+        query,
+    };
+    let layout = editor.layout(&mut fonts);
+    let expected = layout.selection(0, source.text.len());
+    let first = layout.lines()[0].range.clone();
+    let answer = editor
+        .native_text_query(&mut fonts, &query(Q::Geometry(0..source.text.len())))
+        .unwrap();
+    let A::Geometry {
+        selection,
+        first_range,
+        ..
+    } = answer
+    else {
+        panic!("geometry")
+    };
+    assert_eq!(selection, expected);
+    assert_eq!(first_range, first);
+    let index = "Ae\u{301}👩".len();
+    let caret = editor.layout(&mut fonts).caret(index);
+    assert_eq!(
+        editor.native_text_query(
+            &mut fonts,
+            &query(Q::Hit([caret.x, caret.y + caret.height / 2.]))
+        ),
+        Some(A::Hit(index))
+    );
+    for (p, d, end) in [
+        (1, D::Right, 4),
+        (4, D::Left, 1),
+        (4, D::Right, 8),
+        (8, D::Left, 4),
+    ] {
+        assert_eq!(
+            editor.native_text_query(
+                &mut fonts,
+                &query(Q::Navigate {
+                    position: p,
+                    direction: d,
+                    count: 1
+                })
+            ),
+            Some(A::Hit(end))
+        );
+    }
+    // Bidirectional movement is the same pure Parley/grapheme operation used
+    // by physical arrow keys; vertical queries keep the live selection intact.
+    let start = source.text.find("שלום").unwrap();
+    editor.select_bytes(&mut fonts, start, start);
+    for (d, keycode) in [
+        (D::Right, PhysicalKey::Right),
+        (D::Left, PhysicalKey::Left),
+        (D::Down, PhysicalKey::Down),
+        (D::Up, PhysicalKey::Up),
+    ] {
+        editor.select_bytes(&mut fonts, start, start);
+        let result = editor
+            .native_text_query(
+                &mut fonts,
+                &query(Q::Navigate {
+                    position: start,
+                    direction: d,
+                    count: 1,
+                }),
+            )
+            .unwrap();
+        assert_eq!(editor.selection_bytes(), (start, start));
+        key(&mut editor, &mut fonts, keycode);
+        assert_eq!(result, A::Hit(editor.selection_bytes().1));
+    }
+    editor.select_bytes(
+        &mut fonts,
+        state.selection.anchor().index(),
+        state.selection.focus().index(),
+    );
+    assert_eq!(editor.text(), state.text);
+    assert_eq!(editor.history_bytes(), history);
+    assert_eq!(editor.snapshots_built(), builds);
+    for bad in [
+        Q::Geometry(3..4),
+        Q::Geometry(0..usize::MAX),
+        Q::Hit([f32::NAN, 0.]),
+        Q::Navigate {
+            position: 3,
+            direction: D::Left,
+            count: 1,
+        },
+    ] {
+        assert!(editor.native_text_query(&mut fonts, &query(bad)).is_none());
+    }
+    text(&mut editor, &mut fonts, "!");
+    assert!(
+        editor
+            .native_text_query(&mut fonts, &query(Q::Geometry(0..0)))
+            .is_none()
+    );
+}
+#[test]
+fn native_geometry_and_hits_include_marked_source_without_committing_it() {
+    use super::{NativeTextAnswer as A, NativeTextQuery as Q, NativeTextRequest};
+    use crate::platform::NativeTextAction;
+    let (mut fonts, mut editor) = fixture(false, "A東京Z");
+    native(
+        &mut editor,
+        &mut fonts,
+        NativeTextAction::Compose {
+            range: Some(1..7),
+            text: "e\u{301}👩".into(),
+            cursor: Some((3, 3)),
+        },
+    );
+    let source = editor.native_text_snapshot(&mut fonts).unwrap();
+    let range = source.composition.clone().unwrap();
+    let expected = editor.layout(&mut fonts).selection(range.start, range.end);
+    let answer = editor
+        .native_text_query(
+            &mut fonts,
+            &NativeTextRequest {
+                target: source.target,
+                revision: source.revision,
+                query: Q::Geometry(range.clone()),
+            },
+        )
+        .unwrap();
+    let A::Geometry { selection, .. } = answer else {
+        panic!("geometry")
+    };
+    assert_eq!(selection, expected);
+    let caret = editor.layout(&mut fonts).caret(range.end);
+    assert_eq!(
+        editor.native_text_query(
+            &mut fonts,
+            &NativeTextRequest {
+                target: source.target,
+                revision: source.revision,
+                query: Q::Hit([caret.x, caret.y + caret.height / 2.])
+            }
+        ),
+        Some(A::Hit(range.end))
+    );
+    assert_eq!(editor.text(), "A東京Z");
+    assert!(editor.is_composing());
+    assert_eq!(editor.history_bytes(), 0);
+}
+
+#[test]
+fn native_backspace_keeps_empty_preedit_transient_and_commit_or_cancel_share_undo() {
+    use crate::platform::NativeTextAction as N;
+    for commit in [false, true] {
+        let (mut fonts, mut editor) = fixture(false, "A東京Z");
+        editor.select_bytes(&mut fonts, 1, 7);
+        native(
+            &mut editor,
+            &mut fonts,
+            N::Compose {
+                range: None,
+                text: "e\u{301}👩".into(),
+                cursor: Some((7, 7)),
+            },
+        );
+        for displayed in ["Ae\u{301}Z", "AZ"] {
+            let selection = editor.selection_bytes();
+            assert!(!native(&mut editor, &mut fonts, N::DeleteBackward { selection }).changed);
+            let source = editor.native_text_snapshot(&mut fonts).unwrap();
+            assert_eq!(&*source.text, displayed);
+            assert!(source.composition.is_some());
+            assert_eq!(editor.text(), "A東京Z");
+            assert_eq!(editor.history_bytes(), 0);
+        }
+        let source = editor.native_text_snapshot(&mut fonts).unwrap();
+        assert_eq!(source.composition, Some(1..1));
+        assert!(
+            !native(
+                &mut editor,
+                &mut fonts,
+                N::DeleteBackward {
+                    selection: source.selection
+                }
+            )
+            .changed
+        );
+        if commit {
+            assert!(native(&mut editor, &mut fonts, N::CommitComposition).changed);
+            assert_eq!(editor.text(), "AZ");
+            assert!(editor.undo(&mut fonts));
+            assert_eq!(editor.text(), "A東京Z");
+            assert_eq!(editor.selection_bytes(), (1, 7));
+            assert!(!editor.undo(&mut fonts));
+        } else {
+            native(&mut editor, &mut fonts, N::CancelComposition);
+            assert_eq!(editor.text(), "A東京Z");
+            assert_eq!(editor.selection_bytes(), (1, 7));
+            assert_eq!(editor.history_bytes(), 0);
+        }
+    }
+    let (mut fonts, mut editor) = fixture(false, "A👩Z");
+    editor.select_bytes(&mut fonts, 5, 5);
+    assert!(
+        !native(
+            &mut editor,
+            &mut fonts,
+            N::DeleteBackward { selection: (0, 0) }
+        )
+        .input
+        .consumed
+    );
+    assert!(
+        native(
+            &mut editor,
+            &mut fonts,
+            N::DeleteBackward { selection: (5, 5) }
+        )
+        .changed
+    );
+    assert_eq!(editor.text(), "AZ");
+    assert!(editor.undo(&mut fonts));
+    assert_eq!(editor.text(), "A👩Z");
+}

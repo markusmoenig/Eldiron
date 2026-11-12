@@ -75,6 +75,30 @@ impl TheWidget for TheTreeItem {
         Some(response)
     }
     #[cfg(feature = "text")]
+    fn editor_native_text_query(
+        &mut self,
+        request: &crate::text_edit::NativeTextRequest,
+        ctx: &mut TheContext,
+    ) -> Option<crate::text_edit::NativeTextAnswer> {
+        let offset = crate::paint::Transform::translate(self.dim.x as f32, self.dim.y as f32);
+        let local = request.map_hit(offset.inverse()?);
+        self.widget_column
+            .as_mut()?
+            .1
+            .editor_native_text_query(&local, ctx)
+            .map(|answer| answer.transformed(offset))
+    }
+    #[cfg(feature = "text")]
+    fn editor_native_text_snapshot(
+        &mut self,
+        ctx: &mut TheContext,
+    ) -> Option<crate::text_edit::NativeTextSnapshot> {
+        self.widget_column
+            .as_mut()?
+            .1
+            .editor_native_text_snapshot(ctx)
+    }
+    #[cfg(feature = "text")]
     fn editor_input_state(
         &mut self,
         ctx: &mut TheContext,

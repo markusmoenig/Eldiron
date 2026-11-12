@@ -93,6 +93,34 @@ pub enum LogicalKey {
     Named(crate::TheKeyCode),
     Other,
 }
+/// Native IME/accessibility operations address an immutable editor source
+/// snapshot. Byte ranges use UTF-8 and must lie on character boundaries.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum NativeTextAction {
+    Select {
+        anchor: usize,
+        focus: usize,
+    },
+    /// A typed/IME commit retains typing policy and its captured selection.
+    Insert {
+        selection: (usize, usize),
+        text: String,
+    },
+    DeleteBackward {
+        selection: (usize, usize),
+    },
+    Replace {
+        range: std::ops::Range<usize>,
+        text: String,
+    },
+    Compose {
+        range: Option<std::ops::Range<usize>>,
+        text: String,
+        cursor: Option<(usize, usize)>,
+    },
+    CommitComposition,
+    CancelComposition,
+}
 #[derive(Clone, Debug, PartialEq)]
 pub enum InputEvent {
     PointerMoved {
@@ -138,6 +166,11 @@ pub enum InputEvent {
         text: String,
         cursor: Option<(usize, usize)>,
     },
+    NativeText {
+        target: TextInputTarget,
+        revision: u64,
+        action: NativeTextAction,
+    },
     Modifiers(Modifiers),
     Focus(bool),
     FileDropped(std::path::PathBuf),
@@ -155,7 +188,9 @@ pub struct InputResponse {
 impl InputEvent {
     pub fn text_target(&self) -> Option<TextInputTarget> {
         match self {
-            Self::TextFor { target, .. } | Self::CompositionFor { target, .. } => Some(*target),
+            Self::TextFor { target, .. }
+            | Self::CompositionFor { target, .. }
+            | Self::NativeText { target, .. } => Some(*target),
             _ => None,
         }
     }

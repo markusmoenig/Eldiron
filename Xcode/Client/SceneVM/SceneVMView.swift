@@ -19,21 +19,21 @@ struct PlatformView: NSViewRepresentable {
     static func dismantleNSView(_ view: MetalContainer, coordinator: ()) { view.close() }
 }
 
-final class MetalContainer: NSView, NSTextInputClient {
+final class MetalContainer: NSView {
     private let metalLayer = CAMetalLayer()
     private var handle: SceneVMHandle?
     private var timer: Timer?
     private var loadedSource: Data?
     private var observations: [NSObjectProtocol] = []
     private var hiddenCursor = false
-    private var marked = ""
-    private var markedSelection = NSRange(location: 0, length: 0)
-    private var compositionTarget: UInt64?
-    private var keyTarget: UInt64?
-    private var nativeSessionTarget: UInt64?
+    private var nativeClient: NativeTextClient?
+    private var nativeContext: NativeTextContext?
+    override var inputContext: NSTextInputContext? { nativeContext }
     weak var document: SceneVMDocument? {
         didSet {
             if oldValue !== document {
+                nativeClient?.cancelForDeactivation(); nativeContext?.discardMarkedText(); nativeContext?.deactivate()
+                nativeClient = nil; nativeContext = nil
                 handle?.focus(false); handle?.suspend()
                 handle?.onState = nil; handle?.onError = nil
                 handle = nil; loadedSource = nil
@@ -57,6 +57,8 @@ final class MetalContainer: NSView, NSTextInputClient {
         timer?.invalidate(); timer = nil
         observations.forEach(NotificationCenter.default.removeObserver); observations.removeAll()
         if hiddenCursor { NSCursor.unhide(); hiddenCursor = false }
+        nativeClient?.cancelForDeactivation(); nativeContext?.discardMarkedText(); nativeContext?.deactivate()
+        nativeClient = nil; nativeContext = nil
         handle?.focus(false)
         handle?.suspend()
         handle?.onState = nil; handle?.onError = nil
@@ -128,8 +130,17 @@ final class MetalContainer: NSView, NSTextInputClient {
         case "NSResize", "NResize", "SResize", "RowResize": NSCursor.resizeUpDown.set()
         default: NSCursor.arrow.set()
         }
-        if let compositionTarget, compositionTarget != state.textInput?.target { inputContext?.discardMarkedText() }
-        inputContext?.invalidateCharacterCoordinates()
+        if nativeClient?.target != state.textInput?.target {
+            nativeClient?.cancelForDeactivation(); nativeContext?.discardMarkedText(); nativeContext?.deactivate()
+            nativeClient = nil; nativeContext = nil
+            if let target = state.textInput?.target, let handle {
+                let client = NativeTextClient(target: target, host: handle, view: self) { [weak self] selector in self?.doCommand(by: selector) }
+                nativeClient = client
+                nativeContext = NativeTextContext(client: client)
+                if window?.firstResponder === self { nativeContext?.activate() }
+            }
+        }
+        nativeContext?.invalidateCharacterCoordinates()
     }
     private func position(_ event: NSEvent) -> CGPoint {
         let p = convert(event.locationInWindow, from: nil)
@@ -178,11 +189,13 @@ final class MetalContainer: NSView, NSTextInputClient {
     }
     override func keyDown(with event: NSEvent) {
         modifiers(event.modifierFlags)
-        keyTarget = handle?.state?.textInput?.target
-        if hasMarkedText() { interpretKeyEvents([event]); keyTarget = nil; return }
+        let client = nativeClient
+        let context = nativeContext
+        client?.beginKey()
+        defer { client?.endKey() }
+        if client?.hasMarkedText() == true { _ = context?.handleEvent(event); return }
         let consumed = handle?.key(physical(event.keyCode), pressed: true, repeated: event.isARepeat) == true
-        if !consumed && keyTarget != nil && keyTarget == handle?.state?.textInput?.target { nativeSessionTarget = keyTarget; interpretKeyEvents([event]) }
-        keyTarget = nil
+        if !consumed && client === nativeClient { _ = context?.handleEvent(event) }
     }
     override func keyUp(with event: NSEvent) { modifiers(event.modifierFlags); _ = handle?.key(physical(event.keyCode), pressed: false) }
     private func shortcut(_ code: UInt32, shift: Bool = false) {
@@ -197,42 +210,6 @@ final class MetalContainer: NSView, NSTextInputClient {
     @objc func undo(_ sender: Any?) { shortcut(90) }
     @objc func redo(_ sender: Any?) { shortcut(90, shift: true) }
 
-    // Native IME edits remain transient until commit. The token belongs to the
-    // editor that started composition, even if another field has since focused.
-    func hasMarkedText() -> Bool { !marked.isEmpty }
-    func markedRange() -> NSRange { hasMarkedText() ? NSRange(location: 0, length: (marked as NSString).length) : NSRange(location: NSNotFound, length: 0) }
-    func selectedRange() -> NSRange { hasMarkedText() ? markedSelection : NSRange(location: 0, length: 0) }
-    func validAttributesForMarkedText() -> [NSAttributedString.Key] { [] }
-    func setMarkedText(_ value: Any, selectedRange: NSRange, replacementRange: NSRange) {
-        let text = (value as? NSAttributedString)?.string ?? (value as? String ?? "")
-        if compositionTarget == nil { compositionTarget = keyTarget ?? nativeSessionTarget }
-        marked = text
-        markedSelection = selectedRange
-        if let target = compositionTarget { handle?.composition(text, selection: selectedRange, target: target) }
-    }
-    func insertText(_ value: Any, replacementRange: NSRange) {
-        let text = (value as? NSAttributedString)?.string ?? (value as? String ?? "")
-        let target = compositionTarget ?? keyTarget
-        if let target { handle?.composition("", selection: nil, target: target); handle?.text(text, target: target) }
-        marked = ""; compositionTarget = nil; keyTarget = nil
-    }
-    func unmarkText() {
-        if let target = compositionTarget { handle?.composition("", selection: nil, target: target) }
-        marked = ""; compositionTarget = nil
-    }
-    func attributedSubstring(forProposedRange range: NSRange, actualRange: NSRangePointer?) -> NSAttributedString? {
-        guard range.location != NSNotFound, hasMarkedText() else { return nil }
-        let valid = NSIntersectionRange(range, NSRange(location: 0, length: (marked as NSString).length))
-        actualRange?.pointee = valid
-        return NSAttributedString(string: (marked as NSString).substring(with: valid))
-    }
-    func characterIndex(for point: NSPoint) -> Int { 0 }
-    func firstRect(forCharacterRange range: NSRange, actualRange: NSRangePointer?) -> NSRect {
-        actualRange?.pointee = range
-        guard let a = handle?.state?.textInput?.area, a.count == 4, let window else { return .zero }
-        let rect = NSRect(x: CGFloat(a[0]), y: bounds.height - CGFloat(a[1] + a[3]), width: CGFloat(a[2]), height: CGFloat(a[3]))
-        return window.convertToScreen(convert(rect, to: nil))
-    }
     override func doCommand(by selector: Selector) {
         let codes: [String:UInt32] = ["insertNewline:":0x100,"cancelOperation:":0x101,"deleteBackward:":0x102,"insertTab:":0x103,"deleteForward:":0x105,"moveLeft:":0x106,"moveRight:":0x107,"moveUp:":0x108,"moveDown:":0x109]
         if let code = codes[NSStringFromSelector(selector)] { _ = handle?.key(code, pressed: true); _ = handle?.key(code, pressed: false) }
@@ -246,18 +223,18 @@ struct PlatformView: UIViewRepresentable {
     func updateUIView(_ view: MetalContainer, context: Context) { view.document = document }
     static func dismantleUIView(_ view: MetalContainer, coordinator: ()) { view.close() }
 }
-final class MetalContainer: UIView, UIKeyInput {
+final class MetalContainer: UIView {
     override class var layerClass: AnyClass { CAMetalLayer.self }
     private var metalLayer: CAMetalLayer { layer as! CAMetalLayer }
     private var handle: SceneVMHandle?
     private var timer: Timer?
     private var observations: [NSObjectProtocol] = []
     private var loadedSource: Data?
-    private let noKeyboard = UIView()
-    private var textTarget: UInt64?
+    private var nativeClient: NativeUIKitTextClient?
     weak var document: SceneVMDocument? {
         didSet {
             if oldValue !== document {
+                nativeClient?.deactivate(); nativeClient?.removeFromSuperview(); nativeClient = nil
                 handle?.focus(false); handle?.suspend()
                 handle?.onState = nil; handle?.onError = nil
                 handle = nil; loadedSource = nil
@@ -268,8 +245,6 @@ final class MetalContainer: UIView, UIKeyInput {
     }
     private func setNeedsLayoutForDocument() { setNeedsLayout() }
     override var canBecomeFirstResponder: Bool { true }
-    override var inputView: UIView? { textTarget == nil ? noKeyboard : nil }
-    var hasText: Bool { textTarget != nil }
     override init(frame: CGRect) {
         super.init(frame: frame)
         addGestureRecognizer(UIPinchGestureRecognizer(target: self, action: #selector(pinch(_:))))
@@ -286,6 +261,7 @@ final class MetalContainer: UIView, UIKeyInput {
     func close() {
         timer?.invalidate(); timer = nil
         observations.forEach(NotificationCenter.default.removeObserver); observations.removeAll()
+        nativeClient?.deactivate(); nativeClient?.removeFromSuperview(); nativeClient = nil
         handle?.focus(false); handle?.suspend()
         handle?.onState = nil; handle?.onError = nil
         handle = nil; loadedSource = nil
@@ -315,7 +291,7 @@ final class MetalContainer: UIView, UIKeyInput {
             handle.onError = { [weak self] error in self?.document?.errorMessage = error }
             handle.onState = { [weak self] state in
                 guard let self else { return }
-                if textTarget != state.textInput?.target { textTarget = state.textInput?.target; reloadInputViews() }
+                self.hostState(state)
             }
             document?.sceneVMHandle = handle
             handle.synchronizeHost()
@@ -328,8 +304,18 @@ final class MetalContainer: UIView, UIKeyInput {
         loadedSource = document.projectData
         _ = handle.loadProject(data: document.projectData)
     }
-    func insertText(_ text: String) { if let target = textTarget { handle?.text(text, target: target) } }
-    func deleteBackward() { _ = handle?.key(0x102, pressed: true); _ = handle?.key(0x102, pressed: false) }
+    private func hostState(_ state: NativeHostState) {
+        if nativeClient?.target != state.textInput?.target {
+            let old = nativeClient; nativeClient = nil
+            old?.deactivate(); old?.removeFromSuperview()
+            if let target = state.textInput?.target, let handle {
+                let client = NativeUIKitTextClient(target: target, host: handle, view: self)
+                addSubview(client); nativeClient = client
+                if window != nil && UIApplication.shared.applicationState == .active { client.becomeFirstResponder() }
+            } else if window != nil && UIApplication.shared.applicationState == .active { becomeFirstResponder() }
+        }
+        nativeClient?.synchronize()
+    }
     private func physical(_ code: Int) -> UInt32 {
         switch code {
         case 4...29: return UInt32(65 + code - 4)
@@ -354,6 +340,10 @@ final class MetalContainer: UIView, UIKeyInput {
         }
     }
     private func presses(_ presses: Set<UIPress>, pressed: Bool) -> Bool {
+        // Marked text is owned by UIKit's input method. Its physical navigation
+        // and delete keys must reach UITextInput instead of being swallowed by
+        // the shared controller's deliberate "IME owns keys" response.
+        if nativeClient?.markedTextRange != nil { return false }
         var consumed = false
         for press in presses {
             guard let key = press.key else { continue }
@@ -365,7 +355,14 @@ final class MetalContainer: UIView, UIKeyInput {
     }
     override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) { if !self.presses(presses, pressed: true) { super.pressesBegan(presses, with: event) } }
     override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) { _ = self.presses(presses, pressed: false); super.pressesEnded(presses, with: event) }
-    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) { guard let p = touches.first?.location(in: self) else { return }; becomeFirstResponder(); handle?.mouseDown(x: p.x, y: p.y) }
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let p = touches.first?.location(in: self) else { return }
+        if nativeClient == nil { becomeFirstResponder() }
+        handle?.mouseDown(x: p.x, y: p.y)
+        // Reacquire the same logical editor after a keyboard dismissal or view
+        // reattachment, even when its Rust owner did not change on this touch.
+        nativeClient?.becomeFirstResponder()
+    }
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) { guard let p = touches.first?.location(in: self) else { return }; handle?.mouseMove(x: p.x, y: p.y) }
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) { guard let p = touches.first?.location(in: self) else { return }; handle?.mouseUp(x: p.x, y: p.y) }
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) { handle?.focus(false); handle?.focus(true) }

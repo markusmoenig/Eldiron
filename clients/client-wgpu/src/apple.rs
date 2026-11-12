@@ -542,6 +542,220 @@ pub unsafe extern "C" fn unified_app_runner_pointer_button(
         },
     )
 }
+/// Source/selection metadata is an explicit native query, never a frame capture.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn unified_app_runner_text_snapshot(
+    ptr: *mut EldironPlayerRunner,
+    out: *mut *const u8,
+    len: *mut usize,
+) -> i32 {
+    unsafe {
+        clear_output(out, len);
+    }
+    call(ptr, |r| {
+        let snapshot = if let Some(source) = r.core.native_text_snapshot() {
+            let position = |index| {
+                source
+                    .utf16_from_byte(index)
+                    .ok_or("Invalid native text position")
+            };
+            let selection = [position(source.selection.0)?, position(source.selection.1)?];
+            let marked = source
+                .composition
+                .as_ref()
+                .map(|range| -> Result<_, &str> {
+                    Ok([position(range.start)?, position(range.end)?])
+                })
+                .transpose()?;
+            serde_json::json!({"target":source.target.raw(), "revision":source.revision,
+                "text":source.text.as_ref(), "selection":selection, "marked":marked})
+        } else {
+            serde_json::Value::Null
+        };
+        unsafe {
+            output(
+                &serde_json::to_vec(&snapshot).map_err(|e| e.to_string())?,
+                out,
+                len,
+            )
+        }
+    })
+}
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn unified_app_runner_text_query(
+    ptr: *mut EldironPlayerRunner,
+    target: u64,
+    revision: u64,
+    kind: u32,
+    start: isize,
+    end: isize,
+    x: f32,
+    y: f32,
+    out: *mut *const u8,
+    len: *mut usize,
+) -> i32 {
+    unsafe {
+        clear_output(out, len);
+    }
+    call(ptr, |r| {
+        use theframework::text_edit::{
+            NativeTextAnswer, NativeTextDirection, NativeTextQuery, NativeTextRequest,
+        };
+        let answer = if let Some(source) = r
+            .core
+            .native_text_snapshot()
+            .filter(|s| s.target.raw() == target && s.revision == revision)
+        {
+            let query = match kind {
+                0 => {
+                    let start = usize::try_from(start).map_err(|_| "Invalid native text range")?;
+                    let end = usize::try_from(end).map_err(|_| "Invalid native text range")?;
+                    NativeTextQuery::Geometry(
+                        source
+                            .byte_range_from_utf16(start, end)
+                            .ok_or("Invalid native UTF-16 text range")?,
+                    )
+                }
+                1 if x.is_finite() && y.is_finite() => NativeTextQuery::Hit([x, y]),
+                2..=5 => NativeTextQuery::Navigate {
+                    position: source
+                        .byte_from_utf16(
+                            usize::try_from(start).map_err(|_| "Invalid native text position")?,
+                        )
+                        .ok_or("Invalid native UTF-16 text position")?,
+                    direction: match kind {
+                        2 => NativeTextDirection::Left,
+                        3 => NativeTextDirection::Right,
+                        4 => NativeTextDirection::Up,
+                        _ => NativeTextDirection::Down,
+                    },
+                    count: usize::try_from(end).map_err(|_| "Invalid native movement count")?,
+                },
+                _ => return Err("Invalid native text geometry/hit query".into()),
+            };
+            match r.core.native_text_query(&NativeTextRequest {
+                target: source.target,
+                revision,
+                query,
+            }) {
+                Some(NativeTextAnswer::Geometry {
+                    caret,
+                    selection,
+                    first_range,
+                }) => {
+                    let rect = |r: theframework::paint::Rect| [r.x, r.y, r.width, r.height];
+                    serde_json::json!({"caret":rect(caret),"selection":selection.into_iter().map(rect).collect::<Vec<_>>(),
+                        "first_range":[source.utf16_from_byte(first_range.start),source.utf16_from_byte(first_range.end)]})
+                }
+                Some(NativeTextAnswer::Hit(index)) => {
+                    serde_json::json!({"position":source.utf16_from_byte(index)})
+                }
+                None => serde_json::Value::Null,
+            }
+        } else {
+            serde_json::Value::Null
+        };
+        unsafe {
+            output(
+                &serde_json::to_vec(&answer).map_err(|e| e.to_string())?,
+                out,
+                len,
+            )
+        }
+    })
+}
+
+/// Native ranges/cursors are UTF-16. Validate both editor identity and displayed
+/// source revision before translating them to shared-editor byte operations.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn unified_app_runner_text_edit(
+    ptr: *mut EldironPlayerRunner,
+    target: u64,
+    revision: u64,
+    kind: u32,
+    start: isize,
+    end: isize,
+    data: *const u8,
+    len: usize,
+    cursor_start: isize,
+    cursor_end: isize,
+) -> i32 {
+    call(ptr, |r| {
+        let Some(source) = r
+            .core
+            .native_text_snapshot()
+            .filter(|s| s.target.raw() == target && s.revision == revision)
+        else {
+            return Ok(0);
+        };
+        let position = |index: isize| {
+            usize::try_from(index)
+                .ok()
+                .and_then(|i| source.byte_from_utf16(i))
+                .ok_or("Native range must use valid UTF-16 positions")
+        };
+        let range = || {
+            let (start, end) = (position(start)?, position(end)?);
+            if start > end {
+                return Err("Native replacement range is reversed");
+            }
+            Ok(start..end)
+        };
+        let action = match kind {
+            0 => NativeTextAction::Select {
+                anchor: position(start)?,
+                focus: position(end)?,
+            },
+            1 => NativeTextAction::Replace {
+                range: range()?,
+                text: unsafe { text(data, len) }?,
+            },
+            2 => {
+                let text = unsafe { text(data, len) }?;
+                let cursor = if cursor_start == -1 && cursor_end == -1 {
+                    None
+                } else {
+                    let index = |i: isize| {
+                        usize::try_from(i)
+                            .ok()
+                            .and_then(|i| theframework::text_edit::utf16_byte_offset(&text, i))
+                            .ok_or("Native preedit cursor must use valid UTF-16 positions")
+                    };
+                    Some((index(cursor_start)?, index(cursor_end)?))
+                };
+                NativeTextAction::Compose {
+                    range: if start == -1 && end == -1 {
+                        None
+                    } else {
+                        Some(range()?)
+                    },
+                    text,
+                    cursor,
+                }
+            }
+            5 => NativeTextAction::Insert {
+                selection: (position(start)?, position(end)?),
+                text: unsafe { text(data, len) }?,
+            },
+            6 => NativeTextAction::DeleteBackward {
+                selection: (position(start)?, position(end)?),
+            },
+            3 => NativeTextAction::CommitComposition,
+            4 => NativeTextAction::CancelComposition,
+            _ => return Err("Unknown native text operation".into()),
+        };
+        Ok(i32::from(
+            r.core
+                .input(&InputEvent::NativeText {
+                    target: source.target,
+                    revision,
+                    action,
+                })
+                .consumed,
+        ))
+    })
+}
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn unified_app_runner_host_state(
     ptr: *mut EldironPlayerRunner,
@@ -552,7 +766,17 @@ pub unsafe extern "C" fn unified_app_runner_host_state(
         clear_output(out, len);
     }
     call(ptr, |r| {
-        let input=r.core.host.text_input.map(|s|serde_json::json!({"target":s.target.raw(),"area":[s.area.x,s.area.y,s.area.width,s.area.height]}));
+        let source = r.core.native_text_snapshot();
+        let selection = source.as_ref().and_then(|s| {
+            Some([
+                s.utf16_from_byte(s.selection.0)?,
+                s.utf16_from_byte(s.selection.1)?,
+            ])
+        });
+        let input = r.core.host.text_input.map(|s|serde_json::json!({"target":s.target.raw(),
+            "revision":source.as_ref().filter(|source|source.target==s.target).map(|source|source.revision),
+            "selection":selection,
+            "area":[s.area.x,s.area.y,s.area.width,s.area.height]}));
         let app = r.core.application.as_ref();
         let state = serde_json::json!({
             "title": app.map(GpuApplication::title).unwrap_or_else(|| "Eldiron Player".into()),

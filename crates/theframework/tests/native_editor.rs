@@ -341,6 +341,59 @@ fn tree_editor_forwards_addressed_input_clipboard_and_row_local_ime_geometry() {
     let state = row.editor_input_state(&mut ctx).unwrap();
     assert!(state.area.x >= dim.x as f32 && state.area.x <= (dim.x + dim.width) as f32);
     assert!(state.area.y >= dim.y as f32 && state.area.y <= (dim.y + dim.height) as f32);
+    use theframework::text_edit::{NativeTextAnswer as A, NativeTextQuery as Q, NativeTextRequest};
+    let source = ui
+        .get_widget_id(row_id.uuid)
+        .unwrap()
+        .editor_native_text_snapshot(&mut ctx)
+        .unwrap();
+    let request = |query| NativeTextRequest {
+        target: source.target,
+        revision: source.revision,
+        query,
+    };
+    let A::Geometry { caret, .. } = ui
+        .get_widget_id(row_id.uuid)
+        .unwrap()
+        .editor_native_text_query(
+            &request(Q::Geometry(source.selection.1..source.selection.1)),
+            &mut ctx,
+        )
+        .unwrap()
+    else {
+        panic!("geometry")
+    };
+    // The candidate area deliberately includes surrounding context; compare
+    // the child layout geometry after applying the row paint origin instead.
+    let child = ui
+        .get_widget_id(row_id.uuid)
+        .unwrap()
+        .as_tree_item()
+        .unwrap()
+        .embedded_widget_mut()
+        .unwrap();
+    let A::Geometry { caret: local, .. } = child
+        .editor_native_text_query(
+            &request(Q::Geometry(source.selection.1..source.selection.1)),
+            &mut ctx,
+        )
+        .unwrap()
+    else {
+        panic!("geometry")
+    };
+    assert!(
+        (caret.x - local.x - dim.x as f32).abs() < 0.001
+            && (caret.y - local.y - dim.y as f32).abs() < 0.001
+    );
+    assert_eq!(
+        ui.get_widget_id(row_id.uuid)
+            .unwrap()
+            .editor_native_text_query(
+                &request(Q::Hit([caret.x, caret.y + caret.height / 2.])),
+                &mut ctx
+            ),
+        Some(A::Hit(source.selection.1))
+    );
     ui.get_widget_id(row_id.uuid)
         .unwrap()
         .editor_command(EditorCommand::SelectAll, &mut ctx);
@@ -927,4 +980,65 @@ fn display_copy_reaches_host_services_without_starting_a_gpu_or_enabling_ime() {
     assert!(
         matches!(host.requests.pop(), Some(HostRequest::ClipboardWrite { text, request: None }) if text=="A東京e\u{301}")
     );
+}
+
+#[test]
+fn native_source_range_edits_reach_the_focused_widget_and_share_its_undo_owner() {
+    use theframework::platform::NativeTextAction;
+    let (mut ui, mut ctx, a, b) = fixture();
+    let source = ui
+        .get_widget_id(a.uuid)
+        .unwrap()
+        .editor_native_text_snapshot(&mut ctx)
+        .unwrap();
+    assert_eq!(&*source.text, "A東京Z");
+    send(
+        &mut ui,
+        &mut ctx,
+        InputEvent::NativeText {
+            target: source.target,
+            revision: source.revision,
+            action: NativeTextAction::Compose {
+                range: Some(1..7),
+                text: "日本".into(),
+                cursor: Some((6, 6)),
+            },
+        },
+    );
+    assert_eq!(ui.get_text_line_edit("First").unwrap().text(), "A東京Z");
+    let marked = ui
+        .get_widget_id(a.uuid)
+        .unwrap()
+        .editor_native_text_snapshot(&mut ctx)
+        .unwrap();
+    assert_eq!(&*marked.text, "A日本Z");
+    send(
+        &mut ui,
+        &mut ctx,
+        InputEvent::NativeText {
+            target: marked.target,
+            revision: marked.revision,
+            action: NativeTextAction::CommitComposition,
+        },
+    );
+    assert_eq!(ui.get_text_line_edit("First").unwrap().text(), "A日本Z");
+    ui.undo(&mut ctx);
+    assert_eq!(ui.get_text_line_edit("First").unwrap().text(), "A東京Z");
+    ctx.ui.set_focus(&b);
+    ui.process_events(&mut ctx);
+    send(
+        &mut ui,
+        &mut ctx,
+        InputEvent::NativeText {
+            target: source.target,
+            revision: source.revision,
+            action: NativeTextAction::Replace {
+                range: 0..1,
+                text: "stale".into(),
+            },
+        },
+    );
+    assert_eq!(ui.get_text_line_edit("First").unwrap().text(), "A東京Z");
+    assert_eq!(ui.get_text_line_edit("Second").unwrap().text(), "");
+    assert!(ui.canvas.buffer.pixels().is_empty());
 }

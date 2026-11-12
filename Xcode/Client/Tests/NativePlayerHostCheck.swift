@@ -7,6 +7,9 @@ import QuartzCore
 struct NativePlayerHostCheck {
     @MainActor
     static func main() throws {
+        #if os(macOS)
+        checkNativeTextClient()
+        #endif
         let source = try Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[1]))
         let document = SceneVMDocument(data: source)
         var layer: CAMetalLayer? = CAMetalLayer()

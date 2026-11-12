@@ -1,0 +1,9 @@
+diff --git a/vendor/parley/src/editing/editor.rs b/vendor/parley/src/editing/editor.rs
+index dbcde30a..13f0ac70 100644
+--- a/vendor/parley/src/editing/editor.rs
++++ b/vendor/parley/src/editing/editor.rs
+@@ -1258 +1258,3 @@ where
+-        if let Some(preedit_range) = &self.compose {
++        // A native input client may retain a provisional empty marked range.
++        // It carries composition identity but has no glyphs to underline.
++        if let Some(preedit_range) = self.compose.as_ref().filter(|range| !range.is_empty()) {

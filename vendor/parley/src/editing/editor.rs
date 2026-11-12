@@ -1255,7 +1255,9 @@ where
         for prop in self.default_style.inner().values() {
             builder.push_default(prop.to_owned());
         }
-        if let Some(preedit_range) = &self.compose {
+        // A native input client may retain a provisional empty marked range.
+        // It carries composition identity but has no glyphs to underline.
+        if let Some(preedit_range) = self.compose.as_ref().filter(|range| !range.is_empty()) {
             builder.push(StyleProperty::Underline(true), preedit_range.clone());
         }
         self.layout = builder.build(&self.buffer);

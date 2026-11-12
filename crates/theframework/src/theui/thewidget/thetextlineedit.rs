@@ -120,6 +120,7 @@ impl TheWidget for TheTextLineEdit {
                     | crate::platform::InputEvent::TextFor { .. }
                     | crate::platform::InputEvent::Composition { .. }
                     | crate::platform::InputEvent::CompositionFor { .. }
+                    | crate::platform::InputEvent::NativeText { .. }
             )
         {
             self.finish_native_gesture(ctx);
@@ -161,6 +162,25 @@ impl TheWidget for TheTextLineEdit {
         self.native_editor.reveal_caret(&mut ctx.text);
         self.apply_native_response(&response, ctx);
         Some(response)
+    }
+    #[cfg(feature = "text")]
+    fn editor_native_text_query(
+        &mut self,
+        request: &crate::text_edit::NativeTextRequest,
+        ctx: &mut TheContext,
+    ) -> Option<crate::text_edit::NativeTextAnswer> {
+        self.prepare_native_editor(ctx);
+        self.native_editor.native_text_query(&mut ctx.text, request)
+    }
+    #[cfg(feature = "text")]
+    fn editor_native_text_snapshot(
+        &mut self,
+        ctx: &mut TheContext,
+    ) -> Option<crate::text_edit::NativeTextSnapshot> {
+        self.prepare_native_editor(ctx);
+        self.native_editor
+            .editor
+            .native_text_snapshot(&mut ctx.text)
     }
     #[cfg(feature = "text")]
     fn editor_input_state(

@@ -341,6 +341,23 @@ pub trait TheWidget: Send {
         None
     }
 
+    #[cfg(feature = "text")]
+    fn editor_native_text_snapshot(
+        &mut self,
+        _ctx: &mut TheContext,
+    ) -> Option<crate::text_edit::NativeTextSnapshot> {
+        None
+    }
+
+    #[cfg(feature = "text")]
+    fn editor_native_text_query(
+        &mut self,
+        _request: &crate::text_edit::NativeTextRequest,
+        _ctx: &mut TheContext,
+    ) -> Option<crate::text_edit::NativeTextAnswer> {
+        None
+    }
+
     /// Widgets who support text input return true
     fn supports_text_input(&self) -> bool {
         false

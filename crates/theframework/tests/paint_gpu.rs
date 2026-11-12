@@ -441,7 +441,7 @@ fn native_editor_viewports_blit_selection_preedit_and_retained_glyphs() {
         }
         assert_eq!(ctx.transfers().readback_bytes, 0);
     }
-    let mut capture = ReadbackTicket::capture(&ctx, output).unwrap();
+    let mut capture = ReadbackTicket::capture(&ctx, output.clone()).unwrap();
     ctx.device
         .poll(wgpu::PollType::Wait {
             submission_index: None,
@@ -471,6 +471,43 @@ fn native_editor_viewports_blit_selection_preedit_and_retained_glyphs() {
         .unwrap()
         .write_image_data(result.pixels())
         .unwrap();
+    // Native input may temporarily delete all preedit while retaining its
+    // original undo owner. Painting this state must use the same Swash atlas,
+    // allocate no empty underline span and never trigger an implicit capture.
+    let source = ime.editor.native_text_snapshot(&mut fonts).unwrap();
+    ime.input(
+        &mut fonts,
+        &InputEvent::NativeText {
+            target: source.target,
+            revision: source.revision,
+            action: theframework::platform::NativeTextAction::Compose {
+                range: None,
+                text: String::new(),
+                cursor: Some((0, 0)),
+            },
+        },
+    );
+    let source = ime.editor.native_text_snapshot(&mut fonts).unwrap();
+    assert_eq!(source.composition, Some(7..7));
+    assert_eq!(ime.editor.text(), "Player 東京");
+    let mut empty = PaintList::default();
+    ime.paint(&mut fonts, &mut empty, EditorColors::default(), true);
+    empty.validate().unwrap();
+    let before = ctx.transfers();
+    let glyphs = renderer.glyphs.rasterizations;
+    renderer
+        .render(
+            &empty,
+            &images,
+            &output.view,
+            output.descriptor.format,
+            (720, 360),
+            1.5,
+            [0.; 4],
+        )
+        .unwrap();
+    assert_eq!(ctx.transfers().readback_bytes, before.readback_bytes);
+    assert_eq!(renderer.glyphs.rasterizations, glyphs);
 }
 
 #[test]

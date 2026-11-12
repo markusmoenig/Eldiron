@@ -332,11 +332,56 @@ fn graph_hit_testing_stays_on_extended_graphemes_at_each_zoom_and_reuses_its_epo
             .zoom_at([0., 0.], zoom / f.graph.viewport.zoom());
         f.paint();
         let bounds = f.session.bounds().unwrap();
+        use theframework::text_edit::{
+            NativeTextAnswer as A, NativeTextQuery as Q, NativeTextRequest,
+        };
+        let source = f
+            .session
+            .native_text_snapshot(&mut f.graph, &f.doc, &mut f.fonts, true)
+            .unwrap();
+        let query = |query| NativeTextRequest {
+            target: source.target,
+            revision: source.revision,
+            query,
+        };
+        let area = f.state().area;
+        let A::Geometry { caret, .. } = f
+            .session
+            .native_text_query(
+                &mut f.graph,
+                &f.doc,
+                &mut f.fonts,
+                true,
+                &query(Q::Geometry(source.selection.1..source.selection.1)),
+            )
+            .unwrap()
+        else {
+            panic!("geometry")
+        };
+        // Candidate metadata is clipped to the visible cell; the query carries
+        // the full painted caret, whose fallback-font metrics may exceed it.
+        let visible = caret.intersection(bounds);
+        assert!(
+            visible.x >= area.x
+                && visible.x <= area.x + area.width
+                && (visible.y - area.y).abs() < 0.001
+        );
+
         for index in 0..80 {
             let point = [
                 bounds.x + (index as f32 + 0.5) * bounds.width / 80.,
                 bounds.y + bounds.height * 0.5,
             ];
+            let hit = f
+                .session
+                .native_text_query(
+                    &mut f.graph,
+                    &f.doc,
+                    &mut f.fonts,
+                    true,
+                    &query(Q::Hit(point)),
+                )
+                .unwrap();
             f.session
                 .pointer_down(
                     &mut f.graph,
@@ -352,6 +397,7 @@ fn graph_hit_testing_stays_on_extended_graphemes_at_each_zoom_and_reuses_its_epo
                 position: point,
             });
             let focus = f.graph.text_focus().unwrap();
+            assert_eq!(hit, A::Hit(focus.caret()));
             assert!(
                 boundaries.contains(&focus.caret()),
                 "zoom {zoom}, caret {}",
@@ -1301,4 +1347,59 @@ fn detached_graph_checkpoint_keeps_a_preceding_inline_commit_in_its_own_serial()
     assert_eq!(&authoritative, state.document());
     assert!(state.acknowledge(notification.binding, notification.serial));
     assert!(state.checkpoint_draft(&mut draft).unwrap().is_none());
+}
+
+#[test]
+fn native_source_ranges_edit_the_graph_draft_without_publishing_preedit_or_reusing_old_owners() {
+    let mut f = Fixture::new("A東京Z");
+    let source = f
+        .session
+        .native_text_snapshot(&mut f.graph, &f.doc, &mut f.fonts, true)
+        .unwrap();
+    let response = f.input(InputEvent::NativeText {
+        target: source.target,
+        revision: source.revision,
+        action: NativeTextAction::Compose {
+            range: Some(1..7),
+            text: "日本".into(),
+            cursor: Some((6, 6)),
+        },
+    });
+    assert!(!response.changed);
+    assert_eq!(f.text(), "A東京Z");
+    let marked = f
+        .session
+        .native_text_snapshot(&mut f.graph, &f.doc, &mut f.fonts, true)
+        .unwrap();
+    assert_eq!(&*marked.text, "A日本Z");
+    assert!(
+        f.input(InputEvent::NativeText {
+            target: marked.target,
+            revision: marked.revision,
+            action: NativeTextAction::CommitComposition
+        })
+        .changed
+    );
+    assert_eq!(f.text(), "A日本Z");
+    assert!(f.command(EditorCommand::Undo).changed);
+    assert_eq!(f.text(), "A東京Z");
+    f.session.reset();
+    let replacement = f
+        .session
+        .native_text_snapshot(&mut f.graph, &f.doc, &mut f.fonts, true)
+        .unwrap();
+    assert_ne!(replacement.target, source.target);
+    assert!(
+        !f.input(InputEvent::NativeText {
+            target: source.target,
+            revision: source.revision,
+            action: NativeTextAction::Replace {
+                range: 0..1,
+                text: "stale".into()
+            }
+        })
+        .input
+        .consumed
+    );
+    assert_eq!(f.text(), "A東京Z");
 }
