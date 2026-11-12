@@ -15,6 +15,7 @@ use std::sync::Arc;
 pub struct IsometricCanvas {
     albedo: wgpu::Buffer,
     surfaces: wgpu::Buffer,
+    owners: wgpu::Buffer,
     size: (u32, u32),
     generation: u64,
 }
@@ -47,9 +48,14 @@ impl IsometricCanvas {
         Ok(Self {
             albedo: make("iso-gpu-albedo", 4),
             surfaces: make("iso-gpu-surfaces", 8),
+            owners: make("iso-gpu-sprite-owners", 4),
             size: (width, height),
             generation: context.generation(),
         })
+    }
+    /// GPU-only instance ownership for supporting-floor protection.
+    pub fn owners(&self) -> &wgpu::Buffer {
+        &self.owners
     }
     pub fn size(&self) -> (u32, u32) {
         self.size

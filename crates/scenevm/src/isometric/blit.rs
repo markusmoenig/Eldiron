@@ -109,6 +109,12 @@ pub struct SpriteBlit<'a> {
     pub anchor_y: f32,
     pub pixels_per_unit: f32,
 }
+/// Instance-indexed support policy from the shared CPU scene plan. No pixel
+/// ownership or destination-color array is uploaded from the CPU.
+pub struct SpriteContacts<'a> {
+    pub owner: u32,
+    pub protected: &'a [bool],
+}
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct Params {
@@ -116,6 +122,7 @@ struct Params {
     screen: [i32; 4],
     image: [u32; 4],
     scale: [f32; 4],
+    contact: [u32; 4],
     bitmap: [f32; 4],
 }
 /// Retained clear/blit pipelines and a bounded-by-instance-count parameter arena.
@@ -129,6 +136,8 @@ pub struct IsometricBlitter {
     params: wgpu::Buffer,
     capacity: u64,
     stride: u64,
+    protection: wgpu::Buffer,
+    protection_capacity: u64,
 }
 impl IsometricBlitter {
     pub fn new(context: Arc<GpuContext>) -> Result<Self> {
@@ -139,14 +148,16 @@ impl IsometricBlitter {
             .device
             .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("iso-blit-canvas-layout"),
-                entries: &[0, 1, 2].map(|binding| wgpu::BindGroupLayoutEntry {
+                entries: &[0, 1, 2, 3, 4].map(|binding| wgpu::BindGroupLayoutEntry {
                     binding,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: if binding == 0 {
                             wgpu::BufferBindingType::Uniform
                         } else {
-                            wgpu::BufferBindingType::Storage { read_only: false }
+                            wgpu::BufferBindingType::Storage {
+                                read_only: binding == 4,
+                            }
                         },
                         has_dynamic_offset: binding == 0,
                         min_binding_size: if binding == 0 {
@@ -190,7 +201,10 @@ impl IsometricBlitter {
             context.device.limits().min_uniform_buffer_offset_alignment,
         )) * u64::from(context.device.limits().min_uniform_buffer_offset_alignment);
         let params = Self::arena(&context.device, stride);
+        let protection = Self::mask_arena(&context.device, 4);
         Ok(Self {
+            protection,
+            protection_capacity: 4,
             context,
             layout,
             clear,
@@ -208,11 +222,42 @@ impl IsometricBlitter {
             mapped_at_creation: false,
         })
     }
+    fn mask_arena(device: &wgpu::Device, size: u64) -> wgpu::Buffer {
+        device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("iso-contact-masks"),
+            size,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        })
+    }
     pub fn render(
         &mut self,
         canvas: &IsometricCanvas,
         background: [u8; 4],
         sprites: &[SpriteBlit<'_>],
+    ) -> Result<()> {
+        self.render_impl(canvas, background, sprites, None)
+    }
+    pub fn render_with_contacts(
+        &mut self,
+        canvas: &IsometricCanvas,
+        background: [u8; 4],
+        sprites: &[SpriteBlit<'_>],
+        contacts: &[SpriteContacts<'_>],
+    ) -> Result<()> {
+        if contacts.len() != sprites.len() {
+            return Err(RenderError(
+                "isometric contact/instance counts do not match".into(),
+            ));
+        }
+        self.render_impl(canvas, background, sprites, Some(contacts))
+    }
+    fn render_impl(
+        &mut self,
+        canvas: &IsometricCanvas,
+        background: [u8; 4],
+        sprites: &[SpriteBlit<'_>],
+        contacts: Option<&[SpriteContacts<'_>]>,
     ) -> Result<()> {
         if self.context.is_lost() || canvas.device_generation() != self.context.generation() {
             return Err(RenderError(
@@ -227,6 +272,19 @@ impl IsometricBlitter {
                 *n <= self.context.device.limits().max_buffer_size && *n <= u64::from(u32::MAX)
             })
             .ok_or_else(|| RenderError("isometric instance arena exceeds device limits".into()))?;
+        let mask_words = contacts
+            .map_or(Some(0u64), |c| {
+                c.iter()
+                    .try_fold(0u64, |n, c| n.checked_add(c.protected.len() as u64))
+            })
+            .filter(|n| {
+                n.max(&1).saturating_mul(4)
+                    <= u64::from(self.context.device.limits().max_storage_buffer_binding_size)
+            })
+            .ok_or_else(|| {
+                RenderError("isometric contact masks exceed device storage limits".into())
+            })?;
+        let mut masks = Vec::<u32>::with_capacity(mask_words.max(1) as usize);
         let (width, height) = canvas.size();
         let base = Params {
             canvas: [width, height, u32::from_le_bytes(background), 0],
@@ -253,14 +311,18 @@ impl IsometricBlitter {
                 .into_iter()
                 .all(f32::is_finite)
                 || s.pixel_scale <= 0.
-                || s.world_scale <= 0.
                 || !(0. ..=1.).contains(&s.opacity)
-                || s.pixels_per_unit <= 0.
             {
                 return Err(RenderError(
                     "invalid isometric sprite placement or GPU domain".into(),
                 ));
             }
+            let contact = contacts.map_or([0; 4], |records| {
+                let c = &records[i];
+                let offset = masks.len() as u32;
+                masks.extend(c.protected.iter().map(|v| u32::from(*v)));
+                [c.owner, offset, c.protected.len() as u32, 0]
+            });
             let (w, h) = s.source.size;
             let at = s.origin.map(|v| v.round() as i32);
             let size = [w, h].map(|v| (v as f32 * s.pixel_scale).round() as i32);
@@ -282,11 +344,24 @@ impl IsometricBlitter {
                         u32::from(s.source.surface),
                     ],
                     scale: [s.pixel_scale, s.base_height, s.world_scale, s.opacity],
+                    contact,
                     bitmap: [s.anchor_y, s.pixels_per_unit, 0., 0.],
                     ..base
                 },
             );
         }
+        if masks.is_empty() {
+            masks.push(0);
+        }
+        let mask_bytes = bytemuck::cast_slice(&masks);
+        if mask_bytes.len() as u64 > self.protection_capacity {
+            self.protection_capacity = mask_bytes.len() as u64;
+            self.protection = Self::mask_arena(&self.context.device, self.protection_capacity);
+        }
+        self.context
+            .queue
+            .write_buffer(&self.protection, 0, mask_bytes);
+        self.context.record_upload(mask_bytes.len() as u64);
         if count > self.capacity {
             self.capacity = count;
             self.params = Self::arena(&self.context.device, count);
@@ -315,6 +390,14 @@ impl IsometricBlitter {
                     wgpu::BindGroupEntry {
                         binding: 2,
                         resource: canvas.surfaces().as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 3,
+                        resource: canvas.owners().as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 4,
+                        resource: self.protection.as_entire_binding(),
                     },
                 ],
             });

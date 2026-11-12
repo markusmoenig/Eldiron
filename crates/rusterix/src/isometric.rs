@@ -527,50 +527,10 @@ fn draw_scene_impl(
         state.surface_key = Some(surface_key);
     }
     let (surfaces, owners) = (&mut state.surfaces, &mut state.sprite_owners);
-    let objects: Vec<_> = upright.iter().filter(|e| e.support.is_none()).collect();
-    let protections: Vec<Vec<bool>> = upright
-        .iter()
-        .map(|floor| {
-            let Some(surface) = floor.support else {
-                return Vec::new();
-            };
-            let bounds = surface.bounding_box(map);
-            let mut protected = Vec::with_capacity(objects.len() + 1);
-            protected.push(false);
-            for object in &objects {
-                let nearest = object.pos.clamped(bounds.min, bounds.max);
-                protected.push(
-                    // A floor already behind the object cannot erase it. Keep
-                    // the ordinary fast path unless a later floor overlaps.
-                    object.painter_cmp(floor).is_lt()
-                        && object.height + 0.001 >= floor.height
-                        && (nearest - object.pos).magnitude_squared()
-                            <= object.radius * object.radius + 0.000001
-                        && surface.is_inside(map, nearest + (bounds.center() - nearest) * 0.0001),
-                );
-            }
-            protected
-        })
-        .collect();
-    let mut contact_rect = [i32::MAX, i32::MAX, i32::MIN, i32::MIN];
-    for (index, object) in objects.iter().enumerate() {
-        if protections
-            .iter()
-            .any(|mask| mask.get(index + 1) == Some(&true))
-        {
-            if let Some(image) = object.image() {
-                let (at, scale) = object.image_placement(&image, projection);
-                let x = at.x.round() as i32;
-                let y = at.y.round() as i32;
-                contact_rect[0] = contact_rect[0].min(x);
-                contact_rect[1] = contact_rect[1].min(y);
-                contact_rect[2] = contact_rect[2]
-                    .max(x.saturating_add((image.width as f32 * scale).round() as i32));
-                contact_rect[3] = contact_rect[3]
-                    .max(y.saturating_add((image.height as f32 * scale).round() as i32));
-            }
-        }
-    }
+    let contact_policy = scene::ContactPolicy::new(map, &upright);
+    let protections = &contact_policy.protected;
+    let contact_rect = contact_policy.affected_screen_bounds(&upright, projection)
+        .unwrap_or([i32::MAX, i32::MAX, i32::MIN, i32::MIN]);
     if (contact_rect[0] < contact_rect[2] && contact_rect[1] < contact_rect[3])
         || terrain_model.is_some()
     {
@@ -579,14 +539,7 @@ fn draw_scene_impl(
             0,
         );
         owners.fill(0);
-        let mut owner = 0;
-        for (entry, protected) in upright.into_iter().zip(&protections) {
-            let id = if entry.support.is_none() {
-                owner += 1;
-                owner
-            } else {
-                0
-            };
+        for ((entry, protected), id) in upright.into_iter().zip(protections).zip(contact_policy.owner_by_instance) {
             let terrain = (terrain_model.is_some()
                 && !state.terrain_pixels.is_empty()
                 && entry.support.is_none()

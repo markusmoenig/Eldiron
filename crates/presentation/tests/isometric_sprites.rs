@@ -50,6 +50,7 @@ fn tile(bitmap: bool, prelit: bool, ground: bool) -> Tile {
             );
         }
     }
+    data[3] = 255; // visible source texel at the smallest reference scale
     let mut tile = Tile::from_texture(Texture::new(data, 7, 9));
     tile.isometric = Some(SpriteLayout {
         bitmap,
@@ -110,10 +111,18 @@ fn gpu_sprite_sources_match_reference_alpha_placement_scaling_and_live_geometry(
         ((84, 60), [40.3, 32.8], 16.),
         ((84, 60), [-3.6, 20.2], 10.),
         ((93, 67), [51.5, 48.5], 21.),
+        ((84, 60), [104., -72.], 128.),
+        ((84, 60), [104., -72.], 128.),
     ]
     .into_iter()
     .enumerate()
     {
+        if pass == 3 {
+            map.items[0].set_attribute("size_2d", Value::Float(0.));
+        }
+        if pass == 4 {
+            map.items[0].set_attribute("size_2d", Value::Float(-0.5));
+        }
         let projection = Projection {
             origin: Vec2::from(origin),
             unit,
@@ -154,7 +163,11 @@ fn gpu_sprite_sources_match_reference_alpha_placement_scaling_and_live_geometry(
                     prelit: image.prelit,
                     ground: image.ground,
                     anchor_y: image.anchor.y,
-                    pixels_per_unit: image.unit,
+                    pixels_per_unit: if pass == 4 && !image.bitmap {
+                        0.
+                    } else {
+                        image.unit
+                    },
                 }
             })
             .collect::<Vec<_>>();
@@ -204,5 +217,274 @@ fn gpu_sprite_sources_match_reference_alpha_placement_scaling_and_live_geometry(
             reference.pixels(),
             "GPU source blits differ at camera/scale pass {pass}"
         );
+    }
+}
+
+#[test]
+#[ignore = "requires native GPU; run with --ignored"]
+fn gpu_contact_owners_preserve_supported_boots_without_protecting_foreground_props() {
+    use rusterix::isometric::scene::ContactPolicy;
+    use scenevm::isometric::SpriteContacts;
+    let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut floor = Tile::from_texture(Texture::new([190, 45, 30, 255].repeat(32 * 16), 32, 16));
+    floor.isometric = Some(SpriteLayout {
+        bitmap: true,
+        prelit: true,
+        ground: true,
+        anchor: [16, 8],
+        pixels_per_unit: 16.,
+        directions: 1,
+        frames_per_direction: 1,
+        ..Default::default()
+    });
+    let mut actor_pixels = vec![0; 32 * 32 * 4];
+    for y in 26..31 {
+        for x in 15..18 {
+            actor_pixels[(y * 32 + x) * 4..(y * 32 + x) * 4 + 4]
+                .copy_from_slice(&[25, 185, 40, 255]);
+        }
+    }
+    let mut actor = Tile::from_texture(Texture::new(actor_pixels, 32, 32));
+    actor.isometric = Some(SpriteLayout {
+        bitmap: true,
+        prelit: true,
+        anchor: [16, 28],
+        pixels_per_unit: 16.,
+        directions: 1,
+        frames_per_direction: 1,
+        ..Default::default()
+    });
+    let mut prop = Tile::from_texture(Texture::new([35, 60, 210, 255].repeat(8 * 8), 8, 8));
+    prop.isometric = Some(SpriteLayout {
+        bitmap: true,
+        prelit: true,
+        anchor: [4, 4],
+        pixels_per_unit: 16.,
+        directions: 1,
+        frames_per_direction: 1,
+        ..Default::default()
+    });
+    let mut map = Map::default();
+    for (id, p) in [[0., 0.], [1., 0.], [1., 1.], [0., 1.]]
+        .into_iter()
+        .enumerate()
+    {
+        map.vertices
+            .push(rusterix::Vertex::new(id as u32, p[0], p[1]));
+    }
+    for i in 0..4 {
+        map.create_linedef_manual(i, (i + 1) % 4);
+    }
+    let id = map.close_polygon_manual().unwrap();
+    let sector = map.find_sector_mut(id).unwrap();
+    sector
+        .properties
+        .set("source", Value::Source(PixelSource::TileId(floor.id)));
+    sector.properties.set("floor_height", Value::Float(1.));
+    sector.properties.set("iso_walkable", Value::Bool(true));
+    let mut entity = rusterix::Entity::default();
+    entity.position = Vec3::new(0.8, 1., 0.2);
+    entity.set_attribute("source", Value::Source(PixelSource::TileId(actor.id)));
+    map.entities.push(entity);
+    let mut item = Item::default();
+    item.position = Vec3::new(0.7, 0.9, 0.25);
+    item.set_attribute("source", Value::Source(PixelSource::TileId(prop.id)));
+    map.items.push(item);
+    let mut assets = Assets::default();
+    assets.set_tiles(
+        [floor, actor, prop]
+            .into_iter()
+            .map(|t| (t.id, t))
+            .collect(),
+    );
+    let version = IsometricSourceVersion {
+        namespace: theframework::prelude::Uuid::new_v4(),
+        content: ContentRevision(1),
+        tiles: assets.tiles_revision,
+    };
+    let mut sources = IsometricSources::new(gpu.clone(), 1024 * 1024, 16);
+    let mut cache = SceneCache::default();
+    let avatars = HashMap::new();
+    let size = (96, 64);
+    let projection = Projection {
+        origin: Vec2::new(40., 40.),
+        unit: 16.,
+    };
+    let canvas = IsometricCanvas::new(&gpu, size.0, size.1).unwrap();
+    let mut blitter = IsometricBlitter::new(gpu.clone()).unwrap();
+    let mut renderer = IsometricRenderer::new(gpu.clone()).unwrap();
+    let mut scene = scenevm::SceneVM::new_with_context(gpu.clone(), 1, 1);
+    let mut settings = RenderSettings::default();
+    settings.sun_enabled = false;
+    settings.ambient_strength = 0.;
+    let lighting = Lighting::new(&settings, std::iter::empty(), 0);
+    for pass in 0..3 {
+        if pass == 1 {
+            map.items[0].position.z = 1.3;
+        }
+        if pass == 2 {
+            map.entities[0].position.x = 0.75;
+            map.entities[0].position.z = 0.25;
+        }
+        let plan = cache.prepare(&map, &assets, 0., &avatars);
+        assert_eq!(plan.upright.len(), 3);
+        let policy = ContactPolicy::new(&map, &plan.upright);
+        let actor_owner = plan
+            .upright
+            .iter()
+            .zip(&policy.owner_by_instance)
+            .find(|(s, _)| {
+                matches!(
+                    s.owner,
+                    Some(rusterix::isometric::scene::SpriteOwner::Entity { .. })
+                )
+            })
+            .unwrap()
+            .1;
+        let item_owner = plan
+            .upright
+            .iter()
+            .zip(&policy.owner_by_instance)
+            .find(|(s, _)| {
+                matches!(
+                    s.owner,
+                    Some(rusterix::isometric::scene::SpriteOwner::Item { .. })
+                )
+            })
+            .unwrap()
+            .1;
+        let mask = policy.protected.iter().find(|m| !m.is_empty()).unwrap();
+        assert!(mask[*actor_owner as usize]);
+        assert!(!mask[*item_owner as usize]);
+        assert!(policy.protected.iter().any(|m| m.iter().any(|p| *p)));
+        assert!(
+            policy
+                .affected_screen_bounds(&plan.upright, projection)
+                .is_some()
+        );
+        let prepared = plan
+            .upright
+            .iter()
+            .map(|s| sources.prepare(s, version).unwrap().unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(sources.builds(), 3);
+        let sprites = plan
+            .upright
+            .iter()
+            .zip(&prepared)
+            .map(|(s, source)| {
+                let image = s.image().unwrap();
+                let (at, scale) = s.image_placement(&image, projection);
+                SpriteBlit {
+                    source,
+                    origin: at.into_array(),
+                    pixel_scale: scale,
+                    base_height: s.height,
+                    world_scale: s.scale,
+                    opacity: s.opacity,
+                    bitmap: image.bitmap,
+                    prelit: image.prelit,
+                    ground: image.ground,
+                    anchor_y: image.anchor.y,
+                    pixels_per_unit: image.unit,
+                }
+            })
+            .collect::<Vec<_>>();
+        let contacts = policy
+            .owner_by_instance
+            .iter()
+            .zip(&policy.protected)
+            .map(|(id, protected)| SpriteContacts {
+                owner: *id,
+                protected,
+            })
+            .collect::<Vec<_>>();
+        let light = lighting.gpu_parameters(projection, size, &plan.casters, false, 0);
+        let before = gpu.transfers().readback_bytes;
+        blitter
+            .render_with_contacts(&canvas, [17, 34, 29, 255], &sprites, &contacts)
+            .unwrap();
+        let output = renderer
+            .render(
+                &canvas,
+                &light.uniforms,
+                &light.lights,
+                &light.casters,
+                &light.columns,
+                &[],
+                None,
+                pass,
+            )
+            .unwrap();
+        assert_eq!(gpu.transfers().readback_bytes, before);
+        assert!(!renderer.has_cpu_storage() && !renderer.has_readback_storage());
+        let protected = capture(&gpu, output.image);
+        let mut reference = TheRGBABuffer::new(TheDim::sized(size.0 as i32, size.1 as i32));
+        isometric::draw_scene_gpu_cached(
+            &map,
+            &assets,
+            &mut reference,
+            projection,
+            0.,
+            None,
+            &avatars,
+            None,
+            &lighting,
+            &mut scene,
+            &[],
+        )
+        .unwrap();
+        if protected != reference.pixels() {
+            let at = protected
+                .iter()
+                .zip(reference.pixels())
+                .position(|(a, b)| a != b)
+                .unwrap();
+            panic!(
+                "contact pass {pass} differs at byte {at}: GPU {}, reference {}",
+                protected[at],
+                reference.pixels()[at]
+            );
+        }
+        if pass == 0 {
+            let mut evidence = png::Encoder::new(
+                std::fs::File::create("/private/tmp/eldiron-native-isometric-contacts.png")
+                    .unwrap(),
+                size.0,
+                size.1,
+            );
+            evidence.set_color(png::ColorType::Rgba);
+            evidence.set_depth(png::BitDepth::Eight);
+            evidence
+                .write_header()
+                .unwrap()
+                .write_image_data(&protected)
+                .unwrap();
+
+            assert!(
+                protected.chunks_exact(4).any(|p| p == [25, 185, 40, 255]),
+                "boots remain visible"
+            );
+            blitter
+                .render(&canvas, [17, 34, 29, 255], &sprites)
+                .unwrap();
+            let unprotected = renderer
+                .render(
+                    &canvas,
+                    &light.uniforms,
+                    &light.lights,
+                    &light.casters,
+                    &light.columns,
+                    &[],
+                    None,
+                    9,
+                )
+                .unwrap();
+            let unprotected = capture(&gpu, unprotected.image);
+            assert_ne!(
+                protected, unprotected,
+                "fixture must expose missing support protection"
+            );
+        }
     }
 }

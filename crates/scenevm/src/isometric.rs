@@ -9,7 +9,7 @@ mod blit;
 #[cfg(feature = "gpu")]
 mod output;
 #[cfg(feature = "gpu")]
-pub use blit::{GpuSpriteSource, IsometricBlitter, SpriteBlit};
+pub use blit::{GpuSpriteSource, IsometricBlitter, SpriteBlit, SpriteContacts};
 #[cfg(feature = "gpu")]
 pub use output::{IsometricCanvas, IsometricRenderer};
 #[repr(C)]

@@ -6,6 +6,8 @@ use std::{collections::HashMap, sync::Arc};
 use uuid::Uuid;
 use vek::{Vec2, Vec3};
 mod collect;
+mod contact;
+pub use contact::ContactPolicy;
 mod source;
 pub use source::{Sprite, SpriteImage, SpriteOwner};
 

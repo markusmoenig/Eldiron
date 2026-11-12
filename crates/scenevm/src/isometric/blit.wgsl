@@ -3,18 +3,21 @@ struct Params {
     screen:vec4<i32>, // rounded x0,y0,x1,y1
     image:vec4<u32>, // width,height,bitmap flags,has source geometry
     scale:vec4<f32>, // screen scale,base height,world scale,opacity
+    contact:vec4<u32>, // owner,protection offset,length,unused
     bitmap:vec4<f32>, // anchor y,pixels/unit,unused,unused
 };
 @group(0) @binding(0) var<uniform> p:Params;
 @group(0) @binding(1) var<storage,read_write> albedo:array<u32>;
 @group(0) @binding(2) var<storage,read_write> surfaces:array<vec2<u32>>;
+@group(0) @binding(3) var<storage,read_write> owners:array<u32>;
+@group(0) @binding(4) var<storage,read> protection:array<u32>;
 @group(1) @binding(0) var<storage,read> source:array<u32>;
 @group(1) @binding(1) var<storage,read> geometry:array<vec2<u32>>;
 @compute @workgroup_size(8,8)
 fn clear(@builtin(global_invocation_id) id:vec3<u32>) {
     if any(id.xy>=p.canvas.xy) {return;}
     let i=id.y*p.canvas.x+id.x;
-    albedo[i]=p.canvas.z;surfaces[i]=vec2<u32>(0u,0x7f800000u);
+    albedo[i]=p.canvas.z;surfaces[i]=vec2<u32>(0u,0x7f800000u);owners[i]=0u;
 }
 fn bytes(v:u32)->vec4<u32> { return vec4<u32>(v&255u,(v>>8u)&255u,(v>>16u)&255u,v>>24u); }
 fn word(v:vec4<u32>)->u32 { return v.x|(v.y<<8u)|(v.z<<16u)|(v.w<<24u); }
@@ -27,6 +30,9 @@ fn blit(@builtin(global_invocation_id) id:vec3<u32>) {
     let color=bytes(source[src]);let alpha=u32(floor(f32(color.a)*p.scale.w+0.5));
     if alpha==0u {return;}
     let dst=u32(at.y)*p.canvas.x+u32(at.x);
+    let previous_owner=owners[dst];
+    if previous_owner<p.contact.z && protection[p.contact.y+previous_owner]!=0u {return;}
+    owners[dst]=p.contact.x;
     if alpha==255u { albedo[dst]=source[src]; }
     else {
         let under=bytes(albedo[dst]);

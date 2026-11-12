@@ -265,7 +265,7 @@ fn sprite_blits_reject_invalid_sources_and_domains_before_modifying_the_canvas()
             0 => invalid.origin[0] = f32::NAN,
             1 => invalid.pixel_scale = 0.,
             2 => invalid.opacity = 1.1,
-            _ => invalid.pixels_per_unit = 0.,
+            _ => invalid.world_scale = f32::NAN,
         }
         let before = context.transfers();
         assert!(
@@ -279,6 +279,13 @@ fn sprite_blits_reject_invalid_sources_and_domains_before_modifying_the_canvas()
             "failed frames do not upload/clear a partially valid batch"
         );
     }
+    let before = context.transfers();
+    assert!(
+        blitter
+            .render_with_contacts(&canvas, [0, 255, 0, 255], &[placement(&source)], &[])
+            .is_err()
+    );
+    assert_eq!(context.transfers(), before);
     let other = pollster::block_on(GpuContext::headless()).unwrap();
     let foreign = GpuSpriteSource::new(&other, 1, 1, &[0, 255, 0, 255], None).unwrap();
     let foreign_canvas = IsometricCanvas::new(&other, 8, 8).unwrap();
