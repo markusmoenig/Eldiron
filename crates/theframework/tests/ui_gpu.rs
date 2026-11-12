@@ -1635,3 +1635,104 @@ fn copied_render_view_display_preserves_rgb_without_changing_asset_alpha_or_sour
     }
     assert_eq!(view.render_buffer_mut().pixels(), source.pixels());
 }
+
+#[test]
+#[ignore = "requires native GPU"]
+fn typed_source_assets_keep_color_alpha_identity_and_warm_cache_without_legacy_buffers() {
+    use theframework::{
+        paint::{PaintList, Rect, Sampling},
+        render_wgpu::UiImageCache,
+        theui::paint::UiImageResources,
+    };
+    let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut registry = ImageRegistry::new(gpu.clone());
+    let mut cache = UiImageCache::default();
+    let mut sources = Vec::new();
+    for (color, alpha) in [
+        (ColorSpace::Srgb, AlphaMode::Straight),
+        (ColorSpace::Linear, AlphaMode::Straight),
+        (ColorSpace::Srgb, AlphaMode::Opaque),
+        (ColorSpace::Srgb, AlphaMode::Premultiplied),
+    ] {
+        let mut source = ImageAsset::rgba(1, 1, vec![64, 32, 16, 128]).unwrap();
+        source.color_space = color;
+        source.alpha_mode = alpha;
+        sources.push(source);
+    }
+    let authored = sources.clone();
+    let mut handles = Vec::new();
+    let mut list = PaintList::default();
+    for (i, source) in sources.iter().enumerate() {
+        let handle = cache
+            .frame(&mut registry)
+            .asset("shared-key", source, false)
+            .unwrap();
+        assert!(!handles.contains(&handle));
+        handles.push(handle);
+        list.image(
+            handle,
+            Rect::new(i as f32 * 16., 0., 16., 16.),
+            Sampling::Nearest,
+        );
+    }
+    cache.finish_frame(&mut registry, &list).unwrap();
+    let before = gpu.transfers();
+    for (handle, source) in handles.iter().zip(&sources) {
+        assert_eq!(
+            cache
+                .frame(&mut registry)
+                .asset("shared-key", source, false)
+                .unwrap(),
+            *handle
+        );
+    }
+    assert_eq!(gpu.transfers(), before);
+    assert_eq!(sources, authored);
+    assert_eq!(cache.stats().uploads, 4);
+    let output = GpuImage::new(&gpu, ImageDescriptor::rgba(64, 16)).unwrap();
+    let mut renderer = PaintRenderer::new(gpu.clone()).unwrap();
+    renderer
+        .render(
+            &list,
+            &registry,
+            &output.view,
+            output.descriptor.format,
+            (64, 16),
+            1.,
+            [0., 0., 0., 1.],
+        )
+        .unwrap();
+    assert_eq!(gpu.transfers().readback_bytes, 0);
+    let mut read = ReadbackTicket::capture(&gpu, output).unwrap();
+    gpu.device
+        .poll(wgpu::PollType::Wait {
+            submission_index: None,
+            timeout: Some(std::time::Duration::from_secs(30)),
+        })
+        .unwrap();
+    let image = read.try_finish(&gpu).unwrap().unwrap();
+    let red = |i: usize| image.pixels()[(8 * 64 + i * 16 + 8) * 4];
+    assert!(
+        red(1) > red(0) + 20,
+        "linear and encoded source bytes must be interpreted separately"
+    );
+    assert!(
+        red(2) > red(0) + 10,
+        "opaque imports ignore authored alpha only for that interpretation"
+    );
+    assert!(
+        red(3) > red(0) + 10,
+        "premultiplied source color is not attenuated twice"
+    );
+    let mut replacement = ImageRegistry::new(gpu.clone());
+    let rebuilt = cache
+        .frame(&mut replacement)
+        .asset("shared-key", &sources[0], false)
+        .unwrap();
+    assert_ne!(rebuilt, handles[0]);
+    assert!(
+        registry.get(handles[0]).is_some(),
+        "replacement cannot remove foreign registrations"
+    );
+    assert_eq!(sources, authored);
+}

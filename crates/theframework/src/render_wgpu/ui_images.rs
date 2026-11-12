@@ -6,7 +6,7 @@ use crate::{
     prelude::TheRGBABuffer,
     theui::paint::{UiImageResources, UiPaintError, UiPaintResult},
 };
-use renderkit::{AlphaMode, GpuContext, ImageAsset, ImageRegistry};
+use renderkit::{AlphaMode, ColorSpace, GpuContext, ImageAsset, ImageRegistry};
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
@@ -65,7 +65,7 @@ pub struct UiImageCacheStats {
 /// be included in that final list even when no source image was requested anew.
 /// A superseded version remains valid until a subsequent finalization omits it.
 pub struct UiImageCache {
-    cached: HashMap<(String, AlphaMode), CachedImage>,
+    cached: HashMap<(String, AlphaMode, ColorSpace), CachedImage>,
     retired: Vec<CachedImage>,
     owner: Option<u64>,
     byte_budget: usize,
@@ -181,6 +181,7 @@ impl UiImageCache {
             a.0.cmp(&b.0)
                 .then_with(|| a.1.0.cmp(&b.1.0))
                 .then_with(|| (a.1.1 as u8).cmp(&(b.1.1 as u8)))
+                .then_with(|| (a.1.2 as u8).cmp(&(b.1.2 as u8)))
         });
         for (_, key) in candidates {
             if !self.stats.over_budget {
@@ -225,11 +226,66 @@ impl UiImageCache {
         changed: bool,
         alpha: AlphaMode,
     ) -> Result<ImageHandle, UiPaintError> {
+        self.import(
+            registry,
+            key,
+            source.pixel_width(),
+            source.pixel_height(),
+            alpha,
+            ColorSpace::Srgb,
+            changed,
+            |registry| {
+                let mut image = ImageAsset::rgba(
+                    u32::try_from(source.pixel_width())
+                        .map_err(|_| UiPaintError("source image too wide".into()))?,
+                    u32::try_from(source.pixel_height())
+                        .map_err(|_| UiPaintError("source image too tall".into()))?,
+                    source.pixels().to_vec(),
+                )
+                .map_err(|e| UiPaintError(e.to_string()))?;
+                image.alpha_mode = alpha;
+                registry
+                    .upload_linear(&image)
+                    .map_err(|e| UiPaintError(e.to_string()))
+            },
+        )
+    }
+    fn asset(
+        &mut self,
+        registry: &mut ImageRegistry,
+        key: &str,
+        source: &ImageAsset,
+        changed: bool,
+    ) -> Result<ImageHandle, UiPaintError> {
+        self.import(
+            registry,
+            key,
+            source.width() as usize,
+            source.height() as usize,
+            source.alpha_mode,
+            source.color_space,
+            changed,
+            |registry| {
+                registry
+                    .upload_linear(source)
+                    .map_err(|e| UiPaintError(e.to_string()))
+            },
+        )
+    }
+    fn import(
+        &mut self,
+        registry: &mut ImageRegistry,
+        key: &str,
+        width: usize,
+        height: usize,
+        alpha: AlphaMode,
+        color: ColorSpace,
+        changed: bool,
+        upload: impl FnOnce(&mut ImageRegistry) -> Result<ImageHandle, UiPaintError>,
+    ) -> Result<ImageHandle, UiPaintError> {
         self.domain(registry);
         let used = self.tick();
-        let width = source.pixel_width();
-        let height = source.pixel_height();
-        let cache_key = (key.to_owned(), alpha);
+        let cache_key = (key.to_owned(), alpha, color);
         if !changed
             && let Some(entry) = self.cached.get_mut(&cache_key)
             && entry.width == width
@@ -240,20 +296,11 @@ impl UiImageCache {
             self.stats.hits += 1;
             return Ok(entry.handle);
         }
-        let mut image = ImageAsset::rgba(
-            u32::try_from(width).map_err(|_| UiPaintError("source image too wide".into()))?,
-            u32::try_from(height).map_err(|_| UiPaintError("source image too tall".into()))?,
-            source.pixels().to_vec(),
-        )
-        .map_err(|e| UiPaintError(e.to_string()))?;
-        image.alpha_mode = alpha;
         let bytes = width
             .checked_mul(height)
             .and_then(|count| count.checked_mul(8))
             .ok_or_else(|| UiPaintError("source image size overflow".into()))?;
-        let handle = registry
-            .upload_linear(&image)
-            .map_err(|e| UiPaintError(e.to_string()))?;
+        let handle = upload(registry)?;
         let entry = CachedImage {
             handle,
             width,
@@ -262,7 +309,6 @@ impl UiImageCache {
             used,
         };
         if let Some(old) = self.cached.insert(cache_key, entry) {
-            // Another earlier command can still sample that version this frame.
             self.retired.push(old);
         }
         self.stats.uploads += 1;
@@ -271,6 +317,15 @@ impl UiImageCache {
     }
 }
 impl UiImageResources for UiImages {
+    fn asset(
+        &mut self,
+        key: &str,
+        source: &ImageAsset,
+        changed: bool,
+    ) -> Result<ImageHandle, UiPaintError> {
+        self.cache.asset(&mut self.registry, key, source, changed)
+    }
+
     fn image(
         &mut self,
         key: &str,
@@ -298,6 +353,15 @@ impl UiFrameImages<'_> {
     }
 }
 impl UiImageResources for UiFrameImages<'_> {
+    fn asset(
+        &mut self,
+        key: &str,
+        source: &ImageAsset,
+        changed: bool,
+    ) -> Result<ImageHandle, UiPaintError> {
+        self.cache.asset(self.registry, key, source, changed)
+    }
+
     fn image(
         &mut self,
         key: &str,

@@ -116,6 +116,18 @@ fn outline(uv: vec2<f32>) -> vec4<f32> {
     if(mode==8u){return vec4<f32>(linear(textureSample(image,image_sampler,i.uv).rgb),1.);}
     if(mode==9u){return vec4<f32>(textureSample(image,image_sampler,i.uv).rgb,1.);}
     var c=params.color0;
+    if(mode==11u){
+        let source=vec2<f32>(textureDimensions(image));
+        let destination=max(params.gradient.xy,vec2<f32>(0.000001));
+        let pixel=max(floor(i.uv*destination),vec2<f32>(0.));
+        let position=vec2<i32>(min(floor(pixel*(source/destination)),source-vec2<f32>(1.)));
+        let tex=target_image(normalized_texel(textureLoad(image,position,0)));
+        return vec4<f32>(tex.rgb*c.rgb*c.a,tex.a*c.a);
+    }
+    if(mode==10u){
+        let tex=target_image(sampled_image(i.uv));
+        return vec4<f32>(tex.rgb*c.rgb+params.color1.rgb*(1.-tex.a),1.);
+    }
     if(mode==6u){return outline(i.uv);}
     if(mode==4u){return field_color(i.local-params.gradient.xy,c);}
     if(mode==3u){c=vec4<f32>(target_color(i.color.rgb),i.color.a);}

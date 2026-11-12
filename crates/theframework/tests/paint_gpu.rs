@@ -1118,3 +1118,210 @@ fn opaque_display_policy_preserves_encoded_blending_groups_and_surface_formats()
         "standard linear blending remains available and distinct"
     );
 }
+
+#[test]
+#[ignore = "requires native GPU"]
+fn pixel_images_match_left_edge_source_resizing_at_fractional_densities() {
+    let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut images = ImageRegistry::new(gpu.clone());
+    let mut renderer = PaintRenderer::new(gpu.clone()).unwrap();
+    for (sw, sh, dw, dh) in [
+        (64, 32, 40, 40),
+        (63, 29, 40, 40),
+        (7, 5, 52, 32),
+        (1, 1, 40, 40),
+    ] {
+        let mut pixels = vec![0; (sw * sh * 4) as usize];
+        for y in 0..sh {
+            for x in 0..sw {
+                let i = ((y * sw + x) * 4) as usize;
+                pixels[i..i + 4].copy_from_slice(&[
+                    ((x * 13 + 70) % 256) as u8,
+                    ((y * 17 + 40) % 256) as u8,
+                    ((x * 5 + y * 7 + 50) % 256) as u8,
+                    [0, 64, 200, 255][((x + y) % 4) as usize],
+                ]);
+            }
+        }
+        let source = ImageAsset::rgba(sw, sh, pixels.clone()).unwrap();
+        let handle = images.upload_linear(&source).unwrap();
+        for density in [1., 1.25, 1.5, 2.] {
+            let size = (
+                ((dw + 8) as f32 * density) as u32,
+                ((dh + 8) as f32 * density) as u32,
+            );
+            let output = GpuImage::new(&gpu, ImageDescriptor::rgba(size.0, size.1)).unwrap();
+            let mut list = PaintList::default();
+            list.ops.push(PaintOp::DisplayCompositing(
+                DisplayCompositing::LegacyOpaque,
+            ));
+            list.ops.push(PaintOp::PixelImage {
+                image: handle,
+                rect: Rect::new(4., 4., dw as f32, dh as f32),
+                tint: [1.; 4],
+            });
+            assert_eq!(list.image_handles().collect::<Vec<_>>(), vec![handle]);
+            let before = gpu.transfers();
+            renderer
+                .render(
+                    &list,
+                    &images,
+                    &output.view,
+                    output.descriptor.format,
+                    size,
+                    density,
+                    [12. / 255., 24. / 255., 36. / 255., 1.],
+                )
+                .unwrap();
+            assert_eq!(gpu.transfers(), before);
+            let mut read = ReadbackTicket::capture(&gpu, output).unwrap();
+            gpu.device
+                .poll(wgpu::PollType::Wait {
+                    submission_index: None,
+                    timeout: Some(std::time::Duration::from_secs(30)),
+                })
+                .unwrap();
+            let image = read.try_finish(&gpu).unwrap().unwrap();
+            let physical = ((dw as f32 * density) as u32, (dh as f32 * density) as u32);
+            let origin = (4. * density) as u32;
+            let sx = sw as f32 / physical.0 as f32;
+            let sy = sh as f32 / physical.1 as f32;
+            for y in 0..size.1 {
+                for x in 0..size.0 {
+                    let mut expected = [12u8, 24, 36, 255];
+                    if x >= origin
+                        && y >= origin
+                        && x < origin + physical.0
+                        && y < origin + physical.1
+                    {
+                        let xx = (((x - origin) as f32 * sx) as u32).min(sw - 1);
+                        let yy = (((y - origin) as f32 * sy) as u32).min(sh - 1);
+                        let src = &pixels
+                            [((yy * sw + xx) * 4) as usize..((yy * sw + xx + 1) * 4) as usize];
+                        for c in 0..3 {
+                            expected[c] = (src[c] as f32 * src[3] as f32 / 255.
+                                + expected[c] as f32 * (1. - src[3] as f32 / 255.))
+                                .round() as u8;
+                        }
+                    }
+                    let actual = &image.pixels()
+                        [((y * size.0 + x) * 4) as usize..((y * size.0 + x + 1) * 4) as usize];
+                    assert!(
+                        actual.iter().zip(expected).all(|(a, b)| a.abs_diff(b) <= 1),
+                        "source {sw}x{sh}, target {dw}x{dh}, density {density}, ({x},{y}): {actual:?}, expected {expected:?}"
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+#[ignore = "requires native GPU"]
+fn opaque_glyph_boxes_blit_cached_swash_coverage_in_order_over_supplied_backgrounds() {
+    let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let images = ImageRegistry::new(gpu.clone());
+    let mut ctx = theframework::prelude::TheContext::new(64, 40, 1.);
+    let run = ctx.text.layout("O", "Roboto", 20., None).runs.remove(0);
+    let first = run.glyphs[0];
+    let mut second = first;
+    second.position[0] += 5.;
+    let run = std::sync::Arc::new(GlyphRun {
+        font: run.font.clone(),
+        size: run.size,
+        variations: run.variations.clone(),
+        glyphs: std::sync::Arc::from([first, second]),
+    });
+    let origin = [5., 3.];
+    let background = [20u8, 40, 70, 17];
+    let foreground = [210u8, 20, 90, 80];
+    let clear = [12u8, 24, 36, 255];
+    let mut list = PaintList::default();
+    list.ops.push(PaintOp::DisplayCompositing(
+        DisplayCompositing::LegacyOpaque,
+    ));
+    list.ops.push(PaintOp::OpaqueGlyphRun {
+        run: run.clone(),
+        origin,
+        color: foreground.map(|v| v as f32 / 255.),
+        background: background.map(|v| v as f32 / 255.),
+    });
+    let mut renderer = PaintRenderer::new(gpu.clone()).unwrap();
+    let output = GpuImage::new(&gpu, ImageDescriptor::rgba(64, 40)).unwrap();
+    renderer
+        .render(
+            &list,
+            &images,
+            &output.view,
+            output.descriptor.format,
+            (64, 40),
+            1.,
+            clear.map(|v| v as f32 / 255.),
+        )
+        .unwrap();
+    assert_eq!(renderer.frame_stats().glyph_quads, 2);
+    assert_eq!(
+        renderer.frame_stats().draw_calls,
+        2,
+        "one atlas batch plus the display blit"
+    );
+    let warm = gpu.transfers();
+    let rasterizations = renderer.glyphs.rasterizations;
+    renderer
+        .render(
+            &list,
+            &images,
+            &output.view,
+            output.descriptor.format,
+            (64, 40),
+            1.,
+            clear.map(|v| v as f32 / 255.),
+        )
+        .unwrap();
+    assert_eq!(gpu.transfers(), warm);
+    assert_eq!(renderer.glyphs.rasterizations, rasterizations);
+    let mut expected = vec![clear; 64 * 40];
+    let mut previous = vec![0u8; 64 * 40];
+    let mut erased = 0;
+    for glyph in run.glyphs.iter() {
+        let physical = [origin[0] + glyph.position[0], origin[1] + glyph.position[1]];
+        let (_, bitmap) = renderer.glyphs.glyph(&run, glyph.id, 1., physical).unwrap();
+        assert!(!bitmap.color);
+        let left = physical[0].floor() as i32 + bitmap.left;
+        let top = physical[1].floor() as i32 - bitmap.top;
+        for y in 0..bitmap.height {
+            for x in 0..bitmap.width {
+                let index = ((top + y as i32) * 64 + left + x as i32) as usize;
+                let mask = bitmap.pixels[(y * bitmap.width + x) as usize];
+                if previous[index] > 0 && mask == 0 {
+                    erased += 1;
+                }
+                previous[index] = mask;
+                expected[index] = [0, 0, 0, 255];
+                for c in 0..3 {
+                    expected[index][c] = (foreground[c] as f32 * mask as f32 / 255.
+                        + background[c] as f32 * (1. - mask as f32 / 255.))
+                        .round() as u8;
+                }
+            }
+        }
+    }
+    assert!(
+        erased > 0,
+        "overlapping boxes must replace earlier coverage with background"
+    );
+    let mut read = ReadbackTicket::capture(&gpu, output).unwrap();
+    gpu.device
+        .poll(wgpu::PollType::Wait {
+            submission_index: None,
+            timeout: Some(std::time::Duration::from_secs(30)),
+        })
+        .unwrap();
+    let image = read.try_finish(&gpu).unwrap().unwrap();
+    for (i, (actual, expected)) in image.pixels().chunks_exact(4).zip(expected).enumerate() {
+        assert!(
+            actual.iter().zip(expected).all(|(a, b)| a.abs_diff(b) <= 1),
+            "glyph pixel {i}: {actual:?} vs {expected:?}"
+        );
+    }
+}

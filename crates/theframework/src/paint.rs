@@ -312,10 +312,28 @@ pub enum PaintOp {
         sampling: Sampling,
         tint: Color,
     },
+    /// Full source image, using top-left aligned nearest sampling in destination
+    /// physical pixels. Matches explicit CPU left-edge image resizing without
+    /// allocating a resized source image or relying on half-texel UV biases.
+    PixelImage {
+        image: ImageHandle,
+        rect: Rect,
+        tint: Color,
+    },
     GlyphRun {
         run: Arc<GlyphRun>,
         origin: Point,
         color: Color,
+    },
+    /// Copy each glyph's bitmap box over a specified background, mixing RGB by
+    /// glyph coverage and publishing opaque pixels. This preserves legacy UI
+    /// text that painted a supplied background rather than the destination.
+    /// The two colors' alpha channels do not attenuate RGB coverage.
+    OpaqueGlyphRun {
+        run: Arc<GlyphRun>,
+        origin: Point,
+        color: Color,
+        background: Color,
     },
     PushTransform(Transform),
     PopTransform,
@@ -357,6 +375,7 @@ impl PaintList {
     pub fn image_handles(&self) -> impl Iterator<Item = ImageHandle> + '_ {
         self.ops.iter().filter_map(|op| match op {
             PaintOp::Image { image, .. }
+            | PaintOp::PixelImage { image, .. }
             | PaintOp::FilteredImage { image, .. }
             | PaintOp::ThresholdImage { image, .. }
             | PaintOp::ImageOutline { image, .. }

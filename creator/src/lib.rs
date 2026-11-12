@@ -16,6 +16,7 @@ pub mod editcamera;
 pub mod editor;
 #[cfg(feature = "native-render")]
 pub mod native_application;
+mod editor_overlay;
 pub mod editor_display;
 pub mod editor_tools;
 mod geometry_editor;

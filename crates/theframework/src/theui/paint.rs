@@ -21,6 +21,34 @@ pub trait UiImageResources {
         source: &TheRGBABuffer,
         changed: bool,
     ) -> Result<ImageHandle, UiPaintError>;
+    /// Typed editable/source pixels without widget position or display scale.
+    /// Native sinks import declared color/alpha metadata directly. The default
+    /// keeps existing custom sinks compatible for straight/opaque sRGB assets.
+    fn asset(
+        &mut self,
+        key: &str,
+        source: &theframework_core::ImageAsset,
+        changed: bool,
+    ) -> Result<ImageHandle, UiPaintError> {
+        use theframework_core::{AlphaMode, ColorSpace};
+        if source.color_space != ColorSpace::Srgb || source.alpha_mode == AlphaMode::Premultiplied {
+            return Err(UiPaintError(
+                "image sink does not implement this typed color/alpha source".into(),
+            ));
+        }
+        let width = i32::try_from(source.width())
+            .map_err(|_| UiPaintError("source image too wide".into()))?;
+        let height = i32::try_from(source.height())
+            .map_err(|_| UiPaintError("source image too tall".into()))?;
+        let mut buffer = TheRGBABuffer::new(TheDim::sized(width, height));
+        buffer.pixels_mut().copy_from_slice(source.pixels());
+        if source.alpha_mode == AlphaMode::Opaque {
+            for pixel in buffer.pixels_mut().chunks_exact_mut(4) {
+                pixel[3] = 255;
+            }
+        }
+        self.image(key, &buffer, changed)
+    }
     /// Explicit legacy adapter: RenderView copied these RGB bytes into the
     /// opaque application display instead of alpha-compositing an image asset.
     /// Preserve the source/export bytes; only their display interpretation differs.

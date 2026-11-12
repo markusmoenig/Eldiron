@@ -1,7 +1,10 @@
 use crate::editor::{ACTIONLIST, RUSTERIX};
+use crate::editor_overlay::{EditorOverlay, OverlaySources};
 use crate::prelude::*;
 use rusterix::prelude::*;
 use theframework::prelude::*;
+mod frame;
+pub(crate) use frame::{HudAction, HudFrame, HudHit, HudScope};
 
 #[derive(Clone, Copy)]
 pub(crate) struct HudColors {
@@ -48,6 +51,34 @@ pub(crate) fn colors() -> HudColors {
     *HUD_COLORS.read().unwrap()
 }
 
+pub(crate) struct HudStyle {
+    pub(crate) colors: HudColors,
+    pub(crate) geometry_labels: [String; 2],
+}
+impl HudStyle {
+    fn current() -> Self {
+        Self {
+            colors: colors(),
+            geometry_labels: [fl!("hud_geometry_op_move"), fl!("hud_geometry_op_size")],
+        }
+    }
+}
+
+/// Borrowed CPU icon source; never a destination or GPU resource.
+pub(crate) struct HudImageSource<'a> {
+    pub(crate) width: usize,
+    pub(crate) height: usize,
+    pub(crate) pixels: &'a [u8],
+}
+/// Resolved authoring inputs: no action callbacks, UI context or renderer borrow.
+pub(crate) struct HudInputs<'a> {
+    pub(crate) map: &'a Map,
+    pub(crate) server: &'a ServerContext,
+    pub(crate) assets: &'a Assets,
+    pub(crate) selected_id: Option<u32>,
+    pub(crate) material_slots: Option<&'a [ActionMaterialSlot]>,
+    pub(crate) light: Option<HudImageSource<'a>>,
+}
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum HudMode {
     Selection,
@@ -72,7 +103,15 @@ pub struct Hud {
 
     mouse_pos: Vec2<i32>,
 
-    light_icon: Option<TheRGBABuffer>,
+    sources: OverlaySources,
+    frame_owner: Uuid,
+    serial: u64,
+    last_presented: u64,
+    invalidated_after: u64,
+    prepared_source: Option<std::sync::Arc<frame::Source>>,
+    displayed_source: Option<std::sync::Arc<frame::Source>>,
+    #[cfg(feature = "native-ui")]
+    receipt_owner: u64,
 
     edit_mode_rects: Vec<TheDim>,
 }
@@ -104,30 +143,32 @@ impl Hud {
         ctx: &mut TheContext,
         server_ctx: &ServerContext,
     ) {
-        let Some(help) = crate::mapeditor::geometry_selection_status_text(map, server_ctx) else {
-            return;
-        };
-        let width = buffer.dim().width as usize;
-        let height = buffer.dim().height as usize;
-        let stride = buffer.stride();
-        let Some(bar) = Self::shortcut_guidance_rect(width, height, &help) else {
-            return;
-        };
-
-        let colors = *HUD_COLORS.read().unwrap();
-        ctx.draw
-            .rect(buffer.pixels_mut(), &bar, stride, &colors.panel);
-        ctx.draw.rect(
-            buffer.pixels_mut(),
-            &(bar.0, bar.1, bar.2, 1),
-            stride,
-            &colors.border,
+        let help = crate::mapeditor::geometry_selection_status_text(map, server_ctx);
+        let size = (
+            buffer.dim().width.max(0) as usize,
+            buffer.dim().height.max(0) as usize,
         );
-        ctx.draw.text_rect_blend(
-            buffer.pixels_mut(),
+        Self::prepare_guidance(size, help.as_deref(), colors()).draw_reference(buffer, ctx);
+    }
+    /// Informational footer, sharing the tool overlay command stream and text
+    /// service. It has no hit regions or independent renderer ownership.
+    pub(crate) fn prepare_guidance(
+        size: (usize, usize),
+        help: Option<&str>,
+        colors: HudColors,
+    ) -> EditorOverlay {
+        let mut paint = EditorOverlay::new(size);
+        let Some(help) = help else {
+            return paint;
+        };
+        let Some(bar) = Self::shortcut_guidance_rect(size.0, size.1, help) else {
+            return paint;
+        };
+        paint.rect(&bar, &colors.panel);
+        paint.rect(&(bar.0, bar.1, bar.2, 1), &colors.border);
+        paint.text_rect_blend(
             &(bar.0 + 9, bar.1 + 1, bar.2 - 18, bar.3 - 2),
-            stride,
-            &help,
+            help,
             TheFontSettings {
                 size: 12.5,
                 ..Default::default()
@@ -136,6 +177,7 @@ impl Hud {
             TheHorizontalAlign::Left,
             TheVerticalAlign::Center,
         );
+        paint
     }
 
     fn active_action_material_slots(
@@ -411,6 +453,7 @@ impl Hud {
     }
 
     pub fn new(mode: HudMode) -> Self {
+        let frame_owner = Uuid::new_v4();
         Self {
             mode,
 
@@ -421,7 +464,15 @@ impl Hud {
 
             mouse_pos: Vec2::zero(),
 
-            light_icon: None,
+            sources: OverlaySources::new(frame_owner),
+            frame_owner,
+            serial: 0,
+            last_presented: 0,
+            invalidated_after: 0,
+            prepared_source: None,
+            displayed_source: None,
+            #[cfg(feature = "native-ui")]
+            receipt_owner: theframework::paint::new_receipt_owner(),
 
             edit_mode_rects: vec![],
         }
@@ -436,34 +487,96 @@ impl Hud {
         id: Option<u32>,
         assets: &Assets,
     ) {
-        if (self.mode == HudMode::Linedef || self.mode == HudMode::Sector)
-            && self.light_icon.is_none()
-        {
-            if let Some(li) = ctx.ui.icon("light_small") {
-                self.light_icon = Some(li.clone());
-            }
+        let size = (
+            buffer.dim().width.max(0) as usize,
+            buffer.dim().height.max(0) as usize,
+        );
+        let scope = HudScope {
+            document: map.id,
+            tool: self.frame_owner,
+            revision: map.changed as u64,
+        };
+        let style = HudStyle::current();
+        let frame =
+            self.prepare_reference_frame(scope, size, map, ctx, server_ctx, id, assets, &style);
+        frame.commands.draw_reference(buffer, ctx);
+        self.presented_frame(&frame, scope, size, map, server_ctx);
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_reference_frame(
+        &mut self,
+        scope: HudScope,
+        size: (usize, usize),
+        map: &Map,
+        ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+        id: Option<u32>,
+        assets: &Assets,
+        style: &HudStyle,
+    ) -> HudFrame {
+        let material_slots = crate::actions::named_geometry_hud_material_slots_for_selection(map)
+            .or_else(|| crate::actions::prefab_hud_material_slots_for_selected_instances(map))
+            .or_else(|| self.active_action_material_slots(map, ctx, server_ctx))
+            .or_else(|| self.active_palette_material_slots(map, ctx, server_ctx));
+        let light = ctx.ui.icon("light_small").map(|icon| HudImageSource {
+            width: icon.pixel_width(),
+            height: icon.pixel_height(),
+            pixels: icon.pixels(),
+        });
+        self.prepare_frame(
+            scope,
+            size,
+            HudInputs {
+                map,
+                server: server_ctx,
+                assets,
+                selected_id: id,
+                material_slots: material_slots.as_deref(),
+                light,
+            },
+            style,
+        )
+    }
+    pub(crate) fn prepare_frame(
+        &mut self,
+        scope: HudScope,
+        size: (usize, usize),
+        input: HudInputs<'_>,
+        style: &HudStyle,
+    ) -> HudFrame {
+        let HudInputs {
+            map,
+            server: server_ctx,
+            assets,
+            selected_id: id,
+            material_slots: action_material_slots,
+            light,
+        } = input;
+        let colors = style.colors;
+        let (width, height) = size;
+        let mut paint = EditorOverlay::new(size);
+        self.sources.begin();
+        if width < 20 || height < 20 {
+            self.sources.finish();
+            return self.stage(
+                paint,
+                frame::Source::new(scope, size, map, server_ctx, frame::HitLayout::default()),
+            );
         }
-
-        let width = buffer.dim().width as usize;
-        let height = buffer.dim().height as usize;
-        let stride = buffer.stride();
-
         let info_height = 20;
-        let colors = *HUD_COLORS.read().unwrap();
         let bg_color = colors.background;
         let panel_color = colors.panel;
         let text_color = colors.text;
         let sel_text_color = colors.selected_text;
         let accent_color = colors.accent;
 
-        self.subdiv_rects = vec![];
+        let mut layout = frame::HitLayout {
+            header: true,
+            ..Default::default()
+        };
 
         let icon_size = 40;
-        let action_material_slots =
-            crate::actions::named_geometry_hud_material_slots_for_selection(map)
-                .or_else(|| crate::actions::prefab_hud_material_slots_for_selected_instances(map))
-                .or_else(|| self.active_action_material_slots(map, ctx, server_ctx))
-                .or_else(|| self.active_palette_material_slots(map, ctx, server_ctx));
         let mut icons = 0;
 
         if server_ctx.get_map_context() == MapContext::Region {
@@ -488,27 +601,14 @@ impl Hud {
             icons = 0;
         }
 
-        ctx.draw.rect(
-            buffer.pixels_mut(),
-            &(0, 0, width, info_height),
-            stride,
-            &bg_color,
-        );
-        ctx.draw.rect(
-            buffer.pixels_mut(),
-            &(0, info_height - 1, width, 1),
-            stride,
-            &colors.border,
-        );
+        paint.rect(&(0, 0, width, info_height), &bg_color);
+        paint.rect(&(0, info_height - 1, width, 1), &colors.border);
 
         if server_ctx.editor_view_mode == EditorViewMode::D2 {
             if let Some(v) = server_ctx.hover_cursor {
-                ctx.draw
-                    .rect(buffer.pixels_mut(), &(8, 2, 150, 16), stride, &panel_color);
-                ctx.draw.text(
-                    buffer.pixels_mut(),
+                paint.rect(&(8, 2, 150, 16), &panel_color);
+                paint.text(
                     &(10, 2),
-                    stride,
                     &format!("{:.2}, {:.2}", v.x, v.y),
                     TheFontSettings {
                         size: 13.0,
@@ -537,16 +637,9 @@ impl Hud {
                 } else {
                     200
                 };
-                ctx.draw.rect(
-                    buffer.pixels_mut(),
-                    &(8, 2, panel_width, 16),
-                    stride,
-                    &panel_color,
-                );
-                ctx.draw.text(
-                    buffer.pixels_mut(),
+                paint.rect(&(8, 2, panel_width, 16), &panel_color);
+                paint.text(
                     &(10, 2),
-                    stride,
                     &format!(
                         "{}, {}, {}",
                         Self::format_coord(snapped.x, precision),
@@ -568,16 +661,9 @@ impl Hud {
                 let precision = Self::coord_precision(map.subdivisions);
                 let panel_width = if precision >= 5 { 120 } else { 100 };
                 let x = width.saturating_sub(panel_width + 8);
-                ctx.draw.rect(
-                    buffer.pixels_mut(),
-                    &(x, 2, panel_width, 16),
-                    stride,
-                    &panel_color,
-                );
-                ctx.draw.text(
-                    buffer.pixels_mut(),
+                paint.rect(&(x, 2, panel_width, 16), &panel_color);
+                paint.text(
                     &(x + 2, 2),
-                    stride,
                     &format!("Len {}", Self::format_coord(length, precision)),
                     TheFontSettings {
                         size: 13.0,
@@ -590,10 +676,8 @@ impl Hud {
         }
 
         if let Some(v) = &server_ctx.background_progress {
-            ctx.draw.text(
-                buffer.pixels_mut(),
+            paint.text(
                 &(550, 2),
-                stride,
                 v,
                 TheFontSettings {
                     size: 13.0,
@@ -606,30 +690,23 @@ impl Hud {
 
         // Icons
 
-        if icons > 0 {
-            server_ctx.selected_hud_icon_index =
-                server_ctx.selected_hud_icon_index.clamp(0, icons - 1);
-            self.selected_icon_index = server_ctx.selected_hud_icon_index;
+        let selected_icon_index = if icons > 0 {
+            server_ctx.selected_hud_icon_index.clamp(0, icons - 1)
         } else {
-            self.selected_icon_index = 0;
-        }
+            0
+        };
+        layout.selected = selected_icon_index;
+        layout.selected_server = (icons > 0).then_some(selected_icon_index);
 
-        self.icon_rects.clear();
+        layout.icons.clear();
         let x = width as i32 - (icon_size * icons) - 1;
         for i in 0..icons {
             let rect = TheDim::rect(x + (i * icon_size), 20, icon_size, icon_size);
-            ctx.draw.rect(
-                buffer.pixels_mut(),
-                &rect.to_buffer_utuple(),
-                stride,
-                &bg_color,
-            );
+            paint.rect(&rect.to_buffer_utuple(), &bg_color);
 
             let r = rect.to_buffer_utuple();
-            ctx.draw.text_rect(
-                buffer.pixels_mut(),
+            paint.text_rect(
                 &(r.0, 1, r.2, 19),
-                stride,
                 &self.get_icon_text(i, map, server_ctx, action_material_slots.as_deref()),
                 TheFontSettings {
                     size: 10.0,
@@ -642,12 +719,7 @@ impl Hud {
             );
 
             let r = &rect.to_buffer_utuple();
-            ctx.draw.rect(
-                buffer.pixels_mut(),
-                &(r.0 + 1, r.1 + 1, r.2 - 2, r.3 - 2),
-                stride,
-                &panel_color,
-            );
+            paint.rect(&(r.0 + 1, r.1 + 1, r.2 - 2, r.3 - 2), &panel_color);
 
             let (tile, has_light) = self.get_icon(
                 i,
@@ -657,41 +729,39 @@ impl Hud {
                 action_material_slots.as_deref(),
                 assets,
             );
-            if let Some(tile) = tile {
-                let texture = tile.textures[0].resized(icon_size as usize, icon_size as usize);
-                ctx.draw.blend_slice(
-                    buffer.pixels_mut(),
+            if let Some(texture) = tile.as_ref().and_then(|tile| tile.textures.first())
+                && let Some(image) = self.sources.image(
+                    &format!("icon:{i}"),
+                    texture.width,
+                    texture.height,
                     &texture.data,
-                    &rect.to_buffer_utuple(),
-                    stride,
-                );
+                )
+            {
+                paint.image(image, rect.to_buffer_utuple());
             }
-            if has_light {
-                if let Some(light_icon) = &self.light_icon {
-                    ctx.draw.blend_slice(
-                        buffer.pixels_mut(),
-                        light_icon.pixels(),
-                        &(
-                            rect.x as usize + 1,
-                            rect.y as usize + 1,
-                            light_icon.dim().width as usize,
-                            light_icon.dim().height as usize,
-                        ),
-                        stride,
-                    );
-                }
-            }
-
-            if i == server_ctx.selected_hud_icon_index {
-                ctx.draw.rect_outline(
-                    buffer.pixels_mut(),
-                    &rect.to_buffer_utuple(),
-                    stride,
-                    &sel_text_color,
+            if has_light
+                && let Some(light) = &light
+                && let Some(image) =
+                    self.sources
+                        .image("light", light.width, light.height, light.pixels)
+            {
+                paint.image(
+                    image,
+                    (
+                        rect.x as usize + 1,
+                        rect.y as usize + 1,
+                        light.width,
+                        light.height,
+                    ),
                 );
             }
 
-            self.icon_rects
+            if i == selected_icon_index {
+                paint.rect_outline(&rect.to_buffer_utuple(), &sel_text_color);
+            }
+
+            layout
+                .icons
                 .push(TheDim::rect(rect.x, 0, rect.width, rect.y + rect.height));
         }
 
@@ -722,43 +792,32 @@ impl Hud {
                     panel_color
                 };
 
-                ctx.draw.rect(
-                    buffer.pixels_mut(),
-                    &rect.to_buffer_utuple(),
-                    stride,
-                    &bg_color,
-                );
-                ctx.draw.rect(
-                    buffer.pixels_mut(),
+                paint.rect(&rect.to_buffer_utuple(), &bg_color);
+                paint.rect(
                     &(
                         rect.x as usize + 1,
                         rect.y as usize + 2,
                         rect.width as usize - 2,
                         rect.height as usize - 3,
                     ),
-                    stride,
                     &inner,
                 );
                 if active {
-                    ctx.draw.rect(
-                        buffer.pixels_mut(),
+                    paint.rect(
                         &(
                             rect.x as usize + 3,
                             rect.y as usize + rect.height as usize - 4,
                             rect.width as usize - 6,
                             2,
                         ),
-                        stride,
                         &accent_color,
                     );
                 }
 
                 let r = rect.to_buffer_utuple();
                 let label = Self::grid_key_label(i);
-                ctx.draw.text_rect(
-                    buffer.pixels_mut(),
+                paint.text_rect(
                     &(r.0, 1, r.2, rect.height as usize - 1),
-                    stride,
                     &label,
                     TheFontSettings {
                         size: 12.5,
@@ -773,7 +832,7 @@ impl Hud {
                     TheHorizontalAlign::Center,
                     TheVerticalAlign::Center,
                 );
-                self.subdiv_rects.push(rect);
+                layout.subdivisions.push(rect);
             }
 
             if server_ctx.editor_view_mode != EditorViewMode::D2
@@ -785,16 +844,9 @@ impl Hud {
                     52,
                     16,
                 );
-                ctx.draw.rect(
-                    buffer.pixels_mut(),
+                paint.rect(&rect.to_buffer_utuple(), &panel_color);
+                paint.text_rect(
                     &rect.to_buffer_utuple(),
-                    stride,
-                    &panel_color,
-                );
-                ctx.draw.text_rect(
-                    buffer.pixels_mut(),
-                    &rect.to_buffer_utuple(),
-                    stride,
                     &Self::grid_step_label(active_subdivision),
                     TheFontSettings {
                         size: 11.0,
@@ -808,12 +860,12 @@ impl Hud {
             }
         }
 
-        self.edit_mode_rects.clear();
+        layout.edit_modes.clear();
         if self.mode == HudMode::Selection
             && server_ctx.editor_view_mode != EditorViewMode::D2
             && server_ctx.get_map_context() == MapContext::Region
         {
-            let labels = [fl!("hud_geometry_op_move"), fl!("hud_geometry_op_size")];
+            let labels = &style.geometry_labels;
             let modes = [GeometryGizmoOp::Move, GeometryGizmoOp::Resize];
             let start_x = 432;
             let button_w = 52;
@@ -824,27 +876,18 @@ impl Hud {
                 let fg = if active { sel_text_color } else { text_color };
                 let inner = if active { colors.selected } else { panel_color };
 
-                ctx.draw.rect(
-                    buffer.pixels_mut(),
-                    &rect.to_buffer_utuple(),
-                    stride,
-                    &bg_color,
-                );
-                ctx.draw.rect(
-                    buffer.pixels_mut(),
+                paint.rect(&rect.to_buffer_utuple(), &bg_color);
+                paint.rect(
                     &(
                         rect.x as usize + 1,
                         rect.y as usize + 2,
                         rect.width as usize - 2,
                         rect.height as usize - 4,
                     ),
-                    stride,
                     &inner,
                 );
-                ctx.draw.text_rect(
-                    buffer.pixels_mut(),
+                paint.text_rect(
                     &rect.to_buffer_utuple(),
-                    stride,
                     &labels[i],
                     TheFontSettings {
                         size: 11.0,
@@ -856,35 +899,26 @@ impl Hud {
                     TheVerticalAlign::Center,
                 );
                 if active {
-                    ctx.draw.rect_outline(
-                        buffer.pixels_mut(),
-                        &rect.to_buffer_utuple(),
-                        stride,
-                        &sel_text_color,
-                    );
-                    ctx.draw.rect(
-                        buffer.pixels_mut(),
+                    paint.rect_outline(&rect.to_buffer_utuple(), &sel_text_color);
+                    paint.rect(
                         &(
                             rect.x as usize + 4,
                             rect.y as usize + 16,
                             rect.width as usize - 8,
                             2,
                         ),
-                        stride,
                         &accent_color,
                     );
                 }
-                self.edit_mode_rects.push(rect);
+                layout.edit_modes.push(rect);
             }
         }
 
         // Terrain: Height
         if self.mode == HudMode::Terrain {
             if let Some(v) = server_ctx.hover_height {
-                ctx.draw.text(
-                    buffer.pixels_mut(),
+                paint.text(
                     &(150, 2),
-                    stride,
                     &format!("Elevation {v:.2}"),
                     TheFontSettings {
                         size: 13.0,
@@ -905,32 +939,20 @@ impl Hud {
                 let w = texture.width as i32;
                 let h = texture.height as i32;
                 let preview_rect = TheDim::rect(width as i32 - w - 1, height as i32 - h - 1, w, h);
-                ctx.draw.blend_slice(
-                    buffer.pixels_mut(),
-                    &texture.data,
-                    &preview_rect.to_buffer_utuple(),
-                    stride,
-                );
+                if let Some(image) =
+                    self.sources
+                        .image("shape", texture.width, texture.height, &texture.data)
+                {
+                    paint.image(image, preview_rect.to_buffer_utuple());
+                }
             }
-        } else if server_ctx.get_map_context() == MapContext::Screen {
-            //let mut stack = ShapeStack::new(Vec2::new(-5.0, -5.0), Vec2::new(5.0, 5.0));
-            //stack.render_geometry(&mut texture, map, assets, false, &FxHashMap::default());
-
-            /*
-            if let Some(Value::Texture(texture)) = map.properties.get("shape") {
-                let w = texture.width as i32;
-                let h = texture.height as i32;
-                let preview_rect = TheDim::rect(width as i32 - w - 1, height as i32 - h - 1, w, h);
-                ctx.draw.copy_slice(
-                    buffer.pixels_mut(),
-                    &texture.data,
-                    &preview_rect.to_buffer_utuple(),
-                    stride,
-                );
-            }*/
         }
 
-        let _ = (width, height, stride);
+        self.sources.finish();
+        self.stage(
+            paint,
+            frame::Source::new(scope, size, map, server_ctx, layout),
+        )
     }
 
     pub fn clicked(
@@ -942,6 +964,15 @@ impl Hud {
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) -> bool {
+        if !self.source_input_current(map, server_ctx) {
+            // Compatibility input consumes stale painted controls without
+            // applying them to a new selection/document or leaking the click
+            // into world authoring. Native owners use explicit HudHit states.
+            let consumed = self.source_pointer_action(Vec2::new(x, y), map).is_some()
+                || (map.camera == MapCamera::TwoD && y >= 0 && y < 20);
+            self.invalidate_frame();
+            return consumed;
+        }
         if server_ctx.get_map_context() != MapContext::Region
             && server_ctx.get_map_context() != MapContext::Screen
             && server_ctx.get_map_context() != MapContext::Character
@@ -950,63 +981,12 @@ impl Hud {
             return false;
         }
 
-        for (i, rect) in self.edit_mode_rects.iter().enumerate() {
-            if rect.contains(Vec2::new(x, y)) {
-                server_ctx.geometry_gizmo_op = if i == 1 {
-                    GeometryGizmoOp::Resize
-                } else {
-                    GeometryGizmoOp::Move
-                };
-                RUSTERIX.write().unwrap().set_overlay_dirty();
-                return true;
-            }
-        }
-
-        for (i, rect) in self.icon_rects.iter().enumerate() {
-            if rect.contains(Vec2::new(x, y)) {
-                self.selected_icon_index = i as i32;
-                server_ctx.selected_hud_icon_index = i as i32;
-                ctx.ui.send(TheEvent::Custom(
-                    TheId::named("Update Minimap"),
-                    TheValue::Empty,
-                ));
-                ctx.ui.redraw_all = true;
-                if self.mode == HudMode::Linedef {
-                    server_ctx.selected_wall_row = Some(i as i32);
-                    ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Map Selection Changed"),
-                        TheValue::Empty,
-                    ));
-                }
-                return true;
-            }
-        }
-        if self.mode != HudMode::Rect {
-            for (i, rect) in self.subdiv_rects.iter().enumerate() {
-                if rect.contains(Vec2::new(x, y)) {
-                    if let Some(subdivision) = Self::GRID_SUBDIVISIONS.get(i) {
-                        map.subdivisions = *subdivision as f32;
-                    }
-                    {
-                        let mut rusterix = RUSTERIX.write().unwrap();
-                        rusterix.set_dirty();
-                        rusterix.set_overlay_dirty();
-                    }
-                    ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Tool Changed"),
-                        TheValue::Empty,
-                    ));
-                    ctx.ui.redraw_all = true;
-                    return true;
-                }
-            }
-        }
-
-        if map.camera == MapCamera::TwoD && y < 20 {
-            return true;
-        }
-
-        false
+        let Some(action) = self.source_pointer_action(Vec2::new(x, y), map) else {
+            return false;
+        };
+        self.apply_action(action, map, server_ctx)
+            .apply_reference(ctx);
+        true
     }
 
     pub fn dragged(
@@ -1072,25 +1052,9 @@ impl Hud {
                 false
             }
             MapEvent::MapKey(key) if matches!(key, '1'..='6') => {
-                map.subdivisions = match key {
-                    '1' => 1.0,
-                    '2' => 2.0,
-                    '3' => 4.0,
-                    '4' => 8.0,
-                    '5' => 16.0,
-                    '6' => 32.0,
-                    _ => map.subdivisions,
-                };
-                {
-                    let mut rusterix = RUSTERIX.write().unwrap();
-                    rusterix.set_dirty();
-                    rusterix.set_overlay_dirty();
-                }
-                ctx.ui.send(TheEvent::Custom(
-                    TheId::named("Tool Changed"),
-                    TheValue::Empty,
-                ));
-                ctx.ui.redraw_all = true;
+                let subdivision = Self::GRID_SUBDIVISIONS[(key as u8 - b'1') as usize];
+                self.apply_action(HudAction::Subdivision(subdivision), map, server_ctx)
+                    .apply_reference(ctx);
                 true
             }
             _ => false,
@@ -1102,7 +1066,7 @@ impl Hud {
         &self,
         index: i32,
         map: &Map,
-        server_ctx: &mut ServerContext,
+        server_ctx: &ServerContext,
         action_material_slots: Option<&[ActionMaterialSlot]>,
     ) -> String {
         let mut text: String = "".into();
@@ -1373,3 +1337,7 @@ mod tests {
         assert_eq!(Hud::geometry_length_readout(&map, &server_ctx), None);
     }
 }
+
+#[cfg(test)]
+#[path = "hud/frame_tests.rs"]
+mod frame_tests;

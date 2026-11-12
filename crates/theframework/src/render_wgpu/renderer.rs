@@ -29,6 +29,8 @@ struct Geometry {
 }
 #[derive(Clone, Copy)]
 enum ImageEffect {
+    GlyphBackdrop(Color),
+    PixelNearest(Point),
     Group,
     Present(bool),
     Filter(ImageColorFilter),
@@ -78,6 +80,7 @@ struct GlyphBatch {
     indices: Vec<u32>,
     image: Arc<GpuImage>,
     color: Color,
+    background: Option<Color>,
 }
 
 pub struct PaintRenderer {
@@ -235,13 +238,15 @@ impl PaintRenderer {
     }
 
     fn glyph_draw(&self, batch: GlyphBatch, size: (u32, u32), level: u32) -> Draw {
-        self.draw(
+        self.draw_with_effects(
             self.geometry(&batch.vertices, &batch.indices),
             &Brush::Solid(batch.color),
             Some((&batch.image, Sampling::Linear)),
             size,
             level,
             0,
+            None,
+            batch.background.map(ImageEffect::GlyphBackdrop),
         )
     }
 
@@ -399,11 +404,23 @@ impl PaintRenderer {
             }) => Some((self.color(dark), self.color(light), threshold)),
             _ => None,
         };
+        let pixel_size = match effect {
+            Some(ImageEffect::PixelNearest(size)) => Some(size),
+            _ => None,
+        };
+        let glyph_background = match effect {
+            Some(ImageEffect::GlyphBackdrop(color)) => Some(color),
+            _ => None,
+        };
         let internal_image = matches!(effect, Some(ImageEffect::Group | ImageEffect::Present(_)));
         let params = Params {
             viewport: [size.0 as f32, size.1 as f32],
             mode: (if let Some(ImageEffect::Present(srgb)) = effect {
                 if srgb { 8 } else { 9 }
+            } else if pixel_size.is_some() {
+                11
+            } else if glyph_background.is_some() {
+                10
             } else if outline.is_some() {
                 6
             } else if threshold.is_some() {
@@ -430,32 +447,42 @@ impl PaintRenderer {
                 },
                 |(dark, _, _)| dark,
             ),
-            color1: threshold.map_or_else(
+            color1: glyph_background.map_or_else(
                 || {
-                    outline.map_or_else(
+                    threshold.map_or_else(
                         || {
-                            filter.map_or(color1, |f| {
-                                [f.scale[0], f.scale[1], f.scale[2], f.saturation]
-                            })
-                        },
-                        |(uv, _, _)| [uv.x, uv.y, uv.x + uv.width, uv.y + uv.height],
-                    )
-                },
-                |(_, light, _)| light,
-            ),
-            gradient: threshold.map_or_else(
-                || {
-                    outline.map_or_else(
-                        || {
-                            filter.map_or_else(
-                                || field.map_or(gradient, |(_, p)| [p[0], p[1], 0., 0.]),
-                                |f| [f.bias[0], f.bias[1], f.bias[2], f.minimum],
+                            outline.map_or_else(
+                                || {
+                                    filter.map_or(color1, |f| {
+                                        [f.scale[0], f.scale[1], f.scale[2], f.saturation]
+                                    })
+                                },
+                                |(uv, _, _)| [uv.x, uv.y, uv.x + uv.width, uv.y + uv.height],
                             )
                         },
-                        |(_, step, width)| [step[0], step[1], width, 0.],
+                        |(_, light, _)| light,
                     )
                 },
-                |(_, _, threshold)| [54. / 256., 183. / 256., 19. / 256., threshold as f32],
+                |color| self.color(color),
+            ),
+            gradient: pixel_size.map_or_else(
+                || {
+                    threshold.map_or_else(
+                        || {
+                            outline.map_or_else(
+                                || {
+                                    filter.map_or_else(
+                                        || field.map_or(gradient, |(_, p)| [p[0], p[1], 0., 0.]),
+                                        |f| [f.bias[0], f.bias[1], f.bias[2], f.minimum],
+                                    )
+                                },
+                                |(_, step, width)| [step[0], step[1], width, 0.],
+                            )
+                        },
+                        |(_, _, threshold)| [54. / 256., 183. / 256., 19. / 256., threshold as f32],
+                    )
+                },
+                |size| [size[0], size[1], 0., 0.],
             ),
         };
         let uniform = self
@@ -908,7 +935,37 @@ impl PaintRenderer {
                         0,
                     ));
                 }
-                PaintOp::GlyphRun { run, origin, color } => {
+                PaintOp::PixelImage { image, rect, tint } => {
+                    let image = images.get(*image).ok_or_else(|| {
+                        RenderError("paint references a stale image handle".into())
+                    })?;
+                    if rect.width > 0. && rect.height > 0. {
+                        let size_physical = [
+                            rect.width * transform.0[0].hypot(transform.0[1]) * density,
+                            rect.height * transform.0[2].hypot(transform.0[3]) * density,
+                        ];
+                        let (vertices, indices) =
+                            mesh::quad(*rect, Rect::new(0., 0., 1., 1.), transform, density);
+                        draws.push(self.draw_with_effects(
+                            self.geometry(&vertices, &indices),
+                            &Brush::Solid(*tint),
+                            Some((&image, Sampling::Nearest)),
+                            size,
+                            level,
+                            0,
+                            None,
+                            Some(ImageEffect::PixelNearest(size_physical)),
+                        ));
+                    }
+                }
+                PaintOp::GlyphRun { run, origin, color }
+                | PaintOp::OpaqueGlyphRun {
+                    run, origin, color, ..
+                } => {
+                    let background = match &ops[i] {
+                        PaintOp::OpaqueGlyphRun { background, .. } => Some(*background),
+                        _ => None,
+                    };
                     let scale = density
                         * transform.0[0]
                             .hypot(transform.0[1])
@@ -959,6 +1016,7 @@ impl PaintRenderer {
                                     indices: Vec::new(),
                                     image: entry.image.clone(),
                                     color: tint,
+                                    background,
                                 });
                                 mesh::append_quad(
                                     &mut batch.vertices,

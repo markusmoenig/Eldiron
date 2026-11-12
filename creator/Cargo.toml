@@ -26,6 +26,7 @@ path = "examples/reference_ui_capture.rs"
 required-features = ["desktop"]
 
 [dependencies]
+theframework-core = { path = "../crates/theframework-core" }
 renderkit = { path = "../crates/renderkit", optional = true }
 denrim-materials.workspace = true
 wgpu = "29.0.3"

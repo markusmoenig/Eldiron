@@ -2915,3 +2915,161 @@ method, not replaced by another owner through low-level VM access. Preserve
 source/presented revisions and hidden/resized document guards during integration.
 The full M0–M9 Goal is active and incomplete; all physical/browser/runtime/
 release, text/visual, ownership and adapter-retirement gates remain required.
+
+## Retained common HUD commands and acknowledged input (after c2e0bb8d, in progress)
+
+Captured the original common HUD before extraction: nine HudModes in both 2D
+and orbit, **18 independent 900x160 RGBA fixtures** under
+`creator/src/hud/fixtures/`. The original capture passes, 2.64 s:
+`/private/tmp/eldiron-hud-reference-baseline.log`. After extracting command
+preparation and the explicit reference adapter, every original RGBA byte still
+matches in all eighteen cases:
+`/private/tmp/eldiron-hud-command-reference-first.log` and the subsequent decoded
+pixel comparison. Immutable regression assertions now decode these fixtures and compare every
+reference RGBA byte; do not regenerate expected images from new code.
+
+`editor_overlay` records rect/outline, point/rectangle text and typed CPU source
+image commands. The native adapter emits ordered common paint; it never creates
+an output bitmap. The explicit reference adapter retains the old CPU operations.
+Authored tile/material HUD icons retain raw immutable ImageAssets and are scaled
+by the GPU; those routes prepare no resized 40px display image. Procedural
+Color/Noise source generation still uses the explicit remaining to_tile adapter
+described below; it is not accepted as GPU-native production. Common UiImageResources now accepts
+core ImageAssets directly through its existing bounded cache. Cache identity
+includes alpha **and color** interpretation. Native sinks borrow typed sources
+without a temporary legacy buffer; compatible custom sinks have a default for
+straight/opaque SRGB and explicitly reject unsupported typed metadata.
+
+Two explicit GPU paint primitives preserve reference semantics: `OpaqueGlyphRun`
+blits Swash atlas coverage against its supplied glyph-box background (including
+overlap order), and `PixelImage` reproduces left-edge nearest source resizing in
+destination physical pixels. Normal GPU nearest samples pixel centers, so a
+half-texel UV adjustment was replaced by an explicit texel-load kernel rather
+than accepting sampling differences. CPU asset data remains unchanged.
+
+All **12 paint GPU and 17 UI GPU tests pass**, 1.41/2.54 s:
+`/private/tmp/eldiron-hud-paint-primitives-and-assets.log`. New coverage includes
+64/63/7/1px source resizing at 100/125/150/200% densities, translucent/zero-alpha
+sources, opaque glyph boxes with overlapping background replacement, one atlas
+batch, warm glyph reuse, typed color/alpha identity, warm asset reuse and registry
+replacement. This does not close remaining Fontdue-vs-Parley/Swash metrics/AA.
+
+HudFrame preparation stages hit rectangles and selection clamping instead of
+publishing them. Native acknowledgements require the frame's receipt from the
+presented root; source guards include explicit document/tool/revision scope,
+viewport, map and selection, camera/grid/gizmo/action state and requested/clamped
+icon selection. Hide/resize/suspend/device changes revoke pending receipts.
+Typed HudActions/HudEffects separate source-guarded hit routing and local state
+changes from the temporary reference Rusterix invalidation adapter. Legacy draw
+now prepares commands, executes the explicit CPU adapter, then acknowledges its
+immediate reference result. Reference keyboard/pointer adapters retain their
+callbacks; native owners can consume typed effects on their own view/scene state.
+Style colors and localized geometry captions are now explicit preparation inputs.
+
+Current code remains uncommitted. Dedicated HUD frame/native composition/source
+reconstruction/input tests and full affected regressions are next. No native
+Creator main-world/HUD cutover is claimed: ten tool-specific HUD implementations,
+action/paint/props/collision/terrain/iso overlays, guidance/ViewCube, source/hit
+routing and application/document ownership still require integration. Common HUD
+painting/receipts are only one part of that dependency. Full M0–M9 stays active.
+
+### HUD frame and direct composition evidence
+
+All **17 HUD tests pass**, 5.86 s:
+`/private/tmp/eldiron-hud-final-controls.log`. This includes immutable reference
+assertions for all 18 pre-extraction images, staged hit/selection publication,
+root-receipt filtering, wrong document/tool/revision/viewport/selection rejection,
+out-of-order equivalent preparations, hidden/resized/replaced owners, raw source
+residency and actual replacement-device reconstruction. Renderer-independent
+HudActions/HudEffects cover grid, gizmo and material-icon state changes. Native
+hits explicitly distinguish Unavailable from Outside, so stale/unpainted input
+cannot accidentally fall through into world authoring. The temporary reference
+adapter consumes stale painted controls without applying them to a new source.
+
+The direct native fixture run covers all nine modes in 2D/orbit with no HUD
+output-pixel argument, and imports only raw source assets (63x29 icon plus 3x3
+light where used). Every non-text RGB pixel matches the original within one
+encoded unit. The exclusion is only the union of actual CPU/native glyph boxes
+plus one coverage pixel; **139,325–141,918 of 144,000 pixels per case remain
+strictly compared**. Full exact RGB matches are 140,806–142,632/144,000, which
+retains the known unresolved text spacing/AA differences rather than accepting
+them as full visual parity. Detailed per-case evidence:
+`/private/tmp/eldiron-hud-native-frame-tests-first.log`. Current native and
+original orbit Sector images were visually inspected:
+`/private/tmp/eldiron-hud-native-Sector-true.png` and
+`creator/src/hud/fixtures/Sector-true.png`.
+
+Warm frames preserve raw CPU asset Arc identity and cause no additional tracked
+source-image uploads, glyph rasterizations or implicit color captures. This
+does not count ordinary geometry/uniform submission as zero transfer. Fractional
+100/125/150/200% HUD output and actual device reconstruction pass; the separate
+common PixelImage math tests compare all source pixels at those densities.
+These remain component/lifecycle checks, not physical-window or full DPI/locale
+workflow acceptance.
+
+Shortcut guidance now records the same overlay commands and uses shared text
+painting; its explicit CPU adapter matches the independent original rect/text
+sequence exactly. The informational footer has no hit regions. Tool-specific
+paint/props/action/collision/iso/terrain overlays and orbit ViewCube still need
+conversion and composition. The main Creator still calls the temporary reference
+HUD adapter until the complete tool/world view owner is integrated; the new
+native HUD API is not yet the canonical Creator viewport.
+
+A 23-check affected matrix is running from
+`/private/tmp/verify-hud-commands.py`; results:
+`/private/tmp/eldiron-hud-commands-matrix-results.log`. It includes the full
+ordinary Creator suite and reference/native-ui HUD configurations in addition
+to the earlier application/presentation/GPU/platform/boundary matrix. Inspect
+all results and fix failures before checkpointing this slice. Full M0–M9 stays
+active and incomplete.
+
+### HUD pure input boundary and final checkpoint verification
+
+Native `Hud::prepare_frame` now receives immutable `HudInputs`: map, server
+selection/configuration, supplied Assets, resolved action material slots, selected
+geometry ID and borrowed light source pixels. It constructs neither a UI context
+nor action callbacks, fonts, window or renderer. The explicit reference wrapper
+resolves the old action/palette callbacks first; native application owners must
+resolve these inputs through their own CPU document/controller services. A new
+context-free test supplies two material slots under an unknown action UUID,
+verifies staged selection clamping, then changes the source revision and rejects
+the previously acknowledged input. Native acknowledgement also checks the
+receipt owner before considering the common root's receipts.
+
+All **23 affected matrix checks passed**:
+`/private/tmp/eldiron-hud-commands-matrix-results.log`. This includes the complete
+ordinary Creator suite (**579 passed, 99 explicitly ignored**, 253.10 s), all
+**189 presentation tests across 15 suites**, **170 framework unit cases** and
+the foreign-layer application case, **12 paint GPU / 17 UI GPU** cases, material
+36 controls/10 GPU, geometry 10 GPU, appearance outputs, isolated Creator root,
+linked native Creator, four applications, browser player compilation, iOS
+simulator player compilation, eleven architecture checks and diff whitespace.
+The full ordinary run preceded the final pure-input signature change; it is not
+being relabeled as a full run of the later code.
+
+After that final input split, all **18 HUD cases pass**, 5.93 s:
+`/private/tmp/eldiron-hud-final-pure-input-tests.log`, plus native-host library
+compilation (19.38 s): `/private/tmp/eldiron-hud-pure-input-check.log`. The latest
+GPU reconstruction assertion compares **every native RGBA byte**, including
+text, between the retained 100% output and a newly constructed device/registry;
+it passes. This proves deterministic reconstruction of this component, not
+reference text equivalence. The 18 independent legacy images still match every
+reference RGBA byte. Reference-only final HUD verification also passes all **16 cases**, 1.14 s:
+`/private/tmp/eldiron-hud-final-reference-input-tests.log`.
+
+Remaining producer adapter identified explicitly: `Hud::get_icon` invokes
+`PixelSource::to_tile`. TileId/MaterialId and already baked palette routes are
+source assets, but Color (noise_intensity/noise_target/pixelization) and Noise
+can still CPU-generate procedural display textures. This is **unfinished M5
+production**, even though native overlay composition consumes only source
+handles and generates no destination pixels. Replace that route with resolved
+CPU procedural descriptors and an injected retained GPU producer; keep to_tile
+only for explicit reference/export consumers. Do not move CPU generation behind
+a new helper and call the producer converted. Existing native fixture coverage
+uses raw authored tile/light assets, not every procedural variant.
+
+Main world/tool/document/Play integration, ten tool HUD implementations,
+paint/props/action/collision/terrain/iso overlays and ViewCube, text spacing/AA,
+physical input/window and all platform/release/retirement acceptance remain.
+Original tracked sources remain unchanged at f8d8801103; unrelated networking
+concept stays untracked and excluded. The complete M0–M9 Goal remains active.
