@@ -362,7 +362,7 @@ pub(super) fn collect<'a>(
                 0.
             };
             upright.push(Sprite {
-                owner: Some(SpriteOwner::TerrainStamp(stamp.order)),
+                owner: Some(SpriteOwner::TerrainStamp(stamp.id)),
                 tile: None,
                 avatar: None,
                 stamp: Some(stamp),

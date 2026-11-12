@@ -1,4 +1,8 @@
 //! Actual GPU source blits compared byte-for-byte with the retained iso adapter.
+use eldiron_presentation::{
+    isometric::{IsometricSourceVersion, IsometricSources},
+    screen::ContentRevision,
+};
 use renderkit::{GpuContext, ReadbackTicket, wgpu};
 use rusterix::{
     Assets, Item, Map, PixelSource, RenderSettings, Texture, Tile, Value,
@@ -6,9 +10,7 @@ use rusterix::{
         self, Projection, SceneCache, SpriteLayout, lighting::Lighting, surface::SurfaceFrame,
     },
 };
-use scenevm::isometric::{
-    GpuSpriteSource, IsometricBlitter, IsometricCanvas, IsometricRenderer, SpriteBlit,
-};
+use scenevm::isometric::{IsometricBlitter, IsometricCanvas, IsometricRenderer, SpriteBlit};
 use std::{collections::HashMap, sync::Arc};
 use theframework::prelude::{TheDim, TheRGBABuffer, Vec2, Vec3};
 fn capture(context: &GpuContext, image: Arc<renderkit::GpuImage>) -> Vec<u8> {
@@ -95,7 +97,12 @@ fn gpu_sprite_sources_match_reference_alpha_placement_scaling_and_live_geometry(
     let lighting = Lighting::new(&settings, std::iter::once(&light), 0);
     let avatars = HashMap::new();
     let mut cache = SceneCache::default();
-    let mut sources = HashMap::new();
+    let mut sources = IsometricSources::new(gpu.clone(), 32 * 1024 * 1024, 512);
+    let version = IsometricSourceVersion {
+        namespace: theframework::prelude::Uuid::new_v4(),
+        content: ContentRevision(1),
+        tiles: assets.tiles_revision,
+    };
     let mut blitter = IsometricBlitter::new(gpu.clone()).unwrap();
     let mut renderer = IsometricRenderer::new(gpu.clone()).unwrap();
     let mut expected_uploads = None;
@@ -113,30 +120,31 @@ fn gpu_sprite_sources_match_reference_alpha_placement_scaling_and_live_geometry(
         };
         let plan = cache.prepare(&map, &assets, 0., &avatars);
         assert!(plan.ground.is_empty() && plan.floors.is_empty() && plan.terrain.is_none());
-        for sprite in &plan.upright {
-            let image = sprite.image().unwrap();
-            let id = sprite.tile.unwrap().id;
-            sources.entry(id).or_insert_with(|| {
-                GpuSpriteSource::new(
-                    &gpu,
-                    image.width as u32,
-                    image.height as u32,
-                    image.data,
-                    image.surface.map(|s| s.data.as_slice()),
-                )
-                .unwrap()
-            });
-        }
-        let source_bytes = sources.values().map(|s| s.resident_bytes()).sum::<u64>();
+        let before_sources = gpu.transfers().uploaded_bytes;
+        let leases = plan
+            .upright
+            .iter()
+            .map(|sprite| sources.prepare(sprite, version).unwrap().unwrap())
+            .collect::<Vec<_>>();
+        let source_bytes = sources.resident_bytes();
         assert_eq!(*expected_uploads.get_or_insert(source_bytes), source_bytes);
+        assert_eq!(sources.builds(), 4);
+        if pass > 0 {
+            assert_eq!(
+                gpu.transfers().uploaded_bytes,
+                before_sources,
+                "camera changes retain every GPU source"
+            );
+        }
         let sprites = plan
             .upright
             .iter()
-            .map(|s| {
+            .zip(&leases)
+            .map(|(s, source)| {
                 let image = s.image().unwrap();
                 let (at, scale) = s.image_placement(&image, projection);
                 SpriteBlit {
-                    source: &sources[&s.tile.unwrap().id],
+                    source,
                     origin: at.into_array(),
                     pixel_scale: scale,
                     base_height: s.height,

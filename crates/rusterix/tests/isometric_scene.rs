@@ -222,3 +222,45 @@ fn terrain_ownership_is_camera_independent_and_invalidated_by_source_revision() 
         "old plans retain their geometry lease"
     );
 }
+
+#[test]
+fn stamp_presentation_identity_is_independent_of_its_painter_order() {
+    use rusterix::isometric::paint::{StampSprite, TerrainPaint, TerrainStamp};
+    let mut map = Map::default();
+    sector(&mut map, Uuid::new_v4());
+    let sprite = Arc::new(StampSprite {
+        texture: Texture::new([80, 120, 40, 255].repeat(4), 2, 2),
+        surface: None,
+        anchor: [1., 2.],
+    });
+    let stamps: [TerrainStamp; 2] = std::array::from_fn(|_| TerrainStamp {
+        id: Uuid::new_v4(),
+        order: 7,
+        position: [0.5, 0.5],
+        raster_key: 1,
+        sprite: sprite.clone(),
+    });
+    let ids = stamps.each_ref().map(|s| s.id);
+    let mut assets = Assets::default();
+    assets.terrain_paint.insert(
+        map.id,
+        Arc::new(TerrainPaint {
+            stamps: stamps.into(),
+            ..Default::default()
+        }),
+    );
+    let mut cache = SceneCache::default();
+    let avatars = HashMap::new();
+    let plan = cache.prepare(&map, &assets, 0., &avatars);
+    assert_eq!(plan.upright.len(), 2);
+    assert_eq!(plan.upright[0].tie, plan.upright[1].tie);
+    assert_eq!(
+        plan.upright[0].owner,
+        Some(SpriteOwner::TerrainStamp(ids[0]))
+    );
+    assert_eq!(
+        plan.upright[1].owner,
+        Some(SpriteOwner::TerrainStamp(ids[1]))
+    );
+    assert_ne!(plan.upright[0].owner, plan.upright[1].owner);
+}

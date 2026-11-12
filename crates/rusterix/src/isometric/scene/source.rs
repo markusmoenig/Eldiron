@@ -19,7 +19,7 @@ pub enum SpriteOwner {
         id: u32,
         creator_id: Uuid,
     },
-    TerrainStamp(u64),
+    TerrainStamp(Uuid),
 }
 
 /// A borrowed sprite instance, including reference support/occlusion policy.
