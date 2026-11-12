@@ -216,7 +216,7 @@ fn rebuild_procedural_region(ctx: &mut RegionCtx, seed_arg: i64) -> bool {
         if !ctx.assets.entities.contains_key(&spawn.name) {
             continue;
         }
-        let id = crate::server::region::get_global_id();
+        let id = ctx.world.next_id();
         let mut entity = Entity {
             id,
             position: spawn.position,
@@ -630,7 +630,7 @@ impl<'a> RegionHost<'a> {
     fn get_context_value(&self, path: &str) -> Option<Value> {
         let (root, key) = Self::split_context_path(path)?;
         match root {
-            "world" => RegionCtx::get_world_value(key),
+            "world" => self.ctx.get_world_value(key),
             "region" => self
                 .ctx
                 .get_region_value(key)
@@ -645,7 +645,7 @@ impl<'a> RegionHost<'a> {
         };
 
         match root {
-            "world" => RegionCtx::set_world_value(key, value.clone()),
+            "world" => self.ctx.set_world_value(key, value.clone()),
             "region" => {
                 self.ctx.set_region_value(key, value.clone());
             }

@@ -12,6 +12,7 @@ pub mod py_fn;
 pub mod region;
 pub mod region_host;
 pub mod regionctx;
+pub mod world;
 
 use crossbeam_channel::{Receiver, Sender};
 use instant::Instant;
@@ -22,50 +23,12 @@ use crate::Command;
 use crate::EntityAction;
 use crate::prelude::*;
 use crate::server::message::{AudioCommand, PaletteRemap2DState, RuntimeRenderState};
-use std::sync::{Arc, LazyLock, Mutex, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 use theframework::prelude::*;
 
-// Pipes to the regions
+// Routing and registration belong to one Server, including Creator Play.
 type RegionRegistry = Arc<RwLock<FxHashMap<u32, Sender<RegionMessage>>>>;
-static REGIONPIPE: LazyLock<RegionRegistry> =
-    LazyLock::new(|| Arc::new(RwLock::new(FxHashMap::default())));
-
-/// Queue graph edits through the normal region channels; no editor/runtime locks
-/// are nested and all execution changes happen at a region update boundary.
-pub fn publish_node_graph(owner: String, graph: serde_json::Value) {
-    if let Ok(pipes) = REGIONPIPE.read() {
-        for sender in pipes.values() {
-            let _ = sender.send(RegionMessage::UpdateNodeGraph(owner.clone(), graph.clone()));
-        }
-    }
-}
-
-/// Deliver a rules edit to every active region without restarting gameplay.
-pub fn publish_rules(rules: Table) {
-    if let Ok(pipes) = REGIONPIPE.read() {
-        for sender in pipes.values() {
-            let _ = sender.send(RegionMessage::UpdateRules(rules.clone()));
-        }
-    }
-}
-
-// List of currently active local players
 type Player = Arc<RwLock<Vec<(u32, u32)>>>;
-static LOCAL_PLAYERS: LazyLock<Player> = LazyLock::new(|| Arc::new(RwLock::new(Vec::new())));
-
-/// Whether a change in `region`, or to `entity`, should move the client's view
-/// there: only when it concerns a local player. NPCs teleport and change
-/// regions too, and following them would make the view jump between maps.
-/// Without a local player the view follows every change, as before.
-fn follows_local_player(region: Option<u32>, entity: Option<u32>) -> bool {
-    let Ok(players) = LOCAL_PLAYERS.read() else {
-        return true;
-    };
-    players.is_empty()
-        || players
-            .iter()
-            .any(|(r, e)| region == Some(*r) || entity == Some(*e))
-}
 
 // SenderEntityId, SenderItemId, ReceiverId, Message
 pub type Message = (Option<u32>, Option<u32>, u32, String, String);
@@ -82,6 +45,9 @@ pub enum ServerState {
 }
 
 pub struct Server {
+    region_pipes: RegionRegistry,
+    local_players: Player,
+    world: Arc<world::SimulationWorld>,
     pub node_highlights: Vec<nodes::Highlights>,
     pub node_traces: std::collections::VecDeque<nodes::Trace>,
     pub id_gen: u32,
@@ -134,6 +100,9 @@ impl Default for Server {
 impl Server {
     pub fn new() -> Self {
         Self {
+            region_pipes: Default::default(),
+            local_players: Default::default(),
+            world: Default::default(),
             node_traces: Default::default(),
             node_highlights: Default::default(),
             // 0 is reserved as NO_ID / None sentinel.
@@ -172,6 +141,31 @@ impl Server {
             instances: vec![],
             last_visual_update_at: Instant::now(),
         }
+    }
+
+    /// Queue edits at this world's normal region update boundaries.
+    pub fn publish_node_graph(&self, owner: String, graph: serde_json::Value) {
+        if let Ok(pipes) = self.region_pipes.read() {
+            for sender in pipes.values() {
+                let _ = sender.send(RegionMessage::UpdateNodeGraph(owner.clone(), graph.clone()));
+            }
+        }
+    }
+    pub fn publish_rules(&self, rules: Table) {
+        if let Ok(pipes) = self.region_pipes.read() {
+            for sender in pipes.values() {
+                let _ = sender.send(RegionMessage::UpdateRules(rules.clone()));
+            }
+        }
+    }
+    fn follows_local_player(&self, region: Option<u32>, entity: Option<u32>) -> bool {
+        let Ok(players) = self.local_players.read() else {
+            return true;
+        };
+        players.is_empty()
+            || players
+                .iter()
+                .any(|(r, e)| region == Some(*r) || entity == Some(*e))
     }
 
     /// Clear the log
@@ -213,14 +207,15 @@ impl Server {
         assets: &assets::RegionAssets,
         config_toml: String,
     ) {
-        let mut region_instance = RegionInstance::new(self.instances.len() as u32);
+        let mut region_instance =
+            RegionInstance::in_world(self.instances.len() as u32, self.world.clone());
         // region_instance.id = self.get_next_id();
 
         self.region_id_map.insert(map.id, region_instance.id);
         self.region_name_id_map
             .insert(name.clone(), region_instance.id);
 
-        if let Ok(mut pipes) = REGIONPIPE.write() {
+        if let Ok(mut pipes) = self.region_pipes.write() {
             pipes.insert(region_instance.id, region_instance.to_sender.clone());
         }
 
@@ -250,7 +245,7 @@ impl Server {
             match cmd {
                 Command::CreateEntity(id, entity) => {
                     if let Some(region_id) = self.region_id_map.get(&id) {
-                        if let Ok(pipe) = REGIONPIPE.read() {
+                        if let Ok(pipe) = self.region_pipes.read() {
                             if let Some(sender) = pipe.get(region_id) {
                                 match sender.send(RegionMessage::CreateEntity(*region_id, entity)) {
                                     Ok(_) => {}
@@ -321,8 +316,14 @@ impl Server {
     }
 
     /// Drain private world text for a region; the client checks the recipient.
-    pub fn get_world_texts(&mut self, region_id: &Uuid) -> Vec<(u32, crate::world_text::WorldText)> {
-        self.region_id_map.get(region_id).and_then(|id| self.world_texts.remove(id)).unwrap_or_default()
+    pub fn get_world_texts(
+        &mut self,
+        region_id: &Uuid,
+    ) -> Vec<(u32, crate::world_text::WorldText)> {
+        self.region_id_map
+            .get(region_id)
+            .and_then(|id| self.world_texts.remove(id))
+            .unwrap_or_default()
     }
 
     /// Get says for a given region and clear them.
@@ -394,7 +395,7 @@ impl Server {
     /// Set the current time for the given region.
     pub fn set_time(&mut self, region_id: &Uuid, time: TheTime) -> TheTime {
         if let Some(region_id) = self.region_id_map.get(region_id) {
-            if let Ok(pipe) = REGIONPIPE.read() {
+            if let Ok(pipe) = self.region_pipes.read() {
                 if let Some(sender) = pipe.get(region_id) {
                     self.times.clear();
                     match sender.send(RegionMessage::Time(*region_id, time)) {
@@ -425,10 +426,10 @@ impl Server {
             while let Ok(message) = receiver.try_recv() {
                 match message {
                     RegionMessage::RegisterPlayer(region_id, entity_id) => {
-                        if let Ok(mut players) = LOCAL_PLAYERS.write() {
+                        if let Ok(mut players) = self.local_players.write() {
                             players.push((region_id, entity_id));
                         }
-                        if let Ok(pipe) = REGIONPIPE.read()
+                        if let Ok(pipe) = self.region_pipes.read()
                             && let Some(sender) = pipe.get(&region_id)
                         {
                             let _ =
@@ -557,7 +558,11 @@ impl Server {
                             _ => (None, None),
                         };
                         self.messages.entry(id).or_default().push((
-                            entity, item, receiver, text.text.clone(), "look".into(),
+                            entity,
+                            item,
+                            receiver,
+                            text.text.clone(),
+                            "look".into(),
                         ));
                         let pending = self.world_texts.entry(id).or_default();
                         if pending.len() >= 64 {
@@ -686,13 +691,13 @@ impl Server {
                             } else {
                                 self.entities.insert(dest_id, vec![removed_local]);
                             }
-                            if follows_local_player(None, Some(entity.id)) {
+                            if self.follows_local_player(None, Some(entity.id)) {
                                 rc = Some(dest_region_name.clone());
                             }
                         }
 
                         // Change the local player reference to the new region
-                        if let Ok(mut players) = LOCAL_PLAYERS.write() {
+                        if let Ok(mut players) = self.local_players.write() {
                             for item in &mut *players {
                                 if item.1 == entity.id {
                                     item.0 = dest_id;
@@ -725,7 +730,7 @@ impl Server {
                             }
                         }
 
-                        if let Ok(pipe) = REGIONPIPE.read() {
+                        if let Ok(pipe) = self.region_pipes.read() {
                             if let Some(sender) = pipe.get(&dest_id) {
                                 match sender.send(RegionMessage::TransferEntity(
                                     dest_id,
@@ -751,7 +756,7 @@ impl Server {
                             self.runtime_map_position_guards.insert(region_id, 4);
                         }
                         assets.maps.insert(map.name.clone(), map.clone());
-                        if follows_local_player(Some(id), None) {
+                        if self.follows_local_player(Some(id), None) {
                             rc = Some(map.name.clone());
                         }
                     }
@@ -923,8 +928,8 @@ impl Server {
 
     /// Send a local player event to the registered players
     pub fn local_player_event(&mut self, event: String, value: Value) {
-        if let Ok(local_players) = LOCAL_PLAYERS.read() {
-            if let Ok(pipe) = REGIONPIPE.read() {
+        if let Ok(local_players) = self.local_players.read() {
+            if let Ok(pipe) = self.region_pipes.read() {
                 for (region_id, entity_id) in local_players.iter() {
                     if let Some(sender) = pipe.get(region_id) {
                         match sender.send(RegionMessage::UserEvent(
@@ -946,7 +951,7 @@ impl Server {
     /// Registration is asynchronous. Scope readiness to this server's regions
     /// rather than treating a submitted CreateEntity command as an acknowledgement.
     pub fn has_local_player(&self) -> bool {
-        LOCAL_PLAYERS.read().is_ok_and(|players| {
+        self.local_players.read().is_ok_and(|players| {
             players
                 .iter()
                 .any(|(region, _)| self.region_id_map.values().any(|owned| owned == region))
@@ -955,8 +960,8 @@ impl Server {
 
     /// Send a local player action to the registered players
     pub fn local_player_action(&mut self, action: EntityAction) {
-        if let Ok(local_players) = LOCAL_PLAYERS.read() {
-            if let Ok(pipe) = REGIONPIPE.read() {
+        if let Ok(local_players) = self.local_players.read() {
+            if let Ok(pipe) = self.region_pipes.read() {
                 for (region_id, entity_id) in local_players.iter() {
                     if let Some(sender) = pipe.get(region_id) {
                         match sender.send(RegionMessage::UserAction(*entity_id, action.clone())) {
@@ -973,8 +978,8 @@ impl Server {
 
     /// Instantly move all registered local players to a sector, optionally in another region.
     pub fn local_player_teleport(&mut self, sector_name: String, region_name: String) {
-        if let Ok(local_players) = LOCAL_PLAYERS.read() {
-            if let Ok(pipe) = REGIONPIPE.read() {
+        if let Ok(local_players) = self.local_players.read() {
+            if let Ok(pipe) = self.region_pipes.read() {
                 for (region_id, entity_id) in local_players.iter() {
                     if let Some(sender) = pipe.get(region_id) {
                         match sender.send(RegionMessage::TeleportEntity(
@@ -995,8 +1000,8 @@ impl Server {
 
     /// Instantly move all registered local players to a position in their current region.
     pub fn local_player_teleport_pos(&mut self, position: Vec2<f32>) {
-        if let Ok(local_players) = LOCAL_PLAYERS.read() {
-            if let Ok(pipe) = REGIONPIPE.read() {
+        if let Ok(local_players) = self.local_players.read() {
+            if let Ok(pipe) = self.region_pipes.read() {
                 for (region_id, entity_id) in local_players.iter() {
                     if let Some(sender) = pipe.get(region_id) {
                         match sender.send(RegionMessage::TeleportEntityPos(*entity_id, position)) {
@@ -1013,7 +1018,7 @@ impl Server {
 
     /// Pause all region instances.
     pub fn pause(&mut self) {
-        if let Ok(pipes) = REGIONPIPE.read() {
+        if let Ok(pipes) = self.region_pipes.read() {
             for sender in pipes.values() {
                 _ = sender.send(RegionMessage::Pause);
             }
@@ -1023,7 +1028,7 @@ impl Server {
 
     /// Continue all region instances.
     pub fn continue_instances(&mut self) {
-        if let Ok(pipes) = REGIONPIPE.read() {
+        if let Ok(pipes) = self.region_pipes.read() {
             for sender in pipes.values() {
                 _ = sender.send(RegionMessage::Continue);
             }
@@ -1033,7 +1038,7 @@ impl Server {
 
     /// Shuts down all region instances.
     pub fn stop(&mut self) {
-        if let Ok(pipes) = REGIONPIPE.read() {
+        if let Ok(pipes) = self.region_pipes.read() {
             for sender in pipes.values() {
                 _ = sender.send(RegionMessage::Quit);
             }
@@ -1045,10 +1050,10 @@ impl Server {
     pub fn clear(&mut self) {
         self.node_traces.clear();
         self.node_highlights.clear();
-        if let Ok(mut pipes) = REGIONPIPE.write() {
+        if let Ok(mut pipes) = self.region_pipes.write() {
             pipes.clear();
         }
-        if let Ok(mut players) = LOCAL_PLAYERS.write() {
+        if let Ok(mut players) = self.local_players.write() {
             players.clear();
         }
         self.event_session = Uuid::new_v4();
@@ -1074,9 +1079,8 @@ impl Server {
         self.times.clear();
         self.clear_log();
 
-        // Clear the store
-        crate::server::region::clear_regionctx_store();
-        crate::server::region::reset_global_id_gen();
+        // A retained old context cannot mutate a subsequently started world.
+        self.world = Default::default();
 
         self.instances.clear();
     }
@@ -1092,6 +1096,73 @@ impl Server {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn identical_region_and_player_ids_route_only_to_the_owning_server() {
+        let mut first = Server::new();
+        let mut second = Server::new();
+        let region = Uuid::new_v4();
+        let (first_tx, first_rx) = crossbeam_channel::unbounded();
+        let (second_tx, second_rx) = crossbeam_channel::unbounded();
+        for (server, sender) in [(&mut first, first_tx), (&mut second, second_tx)] {
+            server.region_id_map.insert(region, 0);
+            server.region_pipes.write().unwrap().insert(0, sender);
+            server.local_players.write().unwrap().push((0, 7));
+        }
+        first.local_player_action(EntityAction::Forward);
+        assert!(matches!(
+            first_rx.try_recv().unwrap(),
+            RegionMessage::UserAction(7, EntityAction::Forward)
+        ));
+        assert!(second_rx.is_empty());
+        first.pause();
+        assert!(matches!(first_rx.try_recv().unwrap(), RegionMessage::Pause));
+        assert!(second_rx.is_empty());
+        first.publish_node_graph("entity:hero".into(), serde_json::json!({"version": 1}));
+        assert!(matches!(
+            first_rx.try_recv().unwrap(),
+            RegionMessage::UpdateNodeGraph(_, _)
+        ));
+        assert!(second_rx.is_empty());
+        first.publish_rules(Table::new());
+        assert!(matches!(
+            first_rx.try_recv().unwrap(),
+            RegionMessage::UpdateRules(_)
+        ));
+        assert!(second_rx.is_empty());
+        second.stop();
+        assert!(matches!(second_rx.try_recv().unwrap(), RegionMessage::Quit));
+        assert!(first_rx.is_empty());
+        assert!(first.has_local_player());
+        assert!(!second.has_local_player());
+        first.local_player_action(EntityAction::Off);
+        assert!(matches!(
+            first_rx.try_recv().unwrap(),
+            RegionMessage::UserAction(7, EntityAction::Off)
+        ));
+    }
+
+    #[test]
+    fn world_state_and_runtime_ids_share_within_a_session_and_reset_without_revoking_old_handles() {
+        let mut first = Server::new();
+        let second = Server::new();
+        let retained = first.world.clone();
+        let same_session = retained.clone();
+        retained.set("quest", Value::Int(4));
+        assert_eq!(same_session.get("quest"), Some(Value::Int(4)));
+        assert_eq!(second.world.get("quest"), None);
+        assert_eq!(retained.next_id(), 1);
+        assert_eq!(same_session.next_id(), 2);
+        assert_eq!(second.world.next_id(), 1);
+        second.world.set("quest", Value::Int(9));
+        first.clear();
+        assert_eq!(first.world.get("quest"), None);
+        assert_eq!(first.world.next_id(), 1);
+        assert_eq!(retained.get("quest"), Some(Value::Int(4)));
+        assert_eq!(retained.next_id(), 3);
+        assert_eq!(second.world.get("quest"), Some(Value::Int(9)));
+        assert_eq!(second.world.next_id(), 2);
+    }
 
     #[test]
     fn clear_removes_generated_runtime_maps() {

@@ -65,7 +65,7 @@ pub fn sync_live_rules(rusterix: &mut Rusterix, project: &Project) -> Result<boo
     let Some(table) = prepare_live_rules(&mut rusterix.assets, project)? else {
         return Ok(false);
     };
-    rusterix::server::publish_rules(table);
+    rusterix.server.publish_rules(table);
     // Creator stops regular region redraws while paused. Drain the edit now;
     // the paused region path handles messages without advancing gameplay.
     if rusterix.server.state == rusterix::ServerState::Paused {

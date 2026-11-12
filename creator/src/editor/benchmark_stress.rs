@@ -1,10 +1,7 @@
 //! Opt-in, in-memory gameplay fixture. Never changes a saved project.
 //! Movement and attacks go through the region's normal UserAction pipeline;
 //! positioning/equipment/HP are fixture setup, not simulated attack results.
-use rusterix::server::{
-    message::RegionMessage,
-    region::{RegionInstance, get_regionctx},
-};
+use rusterix::server::{message::RegionMessage, region::RegionInstance};
 use rusterix::{EntityAction, Rusterix, Value};
 use std::sync::{Arc, Mutex};
 use vek::{Vec2, Vec3};
@@ -47,7 +44,7 @@ impl StressRun {
             .find(|i| i.lock().unwrap().id == region)
             .unwrap()
             .clone();
-        let handle = get_regionctx(region).unwrap();
+        let handle = instance.lock().unwrap().context().unwrap();
         let mut ctx = handle.lock().unwrap();
         let origin = ctx.find_entity(player).unwrap().position;
         let opponent = ctx
@@ -131,7 +128,7 @@ impl StressRun {
         let phase = (frame / PHASE_FRAMES) % 4;
         let offset = frame % PHASE_FRAMES;
         if offset == 0 {
-            let handle = get_regionctx(self.region).unwrap();
+            let handle = self.instance.lock().unwrap().context().unwrap();
             let mut ctx = handle.lock().unwrap();
             if phase == 0 {
                 for (id, position) in &self.movers {
@@ -217,7 +214,7 @@ impl StressRun {
                 );
             }
         }
-        let handle = get_regionctx(self.region).unwrap();
+        let handle = self.instance.lock().unwrap().context().unwrap();
         let ctx = handle.lock().unwrap();
         if phase == 0 {
             for (i, (id, _)) in self.movers.iter().enumerate() {

@@ -1935,6 +1935,7 @@ mod tests {
         assert_eq!(model.sprites.lock().unwrap().len(), 1);
     }
 
+    #[cfg(feature = "graphics")]
     #[test]
     fn resolved_preview_retains_its_compiled_sample_and_reuses_looped_phases_without_rasterizing_lookup()
      {

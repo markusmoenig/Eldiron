@@ -27,14 +27,7 @@ use std::collections::BTreeSet;
 use std::sync::{Arc, Mutex};
 use theframework::prelude::*;
 
-use std::sync::atomic::{AtomicU32, Ordering};
 use vek::{Vec2, Vec3};
-
-use std::sync::{LazyLock, RwLock};
-
-/// The global store of RegionCtx
-static REGIONCTX: LazyLock<RwLock<FxHashMap<u32, Arc<Mutex<RegionCtx>>>>> =
-    LazyLock::new(|| RwLock::new(FxHashMap::default()));
 
 fn dynamic_collision_height(container: &ValueContainer) -> f32 {
     container
@@ -106,7 +99,11 @@ fn sync_avatar_animation(entity: &mut Entity, moved: bool) {
         > 0.0;
     let is_casting = entity.attributes.get_bool_default("spell_casting", false);
     let desired_anim = if crate::furniture::is_resting(entity) {
-        if entity.attributes.get_str("posture") == Some("sitting") { "Sit" } else { "Lie" }
+        if entity.attributes.get_str("posture") == Some("sitting") {
+            "Sit"
+        } else {
+            "Lie"
+        }
     } else if is_casting {
         "Cast"
     } else if is_attacking {
@@ -134,7 +131,11 @@ fn sync_avatar_animation_without_motion_sample(entity: &mut Entity) {
         .attributes
         .get_str_default("avatar_animation", String::new());
     let desired_anim = if crate::furniture::is_resting(entity) {
-        Some(if entity.attributes.get_str("posture") == Some("sitting") { "Sit" } else { "Lie" })
+        Some(if entity.attributes.get_str("posture") == Some("sitting") {
+            "Sit"
+        } else {
+            "Lie"
+        })
     } else if is_casting {
         Some("Cast")
     } else if is_attacking {
@@ -588,8 +589,6 @@ pub fn ruleset_starting_wealth_for_entity(rules: &toml::Table, entity: &Entity) 
 mod ruleset_progression_tests {
     use super::*;
 
-    static REGIONCTX_TEST_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
-
     fn player_with_intent(camera: PlayerCamera) -> Entity {
         let mut entity = Entity::new();
         entity.set_attribute("player", Value::Bool(true));
@@ -903,10 +902,10 @@ mod ruleset_progression_tests {
         cleric.set_attribute("HP", Value::Int(2));
         cleric.inventory.resize(6, None);
         cleric
-            .add_item(ruleset_item_from_table(&rules, "blessed_herb", 1).unwrap())
+            .add_item(ruleset_item_from_table(&rules, "blessed_herb", 1, &ctx.world).unwrap())
             .unwrap();
         cleric
-            .add_item(ruleset_item_from_table(&rules, "moonwater", 1).unwrap())
+            .add_item(ruleset_item_from_table(&rules, "moonwater", 1, &ctx.world).unwrap())
             .unwrap();
         let starting_mp = cleric.attributes.get_int_default("MP", 0);
         ctx.map.entities.push(cleric);
@@ -1039,7 +1038,7 @@ mod ruleset_progression_tests {
         apply_ruleset_character_defaults(&rules, &mut cleric);
         cleric.inventory.resize(4, None);
         cleric
-            .add_item(ruleset_item_from_table(&rules, "warding_salt", 1).unwrap())
+            .add_item(ruleset_item_from_table(&rules, "warding_salt", 1, &ctx.world).unwrap())
             .unwrap();
         let starting_mp = cleric.attributes.get_int_default("MP", 0);
 
@@ -1264,7 +1263,7 @@ mod ruleset_progression_tests {
         apply_ruleset_character_defaults(&rules, &mut cleric);
         cleric.inventory.resize(4, None);
         cleric
-            .add_item(ruleset_item_from_table(&rules, "warding_salt", 1).unwrap())
+            .add_item(ruleset_item_from_table(&rules, "warding_salt", 1, &ctx.world).unwrap())
             .unwrap();
         let starting_mp = cleric.attributes.get_int_default("MP", 0);
 
@@ -1953,14 +1952,11 @@ mod ruleset_progression_tests {
 
     #[test]
     fn directional_rules_action_can_target_resource_item() {
-        let _regionctx_guard = REGIONCTX_TEST_LOCK.lock().unwrap();
-        clear_regionctx_store();
         let mut ctx = resource_action_test_ctx();
         ctx.map.entities[0].set_attribute("intent", Value::Str("action:gather_herbs".into()));
         let actor = ctx.map.entities[0].clone();
         let ctx = Arc::new(Mutex::new(ctx));
-        register_regionctx(9902, ctx.clone());
-        let instance = RegionInstance::new(9902);
+        let instance = RegionInstance::with_context(9902, ctx.clone());
 
         let mut actor_for_event = actor;
         instance.send_entity_intent_events(&mut actor_for_event, Vec2::new(1.0, 0.0));
@@ -1973,7 +1969,6 @@ mod ruleset_progression_tests {
                 .get_bool_default("resource_depleted", false)
         );
         drop(ctx);
-        clear_regionctx_store();
     }
 
     /// Builds a directional-intent arena: a player with the given camera mode
@@ -2240,14 +2235,46 @@ mod ruleset_progression_tests {
     }
 
     #[test]
+    fn equal_region_ids_keep_distinct_live_contexts() {
+        let mut left = directional_intent_test_ctx(PlayerCamera::D3FirstPMouse, false);
+        left.map.entities[0].set_orientation(Vec2::new(0., -1.));
+        let mut right = directional_intent_test_ctx(PlayerCamera::D3FirstPMouse, false);
+        right.map.entities[0].set_orientation(Vec2::new(0., -1.));
+        let left = Arc::new(Mutex::new(left));
+        let right = Arc::new(Mutex::new(right));
+        let mut first = RegionInstance::with_context(0, left.clone());
+        let mut second = RegionInstance::with_context(0, right.clone());
+        first
+            .to_sender
+            .send(RegionMessage::UserAction(1, EntityAction::LookYaw(90.)))
+            .unwrap();
+        first.redraw_tick();
+        assert!(
+            (left.lock().unwrap().map.entities[0].orientation - Vec2::unit_x()).magnitude() < 1e-5
+        );
+        assert_eq!(
+            right.lock().unwrap().map.entities[0].orientation,
+            Vec2::new(0., -1.)
+        );
+        second
+            .to_sender
+            .send(RegionMessage::UserAction(1, EntityAction::LookYaw(-90.)))
+            .unwrap();
+        second.redraw_tick();
+        assert!(
+            (right.lock().unwrap().map.entities[0].orientation + Vec2::unit_x()).magnitude() < 1e-5
+        );
+        assert!(
+            (left.lock().unwrap().map.entities[0].orientation - Vec2::unit_x()).magnitude() < 1e-5
+        );
+    }
+
+    #[test]
     fn mouse_look_updates_facing_without_starting_movement_or_a_turn() {
-        let _regionctx_guard = REGIONCTX_TEST_LOCK.lock().unwrap();
-        clear_regionctx_store();
         let mut context = directional_intent_test_ctx(PlayerCamera::D3FirstPMouse, false);
         context.map.entities[0].set_orientation(Vec2::new(0.0, -1.0));
         let ctx = Arc::new(Mutex::new(context));
-        register_regionctx(9920, ctx.clone());
-        let mut instance = RegionInstance::new(9920);
+        let mut instance = RegionInstance::with_context(9920, ctx.clone());
         assert!(!RegionInstance::action_requests_simulation_step(
             &EntityAction::LookYaw(90.0)
         ));
@@ -2263,13 +2290,10 @@ mod ruleset_progression_tests {
             assert!((player.orientation - Vec2::unit_x()).magnitude() < 1e-5);
             assert_eq!(player.get_pos_xz(), Vec2::new(1.5, 1.5));
         }
-        clear_regionctx_store();
     }
 
     #[test]
     fn spawned_grid_player_startup_ignores_previous_item_context() {
-        let _regionctx_guard = REGIONCTX_TEST_LOCK.lock().unwrap();
-        clear_regionctx_store();
         let mut ctx = RegionCtx::default();
         ctx.current_script_scope = ScriptScope::Item;
         ctx.curr_item_id = Some(999);
@@ -2282,8 +2306,7 @@ mod ruleset_progression_tests {
             .insert("Player".into(), Arc::new(crate::vm::Program::new()));
         ctx.assets.node_behaviors = Some(Default::default());
         let ctx = Arc::new(Mutex::new(ctx));
-        register_regionctx(9919, ctx.clone());
-        let mut instance = RegionInstance::new(9919);
+        let mut instance = RegionInstance::with_context(9919, ctx.clone());
         let mut player = Entity::new();
         player.set_attribute("class_name", Value::Str("Player".into()));
         let identity = player.creator_id;
@@ -2305,19 +2328,15 @@ mod ruleset_progression_tests {
             assert_eq!(ctx.curr_item_id, Some(999));
             assert!(matches!(ctx.current_script_scope, ScriptScope::Item));
         }
-        clear_regionctx_store();
     }
 
     #[test]
     fn grid_player_direction_key_applies_rules_action_intent() {
-        let _regionctx_guard = REGIONCTX_TEST_LOCK.lock().unwrap();
-        clear_regionctx_store();
         let ctx = Arc::new(Mutex::new(directional_intent_test_ctx(
             PlayerCamera::D2Grid,
             false,
         )));
-        register_regionctx(9906, ctx.clone());
-        let mut instance = RegionInstance::new(9906);
+        let mut instance = RegionInstance::with_context(9906, ctx.clone());
 
         instance
             .to_sender
@@ -2351,12 +2370,10 @@ mod ruleset_progression_tests {
             "a grid player's direction key must apply the selected rules intent"
         );
         drop(ctx);
-        clear_regionctx_store();
     }
 
     #[test]
     fn directional_intent_stays_separate_from_click_target_modes() {
-        let _regionctx_guard = REGIONCTX_TEST_LOCK.lock().unwrap();
         // The click/hover target method (2D persistent intents and 3D cameras)
         // must never turn a direction press into a direct action.
         for (region_id, label, camera, persistent) in [
@@ -2364,10 +2381,8 @@ mod ruleset_progression_tests {
             (9908, "3D first person", PlayerCamera::D3FirstP, false),
             (9909, "3D isometric", PlayerCamera::D3Iso, false),
         ] {
-            clear_regionctx_store();
             let ctx = Arc::new(Mutex::new(directional_intent_test_ctx(camera, persistent)));
-            register_regionctx(region_id, ctx.clone());
-            let mut instance = RegionInstance::new(region_id);
+            let mut instance = RegionInstance::with_context(region_id, ctx.clone());
 
             instance
                 .to_sender
@@ -2389,13 +2404,10 @@ mod ruleset_progression_tests {
                 "a direction press must not fire the selected intent in {label} mode"
             );
         }
-        clear_regionctx_store();
     }
 
     #[test]
     fn directional_use_intent_reaches_adjacent_entity() {
-        let _regionctx_guard = REGIONCTX_TEST_LOCK.lock().unwrap();
-        clear_regionctx_store();
         let mut ctx = resource_action_test_ctx();
         ctx.map.items.clear();
         ctx.rules = toml::from_str::<toml::Value>(
@@ -2419,8 +2431,7 @@ mod ruleset_progression_tests {
 
         let actor = ctx.map.entities[0].clone();
         let ctx = Arc::new(Mutex::new(ctx));
-        register_regionctx(9904, ctx.clone());
-        let instance = RegionInstance::new(9904);
+        let instance = RegionInstance::with_context(9904, ctx.clone());
 
         let mut actor_for_event = actor;
         instance.send_entity_intent_events(&mut actor_for_event, Vec2::new(1.0, 0.0));
@@ -2435,13 +2446,10 @@ mod ruleset_progression_tests {
         assert_eq!(payload.string.as_deref(), Some("use"));
         assert_eq!(payload.x, 1.0);
         drop(ctx);
-        clear_regionctx_store();
     }
 
     #[test]
     fn selected_rules_action_click_failure_sends_one_message() {
-        let _regionctx_guard = REGIONCTX_TEST_LOCK.lock().unwrap();
-        clear_regionctx_store();
         let (from_sender, from_receiver) = unbounded();
         let mut ctx = RegionCtx::default();
         ctx.region_id = 9903;
@@ -2501,8 +2509,7 @@ mod ruleset_progression_tests {
         ctx.map.entities.push(friendly_guard);
 
         let ctx = Arc::new(Mutex::new(ctx));
-        register_regionctx(9903, ctx);
-        let mut instance = RegionInstance::new(9903);
+        let mut instance = RegionInstance::with_context(9903, ctx);
         instance
             .to_sender
             .send(RegionMessage::UserAction(
@@ -2529,7 +2536,6 @@ mod ruleset_progression_tests {
             })
             .count();
         assert_eq!(cant_do_that_count, 1);
-        clear_regionctx_store();
     }
 
     #[test]
@@ -2600,8 +2606,6 @@ mod ruleset_progression_tests {
 
     #[test]
     fn holy_light_selected_action_can_target_neutral_entity() {
-        let _regionctx_guard = REGIONCTX_TEST_LOCK.lock().unwrap();
-        clear_regionctx_store();
         let (from_sender, from_receiver) = unbounded();
         let mut ctx = RegionCtx::default();
         ctx.region_id = 9904;
@@ -2655,8 +2659,7 @@ mod ruleset_progression_tests {
         ctx.map.entities.push(neutral_guard);
 
         let ctx = Arc::new(Mutex::new(ctx));
-        register_regionctx(9904, ctx.clone());
-        let mut instance = RegionInstance::new(9904);
+        let mut instance = RegionInstance::with_context(9904, ctx.clone());
         instance
             .to_sender
             .send(RegionMessage::UserAction(
@@ -2692,13 +2695,10 @@ mod ruleset_progression_tests {
             .unwrap();
         assert_eq!(player.attributes.get_int_default("MP", 0), 6);
         drop(ctx);
-        clear_regionctx_store();
     }
 
     #[test]
     fn self_entity_click_queues_intent_once() {
-        let _regionctx_guard = REGIONCTX_TEST_LOCK.lock().unwrap();
-        clear_regionctx_store();
         let (from_sender, from_receiver) = unbounded();
         let mut ctx = RegionCtx::default();
         ctx.region_id = 9905;
@@ -2712,8 +2712,7 @@ mod ruleset_progression_tests {
         ctx.entity_classes.insert(1, "Player".into());
         ctx.map.entities.push(player);
 
-        register_regionctx(9905, Arc::new(Mutex::new(ctx)));
-        let mut instance = RegionInstance::new(9905);
+        let mut instance = RegionInstance::with_context(9905, Arc::new(Mutex::new(ctx)));
         instance
             .to_sender
             .send(RegionMessage::UserAction(
@@ -2740,7 +2739,6 @@ mod ruleset_progression_tests {
             })
             .count();
         assert_eq!(cant_do_that_yet_count, 0);
-        clear_regionctx_store();
     }
 
     #[test]
@@ -2810,8 +2808,6 @@ mod ruleset_progression_tests {
 
     #[test]
     fn live_rules_messages_refresh_catalogues_and_keep_gameplay_state() {
-        let _guard = REGIONCTX_TEST_LOCK.lock().unwrap();
-        clear_regionctx_store();
         let mut ctx = RegionCtx::default();
         let baseline = eldiron_ruleset::graph::RulesGraph::official()
             .compile()
@@ -2824,8 +2820,7 @@ mod ruleset_progression_tests {
         player.set_attribute("quest_marker", Value::Str("in_progress".into()));
         ctx.map.entities.push(player);
         let ctx = Arc::new(Mutex::new(ctx));
-        register_regionctx(9988, ctx.clone());
-        let mut instance = RegionInstance::new(9988);
+        let mut instance = RegionInstance::with_context(9988, ctx.clone());
         let mut next = baseline.clone();
         next["actions"]["basic_attack"]["cooldown"] = toml::Value::Float(0.125);
         let mut action = next["actions"]["basic_attack"].clone();
@@ -2904,7 +2899,6 @@ mod ruleset_progression_tests {
             ctx.lock().unwrap().rules == baseline,
             "Original rules did not restore"
         );
-        clear_regionctx_store();
     }
 
     #[test]
@@ -4009,16 +4003,29 @@ mod ruleset_progression_tests {
     #[test]
     fn placed_look_authoring_overrides_template_and_inherits_missing_states() {
         let mut ctx = RegionCtx::default();
-        ctx.item_authoring_data.insert("Door".into(), r#"description = "Shared door.""#.into());
+        ctx.item_authoring_data
+            .insert("Door".into(), r#"description = "Shared door.""#.into());
         let mut item = Item::new();
-        item.set_attribute("class_name",Value::Str("Door".into()));
-        item.set_attribute("_authoring", Value::Str(concat!("[state.off]\n", r#"description = "A scratched oak door.""#).into()));
-        assert_eq!(item_look_description(&ctx,&item).as_deref(),Some("A scratched oak door."));
-        item.set_attribute("active",Value::Bool(true));
-        assert_eq!(item_look_description(&ctx,&item).as_deref(),Some("Shared door."));
+        item.set_attribute("class_name", Value::Str("Door".into()));
+        item.set_attribute(
+            "_authoring",
+            Value::Str(concat!("[state.off]\n", r#"description = "A scratched oak door.""#).into()),
+        );
+        assert_eq!(
+            item_look_description(&ctx, &item).as_deref(),
+            Some("A scratched oak door.")
+        );
+        item.set_attribute("active", Value::Bool(true));
+        assert_eq!(
+            item_look_description(&ctx, &item).as_deref(),
+            Some("Shared door.")
+        );
         let mut other = item.clone();
-        other.set_attribute("_authoring",Value::Str(String::new()));
-        assert_eq!(item_look_description(&ctx,&other).as_deref(),Some("Shared door."));
+        other.set_attribute("_authoring", Value::Str(String::new()));
+        assert_eq!(
+            item_look_description(&ctx, &other).as_deref(),
+            Some("Shared door.")
+        );
     }
 
     #[test]
@@ -4609,23 +4616,22 @@ mod ruleset_progression_tests {
 
     #[test]
     fn is_entity_dead_reports_a_stashed_body_as_dead() {
-        let _regionctx_guard = REGIONCTX_TEST_LOCK.lock().unwrap();
-        clear_regionctx_store();
         let mut ctx = RegionCtx::default();
         let mut body = Entity::new();
         body.id = 7;
         body.set_attribute("mode", Value::Str("dead".into()));
         ctx.map.entities.push(body);
         assert!(ctx.stash_entity(7), "death stashes the body");
-        register_regionctx(9910, Arc::new(Mutex::new(ctx)));
+        let context = Some(Arc::new(Mutex::new(ctx)));
 
         assert!(
-            is_entity_dead(9910, 7),
+            is_entity_dead(context.clone(), 7),
             "absence from the world is what being dead means"
         );
-        assert!(!is_entity_dead(9910, 8), "an unknown id is not dead");
-
-        clear_regionctx_store();
+        assert!(
+            !is_entity_dead(context.clone(), 8),
+            "an unknown id is not dead"
+        );
     }
 
     #[test]
@@ -4698,50 +4704,12 @@ fn vertical_collision_ranges_overlap(a_y: f32, a_height: f32, b_y: f32, b_height
     a_min <= b_max + VERTICAL_COLLISION_TOLERANCE && b_min <= a_max + VERTICAL_COLLISION_TOLERANCE
 }
 
-/// Register a new RegionCtx
-pub fn register_regionctx(id: u32, instance: Arc<Mutex<RegionCtx>>) {
-    REGIONCTX.write().unwrap().insert(id, instance);
-}
-
-/// Clear the store.
-pub fn clear_regionctx_store() {
-    REGIONCTX.write().unwrap().clear();
-    RegionCtx::clear_world_state();
-}
-
-/// Get a specific RegionCtx
-pub fn get_regionctx(id: u32) -> Option<Arc<Mutex<RegionCtx>>> {
-    REGIONCTX.read().unwrap().get(&id).cloned()
-}
-
-/// Get gelper
-pub fn with_regionctx<F, R>(region_id: u32, f: F) -> Option<R>
+/// Borrow an explicitly owned context for one region transaction.
+fn with_regionctx<F, R>(context: Option<Arc<Mutex<RegionCtx>>>, f: F) -> Option<R>
 where
     F: FnOnce(&mut RegionCtx) -> R,
 {
-    get_regionctx(region_id).map(|arc| {
-        let mut ctx = arc.lock().unwrap(); // Consider proper error handling if needed
-        f(&mut ctx)
-    })
-}
-
-/// Get the region id embedded in the VM
-// pub fn get_region_id(vm: &VirtualMachine) -> Option<u32> {
-//     let module = vm.import("__region_meta", 0).ok()?;
-//     let obj = module.get_attr("__region_id", vm).ok()?;
-//     obj.try_to_value::<u32>(vm).ok()
-// }
-
-// Global ID generator over all threads and regions.
-// 0 is reserved as NO_ID / None sentinel.
-static GLOBAL_ID_GEN: AtomicU32 = AtomicU32::new(1);
-
-pub fn get_global_id() -> u32 {
-    GLOBAL_ID_GEN.fetch_add(1, Ordering::Relaxed)
-}
-
-pub fn reset_global_id_gen() {
-    GLOBAL_ID_GEN.store(1, Ordering::Relaxed);
+    context.map(|context| f(&mut context.lock().unwrap()))
 }
 
 fn map_spawn_height(map: &Map, pos: Vec2<f32>, preferred_y: Option<f32>) -> f32 {
@@ -4945,6 +4913,8 @@ enum DragItemSource {
 }
 
 pub struct RegionInstance {
+    context: Option<Arc<Mutex<RegionCtx>>>,
+    world: Arc<super::world::SimulationWorld>,
     pub id: u32,
 
     vm: VM,
@@ -5216,11 +5186,15 @@ impl RegionInstance {
             )
         });
         let canonical_intent = if raw_intent.trim().eq_ignore_ascii_case("open_close") {
-            let open=target_id.and_then(|id|asset.find_interaction_target(id))
-                .and_then(|target|target.component_id)
-                .and_then(|id|crate::block_prop_door_is_open(&asset,&instance,id)).unwrap_or(false);
+            let open = target_id
+                .and_then(|id| asset.find_interaction_target(id))
+                .and_then(|target| target.component_id)
+                .and_then(|id| crate::block_prop_door_is_open(&asset, &instance, id))
+                .unwrap_or(false);
             if open { "close" } else { "open" }
-        } else { raw_intent.trim() };
+        } else {
+            raw_intent.trim()
+        };
         let Some(resolved_intent) =
             resolve_ruleset_invocation_intent(ctx, actor_id, canonical_intent)
         else {
@@ -5297,7 +5271,12 @@ impl RegionInstance {
             "look" => {
                 let message = prefab_look_description(&asset, &instance)
                     .unwrap_or_else(|| asset.name.clone());
-                send_look(ctx, actor_id, crate::world_text::TextAnchor::Prefab(instance_id), message);
+                send_look(
+                    ctx,
+                    actor_id,
+                    crate::world_text::TextAnchor::Prefab(instance_id),
+                    message,
+                );
                 true
             }
             "use" | "open" | "close" => target_id.is_some_and(|target_id| {
@@ -5380,9 +5359,14 @@ impl RegionInstance {
                 continue;
             }
 
-            if let Some(hit) = crate::item_state::intersects(other, &ctx.assets, test_position,
-                entity.position.y, entity_height, radius)
-            {
+            if let Some(hit) = crate::item_state::intersects(
+                other,
+                &ctx.assets,
+                test_position,
+                entity.position.y,
+                entity_height,
+                radius,
+            ) {
                 blocking_collision |= hit && other.attributes.get_bool_default("blocking", false);
                 continue;
             }
@@ -5544,7 +5528,7 @@ impl RegionInstance {
         let actor_radius = actor.attributes.get_float_default("radius", 0.5).max(0.0);
 
         if let Some(item) = ctx.map.items.iter().find(|i| i.id == item_id) {
-            return Some(crate::item_state::distance(item,&ctx.assets,actor));
+            return Some(crate::item_state::distance(item, &ctx.assets, actor));
         }
 
         if let Some(owner_id) = owner_entity_id
@@ -8168,7 +8152,7 @@ impl RegionInstance {
         move_vector: Vec2<f32>,
         entity_block_mode: i32,
     ) -> MovementResult {
-        with_regionctx(self.id, |ctx| {
+        with_regionctx(self.context.clone(), |ctx| {
             self.move_entity_by_vector_with_result_in_ctx(
                 ctx,
                 entity,
@@ -8263,17 +8247,32 @@ impl RegionInstance {
                     continue;
                 }
 
-                if let Some(hit) = crate::item_state::intersects(other, &ctx.assets, new_position,
-                    entity.position.y, entity_height, radius)
-                {
+                if let Some(hit) = crate::item_state::intersects(
+                    other,
+                    &ctx.assets,
+                    new_position,
+                    entity.position.y,
+                    entity_height,
+                    radius,
+                ) {
                     if hit && other.attributes.get_bool_default("blocking", false) {
                         // Try each movement axis before stopping. The same footprint is
                         // used for mesh and tile movement; opening never leaves a circle behind.
                         let slide_x = Vec2::new(new_position.x, position.y);
                         let slide_z = Vec2::new(position.x, new_position.y);
-                        new_position = [slide_x, slide_z].into_iter().find(|p|
-                            crate::item_state::intersects(other, &ctx.assets, *p, entity.position.y,
-                                entity_height, radius) == Some(false)).unwrap_or(position);
+                        new_position = [slide_x, slide_z]
+                            .into_iter()
+                            .find(|p| {
+                                crate::item_state::intersects(
+                                    other,
+                                    &ctx.assets,
+                                    *p,
+                                    entity.position.y,
+                                    entity_height,
+                                    radius,
+                                ) == Some(false)
+                            })
+                            .unwrap_or(position);
                         dynamic_collision = true;
                         pushed = true;
                     }
@@ -8449,7 +8448,7 @@ impl RegionInstance {
     ) -> Result<bool, String> {
         let program = self.vm.prepare_str(source).map_err(|err| err.to_string())?;
 
-        Ok(with_regionctx(self.id, |ctx| {
+        Ok(with_regionctx(self.context.clone(), |ctx| {
             let prev_entity_id = ctx.curr_entity_id;
             let prev_item_id = ctx.curr_item_id;
             let prev_scope = ctx.current_script_scope;
@@ -8486,7 +8485,7 @@ impl RegionInstance {
         {
             if Self::is_legacy_python_instance_setup(&setup) {
                 send_log_message(
-                    self.id,
+                    self.context.clone(),
                     format!(
                         "{}: Ignoring legacy Python setup on '{}/{}' {}.",
                         region_name,
@@ -8503,7 +8502,7 @@ impl RegionInstance {
                 Ok(_) => {}
                 Err(err) => {
                     send_log_message(
-                        self.id,
+                        self.context.clone(),
                         format!(
                             "[error] {}: Setup '{}/{}' {}: {}",
                             region_name,
@@ -8515,7 +8514,7 @@ impl RegionInstance {
                             err,
                         ),
                     );
-                    with_regionctx(self.id, |ctx| {
+                    with_regionctx(self.context.clone(), |ctx| {
                         ctx.error_count += 1;
                     });
                 }
@@ -8529,7 +8528,7 @@ impl RegionInstance {
         {
             if Self::is_legacy_python_instance_setup(&setup) {
                 send_log_message(
-                    self.id,
+                    self.context.clone(),
                     format!(
                         "{}: Ignoring legacy Python item setup on '{}/{}' {}.",
                         region_name,
@@ -8545,7 +8544,7 @@ impl RegionInstance {
                 Ok(_) => {}
                 Err(err) => {
                     send_log_message(
-                        self.id,
+                        self.context.clone(),
                         format!(
                             "[error] {}: Item Setup '{}/{}' {}: {}",
                             region_name,
@@ -8556,7 +8555,7 @@ impl RegionInstance {
                             err,
                         ),
                     );
-                    with_regionctx(self.id, |ctx| {
+                    with_regionctx(self.context.clone(), |ctx| {
                         ctx.error_count += 1;
                     });
                 }
@@ -8565,11 +8564,25 @@ impl RegionInstance {
     }
 
     pub fn new(region_id: u32) -> Self {
+        Self::in_world(region_id, Default::default())
+    }
+    pub fn with_context(region_id: u32, context: Arc<Mutex<RegionCtx>>) -> Self {
+        let world = context.lock().unwrap().world.clone();
+        let mut instance = Self::in_world(region_id, world);
+        instance.context = Some(context);
+        instance
+    }
+    pub fn context(&self) -> Option<Arc<Mutex<RegionCtx>>> {
+        self.context.clone()
+    }
+    pub(crate) fn in_world(region_id: u32, world: Arc<super::world::SimulationWorld>) -> Self {
         let (to_sender, to_receiver) = unbounded::<RegionMessage>();
         let (from_sender, from_receiver) = unbounded::<RegionMessage>();
 
         Self {
             id: region_id,
+            context: None,
+            world,
 
             vm: VM::default(),
             exec: Execution::default(),
@@ -8623,6 +8636,7 @@ impl RegionInstance {
         self.name = name.clone();
 
         let mut ctx = RegionCtx::default();
+        ctx.world = self.world.clone();
         ctx.debug_mode = debug_mode;
 
         if let Ok(toml) = config_toml.parse::<toml::Table>() {
@@ -8820,7 +8834,7 @@ impl RegionInstance {
 
         // Set an entity id and mark all fields dirty for the first transmission to the server.
         for e in ctx.map.entities.iter_mut() {
-            e.id = get_global_id();
+            e.id = self.world.next_id();
             // By default we set the sequence to idle.
             e.set_attribute(
                 "_source_seq",
@@ -8832,7 +8846,7 @@ impl RegionInstance {
 
         // Set an item id and mark all fields dirty for the first transmission to the server.
         for i in ctx.map.items.iter_mut() {
-            i.id = get_global_id();
+            i.id = self.world.next_id();
             // By default we set the sequence to idle.
             i.attributes.set(
                 "_source_seq",
@@ -8855,7 +8869,7 @@ impl RegionInstance {
                 }
                 if ctx.item_programs.contains_key(item_name) {
                     let mut item = Item::default();
-                    item.id = get_global_id();
+                    item.id = self.world.next_id();
                     item.attributes.set("name", Value::Str(s.name.to_string()));
                     item.attributes
                         .set("class_name", Value::Str(item_name.to_string()));
@@ -8896,7 +8910,7 @@ impl RegionInstance {
                 }
                 if ctx.item_programs.contains_key(item_name) {
                     let mut item = Item::default();
-                    item.id = get_global_id();
+                    item.id = self.world.next_id();
                     item.attributes.set("name", Value::Str(object.name.clone()));
                     item.attributes
                         .set("class_name", Value::Str(item_name.to_string()));
@@ -8942,7 +8956,7 @@ impl RegionInstance {
                             // Check if the given class name exists
                             if ctx.item_programs.contains_key(item_name) {
                                 let mut item = Item::default();
-                                item.id = get_global_id();
+                                item.id = self.world.next_id();
                                 item.attributes.set("name", Value::Str(s.name.to_string()));
                                 item.attributes
                                     .set("class_name", Value::Str(item_name.to_string()));
@@ -9074,14 +9088,14 @@ impl RegionInstance {
         restore_ruleset_conditions(&mut ctx);
 
         // Register the ctx, from here on we have to lock it
-        register_regionctx(self.id, Arc::new(Mutex::new(ctx)));
+        self.context = Some(Arc::new(Mutex::new(ctx)));
 
         let mut entities = vec![];
-        with_regionctx(self.id, |ctx: &mut RegionCtx| {
+        with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
             entities = ctx.map.entities.clone();
         });
 
-        with_regionctx(self.id, |ctx: &mut RegionCtx| {
+        with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
             let args = [VMValue::from_string("startup"), VMValue::zero()];
             if let Some(program) = ctx.world_program.clone() {
                 ctx.current_script_scope = ScriptScope::World;
@@ -9098,7 +9112,7 @@ impl RegionInstance {
         for entity in entities.iter() {
             if let Some(class_name) = entity.get_attr_string("class_name") {
                 // let cmd = format!("{}.event(\"startup\", \"\")", class_name);
-                with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
                     ctx.entity_classes.insert(entity.id, class_name.clone());
                     ctx.curr_entity_id = entity.id;
 
@@ -9124,7 +9138,7 @@ impl RegionInstance {
 
                 // Determine, set and notify the entity about the sector it is in.
                 let mut sector_name = String::new();
-                with_regionctx(self.id, |ctx| {
+                with_regionctx(self.context.clone(), |ctx| {
                     let pos = entity.get_pos_xz();
                     let sector_id = ctx
                         .map
@@ -9164,7 +9178,7 @@ impl RegionInstance {
         // Send "startup" event to all items.
         for item in items.iter() {
             if let Some(class_name) = item.get_attr_string("class_name") {
-                with_regionctx(self.id, |ctx| {
+                with_regionctx(self.context.clone(), |ctx| {
                     ctx.item_classes.insert(item.id, class_name.clone());
                     ctx.curr_item_id = Some(item.id);
 
@@ -9187,7 +9201,7 @@ impl RegionInstance {
                 // }
             }
         }
-        with_regionctx(self.id, |ctx| {
+        with_regionctx(self.context.clone(), |ctx| {
             ctx.curr_item_id = None;
         });*/
 
@@ -9198,7 +9212,7 @@ impl RegionInstance {
 
         // Running the item setup scripts for the class instances
         let mut items = vec![];
-        with_regionctx(self.id, |ctx| {
+        with_regionctx(self.context.clone(), |ctx| {
             items = ctx.map.items.clone();
         });
         for item in items.iter_mut() {
@@ -9206,7 +9220,7 @@ impl RegionInstance {
 
             // Setting the data for the item.
             if let Some(class_name) = item.get_attr_string("class_name") {
-                with_regionctx(self.id, |ctx| {
+                with_regionctx(self.context.clone(), |ctx| {
                     if let Some(data) = ctx.item_class_data.get(&class_name) {
                         for i in ctx.map.items.iter_mut() {
                             if i.id == item.id {
@@ -9242,7 +9256,7 @@ impl RegionInstance {
                 });
 
                 // Send startup to all items
-                with_regionctx(self.id, |ctx| {
+                with_regionctx(self.context.clone(), |ctx| {
                     ctx.item_classes.insert(item.id, class_name.clone());
                     let previous_item_id = ctx.curr_item_id;
                     let previous_scope = ctx.current_script_scope;
@@ -9259,13 +9273,13 @@ impl RegionInstance {
             }
         }
 
-        with_regionctx(self.id, |ctx| {
+        with_regionctx(self.context.clone(), |ctx| {
             remember_entity_respawn_points(ctx);
         });
 
         // Wrapping up ...
         let mut error_count = 0;
-        with_regionctx(self.id, |ctx| {
+        with_regionctx(self.context.clone(), |ctx| {
             ctx.curr_item_id = None;
 
             // Send startup messages
@@ -9280,7 +9294,7 @@ impl RegionInstance {
 
         // Send startup log message
         send_log_message(
-            self.id,
+            self.context.clone(),
             format!("{}: Startup with {} errors.", name, error_count),
         );
     }
@@ -9294,7 +9308,7 @@ impl RegionInstance {
         // same cadence that packs entity updates and before any pause check, so
         // a character that dies and rises again within one tick never looks
         // missing to a client.
-        let removals: Vec<u32> = with_regionctx(self.id, |ctx: &mut RegionCtx| {
+        let removals: Vec<u32> = with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
             ctx.take_pending_entity_removals()
         })
         .unwrap_or_default();
@@ -9304,7 +9318,7 @@ impl RegionInstance {
                 .send(RegionMessage::RemoveEntity(self.id, entity_id));
         }
 
-        with_regionctx(self.id, |ctx| {
+        with_regionctx(self.context.clone(), |ctx| {
             if ctx.paused {
                 should_advance = false;
                 return;
@@ -9412,7 +9426,7 @@ impl RegionInstance {
         // Process notifications for entities.
         let to_process = {
             let mut notifications = vec![];
-            with_regionctx(self.id, |ctx| {
+            with_regionctx(self.context.clone(), |ctx| {
                 notifications = ctx.notifications_entities.clone();
             });
 
@@ -9423,9 +9437,9 @@ impl RegionInstance {
                 .collect::<Vec<_>>() // Store them in a new list
         };
         for (id, _tick, notification) in &to_process {
-            if !is_entity_dead(self.id, *id) {
+            if !is_entity_dead(self.context.clone(), *id) {
                 // let mut cmd = String::new();
-                with_regionctx(self.id, |ctx| {
+                with_regionctx(self.context.clone(), |ctx| {
                     if notification == "attack" {
                         let parse_target_attr = |value: Option<&Value>| -> Option<u32> {
                             match value {
@@ -9526,7 +9540,7 @@ impl RegionInstance {
             }
         }
 
-        with_regionctx(self.id, |ctx| {
+        with_regionctx(self.context.clone(), |ctx| {
             ctx.notifications_entities.retain(|(id, tick, _)| {
                 !to_process
                     .iter()
@@ -9537,7 +9551,7 @@ impl RegionInstance {
         // Process notifications for items.
         let to_process = {
             let mut notifications = vec![];
-            with_regionctx(self.id, |ctx| {
+            with_regionctx(self.context.clone(), |ctx| {
                 notifications = ctx.notifications_items.clone();
             });
 
@@ -9549,7 +9563,7 @@ impl RegionInstance {
         };
         for (id, _tick, notification) in &to_process {
             // let mut cmd = String::new();
-            with_regionctx(self.id, |ctx| {
+            with_regionctx(self.context.clone(), |ctx| {
                 if let Some(class_name) = ctx.item_classes.get(id) {
                     // cmd = format!("{}.event(\"{}\", \"\")", class_name, notification);
                     ctx.curr_item_id = Some(*id);
@@ -9562,12 +9576,12 @@ impl RegionInstance {
                 }
             });
             // let _ = self.execute(&cmd);
-            // with_regionctx(self.id, |ctx| {
+            // with_regionctx(self.context.clone(), |ctx| {
             //     ctx.curr_item_id = None;
             // });
         }
 
-        with_regionctx(self.id, |ctx| {
+        with_regionctx(self.context.clone(), |ctx| {
             ctx.notifications_items.retain(|(id, tick, _)| {
                 !to_process
                     .iter()
@@ -9576,7 +9590,7 @@ impl RegionInstance {
         });
 
         // Check Proximity Alerts
-        with_regionctx(self.id, |ctx| {
+        with_regionctx(self.context.clone(), |ctx| {
             for (id, radius) in ctx.entity_proximity_alerts.iter() {
                 let entities = self.entities_in_radius(ctx, Some(*id), None, *radius);
                 if !entities.is_empty() {
@@ -9608,7 +9622,7 @@ impl RegionInstance {
         while let Ok(msg) = self.to_receiver.try_recv() {
             match msg {
                 UpdateRules(rules) => {
-                    with_regionctx(self.id, |ctx| {
+                    with_regionctx(self.context.clone(), |ctx| {
                         if let Err(error) = ctx.replace_live_rules(rules) {
                             let _ = ctx.from_sender.get().map(|sender| {
                                 sender.send(RegionMessage::LogMessage(format!(
@@ -9619,23 +9633,23 @@ impl RegionInstance {
                     });
                 }
                 UpdateNodeGraph(owner, graph) => {
-                    with_regionctx(self.id, |ctx| {
+                    with_regionctx(self.context.clone(), |ctx| {
                         crate::server::nodes::region::refresh_graph(ctx, owner, graph);
                     });
                 }
                 Pause => {
-                    with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                    with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
                         ctx.paused = true;
                     });
                 }
                 Continue => {
-                    with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                    with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
                         ctx.paused = false;
                     });
                 }
                 Event(entity_id, event, value) => {
                     // let mut cmd = String::new();
-                    with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                    with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
                         if let Some(class_name) = ctx.entity_classes.get(&entity_id) {
                             // cmd = format!("{}.event('{}', {})", class_name, event, value);
                             ctx.curr_entity_id = entity_id;
@@ -9664,7 +9678,7 @@ impl RegionInstance {
                 }
                 UserEvent(entity_id, event, value) => {
                     // let mut cmd = String::new();
-                    with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                    with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
                         if let Some(class_name) = ctx.entity_classes.get(&entity_id) {
                             // cmd = format!("{}.user_event('{}', '{}')", class_name, event, value);
                             ctx.curr_entity_id = entity_id;
@@ -9694,15 +9708,17 @@ impl RegionInstance {
                     if (Self::is_movement_input_action(&action) && action != EntityAction::Off)
                         || matches!(action, TerrainClicked(_) | StepTo(..))
                     {
-                        with_regionctx(self.id, |ctx| {
-                            if let Some(actor) = ctx.map.entities.iter_mut().find(|e| e.id == entity_id) {
+                        with_regionctx(self.context.clone(), |ctx| {
+                            if let Some(actor) =
+                                ctx.map.entities.iter_mut().find(|e| e.id == entity_id)
+                            {
                                 crate::furniture::stand(actor);
                             }
                         });
                     }
 
                     if Self::action_requests_simulation_step(&action) {
-                        with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                        with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
                             if let Some(entity) = ctx
                                 .map
                                 .entities
@@ -9722,7 +9738,7 @@ impl RegionInstance {
                     }
                     match action {
                         Intent(intent) => {
-                            with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                            with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
                                 let resolved_intent =
                                     resolve_ruleset_invocation_intent(ctx, entity_id, &intent)
                                         .unwrap_or_default();
@@ -9751,7 +9767,7 @@ impl RegionInstance {
                             });
                         }
                         TextCommand(input) => {
-                            with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                            with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
                                 if ctx.entity_classes.get(&entity_id).is_some() {
                                     self.handle_text_command(ctx, entity_id, &input);
                                 }
@@ -9764,7 +9780,7 @@ impl RegionInstance {
                             verb,
                             explicit,
                         } => {
-                            with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                            with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
                                 Self::apply_block_prop_authoring_interaction(
                                     ctx,
                                     entity_id,
@@ -9780,7 +9796,7 @@ impl RegionInstance {
                             if Self::is_movement_input_action(&action)
                                 && action != EntityAction::Off =>
                         {
-                            with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                            with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
                                 // Grid players move by chaining StepTo actions, which
                                 // never pass through the directional intent branch in
                                 // the movement loop. When a rules/action intent is
@@ -9885,7 +9901,7 @@ impl RegionInstance {
                             });
                         }
                         EntityClicked(clicked_entity_id, distance, explicit_intent) => {
-                            with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                            with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
                                 if ctx.entity_classes.get(&entity_id).is_none() {
                                     return;
                                 }
@@ -10003,11 +10019,18 @@ impl RegionInstance {
                                     }
                                 }
 
-                                if !handled_shortcut && intent_lower == "look"
-                                    && let Some(target) = ctx.map.entities.iter().find(|e| e.id == clicked_entity_id)
+                                if !handled_shortcut
+                                    && intent_lower == "look"
+                                    && let Some(target) =
+                                        ctx.map.entities.iter().find(|e| e.id == clicked_entity_id)
                                     && let Some(msg) = entity_look_description(ctx, target)
                                 {
-                                    send_look(ctx, entity_id, crate::world_text::TextAnchor::Entity(clicked_entity_id), msg);
+                                    send_look(
+                                        ctx,
+                                        entity_id,
+                                        crate::world_text::TextAnchor::Entity(clicked_entity_id),
+                                        msg,
+                                    );
                                     handled_shortcut = true;
                                 }
 
@@ -10071,7 +10094,7 @@ impl RegionInstance {
                             explicit_intent,
                             owner_entity_id,
                         ) => {
-                            with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                            with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
                                 if ctx.entity_classes.get(&entity_id).is_none() {
                                     return;
                                 }
@@ -10100,7 +10123,11 @@ impl RegionInstance {
                                 else {
                                     return;
                                 };
-                                let intent = ctx.map.items.iter().find(|i| i.id == clicked_item_id)
+                                let intent = ctx
+                                    .map
+                                    .items
+                                    .iter()
+                                    .find(|i| i.id == clicked_item_id)
                                     .map(|i| crate::item_state::canonical_intent(i, &intent))
                                     .unwrap_or(intent);
                                 let intent_lower = intent.to_ascii_lowercase();
@@ -10312,7 +10339,14 @@ impl RegionInstance {
                                                 })
                                             && let Some(msg) = item_look_description(ctx, item)
                                         {
-                                            send_look(ctx, entity_id, crate::world_text::TextAnchor::Item(clicked_item_id), msg);
+                                            send_look(
+                                                ctx,
+                                                entity_id,
+                                                crate::world_text::TextAnchor::Item(
+                                                    clicked_item_id,
+                                                ),
+                                                msg,
+                                            );
                                             handled_shortcut = true;
                                         }
                                     } else if intent_lower == "use" {
@@ -10379,13 +10413,24 @@ impl RegionInstance {
                                 }
 
                                 if !handled_shortcut {
-                                    let actor = ctx.map.entities.iter().find(|e| e.id == entity_id).cloned();
+                                    let actor = ctx
+                                        .map
+                                        .entities
+                                        .iter()
+                                        .find(|e| e.id == entity_id)
+                                        .cloned();
                                     if let Some(actor) = actor {
-                                        handled_shortcut = apply_item_state_intent(ctx, &actor, clicked_item_id, &intent_lower);
+                                        handled_shortcut = apply_item_state_intent(
+                                            ctx,
+                                            &actor,
+                                            clicked_item_id,
+                                            &intent_lower,
+                                        );
                                     }
                                 }
                                 if !handled_shortcut && intent_lower == "use" {
-                                    handled_shortcut = apply_furniture_intent(ctx,entity_id,clicked_item_id);
+                                    handled_shortcut =
+                                        apply_furniture_intent(ctx, entity_id, clicked_item_id);
                                 }
                                 if !handled_shortcut {
                                     // Send default script-driven intent events.
@@ -10429,7 +10474,7 @@ impl RegionInstance {
                             });
                         }
                         TerrainClicked(position) => {
-                            with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                            with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
                                 let Some(snapshot) = ctx
                                     .map
                                     .entities
@@ -10547,7 +10592,7 @@ impl RegionInstance {
                         }
                         LookYaw(degrees) => {
                             if degrees.is_finite() {
-                                with_regionctx(self.id, |ctx| {
+                                with_regionctx(self.context.clone(), |ctx| {
                                     if let Some(entity) =
                                         ctx.map.entities.iter_mut().find(|e| e.id == entity_id)
                                         && entity.is_player()
@@ -10562,7 +10607,7 @@ impl RegionInstance {
                             }
                         }
                         SetPlayerCamera(player_camera) => {
-                            with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                            with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
                                 if let Some(entity) = ctx
                                     .map
                                     .entities
@@ -10577,7 +10622,7 @@ impl RegionInstance {
                             });
                         }
                         SetCommandSlot { slot, command } => {
-                            with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                            with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
                                 _ = set_command_slot_for_entity(
                                     ctx,
                                     entity_id,
@@ -10590,7 +10635,7 @@ impl RegionInstance {
                             item_id,
                             owner_entity_id,
                         } => {
-                            with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                            with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
                                 let container_exists = Self::find_drag_container_location(
                                     ctx,
                                     item_id,
@@ -10618,7 +10663,7 @@ impl RegionInstance {
                             to_inventory_index,
                             to_equipped_slot,
                         } => {
-                            with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                            with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
                                 _ = move_item_for_entity(
                                     ctx,
                                     owner_entity_id.unwrap_or(entity_id),
@@ -10637,7 +10682,7 @@ impl RegionInstance {
                             container_item_id,
                             container_owner_entity_id,
                         } => {
-                            with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                            with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
                                 _ = Self::move_item_to_container_for_entity(
                                     ctx,
                                     entity_id,
@@ -10658,7 +10703,7 @@ impl RegionInstance {
                             to_inventory_index,
                             to_equipped_slot,
                         } => {
-                            with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                            with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
                                 _ = Self::move_container_item_for_entity(
                                     ctx,
                                     entity_id,
@@ -10676,7 +10721,7 @@ impl RegionInstance {
                             owner_entity_id,
                             position,
                         } => {
-                            with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                            with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
                                 if owner_entity_id.is_none()
                                     && ctx.map.items.iter().any(|item| item.id == item_id)
                                 {
@@ -10699,7 +10744,7 @@ impl RegionInstance {
                             container_owner_entity_id,
                             position,
                         } => {
-                            with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                            with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
                                 _ = Self::drop_container_item_for_entity_at(
                                     ctx,
                                     entity_id,
@@ -10718,7 +10763,7 @@ impl RegionInstance {
                                 expires_at_tick,
                                 max_distance,
                             ) => {
-                                with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                                with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
                                     clear_choice_session(ctx, *seller_id, *buyer_id);
                                     if !choice_session_is_valid(
                                         ctx,
@@ -10794,7 +10839,7 @@ impl RegionInstance {
                                 });
                             }
                             Choice::Cancel(from_id, to_id, _, _) => {
-                                with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                                with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
                                     clear_choice_session(ctx, *from_id, *to_id);
                                     ctx.dialog_choices.insert(
                                         *from_id,
@@ -10819,7 +10864,7 @@ impl RegionInstance {
                                 expires_at_tick,
                                 max_distance,
                             ) => {
-                                with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                                with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
                                     let valid = choice_session_is_valid(
                                         ctx,
                                         *from_id,
@@ -10860,7 +10905,7 @@ impl RegionInstance {
                                 });
                             }
                             Choice::DialogChoice(dialog_choice) => {
-                                with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                                with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
                                     let valid = choice_session_is_valid(
                                         ctx,
                                         dialog_choice.from,
@@ -10912,7 +10957,7 @@ impl RegionInstance {
                                 });
                             }
                             Choice::NodeChoice(node_choice) => {
-                                with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                                with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
                                     let valid = choice_session_is_valid(
                                         ctx,
                                         node_choice.from,
@@ -10936,7 +10981,7 @@ impl RegionInstance {
                             }
                         },
                         _ => {
-                            with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                            with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
                                 let click_intents_2d = get_config_bool_default(
                                     ctx,
                                     "game",
@@ -11008,7 +11053,7 @@ impl RegionInstance {
                 }
                 CreateEntity(_id, entity) => self.create_entity_instance(entity),
                 ShowStartupSectorDescription(entity_id) => {
-                    with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                    with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
                         if let Some(entity) =
                             ctx.map.entities.iter().find(|e| e.id == entity_id).cloned()
                             && let Some(sector) =
@@ -11022,7 +11067,7 @@ impl RegionInstance {
                     if dest_region_name.trim().is_empty()
                         || dest_region_name.trim().eq_ignore_ascii_case(&self.name)
                     {
-                        with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                        with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
                             let center = ctx.map.named_area_center(&dest_sector_name);
 
                             if let Some(center) = center {
@@ -11030,7 +11075,7 @@ impl RegionInstance {
                             }
                         });
                     } else {
-                        with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                        with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
                             if let Some(pos) =
                                 ctx.map.entities.iter().position(|e| e.id == entity_id)
                             {
@@ -11050,18 +11095,18 @@ impl RegionInstance {
                     }
                 }
                 TeleportEntityPos(entity_id, position) => {
-                    with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                    with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
                         Self::teleport_position_in_ctx(ctx, entity_id, position);
                     });
                 }
                 TransferEntity(_region_id, entity, _dest_region_name, dest_sector_name) => {
-                    with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                    with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
                         receive_entity(ctx, entity, dest_sector_name);
                     });
                 }
                 Time(_id, time) => {
                     // User manually set the server time
-                    with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                    with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
                         ctx.ticks = time.to_ticks(ctx.ticks_per_minute);
                         ctx.time = time;
                     });
@@ -11076,7 +11121,7 @@ impl RegionInstance {
         // Consume live edits while paused, but preserve the world snapshot.
         // Continuing with an empty local entity list would erase paused bodies.
         let mut paused = false;
-        with_regionctx(self.id, |ctx| paused = ctx.paused);
+        with_regionctx(self.context.clone(), |ctx| paused = ctx.paused);
         if paused {
             self.last_redraw_at = Instant::now();
             return;
@@ -11095,7 +11140,7 @@ impl RegionInstance {
         let mut sim_dt = redraw_dt;
 
         let mut entities = vec![];
-        with_regionctx(self.id, |ctx: &mut RegionCtx| {
+        with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
             if ctx.paused {
                 return;
             }
@@ -11501,7 +11546,7 @@ impl RegionInstance {
                     }
                 }
                 EntityAction::CloseIn(target, target_radius, speed) => {
-                    if is_entity_dead(self.id, *target) {
+                    if is_entity_dead(self.context.clone(), *target) {
                         continue;
                     }
 
@@ -11511,7 +11556,7 @@ impl RegionInstance {
 
                     let mut coord: Option<vek::Vec2<f32>> = None;
 
-                    with_regionctx(self.id, |ctx| {
+                    with_regionctx(self.context.clone(), |ctx| {
                         let speed: f32 = Self::close_in_step_distance(
                             ctx,
                             entity,
@@ -11622,7 +11667,7 @@ impl RegionInstance {
                     let attacker_id = entity.id;
                     let target_id = *target;
 
-                    with_regionctx(self.id, |ctx| {
+                    with_regionctx(self.context.clone(), |ctx| {
                         let Some(target_entity) = ctx
                             .map
                             .entities
@@ -11767,7 +11812,7 @@ impl RegionInstance {
                     let radius = entity.attributes.get_float_default("radius", 0.5) - 0.01;
                     let explicit_target_y = entity.attributes.get_float("__goto_target_height");
                     let action_speed = *speed;
-                    with_regionctx(self.id, |ctx| {
+                    with_regionctx(self.context.clone(), |ctx| {
                         let speed = self.movement_units_per_sec
                             * speed
                             * Self::autonomous_action_dt(ctx, entity);
@@ -12002,7 +12047,7 @@ impl RegionInstance {
                 } => {
                     let position = entity.get_pos_xz();
                     let radius = entity.attributes.get_float_default("radius", 0.5) - 0.01;
-                    with_regionctx(self.id, |ctx| {
+                    with_regionctx(self.context.clone(), |ctx| {
                         let step_speed = self.movement_units_per_sec
                             * speed
                             * Self::autonomous_action_dt(ctx, entity);
@@ -12124,7 +12169,7 @@ impl RegionInstance {
                     });
                 }
                 EntityAction::GotoGrid(coord, speed) => {
-                    with_regionctx(self.id, |ctx| {
+                    with_regionctx(self.context.clone(), |ctx| {
                         let step = self.compute_grid_goto_step_in_ctx(
                             ctx,
                             entity.get_pos_xz(),
@@ -12153,7 +12198,7 @@ impl RegionInstance {
                     });
                 }
                 EntityAction::StepTo(coord, speed, facing, start, step_dir) => {
-                    with_regionctx(self.id, |ctx| {
+                    with_regionctx(self.context.clone(), |ctx| {
                         let mut remaining_speed =
                             self.movement_units_per_sec * speed * ctx.delta_time;
                         let mut curr_coord = *coord;
@@ -12404,8 +12449,9 @@ impl RegionInstance {
                 EntityAction::RotateTo(target) => {
                     let finished = Self::rotate_towards_cardinal(entity, *target, turn_step_deg);
                     if finished {
-                        let simulation_mode = with_regionctx(self.id, |ctx| ctx.simulation_mode)
-                            .unwrap_or(crate::server::regionctx::SimulationMode::Realtime);
+                        let simulation_mode =
+                            with_regionctx(self.context.clone(), |ctx| ctx.simulation_mode)
+                                .unwrap_or(crate::server::regionctx::SimulationMode::Realtime);
                         Self::clear_grid_blocked_action(entity);
                         let player_camera = match entity.attributes.get("player_camera") {
                             Some(Value::PlayerCamera(player_camera)) => Some(player_camera.clone()),
@@ -12450,7 +12496,7 @@ impl RegionInstance {
                         let mut next_pos = curr_pos;
                         let mut found = false;
 
-                        with_regionctx(self.id, |ctx| {
+                        with_regionctx(self.context.clone(), |ctx| {
                             let radius = entity.attributes.get_float_default("radius", 0.5) - 0.01;
 
                             // Prefer discrete nearby tile centers first. In narrow 2D spaces
@@ -12531,7 +12577,7 @@ impl RegionInstance {
                             );
                         } else {
                             let max_sleep = *max_sleep;
-                            with_regionctx(self.id, |ctx| {
+                            with_regionctx(self.context.clone(), |ctx| {
                                 let position = entity.get_pos_xz();
                                 let radius =
                                     entity.attributes.get_float_default("radius", 0.5) - 0.01;
@@ -12751,7 +12797,7 @@ impl RegionInstance {
                     if *state == 0 {
                         // State 0: Uninitialized, find a target location.
                         let curr_pos = entity.get_pos_xz().clone();
-                        with_regionctx(self.id, |ctx| {
+                        with_regionctx(self.context.clone(), |ctx| {
                             if let Some(sector) = ctx.map.find_sector_at(curr_pos) {
                                 let radius =
                                     entity.attributes.get_float_default("radius", 0.5) - 0.01;
@@ -12820,7 +12866,7 @@ impl RegionInstance {
                             );
                         } else {
                             let max_sleep = *max_sleep;
-                            with_regionctx(self.id, |ctx| {
+                            with_regionctx(self.context.clone(), |ctx| {
                                 let position = entity.get_pos_xz();
                                 let radius =
                                     entity.attributes.get_float_default("radius", 0.5) - 0.01;
@@ -13080,7 +13126,7 @@ impl RegionInstance {
                     if points.is_empty() {
                         entity.action = EntityAction::Off;
                     } else {
-                        with_regionctx(self.id, |ctx| {
+                        with_regionctx(self.context.clone(), |ctx| {
                             let points = points.clone();
                             if points.is_empty() {
                                 entity.action = EntityAction::Off;
@@ -13202,7 +13248,7 @@ impl RegionInstance {
                     }
                 }
                 SleepAndSwitch(tick, action) => {
-                    with_regionctx(self.id, |ctx| {
+                    with_regionctx(self.context.clone(), |ctx| {
                         if *tick <= ctx.ticks {
                             entity.action = *action.clone();
                         }
@@ -13211,7 +13257,7 @@ impl RegionInstance {
                 _ => {}
             }
 
-            with_regionctx(self.id, |ctx| {
+            with_regionctx(self.context.clone(), |ctx| {
                 if ctx.assets.node_behaviors.is_none() {
                     self.advance_entity_sequence(ctx, entity);
                 }
@@ -13226,7 +13272,7 @@ impl RegionInstance {
             sync_avatar_animation(entity, moved);
         }
 
-        with_regionctx(self.id, |ctx| {
+        with_regionctx(self.context.clone(), |ctx| {
             Self::merge_runtime_entity_side_effects(&mut entities, &ctx.map.entities);
             // Combat can kill inside the movement loop, where `entities` is a
             // pre-move clone. A body that death has already stashed must not be
@@ -13242,7 +13288,7 @@ impl RegionInstance {
 
         // Execute delayed scripts for entities
         let mut to_execute_entity = vec![];
-        with_regionctx(self.id, |ctx| {
+        with_regionctx(self.context.clone(), |ctx| {
             to_execute_entity = ctx.to_execute_entity.clone();
             ctx.to_execute_entity.clear();
         });
@@ -13251,7 +13297,7 @@ impl RegionInstance {
                 false
             } else {
                 let mut dead = false;
-                with_regionctx(self.id, |ctx| {
+                with_regionctx(self.context.clone(), |ctx| {
                     dead = is_entity_dead_ctx(ctx, todo.0);
                 });
                 dead
@@ -13261,7 +13307,7 @@ impl RegionInstance {
             }
 
             if todo.1 == "__grant_xp" {
-                with_regionctx(self.id, |ctx| {
+                with_regionctx(self.context.clone(), |ctx| {
                     let _ = grant_experience(ctx, todo.0, todo.2.x.max(0.0).round() as i32);
                 });
                 continue;
@@ -13270,7 +13316,7 @@ impl RegionInstance {
             let mut ticks = 0;
             let mut state_data = FxHashMap::default();
 
-            with_regionctx(self.id, |ctx| {
+            with_regionctx(self.context.clone(), |ctx| {
                 ctx.curr_entity_id = todo.0;
                 ctx.curr_item_id = None;
                 state_data = ctx.entity_state_data.clone();
@@ -13290,7 +13336,7 @@ impl RegionInstance {
                 if let Some(Value::Int64(tick)) = state_data.get(&todo.1) {
                     if *tick >= ticks {
                         if todo.1.starts_with("intent") {
-                            with_regionctx(self.id, |ctx| {
+                            with_regionctx(self.context.clone(), |ctx| {
                                 send_message(
                                     ctx,
                                     todo.0,
@@ -13306,7 +13352,7 @@ impl RegionInstance {
                     && let Some(Value::Int64(tick)) = state_data.get(specific_intent_key)
                     && *tick >= ticks
                 {
-                    with_regionctx(self.id, |ctx| {
+                    with_regionctx(self.context.clone(), |ctx| {
                         send_message(ctx, todo.0, "{system.cant_do_that_yet}".into(), "warning");
                     });
                     continue;
@@ -13319,7 +13365,7 @@ impl RegionInstance {
                 state_data.insert(todo.0, vc);
             }
 
-            with_regionctx(self.id, |ctx| {
+            with_regionctx(self.context.clone(), |ctx| {
                 ctx.entity_state_data = state_data;
                 ctx.damage_committed = false;
                 let is_damage_event = is_damage_event_name(&todo.1);
@@ -13394,7 +13440,7 @@ impl RegionInstance {
         // This is because we can only borrow REGION once.
 
         let mut to_execute_item = vec![];
-        with_regionctx(self.id, |ctx| {
+        with_regionctx(self.context.clone(), |ctx| {
             to_execute_item = ctx.to_execute_item.clone();
             ctx.to_execute_item.clear();
         });
@@ -13402,7 +13448,7 @@ impl RegionInstance {
         for todo in to_execute_item {
             let mut ticks = 0;
             let mut state_data = FxHashMap::default();
-            with_regionctx(self.id, |ctx| {
+            with_regionctx(self.context.clone(), |ctx| {
                 ctx.curr_item_id = Some(todo.0);
                 state_data = ctx.item_state_data.clone();
                 ticks = ctx.ticks;
@@ -13437,7 +13483,7 @@ impl RegionInstance {
                 state_data.insert(todo.0, vc);
             }
 
-            with_regionctx(self.id, |ctx| {
+            with_regionctx(self.context.clone(), |ctx| {
                 ctx.item_state_data = state_data;
                 if let Some(class_name) = ctx.item_classes.get(&todo.0) {
                     if let Some(program) = ctx.item_programs.get(class_name).cloned() {
@@ -13461,13 +13507,13 @@ impl RegionInstance {
         // Execute world events queued by scripts. This keeps world orchestration out of
         // entity/item scripts while avoiding recursive VM execution during host calls.
         let mut to_execute_world = vec![];
-        with_regionctx(self.id, |ctx| {
+        with_regionctx(self.context.clone(), |ctx| {
             to_execute_world = ctx.to_execute_world.clone();
             ctx.to_execute_world.clear();
         });
 
         for (event, value) in to_execute_world {
-            with_regionctx(self.id, |ctx| {
+            with_regionctx(self.context.clone(), |ctx| {
                 if let Some(program) = ctx.world_program.clone() {
                     let previous_scope = ctx.current_script_scope;
                     ctx.current_script_scope = ScriptScope::World;
@@ -13481,7 +13527,7 @@ impl RegionInstance {
 
         let mut final_entity_updates: Vec<Vec<u8>> = vec![];
         let mut final_item_updates: Vec<Vec<u8>> = vec![];
-        with_regionctx(self.id, |ctx| {
+        with_regionctx(self.context.clone(), |ctx| {
             for entity in &mut ctx.map.entities {
                 if entity.is_dirty() {
                     final_entity_updates.push(entity.get_update().pack());
@@ -13509,7 +13555,7 @@ impl RegionInstance {
                 .unwrap();
         }
 
-        with_regionctx(self.id, |ctx| {
+        with_regionctx(self.context.clone(), |ctx| {
             if !ctx.event_observations.is_empty() {
                 let events = ctx.event_observations.drain(..).collect();
                 let _ = self
@@ -13566,7 +13612,7 @@ impl RegionInstance {
         if minutes == 0 {
             return switchback;
         }
-        with_regionctx(self.id, |ctx| {
+        with_regionctx(self.context.clone(), |ctx| {
             let tick = ctx.ticks + Self::game_minutes_to_ticks(ctx, minutes as f32);
             SleepAndSwitch(tick, Box::new(switchback))
         })
@@ -13575,7 +13621,7 @@ impl RegionInstance {
 
     /// Moves an entity forward or backward. Returns true if blocked.
     fn move_entity(&self, entity: &mut Entity, dir: f32, entity_block_mode: i32) -> bool {
-        with_regionctx(self.id, |ctx| {
+        with_regionctx(self.context.clone(), |ctx| {
             let speed = self.movement_units_per_sec * ctx.delta_time;
             entity.orientation * speed * dir
         })
@@ -13585,7 +13631,7 @@ impl RegionInstance {
 
     /// Create a new entity instance.
     pub fn create_entity_instance(&mut self, mut entity: Entity) {
-        entity.id = get_global_id();
+        entity.id = self.world.next_id();
         entity.set_attribute(
             "_source_seq",
             Value::Source(PixelSource::Sequence("idle".into())),
@@ -13594,7 +13640,7 @@ impl RegionInstance {
         entity.mark_all_dirty();
 
         if let Some(class_name) = entity.get_attr_string("class_name") {
-            with_regionctx(self.id, |ctx: &mut RegionCtx| {
+            with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
                 if ctx.entity_player_classes.contains(&class_name) {
                     let radius = entity.attributes.get_float_default("radius", 0.5).max(0.0) - 0.01;
                     if let Some(entrance_center) =
@@ -13726,7 +13772,7 @@ impl RegionInstance {
             // }
             //
 
-            with_regionctx(self.id, |ctx: &mut RegionCtx| {
+            with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
                 let previous_scope = ctx.current_script_scope;
                 let previous_item_id = ctx.curr_item_id;
                 ctx.current_script_scope = ScriptScope::Entity;
@@ -13778,7 +13824,7 @@ impl RegionInstance {
         self.run_entity_instance_setup(&entity, &region_name, "for spawned instance");
 
         send_log_message(
-            self.id,
+            self.context.clone(),
             format!(
                 "{}: Spawned `{}`",
                 self.name,
@@ -13790,7 +13836,7 @@ impl RegionInstance {
     /// Get the name of the entity with the given id.
     fn get_entity_name(&self, id: u32) -> String {
         let mut name = "Unknown".to_string();
-        with_regionctx(self.id, |ctx: &mut RegionCtx| {
+        with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
             for entity in ctx.map.entities.iter() {
                 if entity.id == id {
                     if let Some(n) = entity.attributes.get_str("name") {
@@ -13804,7 +13850,7 @@ impl RegionInstance {
 
     /// Send "intent" events for the entity or item at the given position.
     fn send_entity_intent_events(&self, entity: &mut Entity, position: Vec2<f32>) {
-        with_regionctx(self.id, |ctx: &mut RegionCtx| {
+        with_regionctx(self.context.clone(), |ctx: &mut RegionCtx| {
             Self::send_entity_intent_events_in_ctx(ctx, entity, position);
         });
     }
@@ -13845,7 +13891,7 @@ impl RegionInstance {
             if let Some(i_id) = get_item_at(ctx, position) {
                 value.x = i_id as f32;
                 if let Some(item) = ctx.map.items.iter().find(|item| item.id == i_id) {
-                    value.y = crate::item_state::distance(item,&ctx.assets,entity);
+                    value.y = crate::item_state::distance(item, &ctx.assets, entity);
                 }
                 target_item_id = Some(i_id);
                 found_target = true;
@@ -13857,8 +13903,10 @@ impl RegionInstance {
             entity.set_attribute("intent", Value::Str(String::new()));
             return;
         };
-        let intent = target_item_id.and_then(|id| ctx.map.items.iter().find(|i| i.id == id))
-            .map(|i| crate::item_state::canonical_intent(i, &intent)).unwrap_or(intent);
+        let intent = target_item_id
+            .and_then(|id| ctx.map.items.iter().find(|i| i.id == id))
+            .map(|i| crate::item_state::canonical_intent(i, &intent))
+            .unwrap_or(intent);
         if intent != intent_raw {
             entity.set_attribute("intent", Value::Str(intent.clone()));
         }
@@ -13953,11 +14001,22 @@ impl RegionInstance {
         }
 
         if intent_lower == "look" {
-            let result = target_entity.and_then(|target| entity_look_description(ctx, target).map(|msg| (crate::world_text::TextAnchor::Entity(target.id), msg)))
-                .or_else(|| target_item.and_then(|target| item_look_description(ctx, target).map(|msg| (crate::world_text::TextAnchor::Item(target.id), msg))));
+            let result = target_entity
+                .and_then(|target| {
+                    entity_look_description(ctx, target)
+                        .map(|msg| (crate::world_text::TextAnchor::Entity(target.id), msg))
+                })
+                .or_else(|| {
+                    target_item.and_then(|target| {
+                        item_look_description(ctx, target)
+                            .map(|msg| (crate::world_text::TextAnchor::Item(target.id), msg))
+                    })
+                });
             if let Some((anchor, msg)) = result {
                 send_look(ctx, entity.id, anchor, msg);
-                if !keep_intent { entity.set_attribute("intent", Value::Str(String::new())); }
+                if !keep_intent {
+                    entity.set_attribute("intent", Value::Str(String::new()));
+                }
                 return;
             }
         }
@@ -14022,14 +14081,25 @@ impl RegionInstance {
             && apply_item_state_intent(ctx, entity, item_id, &intent_lower)
         {
             queue_intent_cooldown(ctx, entity.id, &intent_lower, rules.cooldown_seconds);
-            if !keep_intent { entity.set_attribute("intent", Value::Str(String::new())); }
+            if !keep_intent {
+                entity.set_attribute("intent", Value::Str(String::new()));
+            }
             return;
         }
-        if intent_lower == "use" && let Some(item) = target_item_id.and_then(|id| ctx.map.items.iter().find(|i| i.id == id).cloned())
-            && !ctx.assets.node_behaviors.as_ref().is_some_and(|a| a.owns_item_intent(ctx,&item))
-            && let Some(result) = crate::furniture::use_item(entity,&item,&ctx.map.entities,&ctx.assets)
+        if intent_lower == "use"
+            && let Some(item) =
+                target_item_id.and_then(|id| ctx.map.items.iter().find(|i| i.id == id).cloned())
+            && !ctx
+                .assets
+                .node_behaviors
+                .as_ref()
+                .is_some_and(|a| a.owns_item_intent(ctx, &item))
+            && let Some(result) =
+                crate::furniture::use_item(entity, &item, &ctx.map.entities, &ctx.assets)
         {
-            if let Err(message) = result { send_message(ctx,entity.id,message,"system"); }
+            if let Err(message) = result {
+                send_message(ctx, entity.id, message, "system");
+            }
             return;
         }
         value.string = Some(intent.clone());
@@ -14496,9 +14566,9 @@ fn set_player_camera(camera: String, vm: &VirtualMachine) {
 /// Death takes the body out of the world, so absence has to count as dead:
 /// this defers to `RegionCtx::is_entity_dead_ctx`, which also checks the stash.
 /// Reading `mode` off `map.entities` alone would report a stashed body as alive.
-pub fn is_entity_dead(region_id: u32, id: u32) -> bool {
+pub fn is_entity_dead(context: Option<Arc<Mutex<RegionCtx>>>, id: u32) -> bool {
     let mut v = false;
-    with_regionctx(region_id, |ctx: &mut RegionCtx| {
+    with_regionctx(context, |ctx: &mut RegionCtx| {
         v = ctx.is_entity_dead_ctx(id);
     });
     v
@@ -14522,8 +14592,8 @@ fn get_entity_mut<'a>(map: &'a mut Map, entity_id: u32) -> Option<&'a mut Entity
     None
 }
 
-pub fn send_log_message(id: u32, message: String) {
-    with_regionctx(id, |ctx| {
+fn send_log_message(context: Option<Arc<Mutex<RegionCtx>>>, message: String) {
+    with_regionctx(context, |ctx| {
         ctx.from_sender
             .get()
             .unwrap()
@@ -16608,7 +16678,7 @@ fn spawn_ruleset_fx_stage_item(
     let (mut emitter, lifetime, size_scale) = ruleset_fx_emitter(&preset);
     emitter.origin = position;
     let mut item = Item::new();
-    item.id = get_global_id();
+    item.id = ctx.world.next_id();
     item.item_type = format!("ruleset_fx_{}_{}", stage, preset_id);
     item.position = position;
     item.set_attribute("is_ruleset_fx", Value::Bool(true));
@@ -16871,6 +16941,7 @@ fn ruleset_item_from_table(
     rules: &toml::value::Table,
     item_id: &str,
     quantity: usize,
+    world: &super::world::SimulationWorld,
 ) -> Option<Item> {
     let (group, item_table) = ruleset_item_table_by_id(rules, item_id)?;
     let name = rule_string(item_table, "name").unwrap_or(item_id);
@@ -16879,7 +16950,7 @@ fn ruleset_item_from_table(
     let ruleset_path = format!("items.{}.{}", group, item_id);
 
     let mut item = Item::new();
-    item.id = get_global_id();
+    item.id = world.next_id();
     item.item_type = name.to_string();
     item.set_attribute("class_name", Value::Str(name.to_string()));
     item.set_attribute("name", Value::Str(name.to_string()));
@@ -17191,7 +17262,9 @@ pub(crate) fn craft_ruleset_recipe(ctx: &mut RegionCtx, crafter_id: u32, recipe_
     let produces = item_quantity_entries(recipe, "produces");
     let mut output_items = produces
         .iter()
-        .filter_map(|(item_id, quantity)| ruleset_item_from_table(&ctx.rules, item_id, *quantity))
+        .filter_map(|(item_id, quantity)| {
+            ruleset_item_from_table(&ctx.rules, item_id, *quantity, &ctx.world)
+        })
         .collect::<Vec<_>>();
     if output_items.len() != produces.len() {
         return false;
@@ -17759,7 +17832,8 @@ fn execute_ruleset_resource_action(
         );
         return false;
     };
-    let Some(output_item) = ruleset_item_from_table(&ctx.rules, &item_id, quantity) else {
+    let Some(output_item) = ruleset_item_from_table(&ctx.rules, &item_id, quantity, &ctx.world)
+    else {
         return false;
     };
     let output_name = output_item
@@ -18953,28 +19027,59 @@ pub(crate) fn execute_ruleset_action_with_target(
 /// All camera modes reach this after official intent validation. Item nodes can
 /// replace the default policy, while writing the same authoritative active flag.
 fn apply_furniture_intent(ctx: &mut RegionCtx, actor_id: u32, item_id: u32) -> bool {
-    let Some(item) = ctx.map.items.iter().find(|i| i.id == item_id).cloned() else { return false; };
-    if ctx.assets.node_behaviors.as_ref().is_some_and(|a| a.owns_item_intent(ctx,&item)) { return false; }
-    let Some(mut actor) = ctx.map.entities.iter().find(|e| e.id == actor_id).cloned() else { return false; };
-    let rules = intent_rule_config(ctx,actor_id,"use");
-    let distance = crate::item_state::distance(&item,&ctx.assets,&actor);
-    if distance > intent_distance_limit(ctx,actor_id,"use",&rules) || !intent_allowed(ctx,&rules,distance,Some(&actor),None,Some(&item),None) { return false; }
-    let result = crate::furniture::use_item(&mut actor,&item,&ctx.map.entities,&ctx.assets);
+    let Some(item) = ctx.map.items.iter().find(|i| i.id == item_id).cloned() else {
+        return false;
+    };
+    if ctx
+        .assets
+        .node_behaviors
+        .as_ref()
+        .is_some_and(|a| a.owns_item_intent(ctx, &item))
+    {
+        return false;
+    }
+    let Some(mut actor) = ctx.map.entities.iter().find(|e| e.id == actor_id).cloned() else {
+        return false;
+    };
+    let rules = intent_rule_config(ctx, actor_id, "use");
+    let distance = crate::item_state::distance(&item, &ctx.assets, &actor);
+    if distance > intent_distance_limit(ctx, actor_id, "use", &rules)
+        || !intent_allowed(ctx, &rules, distance, Some(&actor), None, Some(&item), None)
+    {
+        return false;
+    }
+    let result = crate::furniture::use_item(&mut actor, &item, &ctx.map.entities, &ctx.assets);
     match result {
         Some(Ok(())) => {
-            if let Some(current) = ctx.map.entities.iter_mut().find(|e| e.id == actor_id) { *current = actor; }
+            if let Some(current) = ctx.map.entities.iter_mut().find(|e| e.id == actor_id) {
+                *current = actor;
+            }
             true
         }
-        Some(Err(message)) => { send_message(ctx,actor_id,message,"system"); true }
+        Some(Err(message)) => {
+            send_message(ctx, actor_id, message, "system");
+            true
+        }
         None => false,
     }
 }
 
-fn apply_item_state_intent(ctx: &mut RegionCtx, actor: &Entity, item_id: u32, intent: &str) -> bool {
-    if !matches!(intent, "open" | "close") { return false; }
-    let Some(index) = ctx.map.items.iter().position(|i| i.id == item_id) else { return false; };
+fn apply_item_state_intent(
+    ctx: &mut RegionCtx,
+    actor: &Entity,
+    item_id: u32,
+    intent: &str,
+) -> bool {
+    if !matches!(intent, "open" | "close") {
+        return false;
+    }
+    let Some(index) = ctx.map.items.iter().position(|i| i.id == item_id) else {
+        return false;
+    };
     let item = &ctx.map.items[index];
-    if !item.attributes.get_bool_default("openable", false) { return false; }
+    if !item.attributes.get_bool_default("openable", false) {
+        return false;
+    }
     let rules = intent_rule_config(ctx, actor.id, intent);
     let distance = crate::item_state::distance(item, &ctx.assets, actor);
     if distance > intent_distance_limit(ctx, actor.id, intent, &rules)
@@ -18982,15 +19087,30 @@ fn apply_item_state_intent(ctx: &mut RegionCtx, actor: &Entity, item_id: u32, in
     {
         let message = if distance > intent_distance_limit(ctx, actor.id, intent, &rules) {
             "{system.too_far_away}".into()
-        } else { rules.deny_message.unwrap_or_else(|| "{system.cant_do_that}".into()) };
+        } else {
+            rules
+                .deny_message
+                .unwrap_or_else(|| "{system.cant_do_that}".into())
+        };
         send_message(ctx, actor.id, message, "warning");
         return true;
     }
-    if ctx.assets.node_behaviors.as_ref().is_some_and(|a| a.owns_item_intent(ctx, item)) { return false; }
+    if ctx
+        .assets
+        .node_behaviors
+        .as_ref()
+        .is_some_and(|a| a.owns_item_intent(ctx, item))
+    {
+        return false;
+    }
     if intent == "close" && item.attributes.get_bool_default("active", false) {
         let mut closed = item.clone();
         closed.set_attribute("active", Value::Bool(false));
-        if ctx.map.entities.iter().filter(|e| e.get_mode() != "dead")
+        if ctx
+            .map
+            .entities
+            .iter()
+            .filter(|e| e.get_mode() != "dead")
             .any(|e| crate::item_state::actor_intersects(&closed, &ctx.assets, e))
         {
             send_message(ctx, actor.id, "{system.door_obstructed}".into(), "warning");
@@ -18999,12 +19119,18 @@ fn apply_item_state_intent(ctx: &mut RegionCtx, actor: &Entity, item_id: u32, in
     }
     match crate::item_state::request(&mut ctx.map.items[index], actor, intent) {
         Some(Ok(true)) => {
-            let active = ctx.map.items[index].attributes.get_bool_default("active", false);
-            ctx.to_execute_item.push((item_id, "active".into(), VMValue::from_bool(active)));
+            let active = ctx.map.items[index]
+                .attributes
+                .get_bool_default("active", false);
+            ctx.to_execute_item
+                .push((item_id, "active".into(), VMValue::from_bool(active)));
             true
         }
         Some(Ok(false)) => true,
-        Some(Err(message)) => { send_message(ctx, actor.id, message, "warning"); true }
+        Some(Err(message)) => {
+            send_message(ctx, actor.id, message, "warning");
+            true
+        }
         None => false,
     }
 }
@@ -19014,46 +19140,87 @@ mod item_state_intent_tests {
     use super::*;
     #[test]
     fn item_state_close_refuses_to_trap_a_character() {
-        let mut ctx=RegionCtx::default(); let (sender,_receiver)=unbounded(); let _=ctx.from_sender.set(sender);
-        ctx.set_rules(eldiron_ruleset::latest_official_ruleset().parse().unwrap()).unwrap();
-        let source=include_str!("../../../../creator/embedded/meshes/recipes/hinged-door.mzgeometry.json");
-        ctx.assets.procedural_avatars.insert("door".into(),std::sync::Arc::new(
-            crate::procedural_avatar::Appearance::new(source,&[],55).unwrap()));
-        let mut door=Item::new(); door.id=10; door.position=Vec3::zero();
-        for (key,value) in [("openable",Value::Bool(true)),("active",Value::Bool(true)),
-            ("appearance_geometry",Value::Str("door".into()))] {door.set_attribute(key,value);}
+        let mut ctx = RegionCtx::default();
+        let (sender, _receiver) = unbounded();
+        let _ = ctx.from_sender.set(sender);
+        ctx.set_rules(eldiron_ruleset::latest_official_ruleset().parse().unwrap())
+            .unwrap();
+        let source =
+            include_str!("../../../../creator/embedded/meshes/recipes/hinged-door.mzgeometry.json");
+        ctx.assets.procedural_avatars.insert(
+            "door".into(),
+            std::sync::Arc::new(
+                crate::procedural_avatar::Appearance::new(source, &[], 55).unwrap(),
+            ),
+        );
+        let mut door = Item::new();
+        door.id = 10;
+        door.position = Vec3::zero();
+        for (key, value) in [
+            ("openable", Value::Bool(true)),
+            ("active", Value::Bool(true)),
+            ("appearance_geometry", Value::Str("door".into())),
+        ] {
+            door.set_attribute(key, value);
+        }
         ctx.map.items.push(door);
-        let mut actor=Entity::default(); actor.id=1; actor.position=Vec3::new(0.6,0.09,0.);
+        let mut actor = Entity::default();
+        actor.id = 1;
+        actor.position = Vec3::new(0.6, 0.09, 0.);
         ctx.map.entities.push(actor.clone());
-        assert!(apply_item_state_intent(&mut ctx,&actor,10,"close"));
-        assert!(ctx.map.items[0].attributes.get_bool_default("active",false));
-        actor.position.z=1.; ctx.map.entities[0]=actor.clone();
-        assert!(apply_item_state_intent(&mut ctx,&actor,10,"close"));
-        assert!(!ctx.map.items[0].attributes.get_bool_default("active",true));
+        assert!(apply_item_state_intent(&mut ctx, &actor, 10, "close"));
+        assert!(
+            ctx.map.items[0]
+                .attributes
+                .get_bool_default("active", false)
+        );
+        actor.position.z = 1.;
+        ctx.map.entities[0] = actor.clone();
+        assert!(apply_item_state_intent(&mut ctx, &actor, 10, "close"));
+        assert!(!ctx.map.items[0].attributes.get_bool_default("active", true));
     }
     #[test]
     fn item_state_transitions_obey_official_intent_rules_and_range() {
-        let mut ctx=RegionCtx::default();
-        let (sender,_receiver)=unbounded(); let _=ctx.from_sender.set(sender);
-        ctx.set_rules(eldiron_ruleset::latest_official_ruleset().parse().unwrap()).unwrap();
-        let mut door=Item::new(); door.id=10; door.position=Vec3::zero();
-        door.set_attribute("openable",Value::Bool(true)); door.set_attribute("active",Value::Bool(false));
+        let mut ctx = RegionCtx::default();
+        let (sender, _receiver) = unbounded();
+        let _ = ctx.from_sender.set(sender);
+        ctx.set_rules(eldiron_ruleset::latest_official_ruleset().parse().unwrap())
+            .unwrap();
+        let mut door = Item::new();
+        door.id = 10;
+        door.position = Vec3::zero();
+        door.set_attribute("openable", Value::Bool(true));
+        door.set_attribute("active", Value::Bool(false));
         ctx.map.items.push(door);
-        let mut actor=Entity::default(); actor.id=1; actor.position=Vec3::new(0.,0.,1.);
-        assert!(apply_item_state_intent(&mut ctx,&actor,10,"open"));
-        assert!(ctx.map.items[0].attributes.get_bool_default("active",false));
-        assert!(apply_item_state_intent(&mut ctx,&actor,10,"close"));
-        assert!(!ctx.map.items[0].attributes.get_bool_default("active",true));
-        actor.position.z=8.;
-        assert!(apply_item_state_intent(&mut ctx,&actor,10,"open"));
-        assert!(!ctx.map.items[0].attributes.get_bool_default("active",true));
-        actor.position.z=1.;
-        let mut rules=eldiron_ruleset::latest_official_ruleset().parse::<toml::Table>().unwrap();
-        rules.get_mut("intents").unwrap().get_mut("open").unwrap().as_table_mut().unwrap()
-            .insert("allowed".into(),toml::Value::String("false".into()));
+        let mut actor = Entity::default();
+        actor.id = 1;
+        actor.position = Vec3::new(0., 0., 1.);
+        assert!(apply_item_state_intent(&mut ctx, &actor, 10, "open"));
+        assert!(
+            ctx.map.items[0]
+                .attributes
+                .get_bool_default("active", false)
+        );
+        assert!(apply_item_state_intent(&mut ctx, &actor, 10, "close"));
+        assert!(!ctx.map.items[0].attributes.get_bool_default("active", true));
+        actor.position.z = 8.;
+        assert!(apply_item_state_intent(&mut ctx, &actor, 10, "open"));
+        assert!(!ctx.map.items[0].attributes.get_bool_default("active", true));
+        actor.position.z = 1.;
+        let mut rules = eldiron_ruleset::latest_official_ruleset()
+            .parse::<toml::Table>()
+            .unwrap();
+        rules
+            .get_mut("intents")
+            .unwrap()
+            .get_mut("open")
+            .unwrap()
+            .as_table_mut()
+            .unwrap()
+            .insert("allowed".into(), toml::Value::String("false".into()));
         ctx.set_rules(rules).unwrap();
-        apply_item_state_intent(&mut ctx,&actor,10,"open");
-        assert!(!ctx.map.items[0].attributes.get_bool_default("active",true));
+        apply_item_state_intent(&mut ctx, &actor, 10, "open");
+        assert!(!ctx.map.items[0].attributes.get_bool_default("active", true));
     }
 }
 
@@ -23305,9 +23472,9 @@ fn format_loot_text(template: &str, entity_name: &str) -> String {
     template.replace("{name}", entity_name)
 }
 
-fn fallback_loot_container() -> Item {
+fn fallback_loot_container(ctx: &RegionCtx) -> Item {
     let mut item = Item::new();
-    item.id = get_global_id();
+    item.id = ctx.world.next_id();
     item.item_type = "Loot Corpse".into();
     item.set_attribute("class_name", Value::Str("Loot Corpse".into()));
     item.set_attribute("name", Value::Str("Loot Corpse".into()));
@@ -23493,8 +23660,8 @@ fn drop_items_into_ruleset_loot_container_inner(
         return true;
     }
 
-    let mut corpse = ruleset_item_from_table(&ctx.rules, corpse_item_id, 1)
-        .unwrap_or_else(fallback_loot_container);
+    let mut corpse = ruleset_item_from_table(&ctx.rules, corpse_item_id, 1, &ctx.world)
+        .unwrap_or_else(|| fallback_loot_container(ctx));
     corpse.position = entity_position;
     corpse.set_attribute(
         "name",
@@ -23755,11 +23922,11 @@ pub(crate) fn return_entity_to_spawn(ctx: &mut RegionCtx, entity_id: u32) -> boo
     true
 }
 
-fn reset_respawn_item_ids(item: &mut Item) {
-    item.id = get_global_id();
+fn reset_respawn_item_ids(item: &mut Item, world: &super::world::SimulationWorld) {
+    item.id = world.next_id();
     if let Some(container) = item.container.as_mut() {
         for child in container {
-            reset_respawn_item_ids(child);
+            reset_respawn_item_ids(child, world);
         }
     }
     item.mark_all_dirty();
@@ -24338,10 +24505,10 @@ fn respawn_npc_entity(ctx: &mut RegionCtx, entity_id: u32) {
             entity.paused_sequence = snapshot.paused_sequence;
             entity.action = snapshot.action;
             for item in entity.inventory.iter_mut().flatten() {
-                reset_respawn_item_ids(item);
+                reset_respawn_item_ids(item, &ctx.world);
             }
             for item in entity.equipped.values_mut() {
-                reset_respawn_item_ids(item);
+                reset_respawn_item_ids(item, &ctx.world);
             }
         }
         entity.set_attribute("mode", Value::Str("active".into()));
@@ -26615,8 +26782,8 @@ pub fn debug(args: rustpython_vm::function::FuncArgs, vm: &VirtualMachine) -> Py
 }
 
 /// Send a log message.
-pub fn send_log_message(id: u32, message: String) {
-    with_regionctx(id, |ctx| {
+fn send_log_message(context: Option<Arc<Mutex<RegionCtx>>>, message: String) {
+    with_regionctx(context, |ctx| {
         ctx.from_sender
             .get()
             .unwrap()

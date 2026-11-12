@@ -7,7 +7,7 @@ use eldiron_ruleset::{
     ResolvedDerivedStat, ResolvedEquipmentPolicy, ResolvedInvocationScheme,
 };
 use std::collections::BTreeMap;
-use std::sync::{Arc, LazyLock, OnceLock, RwLock};
+use std::sync::{Arc, OnceLock, RwLock};
 use theframework::prelude::*;
 use toml::Table;
 use uuid::Uuid;
@@ -61,9 +61,6 @@ impl SimulationMode {
     }
 }
 
-static WORLD_STATE: LazyLock<RwLock<ValueContainer>> =
-    LazyLock::new(|| RwLock::new(ValueContainer::default()));
-
 #[derive(Default)]
 pub(crate) struct ResolvedRulesCache {
     initialized: bool,
@@ -116,6 +113,8 @@ fn resolve_rules_state(
 
 #[derive(Default)]
 pub struct RegionCtx {
+    /// Shared only by regions of the owning simulation session.
+    pub world: Arc<super::world::SimulationWorld>,
     pub node_behaviors: Option<super::nodes::region::Behaviors>,
     pub map: Map,
     pub mapmini: MapMini,
@@ -517,23 +516,11 @@ impl RegionCtx {
         Ok(bindings)
     }
 
-    pub fn clear_world_state() {
-        if let Ok(mut state) = WORLD_STATE.write() {
-            *state = ValueContainer::default();
-        }
+    pub fn get_world_value(&self, key: &str) -> Option<Value> {
+        self.world.get(key)
     }
-
-    pub fn get_world_value(key: &str) -> Option<Value> {
-        WORLD_STATE
-            .read()
-            .ok()
-            .and_then(|state| state.get(key).cloned())
-    }
-
-    pub fn set_world_value(key: &str, value: Value) {
-        if let Ok(mut state) = WORLD_STATE.write() {
-            state.set(key, value);
-        }
+    pub fn set_world_value(&self, key: &str, value: Value) {
+        self.world.set(key, value);
     }
 
     pub fn get_region_value(&self, key: &str) -> Option<Value> {
@@ -1192,7 +1179,7 @@ impl RegionCtx {
             return None;
         }
 
-        let id = crate::server::region::get_global_id();
+        let id = self.world.next_id();
         let creator_id = self
             .assets
             .item_template_ids

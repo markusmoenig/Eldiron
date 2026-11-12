@@ -410,7 +410,13 @@ impl NodesDock {
             if owner.starts_with(shared::entity_graph::PREFIX) {
                 let _ = shared::entity_graph::update_owner(project, &owner, &self.doc);
             } else {
-                rusterix::server::publish_node_graph(owner.clone(), value);
+                if let Some(runtime) = std::sync::LazyLock::get(&RUSTERIX) {
+                    runtime
+                        .write()
+                        .unwrap()
+                        .server
+                        .publish_node_graph(owner.clone(), value);
+                }
             }
             self.dirty = true;
             self.branches_dirty = true;

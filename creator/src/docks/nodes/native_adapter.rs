@@ -33,7 +33,13 @@ impl NodesDock {
                 && owners.insert(change.key.owner.clone())
                 && let Some(value) = project.node_graphs.get(&change.key.owner)
             {
-                rusterix::server::publish_node_graph(change.key.owner, value.clone());
+                if let Some(runtime) = std::sync::LazyLock::get(&RUSTERIX) {
+                    runtime
+                        .write()
+                        .unwrap()
+                        .server
+                        .publish_node_graph(change.key.owner, value.clone());
+                }
             }
         }
         if changed {
