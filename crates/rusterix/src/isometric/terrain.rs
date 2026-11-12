@@ -1,7 +1,7 @@
 //! Project the shared terrain mesh, sampling ordinary MZ material pages in world
 //! X/Z. Pixel height/depth remains cached for sprite occlusion on hills.
 use super::*;
-use crate::chunkbuilder::terrain_surface::{TerrainSurface, barycentric};
+use crate::chunkbuilder::terrain_surface::{TerrainSurface, raster_barycentric};
 use rayon::prelude::*;
 
 pub(super) fn render(
@@ -112,7 +112,7 @@ pub(super) fn render(
                 for y in y0..y1 {
                     for x in facet.min[0]..facet.max[0] {
                         let Some(w) =
-                            barycentric(facet.screen, Vec2::new(x as f32 + 0.5, y as f32 + 0.5))
+                            raster_barycentric(facet.screen, Vec2::new(x as f32 + 0.5, y as f32 + 0.5))
                         else {
                             continue;
                         };

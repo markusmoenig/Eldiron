@@ -148,7 +148,7 @@ impl IsometricBlitter {
             .device
             .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("iso-blit-canvas-layout"),
-                entries: &[0, 1, 2, 3, 4].map(|binding| wgpu::BindGroupLayoutEntry {
+                entries: &[0, 1, 2, 3, 4, 5].map(|binding| wgpu::BindGroupLayoutEntry {
                     binding,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
@@ -236,7 +236,7 @@ impl IsometricBlitter {
         background: [u8; 4],
         sprites: &[SpriteBlit<'_>],
     ) -> Result<()> {
-        self.render_impl(canvas, background, sprites, None)
+        self.render_impl(canvas, background, sprites, None, true)
     }
     pub fn render_with_contacts(
         &mut self,
@@ -250,7 +250,24 @@ impl IsometricBlitter {
                 "isometric contact/instance counts do not match".into(),
             ));
         }
-        self.render_impl(canvas, background, sprites, Some(contacts))
+        self.render_impl(canvas, background, sprites, Some(contacts), true)
+    }
+    /// Compose source sprites over an already GPU-produced floor/terrain canvas.
+    pub fn append(&mut self, canvas: &IsometricCanvas, sprites: &[SpriteBlit<'_>]) -> Result<()> {
+        self.render_impl(canvas, [0; 4], sprites, None, false)
+    }
+    pub fn append_with_contacts(
+        &mut self,
+        canvas: &IsometricCanvas,
+        sprites: &[SpriteBlit<'_>],
+        contacts: &[SpriteContacts<'_>],
+    ) -> Result<()> {
+        if contacts.len() != sprites.len() {
+            return Err(RenderError(
+                "isometric contact/instance counts do not match".into(),
+            ));
+        }
+        self.render_impl(canvas, [0; 4], sprites, Some(contacts), false)
     }
     fn render_impl(
         &mut self,
@@ -258,11 +275,15 @@ impl IsometricBlitter {
         background: [u8; 4],
         sprites: &[SpriteBlit<'_>],
         contacts: Option<&[SpriteContacts<'_>]>,
+        clear: bool,
     ) -> Result<()> {
         if self.context.is_lost() || canvas.device_generation() != self.context.generation() {
             return Err(RenderError(
                 "isometric blit canvas belongs to a lost or different GPU domain".into(),
             ));
+        }
+        if !clear && sprites.is_empty() {
+            return Ok(());
         }
         let count = u64::try_from(sprites.len())
             .ok()
@@ -399,6 +420,10 @@ impl IsometricBlitter {
                         binding: 4,
                         resource: self.protection.as_entire_binding(),
                     },
+                    wgpu::BindGroupEntry {
+                        binding: 5,
+                        resource: canvas.terrain().as_entire_binding(),
+                    },
                 ],
             });
         let mut encoder =
@@ -407,7 +432,7 @@ impl IsometricBlitter {
                 .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                     label: Some("iso-source-blits"),
                 });
-        {
+        if clear {
             let mut p = encoder.begin_compute_pass(&Default::default());
             p.set_pipeline(&self.clear);
             p.set_bind_group(0, &bind, &[0]);

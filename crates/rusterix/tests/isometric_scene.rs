@@ -264,3 +264,38 @@ fn stamp_presentation_identity_is_independent_of_its_painter_order() {
     );
     assert_ne!(plan.upright[0].owner, plan.upright[1].owner);
 }
+
+#[test]
+fn adjacent_terrain_triangles_have_one_raster_owner_on_a_shared_edge() {
+    use rusterix::chunkbuilder::terrain_surface::{barycentric, raster_barycentric};
+    let projection = Projection {
+        origin: Vec2::new(57.5, 68.2),
+        unit: 23.5,
+    };
+    let a = Vec3::new(1., 0., -1.5);
+    let b = Vec3::new(1., 0.1, -1.);
+    let c = Vec3::new(1.5, 0., -1.5);
+    let d = Vec3::new(1.5, 0.03, -1.);
+    let faces =
+        [[a, b, c], [c, b, d]].map(|t| t.map(|v| projection.screen(Vec2::new(v.x, v.z), v.y)));
+    let edge = Vec2::new(57.5, 33.5);
+    assert_eq!(
+        faces
+            .iter()
+            .filter(|t| barycentric(**t, edge).is_some())
+            .count(),
+        2,
+        "geometric queries remain inclusive"
+    );
+    for dx in [-0.25, 0., 0.25] {
+        let point = edge + Vec2::new(dx, 0.);
+        assert_eq!(
+            faces
+                .iter()
+                .filter(|t| raster_barycentric(**t, point).is_some())
+                .count(),
+            1,
+            "display coverage must not double shade or crack at offset {dx}"
+        );
+    }
+}

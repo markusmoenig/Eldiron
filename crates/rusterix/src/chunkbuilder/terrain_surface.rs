@@ -245,6 +245,27 @@ pub fn barycentric(t: [Vec2<f32>; 3], p: Vec2<f32>) -> Option<[f32; 3]> {
     (a >= -0.00001 && b >= -0.00001 && c >= -0.00001).then_some([a, b, c])
 }
 
+/// Display rasterization must give shared edges one owner. Geometric/ray
+/// queries retain the inclusive `barycentric` contract above.
+pub fn raster_barycentric(t: [Vec2<f32>; 3], p: Vec2<f32>) -> Option<[f32; 3]> {
+    let weights = barycentric(t, p)?;
+    let cross = |a: Vec2<f32>, b: Vec2<f32>| a.x * b.y - a.y * b.x;
+    let positive = cross(t[1] - t[0], t[2] - t[0]) > 0.;
+    for i in 0..3 {
+        let (a, b) = if positive {
+            (t[i], t[(i + 1) % 3])
+        } else {
+            (t[(i + 1) % 3], t[i])
+        };
+        let edge = cross(b - a, p - a);
+        let owns = b.y < a.y || (b.y == a.y && b.x > a.x);
+        if edge < -0.00001 || (edge.abs() <= 0.00001 && !owns) {
+            return None;
+        }
+    }
+    Some(weights)
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;

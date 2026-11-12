@@ -5,7 +5,7 @@ edition.workspace = true
 license.workspace = true
 description = "Shared scene views and graphical game presentation for Eldiron hosts."
 [dependencies]
-bytemuck = "1.24"
+bytemuck = { version = "1.24", features = ["derive"] }
 eldiron-runtime = {path="../runtime"}
 toml = "0.9"
 renderkit = {path="../renderkit"}
