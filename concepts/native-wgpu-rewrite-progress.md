@@ -2594,3 +2594,63 @@ scaled/translucent graph parity from the source-pixel tests alone. This is
 available implementation work, not a blocker or reason to stop the full Goal.
 Main world/tool/HUD/Play/document/global, platform/full visual/resource/release
 and retirement acceptance still remain open.
+
+## Raw GPU image filtering correction (after 22bfec95, in progress)
+
+An actual shared-compositor regression confirmed the integration issue: raw
+straight-alpha GPU sources differed from normalized reference composition by
+**53–71 encoded output levels** during linear scaling/repetition, while nearest
+sampling matched. Evidence: `/private/tmp/eldiron-raw-gpu-filtering-before.log`.
+This affected raw generated graph images even though their 64px source pixels
+were exact; source-only comparisons were insufficient.
+
+The common paint shader now normalizes contributing texels before interpolation.
+Already normalized linear-premultiplied assets and Swash atlases retain hardware
+filtering. Raw sources use four GPU texel loads with explicit clamp/repeat-axis
+handling, color decode and alpha premultiplication before the bilinear mix.
+No CPU image conversion, intermediate viewport upload/readback, extra normalization
+texture, or project data change is introduced. Image effects consume the same
+normalized sample and explicitly recover straight color for positive alpha.
+
+The first fixed comparison reduced differences to 0–2 output levels, with 2 only
+at SRGB repeat seams. Added an independent f64 mathematical color/alpha reference
+to distinguish raw sampling accuracy from the reference path's f16 conversion
+and hardware interpolation rounding. Raw GPU outputs satisfy **<=1 level versus
+the f64 reference** across all twelve linear/repeat format cases; all three
+nearest cases still match normalized-reference pixels exactly. The existing
+normalized hardware path differs from the raw mathematical path by at most two
+levels at repeat seams. This precision policy is explicit, not a waiver of the
+original 53–71-level regression. All **9 common paint GPU cases pass**, 1.05 s:
+`/private/tmp/eldiron-raw-gpu-filtering-analytic.log`. Full native Creator/player/
+platform/regression verification remains to run after the shader correction.
+
+### Shared raw-source filtering verified
+
+The complete affected matrix passes:
+`/private/tmp/eldiron-raw-gpu-filtering-matrix-results.log`.
+This includes 52 ordinary geometry cases, 36 material controls, 10 material GPU,
+10 geometry GPU, 2 appearance GPU, 9 common paint GPU cases, **170 framework
+library cases plus the detached CAMetalLayer app**, and **13 game-screen/message/
+isometric-surface cases**. The isolated actual Creator root passes (14.29 s),
+along with the linked native binary, all four app configurations, browser-player
+and ARM64 iOS-simulator builds, all 11 boundaries and diff validation.
+
+The raw-source color regression covers 15 format/sampling combinations (SRGB
+texture, encoded-SRGB unorm, linear straight; clamp, repeat-both, repeat-X,
+repeat-Y and nearest), with tint/opacity and hidden zero-alpha color. Twelve
+linear cases independently match f64 linear-premultiplied composition within one
+encoded output unit; nearest matches the existing normalized path exactly.
+The explicitly measured f16/hardware-repeat rounding allowance remains at most
+two units against that separate normalized-texture path. Existing source/Swash
+atlas filtering remains on the hardware fast path. No full-color draw readback,
+CPU composition, repeated source upload or extra normalization target was added.
+
+Next close the known legacy RenderView framebuffer background convention using
+an explicit compatibility interpretation rather than theme-specific colors,
+then continue main world preparation/output and tool/HUD/Play/document/global
+ownership. Current CPU-buffer RenderViews copy bytes in the reference path;
+the native adapter currently treats them as alpha-blended assets, explaining
+empty-view background differences. Keep true editable/source assets and direct
+GPU paint lists distinct from that temporary framebuffer adapter. Full M0–M9
+acceptance remains open, including text layout/font visual differences and all
+physical/release/platform/resource/retirement gates.

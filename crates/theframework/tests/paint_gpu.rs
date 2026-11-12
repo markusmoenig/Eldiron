@@ -799,3 +799,219 @@ fn paint_receipts_survive_scopes_without_changing_pixels_or_gpu_work() {
     assert_eq!(captures[0].pixels(), captures[1].pixels());
     assert_eq!(draws[0], draws[1]);
 }
+
+#[test]
+#[ignore = "requires native GPU"]
+fn raw_gpu_images_filter_in_linear_premultiplied_color_before_composition() {
+    let ctx = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut images = ImageRegistry::new(ctx.clone());
+    let mut renderer = PaintRenderer::new(ctx.clone()).unwrap();
+    let pixels = vec![
+        250, 30, 50, 255, 0, 255, 255, 0, 36, 195, 84, 77, 180, 65, 240, 191,
+    ];
+    let capture = |image: std::sync::Arc<GpuImage>| {
+        let mut read = ReadbackTicket::capture(&ctx, image).unwrap();
+        ctx.device
+            .poll(wgpu::PollType::Wait {
+                submission_index: None,
+                timeout: Some(std::time::Duration::from_secs(30)),
+            })
+            .unwrap();
+        read.try_finish(&ctx).unwrap().unwrap().pixels().to_vec()
+    };
+    let decode = |c: f64| {
+        if c <= 0.04045 {
+            c / 12.92
+        } else {
+            ((c + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    let encode = |c: f64| {
+        if c <= 0.0031308 {
+            c * 12.92
+        } else {
+            1.055 * c.powf(1. / 2.4) - 0.055
+        }
+    };
+    // Independent f64 source/color reference. The legacy normalized texture
+    // additionally rounds to f16 and uses hardware interpolation weights.
+    let ideal = |space: ColorSpace, sampling: Sampling| {
+        let wrap_x = matches!(sampling, Sampling::RepeatLinear | Sampling::RepeatLinearX);
+        let wrap_y = matches!(sampling, Sampling::RepeatLinear | Sampling::RepeatLinearY);
+        let texel = |x: i32, y: i32| {
+            let x = if wrap_x {
+                x.rem_euclid(2)
+            } else {
+                x.clamp(0, 1)
+            };
+            let y = if wrap_y {
+                y.rem_euclid(2)
+            } else {
+                y.clamp(0, 1)
+            };
+            let at = (y * 2 + x) as usize * 4;
+            let alpha = pixels[at + 3] as f64 / 255.;
+            std::array::from_fn::<_, 4, _>(|i| {
+                if i == 3 {
+                    alpha
+                } else {
+                    let c = pixels[at + i] as f64 / 255.;
+                    (if space == ColorSpace::Srgb {
+                        decode(c)
+                    } else {
+                        c
+                    }) * alpha
+                }
+            })
+        };
+        let tint = [0.8f32, 0.9, 1.].map(|c| decode(c as f64));
+        let background = [0.12f32, 0.18, 0.27].map(|c| decode(c as f64));
+        let mut out = Vec::new();
+        for y in 0..73 {
+            for x in 0..97 {
+                let u = (-0.3f32 as f64)
+                    + ((-0.3f32 + 1.6f32) as f64 - (-0.3f32 as f64)) * (x as f64 + 0.5) / 97.;
+                let v = (-0.2f32 as f64)
+                    + ((-0.2f32 + 1.4f32) as f64 - (-0.2f32 as f64)) * (y as f64 + 0.5) / 73.;
+                let p = [u * 2. - 0.5, v * 2. - 0.5];
+                let [i, j] = p.map(|v| v.floor() as i32);
+                let [fx, fy] = p.map(|v| v - v.floor());
+                let corners = [
+                    texel(i, j),
+                    texel(i + 1, j),
+                    texel(i, j + 1),
+                    texel(i + 1, j + 1),
+                ];
+                let weights = [
+                    (1. - fx) * (1. - fy),
+                    fx * (1. - fy),
+                    (1. - fx) * fy,
+                    fx * fy,
+                ];
+                let color: [f64; 4] = std::array::from_fn(|c| {
+                    corners.iter().zip(weights).map(|(p, w)| p[c] * w).sum()
+                });
+                let alpha = color[3] * 0.7f32 as f64;
+                for c in 0..3 {
+                    let linear = color[c] * tint[c] * 0.7f32 as f64 + background[c] * (1. - alpha);
+                    out.push((encode(linear).clamp(0., 1.) * 255.).round() as u8);
+                }
+                out.push(255);
+            }
+        }
+        out
+    };
+    let mut results = Vec::new();
+    for (name, format, space) in [
+        (
+            "srgb texture",
+            wgpu::TextureFormat::Rgba8UnormSrgb,
+            ColorSpace::Srgb,
+        ),
+        (
+            "encoded unorm texture",
+            wgpu::TextureFormat::Rgba8Unorm,
+            ColorSpace::Srgb,
+        ),
+        (
+            "linear straight texture",
+            wgpu::TextureFormat::Rgba8Unorm,
+            ColorSpace::Linear,
+        ),
+    ] {
+        let mut asset = ImageAsset::rgba(2, 2, pixels.clone()).unwrap();
+        asset.color_space = space;
+        let reference = images.upload_linear(&asset).unwrap();
+        let raw = GpuImage::new(
+            &ctx,
+            ImageDescriptor {
+                width: 2,
+                height: 2,
+                format,
+                color_space: space,
+                alpha_mode: AlphaMode::Straight,
+            },
+        )
+        .unwrap();
+        ctx.queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &raw.texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            &pixels,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(8),
+                rows_per_image: Some(2),
+            },
+            raw.texture.size(),
+        );
+        let raw = images.insert(raw).unwrap();
+        for sampling in [
+            Sampling::Linear,
+            Sampling::RepeatLinear,
+            Sampling::RepeatLinearX,
+            Sampling::RepeatLinearY,
+            Sampling::Nearest,
+        ] {
+            let mut outputs = Vec::new();
+            for handle in [reference, raw] {
+                let mut list = PaintList::default();
+                list.ops.push(PaintOp::Image {
+                    image: handle,
+                    rect: Rect::new(0., 0., 97., 73.),
+                    uv: Rect::new(-0.3, -0.2, 1.6, 1.4),
+                    sampling,
+                    tint: [0.8, 0.9, 1., 0.7],
+                });
+                let output = GpuImage::new(&ctx, ImageDescriptor::rgba(97, 73)).unwrap();
+                let before = ctx.transfers();
+                renderer
+                    .render(
+                        &list,
+                        &images,
+                        &output.view,
+                        output.descriptor.format,
+                        (97, 73),
+                        1.,
+                        [0.12, 0.18, 0.27, 1.],
+                    )
+                    .unwrap();
+                assert_eq!(
+                    ctx.transfers(),
+                    before,
+                    "image composition maps/uploads no viewport colors"
+                );
+                outputs.push(capture(output));
+            }
+            let largest = outputs[0]
+                .iter()
+                .zip(&outputs[1])
+                .map(|(a, b)| a.abs_diff(*b))
+                .max()
+                .unwrap();
+            if sampling != Sampling::Nearest {
+                let expected = ideal(space, sampling);
+                let error = outputs[1]
+                    .iter()
+                    .zip(&expected)
+                    .map(|(a, b)| a.abs_diff(*b))
+                    .max()
+                    .unwrap();
+                assert!(
+                    error <= 1,
+                    "{name} {sampling:?}: raw GPU result differs from f64 linear-premultiplied reference by {error}"
+                );
+            }
+            results.push((name, sampling, largest));
+        }
+    }
+    // f16 normalization and hardware filter-weight precision can add one more
+    // output unit at repeat seams. Raw results independently satisfy <=1 above.
+    assert!(
+        results.iter().all(|(_, _, error)| *error <= 2),
+        "raw GPU sources differ from normalized reference: {results:?}"
+    );
+}

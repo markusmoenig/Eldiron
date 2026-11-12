@@ -333,15 +333,23 @@ impl PaintRenderer {
                 [start[0], start[1], end[0], end[1]],
             ),
         };
-        let source = image.map_or(0, |(image, _)| {
-            u32::from(
-                image.descriptor.color_space == ColorSpace::Srgb
-                    && !image.descriptor.format.is_srgb(),
-            ) | if image.descriptor.alpha_mode == AlphaMode::Premultiplied {
-                2
-            } else {
-                0
-            }
+        let source = image.map_or(0, |(image, sampling)| {
+            let encoded = image.descriptor.color_space == ColorSpace::Srgb
+                && !image.descriptor.format.is_srgb();
+            let premultiplied = image.descriptor.alpha_mode == AlphaMode::Premultiplied;
+            let linear = matches!(sampling, Sampling::Linear | Sampling::RepeatLinear
+                | Sampling::RepeatLinearX | Sampling::RepeatLinearY);
+            // Raw GPU images must decode and premultiply individual texels
+            // before interpolation. Already normalized images retain hardware
+            // filtering, including the shared glyph/source-asset atlases.
+            let manual = linear && (encoded || image.descriptor.alpha_mode == AlphaMode::Straight);
+            let repeat_x = matches!(sampling, Sampling::RepeatLinear | Sampling::RepeatNearest
+                | Sampling::RepeatLinearX | Sampling::RepeatNearestX);
+            let repeat_y = matches!(sampling, Sampling::RepeatLinear | Sampling::RepeatNearest
+                | Sampling::RepeatLinearY | Sampling::RepeatNearestY);
+            u32::from(encoded) | (u32::from(premultiplied) << 1)
+                | (u32::from(manual) << 2) | (u32::from(repeat_x) << 3)
+                | (u32::from(repeat_y) << 4)
         });
         let filter = match effect {
             Some(ImageEffect::Filter(f)) => Some(f),
