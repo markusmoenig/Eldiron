@@ -1007,3 +1007,220 @@ fn hud_preparation_accepts_resolved_slots_without_context_or_action_callbacks() 
     ));
     assert_eq!(server.selected_hud_icon_index, 0);
 }
+
+#[test]
+fn procedural_icon_hud_preparation_retains_parameters_without_materializing_preview_pixels() {
+    let mut hud = Hud::new(HudMode::Sector);
+    let mut map = Map::default();
+    let mut sector = rusterix::Sector::new(42, vec![]);
+    sector.properties.set(
+        "source",
+        Value::Source(PixelSource::Color(TheColor::new(0.2, 0.5, 0.8, 0.4))),
+    );
+    sector.properties.set("noise_target", Value::Int(2));
+    sector.properties.set("noise_intensity", Value::Float(0.6));
+    sector.properties.set("pixelization", Value::Int(7));
+    map.sectors.push(sector);
+    let mut server = ServerContext::default();
+    server.pc = ProjectContext::Region(map.id);
+    let assets = Assets::default();
+    let source = serde_json::to_vec(&map).unwrap();
+    let frame = hud.prepare_frame(
+        scope(),
+        size(),
+        HudInputs {
+            map: &map,
+            server: &server,
+            assets: &assets,
+            selected_id: Some(42),
+            material_slots: None,
+            light: None,
+        },
+        &style(),
+    );
+    assert_eq!(frame.commands.images().count(), 0);
+    let descriptors = frame.commands.procedurals().collect::<Vec<_>>();
+    assert_eq!(descriptors.len(), 1);
+    assert_eq!(descriptors[0].size(), 40);
+    assert_eq!(descriptors[0].words()[2], 2);
+    assert_eq!(descriptors[0].words()[3], 7);
+    assert!(hud.icon_rects.is_empty());
+    assert_eq!(serde_json::to_vec(&map).unwrap(), source);
+}
+
+#[test]
+#[cfg(feature = "native-render")]
+#[ignore = "actual GPU-generated procedural HUD sources and common composition"]
+fn procedural_icon_hud_frames_compose_injected_sources_and_recover_without_display_pixels() {
+    use crate::editor_overlay::{procedural_gpu::GpuIcons, test_support::GpuPanel};
+    use theframework::{paint::*, render_wgpu::UiImageCache};
+    let mut gpu = GpuPanel::new();
+    let mut icons = GpuIcons::new(gpu.gpu.clone(), 1024 * 1024, 128).unwrap();
+    let mut cache = UiImageCache::default();
+    let (mut hud, mut map, mut server, mut ctx, assets, mut reference) =
+        fixture(HudMode::Sector, true);
+    let scope = scope();
+    let mut sources = vec![];
+    for target in [0, 1, 2] {
+        for intensity in [0., 0.2, 0.7] {
+            sources.push((
+                PixelSource::Color(TheColor::new(0.19, 0.57, 0.83, 0.4)),
+                target,
+                intensity,
+            ));
+        }
+    }
+    for voronoi in [false, true] {
+        sources.push((
+            PixelSource::Noise(rusterix::map::pixelsource::NoiseMaterial {
+                voronoi,
+                seed: 917,
+                low_color: Some([18, 67, 160, 40]),
+                high_color: Some([234, 169, 45, 230]),
+                ..Default::default()
+            }),
+            0,
+            0.,
+        ));
+    }
+    let mut baseline = None;
+    for (index, (source, target, intensity)) in sources.into_iter().enumerate() {
+        hud.invalidate_frame();
+        let sector = &mut map.sectors[0];
+        sector.properties.set("source", Value::Source(source));
+        sector.properties.set("noise_target", Value::Int(target));
+        sector
+            .properties
+            .set("noise_intensity", Value::Float(intensity));
+        sector.properties.set("pixelization", Value::Int(7));
+        let scope = HudScope {
+            revision: scope.revision + index as u64,
+            ..scope
+        };
+        let authored = serde_json::to_vec(&map).unwrap();
+        let frame = prepare(
+            &mut hud,
+            scope,
+            size(),
+            &map,
+            &ctx,
+            &server,
+            Some(42),
+            &assets,
+            &style(),
+        );
+        assert_eq!(frame.commands.procedurals().count(), 1);
+        assert!(
+            frame.paint(&mut ctx.text, &mut gpu.images, 1.).is_err(),
+            "no producer means an explicit error, never CPU raster fallback"
+        );
+        assert!(!hud.presented_paint(&frame, &[], scope, size(), &map, &mut server));
+        for pixel in reference.pixels_mut().chunks_exact_mut(4) {
+            pixel.copy_from_slice(&[12, 24, 36, 0]);
+        }
+        frame.commands.draw_reference(&mut reference, &ctx);
+        let mut resources = icons.frame(&mut cache, &mut gpu.images.registry);
+        let mut list = frame.paint(&mut gpu.text, &mut resources, 1.).unwrap();
+        list.ops.insert(
+            0,
+            PaintOp::DisplayCompositing(DisplayCompositing::LegacyOpaque),
+        );
+        resources.finish_frame(&list).unwrap();
+        drop(resources);
+        let pixels = gpu.render(&list, size(), 1.);
+        gpu.compare_reference(
+            &frame.commands,
+            &list,
+            &ctx,
+            &pixels,
+            reference.pixels(),
+            &format!("hud-procedural-{index}"),
+        );
+        assert!(hud.presented_paint(
+            &frame,
+            &list.receipts().collect::<Vec<_>>(),
+            scope,
+            size(),
+            &map,
+            &mut server
+        ));
+        assert_eq!(serde_json::to_vec(&map).unwrap(), authored);
+        let builds = icons.stats().builds;
+        let before = gpu.gpu.transfers();
+        let mut resources = icons.frame(&mut cache, &mut gpu.images.registry);
+        let mut warm = frame.paint(&mut gpu.text, &mut resources, 1.).unwrap();
+        warm.ops.insert(
+            0,
+            PaintOp::DisplayCompositing(DisplayCompositing::LegacyOpaque),
+        );
+        resources.finish_frame(&warm).unwrap();
+        drop(resources);
+        assert_eq!(icons.stats().builds, builds);
+        assert_eq!(gpu.gpu.transfers().uploaded_bytes, before.uploaded_bytes);
+        assert_eq!(gpu.render(&warm, size(), 1.), pixels);
+        baseline = Some(pixels);
+    }
+    hud.invalidate_frame();
+    let frame = prepare(
+        &mut hud,
+        scope,
+        size(),
+        &map,
+        &ctx,
+        &server,
+        Some(42),
+        &assets,
+        &style(),
+    );
+    for density in [1.25, 1.5, 2.] {
+        let builds = icons.stats().builds;
+        let mut resources = icons.frame(&mut cache, &mut gpu.images.registry);
+        let mut list = frame.paint(&mut gpu.text, &mut resources, density).unwrap();
+        list.ops.insert(
+            0,
+            PaintOp::DisplayCompositing(DisplayCompositing::LegacyOpaque),
+        );
+        resources.finish_frame(&list).unwrap();
+        drop(resources);
+        gpu.render(&list, size(), density);
+        assert_eq!(
+            icons.stats().builds,
+            builds,
+            "density changes reuse the logical source texture"
+        );
+    }
+    hud.invalidate_frame();
+    let mut replacement = GpuPanel::new();
+    let mut rebuilt = GpuIcons::new(replacement.gpu.clone(), 1024 * 1024, 128).unwrap();
+    let mut cache = UiImageCache::default();
+    let frame = prepare(
+        &mut hud,
+        scope,
+        size(),
+        &map,
+        &ctx,
+        &server,
+        Some(42),
+        &assets,
+        &style(),
+    );
+    let mut resources = rebuilt.frame(&mut cache, &mut replacement.images.registry);
+    let mut list = frame
+        .paint(&mut replacement.text, &mut resources, 1.)
+        .unwrap();
+    list.ops.insert(
+        0,
+        PaintOp::DisplayCompositing(DisplayCompositing::LegacyOpaque),
+    );
+    resources.finish_frame(&list).unwrap();
+    drop(resources);
+    assert_eq!(replacement.render(&list, size(), 1.), baseline.unwrap());
+    assert!(hud.presented_paint(
+        &frame,
+        &list.receipts().collect::<Vec<_>>(),
+        scope,
+        size(),
+        &map,
+        &mut server
+    ));
+}

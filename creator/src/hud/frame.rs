@@ -147,7 +147,7 @@ impl HudFrame {
     pub(crate) fn paint(
         &self,
         text: &mut theframework::text::TextSystem,
-        images: &mut dyn theframework::theui::paint::UiImageResources,
+        images: &mut dyn crate::editor_overlay::OverlayImages,
         density: f32,
     ) -> Result<theframework::paint::PaintList, theframework::theui::paint::UiPaintError> {
         let mut list = self.commands.paint(text, images, density)?;

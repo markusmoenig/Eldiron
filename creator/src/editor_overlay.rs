@@ -98,6 +98,10 @@ enum Command {
         rect: BoxRect,
         image: OverlayImage,
     },
+    Procedural {
+        rect: BoxRect,
+        source: procedural::ProceduralIcon,
+    },
 }
 pub(crate) struct EditorOverlay {
     pub(crate) size: (usize, usize),
@@ -177,6 +181,9 @@ impl EditorOverlay {
     }
     pub(crate) fn image(&mut self, image: OverlayImage, rect: BoxRect) {
         self.commands.push(Command::Image { rect, image });
+    }
+    pub(crate) fn procedural(&mut self, source: procedural::ProceduralIcon, rect: BoxRect) {
+        self.commands.push(Command::Procedural { rect, source });
     }
     /// Explicit reference-only pixel output. No native producer calls this adapter.
     pub(crate) fn draw_reference(&self, buffer: &mut TheRGBABuffer, ctx: &TheContext) {
@@ -271,31 +278,24 @@ impl EditorOverlay {
                         );
                     }
                 }
-                Command::Image { rect, image } => {
-                    let source = &image.source;
-                    if (source.width() as usize, source.height() as usize) == (rect.2, rect.3) {
-                        ctx.draw
-                            .blend_slice(buffer.pixels_mut(), source.pixels(), rect, stride);
-                    } else {
-                        // Preserve Texture::resized's original left-edge nearest
-                        // convention in the reference adapter, including f32 math.
-                        let mut pixels = vec![0; rect.2 * rect.3 * 4];
-                        let sx = source.width() as f32 / rect.2 as f32;
-                        let sy = source.height() as f32 / rect.3 as f32;
-                        for y in 0..rect.3 {
-                            for x in 0..rect.2 {
-                                let source_x =
-                                    ((x as f32 * sx) as usize).min(source.width() as usize - 1);
-                                let source_y =
-                                    ((y as f32 * sy) as usize).min(source.height() as usize - 1);
-                                let start = (source_y * source.width() as usize + source_x) * 4;
-                                pixels[(y * rect.2 + x) * 4..(y * rect.2 + x + 1) * 4]
-                                    .copy_from_slice(&source.pixels()[start..start + 4]);
-                            }
-                        }
-                        ctx.draw
-                            .blend_slice(buffer.pixels_mut(), &pixels, rect, stride);
-                    }
+                Command::Image { rect, image } => draw_reference_image(
+                    buffer,
+                    ctx,
+                    rect,
+                    image.source.width() as usize,
+                    image.source.height() as usize,
+                    image.source.pixels(),
+                ),
+                Command::Procedural { rect, source } => {
+                    let texture = source.reference_pixels();
+                    draw_reference_image(
+                        buffer,
+                        ctx,
+                        rect,
+                        texture.width,
+                        texture.height,
+                        &texture.data,
+                    );
                 }
             }
         }
@@ -304,7 +304,7 @@ impl EditorOverlay {
     pub(crate) fn paint(
         &self,
         text: &mut theframework::text::TextSystem,
-        images: &mut dyn theframework::theui::paint::UiImageResources,
+        images: &mut dyn OverlayImages,
         density: f32,
     ) -> Result<theframework::paint::PaintList, theframework::theui::paint::UiPaintError> {
         use theframework::{paint::*, theui::paint::UiPaintError};
@@ -414,6 +414,16 @@ impl EditorOverlay {
                     }
                     list.ops.push(PaintOp::PopClip);
                 }
+                Command::Procedural { rect, source } => {
+                    if rect.2 == 0 || rect.3 == 0 {
+                        continue;
+                    }
+                    list.ops.push(PaintOp::PixelImage {
+                        image: images.procedural(source)?,
+                        rect: bounds(rect),
+                        tint: [1.; 4],
+                    });
+                }
                 Command::Image { rect, image } => {
                     if rect.2 == 0 || rect.3 == 0 {
                         continue;
@@ -509,6 +519,13 @@ impl EditorOverlay {
         boxes
     }
     #[cfg(test)]
+    pub(crate) fn procedurals(&self) -> impl Iterator<Item = &procedural::ProceduralIcon> {
+        self.commands.iter().filter_map(|command| match command {
+            Command::Procedural { source, .. } => Some(source),
+            _ => None,
+        })
+    }
+    #[cfg(test)]
     pub(crate) fn images(&self) -> impl Iterator<Item = &Arc<ImageAsset>> {
         self.commands.iter().filter_map(|command| match command {
             Command::Image { image, .. } => Some(&image.source),
@@ -577,3 +594,55 @@ pub(crate) mod panel;
 
 #[cfg(test)]
 pub(crate) mod test_support;
+
+pub(crate) mod procedural;
+
+#[cfg(feature = "native-ui")]
+pub(crate) trait OverlayImages: theframework::theui::paint::UiImageResources {
+    fn procedural(
+        &mut self,
+        _source: &procedural::ProceduralIcon,
+    ) -> Result<theframework_core::ImageHandle, theframework::theui::paint::UiPaintError> {
+        Err(theframework::theui::paint::UiPaintError(
+            "overlay requires an injected procedural GPU source producer".into(),
+        ))
+    }
+}
+#[cfg(feature = "native-render")]
+impl OverlayImages for theframework::render_wgpu::UiImages {}
+#[cfg(feature = "native-render")]
+impl OverlayImages for theframework::render_wgpu::UiFrameImages<'_> {}
+#[cfg(feature = "native-render")]
+pub(crate) mod procedural_gpu;
+
+fn draw_reference_image(
+    buffer: &mut TheRGBABuffer,
+    ctx: &TheContext,
+    rect: &BoxRect,
+    width: usize,
+    height: usize,
+    pixels_source: &[u8],
+) {
+    let stride = buffer.stride();
+    if (width, height) == (rect.2, rect.3) {
+        ctx.draw
+            .blend_slice(buffer.pixels_mut(), pixels_source, rect, stride);
+    } else {
+        // Preserve Texture::resized's original left-edge nearest
+        // convention in the reference adapter, including f32 math.
+        let mut pixels = vec![0; rect.2 * rect.3 * 4];
+        let sx = width as f32 / rect.2 as f32;
+        let sy = height as f32 / rect.3 as f32;
+        for y in 0..rect.3 {
+            for x in 0..rect.2 {
+                let source_x = ((x as f32 * sx) as usize).min(width - 1);
+                let source_y = ((y as f32 * sy) as usize).min(height - 1);
+                let start = (source_y * width + source_x) * 4;
+                pixels[(y * rect.2 + x) * 4..(y * rect.2 + x + 1) * 4]
+                    .copy_from_slice(&pixels_source[start..start + 4]);
+            }
+        }
+        ctx.draw
+            .blend_slice(buffer.pixels_mut(), &pixels, rect, stride);
+    }
+}

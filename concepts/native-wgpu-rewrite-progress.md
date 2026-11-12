@@ -3214,3 +3214,138 @@ cutover is claimed. Continue into procedural Color/Noise HUD GPU production,
 action displays and tool vector overlays/ViewCube, then main owned world/tool
 composition, source publication, input lifecycle and Creator Play/global
 retirement. All other M0–M9 acceptance gates remain active and incomplete.
+
+## Procedural HUD GPU source conversion (after 8cd7b48c, in progress)
+
+Previous goal turn made verified progress at **8cd7b48c** (paint/props commands,
+staged actions, shared bundled font fallback). Current work closes the identified
+Color/Noise CPU thumbnail producer adapter; full main viewport cutover is still
+not claimed. Current changes remain uncommitted.
+
+`editor_overlay::procedural::ProceduralIcon` now retains only original source
+parameters, the three legacy Color noise properties and logical source size.
+Native HUD preparation selects source descriptors, borrows the first authored
+tile/material frame, or imports a single palette source texel. It does not clone
+whole Tile/RME/UV arrays or invoke `PixelSource::to_tile`. The retained helper is
+explicitly named `get_icon_reference`; reference pixels are generated only by the
+reference adapter/export consumer. Existing source precedence and light flags
+remain. Core PixelSource algorithms and all serialized project shapes are
+unchanged.
+
+`GpuIcons` receives the application's explicit GpuContext and image registry.
+A GPU render pass generates RGBA8 sRGB/straight source textures from a **96-byte
+uniform parameter block**. Color noise/pixelization, RGB/hue/luminance and both
+value/voronoi NoiseMaterial modes are ported to WGSL, preserving original byte
+quantization, signed fract semantics and even the legacy hue-unit convention.
+The source is then blitted through the common PixelImage compositor. There is
+no procedural CPU bitmap upload, implicit output readback, window or separate
+GPU initialization. Swash text remains on the common atlas path.
+
+`OverlayImages` is the application-owned resource interface: an injected
+`IconFrameImages` forwards ordinary source assets through the common bounded UI
+cache and resolves procedural descriptors on the same registry/device. A sink
+without the injected producer returns an explicit error; no CPU fallback is
+hidden in native paint. Main world/tool integration must install this resource
+adapter and finalize both caches against the assembled root list.
+
+The procedural cache retains immutable versions by shader parameter identity,
+tracks bytes/entries/builds/hits/evictions/pinned bytes, retires only unpinned
+sources at complete-root finalization, and reports an over-budget pinned working
+set without destroying live paint. Registry/device ownership is checked;
+replacement registries cannot remove foreign source handles. CPU descriptions
+survive GPU recreation. Warm frames reuse source textures; idle finalization
+avoids sorting retirement candidates unless actually over budget.
+
+The initial native oracle run compares **162 source configurations** against the
+unchanged CPU generator, all pixels and RGBA channels, with **maximum channel
+difference 1**, 0.80 s:
+`/private/tmp/eldiron-procedural-icon-pixel-first.log`. Cold source generation
+uploads exactly 96 parameter bytes and no pixels/readbacks; warm requests add no
+uploads. The first shader parse found a reserved WGSL identifier (`smooth`),
+corrected to `weight`; no accuracy threshold was relaxed.
+
+The initial integration run passes all **four procedural cases**, 2.40 s:
+`/private/tmp/eldiron-procedural-icon-integration-first.log`. These cover:
+CPU-only descriptor preparation without a UI context/fonts/GPU/output buffer;
+all 162 source oracles; pinned-root LRU limits/registry replacement/foreign-device
+rejection/explicit leases/actual replacement-device exact RGBA; and eleven common
+HUD composites with Color RGB/hue/luminance and translucent value/voronoi noise.
+All **140,929 non-text pixels of 144,000** in each HUD composite match within
+one RGB unit. The actual reference/native glyph-box union is the only exclusion.
+The native composite was visually inspected:
+`/private/tmp/eldiron-native-panel-hud-procedural-9.png`. Text metrics/AA remain
+open, rather than being accepted through that exclusion. Common composition
+also passes warm reuse, 125/150/200% output without regenerating logical sources,
+missing-producer error and exact full-native-RGBA device reconstruction.
+
+An expanded source oracle now includes negative/default noise settings,
+zero/negative/large pixelization, achromatic HSL, grayscale/reversed gradients,
+Noise size limits and invalid Color size rejection, plus enforced cache budgets
+across the full sweep. Current final controls run:
+`/private/tmp/eldiron-procedural-icon-final-controls.log` (live unified exec
+session **57461**; inspect authoritative terminal output rather than restarting
+on an observation timeout). Earlier HUD extraction compilation found a borrowed
+floor source versus owned ceiling source mismatch; floor selection now clones
+only the small source descriptor. The full affected HUD/reference/native UI,
+Creator/tool panels/application/boundary checks are next before checkpoint.
+
+The untracked networking concept is unrelated and must stay excluded. Main
+Creator world/tool/document/Play ownership, action/terrain/iso/vector overlays,
+ViewCube, full text/visual/resource/performance/platform/release acceptance and
+canonical adapter retirement remain. Full M0–M9 Goal stays active/incomplete.
+
+### Procedural source checkpoint matrix verified
+
+Final controls pass all four cases, **178 full-RGBA source oracles with maximum
+channel difference 1**, 2.59 s:
+`/private/tmp/eldiron-procedural-icon-final-controls.log`. This includes budget
+enforcement through the whole source sweep, invalid size rejection, retained
+roots, explicit leases and exact replacement-device pixels. The four controls
+also pass in the matrix, 2.44 s.
+
+All **12 affected matrix checks passed**, process exit 0:
+`/private/tmp/eldiron-procedural-icon-matrix-results.log`, driven by
+`/private/tmp/verify-procedural-icons.py`. Results on the final implementation:
+
+- Full ordinary Creator: **592 passed, 104 explicitly ignored**, 256.10 s.
+- Native common HUD: **20 passed**, 7.37 s, including all eighteen immutable
+  pre-extraction raw-source reference images and the procedural composition case.
+- Reference HUD: **17 passed**, 1.11 s.
+- Native panel selection: **20 passed**, 12.33 s; reference panel selection:
+  **12 passed**, 1.37 s; all twenty independent pre-extraction panel images remain
+  byte-exact through the explicit reference adapter.
+- Standalone native-ui compilation; linked native Creator; four application
+  compilation; all eleven renderer-boundary checks and diff whitespace pass.
+- **Creator render-library iOS simulator compilation passes**, 26.91 s:
+  `cargo check -p eldiron-creator --no-default-features --features native-render,staticlib --lib --target aarch64-apple-ios-sim --offline`.
+  This checks native paint/source modules for the target. It does not convert or
+  execute the old Creator Xcode wrapper, link a complete app or verify simulator
+  runtime; those remain M9 acceptance work.
+
+Reproduce component controls with the established deployment/target-directory
+environment in this worktree:
+
+```sh
+cargo test -p eldiron-creator --features native-host --lib procedural_icon_ --offline -- --include-ignored --test-threads=1 --nocapture
+cargo test -p eldiron-creator --features native-host --lib hud:: --offline -- --include-ignored --test-threads=1
+```
+
+Native common HUD source generation no longer calls to_tile. That remaining
+native-producer blocker recorded after 4114b24c is resolved by descriptors and the
+injected GPU source pass; CPU generation is retained explicitly for reference/
+export comparison. This is component readiness, not a canonical main-world
+cutover. The application/document/tool owner must adopt the resource adapter,
+filter receipts against successful root presentation, invalidate on lifecycle
+changes and finalize resources for successful **and cancelled** frames. One
+cache serves one registry at a time; its resident-byte statistics count its
+entries, while externally held registry/Arc leases are separate owners. A
+registry migration must retire its previous owner normally. Full application
+resource/idle/error-loop acceptance is not established by these component tests.
+
+Original checkout rechecked: f8d8801103, tracked sources unchanged, existing
+untracked concepts preserved. Networking concept remains untracked and excluded
+in implementation. No runtime windows/browser/simulator/other-platform or full
+text parity result was inferred from these builds. Continue action displays,
+tool vector/terrain/iso overlays and ViewCube, then the application-owned world/
+tool root, source publication, input/presentation lifecycle, Creator Play/global
+retirement, and all remaining M0–M9 acceptance. Goal remains active/incomplete.

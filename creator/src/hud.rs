@@ -1,4 +1,5 @@
 use crate::editor::{ACTIONLIST, RUSTERIX};
+use crate::editor_overlay::procedural::{ColorNoise, ProceduralIcon};
 use crate::editor_overlay::{EditorOverlay, OverlaySources};
 use crate::prelude::*;
 use rusterix::prelude::*;
@@ -721,23 +722,17 @@ impl Hud {
             let r = &rect.to_buffer_utuple();
             paint.rect(&(r.0 + 1, r.1 + 1, r.2 - 2, r.3 - 2), &panel_color);
 
-            let (tile, has_light) = self.get_icon(
-                i,
-                map,
-                id,
-                icon_size as usize,
-                action_material_slots.as_deref(),
-                assets,
-            );
-            if let Some(texture) = tile.as_ref().and_then(|tile| tile.textures.first())
-                && let Some(image) = self.sources.image(
-                    &format!("icon:{i}"),
-                    texture.width,
-                    texture.height,
-                    &texture.data,
-                )
-            {
-                paint.image(image, rect.to_buffer_utuple());
+            let (source, has_light) =
+                self.icon_source(i, map, id, action_material_slots.as_deref());
+            if let Some((source, noise)) = source {
+                if let Some(description) = ProceduralIcon::new(&source, noise, icon_size as u32) {
+                    paint.procedural(description, rect.to_buffer_utuple());
+                } else if let Some(image) =
+                    self.sources
+                        .pixel_source(&format!("icon:{i}"), &source, assets)
+                {
+                    paint.image(image, rect.to_buffer_utuple());
+                }
             }
             if has_light
                 && let Some(light) = &light
@@ -1093,71 +1088,70 @@ impl Hud {
         text
     }
 
-    #[allow(clippy::collapsible_if)]
-    pub fn get_icon(
+    /// Source selection only. Native preparation never calls to_tile or clones
+    /// an asset's texture/material arrays merely to display its first frame.
+    fn icon_source(
+        &self,
+        index: i32,
+        map: &Map,
+        id: Option<u32>,
+        slots: Option<&[ActionMaterialSlot]>,
+    ) -> (Option<(PixelSource, ColorNoise)>, bool) {
+        if let Some(slot) = slots.and_then(|slots| slots.get(index as usize)) {
+            return (
+                slot.source
+                    .clone()
+                    .map(|source| (source, ColorNoise::default())),
+                false,
+            );
+        }
+        if index == 0
+            && Self::has_selected_geometry_surface(map)
+            && let Some(source) = Self::selected_geometry_source(map)
+        {
+            return (Some((source, ColorNoise::default())), false);
+        }
+        if self.mode == HudMode::Sector
+            && let Some(sector) = id.and_then(|id| map.find_sector(id))
+        {
+            let (source, light) = match index {
+                0 => (
+                    sector.properties.get_default_source().cloned(),
+                    sector.properties.get("floor_light").is_some(),
+                ),
+                1 => (
+                    match sector.properties.get("ceiling_source") {
+                        Some(Value::Source(source)) => Some(source.clone()),
+                        _ => None,
+                    },
+                    sector.properties.get("ceiling_light").is_some(),
+                ),
+                _ => (None, false),
+            };
+            return (
+                source.map(|source| (source, ColorNoise::from_values(&sector.properties))),
+                light,
+            );
+        }
+        (None, false)
+    }
+    /// Explicit legacy pixel consumer, retained for reference/export validation.
+    pub fn get_icon_reference(
         &self,
         index: i32,
         map: &Map,
         id: Option<u32>,
         icon_size: usize,
-        action_material_slots: Option<&[ActionMaterialSlot]>,
+        slots: Option<&[ActionMaterialSlot]>,
         assets: &Assets,
     ) -> (Option<rusterix::Tile>, bool) {
-        if let Some(slots) = action_material_slots
-            && let Some(slot) = slots.get(index as usize)
-        {
-            if let Some(pixelsource) = &slot.source {
-                let props = ValueContainer::default();
-                if let Some(tile) = pixelsource.to_tile(assets, icon_size, &props, map) {
-                    return (Some(tile), false);
-                }
-            }
-            return (None, false);
-        }
-
-        if index == 0
-            && Self::has_selected_geometry_surface(map)
-            && let Some(pixelsource) = Self::selected_geometry_source(map)
-        {
-            let props = ValueContainer::default();
-            if let Some(tile) = pixelsource.to_tile(assets, icon_size, &props, map) {
-                return (Some(tile), false);
-            }
-            return (None, false);
-        }
-
-        if self.mode == HudMode::Sector {
-            let Some(id) = id else {
-                return (None, false);
-            };
-            if let Some(sector) = map.find_sector(id) {
-                if index == 0 {
-                    let has_light = sector.properties.get("floor_light").is_some();
-                    if let Some(pixelsource) = sector.properties.get_default_source() {
-                        if let Some(tile) =
-                            pixelsource.to_tile(assets, icon_size, &sector.properties, map)
-                        {
-                            return (Some(tile), has_light);
-                        }
-                    }
-                    return (None, has_light);
-                } else if index == 1 {
-                    let has_light = sector.properties.get("ceiling_light").is_some();
-                    if let Some(Value::Source(pixelsource)) =
-                        &sector.properties.get("ceiling_source")
-                    {
-                        if let Some(tile) =
-                            pixelsource.to_tile(assets, icon_size, &sector.properties, map)
-                        {
-                            return (Some(tile), has_light);
-                        }
-                    }
-                    return (None, has_light);
-                }
-            }
-        }
-
-        (None, false)
+        let (source, light) = self.icon_source(index, map, id, slots);
+        (
+            source.and_then(|(source, noise)| {
+                source.to_tile(assets, icon_size, &noise.values(), map)
+            }),
+            light,
+        )
     }
 }
 
@@ -1203,12 +1197,13 @@ mod tests {
                 (&sectors, 0, Some(42), None, true),
                 (&sectors, 1, Some(42), None, true),
             ] {
-                let (tile, has_light) = hud.get_icon(index, map, selected, 40, slots, &assets);
+                let (tile, has_light) =
+                    hud.get_icon_reference(index, map, selected, 40, slots, &assets);
                 let tile = tile.expect("the supplied owner contains this tile");
                 assert_eq!(tile.textures[0].data.as_slice(), &color);
                 assert_eq!(has_light, light);
                 let (missing, has_light) =
-                    hud.get_icon(index, map, selected, 40, slots, &Assets::default());
+                    hud.get_icon_reference(index, map, selected, 40, slots, &Assets::default());
                 assert!(
                     missing.is_none(),
                     "a missing source cannot fall through to another owner"
