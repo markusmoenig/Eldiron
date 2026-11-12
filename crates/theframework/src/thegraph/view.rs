@@ -147,6 +147,43 @@ impl GraphViewState {
             Ok(preceding)
         }
     }
+    /// Completed app-owned node operation, such as a picker updating both a
+    /// preview and its source entry. Validate the exact current node before
+    /// applying anything; one operation publishes one reversible transaction.
+    pub fn commit_node(
+        &mut self,
+        binding: u64,
+        before: &GraphNode,
+        after: GraphNode,
+    ) -> Result<Option<Arc<GraphCommit>>, GraphDraftError> {
+        if binding != self.binding {
+            return Err(GraphDraftError::WrongBinding);
+        }
+        let current = self
+            .document
+            .nodes
+            .iter()
+            .find(|node| node.id == before.id)
+            .ok_or(GraphDraftError::MissingTarget)?;
+        if current != before || after.id != before.id {
+            return Err(GraphDraftError::SourceChanged);
+        }
+        if self.editor.is_gesturing() || self.editor.text_focus().is_some() {
+            return Err(GraphDraftError::EditorBusy);
+        }
+        let preceding = self.publish_edits();
+        if before == &after {
+            return Ok(preceding);
+        }
+        let edit = GraphEdit::ReplaceNode {
+            before: before.clone(),
+            after,
+        };
+        edit.apply(&mut self.document, true);
+        self.editor.record_edit(edit);
+        self.invalidate();
+        Ok(self.publish_edits())
+    }
     /// Detached panels use the same source binding and retained transaction queue
     /// as inline edits. The view owner must suspend its other editing scopes.
     pub fn checkpoint_draft(
@@ -264,6 +301,49 @@ impl TheGraphView {
     }
     pub fn set_auto_focus(&mut self, active: bool) {
         self.auto_focus = active;
+    }
+    /// Emit this view with frame-scoped image resolution. Hosts may resolve
+    /// immutable source assets lazily at the painter's visible preview requests;
+    /// GPU handles/services never enter the retained authoring controller.
+    pub fn paint_commands(
+        &mut self,
+        list: &mut crate::paint::PaintList,
+        fonts: &mut crate::text::TextSystem,
+        images: &dyn GraphImageHandles,
+        theme: &GraphTheme,
+        active: bool,
+    ) {
+        let rect = bounds(&self.dim);
+        list.ops.push(PaintOp::PushClip(rect));
+        list.ops
+            .push(PaintOp::PushTransform(Transform::translate(rect.x, rect.y)));
+        let mut state = self.state.lock().unwrap();
+        let GraphViewState {
+            document,
+            editor,
+            text,
+            ..
+        } = &mut *state;
+        text.paint(
+            editor,
+            document,
+            self.context.as_ref(),
+            self.controls.as_ref(),
+            PaintGraphPainter {
+                paint: list,
+                text: fonts,
+                images,
+                family: "Roboto",
+            },
+            [rect.width, rect.height],
+            theme,
+            active,
+        );
+        self.painted_revision = state.revision;
+        drop(state);
+        list.ops.push(PaintOp::PopTransform);
+        list.ops.push(PaintOp::PopClip);
+        self.dirty = false;
     }
     fn focused(&self, ctx: &TheContext) -> bool {
         self.active && ctx.ui.has_focus(&self.id)
@@ -519,37 +599,9 @@ impl TheWidget for TheGraphView {
             active: *p.theme.color(SelectedTextEditBorder1),
             ..GraphTheme::default()
         });
-        p.list.ops.push(PaintOp::PushClip(rect));
-        p.list
-            .ops
-            .push(PaintOp::PushTransform(Transform::translate(rect.x, rect.y)));
         let active = self.active && p.ui.has_focus(&self.id);
-        let mut state = self.state.lock().unwrap();
-        let GraphViewState {
-            document,
-            editor,
-            text,
-            ..
-        } = &mut *state;
-        text.paint(
-            editor,
-            document,
-            self.context.as_ref(),
-            self.controls.as_ref(),
-            PaintGraphPainter {
-                paint: p.list,
-                text: p.text,
-                images: self.images.as_ref(),
-                family: "Roboto",
-            },
-            [rect.width, rect.height],
-            &theme,
-            active,
-        );
-        self.painted_revision = state.revision;
-        drop(state);
-        p.list.ops.push(PaintOp::PopTransform);
-        p.list.ops.push(PaintOp::PopClip);
+        let images = self.images.clone();
+        self.paint_commands(p.list, p.text, images.as_ref(), &theme, active);
         if active {
             p.outline(rect, *p.theme.color(DefaultSelection), 1.);
         }

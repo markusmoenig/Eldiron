@@ -76,3 +76,22 @@ overlapping colors, composition, cache reuse and actual colored output. Replace
 this extension when an upstream public API supplies equivalent cluster-addressed
 positioned glyph iteration. Upstream's full unpublished fixture suite is still
 not claimed as passed.
+
+## CRLF width-based line breaking
+
+`src/layout/line_break.rs` consumes adjacent CR and LF source clusters before
+committing one explicit hard break. Parley 0.9.0 otherwise emits an extra blank
+line for CRLF. The source clusters, UTF-8 ranges, shaping and original text are
+retained. The helper works across shaping/style-run boundaries because cluster
+storage is in logical source order. The character-count breaking API keeps its
+existing semantics. Review/rebase diff: `eldiron-crlf-line-break.patch`.
+
+The framework tests cover raw and editable layouts, styled pairs, consecutive
+and trailing breaks, standalone CR/LF, mixed Arabic/Japanese, exact line ranges,
+caret position, grapheme deletion and undo. The native conversation GPU fixture
+also checks three visual lines with original CRLF text and active preedit.
+These are scoped regression checks; the unpublished upstream fixture suite is
+still not claimed as passed. Remove this patch when upstream provides equivalent
+CRLF width-layout behavior. The review patch uses zero context; validate it
+against this checkout with `git apply --unidiff-zero --check --reverse
+vendor/parley/eldiron-crlf-line-break.patch`.

@@ -575,4 +575,44 @@ mod tests {
         assert_eq!(cache.rasterizations, 1);
         assert!(!first.1.pixels.is_empty());
     }
+    #[test]
+    fn crlf_width_layout_keeps_one_hard_break_across_style_runs_and_mixed_scripts() {
+        let mut fonts = TextSystem::default();
+        fonts.register_font(include_bytes!("../embedded/fonts/Roboto-Bold.ttf").to_vec());
+        for (source, expected) in [
+            ("\r\n", 2),
+            ("\r", 2),
+            ("\n", 2),
+            ("A\r\n\r\nB", 3),
+            ("A\rB\nC", 3),
+            ("مرحبا\r\n東京", 2),
+            ("A\r\nB\r\n", 3),
+            ("A\r\n\nB", 3),
+        ] {
+            let layout = fonts.layout(source, "Roboto", 14., None);
+            assert_eq!(layout.source.as_ref(), source);
+            assert_eq!(layout.lines().len(), expected, "source {source:?}");
+        }
+        let source = "ab\r\ncd";
+        let mut builder = fonts
+            .layouts
+            .ranged_builder(&mut fonts.fonts, source, 1., true);
+        builder.push_default(StyleProperty::FontFamily(parley::FontFamily::from(
+            "Roboto",
+        )));
+        builder.push_default(StyleProperty::FontSize(14.));
+        // Force distinct shaping/style runs on either side of the CR/LF pair.
+        builder.push(StyleProperty::FontSize(23.), 3..source.len());
+        let mut layout: Layout<usize> = builder.build(source);
+        layout.break_all_lines(None);
+        let snapshot = fonts.snapshot_layout(source, layout, &[]);
+        assert_eq!(
+            snapshot
+                .lines()
+                .iter()
+                .map(|line| line.range.clone())
+                .collect::<Vec<_>>(),
+            vec![0..4, 4..6]
+        );
+    }
 }

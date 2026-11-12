@@ -846,3 +846,65 @@ fn retained_source_commits_have_one_publication_order_across_interleaved_views()
     assert!(first.pending_through(a1.serial).is_empty());
     assert!(second.pending_through(b1.serial).is_empty());
 }
+
+#[test]
+fn app_owned_node_transactions_validate_source_and_group_multiple_rows_into_one_undo() {
+    let f = Fixture::new();
+    let mut model = f.model.lock().unwrap();
+    let binding = model.binding();
+    let before = model.document().nodes[0].clone();
+    let mut after = before.clone();
+    after.rows[0].value = GraphControlValue::Text("Preview".into());
+    after.rows[1].value = GraphControlValue::Text("Source 東京\r\n".into());
+    let mut wrong_id = after.clone();
+    wrong_id.id = uuid::Uuid::new_v4();
+    assert!(matches!(
+        model.commit_node(binding, &before, wrong_id),
+        Err(GraphDraftError::SourceChanged)
+    ));
+    let mut obsolete = before.clone();
+    obsolete.title = "Old name".into();
+    assert!(matches!(
+        model.commit_node(binding, &obsolete, after.clone()),
+        Err(GraphDraftError::SourceChanged)
+    ));
+    model.edit(|doc, editor| {
+        let r = doc.nodes[0].row_rect(0, &doc.metrics());
+        editor.pointer_down(
+            doc,
+            editor
+                .viewport
+                .to_screen([r.origin[0] + 10., r.origin[1] + 10.]),
+            &BasicGraphControls,
+        );
+    });
+    assert!(matches!(
+        model.commit_node(binding, &before, after.clone()),
+        Err(GraphDraftError::EditorBusy)
+    ));
+    model.finish_text(false);
+    assert_eq!(model.last_serial(), 0);
+    let commit = model
+        .commit_node(binding, &before, after.clone())
+        .unwrap()
+        .unwrap();
+    assert_eq!(commit.edits.len(), 1);
+    assert_eq!(model.last_serial(), 1);
+    assert!(
+        model
+            .commit_node(binding, &after, after.clone())
+            .unwrap()
+            .is_none()
+    );
+    let mut source = model.document().clone();
+    commit.edits[0].apply(&mut source, false);
+    assert_eq!(source.nodes[0], before);
+    let source = model.document().clone();
+    model.replace_document("other", source.clone());
+    assert!(matches!(
+        model.commit_node(binding, &after, before),
+        Err(GraphDraftError::WrongBinding)
+    ));
+    assert_eq!(model.document(), &source);
+    assert!(model.pending_commits().next().is_none());
+}

@@ -21,6 +21,18 @@ use crate::{InlineBoxKind, OverflowWrap, TextWrapMode};
 
 use core::ops::Range;
 
+// Shaping retains CR and LF as separate zero-advance source clusters. Consume
+// both before committing their one explicit line break. Cluster storage is in
+// logical source order, including across style/font run boundaries.
+fn is_crlf_prefix(clusters: &[ClusterData], index: usize) -> bool {
+    clusters
+        .get(index)
+        .is_some_and(|cluster| cluster.info.source_char() == '\r')
+        && clusters
+            .get(index + 1)
+            .is_some_and(|cluster| cluster.info.source_char() == '\n')
+}
+
 #[derive(Default)]
 struct LineLayout {
     lines: Vec<LineData>,
@@ -545,7 +557,8 @@ impl<'a, B: Brush> BreakLines<'a, B> {
                         // Retrieve metadata about the cluster
                         let is_ligature_continuation = cluster.is_ligature_continuation();
                         let whitespace = cluster.info().whitespace();
-                        let is_newline = whitespace == Whitespace::Newline;
+                        let is_newline = whitespace == Whitespace::Newline
+                            && !is_crlf_prefix(&self.layout.data.clusters, self.state.cluster_idx);
                         let is_space = whitespace.is_space_or_nbsp();
                         let boundary = cluster.info().boundary();
                         let line_height = run.metrics().line_height;

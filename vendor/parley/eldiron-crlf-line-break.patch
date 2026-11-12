@@ -1,0 +1,21 @@
+diff --git a/vendor/parley/src/layout/line_break.rs b/vendor/parley/src/layout/line_break.rs
+index c5dc869c..3e84c80f 100644
+--- a/vendor/parley/src/layout/line_break.rs
++++ b/vendor/parley/src/layout/line_break.rs
+@@ -23,0 +24,12 @@ use core::ops::Range;
++// Shaping retains CR and LF as separate zero-advance source clusters. Consume
++// both before committing their one explicit line break. Cluster storage is in
++// logical source order, including across style/font run boundaries.
++fn is_crlf_prefix(clusters: &[ClusterData], index: usize) -> bool {
++    clusters
++        .get(index)
++        .is_some_and(|cluster| cluster.info.source_char() == '\r')
++        && clusters
++            .get(index + 1)
++            .is_some_and(|cluster| cluster.info.source_char() == '\n')
++}
++
+@@ -548 +560,2 @@ impl<'a, B: Brush> BreakLines<'a, B> {
+-                        let is_newline = whitespace == Whitespace::Newline;
++                        let is_newline = whitespace == Whitespace::Newline
++                            && !is_crlf_prefix(&self.layout.data.clusters, self.state.cluster_idx);

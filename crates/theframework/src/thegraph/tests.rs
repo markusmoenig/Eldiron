@@ -1261,3 +1261,42 @@ fn graph_picker_native_search_uses_the_same_reserved_geometry_filter_and_item_pa
         assert!(native.text.iter().any(|text| text == &picker.empty_label));
     }
 }
+
+#[test]
+fn graph_picker_keyboard_navigation_survives_reflow_and_requests_only_visible_previews() {
+    let items = (0..40)
+        .map(|i| GraphPickerItem {
+            id: i.to_string(),
+            label: format!("Item {i}"),
+        })
+        .collect();
+    let mut picker = GraphPicker::grid(
+        GraphRect {
+            origin: [10., 10.],
+            size: [220., 25.],
+        },
+        [600., 400.],
+        items,
+    );
+    picker.set_always_show_search(true);
+    picker.previews = picker
+        .items
+        .iter()
+        .map(|item| (item.id.clone(), format!("image/{}", item.id)))
+        .collect();
+    assert!(picker.navigate_rows(1));
+    for _ in 0..6 {
+        picker.navigate_rows(1);
+    }
+    assert!(picker.scroll > 0);
+    let selected = picker.selected_id().unwrap().to_owned();
+    picker.fit([550., 320.]);
+    assert_eq!(picker.selected_id(), Some(selected.as_str()));
+    let visible: Vec<_> = picker.visible_preview_keys().collect();
+    assert!(visible.contains(&format!("image/{selected}").as_str()));
+    assert!(visible.len() < picker.items.len());
+    picker.set_query("No results 東京");
+    assert!(!picker.navigate_rows(1));
+    assert!(picker.selected_id().is_none());
+    assert_eq!(picker.visible_preview_keys().count(), 0);
+}

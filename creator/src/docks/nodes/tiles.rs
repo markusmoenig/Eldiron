@@ -10,6 +10,9 @@ pub(super) struct TileControls {
     items: Vec<GraphPickerItem>,
 }
 impl TileControls {
+    pub(super) fn image_arc(&self, key: &str) -> Option<Arc<TheRGBABuffer>> {
+        self.images.get(key).cloned()
+    }
     pub(super) fn set_preview(&mut self, key: &str, image: Option<TheRGBABuffer>) {
         if let Some(image) = image {
             self.images.insert(key.into(), Arc::new(image));

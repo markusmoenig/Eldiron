@@ -3,6 +3,12 @@ mod configuration;
 mod entity;
 mod list;
 mod live;
+#[cfg(feature = "native-ui")]
+mod native_images;
+#[cfg(feature = "native-ui")]
+mod native_picker;
+#[cfg(feature = "native-ui")]
+mod native_view;
 mod overlay;
 mod rules;
 mod tiles;

@@ -77,6 +77,19 @@ pub struct ConversationEditor {
 
 impl ConversationEditor {
     pub fn new(node: GraphId, conversation: Conversation, view: [f32; 2]) -> Self {
+        Self {
+            node,
+            panel: Self::panel_rect(view),
+            conversation,
+            step: 0,
+            choice: 0,
+            changed: false,
+            scroll: 0.,
+            step_scroll: 0.,
+        }
+    }
+
+    fn panel_rect(view: [f32; 2]) -> GraphRect {
         // Big enough to read, but never larger than the space it is shown in.
         let size = [
             (view[0] - 60.)
@@ -86,23 +99,20 @@ impl ConversationEditor {
                 .clamp(240., 680.)
                 .min((view[1] - 20.).max(160.)),
         ];
-        let panel = GraphRect {
+        GraphRect {
             origin: [
                 ((view[0] - size[0]) * 0.5).max(0.),
                 ((view[1] - size[1]) * 0.5 + 10.).max(0.),
             ],
             size,
-        };
-        Self {
-            node,
-            panel,
-            conversation,
-            step: 0,
-            choice: 0,
-            changed: false,
-            scroll: 0.,
-            step_scroll: 0.,
         }
+    }
+
+    /// Reflow panel chrome without replacing its selected fields or draft.
+    pub fn fit(&mut self, view: [f32; 2]) {
+        self.panel = Self::panel_rect(view);
+        self.scroll = self.scroll.min(self.max_scroll());
+        self.step_scroll = self.step_scroll.min(self.max_step_scroll());
     }
 
     /// Top of the scrolling content, below the panel header.

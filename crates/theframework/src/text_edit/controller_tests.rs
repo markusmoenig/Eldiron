@@ -1127,3 +1127,26 @@ fn drop_hits_remain_grapheme_safe_across_fonts_and_expire_on_document_or_focus_c
     assert!(!editor.move_selection_to(&mut fonts, hit));
     assert_eq!(editor.text(), "replacement");
 }
+
+#[test]
+fn crlf_layout_is_one_break_with_exact_source_and_cursor_positions() {
+    let source = "A\r\nB\nC";
+    let (mut fonts, mut editor) = fixture(true, source);
+    assert_eq!(editor.text(), source);
+    let lines = editor.layout(&mut fonts).lines();
+    assert_eq!(lines.len(), 3, "CRLF must create one visual hard break");
+    assert_eq!(
+        lines
+            .iter()
+            .map(|line| line.range.clone())
+            .collect::<Vec<_>>(),
+        vec![0..3, 3..5, 5..6]
+    );
+    editor.select_bytes(&mut fonts, 3, 3);
+    let caret = editor.caret(&mut fonts).unwrap();
+    assert!(caret.y >= lines[1].top && caret.y < lines[1].bottom);
+    key(&mut editor, &mut fonts, PhysicalKey::Backspace);
+    assert_eq!(editor.text(), "AB\nC");
+    assert!(editor.undo(&mut fonts));
+    assert_eq!(editor.text(), source);
+}

@@ -95,7 +95,15 @@ impl GraphPicker {
             .min(self.row_count().saturating_sub(self.max_rows));
         self.origin[0] = self.origin[0].clamp(0., (viewport[0] - self.width).max(0.));
         self.origin[1] = self.origin[1].clamp(0., (viewport[1] - self.size()[1]).max(0.));
-        self.hover(self.pointer);
+        if self.pointer.is_some() {
+            self.hover(self.pointer);
+        } else if self
+            .hovered
+            .as_ref()
+            .is_some_and(|id| !self.filtered().iter().any(|item| &item.id == id))
+        {
+            self.hovered = None;
+        }
     }
     fn header(&self) -> f32 {
         if self.compact {
@@ -186,6 +194,54 @@ impl GraphPicker {
         let changed = self.hovered != next;
         self.hovered = next;
         changed
+    }
+    /// Keyboard navigation follows visual rows and reveals the active item.
+    /// Callers keep IME candidate keys within their text editor while composing.
+    pub fn navigate_rows(&mut self, delta: i32) -> bool {
+        let filtered = self.filtered();
+        if filtered.is_empty() {
+            return self.hovered.take().is_some();
+        }
+        let current = self
+            .hovered
+            .as_ref()
+            .and_then(|id| filtered.iter().position(|item| &item.id == id));
+        let index = current
+            .map(|index| {
+                (index as i64 + delta as i64 * self.columns() as i64)
+                    .clamp(0, filtered.len() as i64 - 1) as usize
+            })
+            .unwrap_or(if delta < 0 { filtered.len() - 1 } else { 0 });
+        let next = filtered[index].id.clone();
+        let row = index / self.columns();
+        let scroll = if row < self.scroll {
+            row
+        } else if row >= self.scroll + self.max_rows {
+            row + 1 - self.max_rows
+        } else {
+            self.scroll
+        };
+        let changed = self.hovered.as_ref() != Some(&next) || self.scroll != scroll;
+        self.pointer = None;
+        self.hovered = Some(next);
+        self.scroll = scroll;
+        changed
+    }
+    pub fn selected_id(&self) -> Option<&str> {
+        let filtered = self.filtered();
+        self.hovered
+            .as_deref()
+            .filter(|id| filtered.iter().any(|item| item.id == *id))
+            .or_else(|| filtered.first().map(|item| item.id.as_str()))
+    }
+    /// Image resources needed by the same visible rows the painter will emit.
+    pub fn visible_preview_keys(&self) -> impl Iterator<Item = &str> {
+        let columns = self.columns();
+        self.filtered()
+            .into_iter()
+            .skip(self.scroll * columns)
+            .take(self.max_rows * columns)
+            .filter_map(|item| self.previews.get(&item.id).map(String::as_str))
     }
     /// Pixel deltas from a touchpad accumulate into rows instead of skipping the
     /// entire list on each event. Positive deltas move down through the list.
