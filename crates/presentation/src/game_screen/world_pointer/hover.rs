@@ -107,30 +107,8 @@ impl GameScreenController {
             return None;
         }
         let point = self.pointer_visual_position()?;
+        let target = self.acknowledged_hover_target(world, point)?;
         let frame = self.world.displayed.as_ref()?;
-        let owner = frame
-            .controls
-            .iter()
-            .rev()
-            .find(|control| control.rect.contains(point))?
-            .owner?;
-        if self
-            .pointer_controls(world)
-            .iter()
-            .rev()
-            .find(|control| control.rect.contains(point))?
-            .owner
-            != Some(owner)
-        {
-            return None;
-        }
-        let target = frame
-            .hovers
-            .iter()
-            .find(|target| target.owner == owner && rect(target.rect).contains(point))?;
-        if !self.hover_targets(world).contains(target) {
-            return None;
-        }
         let (mut description, state, command) = match &target.source {
             Source::Item(slot) => (
                 rules_ui::describe_item(slot.source.resolve(world.map?)?, world.assets),
@@ -160,5 +138,83 @@ impl GameScreenController {
             anchor: target.rect,
             below: target.below,
         })
+    }
+}
+
+impl GameScreenController {
+    fn acknowledged_hover_target(
+        &self,
+        world: &RuntimeView<'_>,
+        point: [f32; 2],
+    ) -> Option<&Target> {
+        if !self.presentation_frame_matches(world) || self.pointer_modal() {
+            return None;
+        }
+        let frame = self.world.displayed.as_ref()?;
+        let owner = frame
+            .controls
+            .iter()
+            .rev()
+            .find(|control| control.rect.contains(point))?
+            .owner?;
+        if self
+            .pointer_controls(world)
+            .iter()
+            .rev()
+            .find(|control| control.rect.contains(point))?
+            .owner
+            != Some(owner)
+        {
+            return None;
+        }
+        let target = frame
+            .hovers
+            .iter()
+            .find(|target| target.owner == owner && rect(target.rect).contains(point))?;
+        if !self.hover_targets(world).contains(target) {
+            return None;
+        }
+        Some(target)
+    }
+}
+
+impl GameScreenController {
+    /// Only the reference Drop intent targets carried-item controls. Container
+    /// children keep their addressed pickup behavior and never borrow this cursor.
+    pub(in crate::game_screen) fn ui_item_cursor_target(
+        &self,
+        world: &RuntimeView<'_>,
+    ) -> Option<(bool, bool, bool)> {
+        if !self.ui_frame_matches(world)
+            || self.pointer_modal()
+            || !screen_model::owned_item_cursor_intent(
+                screen_model::selected_intent(
+                    &self.elements.activated_widgets,
+                    &self.elements.button_widgets,
+                    &self.intent,
+                )
+                .as_deref(),
+            )
+        {
+            return None;
+        }
+        let point = self.pointer_visual_position()?;
+        if self.pressed_owned_item_cursor(world) {
+            return Some((false, true, true));
+        }
+        if self.pointer_capture.is_some()
+            || self.keyboard_capture.is_some()
+            || self.world.ui_item.is_some()
+            || self.hud.gesturing()
+        {
+            return None;
+        }
+        let target = self.acknowledged_hover_target(world, point)?;
+        match &target.source {
+            Source::Item(slot) if matches!(slot.source,rusterix::item_interaction::ItemSource::Direct(address) if address.owner.is_some()) => {
+                Some((false, true, false))
+            }
+            _ => None,
+        }
     }
 }

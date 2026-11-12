@@ -230,7 +230,7 @@ impl Hud {
             }
             p.list.ops.push(PaintOp::PopClip);
         }
-        card::ghost(p, &self.prepared, self.command_capture.as_ref(), cursor)?;
+
         Ok(())
     }
 }
@@ -327,4 +327,14 @@ fn tile_reference(
         tint: [1.; 4],
     });
     Ok(true)
+}
+
+impl Hud {
+    pub(in crate::game_screen) fn paint_command_drag(
+        &self,
+        p: &mut ScreenPainter<'_>,
+        cursor: [f32; 2],
+    ) -> Result<(), String> {
+        card::ghost(p, &self.prepared, self.command_capture.as_ref(), cursor)
+    }
 }

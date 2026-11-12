@@ -3,6 +3,7 @@ use eldiron_runtime::{GameSession, Project};
 use rusterix::{Entity, Item, Value, client::widget::Widget};
 mod catalog;
 mod cursor;
+mod feedback;
 mod hud;
 mod item_pointer;
 mod mouse_look;

@@ -285,3 +285,386 @@ fn intent_marks_use_threshold_source_images_and_world_drag_preview_is_a_retained
         |op| matches!(op, PaintOp::Image { rect, .. } if rect.width == 28. && rect.height == 28.)
     ));
 }
+
+fn owned_cursor_fixture() -> (
+    GameSession,
+    GameScreenController,
+    GameFonts,
+    Uuid,
+    Uuid,
+    Uuid,
+) {
+    let (mut session, mut screen, fonts) = super::feedback::fixture_owned();
+    let default = tile(&mut session, [255, 0, 0, 255]);
+    let hover = tile(&mut session, [0, 255, 0, 255]);
+    let pressed = tile(&mut session, [0, 0, 255, 255]);
+    config(&mut session, Some(default));
+    let mut intent = Widget::new();
+    intent.id = 60;
+    intent.name = "Drop intent".into();
+    intent.rect = Rect::new(20., 20., 40., 40.);
+    intent.command = Some("intent.drop".into());
+    intent.item_cursor_id = Some(hover);
+    intent.item_clicked_cursor_id = Some(pressed);
+    screen.elements.button_widgets.insert(60, intent);
+    screen
+        .activate_binding(
+            &session.view(),
+            rusterix::client::command::ClientCommandBinding::Intent("drop".into()),
+        )
+        .unwrap();
+    assert!(screen.elements.permanently_activated_widgets.contains(&60));
+    (session, screen, fonts, default, hover, pressed)
+}
+#[test]
+fn owned_drop_cursors_work_with_ui_only_input_and_retain_pressed_and_drag_source_ownership() {
+    let (session, mut screen, mut fonts, default, hover, pressed) = owned_cursor_fixture();
+    super::feedback::ready(&session, &mut screen, &mut fonts);
+    screen
+        .input(
+            &session.view(),
+            &mut fonts,
+            &InputEvent::PointerMoved {
+                position: [40., 100.],
+            },
+        )
+        .unwrap();
+    prepare(&session, &mut screen, &mut fonts);
+    assert_eq!(
+        painted_cursor(&session, &mut screen, &mut fonts),
+        Some(hover)
+    );
+    assert!(
+        screen
+            .input(&session.view(), &mut fonts, &button([40., 100.], true))
+            .unwrap()
+            .effects
+            .is_empty()
+    );
+    prepare(&session, &mut screen, &mut fonts);
+    assert_eq!(
+        painted_cursor(&session, &mut screen, &mut fonts),
+        Some(pressed)
+    );
+    screen
+        .input(
+            &session.view(),
+            &mut fonts,
+            &InputEvent::PointerMoved {
+                position: [120., 100.],
+            },
+        )
+        .unwrap();
+    prepare(&session, &mut screen, &mut fonts);
+    assert_eq!(
+        painted_cursor(&session, &mut screen, &mut fonts),
+        Some(default)
+    );
+    assert_eq!(
+        screen.drag_target_feedback(&session.view()),
+        Some(Rect::new(100., 80., 40., 40.))
+    );
+    assert!(matches!(
+        &screen
+            .input(&session.view(), &mut fonts, &button([120., 100.], false))
+            .unwrap()
+            .effects[..],
+        [ScreenEffect::Action(EntityAction::MoveItem {
+            to_inventory_index: Some(1),
+            ..
+        })]
+    ));
+    screen
+        .input(&session.view(), &mut fonts, &InputEvent::Focus(false))
+        .unwrap();
+    assert!(
+        !screen.uses_custom_cursor(),
+        "UI-only focus immediately restores the host pointer"
+    );
+}
+#[test]
+fn ui_drop_hover_rejects_unacknowledged_rebinding_covering_and_missing_pressed_art() {
+    let (mut session, mut screen, mut fonts, default, hover, _) = owned_cursor_fixture();
+    screen
+        .input(
+            &session.view(),
+            &mut fonts,
+            &InputEvent::PointerMoved {
+                position: [40., 100.],
+            },
+        )
+        .unwrap();
+    prepare(&session, &mut screen, &mut fonts);
+    assert_eq!(
+        painted_cursor(&session, &mut screen, &mut fonts),
+        Some(default)
+    );
+    super::feedback::ready(&session, &mut screen, &mut fonts);
+    prepare(&session, &mut screen, &mut fonts);
+    assert_eq!(
+        painted_cursor(&session, &mut screen, &mut fonts),
+        Some(hover)
+    );
+    let item = session.project.regions[0].map.entities[0].inventory[0].take();
+    session.project.regions[0].map.entities[0].inventory[1] = item;
+    screen
+        .elements
+        .button_widgets
+        .get_mut(&40)
+        .unwrap()
+        .inventory_index = Some(1);
+    prepare(&session, &mut screen, &mut fonts);
+    assert_eq!(
+        painted_cursor(&session, &mut screen, &mut fonts),
+        Some(default)
+    );
+    super::feedback::ready(&session, &mut screen, &mut fonts);
+    prepare(&session, &mut screen, &mut fonts);
+    assert_eq!(
+        painted_cursor(&session, &mut screen, &mut fonts),
+        Some(hover)
+    );
+    screen
+        .elements
+        .button_widgets
+        .get_mut(&60)
+        .unwrap()
+        .item_clicked_cursor_id = None;
+    screen
+        .input(&session.view(), &mut fonts, &button([40., 100.], true))
+        .unwrap();
+    prepare(&session, &mut screen, &mut fonts);
+    assert_eq!(
+        painted_cursor(&session, &mut screen, &mut fonts),
+        Some(default)
+    );
+    screen
+        .input(&session.view(), &mut fonts, &InputEvent::PointerLeft)
+        .unwrap();
+    assert!(!screen.uses_custom_cursor());
+    // Fresh input after leave must not revive its cancelled source capture.
+    screen
+        .input(&session.view(), &mut fonts, &button([40., 100.], false))
+        .unwrap();
+    let mut cover = Widget::new();
+    cover.id = 99;
+    cover.rect = Rect::new(20., 80., 40., 40.);
+    screen.elements.button_widgets.insert(99, cover);
+    screen
+        .input(
+            &session.view(),
+            &mut fonts,
+            &InputEvent::PointerMoved {
+                position: [40., 100.],
+            },
+        )
+        .unwrap();
+    prepare(&session, &mut screen, &mut fonts);
+    assert_eq!(
+        painted_cursor(&session, &mut screen, &mut fonts),
+        Some(default)
+    );
+}
+#[test]
+fn owned_drop_marks_use_the_shared_threshold_icon_and_native_slots_keep_their_direct_item_namespace()
+ {
+    let (mut session, mut screen, mut fonts, _default, hover, _) = owned_cursor_fixture();
+    screen
+        .elements
+        .button_widgets
+        .get_mut(&60)
+        .unwrap()
+        .item_cursor_id = None;
+    session.assets.rules = "[intents.drop.ui]\nicon='drop'".into();
+    session
+        .assets
+        .textures
+        .insert("drop".into(), Texture::from_color([200, 70, 20, 255]));
+    super::feedback::ready(&session, &mut screen, &mut fonts);
+    screen
+        .input(
+            &session.view(),
+            &mut fonts,
+            &InputEvent::PointerMoved {
+                position: [40., 100.],
+            },
+        )
+        .unwrap();
+    prepare(&session, &mut screen, &mut fonts);
+    assert_eq!(
+        painted_mark(&session, &mut screen, &mut fonts),
+        [200, 70, 20, 255]
+    );
+    screen
+        .elements
+        .button_widgets
+        .get_mut(&60)
+        .unwrap()
+        .item_cursor_id = Some(hover);
+    screen.elements.custom_inventory_panel_config = Some(screen_model::InventoryPanelConfig {
+        columns: 3,
+        rows: 1,
+        authored_rect: Some(Rect::new(20., 160., 360., 180.)),
+        ..Default::default()
+    });
+    assert!(screen.handle_hud_effect(
+        &session.view(),
+        &ScreenEffect::Command(rusterix::client::command::ClientCommandBinding::Ui(
+            "inventory".into()
+        ))
+    ));
+    super::feedback::ready(&session, &mut screen, &mut fonts);
+    let frame = screen
+        .hud
+        .frames(&session.view(), &screen.elements)
+        .pop()
+        .unwrap();
+    let slot = frame
+        .slots
+        .iter()
+        .find(|slot| slot.source.is_some())
+        .unwrap();
+    let p = [
+        slot.hit.x + slot.hit.width / 2.,
+        slot.hit.y + slot.hit.height / 2.,
+    ];
+    screen
+        .input(
+            &session.view(),
+            &mut fonts,
+            &InputEvent::PointerMoved { position: p },
+        )
+        .unwrap();
+    prepare(&session, &mut screen, &mut fonts);
+    assert_eq!(
+        painted_cursor(&session, &mut screen, &mut fonts),
+        Some(hover)
+    );
+}
+
+#[test]
+fn ui_only_focus_loss_revokes_item_receipts_until_a_fresh_focused_frame_is_acknowledged() {
+    let (session, mut screen, mut fonts, default, hover, _) = owned_cursor_fixture();
+    super::feedback::ready(&session, &mut screen, &mut fonts);
+    screen
+        .input(
+            &session.view(),
+            &mut fonts,
+            &InputEvent::PointerMoved {
+                position: [40., 100.],
+            },
+        )
+        .unwrap();
+    prepare(&session, &mut screen, &mut fonts);
+    assert_eq!(
+        painted_cursor(&session, &mut screen, &mut fonts),
+        Some(hover)
+    );
+    screen
+        .input(&session.view(), &mut fonts, &InputEvent::Focus(false))
+        .unwrap();
+    let down = screen
+        .input(&session.view(), &mut fonts, &button([40., 100.], true))
+        .unwrap();
+    assert!(down.effects.is_empty());
+    assert!(
+        !screen.uses_custom_cursor(),
+        "an unfocused UI-only host must not reuse an acknowledged item cursor"
+    );
+    assert!(
+        screen
+            .input(&session.view(), &mut fonts, &button([40., 100.], false))
+            .unwrap()
+            .effects
+            .is_empty(),
+        "unfocused UI-only input submitted an item action"
+    );
+    screen
+        .input(&session.view(), &mut fonts, &InputEvent::Focus(true))
+        .unwrap();
+    screen
+        .input(
+            &session.view(),
+            &mut fonts,
+            &InputEvent::PointerMoved {
+                position: [40., 100.],
+            },
+        )
+        .unwrap();
+    prepare(&session, &mut screen, &mut fonts);
+    assert_eq!(
+        painted_cursor(&session, &mut screen, &mut fonts),
+        Some(default)
+    );
+    super::feedback::ready(&session, &mut screen, &mut fonts);
+    prepare(&session, &mut screen, &mut fonts);
+    assert_eq!(
+        painted_cursor(&session, &mut screen, &mut fonts),
+        Some(hover)
+    );
+}
+
+#[test]
+fn container_children_keep_pickup_policy_and_never_borrow_the_carried_drop_cursor() {
+    let (mut session, mut screen, mut fonts, default, _hover, _) = owned_cursor_fixture();
+    let mut child = Item::new();
+    child.id = 10;
+    let mut bag = Item::new();
+    bag.id = 9;
+    bag.max_capacity = 2;
+    bag.container = Some(vec![child]);
+    session.project.regions[0].map.entities[0].inventory[2] = Some(bag);
+    assert!(screen.handle_hud_effect(
+        &session.view(),
+        &ScreenEffect::ToggleContainer {
+            region: session.view().map.unwrap().id,
+            item: 9,
+            owner: 1,
+            anchor: Uv::new(250., 20., 20., 20.)
+        }
+    ));
+    super::feedback::ready(&session, &mut screen, &mut fonts);
+    let frame = screen
+        .hud
+        .frames(&session.view(), &screen.elements)
+        .pop()
+        .unwrap();
+    let slot = frame.slots[0].hit;
+    let p = [slot.x + slot.width / 2., slot.y + slot.height / 2.];
+    screen
+        .input(
+            &session.view(),
+            &mut fonts,
+            &InputEvent::PointerMoved { position: p },
+        )
+        .unwrap();
+    prepare(&session, &mut screen, &mut fonts);
+    assert_eq!(
+        painted_cursor(&session, &mut screen, &mut fonts),
+        Some(default)
+    );
+    screen
+        .input(&session.view(), &mut fonts, &button(p, true))
+        .unwrap();
+    prepare(&session, &mut screen, &mut fonts);
+    assert_eq!(
+        painted_cursor(&session, &mut screen, &mut fonts),
+        Some(default)
+    );
+    assert!(matches!(
+        &screen
+            .input(&session.view(), &mut fonts, &button(p, false))
+            .unwrap()
+            .effects[..],
+        [ScreenEffect::Action(EntityAction::MoveContainerItem {
+            item_id: 10,
+            container_item_id: 9,
+            container_owner_entity_id: Some(1),
+            ..
+        })]
+    ));
+    assert_eq!(
+        screen.intent, "drop",
+        "container pickup does not consume the carried-item intent"
+    );
+}

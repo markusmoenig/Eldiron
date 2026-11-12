@@ -281,3 +281,38 @@ fn distance_exceeded(start: [f32; 2], point: [f32; 2]) -> bool {
     point.into_iter().all(f32::is_finite)
         && (point[0] - start[0]).powi(2) + (point[1] - start[1]).powi(2) >= 36.
 }
+
+impl GameScreenController {
+    pub(in crate::game_screen) fn command_drag_feedback(
+        &self,
+        world: &RuntimeView<'_>,
+        point: [f32; 2],
+    ) -> Option<Rect> {
+        if let Some(capture) = &self.hud.command_capture {
+            if capture.cancelled || !self.command_receipt_valid(world, &capture.receipt) {
+                return None;
+            }
+            if capture.assigning {
+                return capture
+                    .target
+                    .as_ref()
+                    .filter(|target| self.command_target_valid(world, target, point))
+                    .map(|target| target.rect);
+            }
+            return capture
+                .dragging
+                .then(|| {
+                    self.command_target_at(world, point)
+                        .map(|target| target.rect)
+                })
+                .flatten();
+        }
+        let pending = self.hud.pending_command.as_ref()?;
+        self.command_receipt_valid(world, pending)
+            .then(|| {
+                self.command_target_at(world, point)
+                    .map(|target| target.rect)
+            })
+            .flatten()
+    }
+}

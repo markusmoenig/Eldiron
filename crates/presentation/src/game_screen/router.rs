@@ -65,6 +65,7 @@ impl GameScreenController {
         event: &InputEvent,
     ) -> Result<ScreenInputResponse, String> {
         let rebound = self.bind_runtime(world);
+        self.world.observe_ui_pointer(event);
         let old_focus = self.focus;
         let held = self
             .keyboard_capture

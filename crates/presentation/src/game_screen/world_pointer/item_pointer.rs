@@ -538,3 +538,47 @@ pub(super) fn activate_hud_receipt(
         None => Vec::new(),
     }
 }
+
+impl GameScreenController {
+    pub(super) fn pressed_owned_item_cursor(&self, world: &RuntimeView<'_>) -> bool {
+        let owned =
+            |source| matches!(source,ItemSource::Direct(address) if address.owner.is_some());
+        if let Some(capture) = &self.world.ui_item {
+            return !capture.dragging
+                && self.item_source_current(world, capture)
+                && owned(capture.slot.source);
+        }
+        if let Some(PointerCapture::Button(_, Some(receipt))) = &self.pointer_capture {
+            return valid_receipt(self, world, receipt) && owned(receipt.slot.source);
+        }
+        false
+    }
+    pub(super) fn item_drag_source(
+        &self,
+        world: &RuntimeView<'_>,
+    ) -> Option<(ItemSource, Binding)> {
+        if let Some(capture) = self
+            .world
+            .ui_item
+            .as_ref()
+            .filter(|capture| capture.dragging && self.item_source_current(world, capture))
+        {
+            return Some((capture.slot.source, capture.binding));
+        }
+        let capture = self.world.capture.as_ref()?;
+        if !capture.dragging
+            || capture.cancelled
+            || !self.frame_matches(world)
+            || !self.world_source_current(capture)
+        {
+            return None;
+        }
+        Some((
+            ItemSource::Direct(ItemRef {
+                item: capture.item?,
+                owner: None,
+            }),
+            capture.binding,
+        ))
+    }
+}

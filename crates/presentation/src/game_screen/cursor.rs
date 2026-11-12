@@ -11,6 +11,7 @@ pub(super) struct PointerVisuals {
     position: Option<[f32; 2]>,
     mark: Option<(String, Rect)>,
     drag: Option<Arc<PreparedContent>>,
+    drop_target: Option<Rect>,
 }
 fn cursor_exists(assets: &rusterix::Assets, id: Uuid) -> bool {
     assets
@@ -53,7 +54,21 @@ impl GameScreenController {
             .default
             .filter(|id| cursor_exists(world.assets, *id));
         let mut tile = default;
-        if let Some((entity, item, pressed)) = self.pointer_cursor_target(world) {
+        let owned_only = screen_model::owned_item_cursor_intent(
+            screen_model::selected_intent(
+                &self.elements.activated_widgets,
+                &self.elements.button_widgets,
+                &self.intent,
+            )
+            .as_deref(),
+        );
+        let ui_target = self.ui_item_cursor_target(world);
+        let target = ui_target.or_else(|| {
+            (!owned_only)
+                .then(|| self.pointer_cursor_target(world))
+                .flatten()
+        });
+        if let Some((entity, item, pressed)) = target {
             if let Some(pair) = screen_model::active_intent_cursors(
                 &self.elements.activated_widgets,
                 &self.elements.button_widgets,
@@ -68,7 +83,12 @@ impl GameScreenController {
                     .or(default);
             }
         }
-        let mark = if tile == default && self.pointer_targets_world(world) {
+        let mark = if tile == default
+            && (if owned_only {
+                ui_target.is_some()
+            } else {
+                self.pointer_targets_world(world)
+            }) {
             position.and_then(|point| {
                 let intent = screen_model::selected_intent(
                     &self.elements.activated_widgets,
@@ -107,6 +127,7 @@ impl GameScreenController {
         } else {
             None
         };
+        self.pointer_visuals.drop_target = self.drag_target_feedback(world);
         self.pointer_visuals.position = position;
         self.pointer_visuals.tile = tile;
         self.pointer_visuals.mark = mark;
@@ -119,10 +140,15 @@ pub(super) fn paint(
     visuals: &PointerVisuals,
     assets: &rusterix::Assets,
     frame: usize,
+    hud: &hud::Hud,
 ) -> Result<(), String> {
     let Some(point) = visuals.position else {
         return Ok(());
     };
+    if let Some(bounds) = visuals.drop_target {
+        p.fill(bounds, screen_model::DRAG_TARGET_FILL);
+        p.border(bounds, 2., screen_model::DRAG_TARGET_BORDER);
+    }
     if let Some(source) = &visuals.drag {
         let image = source.resolve(p.images)?;
         p.list.ops.push(PaintOp::Image {
@@ -133,6 +159,7 @@ pub(super) fn paint(
             tint: [1.; 4],
         });
     }
+    hud.paint_command_drag(p, point)?;
     if let Some((id, texture)) = visuals.tile.and_then(|id| {
         assets
             .tiles

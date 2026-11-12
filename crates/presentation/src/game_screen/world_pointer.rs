@@ -8,6 +8,7 @@ use rusterix::{
 };
 use scenevm::prelude::{Vec2, Vec3};
 use theframework::platform::{InputEvent, PhysicalKey, PointerButton};
+mod feedback;
 mod hover;
 mod item_pointer;
 pub(super) use item_pointer::{ItemControl, ItemReceipt};
@@ -133,6 +134,20 @@ impl Default for WorldPointer {
     }
 }
 impl WorldPointer {
+    pub(super) fn observe_ui_pointer(&mut self, event: &InputEvent) {
+        match event {
+            InputEvent::PointerMoved { position } | InputEvent::PointerButton { position, .. } => {
+                self.pointer = Some(*position)
+            }
+            InputEvent::PointerLeft => self.pointer = None,
+            InputEvent::Focus(focused) => {
+                self.focused = *focused;
+                self.pointer = None;
+                self.invalidate();
+            }
+            _ => {}
+        }
+    }
     fn invalidate(&mut self) {
         if let Some(item) = &mut self.ui_item {
             item.cancel();

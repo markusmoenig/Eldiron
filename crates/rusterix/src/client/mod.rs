@@ -3931,16 +3931,7 @@ impl Client {
     }
 
     fn item_can_enter_container(item: &Item, container: &Item) -> bool {
-        let max_capacity = container.max_capacity.max(1) as usize;
-        let contents = container.container.as_ref();
-        if contents.is_none_or(|contents| contents.len() < max_capacity) {
-            return true;
-        }
-        contents.is_some_and(|contents| {
-            contents
-                .iter()
-                .any(|existing| existing.can_stack_with(item))
-        })
+        crate::item_interaction::item_can_enter_container(item, container)
     }
 
     fn find_container_item<'a>(
@@ -5003,10 +4994,8 @@ impl Client {
             self.tooltip_hover_since = None;
             return;
         }
-        let drop_intent_active = self
-            .get_current_intent()
-            .map(|i| i.eq_ignore_ascii_case("drop"))
-            .unwrap_or(false);
+        let drop_intent_active =
+            screen_model::owned_item_cursor_intent(self.get_current_intent().as_deref());
 
         if !drop_intent_active
             && self.hovered_3d_widget_at(p)
@@ -7196,11 +7185,7 @@ impl Client {
             .iter()
             .find(|slot| slot.rect.contains(point))
         {
-            if item
-                .attributes
-                .get_str("slot")
-                .is_some_and(|item_slot| item_slot.trim().eq_ignore_ascii_case(&slot.slot))
-            {
+            if crate::item_interaction::item_matches_equipment_slot(&item, &slot.slot) {
                 Self::draw_drag_target_highlight(&mut self.target, &self.draw2d, slot.rect);
             }
             return;
@@ -7238,11 +7223,7 @@ impl Client {
                 return;
             }
             if let Some(target_slot) = &widget.equipped_slot {
-                let item_slot = item
-                    .attributes
-                    .get_str("slot")
-                    .map(|slot| slot.trim().to_ascii_lowercase());
-                if item_slot.as_deref() == Some(target_slot.trim().to_ascii_lowercase().as_str()) {
+                if crate::item_interaction::item_matches_equipment_slot(&item, target_slot) {
                     Self::draw_drag_target_highlight(&mut self.target, &self.draw2d, widget.rect);
                     return;
                 }
@@ -7282,7 +7263,7 @@ impl Client {
             target.pixels_mut(),
             &fill,
             stride,
-            &[238, 210, 96, 70],
+            &screen_model::DRAG_TARGET_FILL,
             &safe,
         );
         draw2d.rect_outline_thickness(
@@ -7294,7 +7275,7 @@ impl Client {
                 rect.height.round().max(1.0) as usize,
             ),
             stride,
-            &[255, 236, 132, 255],
+            &screen_model::DRAG_TARGET_BORDER,
             2,
         );
     }

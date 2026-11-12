@@ -493,3 +493,137 @@ mod tests {
         assert!(transfer(&map, source, ItemDestination::World(Vec2::zero())).is_none());
     }
 }
+
+/// Existing client preview policy; authoritative transfer validation stays on the server.
+pub fn item_matches_equipment_slot(item: &Item, slot: &str) -> bool {
+    item.attributes
+        .get_str("slot")
+        .is_some_and(|item_slot| item_slot.trim().eq_ignore_ascii_case(slot.trim()))
+}
+pub fn item_can_enter_container(item: &Item, container: &Item) -> bool {
+    let capacity = container.max_capacity.max(1) as usize;
+    let contents = container.container.as_ref();
+    contents.is_none_or(|contents| contents.len() < capacity)
+        || contents.is_some_and(|contents| {
+            contents
+                .iter()
+                .any(|existing| existing.can_stack_with(item))
+        })
+}
+pub fn can_highlight_transfer(map: &Map, source: ItemSource, target: &ItemDestination) -> bool {
+    let Some(item) = source.resolve(map) else {
+        return false;
+    };
+    if transfer(map, source, target.clone()).is_none() {
+        return false;
+    }
+    match target {
+        ItemDestination::Actor {
+            equipped: Some(slot),
+            ..
+        } => item_matches_equipment_slot(item, slot),
+        ItemDestination::Container(target) => target
+            .resolve(map)
+            .is_some_and(|container| item_can_enter_container(item, container)),
+        _ => true,
+    }
+}
+
+#[cfg(test)]
+mod feedback_tests {
+    use super::*;
+    use crate::{Entity, Value};
+    fn fixture() -> (Map, ItemSource) {
+        let mut map = Map::default();
+        let mut actor = Entity::new();
+        actor.id = 1;
+        let mut item = Item::new();
+        item.id = 7;
+        item.set_attribute("slot", Value::Str("MAIN_HAND".into()));
+        actor.inventory = vec![Some(item), None];
+        map.entities.push(actor);
+        (
+            map,
+            ItemSource::Direct(ItemRef {
+                item: 7,
+                owner: Some(1),
+            }),
+        )
+    }
+    #[test]
+    fn preview_policy_uses_strict_addresses_and_shared_equipment_type_without_changing_commands() {
+        let (map, source) = fixture();
+        let target = ItemDestination::Actor {
+            entity: Some(1),
+            inventory: None,
+            equipped: Some("main_hand".into()),
+        };
+        assert!(can_highlight_transfer(&map, source, &target));
+        let wrong = ItemDestination::Actor {
+            entity: Some(1),
+            inventory: None,
+            equipped: Some("head".into()),
+        };
+        assert!(!can_highlight_transfer(&map, source, &wrong));
+        assert!(
+            transfer(&map, source, wrong).is_some(),
+            "preview policy does not replace authoritative validation"
+        );
+        assert!(!can_highlight_transfer(
+            &map,
+            ItemSource::Direct(ItemRef {
+                item: 7,
+                owner: None
+            }),
+            &target
+        ));
+        assert!(!can_highlight_transfer(
+            &map,
+            ItemSource::Direct(ItemRef {
+                item: 7,
+                owner: Some(99)
+            }),
+            &target
+        ));
+    }
+    #[test]
+    fn full_containers_accept_stack_previews_but_never_themselves_or_their_own_children() {
+        let (mut map, source) = fixture();
+        let mut bag = Item::new();
+        bag.id = 9;
+        bag.max_capacity = 1;
+        bag.container = Some(Vec::new());
+        map.items.push(bag);
+        let parent = ItemRef {
+            item: 9,
+            owner: None,
+        };
+        let target = ItemDestination::Container(parent);
+        assert!(can_highlight_transfer(&map, source, &target));
+        let mut child = Item::new();
+        child.id = 10;
+        map.items[0].container.as_mut().unwrap().push(child);
+        assert!(!can_highlight_transfer(&map, source, &target));
+        for item in [
+            map.entities[0].inventory[0].as_mut().unwrap(),
+            &mut map.items[0].container.as_mut().unwrap()[0],
+        ] {
+            item.set_attribute("stackable", Value::Bool(true));
+            item.set_attribute("name", Value::Str("Coin".into()));
+        }
+        assert!(can_highlight_transfer(&map, source, &target));
+        assert!(!can_highlight_transfer(
+            &map,
+            ItemSource::Direct(parent),
+            &target
+        ));
+        assert!(!can_highlight_transfer(
+            &map,
+            ItemSource::Container {
+                container: parent,
+                item: 10
+            },
+            &target
+        ));
+    }
+}

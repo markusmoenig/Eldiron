@@ -505,3 +505,77 @@ fn published_source_revision_revokes_a_command_drag_before_it_can_resume_on_an_o
         .is_empty()
     );
 }
+
+#[test]
+fn command_drag_and_pending_assignment_highlight_only_their_acknowledged_original_target() {
+    let (session, mut screen, mut fonts, view) = fixture();
+    ready(&session, &mut screen, &mut fonts, view);
+    let source = point(&session, &screen, HudPart::CatalogEntry(0));
+    dispatch(&session, &mut screen, &mut fonts, button(source, true));
+    dispatch(
+        &session,
+        &mut screen,
+        &mut fonts,
+        InputEvent::PointerMoved {
+            position: [516., 316.],
+        },
+    );
+    assert_eq!(
+        screen.drag_target_feedback(&session.view()),
+        Some(Rect::new(500., 300., 32., 32.))
+    );
+    screen
+        .elements
+        .button_widgets
+        .get_mut(&40)
+        .unwrap()
+        .command_slot = Some("main.2".into());
+    assert!(screen.drag_target_feedback(&session.view()).is_none());
+    assert!(
+        dispatch(
+            &session,
+            &mut screen,
+            &mut fonts,
+            button([516., 316.], false)
+        )
+        .effects
+        .is_empty()
+    );
+    ready(&session, &mut screen, &mut fonts, view);
+    click_part(&session, &mut screen, &mut fonts, HudPart::Assign);
+    ready(&session, &mut screen, &mut fonts, view);
+    click_part(&session, &mut screen, &mut fonts, HudPart::CatalogEntry(0));
+    dispatch(
+        &session,
+        &mut screen,
+        &mut fonts,
+        InputEvent::PointerMoved {
+            position: [516., 316.],
+        },
+    );
+    assert_eq!(
+        screen.drag_target_feedback(&session.view()),
+        Some(Rect::new(500., 300., 32., 32.))
+    );
+    dispatch(
+        &session,
+        &mut screen,
+        &mut fonts,
+        button([516., 316.], true),
+    );
+    let mut cover = Widget::new();
+    cover.id = 99;
+    cover.rect = Rect::new(500., 300., 32., 32.);
+    screen.elements.button_widgets.insert(99, cover);
+    assert!(screen.drag_target_feedback(&session.view()).is_none());
+    assert!(
+        dispatch(
+            &session,
+            &mut screen,
+            &mut fonts,
+            button([516., 316.], false)
+        )
+        .effects
+        .is_empty()
+    );
+}

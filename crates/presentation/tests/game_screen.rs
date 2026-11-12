@@ -1863,3 +1863,6 @@ mod preferences;
 
 #[path = "game_screen/tooltip.rs"]
 mod tooltip;
+
+#[path = "game_screen/ui_feedback.rs"]
+mod ui_feedback;

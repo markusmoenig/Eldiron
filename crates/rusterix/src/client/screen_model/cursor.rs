@@ -117,3 +117,9 @@ mod tests {
         );
     }
 }
+
+pub fn owned_item_cursor_intent(intent: Option<&str>) -> bool {
+    intent.is_some_and(|intent| intent.eq_ignore_ascii_case("drop"))
+}
+pub const DRAG_TARGET_FILL: crate::Pixel = [238, 210, 96, 70];
+pub const DRAG_TARGET_BORDER: crate::Pixel = [255, 236, 132, 255];

@@ -311,7 +311,13 @@ impl GameScreenController {
             }
         }
         self.tooltips.paint(&mut p);
-        cursor::paint(&mut p, &self.pointer_visuals, assets, self.animation_frame)?;
+        cursor::paint(
+            &mut p,
+            &self.pointer_visuals,
+            assets,
+            self.animation_frame,
+            &self.hud,
+        )?;
         p.list.ops.push(PaintOp::PopClip);
         self.finish_world_frame(world);
         list.validate().map_err(str::to_string)?;

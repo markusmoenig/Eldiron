@@ -374,6 +374,28 @@ fn native_container_routes_one_real_server_transfer_and_keeps_its_owner_through_
         matches!(app.screen.control_capture(), Some(ScreenCapture::Hud(id))
         if matches!(id.panel, eldiron_presentation::HudPanelId::Inventory { entity, .. } if entity == actor_id))
     );
+    let host_target = app
+        .viewport()
+        .host_rect(Rect::new(target_point[0], target_point[1], 1., 1.));
+    app.route(
+        &InputEvent::PointerMoved {
+            position: [host_target.x, host_target.y],
+        },
+        &mut host,
+    )
+    .unwrap();
+    let submitted = app.player.input_stats().submitted_actions;
+    assert_eq!(
+        app.screen.drag_target_feedback(&app.player.runtime.view()),
+        Some(destination)
+    );
+    assert_eq!(
+        app.player.input_stats().submitted_actions,
+        submitted,
+        "highlight query never submits a transfer"
+    );
+    render(&mut app, &mut host, &mut images2, &mut renderer2, &target2);
+    app.presented(&mut host);
     pointer(&mut app, &mut host, target_point, false);
     pump_until(&mut app, &mut host, "native inventory transfer", |_| {
         let ctx = context.lock().unwrap();
