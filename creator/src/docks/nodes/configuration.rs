@@ -100,6 +100,7 @@ pub(super) fn project_graph(
             row.value = GraphControlValue::Label(text);
         } else {
             let mut row = GraphRow::new(&label, GraphControlValue::Label(text));
+            row.id = schema_graph_id(root.id, "row", "summary");
             row.key = Some("summary".into());
             root.rows.push(row);
         }

@@ -133,6 +133,7 @@ struct Fields {
 }
 fn row(node: &mut GraphNode, key: &str, value: GraphControlValue) {
     let mut r = GraphRow::new(key, value);
+    r.id = schema_graph_id(node.id, "row", key);
     r.key = Some(key.into());
     node.rows.push(r);
 }
@@ -229,7 +230,9 @@ fn default_control(key: &str, rules: &Table) -> GraphControlValue {
                 .and_then(Value::as_bool)
                 .unwrap_or(true),
         ),
-        "player" | "blocking" | "active" | "openable" | "locked" => GraphControlValue::Toggle(false),
+        "player" | "blocking" | "active" | "openable" | "locked" => {
+            GraphControlValue::Toggle(false)
+        }
         _ => GraphControlValue::Text(String::new()),
     }
 }
@@ -738,7 +741,9 @@ pub fn import(data: &str, rules: &Table) -> Result<GraphDocument, String> {
                 "avatar" | "size_2d" | "visible" => ("entity_appearance", "Appearance"),
                 "start_equipped_items" => ("entity_equipment", "Equipment"),
                 "radius" | "blocking" => ("entity_body", "Collision"),
-                "active" | "openable" | "locked" | "required_key" => ("entity_item_state", "Item State"),
+                "active" | "openable" | "locked" | "required_key" => {
+                    ("entity_item_state", "Item State")
+                }
                 "inventory_slots" | "wealth" => ("entity_inventory", "Inventory"),
                 "player" => ("entity_player", "Player"),
                 _ => ("entity_attribute", "Attribute Override"),
@@ -1240,7 +1245,13 @@ pub fn synchronize(project: &mut Project) -> Result<(), String> {
 }
 
 /// Commit one graph's generated data only after compilation succeeds.
-pub fn update_owner(project: &mut Project, owner: &str, doc: &GraphDocument) -> Result<(), String> {
+/// Compile one owner's graph without writing generated data or source. This is
+/// shared by authoring diagnostics and the transactional update service.
+pub fn project_owner_data(
+    project: &Project,
+    owner: &str,
+    doc: &GraphDocument,
+) -> Result<String, String> {
     let rules = project
         .rules_source()?
         .parse::<Table>()
@@ -1248,43 +1259,50 @@ pub fn update_owner(project: &mut Project, owner: &str, doc: &GraphDocument) -> 
     let id = owner
         .rsplit('/')
         .next()
-        .and_then(|s| Uuid::parse_str(s).ok())
+        .and_then(|value| Uuid::parse_str(value).ok())
         .ok_or("Invalid Entity owner")?;
     let is_character = owner.starts_with("entity/character/");
-    let equipment = if is_character && project.characters.contains_key(&id) {
-        Some(crate::equipment::EquipmentCatalog::new(project)?)
-    } else {
-        None
-    };
-    let item_template = !is_character && project.items.contains_key(&id);
-    let data = if is_character {
-        if let Some(c) = project.characters.get_mut(&id) {
-            Some(&mut c.data)
-        } else {
-            project
-                .regions
-                .iter_mut()
-                .find_map(|r| r.characters.get_mut(&id).map(|c| &mut c.data))
-        }
-    } else {
-        if let Some(i) = project.items.get_mut(&id) {
-            Some(&mut i.data)
-        } else {
-            project
-                .regions
-                .iter_mut()
-                .find_map(|r| r.items.get_mut(&id).map(|i| &mut i.data))
-        }
-    }
-    .ok_or("Entity owner no longer exists")?;
-    let generated = if item_template {
+    let data = owner_data(project, owner).ok_or("Entity owner no longer exists")?;
+    let generated = if !is_character && project.items.contains_key(&id) {
         project_item_data(doc, data, &rules)?
     } else {
         project_data(doc, data, &rules)?
     };
-    if let Some(equipment) = equipment {
-        equipment.validate_explicit(&generated)?;
+    if is_character && project.characters.contains_key(&id) {
+        crate::equipment::EquipmentCatalog::new(project)?.validate_explicit(&generated)?;
     }
+    Ok(generated)
+}
+/// Commit generated data only after the same read-only projection succeeds.
+pub fn update_owner(project: &mut Project, owner: &str, doc: &GraphDocument) -> Result<(), String> {
+    let generated = project_owner_data(project, owner, doc)?;
+    let id = owner
+        .rsplit('/')
+        .next()
+        .and_then(|value| Uuid::parse_str(value).ok())
+        .ok_or("Invalid Entity owner")?;
+    let data = if owner.starts_with("entity/character/") {
+        if let Some(character) = project.characters.get_mut(&id) {
+            Some(&mut character.data)
+        } else {
+            project.regions.iter_mut().find_map(|region| {
+                region
+                    .characters
+                    .get_mut(&id)
+                    .map(|character| &mut character.data)
+            })
+        }
+    } else {
+        if let Some(item) = project.items.get_mut(&id) {
+            Some(&mut item.data)
+        } else {
+            project
+                .regions
+                .iter_mut()
+                .find_map(|region| region.items.get_mut(&id).map(|item| &mut item.data))
+        }
+    }
+    .ok_or("Entity owner no longer exists")?;
     *data = generated;
     Ok(())
 }
@@ -1615,21 +1633,32 @@ mod tests {
     }
     #[test]
     fn editable_input_updates_preserve_existing_bindings_and_identity() {
-        let mut p=Project::default();
-        let mut player=crate::character::Character::new();let id=player.id;
-        player.name="Player".into();player.data="[attributes]\nplayer=true\nrace='Human'\nclass='Warrior'\n[input]\nw='control.forward'\n".into();
-        p.characters.insert(id,player);
-        let owner=character_key(id);
-        for (key,command) in [("u","intent.use"),("l","intent.look"),("o","intent.open_close")] {set_owner_input(&mut p,&owner,key,command).unwrap();}
-        let table=p.characters[&id].data.parse::<Table>().unwrap();
-        assert_eq!(table["input"]["w"].as_str(),Some("control.forward"));
-        assert_eq!(table["input"]["u"].as_str(),Some("intent.use"));
-        assert_eq!(table["input"]["l"].as_str(),Some("intent.look"));
-        assert_eq!(table["attributes"]["race"].as_str(),Some("Human"));
-        let n=p.node_graphs[&owner]["nodes"].as_array().unwrap().len();
-        set_owner_input(&mut p,&owner,"u","intent.look").unwrap();
-        assert_eq!(p.node_graphs[&owner]["nodes"].as_array().unwrap().len(),n);
-        assert_eq!(p.characters[&id].data.parse::<Table>().unwrap()["input"]["u"].as_str(),Some("intent.look"));
+        let mut p = Project::default();
+        let mut player = crate::character::Character::new();
+        let id = player.id;
+        player.name = "Player".into();
+        player.data="[attributes]\nplayer=true\nrace='Human'\nclass='Warrior'\n[input]\nw='control.forward'\n".into();
+        p.characters.insert(id, player);
+        let owner = character_key(id);
+        for (key, command) in [
+            ("u", "intent.use"),
+            ("l", "intent.look"),
+            ("o", "intent.open_close"),
+        ] {
+            set_owner_input(&mut p, &owner, key, command).unwrap();
+        }
+        let table = p.characters[&id].data.parse::<Table>().unwrap();
+        assert_eq!(table["input"]["w"].as_str(), Some("control.forward"));
+        assert_eq!(table["input"]["u"].as_str(), Some("intent.use"));
+        assert_eq!(table["input"]["l"].as_str(), Some("intent.look"));
+        assert_eq!(table["attributes"]["race"].as_str(), Some("Human"));
+        let n = p.node_graphs[&owner]["nodes"].as_array().unwrap().len();
+        set_owner_input(&mut p, &owner, "u", "intent.look").unwrap();
+        assert_eq!(p.node_graphs[&owner]["nodes"].as_array().unwrap().len(), n);
+        assert_eq!(
+            p.characters[&id].data.parse::<Table>().unwrap()["input"]["u"].as_str(),
+            Some("intent.look")
+        );
     }
 
     #[test]

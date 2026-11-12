@@ -328,12 +328,9 @@ pub fn sync_ports(doc: &mut GraphDocument) {
             {
                 &mut node.ports[index]
             } else {
-                node.ports.push(GraphPort::new(
-                    "",
-                    PortDirection::Output,
-                    PortSide::Right,
-                    0.5,
-                ));
+                let mut port = GraphPort::new("", PortDirection::Output, PortSide::Right, 0.5);
+                port.id = schema_graph_id(node.id, "port", &key);
+                node.ports.push(port);
                 node.ports.last_mut().unwrap()
             };
             port.key = Some(key);

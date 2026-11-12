@@ -261,6 +261,7 @@ pub(super) fn sync_icon_controls(doc: &mut GraphDocument) {
                 row.value = value;
             } else {
                 let mut row = GraphRow::new("Icon artwork (click to replace)", value);
+                row.id = schema_graph_id(node.id, "row", ICON_PREVIEW);
                 row.key = Some(ICON_PREVIEW.into());
                 node.rows.push(row);
             }
@@ -323,7 +324,12 @@ pub(super) fn apply_icon_selection(doc: &mut GraphDocument, target: &TextTarget,
     else {
         return;
     };
-    let GraphControlValue::List { rows, columns, .. } = &mut entries.value else {
+    let GraphControlValue::List {
+        rows,
+        columns,
+        row_ids,
+    } = &mut entries.value
+    else {
         return;
     };
     let value = GraphControlValue::Custom {
@@ -336,9 +342,13 @@ pub(super) fn apply_icon_selection(doc: &mut GraphDocument, target: &TextTarget,
     {
         cells[2] = value;
     } else {
+        while row_ids.len() < rows.len() {
+            row_ids.push(Uuid::new_v4());
+        }
         let mut cells: Vec<_> = columns.iter().map(|c| c.control.clone()).collect();
         cells[0] = GraphControlValue::Text("texture".into());
         cells[2] = value;
         rows.push(cells);
+        row_ids.push(Uuid::new_v4());
     }
 }

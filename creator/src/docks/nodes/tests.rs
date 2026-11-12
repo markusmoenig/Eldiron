@@ -2526,3 +2526,64 @@ fn authoring_nodes_and_preview_snapshots_do_not_require_raster_or_world_renderer
         assert!(std::sync::LazyLock::get(&crate::editor::SCENEMANAGER).is_none());
     }
 }
+
+#[test]
+fn independent_working_and_completed_projections_share_new_schema_ids_and_keep_private_text() {
+    let definitions = catalog::definitions();
+    let mut prompt = definitions.instantiate("prompt", [20., 30.]).unwrap();
+    let choices = prompt
+        .rows
+        .iter_mut()
+        .find(|row| row.key.as_deref() == Some("choices"))
+        .unwrap();
+    let GraphControlValue::List { rows, .. } = &mut choices.value else {
+        unreachable!()
+    };
+    rows.push(vec![
+        GraphControlValue::Text("First choice".into()),
+        GraphControlValue::Text(String::new()),
+    ]);
+    let mut completed = GraphDocument {
+        nodes: vec![prompt],
+        ..Default::default()
+    };
+    let mut working = completed.clone();
+    let text = working.nodes[0]
+        .rows
+        .iter_mut()
+        .find(|row| row.key.as_deref() == Some("text"))
+        .unwrap();
+    text.value = GraphControlValue::Text("Newer private 東京\r\ndraft".into());
+    catalog::sync_fields(&mut completed, &definitions);
+    catalog::sync_fields(&mut working, &definitions);
+    let ids = |doc: &GraphDocument| {
+        doc.nodes[0]
+            .ports
+            .iter()
+            .map(|port| (port.key.clone(), port.id))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        ids(&completed),
+        ids(&working),
+        "separate CPU projections must address the same generated ports"
+    );
+    assert_eq!(
+        working.nodes[0]
+            .rows
+            .iter()
+            .find(|row| row.key.as_deref() == Some("text"))
+            .unwrap()
+            .value,
+        GraphControlValue::Text("Newer private 東京\r\ndraft".into())
+    );
+    assert_eq!(
+        completed.nodes[0]
+            .rows
+            .iter()
+            .find(|row| row.key.as_deref() == Some("text"))
+            .unwrap()
+            .value,
+        GraphControlValue::Text(String::new())
+    );
+}

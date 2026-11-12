@@ -162,7 +162,7 @@ impl GraphNodeDefinition {
         node
     }
 }
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct GraphDefinitions {
     nodes: BTreeMap<String, GraphNodeDefinition>,
     events: BTreeMap<String, GraphEventDefinition>,

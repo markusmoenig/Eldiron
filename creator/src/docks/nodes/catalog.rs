@@ -1327,6 +1327,7 @@ pub fn hydrate_lookout_distances(doc: &mut GraphDocument, project: &shared::proj
 }
 fn row(node: &mut GraphNode, key: &str, label: &str, value: GraphControlValue) {
     let mut r = GraphRow::new(label, value);
+    r.id = schema_graph_id(node.id, "row", key);
     r.key = Some(key.into());
     node.rows.push(r);
 }
@@ -1337,6 +1338,7 @@ fn port(node: &mut GraphNode, key: &str, label: &str, direction: PortDirection, 
         PortSide::Right
     };
     let mut p = GraphPort::new(label, direction, side, position);
+    p.id = schema_graph_id(node.id, "port", key);
     p.key = Some(key.into());
     node.ports.push(p);
 }

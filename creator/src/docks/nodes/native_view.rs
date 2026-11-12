@@ -32,6 +32,25 @@ pub(super) struct NativeNodePanels {
     error: Option<String>,
 }
 impl NativeNodePanels {
+    pub(super) fn has_changes(&self) -> bool {
+        match &self.panel {
+            Some(Panel::Text(draft)) => draft.has_changes(),
+            Some(Panel::Conversation(draft)) => {
+                draft.editor.conversation() != &draft.committed
+                    || draft
+                        .field
+                        .as_ref()
+                        .is_some_and(|(_, view, baseline)| view.editor.text() != baseline)
+            }
+            Some(Panel::Picker(_)) | None => false,
+        }
+    }
+    /// Full project replacement may have no text/font context. Dropping the old
+    /// controllers revokes their unique targets without accepting more input.
+    pub(super) fn revoke(&mut self) {
+        self.panel = None;
+        self.error = None;
+    }
     fn text(&mut self) -> Option<&mut EditorView> {
         match self.panel.as_mut()? {
             Panel::Text(draft) => Some(&mut draft.view),
