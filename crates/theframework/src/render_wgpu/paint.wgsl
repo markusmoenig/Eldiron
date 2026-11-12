@@ -149,11 +149,23 @@ fn line_coverage(point:vec2<i32>)->bool{
     let step=line_minor(k,distance.x,distance.y);
     return pf.x==af.x+select(0u-step,step,b.x>=a.x);
 }
+fn triangle_edge(a:vec2<f32>, b:vec2<f32>, p:vec2<f32>)->f32 {
+    return (p.x-a.x)*(b.y-a.y)-(p.y-a.y)*(b.x-a.x);
+}
+fn triangle_coverage(p:vec2<f32>)->bool {
+    let a=params.color1.xy; let b=params.color1.zw; let c=params.gradient.xy;
+    let e0=triangle_edge(a,b,p); let e1=triangle_edge(b,c,p); let e2=triangle_edge(c,a,p);
+    return (e0>=0. && e1>=0. && e2>=0.) || (e0<=0. && e1<=0. && e2<=0.);
+}
 @fragment fn fs(i:Out)->@location(0)vec4<f32>{
     let mode=params.mode&255u;
     if(mode==8u){return vec4<f32>(linear(textureSample(image,image_sampler,i.uv).rgb),1.);}
     if(mode==9u){return vec4<f32>(textureSample(image,image_sampler,i.uv).rgb,1.);}
     var c=params.color0;
+    if(mode==13u){
+        let alpha=select(0.,c.a,triangle_coverage(floor(i.position.xy)+vec2<f32>(0.5)));
+        return vec4<f32>(c.rgb*alpha,alpha);
+    }
     if(mode==12u){
         let alpha=select(0.,c.a,line_coverage(vec2<i32>(floor(i.position.xy))));
         return vec4<f32>(c.rgb*alpha,alpha);

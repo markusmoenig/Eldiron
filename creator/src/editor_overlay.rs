@@ -76,6 +76,10 @@ impl OverlaySources {
 }
 
 enum Command {
+    Triangle {
+        points: [[f32; 2]; 3],
+        color: RGBA,
+    },
     Rect(BoxRect, RGBA),
     SignedRect(TheDim, RGBA),
     SignedOutline(TheDim, RGBA),
@@ -126,6 +130,9 @@ impl EditorOverlay {
     }
     pub(crate) fn rect(&mut self, rect: &BoxRect, color: &RGBA) {
         self.commands.push(Command::Rect(*rect, *color));
+    }
+    pub(crate) fn triangle(&mut self, points: [[f32; 2]; 3], color: RGBA) {
+        self.commands.push(Command::Triangle { points, color });
     }
     pub(crate) fn signed_rect(&mut self, rect: TheDim, color: RGBA) {
         self.commands.push(Command::SignedRect(rect, color));
@@ -222,6 +229,7 @@ impl EditorOverlay {
         let stride = buffer.stride();
         for command in &self.commands {
             match command {
+                Command::Triangle { points, color } => reference_triangle(buffer, *points, *color),
                 Command::SignedRect(rect, color) => {
                     // Explicit reference semantics of the original set_pixel square.
                     for y in rect.y..rect.y.saturating_add(rect.height) {
@@ -373,6 +381,12 @@ impl EditorOverlay {
         };
         for command in &self.commands {
             match command {
+                Command::Triangle { points, color } => {
+                    list.ops.push(PaintOp::PixelTriangle {
+                        points: *points,
+                        color: color.map(|v| v as f32 / 255.),
+                    });
+                }
                 Command::PixelLine { from, to, color } => list.ops.push(PaintOp::PixelLine {
                     from: from.map(|v| v as f32),
                     to: to.map(|v| v as f32),
@@ -725,5 +739,45 @@ fn draw_reference_image(
         }
         ctx.draw
             .blend_slice(buffer.pixels_mut(), &pixels, rect, stride);
+    }
+}
+
+// Explicit reference adapter; native commands never rasterize destination pixels.
+fn reference_triangle(buffer: &mut TheRGBABuffer, points: [[f32; 2]; 3], color: RGBA) {
+    let [a, b, c] = points.map(Vec2::from);
+    let edge = |a: Vec2<f32>, b: Vec2<f32>, p: Vec2<f32>| {
+        (p.x - a.x) * (b.y - a.y) - (p.y - a.y) * (b.x - a.x)
+    };
+    let inside = |p| {
+        let e0 = edge(a, b, p);
+        let e1 = edge(b, c, p);
+        let e2 = edge(c, a, p);
+        (e0 >= 0. && e1 >= 0. && e2 >= 0.) || (e0 <= 0. && e1 <= 0. && e2 <= 0.)
+    };
+    let dim = *buffer.dim();
+    if !dim.is_valid() {
+        return;
+    }
+    let min_x = a.x.min(b.x).min(c.x).floor().max(0.0) as i32;
+    let max_x = a.x.max(b.x).max(c.x).ceil().min(dim.width as f32 - 1.0) as i32;
+    let min_y = a.y.min(b.y).min(c.y).floor().max(0.0) as i32;
+    let max_y = a.y.max(b.y).max(c.y).ceil().min(dim.height as f32 - 1.0) as i32;
+    let alpha = color[3] as f32 / 255.0;
+    let stride = dim.width as usize;
+    let pixels = buffer.pixels_mut();
+    for y in min_y..=max_y {
+        for x in min_x..=max_x {
+            let point = Vec2::new(x as f32 + 0.5, y as f32 + 0.5);
+            if !inside(point) {
+                continue;
+            }
+            let offset = (x as usize + y as usize * stride) * 4;
+            for channel in 0..3 {
+                pixels[offset + channel] = (pixels[offset + channel] as f32 * (1.0 - alpha)
+                    + color[channel] as f32 * alpha)
+                    as u8;
+            }
+            pixels[offset + 3] = 255;
+        }
     }
 }

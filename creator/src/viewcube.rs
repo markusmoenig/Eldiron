@@ -165,67 +165,44 @@ impl ViewCube {
             || Self::point_in_triangle(point, face.points[0], face.points[2], face.points[3])
     }
 
-    fn fill_triangle(
-        buffer: &mut TheRGBABuffer,
-        a: Vec2<f32>,
-        b: Vec2<f32>,
-        c: Vec2<f32>,
-        color: [u8; 4],
-    ) {
-        let dim = *buffer.dim();
-        if !dim.is_valid() {
-            return;
-        }
-        let min_x = a.x.min(b.x).min(c.x).floor().max(0.0) as i32;
-        let max_x = a.x.max(b.x).max(c.x).ceil().min(dim.width as f32 - 1.0) as i32;
-        let min_y = a.y.min(b.y).min(c.y).floor().max(0.0) as i32;
-        let max_y = a.y.max(b.y).max(c.y).ceil().min(dim.height as f32 - 1.0) as i32;
-        let alpha = color[3] as f32 / 255.0;
-        let stride = dim.width as usize;
-        let pixels = buffer.pixels_mut();
-        for y in min_y..=max_y {
-            for x in min_x..=max_x {
-                let point = Vec2::new(x as f32 + 0.5, y as f32 + 0.5);
-                if !Self::point_in_triangle(point, a, b, c) {
-                    continue;
-                }
-                let offset = (x as usize + y as usize * stride) * 4;
-                for channel in 0..3 {
-                    pixels[offset + channel] = (pixels[offset + channel] as f32 * (1.0 - alpha)
-                        + color[channel] as f32 * alpha)
-                        as u8;
-                }
-                pixels[offset + 3] = 255;
-            }
-        }
+    pub(crate) fn prepare_overlay(
+        size: (usize, usize),
+        camera: &D3OrbitCamera,
+    ) -> crate::editor_overlay::EditorOverlay {
+        let dim = TheDim::sized(
+            size.0.min(i32::MAX as usize) as i32,
+            size.1.min(i32::MAX as usize) as i32,
+        );
+        Self::commands_for_faces(size, &Self::projected_faces(dim, camera))
     }
 
-    pub fn draw(buffer: &mut TheRGBABuffer, ctx: &mut TheContext, camera: &D3OrbitCamera) {
-        let dim = *buffer.dim();
-        if Self::center(dim).is_none() {
-            return;
-        }
-
-        for projected in Self::projected_faces(dim, camera) {
+    fn commands_for_faces(
+        size: (usize, usize),
+        faces: &[ProjectedFace],
+    ) -> crate::editor_overlay::EditorOverlay {
+        let mut paint = crate::editor_overlay::EditorOverlay::new(size);
+        for projected in faces {
             let color = projected.face.color(projected.facing);
-            Self::fill_triangle(
-                buffer,
-                projected.points[0],
-                projected.points[1],
-                projected.points[2],
+            paint.triangle(
+                [
+                    [projected.points[0].x, projected.points[0].y],
+                    [projected.points[1].x, projected.points[1].y],
+                    [projected.points[2].x, projected.points[2].y],
+                ],
                 color,
             );
-            Self::fill_triangle(
-                buffer,
-                projected.points[0],
-                projected.points[2],
-                projected.points[3],
+            paint.triangle(
+                [
+                    [projected.points[0].x, projected.points[0].y],
+                    [projected.points[2].x, projected.points[2].y],
+                    [projected.points[3].x, projected.points[3].y],
+                ],
                 color,
             );
             for edge in 0..4 {
                 let a = projected.points[edge];
                 let b = projected.points[(edge + 1) % 4];
-                buffer.draw_line(
+                paint.line(
                     a.x.round() as i32,
                     a.y.round() as i32,
                     b.x.round() as i32,
@@ -245,10 +222,8 @@ impl ViewCube {
                 22,
                 14,
             );
-            ctx.draw.text_rect_blend(
-                buffer.pixels_mut(),
+            paint.text_rect_blend(
                 &label_rect,
-                dim.width as usize,
                 projected.face.label(),
                 TheFontSettings {
                     size: 9.0,
@@ -259,6 +234,15 @@ impl ViewCube {
                 TheVerticalAlign::Center,
             );
         }
+        paint
+    }
+
+    pub fn draw(buffer: &mut TheRGBABuffer, ctx: &mut TheContext, camera: &D3OrbitCamera) {
+        let size = (
+            buffer.dim().width.max(0) as usize,
+            buffer.dim().height.max(0) as usize,
+        );
+        Self::prepare_overlay(size, camera).draw_reference(buffer, ctx);
     }
 
     pub fn hit_test(coord: Vec2<i32>, dim: TheDim, camera: &D3OrbitCamera) -> Option<ViewCubeFace> {
@@ -309,6 +293,8 @@ mod tests {
         for (face, expected) in [
             (ViewCubeFace::PositiveX, Vec3::unit_x()),
             (ViewCubeFace::NegativeX, -Vec3::unit_x()),
+            (ViewCubeFace::PositiveY, Vec3::unit_y()),
+            (ViewCubeFace::NegativeY, -Vec3::unit_y()),
             (ViewCubeFace::PositiveZ, Vec3::unit_z()),
             (ViewCubeFace::NegativeZ, -Vec3::unit_z()),
         ] {
@@ -318,3 +304,10 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "viewcube/tests.rs"]
+mod native_tests;
+
+mod native;
+pub(crate) use native::{CubeFrame, CubePick, CubeTarget, ViewCubeFrames};

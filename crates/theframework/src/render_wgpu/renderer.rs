@@ -29,6 +29,7 @@ struct Geometry {
 }
 #[derive(Clone, Copy)]
 enum ImageEffect {
+    PixelTriangle([Point; 3]),
     PixelLine([i32; 4]),
     GlyphBackdrop(Color),
     PixelNearest(Point),
@@ -418,6 +419,8 @@ impl PaintRenderer {
             viewport: [size.0 as f32, size.1 as f32],
             mode: (if let Some(ImageEffect::Present(srgb)) = effect {
                 if srgb { 8 } else { 9 }
+            } else if matches!(effect, Some(ImageEffect::PixelTriangle(_))) {
+                13
             } else if matches!(effect, Some(ImageEffect::PixelLine(_))) {
                 12
             } else if pixel_size.is_some() {
@@ -488,6 +491,10 @@ impl PaintRenderer {
                 |size| [size[0], size[1], 0., 0.],
             ),
         };
+        if let Some(ImageEffect::PixelTriangle(points)) = effect {
+            params.color1 = [points[0][0], points[0][1], points[1][0], points[1][1]];
+            params.gradient = [points[2][0], points[2][1], 0., 0.];
+        }
         if let Some(ImageEffect::PixelLine(points)) = effect {
             // Numeric 16-bit halves are exact f32 values, including negative
             // coordinates. Keep the common 64-byte UBO without NaN bit packing.
@@ -943,6 +950,18 @@ impl PaintRenderer {
                         level,
                         0,
                     ));
+                }
+                PaintOp::PixelTriangle { points, color } => {
+                    let physical = points.map(|p| transform.point(p).map(|v| v * density));
+                    if physical.iter().flatten().any(|v| !v.is_finite()) {
+                        return Err(RenderError("nonfinite transformed pixel triangle".into()));
+                    }
+                    if let Some((vertices, indices)) = mesh::pixel_triangle(physical, size) {
+                        draws.push(self.draw_with_effects(
+                            self.geometry(&vertices, &indices), &Brush::Solid(*color),
+                            None, size, level, 0, None, Some(ImageEffect::PixelTriangle(physical)),
+                        ));
+                    }
                 }
                 PaintOp::PixelLine { from, to, color } => {
                     let physical = |point: Point| {

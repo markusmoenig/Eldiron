@@ -3579,3 +3579,162 @@ primitive. Then adopt the tool frame boundary and native main viewport owner,
 converting remaining terrain/isometric/collision/guidance overlays during that
 integration. Owner writes and cancel must validate source/document epochs and
 preserve concurrent source changes. All full M0–M9 gates remain active/incomplete.
+
+
+### ViewCube original baselines captured; command extraction in progress
+
+Profile checkpoint committed as **fdbe1e64**. Original `ViewCube::draw` was then
+captured unchanged in **26 RGBA8 fixtures**, 13 camera cases at 100×150 and
+800×360. Capture passed in 4.13 s:
+`/private/tmp/eldiron-viewcube-baseline.log`. Cameras include default, four
+quadrants, all six axis snaps and both sides of the face-visibility threshold;
+a patterned background exposes face alpha/order. The one-time generator has
+already been replaced with a read-only fixture test. PNGs must not regenerate.
+
+An uncommitted command extraction now emits ordered triangles, integer lines
+and Swash labels through `EditorOverlay`; `ViewCube::draw` is an explicit
+reference adapter. The CPU triangle algorithm is retained only in that adapter;
+preparation receives no destination/font/GPU/context. Native triangles currently
+use the existing shared colored mesh. The new independent GPU comparison is
+strict on all non-text pixels (RGB ±1); its result is not yet known. In particular,
+legacy CPU triangles test both sides of edges inclusively, so their shared
+internal diagonal can be blended twice. A hardware triangle mesh uses its own
+edge rule; inspect any measured differences before deciding whether a common
+analytic coverage primitive is needed. Do not mask this as a text/AA result.
+
+Focused verification is running, unified session **71144**, log
+`/private/tmp/eldiron-viewcube-commands-first.log`. Native input still needs
+camera/source/root receipt ownership, stale/hidden/device/resize invalidation
+and frozen projected hit geometry. Existing ToolList reference hit testing and
+production native main/tool aggregation are not converted. No new milestone is
+complete; continue from the live log, preserving the unrelated networking file.
+
+
+### Inclusive triangle coverage required and verified
+
+The ordinary shared mesh comparison failed at cube-0-100 pixel (25,69): native
+`[43,89,64,255]` versus original `[22,39,39,255]`. The common mesh uses MSAA, while
+the original ViewCube uses hard inclusive pixel-center triangle tests. Mesh
+rasterization also has a different shared-edge rule. This is a measured geometry
+coverage difference; no glyph/edge mask or tolerance was widened to accept it.
+Evidence: `/private/tmp/eldiron-viewcube-commands-second.log` (two reference/snap
+cases passed; GPU comparison failed). A preceding compile-only failure was a
+Vek Vec2-to-array conversion, corrected with explicit coordinate arrays.
+
+Added common **PaintOp::PixelTriangle**, rendered on the GPU from a constant-size
+integer-aligned support quad with exact per-pixel center edge tests. Each MSAA
+sample uses the same pixel-center decision. Original subpixel coordinates,
+inclusive shared-edge overdraw and degenerate bounded semantics are retained;
+CPU code prepares only geometry/parameters. Six vertex-coordinate floats fit in
+the existing common **64-byte UBO**; no new binding/image/readback is needed.
+Triangle support is clipped before conversion; common transforms, clips, colors
+and opacity remain in use. PixelLine/PixelTriangle validation rejects nonfinite
+geometry/color, and overflowing transformed triangles return an explicit error.
+
+All **26 native original-fixture comparisons now pass** (non-text RGB ±1), with
+all original RGBA fixtures still byte-exact in the reference adapter; all three
+focused ViewCube cases pass, 5.80 s:
+`/private/tmp/eldiron-viewcube-analytic-first.log`. Standalone primitive checks
+also pass **3 new triangle + 4 existing integer-line + 12 existing paint GPU
+cases**, 0.40/0.85/1.72 s:
+`/private/tmp/eldiron-pixel-triangle-gpu-first.log`. Evidence covers both winding
+orders, inclusive shared edges, degenerate/collinear/thin/offscreen triangles,
+all five densities, translation/rotation, clipping, billion-coordinate support,
+common isolated opacity, warm image-upload/readback counters and malformed input.
+Text and full old Creator DPI appearance remain separate open acceptance items.
+
+ViewCube now also has a staged native controller with document/tool/source,
+actual widget UUID, logical size and camera-basis stamps. Only acknowledged root
+receipts promote frozen projected faces; picking uses those faces in original
+depth order. Outside the gizmo footprint, unavailable state does not block world
+input. Hidden/small/zero/invalid camera preparation and explicit lifecycle revoke
+old input. Camera drags remain the parent controller's captured gesture.
+Verification (all camera cases vs old hit tests and source/lifetime guards) is
+running, unified session **80585**, log
+`/private/tmp/eldiron-viewcube-controller-second.log`. The first controller compile
+failed test-fixture privacy and was fixed by a parent-visible fixture helper.
+Native GPU fixture tests still need to use this controller's receipts directly,
+plus density/device reconstruction, and the shared-renderer/application matrix
+must pass before checkpointing. All these ViewCube/triangle changes remain
+uncommitted; unrelated networking stays excluded. No M0–M9 gate is complete.
+
+
+### ViewCube presented geometry, root receipts and GPU recovery verified
+
+All **six focused ViewCube cases pass**, 6.06 s:
+`/private/tmp/eldiron-viewcube-controller-final.log`. The GPU fixture comparison
+now paints through `CubeFrame`, rejects missing root receipts, and promotes hit
+geometry only after rendering that list. It verifies all five density/resource
+lifetimes and reconstructs every native RGBA pixel, including text, on a second
+actual GPU device; invalidated old receipts cannot reactivate. Both minimum-size
+native/original default captures were visually inspected: faces/edges match,
+with the known separate Swash text placement/raster differences still open.
+
+The controller compares frozen painted polygons against original hit tests over
+all 83×83 footprint points for all 26 camera/size cases. Source stamps include
+actual widget UUID as well as camera basis, scope and size. All foreign owner,
+foreign root, missing/reused/reordered receipt, camera/source/document/tool/view,
+layout/hidden/zero/invalid-camera and explicit lifecycle cases pass. The existing
+axis-snap unit case has additionally been expanded to include both Y poles; the
+full ordinary matrix will execute its six directions. Native ownership remains
+an application integration responsibility; standalone guarded APIs do not prove
+ToolList or physical-window cutover.
+
+A **25-check shared renderer/application matrix** is running via
+`/private/tmp/verify-viewcube.py`, live unified session **51832**, summary
+`/private/tmp/eldiron-viewcube-matrix-results.log`. It includes native profile and
+panels/HUD, full ordinary Creator, reference ViewCube/HUD/configuration, all
+presentation suites, framework/UI/DPI, native material/geometry/appearance/root,
+linked native Creator/four apps, browser/iOS player and Creator iOS render-library
+compilation, dependency boundaries and whitespace. The already-passing three
+primitive suites and identical final native cube case are not blindly repeated.
+Inspect authoritative completion before committing; retain original reference
+PNGs and unrelated networking file. No other validation jobs are live. All
+ViewCube/triangle changes remain uncommitted; full M0–M9 acceptance stays active.
+
+
+### ViewCube/triangle shared-renderer checkpoint verified
+
+All **25 affected matrix checks pass**, terminal exit 0:
+`/private/tmp/eldiron-viewcube-matrix-results.log`. Results include:
+
+- Full ordinary Creator **604 passed, 106 explicitly ignored**, 275.87 s;
+  all six camera-axis snaps pass. Native profile **23**, native panels **15**,
+  native HUD **20**, reference ViewCube **4**, reference HUD **17** pass.
+- All **189 presentation tests/15 suites**, **171 framework unit tests**, the
+  foreign-layer host replacement case, **17 UI GPU / 8 command UI / 5 DPI**
+  cases; material/geometry/appearance output and controls checks pass.
+- Isolated assembled Creator root passes in **15.23 s**, linked native Creator,
+  four application compilation, reference/native-ui configurations, browser player
+  and iOS player/Creator render-library compilation, all eleven dependency
+  boundaries and diff whitespace pass. These do not establish physical window,
+  browser/Apple runtime or complete canonical main viewport adoption.
+
+The independent three triangle / four line / twelve paint GPU suites and final
+six-case native cube suite passed separately as recorded above. All verification
+jobs are terminal. Original checkout remains at **f8d8801103**, tracked sources
+unchanged, existing untracked concepts preserved. This checkpoint excludes the
+unrelated networking concept; all new cube PNGs remain original read-only captures.
+Native APIs still report expected unused warnings until production aggregation.
+No full M0–M9 gate or objective is complete.
+
+Next implementation is the common tool overlay frame/parent ownership boundary,
+then actual native viewport aggregation. Research and concrete source contracts
+are in `/private/tmp/eldiron-tool-overlay-integration-notes.md`. Preserve typed
+pending frames through successful root presentation; expose pure preparation
+without a framebuffer/context/GPU. Resolve action slots outside HUD preparation.
+Do not duplicate the reference selection/layout rules or use Any to discard
+source identities. Existing paint/props/HUD/profile/cube frame guards should be
+reused by the parent. Source-bound cancel/commit must preserve concurrent edits.
+
+Specific remaining geometry: `rusterix::isometric::line` uses a capped DDA sampler
+(ceil max delta, at most 8192 steps), skips zero length, includes endpoints and
+blends repeated rounded pixels. Terrain/iso/rect guides cannot silently use the
+Bresenham PixelLine kernel. Collision 3D projection currently reads the global
+renderer camera per point; inject actual view/projection matrices. Rect controls,
+terrain panel and iso preview/selection still need common frame conversion.
+The main `Editor::update_ui` framebuffer allocation/draw boundary is around
+lines 9308/9986; native production composition must bypass it and consume the
+existing independent SceneViews/EditorViewFrame/immutable chunk-source contracts.
+The whole editor world, Play, source-owner retirement, text/AA/DPI visual parity,
+resource/error/idle workflows, physical hosts and release gates remain active.

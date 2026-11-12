@@ -312,9 +312,14 @@ pub enum PaintOp {
         sampling: Sampling,
         tint: Color,
     },
-    /// Full source image, using top-left aligned nearest sampling in destination
-    /// physical pixels. Matches explicit CPU left-edge image resizing without
-    /// allocating a resized source image or relying on half-texel UV biases.
+    /// Legacy inclusive edge tests at each physical pixel center, without MSAA
+    /// smoothing. Integer sample bounds are floor(min)..=ceil(max), retaining
+    /// bounded degenerate-triangle semantics. Separate triangles preserve their
+    /// ordering and shared-edge overdraw; transformed vertices retain subpixels.
+    PixelTriangle {
+        points: [Point; 3],
+        color: Color,
+    },
     /// Inclusive symmetric Bresenham coverage, one device pixel wide. The
     /// transformed endpoints round to physical integer pixel locations.
     PixelLine {
@@ -322,6 +327,9 @@ pub enum PaintOp {
         to: Point,
         color: Color,
     },
+    /// Full source image, using top-left aligned nearest sampling in destination
+    /// physical pixels. Matches explicit CPU left-edge image resizing without
+    /// allocating a resized source image or relying on half-texel UV biases.
     PixelImage {
         image: ImageHandle,
         rect: Rect,
@@ -502,6 +510,26 @@ impl PaintList {
                         || tint.iter().any(|x| !x.is_finite())
                     {
                         return Err("nonfinite image mesh data");
+                    }
+                }
+                PaintOp::PixelTriangle { points, color } => {
+                    if points
+                        .iter()
+                        .flatten()
+                        .chain(color.iter())
+                        .any(|v| !v.is_finite())
+                    {
+                        return Err("nonfinite pixel triangle");
+                    }
+                }
+                PaintOp::PixelLine { from, to, color } => {
+                    if from
+                        .iter()
+                        .chain(to.iter())
+                        .chain(color.iter())
+                        .any(|v| !v.is_finite())
+                    {
+                        return Err("nonfinite pixel line");
                     }
                 }
                 PaintOp::Mesh { vertices, indices } => {

@@ -287,3 +287,40 @@ pub fn pixel_line(
         1.,
     ))
 }
+
+/// A constant-size, integer-aligned support quad. Coverage is evaluated by the
+/// fragment shader at pixel centers, uniformly across the target's MSAA samples.
+/// Keep original subpixel vertices as parameters, never a CPU triangle bitmap.
+pub fn pixel_triangle(points: [Point; 3], viewport: (u32, u32)) -> Option<(Vec<Vertex>, Vec<u32>)> {
+    let bounds = |axis| {
+        let min = points
+            .iter()
+            .map(|p| p[axis] as f64)
+            .fold(f64::INFINITY, f64::min);
+        let max = points
+            .iter()
+            .map(|p| p[axis] as f64)
+            .fold(f64::NEG_INFINITY, f64::max);
+        let extent = if axis == 0 { viewport.0 } else { viewport.1 } as f64;
+        (
+            min.floor().max(0.).min(extent),
+            (max.ceil() + 1.).max(0.).min(extent),
+        )
+    };
+    let (left, right) = bounds(0);
+    let (top, bottom) = bounds(1);
+    if right <= left || bottom <= top {
+        return None;
+    }
+    Some(quad(
+        Rect::new(
+            left as f32,
+            top as f32,
+            (right - left) as f32,
+            (bottom - top) as f32,
+        ),
+        Rect::default(),
+        Transform::default(),
+        1.,
+    ))
+}
