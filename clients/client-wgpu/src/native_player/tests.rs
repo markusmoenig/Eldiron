@@ -458,6 +458,29 @@ fn assembled_player_keeps_runtime_edits_and_clock_across_gpu_replacement() {
         .collect::<Vec<_>>();
     let time = app.player.runtime.project.time;
     let fonts = app.fonts.version();
+    let speech = {
+        let world = app.player.runtime.view();
+        let player = world
+            .map
+            .unwrap()
+            .entities
+            .iter()
+            .find(|e| e.is_player())
+            .unwrap();
+        app.screen.speech.receive(
+            &world,
+            &RegionEvents {
+                says: vec![(
+                    Some(player.id),
+                    None,
+                    "Speech retained through GPU recovery".into(),
+                    "status".into(),
+                )],
+                ..Default::default()
+            },
+        );
+        app.screen.speech.messages()[0].id
+    };
     let input_before_recreation = app.player.input_stats();
     let gpu2 = futures::executor::block_on(GpuContext::headless()).unwrap();
     let mut images2 = ImageRegistry::new(gpu2.clone());
@@ -467,6 +490,7 @@ fn assembled_player_keeps_runtime_edits_and_clock_across_gpu_replacement() {
     render(&mut app, &mut host, &mut images2, &mut renderer2, &target2);
     assert_eq!(app.player.runtime.project.time, time);
     assert_eq!(app.fonts.version(), fonts);
+    assert_eq!(app.screen.speech.messages()[0].id, speech);
     assert_eq!(
         app.player.input_stats(),
         input_before_recreation,
@@ -522,6 +546,8 @@ fn assembled_player_keeps_runtime_edits_and_clock_across_gpu_replacement() {
     app.navigate("Setup").unwrap();
     assert_eq!(app.screen.world_texts.passages()[0].id, passage);
     assert!(app.screen.world_texts.visible_bounds().next().is_none());
+    assert_eq!(app.screen.speech.messages()[0].id, speech);
+    assert!(app.screen.speech.visible_bounds().next().is_none());
     assert_eq!(app.retired_views.len(), old.len());
     app.navigate("Dungeon").unwrap();
     app.navigate("Setup").unwrap();

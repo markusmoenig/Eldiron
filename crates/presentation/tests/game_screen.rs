@@ -16,6 +16,8 @@ use scenevm::{
 use std::{sync::Arc, time::Duration};
 use theframework::{paint::PaintOp, render_wgpu::PaintRenderer, text::TextSystem};
 use theframework_core::Uuid;
+#[path = "game_screen/speech.rs"]
+mod speech;
 #[path = "game_screen/world_text.rs"]
 mod world_text;
 fn layout() -> ScreenLayout {

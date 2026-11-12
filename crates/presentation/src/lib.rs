@@ -11,5 +11,5 @@ mod game_screen;
 pub use game_screen::{
     GameFontVersion, GameFonts, GameScreenController, ScreenActivation, ScreenCapture,
     ScreenEffect, ScreenFocus, ScreenInputResponse, ScreenTextResponse, ScreenTextTarget,
-    WorldTextOverlay,
+    SpeechOverlay, WorldTextOverlay,
 };

@@ -9,6 +9,8 @@ pub use focus::{ScreenCapture, ScreenFocus};
 mod input;
 mod keyboard;
 mod router;
+mod speech;
+pub use speech::SpeechOverlay;
 mod transcript;
 mod world_text;
 pub use router::ScreenInputResponse;
@@ -49,6 +51,7 @@ struct ScreenGeometry {
 }
 
 pub struct GameScreenController {
+    pub speech: SpeechOverlay,
     pub world_texts: WorldTextOverlay,
     pub elements: ScreenElements,
     pub name: String,
@@ -141,6 +144,7 @@ impl GameScreenController {
     }
     fn with_elements(name: &str, world: &RuntimeView<'_>, elements: ScreenElements) -> Self {
         Self {
+            speech: SpeechOverlay::default(),
             world_texts: WorldTextOverlay::default(),
             elements,
             name: name.into(),
@@ -175,6 +179,7 @@ impl GameScreenController {
     /// Distribute each addressed batch once. Reflow/painting do not consume it
     /// again; the application can also deliver it to audio/world-text consumers.
     pub fn receive(&mut self, world: &RuntimeView<'_>, events: &RegionEvents) {
+        self.speech.receive(world, events);
         self.world_texts.receive(world, events);
         let map = world.map.unwrap_or(&self.empty_map);
         for widget in &mut self.elements.messages_widgets {
@@ -194,6 +199,7 @@ impl GameScreenController {
         ));
         if changed {
             self.geometry = None;
+            self.speech.invalidate_geometry();
             self.world_texts.invalidate_geometry();
         }
         changed
@@ -361,6 +367,7 @@ impl GameScreenController {
         }
         self.message_scroll
             .retain(|id, _| self.elements.messages_widgets.iter().any(|w| w.id == *id));
+        self.speech.prepare(world, &self.elements, fonts);
         self.world_texts.prepare(world, &self.elements, fonts);
         Ok(())
     }

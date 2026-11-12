@@ -675,26 +675,8 @@ impl Client {
             .and_then(|table| table.get("say").and_then(toml::Value::as_table).cloned())
     }
 
-    fn say_color_from_table(say: &toml::value::Table, category: &str) -> Option<Pixel> {
-        if let Some(hex) = say.get(category).and_then(toml::Value::as_str) {
-            return Some(screen_model::hex_to_rgba_u8(hex));
-        }
-        if let Some(hex) = say.get("default").and_then(toml::Value::as_str) {
-            return Some(screen_model::hex_to_rgba_u8(hex));
-        }
-        if let Some(hex) = say.get("").and_then(toml::Value::as_str) {
-            return Some(screen_model::hex_to_rgba_u8(hex));
-        }
-        None
-    }
-
     fn get_say_color_from_config(config: &toml::Table, category: &str, fallback: Pixel) -> Pixel {
-        if let Some(say) = config.get("say").and_then(toml::Value::as_table)
-            && let Some(color) = Self::say_color_from_table(say, category)
-        {
-            return color;
-        }
-        fallback
+        crate::speech::style::color(config, None, category, fallback)
     }
 
     fn get_widget_say_color(
@@ -703,70 +685,25 @@ impl Client {
         category: &str,
         fallback: Pixel,
     ) -> Pixel {
-        if let Some(say) = widget_say
-            && let Some(color) = Self::say_color_from_table(say, category)
-        {
-            return color;
-        }
-        Self::get_say_color_from_config(config, category, fallback)
+        crate::speech::style::color(config, widget_say, category, fallback)
     }
 
     fn get_say_color(&self, category: &str) -> Pixel {
         Self::get_say_color_from_config(&self.config, category, self.messages_font_color)
     }
 
-    fn say_duration_minutes_from_table(say: &toml::value::Table) -> Option<f32> {
-        say.get("duration")
-            .and_then(|v| {
-                v.as_float()
-                    .map(|f| f as f32)
-                    .or_else(|| v.as_integer().map(|i| i as f32))
-            })
-            .map(|v| v.max(0.0))
-    }
-
     fn get_widget_say_background_enabled(
         widget_say: Option<&toml::value::Table>,
         config: &toml::Table,
     ) -> bool {
-        if let Some(say) = widget_say
-            && let Some(enabled) = say.get("background_enabled").and_then(toml::Value::as_bool)
-        {
-            return enabled;
-        }
-        config
-            .get("say")
-            .and_then(toml::Value::as_table)
-            .and_then(|say| say.get("background_enabled"))
-            .and_then(toml::Value::as_bool)
-            .unwrap_or(true)
-    }
-
-    fn say_background_color_from_table(say: &toml::value::Table) -> Option<Pixel> {
-        if let Some(hex) = say.get("background_color").and_then(toml::Value::as_str) {
-            return Some(screen_model::hex_to_rgba_u8(hex));
-        }
-        if let Some(hex) = say.get("background").and_then(toml::Value::as_str) {
-            return Some(screen_model::hex_to_rgba_u8(hex));
-        }
-        None
+        crate::speech::style::background_enabled(config, widget_say)
     }
 
     fn get_widget_say_background_color(
         widget_say: Option<&toml::value::Table>,
         config: &toml::Table,
     ) -> Pixel {
-        if let Some(say) = widget_say
-            && let Some(color) = Self::say_background_color_from_table(say)
-        {
-            return color;
-        }
-        if let Some(say) = config.get("say").and_then(toml::Value::as_table)
-            && let Some(color) = Self::say_background_color_from_table(say)
-        {
-            return color;
-        }
-        [0, 0, 0, 128]
+        crate::speech::style::background_color(config, widget_say)
     }
 
     fn get_say_background_enabled(&self) -> bool {
@@ -778,25 +715,11 @@ impl Client {
     }
 
     fn get_say_duration_ticks(&self) -> i64 {
-        let ticks_per_minute = self
-            .get_config_i32_default("game", "ticks_per_minute", 4)
-            .max(1);
-        let widget_duration = self
+        let local = self
             .game_widgets
             .values()
-            .find_map(Self::say_table_from_widget)
-            .and_then(|say| Self::say_duration_minutes_from_table(&say));
-        let duration_minutes = widget_duration
-            .or_else(|| {
-                self.config
-                    .get("say")
-                    .and_then(toml::Value::as_table)
-                    .and_then(Self::say_duration_minutes_from_table)
-            })
-            .unwrap_or(1.0)
-            .max(0.0);
-        let ticks = (duration_minutes * ticks_per_minute as f32).round() as i64;
-        ticks.max(1)
+            .find_map(Self::say_table_from_widget);
+        crate::speech::style::duration_ticks(&self.config, local.as_ref())
     }
 
     fn choice_expired(&self, choice: &Choice) -> bool {

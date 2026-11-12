@@ -172,6 +172,8 @@ impl PlayerApplication {
         // Only identities belonging to the last GPU frame need delayed cleanup.
         // Repeated navigation while occluded cannot retain whole old screens.
         self.retired_views.extend(self.screen.detach_game_views());
+        next.speech = std::mem::take(&mut self.screen.speech);
+        next.speech.invalidate_geometry();
         next.world_texts = std::mem::take(&mut self.screen.world_texts);
         next.world_texts.invalidate_geometry();
         self.screen = next;

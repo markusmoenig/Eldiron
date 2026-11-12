@@ -21,29 +21,7 @@ pub(crate) fn get_uuid(map: &toml::map::Map<String, toml::Value>, key: &str) -> 
         .and_then(|s| Uuid::parse_str(s).ok())
 }
 
-pub(crate) fn hex_to_rgba_u8(hex: &str) -> [u8; 4] {
-    let hex = hex.trim_start_matches('#');
-    match hex.len() {
-        6 => match (
-            u8::from_str_radix(&hex[0..2], 16),
-            u8::from_str_radix(&hex[2..4], 16),
-            u8::from_str_radix(&hex[4..6], 16),
-        ) {
-            (Ok(r), Ok(g), Ok(b)) => [r, g, b, 255],
-            _ => [255, 255, 255, 255],
-        },
-        8 => match (
-            u8::from_str_radix(&hex[0..2], 16),
-            u8::from_str_radix(&hex[2..4], 16),
-            u8::from_str_radix(&hex[4..6], 16),
-            u8::from_str_radix(&hex[6..8], 16),
-        ) {
-            (Ok(r), Ok(g), Ok(b), Ok(a)) => [r, g, b, a],
-            _ => [255, 255, 255, 255],
-        },
-        _ => [255, 255, 255, 255],
-    }
-}
+pub(crate) use crate::utils::hex_to_rgba_u8;
 
 pub(crate) fn border_style_from_table(
     table: &toml::value::Table,

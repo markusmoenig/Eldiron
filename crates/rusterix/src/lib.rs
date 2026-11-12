@@ -47,6 +47,7 @@ pub mod scene_handler;
 pub mod scenebuilder;
 pub mod scenemanager;
 pub mod server;
+pub mod speech;
 #[cfg(not(feature = "graphics"))]
 #[path = "client/text_command.rs"]
 pub mod text_command;

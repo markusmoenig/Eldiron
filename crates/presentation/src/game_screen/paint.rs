@@ -46,6 +46,7 @@ impl GameScreenController {
         // Scene preparation updates each view's camera. Reproject retained
         // overlays against those cameras before painting; unchanged text reuses
         // its shaped layout. Input uses the last prepared display geometry.
+        self.speech.prepare(world, &self.elements, fonts);
         self.world_texts.prepare(world, &self.elements, fonts);
         let geometry_cache = self
             .geometry
@@ -80,6 +81,7 @@ impl GameScreenController {
                     sampling: Sampling::Nearest,
                     tint: [1.; 4],
                 });
+                self.speech.paint_view(key, p.list);
             } else if world.map.is_some() {
                 return Err(format!("Game view '{}' has not been prepared", widget.name));
             }
