@@ -179,13 +179,7 @@ impl GameScreenController {
                     .as_deref()
                     .and_then(|slot| actor.get_equipped_item(slot))
             }?;
-            Some((
-                actor.id,
-                item.id,
-                item.is_container()
-                    || item.attributes.get_bool_default("container", false)
-                    || item.attributes.get_int_default("container_slots", 0) > 0,
-            ))
+            Some((actor.id, item.id))
         });
         let anchor = rect(widget.rect);
         let immediate = self.immediate_intents(world)?;
@@ -210,22 +204,40 @@ impl GameScreenController {
         }
         self.elements.press_button_state(button);
         self.geometry = None;
-        if let Some((owner, item, container)) = item {
-            if container && previous_intent.is_none() {
-                effects.push(ScreenEffect::ToggleContainer {
-                    region: map.id,
+        if let Some((owner, item)) = item {
+            use rusterix::item_interaction::{self, ItemClick, ItemRef, ItemSource};
+            match item_interaction::click(
+                map,
+                ItemSource::Direct(ItemRef {
                     item,
-                    owner,
-                    anchor,
-                });
-                action = None;
-            } else {
-                action = Some(EntityAction::ItemClicked(
-                    item,
-                    0.,
-                    previous_intent,
-                    Some(owner),
-                ));
+                    owner: Some(owner),
+                }),
+                previous_intent.as_deref(),
+                0.,
+                previous_intent.is_none(),
+            ) {
+                Some(ItemClick::ToggleContainer(item)) => {
+                    effects.push(ScreenEffect::ToggleContainer {
+                        region: map.id,
+                        item: item.item,
+                        owner,
+                        anchor,
+                    });
+                    action = None;
+                }
+                Some(ItemClick::Action {
+                    action: clicked,
+                    uses_intent,
+                }) => {
+                    if immediate
+                        && uses_intent
+                        && Some(self.intent.as_str()) == previous_intent.as_deref()
+                    {
+                        self.consume_targeting_intent();
+                    }
+                    action = Some(clicked);
+                }
+                None => action = None,
             }
         }
         if let Some((target, camera)) = camera {

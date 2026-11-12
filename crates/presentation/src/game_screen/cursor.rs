@@ -91,9 +91,10 @@ impl GameScreenController {
         } else {
             None
         };
-        let item = self
-            .dragged_world_item(world)
-            .and_then(|id| world.map?.items.iter().find(|item| item.id == id));
+        let item = self.dragged_ui_item(world).or_else(|| {
+            self.dragged_world_item(world)
+                .and_then(|id| world.map?.items.iter().find(|item| item.id == id))
+        });
         let drag = if let Some(item) = item {
             self.sources.prepare(
                 ContentRecipe::Item {

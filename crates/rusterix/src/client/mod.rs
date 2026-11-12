@@ -4049,15 +4049,12 @@ impl Client {
         item_id: u32,
         owner_entity_id: Option<u32>,
     ) -> Option<&'a crate::Item> {
-        if let Some(owner_id) = owner_entity_id
-            && let Some(entity) = map.entities.iter().find(|entity| entity.id == owner_id)
-        {
-            return entity
-                .inventory
-                .iter()
-                .flatten()
-                .chain(entity.equipped.values())
-                .find(|item| item.id == item_id);
+        if let Some(owner) = owner_entity_id {
+            return crate::item_interaction::ItemRef {
+                item: item_id,
+                owner: Some(owner),
+            }
+            .resolve(map);
         }
 
         map.items
@@ -7141,7 +7138,7 @@ impl Client {
         for widget in self.messages_widgets.iter_mut() {
             widget.touch_up();
         }
-        action
+        action.and_then(|action| crate::item_interaction::validate_transfer(map, action))
     }
 
     pub fn user_event(&mut self, event: String, value: Value) -> EntityAction {

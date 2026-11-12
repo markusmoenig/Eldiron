@@ -207,6 +207,7 @@ impl GameScreenController {
         self.keyboard_capture = None;
         self.pointer_capture = self
             .pointer_capture
+            .take()
             .map(|_| router::PointerCapture::Cancelled);
         self.pressed_button = None;
         self.suppress_activation_slash = false;

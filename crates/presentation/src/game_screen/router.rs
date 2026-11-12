@@ -3,9 +3,10 @@
 use super::*;
 use theframework::platform::{InputEvent, InputResponse, PointerButton};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub(super) enum PointerCapture {
-    Button(u32),
+    Item(u32),
+    Button(u32, Option<Arc<world_pointer::ItemReceipt>>),
     HeldButton(u32),
     Text,
     Choice(u32),
@@ -67,6 +68,7 @@ impl GameScreenController {
         let old_focus = self.focus;
         let held = self
             .keyboard_capture
+            .as_ref()
             .is_some_and(|c| c.held && !c.cancelled);
         self.prepare_focus(fonts);
         let mut response = self.input_inner(world, fonts, event)?;
@@ -77,7 +79,7 @@ impl GameScreenController {
         }
         response.cancel_controls |= rebound
             || old_focus != self.focus
-            || (held && self.keyboard_capture.is_some_and(|c| c.cancelled));
+            || (held && self.keyboard_capture.as_ref().is_some_and(|c| c.cancelled));
         Ok(response)
     }
     fn input_inner(
@@ -90,6 +92,9 @@ impl GameScreenController {
             if self.text_input_state(fonts).map(|state| state.target) != Some(target) {
                 return Ok(ScreenInputResponse::default());
             }
+        }
+        if let Some(response) = self.captured_item_input(world, None, event) {
+            return Ok(response);
         }
         if matches!(event, InputEvent::Focus(false)) {
             self.world_texts.input(event);
@@ -119,9 +124,10 @@ impl GameScreenController {
         if let InputEvent::PointerMoved { position } = event {
             let moved = self.cursor != *position;
             self.cursor = *position;
-            match self.pointer_capture {
+            match self.pointer_capture.as_ref() {
                 Some(
-                    PointerCapture::Button(_)
+                    PointerCapture::Button(_, _)
+                    | PointerCapture::Item(_)
                     | PointerCapture::HeldButton(_)
                     | PointerCapture::Message(_)
                     | PointerCapture::Cancelled,
@@ -145,14 +151,20 @@ impl GameScreenController {
         {
             self.cursor = *position;
             match self.pointer_capture.take() {
-                Some(PointerCapture::Button(id)) => {
+                Some(PointerCapture::Item(_)) => return Ok(ScreenInputResponse::handled(false)),
+                Some(PointerCapture::Button(id, item)) => {
                     self.pressed_button = None;
                     let top = screen_model::topmost_button_at(
                         &self.elements.button_widgets,
                         &self.elements.widgets_to_hide,
                         scenevm::prelude::Vec2::new(position[0], position[1]),
                     );
-                    let activation = if top == Some(id) && self.inside_screen(*position) {
+                    let activation = if top == Some(id)
+                        && self.inside_screen(*position)
+                        && item
+                            .as_ref()
+                            .is_none_or(|item| self.item_receipt_valid(world, item))
+                    {
                         self.activate_button(world, id)?
                     } else {
                         ScreenActivation::default()
@@ -263,6 +275,19 @@ impl GameScreenController {
             ) {
                 self.focus_control(fonts, Some(ScreenFocus::Button(id)));
                 self.pressed_button = Some(id);
+                if let Some(response) = self.begin_item_pointer(world, id, *position) {
+                    return Ok(response);
+                }
+                let item = match self.item_receipt(world, id, Some(*position)) {
+                    Ok(item) => item,
+                    Err(()) => {
+                        self.pointer_capture = Some(PointerCapture::Cancelled);
+                        return Ok(ScreenInputResponse {
+                            cancel_controls: true,
+                            ..ScreenInputResponse::handled(true)
+                        });
+                    }
+                };
                 let widget = &self.elements.button_widgets[&id];
                 let map = world.map.unwrap_or(&self.empty_map);
                 let command = screen_model::resolved_widget_command(
@@ -271,12 +296,13 @@ impl GameScreenController {
                     screen_model::resolve_party_entity(map, widget.party.as_deref()),
                     &self.elements.ui_state,
                 );
-                let held = matches!(
-                    command
-                        .as_deref()
-                        .and_then(rusterix::client::command::parse_client_command),
-                    Some(rusterix::client::command::ClientCommandBinding::Control(_))
-                );
+                let held = item.is_none()
+                    && matches!(
+                        command
+                            .as_deref()
+                            .and_then(rusterix::client::command::parse_client_command),
+                        Some(rusterix::client::command::ClientCommandBinding::Control(_))
+                    );
                 if held {
                     let activation = self.activate_button(world, id)?;
                     self.pointer_capture = Some(PointerCapture::HeldButton(id));
@@ -286,7 +312,7 @@ impl GameScreenController {
                         ..ScreenInputResponse::handled(true)
                     });
                 }
-                self.pointer_capture = Some(PointerCapture::Button(id));
+                self.pointer_capture = Some(PointerCapture::Button(id, item));
                 return Ok(ScreenInputResponse {
                     cancel_controls: true,
                     ..ScreenInputResponse::handled(true)

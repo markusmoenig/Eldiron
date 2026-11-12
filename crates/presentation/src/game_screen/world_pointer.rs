@@ -8,9 +8,11 @@ use rusterix::{
 };
 use scenevm::prelude::{Vec2, Vec3};
 use theframework::platform::{InputEvent, PhysicalKey, PointerButton};
+mod item_pointer;
+pub(super) use item_pointer::ItemReceipt;
 mod mouse_look;
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 struct Binding {
     session: Uuid,
     region: Uuid,
@@ -69,6 +71,13 @@ struct Frame {
     drops: Vec<DropTarget>,
     modal: bool,
     immediate: bool,
+    items: Vec<item_pointer::ItemSlot>,
+    controls: Vec<UiControl>,
+}
+#[derive(Clone)]
+struct UiControl {
+    owner: Option<DropOwner>,
+    rect: Uv,
 }
 struct Capture {
     view: Uuid,
@@ -90,6 +99,7 @@ pub(super) struct WorldPointer {
     focused: bool,
     pointer: Option<[f32; 2]>,
     look: Option<mouse_look::LookCapture>,
+    ui_item: Option<item_pointer::ItemCapture>,
 }
 impl Default for WorldPointer {
     fn default() -> Self {
@@ -102,11 +112,15 @@ impl Default for WorldPointer {
             focused: true,
             pointer: None,
             look: None,
+            ui_item: None,
         }
     }
 }
 impl WorldPointer {
     fn invalidate(&mut self) {
+        if let Some(item) = &mut self.ui_item {
+            item.cancel();
+        }
         self.look = None;
         self.staged = None;
         self.displayed = None;
@@ -116,6 +130,12 @@ impl WorldPointer {
         }
     }
     fn cancel(&mut self) {
+        if let Some(item) = &mut self.ui_item {
+            item.cancel();
+        }
+        self.cancel_world();
+    }
+    fn cancel_world(&mut self) {
         self.look = None;
         self.hover = None;
         if let Some(capture) = &mut self.capture {
@@ -134,8 +154,11 @@ impl WorldPointer {
             (None, None) => false,
             _ => true,
         };
-        if self.bound != binding || world.state != ServerState::Running {
+        if self.bound != binding || world.state == ServerState::Off {
             self.invalidate();
+        }
+        if world.state != ServerState::Running {
+            self.cancel_world();
         }
         self.bound = binding;
         source_changed
@@ -182,6 +205,9 @@ impl WorldPointer {
         Ok(())
     }
     fn owner(&self) -> Option<ScreenCapture> {
+        if let Some(item) = &self.ui_item {
+            return Some(item.owner());
+        }
         self.capture.as_ref().map(|capture| {
             if capture.cancelled {
                 ScreenCapture::Cancelled
@@ -204,6 +230,48 @@ enum Query {
     Hit { view: Uuid, hit: WorldHit },
 }
 impl GameScreenController {
+    pub(super) fn item_receipt(
+        &self,
+        world: &RuntimeView<'_>,
+        button: u32,
+        point: Option<[f32; 2]>,
+    ) -> Result<Option<Arc<ItemReceipt>>, ()> {
+        item_pointer::receipt(self, world, button, point)
+    }
+    pub(super) fn item_receipt_valid(
+        &self,
+        world: &RuntimeView<'_>,
+        receipt: &ItemReceipt,
+    ) -> bool {
+        item_pointer::valid_receipt(self, world, receipt)
+    }
+    pub(super) fn begin_item_pointer(
+        &mut self,
+        world: &RuntimeView<'_>,
+        button: u32,
+        point: [f32; 2],
+    ) -> Option<ScreenInputResponse> {
+        item_pointer::begin(self, world, button, point)
+    }
+    pub(super) fn captured_item_input(
+        &mut self,
+        world: &RuntimeView<'_>,
+        views: Option<&SceneViews>,
+        event: &InputEvent,
+    ) -> Option<ScreenInputResponse> {
+        item_pointer::input(self, world, views, event)
+    }
+    pub(super) fn cancel_item_pointer(&mut self) {
+        if let Some(item) = &mut self.world.ui_item {
+            item.cancel();
+        }
+    }
+    pub(super) fn dragged_ui_item<'a>(
+        &self,
+        world: &RuntimeView<'a>,
+    ) -> Option<&'a rusterix::Item> {
+        item_pointer::dragged(self, world)
+    }
     pub fn invalidate_world_input(&mut self) {
         self.world.invalidate();
         self.world.pointer = None;
@@ -302,7 +370,7 @@ impl GameScreenController {
         self.world.capture.is_some()
     }
     pub fn route_world_first(&self, event: &InputEvent) -> bool {
-        self.world.capture.is_some()
+        (self.world.capture.is_some() || self.world.ui_item.is_some())
             && match event {
                 InputEvent::PointerMoved { .. }
                 | InputEvent::PointerButton { .. }
@@ -322,35 +390,52 @@ impl GameScreenController {
         self.choice_controller.open_id().is_some() || self.message_blocks_input()
     }
     fn pointer_occluders(&self) -> Vec<Uv> {
+        self.pointer_controls()
+            .into_iter()
+            .map(|control| control.rect)
+            .collect()
+    }
+    fn pointer_controls(&self) -> Vec<UiControl> {
         let model = &self.elements;
-        let mut result = Vec::new();
-        let mut add = |name: &str, r: Rect| {
+        let mut controls = self
+            .world_texts
+            .visible_bounds()
+            .map(|rect| UiControl { owner: None, rect })
+            .collect::<Vec<_>>();
+        let mut add = |name: &str, bounds: Rect, owner| {
             if !screen_model::widget_name_is_hidden(name, &model.widgets_to_hide)
-                && visible_control_rect(model, r)
+                && visible_control_rect(model, bounds)
             {
-                result.push(rect(r));
+                controls.push(UiControl {
+                    owner,
+                    rect: rect(bounds),
+                });
             }
         };
-        for w in model.button_widgets.values() {
-            add(&w.name, w.rect);
+        for id in ordered(&model.avatar_widgets) {
+            let widget = &model.avatar_widgets[&id];
+            add(&widget.name, widget.rect, None);
         }
-        for w in model.text_input_widgets.values() {
-            add(&w.name, w.rect);
+        for id in ordered(&model.profile_widgets) {
+            let widget = &model.profile_widgets[&id];
+            add(&widget.name, widget.rect, Some(DropOwner::Profile(id)));
         }
-        for w in model.profile_widgets.values() {
-            add(&w.name, w.rect);
+        for widget in &model.messages_widgets {
+            add(&widget.name, widget.rect, None);
         }
-        for w in model.avatar_widgets.values() {
-            add(&w.name, w.rect);
+        for id in ordered(&model.text_input_widgets) {
+            let widget = &model.text_input_widgets[&id];
+            add(&widget.name, widget.rect, None);
         }
-        for w in &model.messages_widgets {
-            add(&w.name, w.rect);
+        for id in screen_model::ordered_button_ids(&model.button_widgets) {
+            let widget = &model.button_widgets[&id];
+            add(&widget.name, widget.rect, Some(DropOwner::Button(id)));
         }
-        for w in model.choice_widgets.values() {
-            add(&w.name, w.rect);
+        for id in ordered(&model.choice_widgets) {
+            let widget = &model.choice_widgets[&id];
+            add(&widget.name, widget.rect, None);
         }
-        result.extend(self.world_texts.visible_bounds());
-        result
+        controls
     }
     fn pointer_drops(&self, map: &Map) -> Vec<DropTarget> {
         let mut targets = Vec::new();
@@ -395,7 +480,7 @@ impl GameScreenController {
     pub(super) fn begin_world_frame(&mut self, world: &RuntimeView<'_>) -> Result<(), String> {
         self.world.staged = None;
         let immediate = self.immediate_intents(world)?;
-        self.world.staged = if self.world.focused && world.state == ServerState::Running {
+        self.world.staged = if self.world.focused && world.state != ServerState::Off {
             Binding::new(world, self.revision.unwrap(), self.elements.layout.viewport).map(
                 |binding| Frame {
                     binding,
@@ -405,6 +490,8 @@ impl GameScreenController {
                     drops: self.pointer_drops(world.map.unwrap()),
                     modal: self.pointer_modal(),
                     immediate,
+                    items: self.item_slots(world.map.unwrap()),
+                    controls: self.pointer_controls(),
                 },
             )
         } else {
@@ -435,14 +522,24 @@ impl GameScreenController {
             .map(|map| self.pointer_drops(map))
             .unwrap_or_default();
         let modal = self.pointer_modal();
+        let items = world
+            .map
+            .map(|map| self.item_slots(map))
+            .unwrap_or_default();
+        let controls = self.pointer_controls();
         let frame = self.world.staged.as_mut().unwrap();
         frame.occluders = occluders;
         frame.drops = drops;
         frame.modal = modal;
+        frame.items = items;
+        frame.controls = controls;
     }
     fn frame_matches(&self, world: &RuntimeView<'_>) -> bool {
+        world.state == ServerState::Running && self.ui_frame_matches(world)
+    }
+    fn ui_frame_matches(&self, world: &RuntimeView<'_>) -> bool {
         self.world.focused
-            && world.state == ServerState::Running
+            && world.state != ServerState::Off
             && self.world.displayed.as_ref().is_some_and(|frame| {
                 Some(frame.binding)
                     == Binding::new(
@@ -555,6 +652,21 @@ impl GameScreenController {
             hit,
         })
     }
+    pub(super) fn consume_targeting_intent(&mut self) {
+        self.intent.clear();
+        for selected in [
+            &mut self.elements.activated_widgets,
+            &mut self.elements.permanently_activated_widgets,
+        ] {
+            selected.retain(|id| {
+                self.elements
+                    .button_widgets
+                    .get(id)
+                    .is_none_or(|w| !screen_model::is_targeting_button(w))
+            });
+        }
+        self.geometry = None;
+    }
     fn apply_world_click_policy(&mut self, click: WorldClick) -> Vec<ScreenEffect> {
         match click {
             WorldClick::Action {
@@ -568,19 +680,7 @@ impl GameScreenController {
                         .as_ref()
                         .is_some_and(|frame| frame.immediate)
                 {
-                    self.intent.clear();
-                    for selected in [
-                        &mut self.elements.activated_widgets,
-                        &mut self.elements.permanently_activated_widgets,
-                    ] {
-                        selected.retain(|id| {
-                            self.elements
-                                .button_widgets
-                                .get(id)
-                                .is_none_or(|w| !screen_model::is_targeting_button(w))
-                        });
-                    }
-                    self.geometry = None;
+                    self.consume_targeting_intent();
                 }
                 vec![ScreenEffect::Action(action)]
             }
@@ -651,42 +751,16 @@ impl GameScreenController {
         if !frame.binding.same_source(capture.binding) || self.pointer_modal() || frame.modal {
             return None;
         }
-        let item = capture.item?;
-        world.map?.items.iter().find(|source| source.id == item)?;
-        if let Some(target) = frame
-            .drops
-            .iter()
-            .rev()
-            .find(|target| rect(target.rect).contains(point))
-        {
-            let current = self
-                .pointer_drops(world.map?)
-                .into_iter()
-                .find(|current| current.source == target.source)?;
-            if current.rect != target.rect
-                || current.entity != target.entity
-                || current.index != target.index
-                || current.slot != target.slot
-            {
-                return None;
-            }
-            return Some(EntityAction::MoveItem {
-                item_id: item,
-                owner_entity_id: None,
-                target_entity_id: Some(target.entity),
-                to_inventory_index: target.index,
-                to_equipped_slot: target.slot.clone(),
-            });
-        }
-        if let Query::Hit { hit, .. } = self.query_world(world, views, point, false) {
-            let position = hit.world?;
-            return Some(EntityAction::DropItemAt {
-                item_id: item,
-                owner_entity_id: None,
-                position: Vec2::new(position.x, position.z),
-            });
-        }
-        None
+        self.release_item_drag(
+            world,
+            views,
+            rusterix::item_interaction::ItemSource::Direct(rusterix::item_interaction::ItemRef {
+                item: capture.item?,
+                owner: None,
+            }),
+            capture.binding,
+            point,
+        )
     }
     /// Called after UI routing, except that an already captured world gesture
     /// receives its own pointer continuation/release before unrelated controls.
@@ -697,6 +771,9 @@ impl GameScreenController {
         event: &InputEvent,
         blocked: bool,
     ) -> ScreenInputResponse {
+        if let Some(response) = self.captured_item_input(world, views, event) {
+            return response;
+        }
         if let InputEvent::Focus(focused) = event {
             self.world.focused = *focused;
             self.world.invalidate();
@@ -742,10 +819,13 @@ impl GameScreenController {
                 self.revision.unwrap_or(ContentRevision(0)),
                 self.elements.layout.viewport,
             )
-            || world.state != ServerState::Running
+            || world.state == ServerState::Off
             || !self.world.focused
         {
             self.world.invalidate();
+        }
+        if world.state != ServerState::Running {
+            self.world.cancel_world();
         }
         if let InputEvent::RelativeMotion { delta } = event {
             return self.mouse_look_motion(world, *delta, blocked);

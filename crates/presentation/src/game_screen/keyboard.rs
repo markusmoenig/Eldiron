@@ -23,7 +23,7 @@ impl GameScreenController {
         else {
             return Ok(None);
         };
-        if let Some(capture) = self.keyboard_capture {
+        if let Some(capture) = self.keyboard_capture.clone() {
             if *physical == capture.key {
                 if *pressed {
                     return Ok(Some(ScreenInputResponse::handled(false)));
@@ -35,7 +35,12 @@ impl GameScreenController {
                 self.pressed_button = None;
                 let effects = if capture.held {
                     vec![ScreenEffect::Action(rusterix::EntityAction::Off)]
-                } else if self.focus == Some(ScreenFocus::Button(capture.button)) {
+                } else if self.focus == Some(ScreenFocus::Button(capture.button))
+                    && capture
+                        .item
+                        .as_ref()
+                        .is_none_or(|item| self.item_receipt_valid(world, item))
+                {
                     self.activate_button(world, capture.button)?.effects
                 } else {
                     Vec::new()
@@ -89,28 +94,34 @@ impl GameScreenController {
                 }
                 let widget = &self.elements.button_widgets[&id];
                 let map = world.map.unwrap_or(&self.empty_map);
-                let held = matches!(
-                    screen_model::resolved_widget_command(
-                        widget,
-                        world.assets,
-                        screen_model::resolve_party_entity(map, widget.party.as_deref()),
-                        &self.elements.ui_state,
-                    )
-                    .as_deref()
-                    .and_then(rusterix::client::command::parse_client_command),
-                    Some(rusterix::client::command::ClientCommandBinding::Control(_))
-                );
+                let receipt = self.item_receipt(world, id, None);
+                let rejected = receipt.is_err();
+                let item = receipt.ok().flatten();
+                let held = !rejected
+                    && item.is_none()
+                    && matches!(
+                        screen_model::resolved_widget_command(
+                            widget,
+                            world.assets,
+                            screen_model::resolve_party_entity(map, widget.party.as_deref()),
+                            &self.elements.ui_state,
+                        )
+                        .as_deref()
+                        .and_then(rusterix::client::command::parse_client_command),
+                        Some(rusterix::client::command::ClientCommandBinding::Control(_))
+                    );
                 let effects = if held {
                     self.activate_button(world, id)?.effects
                 } else {
                     Vec::new()
                 };
-                self.pressed_button = Some(id);
+                self.pressed_button = (!rejected).then_some(id);
                 self.keyboard_capture = Some(KeyboardCapture {
                     button: id,
                     key: *physical,
                     held,
-                    cancelled: false,
+                    cancelled: rejected,
+                    item,
                 });
                 Ok(Some(ScreenInputResponse {
                     effects,

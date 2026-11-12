@@ -28,12 +28,13 @@ pub enum ScreenCapture {
     KeyboardButton(u32),
     Cancelled,
 }
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub(super) struct KeyboardCapture {
     pub button: u32,
     pub key: PhysicalKey,
     pub held: bool,
     pub cancelled: bool,
+    pub item: Option<Arc<world_pointer::ItemReceipt>>,
 }
 impl GameScreenController {
     pub fn focused_control(&self) -> Option<ScreenFocus> {
@@ -56,6 +57,7 @@ impl GameScreenController {
     pub fn focus_control(&mut self, fonts: &mut GameFonts, focus: Option<ScreenFocus>) {
         let focus = focus.filter(|target| self.focus_visible(*target));
         if self.focus != focus {
+            self.cancel_item_pointer();
             if let Some(ScreenFocus::Choice(id)) = self.focus {
                 if self.choice_controller.open_id() == Some(id) {
                     self.choice_controller
@@ -178,19 +180,23 @@ impl GameScreenController {
     /// A stable owner stamp lets an application stop held input on a programmatic
     /// focus/capture change without resending Off on ordinary frame/layout work.
     pub fn control_capture(&self) -> Option<ScreenCapture> {
-        if let Some(capture) = self.keyboard_capture {
+        if let Some(capture) = self.keyboard_capture.as_ref() {
             return Some(if capture.cancelled {
                 ScreenCapture::Cancelled
             } else {
                 ScreenCapture::KeyboardButton(capture.button)
             });
         }
-        match self.pointer_capture {
-            Some(PointerCapture::Button(id) | PointerCapture::HeldButton(id)) => {
-                return Some(ScreenCapture::Button(id));
+        match self.pointer_capture.as_ref() {
+            Some(
+                PointerCapture::Button(id, _)
+                | PointerCapture::HeldButton(id)
+                | PointerCapture::Item(id),
+            ) => {
+                return Some(ScreenCapture::Button(*id));
             }
-            Some(PointerCapture::Choice(id)) => return Some(ScreenCapture::Choice(id)),
-            Some(PointerCapture::Message(id)) => return Some(ScreenCapture::Message(id)),
+            Some(PointerCapture::Choice(id)) => return Some(ScreenCapture::Choice(*id)),
+            Some(PointerCapture::Message(id)) => return Some(ScreenCapture::Message(*id)),
             Some(PointerCapture::Cancelled) => return Some(ScreenCapture::Cancelled),
             _ => {}
         }

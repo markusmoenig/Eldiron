@@ -23,6 +23,7 @@ pub mod hitinfo;
 pub mod input_binding;
 pub mod intodata;
 pub mod isometric;
+pub mod item_interaction;
 pub mod map;
 pub mod material_library;
 pub mod material_profile;
