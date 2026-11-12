@@ -8,12 +8,15 @@ pub struct TransferCounters {
     pub uploaded_bytes: u64,
     pub readback_bytes: u64,
     pub capture_requests: u64,
+    /// Four-byte producer status metadata; excluded from color capture bytes.
+    pub status_readback_bytes: u64,
 }
 #[derive(Default)]
 struct Counters {
     uploaded: AtomicU64,
     readback: AtomicU64,
     captures: AtomicU64,
+    status: AtomicU64,
 }
 static NEXT_DEVICE: AtomicU64 = AtomicU64::new(1);
 /// A device domain. Creating a replacement context invalidates old GPU resources.
@@ -76,7 +79,11 @@ impl GpuContext {
             uploaded_bytes: self.counters.uploaded.load(Ordering::Relaxed),
             readback_bytes: self.counters.readback.load(Ordering::Relaxed),
             capture_requests: self.counters.captures.load(Ordering::Relaxed),
+            status_readback_bytes: self.counters.status.load(Ordering::Relaxed),
         }
+    }
+    pub(crate) fn record_status_readback(&self) {
+        self.counters.status.fetch_add(4, Ordering::Relaxed);
     }
     pub fn record_upload(&self, bytes: u64) {
         self.counters.uploaded.fetch_add(bytes, Ordering::Relaxed);

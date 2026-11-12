@@ -2213,3 +2213,38 @@ application/document/history/Play globals, initial clear/text visual matching,
 browser/Creator Apple wrappers, physical interaction and release/resource budgets
 remain. Continue with direct MaterialZ interactive output and separating its
 explicit authored bakes from display jobs. Preserve the networking concept.
+
+## Shared asynchronous status reader (after 4e0bf879, in progress)
+
+`renderkit::StatusReadback` now provides a reusable four-byte asynchronous status
+reader for direct material producers. Each request owns a mailbox; callbacks
+transport readiness only. Drop cancels/unmaps unread buffers, completed callbacks
+cannot read after cancellation, and device generations reject replacement reads.
+The common transfer counters label `status_readback_bytes` separately from color
+capture bytes/requests. Its actual GPU test passes (0.23 s,
+`/private/tmp/eldiron-material-status-readback-first.log`), including in-flight and
+completed-but-unconsumed cancellation, replacement isolation and exact metadata
+accounting. Geometry's existing MaterialZ status path is being moved onto this
+reader, replacing its separate callback-ID/mpsc implementation; inspect the
+focused geometry result before accepting that migration. This slice is uncommitted.
+
+Direct interactive material conversion is next: preserve the existing 384px
+preview-domain/coordinate-grid/pixel-density/channel/selection/animation semantics,
+convert its float maps to displayed bytes entirely on GPU, and map only the
+status word. Explicit project tile/surface-page bakes still need labeled CPU
+outputs; separate them from display and transient selection/thumbnail jobs.
+Source thumbnails and legacy model/terrain preview callers need inventory before
+retiring the worker. Full rewrite gates and hardware/runtime blockers are unchanged.
+
+Shared status reader final checks pass: **all three renderkit GPU contracts**,
+including foreign CAMetalLayer presentation and padded explicit capture
+(`...shared-status-renderkit-full.log`); **all seven native geometry GPU tests**,
+3.98 s (`...shared-status-geometry-regression.log`); browser WebGPU compilation
+(`...shared-status-web.log`, 14.38 s); diff validation. Geometry now uses
+StatusReadback mailboxes directly, eliminating its separate global completion
+queue/IDs while retaining MaterialZ diagnostic decoding and last-valid publication.
+Its cancellation/replacement test confirms exactly 12 metadata bytes and zero
+color readback. The reusable reader's status counters do not change project/FFI
+serialization or color-capture accounting. Continue directly with native material
+map evaluation/display and explicit bake separation; this foundation checkpoint
+is not acceptance of the still-unconverted interactive material producer.

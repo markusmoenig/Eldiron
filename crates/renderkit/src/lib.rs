@@ -3,10 +3,12 @@
 mod context;
 mod image;
 mod readback;
+mod status_readback;
 mod surface;
 pub use context::*;
 pub use image::*;
 pub use readback::*;
+pub use status_readback::*;
 pub use surface::*;
 pub use theframework_core::{AlphaMode, ColorSpace, ImageAsset, ImageHandle};
 pub use wgpu;

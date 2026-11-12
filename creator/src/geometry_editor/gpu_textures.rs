@@ -1,10 +1,10 @@
 //! View-owned material atlases. Procedural float maps are converted on the GPU;
 //! authoritative ruleset/library CPU bakes remain immutable source assets.
 use denrim_materials::{geometry::Texture, gpu::*, integration::InstanceRecord};
-use renderkit::GpuContext;
+use renderkit::{GpuContext, StatusReadback};
 use std::{
     collections::{HashMap, HashSet},
-    sync::{Arc, mpsc},
+    sync::Arc,
 };
 use theframework::prelude::ThePalette;
 use wgpu::util::DeviceExt;
@@ -24,13 +24,9 @@ struct Atlas {
     _textures: [wgpu::Texture; 3],
     sampled: [wgpu::TextureView; 3],
 }
-struct DiagnosticCompletion {
-    id: u64,
-    result: std::result::Result<(), String>,
-}
 struct DiagnosticMap {
-    id: u64,
     ticket: RenderTicket,
+    reader: StatusReadback,
 }
 pub(super) struct GpuTextures {
     context: Arc<GpuContext>,
@@ -44,9 +40,6 @@ pub(super) struct GpuTextures {
     atlas: Option<Atlas>,
     queued: Vec<RenderTicket>,
     mapping: Vec<DiagnosticMap>,
-    diagnostic_tx: mpsc::Sender<DiagnosticCompletion>,
-    diagnostic_rx: mpsc::Receiver<DiagnosticCompletion>,
-    next_diagnostic: u64,
     pub stats: Stats,
 }
 impl GpuTextures {
@@ -128,13 +121,9 @@ impl GpuTextures {
                 view_formats: &[],
             })
             .create_view(&Default::default());
-        let (diagnostic_tx, diagnostic_rx) = mpsc::channel();
         Self {
             queued: Vec::new(),
             mapping: Vec::new(),
-            diagnostic_tx,
-            diagnostic_rx,
-            next_diagnostic: 0,
             context,
             metadata: Default::default(),
             runtime: None,
@@ -212,40 +201,34 @@ impl GpuTextures {
             atlas.submitted = true;
         }
         for ticket in self.queued.drain(..) {
-            self.next_diagnostic += 1;
-            let id = self.next_diagnostic;
-            let tx = self.diagnostic_tx.clone();
-            // The callback transports readiness only. This owner reads/unmaps
-            // the buffer later, so cancelling a ready-but-undelivered callback
-            // cannot race another thread's get_mapped_range.
-            ticket
-                .readback
-                .map_async(wgpu::MapMode::Read, .., move |result| {
-                    let _ = tx.send(DiagnosticCompletion {
-                        id,
-                        result: result.map_err(|e| e.to_string()),
-                    });
-                });
-            self.mapping.push(DiagnosticMap { id, ticket });
-            self.stats.diagnostic_readback_bytes += 4;
+            match StatusReadback::map(&self.context, ticket.readback.clone()) {
+                Ok(reader) => {
+                    self.mapping.push(DiagnosticMap { ticket, reader });
+                    self.stats.diagnostic_readback_bytes += 4;
+                }
+                Err(error) => {
+                    if let Some(atlas) = &mut self.atlas {
+                        atlas.failure = Some(error.to_string());
+                    }
+                }
+            }
         }
     }
     fn poll_diagnostics(&mut self) {
-        for result in self.diagnostic_rx.try_iter() {
-            let Some(index) = self.mapping.iter().position(|p| p.id == result.id) else {
-                continue;
-            };
-            let mapping = self.mapping.swap_remove(index);
-            let result = result.result.and_then(|_| {
-                let data = mapping.ticket.readback.get_mapped_range(..);
-                let flags = u32::from_le_bytes(data[..4].try_into().unwrap());
-                drop(data);
-                mapping.ticket.readback.unmap();
-                mapping
+        let mut index = 0;
+        while index < self.mapping.len() {
+            let result = match self.mapping[index].reader.try_finish(&self.context) {
+                Ok(None) => {
+                    index += 1;
+                    continue;
+                }
+                Ok(Some(flags)) => self.mapping[index]
                     .ticket
                     .check_diagnostics(flags)
-                    .map_err(|e| e.to_string())
-            });
+                    .map_err(|e| e.to_string()),
+                Err(error) => Err(error.to_string()),
+            };
+            self.mapping.swap_remove(index);
             if let Err(error) = result {
                 if let Some(atlas) = &mut self.atlas {
                     atlas.failure = Some(error);
@@ -271,9 +254,9 @@ impl GpuTextures {
                 atlas.submitted = false;
             }
         }
-        for request in self.mapping.drain(..) {
-            request.ticket.readback.unmap();
-        }
+        // Each reader owns its mailbox and cancels/unmaps on drop. Old source
+        // callbacks cannot address the replacement atlas or any new reader.
+        self.mapping.clear();
         self.queued.clear();
     }
     pub fn encode(
@@ -741,26 +724,18 @@ mod diagnostic_tests {
             .unwrap();
         context.queue.submit([next.finish()]);
         cache.submitted();
-        let old = cache.mapping.first().map(|m| m.id);
+        assert!(!cache.mapping.is_empty());
         let mut newer = context.device.create_command_encoder(&Default::default());
         cache
             .encode(&mut newer, &[&replacement], &palette, 0.8)
             .unwrap();
         context.queue.submit([newer.finish()]);
         cache.submitted();
-        if let Some(id) = old {
-            cache
-                .diagnostic_tx
-                .send(DiagnosticCompletion {
-                    id,
-                    result: Err("stale cancelled source".into()),
-                })
-                .unwrap();
-        }
         poll(&context);
         assert!(cache.status().unwrap());
         assert!(cache.mapping.is_empty());
         assert_eq!(cache.stats.diagnostic_readback_bytes, 12);
+        assert_eq!(context.transfers().status_readback_bytes, 12);
         assert_eq!(
             context.transfers().readback_bytes,
             0,
