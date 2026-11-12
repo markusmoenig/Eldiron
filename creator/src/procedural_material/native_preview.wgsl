@@ -9,11 +9,11 @@ struct Params {viewport:vec4<f32>,preview:vec4<u32>,domain:vec4<f32>,grid:vec4<f
     let positions=array<vec2<f32>,3>(vec2<f32>(-1.,-1.),vec2<f32>(3.,-1.),vec2<f32>(-1.,3.));
     return vec4<f32>(positions[index],0.,1.);
 }
-fn unit(v:f32)->u32 {return u32(round(clamp(v,0.,1.)*255.));}
+fn unit(v:f32)->u32 {return u32(floor(clamp(v,0.,1.)*255.+0.5));}
 fn srgb(v:vec3<f32>)->vec3<u32> {
     let p=max(v,vec3<f32>(0.));
     let encoded=select(p*12.92,1.055*pow(p,vec3<f32>(1./2.4))-vec3<f32>(0.055),p>vec3<f32>(0.0031308));
-    return vec3<u32>(round(clamp(encoded,vec3<f32>(0.),vec3<f32>(1.))*255.));
+    return vec3<u32>(floor(clamp(encoded,vec3<f32>(0.),vec3<f32>(1.))*255.+vec3<f32>(0.5)));
 }
 @fragment fn fs(@builtin(position) position:vec4<f32>)->@location(0) vec4<f32> {
     let p=floor(position.xy*params.viewport.xy/params.viewport.zw);
@@ -35,6 +35,7 @@ fn srgb(v:vec3<f32>)->vec3<u32> {
         case 4u:{rgb=srgb(textureLoad(emission,sample,0).rgb);alpha=255u;}
         default:{}
     }
+    if(params.preview.w==1u){return vec4<f32>(vec4<u32>(rgb,alpha))/255.;}
     color=vec4<u32>((rgb*alpha+color.rgb*(255u-alpha)+vec3<u32>(127u))/255u,color.a);
     return vec4<f32>(color)/255.;
 }

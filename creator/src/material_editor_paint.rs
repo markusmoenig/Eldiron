@@ -214,7 +214,17 @@ impl MaterialEditorWidget {
                     1.,
                     chrome.category(category),
                 );
-                if self.thumbnails.contains_key(&op.thumbnail) {
+                let native_thumbnail = {
+                    #[cfg(feature = "native-ui")]
+                    {
+                        native_editors && self.native_thumbnails.contains_key(&op.thumbnail)
+                    }
+                    #[cfg(not(feature = "native-ui"))]
+                    {
+                        false
+                    }
+                };
+                if self.thumbnails.contains_key(&op.thumbnail) || native_thumbnail {
                     p.preview(
                         rect(
                             c.origin[0] + 3.,

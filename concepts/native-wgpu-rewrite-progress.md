@@ -2411,3 +2411,82 @@ Creator root paint test. Logs use
 `/private/tmp/eldiron-native-material-panel-matrix-{paint-gpu,geometry-regression,framework,root-isolated}.log`.
 Native binary/application/web/iOS and dependency checks continue after this local
 checkpoint; no full platform or visual acceptance is implied.
+
+### Integration checkpoint 37d0f3e2 and material graph conversion in progress
+
+The full material-panel matrix finished successfully: reference Creator config,
+573 ordinary serial Creator cases, 9 native material cases, 8 paint GPU cases,
+8 native geometry cases, framework/detached-layer tests, isolated native Creator
+root, linked native binary, all four application checks, browser players, ARM64
+iOS-simulator player, all 11 dependency boundaries and diff validation. Results:
+`/private/tmp/eldiron-native-material-panel-matrix-results.log`. These verify the
+37d0f3e2 integration checkpoint; they do not certify the following work in progress.
+
+The next adapter is now being replaced by `native_thumbnails`: one injected
+MaterialZ producer publishes immutable raw 64px GPU images directly into the
+existing native MaterialEditorWidget/GraphPainter. The widget accepts opaque
+handles and shares visible-card filtering with its source-image adapter. The
+cache advances one operation per frame, retains at most 128 MiB of visible output,
+reports capacity errors, retires offscreen resources, and cancels/reconstructs
+its GPU domain on hidden views, reset or device change. Authoritative asset bake
+jobs stop producing CPU graph thumbnails; the independent reference worker keeps
+them for exact comparison. First native configuration compile passes (8.05 s,
+`/private/tmp/eldiron-native-material-thumbnails-first-check.log`).
+
+The translucent fixture exposed a real quantization difference: WGSL `round`
+uses even ties, whereas the positive Rust pixel conversion rounds a half upward.
+Alpha 0.3 produced 76 natively versus reference 77. Native display quantization
+now uses `floor(value * 255 + 0.5)`, including encoded color, rather than relaxing
+the reference assertion. Expanded exact/root/source/cache/recovery tests are
+running in `/private/tmp/eldiron-native-material-thumbnails-rounding-fixed.log`.
+The initial test compile also required correcting its parent-module STARTER path.
+No graph-thumbnail/full M5 acceptance is claimed until these checks pass.
+
+### GPU material graph thumbnails verified
+
+`native_thumbnails` now supplies real opaque GPU handles to MaterialEditorWidget;
+its shared graph painter consumes them directly. Asset-bake workers return no CPU
+graph thumbnails. The legacy-purpose worker keeps independent reference images.
+The graph cache owns immutable output leases separately from the viewport's
+three-target pool, uses one shared-device producer, advances at most one operation
+per frame, and explicitly reports a 128 MiB visible-output limit. Source-owner
+switches revoke old graph handles immediately. Hidden cards, pending close,
+source changes, reset and device replacement retire only the owning domain's
+handles; retained explicit consumers keep their immutable images alive.
+
+The complete affected matrix passes:
+`/private/tmp/eldiron-native-material-thumbnails-matrix-results.log`:
+- **36 material-editor control/input tests**, 2.56 s.
+- **10 native material tests**, 17.79 s, including exact 64px noise/mix/grayscale/
+  translucent reference pixels, more outputs than the viewport lease pool,
+  changed source pixels with old consumers retained, unchanged-frame map/handle
+  reuse, no invalidation for root-domain-only edits, hidden/reopen, canceled
+  callbacks, owner switch and actual device/registry replacement. Cache display
+  produces zero tracked color-readback or source-image-upload bytes; only four
+  status bytes per evaluated operation. Required authored bakes remain explicit
+  CPU consumers outside this display path.
+- 8 common paint GPU cases, 2 appearance GPU cases, 8 native geometry cases,
+  framework/detached-layer tests, isolated native Creator root (14.31 s), linked
+  native binary (16.34 s), all four apps, browser players, iOS-simulator player,
+  all 11 dependency boundaries and diff validation.
+
+The actual material-panel test proves that the assembled root list includes the
+GPU thumbnail handles and material receipt, without a root pixel framebuffer,
+and that automatic bakes still publish compatible saved tile assets. Its explicit
+review capture `/private/tmp/eldiron-native-material-panel-gpu.png` was visually
+inspected: graph thumbnails/wires/controls, source list and large material view
+are present. This is a focused workspace fixture, not full Creator parity.
+The positive half-value quantization fix passes all 40 root map/style/time/domain
+comparisons and all 24 selected-target comparisons as part of the native filter.
+Initial fixture/module and capture-Arc setup errors were corrected; no failed
+comparison was waived. Preceding full serial Creator evidence remains the
+37d0f3e2 run (573 passed/93 ignored); no new full-serial run is implied here.
+
+Material graph CPU display production is retired from this native path. Geometry
+operation-card images still call `presentation::thumbnail` during source refresh;
+those contour/rig/grip/material/mesh previews are the next small producer to
+convert, using the new opaque-handle widget bridge. Required authored source
+images and exports remain legitimate CPU assets. Main Creator world/tool/HUD/
+Play/document/global ownership, browser/Creator Apple wrappers, text/background
+visual differences and full M0 release/platform/resource/retirement gates remain
+open. Continue across them; the overall M0–M9 Goal is not complete.

@@ -14,6 +14,35 @@ impl GraphImageHandles for PreviewHandles {
     }
 }
 impl MaterialEditorWidget {
+    pub(crate) fn set_native_thumbnails(&mut self, handles: HashMap<String, ImageHandle>) {
+        if self.native_thumbnails != handles {
+            self.native_thumbnails = handles;
+            self.dirty = true;
+        }
+    }
+    pub(crate) fn visible_thumbnail_keys(&self) -> Vec<String> {
+        if !self.dim.is_valid() {
+            return Vec::new();
+        }
+        let layout = self.layout();
+        let mut keys = Vec::new();
+        for (i, row) in self.view.rows.iter().enumerate() {
+            let r = layout.row(i, self.pan);
+            if r.origin[1] + r.size[1] < HEADER || r.origin[1] > layout.editor_bottom {
+                continue;
+            }
+            for (j, op) in row.operations.iter().enumerate() {
+                let card = layout.card(i, j, self.pan);
+                if card.origin[1] + card.size[1] >= HEADER
+                    && card.origin[1] <= layout.editor_bottom
+                    && card.origin[0] + card.size[0] <= layout.width - 18.
+                {
+                    keys.push(op.thumbnail.clone());
+                }
+            }
+        }
+        keys
+    }
     pub(super) fn prepare_native(&mut self, ctx: &mut TheContext, theme: &dyn TheTheme) {
         self.chrome = MaterialEditorChrome::from_theme(theme);
         self.sync_number_edits(ctx);
@@ -33,33 +62,21 @@ impl MaterialEditorWidget {
     }
     pub(super) fn paint_native(&mut self, painter: &mut WidgetPainter<'_>) -> UiPaintResult {
         let mut handles = PreviewHandles(HashMap::new());
-        let layout = self.layout();
-        // Resolve only previews which the common row painter will display.
-        for (i, row) in self.view.rows.iter().enumerate() {
-            let r = layout.row(i, self.pan);
-            if r.origin[1] + r.size[1] < HEADER || r.origin[1] > layout.editor_bottom {
+        // Resolve only source previews included by the common row painter.
+        for key in self.visible_thumbnail_keys() {
+            if handles.0.contains_key(&key) {
                 continue;
             }
-            for (j, op) in row.operations.iter().enumerate() {
-                let card = layout.card(i, j, self.pan);
-                if card.origin[1] + card.size[1] < HEADER
-                    || card.origin[1] > layout.editor_bottom
-                    || card.origin[0] + card.size[0] > layout.width - 18.
-                {
-                    continue;
-                }
-                if handles.0.contains_key(&op.thumbnail) {
-                    continue;
-                }
-                if let Some(image) = self.thumbnails.get(&op.thumbnail) {
-                    let handle = painter.images.image(
-                        &format!("material:{}:{}", self.id.uuid, op.thumbnail),
-                        image,
-                        self.thumbnail_changes.contains(&op.thumbnail),
-                    )?;
-                    handles.0.insert(op.thumbnail.clone(), handle);
-                    self.thumbnail_changes.remove(&op.thumbnail);
-                }
+            if let Some(handle) = self.native_thumbnails.get(&key) {
+                handles.0.insert(key, *handle);
+            } else if let Some(image) = self.thumbnails.get(&key) {
+                let handle = painter.images.image(
+                    &format!("material:{}:{}", self.id.uuid, key),
+                    image,
+                    self.thumbnail_changes.contains(&key),
+                )?;
+                handles.0.insert(key.clone(), handle);
+                self.thumbnail_changes.remove(&key);
             }
         }
         let outer = bounds(&self.dim);

@@ -46,10 +46,10 @@ struct Grid {
     first: [f32; 2],
 }
 impl Grid {
-    fn new(origin: [f32; 2], span: [f32; 2], pixels: u32) -> Self {
+    fn new(origin: [f32; 2], span: [f32; 2], pixels: u32, source_size: u32) -> Self {
         if pixels == 0 {
             return Self {
-                resolution: [PREVIEW_SIZE; 2],
+                resolution: [source_size; 2],
                 origin,
                 span,
                 density: 0.,
@@ -57,7 +57,7 @@ impl Grid {
             };
         }
         let density =
-            (pixels as f32).min((PREVIEW_SIZE as f32 / span[0]).min(PREVIEW_SIZE as f32 / span[1]));
+            (pixels as f32).min((source_size as f32 / span[0]).min(source_size as f32 / span[1]));
         let first = origin.map(|v| (v * density).floor());
         let resolution = std::array::from_fn(|i| {
             (((origin[i] + span[i]) * density).ceil() - first[i]).max(1.) as u32
@@ -126,6 +126,7 @@ pub(super) struct Preview {
     layout: wgpu::BindGroupLayout,
     pipeline: wgpu::RenderPipeline,
     targets: Vec<Arc<GpuImage>>,
+    thumbnail: bool,
     pub evaluations: u64,
 }
 impl Preview {
@@ -210,8 +211,19 @@ impl Preview {
             layout,
             pipeline,
             targets: Vec::new(),
+            thumbnail: false,
             evaluations: 0,
         })
+    }
+    pub fn thumbnails(context: Arc<GpuContext>) -> Result<Self, String> {
+        let mut producer = Self::new(context)?;
+        producer.thumbnail = true;
+        Ok(producer)
+    }
+    /// Transfer an immutable result to the bounded graph cache. It is no longer
+    /// eligible for this producer's viewport target reuse or retention budget.
+    pub fn transfer_output(&mut self, image: &Arc<GpuImage>) {
+        self.targets.retain(|target| !Arc::ptr_eq(target, image));
     }
     pub fn generation(&self) -> u64 {
         self.context.generation()
@@ -240,7 +252,10 @@ impl Preview {
         if bytes > TARGET_BYTES {
             return Err("Material preview exceeds its output budget".into());
         }
-        let span = if request.continuous {
+        let source_size = if self.thumbnail { 64 } else { PREVIEW_SIZE };
+        let span = if self.thumbnail {
+            [1.; 2]
+        } else if request.continuous {
             [
                 2. * (request.size[0] as f32 / request.size[1] as f32).max(0.1),
                 2.,
@@ -298,7 +313,7 @@ impl Preview {
                 }
                 self.compiled_asset = Some(request.asset.clone());
             }
-            let grid = Grid::new(origin, span, request.pixels);
+            let grid = Grid::new(origin, span, request.pixels, source_size);
             let parameters = RenderRequest {
                 time: request.time,
                 resolution: grid.resolution,
@@ -387,8 +402,8 @@ impl Preview {
         for n in [
             request.channel,
             u32::from(request.continuous),
-            PREVIEW_SIZE,
-            0,
+            source_size,
+            u32::from(self.thumbnail),
         ] {
             data.extend(n.to_ne_bytes());
         }

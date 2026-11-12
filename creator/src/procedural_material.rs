@@ -27,6 +27,8 @@ mod row_inputs;
 mod native_preview;
 #[cfg(feature = "native-render")]
 mod native_host;
+#[cfg(feature = "native-render")]
+mod native_thumbnails;
 mod preview_metadata;
 #[cfg(feature = "native-render")]
 pub(crate) use native_host::PreviewToken;

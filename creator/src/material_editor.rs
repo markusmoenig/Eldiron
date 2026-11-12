@@ -667,6 +667,8 @@ pub struct MaterialEditorWidget {
     #[cfg(feature = "native-ui")]
     native_active: bool,
     thumbnails: std::collections::HashMap<String, TheRGBABuffer>,
+    #[cfg(feature = "native-ui")]
+    native_thumbnails: std::collections::HashMap<String, theframework::paint::ImageHandle>,
     number_edits: Vec<(String, String, TheTextLineEdit)>,
     number_focus: Option<usize>,
     number_drag: bool,
@@ -748,6 +750,8 @@ impl MaterialEditorWidget {
         #[cfg(feature = "native-ui")]
         self.thumbnail_changes
             .retain(|key| self.thumbnails.contains_key(key));
+        #[cfg(feature = "native-ui")]
+        self.native_thumbnails.retain(|key, _| view.rows.iter().flat_map(|row| &row.operations).any(|op| &op.thumbnail == key));
         self.view = view;
         self.clamp_scroll();
         self.dirty = true;
@@ -2688,6 +2692,8 @@ impl TheWidget for MaterialEditorWidget {
             #[cfg(feature = "native-ui")]
             thumbnail_changes: Default::default(),
             thumbnails: Default::default(),
+            #[cfg(feature = "native-ui")]
+            native_thumbnails: Default::default(),
             number_edits: Vec::new(),
             number_focus: None,
             number_drag: false,

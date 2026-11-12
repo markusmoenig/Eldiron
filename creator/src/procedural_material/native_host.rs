@@ -1,5 +1,5 @@
 //! Revision-scoped material display on the application-owned GPU. Authored bake
-//! jobs and retained graph-thumbnail adapters are independent from view output.
+//! jobs and immutable GPU graph thumbnails are independent from view output.
 use super::native_preview::{Preview, Request};
 use super::*;
 use renderkit::{GpuImage, ImageHandle, ImageRegistry};
@@ -68,6 +68,8 @@ pub(super) struct Host {
     pub asset_job_pending: bool,
     pub needs_asset_worker: bool,
     worker_generation: Option<u64>,
+    thumbnails: super::native_thumbnails::Cache,
+    thumbnail_error: Option<String>,
     owner: u64,
     serial: u64,
     source_epoch: u64,
@@ -92,6 +94,8 @@ impl Default for Host {
             asset_job_pending: false,
             needs_asset_worker: false,
             worker_generation: None,
+            thumbnails: Default::default(),
+            thumbnail_error: None,
             owner: theframework::paint::new_receipt_owner(),
             serial: 0,
             source_epoch: 0,
@@ -130,6 +134,7 @@ impl Host {
     }
     pub fn clear(&mut self) {
         self.retire_gpu();
+        self.thumbnails.clear();
         self.latest = None;
         self.source = None;
         self.source_epoch += 1;
@@ -403,6 +408,13 @@ impl ProceduralMaterialEditor {
     }
     pub(crate) fn invalidate_gpu_preview(&mut self, ui: &mut TheUI) {
         self.native.retire_gpu();
+        self.native.thumbnails.invalidate();
+        if let Some(widget) = ui
+            .get_widget(EDITOR)
+            .and_then(|w| w.as_any().downcast_mut::<MaterialEditorWidget>())
+        {
+            widget.set_native_thumbnails(Default::default());
+        }
         if let Some(view) = ui.get_render_view(PREVIEW) {
             let _ = view.set_paint_list(None);
         }
@@ -440,10 +452,49 @@ impl ProceduralMaterialEditor {
             self.native.asset_job_pending = true;
             self.requested.clear();
         }
-        let visible = self.active
+        let graph_visible = self.active
             && ui
                 .get_stack_layout("Sidebar Page Stack")
-                .is_none_or(|stack| stack.index() == SIDEBAR_PAGE)
+                .is_none_or(|stack| stack.index() == SIDEBAR_PAGE);
+        let keys = ui
+            .get_widget(EDITOR)
+            .and_then(|w| w.as_any().downcast_mut::<MaterialEditorWidget>())
+            .filter(|_| graph_visible)
+            .map(|w| w.visible_thumbnail_keys())
+            .unwrap_or_default();
+        let mut thumbnails_waiting = false;
+        match self
+            .native
+            .thumbnails
+            .prepare(images, self.bundle.as_deref(), &keys)
+        {
+            Ok(output) => {
+                self.native.thumbnail_error = None;
+                thumbnails_waiting = output.waiting;
+                if let Some(widget) = ui
+                    .get_widget(EDITOR)
+                    .and_then(|w| w.as_any().downcast_mut::<MaterialEditorWidget>())
+                {
+                    widget.set_native_thumbnails(output.handles);
+                }
+                for error in output.errors {
+                    Self::status(ui, ctx, error);
+                }
+            }
+            Err(error) => {
+                if let Some(widget) = ui
+                    .get_widget(EDITOR)
+                    .and_then(|w| w.as_any().downcast_mut::<MaterialEditorWidget>())
+                {
+                    widget.set_native_thumbnails(Default::default());
+                }
+                if self.native.thumbnail_error.as_ref() != Some(&error) {
+                    Self::status(ui, ctx, error.clone());
+                    self.native.thumbnail_error = Some(error);
+                }
+            }
+        }
+        let visible = graph_visible
             && ui
                 .get_stack_layout(PREVIEW_STACK)
                 .is_none_or(|stack| stack.index() == 1);
@@ -455,13 +506,14 @@ impl ProceduralMaterialEditor {
             self.native.retire_gpu();
             self.native.latest = None;
             self.native.drain(images);
+            self.native.waiting = thumbnails_waiting;
             if let Some(view) = ui.get_render_view(PREVIEW) {
                 let _ = view.set_paint_list(None);
             }
             return None;
         }
         self.queue_native_preview(ui, tick);
-        match self.native.output(ui, ctx, images) {
+        let result = match self.native.output(ui, ctx, images) {
             Ok(token) => token,
             Err(error) => {
                 self.native.waiting = false;
@@ -476,7 +528,9 @@ impl ProceduralMaterialEditor {
                     .map(|latest| (latest.key.clone(), ctx.scale_factor.to_bits()));
                 self.native.fallback()
             }
-        }
+        };
+        self.native.waiting |= thumbnails_waiting;
+        result
     }
     pub(crate) fn presented_gpu_preview(&mut self, token: PreviewToken) -> bool {
         if !self.native.staged.as_ref().is_some_and(|frame| {
@@ -503,22 +557,26 @@ mod tests {
         ctx: &mut TheContext,
         images: &mut ImageRegistry,
     ) -> PreviewToken {
-        if let Some(token) = host.prepare_gpu_preview(ui, ctx, images, 0) {
-            if !host.gpu_preview_waiting() {
-                return token;
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+        loop {
+            if let Some(token) = host.prepare_gpu_preview(ui, ctx, images, 0) {
+                if !host.gpu_preview_waiting() {
+                    return token;
+                }
             }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "native material output did not complete"
+            );
+            images
+                .context()
+                .device
+                .poll(wgpu::PollType::Wait {
+                    submission_index: None,
+                    timeout: Some(std::time::Duration::from_secs(30)),
+                })
+                .unwrap();
         }
-        images
-            .context()
-            .device
-            .poll(wgpu::PollType::Wait {
-                submission_index: None,
-                timeout: Some(std::time::Duration::from_secs(30)),
-            })
-            .unwrap();
-        let token = host.prepare_gpu_preview(ui, ctx, images, 0).unwrap();
-        assert!(!host.gpu_preview_waiting());
-        token
     }
     #[test]
     #[ignore = "requires native GPU"]
@@ -565,6 +623,18 @@ mod tests {
             .unwrap();
         cache.finish_frame(&mut images, &list).unwrap();
         assert!(list.receipts().any(|r| r == token.receipt()));
+        let thumbnails = host.native.thumbnails.handles();
+        assert!(
+            !thumbnails.is_empty(),
+            "the actual material graph must publish GPU thumbnails"
+        );
+        let painted = list
+            .image_handles()
+            .collect::<std::collections::HashSet<_>>();
+        assert!(
+            thumbnails.values().all(|handle| painted.contains(handle)),
+            "the root graph must consume GPU thumbnail handles"
+        );
         assert!(ui.canvas.buffer.pixels().is_empty());
         let output = GpuImage::new(&gpu, ImageDescriptor::rgba(1100, 800)).unwrap();
         PaintRenderer::new(gpu.clone())
@@ -580,6 +650,22 @@ mod tests {
             )
             .unwrap();
         assert!(host.presented_gpu_preview(token));
+        // Explicit review capture; normal display above has no color readback.
+        let mut capture = renderkit::ReadbackTicket::capture(&gpu, output).unwrap();
+        gpu.device
+            .poll(wgpu::PollType::Wait {
+                submission_index: None,
+                timeout: Some(std::time::Duration::from_secs(30)),
+            })
+            .unwrap();
+        let pixels = capture.try_finish(&gpu).unwrap().unwrap();
+        std::fs::write(
+            "/private/tmp/eldiron-native-material-panel-gpu.png",
+            TheRGBABuffer::from(pixels.pixels().to_vec(), 1100, 800)
+                .to_png()
+                .unwrap(),
+        )
+        .unwrap();
         assert_eq!(serde_json::to_value(&project).unwrap(), authored);
         // The real update owner installs explicit bake results. Display-only
         // selections below must not enqueue another CPU bake/preview job.
@@ -597,6 +683,10 @@ mod tests {
         }
         assert_eq!(project.procedural_materials[&id], recipe);
         assert_eq!(project.tiles[&id].textures[0].width, 16);
+        assert!(
+            host.frame.as_ref().unwrap().thumbnails.is_empty(),
+            "authored bake jobs must not return CPU graph display images"
+        );
         let authored = serde_json::to_value(&project).unwrap();
         let jobs = host.worker.as_ref().unwrap().submitted_jobs();
         assert!(jobs > 0);
@@ -834,8 +924,8 @@ mod tests {
             "transient selection previews stay GPU resident"
         );
         assert!(
-            !native.thumbnails.is_empty(),
-            "retained graph thumbnail adapter stays explicit until converted"
+            native.thumbnails.is_empty(),
+            "native graph thumbnails never return CPU pixels"
         );
         let reference = gpu::Worker::new(gpu.device.clone(), gpu.queue.clone());
         reference.send(gpu::Job {
@@ -859,6 +949,9 @@ mod tests {
             native.tile, reference.tile,
             "serialized authored cache keeps the exact existing bake output"
         );
-        assert_eq!(native.thumbnails, reference.thumbnails);
+        assert!(
+            !reference.thumbnails.is_empty(),
+            "independent CPU reference thumbnails remain available"
+        );
     }
 }

@@ -162,7 +162,7 @@ impl Worker {
         Self::with_purpose(device, queue, false)
     }
     /// Native display has its own GPU outputs. This worker returns authored
-    /// tile/surface-page assets and the explicitly retained CPU graph thumbnails.
+    /// tile/surface-page assets; interactive graph thumbnails stay on the GPU.
     #[cfg(feature = "native-render")]
     pub(super) fn new_asset_bakes(device: wgpu::Device, queue: wgpu::Queue) -> Self {
         Self::with_purpose(device, queue, true)
@@ -336,7 +336,7 @@ impl Worker {
                             } else {
                                 None
                             };
-                            let thumbnails = if job.revision == 0 || phase > 0 {
+                            let thumbnails = if asset_bakes || job.revision == 0 || phase > 0 {
                                 Vec::new()
                             } else {
                                 thumbnail_cache.images(runtime, &asset, &job.bundle, &device, &queue, &mut warnings)
