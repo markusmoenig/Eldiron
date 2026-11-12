@@ -27,6 +27,8 @@ mod native_preview;
 #[cfg(feature = "native-render")]
 mod native_host;
 #[cfg(feature = "native-render")]
+mod baked_preview;
+#[cfg(feature = "native-render")]
 pub(crate) use native_host::PreviewToken;
 pub const STACK: &str = "Appearance Workspace";
 pub const MODE: &str = "Appearance Mode";
@@ -216,6 +218,7 @@ pub struct GeometryEditor {
     pitch: f32,
     drag: Option<(Vec2<i32>, Option<usize>, String)>,
     contour_frame: Option<presentation::ContourFrame>,
+    contour_drag_frame: Option<presentation::ContourFrame>,
     revision: u64,
     preview_key: String,
     worker: Option<preview::Worker>,
@@ -318,6 +321,7 @@ impl GeometryEditor {
     }
     pub fn finish_drag(&mut self, project: &mut Project, ctx: &mut TheContext, cancel: bool) {
         self.finish_scene_drag(project, ctx, cancel);
+        self.contour_drag_frame = None;
         if let Some((_, Some(_), before)) = self.drag.take() {
             if let Some(id) = self.selected {
                 let after = project.procedural_appearances.get(&id).cloned();
@@ -1162,6 +1166,10 @@ impl GeometryEditor {
                 return true;
             }
             TheEvent::RenderViewClicked(id, p) if id.name == PREVIEW => {
+                #[cfg(feature = "native-render")]
+                if self.camera == 3 && !self.native_pick_ready(project) {
+                    return true;
+                }
                 if self.document.is_some() {
                     let point = if self.camera == 3 {
                         self.contour_frame.as_ref().and_then(|f| f.hit(*p))
@@ -1172,12 +1180,17 @@ impl GeometryEditor {
                         .selected
                         .and_then(|id| project.procedural_appearances.get(&id))
                     {
+                        self.contour_drag_frame = point.and(self.contour_frame.clone());
                         self.drag = Some((*p, point, source.clone()));
                     }
                 }
                 return true;
             }
             TheEvent::RenderViewContext(id, p) if id.name == PREVIEW && self.camera == 3 => {
+                #[cfg(feature = "native-render")]
+                if !self.native_pick_ready(project) {
+                    return true;
+                }
                 self.finish_drag(project, ctx, false);
                 if let (Some(doc), Some(frame), Some(operation)) = (
                     &self.document,
@@ -1256,7 +1269,7 @@ impl GeometryEditor {
                 if let Some((previous, point, before)) = self.drag.clone() {
                     if let (Some(index), Some(frame), Some(doc), Some(operation)) = (
                         point,
-                        self.contour_frame.as_ref(),
+                        self.contour_drag_frame.as_ref().or(self.contour_frame.as_ref()),
                         self.document.as_ref(),
                         self.selected_operation.as_ref(),
                     ) {
@@ -1352,6 +1365,22 @@ impl GeometryEditor {
         ))
         .to_string()
     }
+    fn clear_preview(&mut self, ui: &mut TheUI) {
+        #[cfg(feature = "native-render")]
+        if self.native.enabled {
+            self.native.invalidate();
+            self.contour_frame = None;
+            self.scene.projection = None;
+            if let Some(view) = ui.get_widget(PREVIEW).and_then(|w|w.as_render_view()) {
+                let _ = view.set_paint_list(None);
+            }
+            return;
+        }
+        let background = ui.style.theme().color(MaterialCanvas).to_vec();
+        if let Some(view) = ui.get_widget(PREVIEW).and_then(|w|w.as_render_view()) {
+            *view.render_buffer_mut() = TheRGBABuffer::from(background,1,1);
+        }
+    }
     pub fn update(
         &mut self,
         project: &Project,
@@ -1407,10 +1436,7 @@ impl GeometryEditor {
                 self.document = None;
                 self.evaluation = None;
                 self.selected_operation = None;
-                let background = ui.style.theme().color(MaterialCanvas).to_vec();
-                if let Some(w) = ui.get_widget(PREVIEW).and_then(|w| w.as_render_view()) {
-                    *w.render_buffer_mut() = TheRGBABuffer::from(background, 1, 1);
-                }
+                self.clear_preview(ui);
                 if let Some(w) = ui
                     .get_widget(EDITOR)
                     .and_then(|w| w.as_any().downcast_mut::<MaterialEditorWidget>())
@@ -1638,10 +1664,7 @@ impl GeometryEditor {
                     self.document = None;
                     self.evaluation = None;
                     self.selected_operation = None;
-                    let background = ui.style.theme().color(MaterialCanvas).to_vec();
-                    if let Some(w) = ui.get_widget(PREVIEW).and_then(|w| w.as_render_view()) {
-                        *w.render_buffer_mut() = TheRGBABuffer::from(background, 1, 1);
-                    }
+                    self.clear_preview(ui);
                     if let Some(w) = ui
                         .get_widget(EDITOR)
                         .and_then(|w| w.as_any().downcast_mut::<MaterialEditorWidget>())
@@ -1774,6 +1797,16 @@ impl GeometryEditor {
                     *ui.style.theme().color(MaterialCheckerDark),
                     *ui.style.theme().color(MaterialCheckerLight),
                 ];
+                #[cfg(feature = "native-render")]
+                if self.native.enabled {
+                    return match self.queue_baked_preview(texture, dim, checker) {
+                        Ok(queued) => changed || queued,
+                        Err(error) => {
+                            self.report_gpu_preview_error(error, ctx);
+                            changed
+                        }
+                    };
+                }
                 if let Some(w) = ui.get_widget(PREVIEW).and_then(|w| w.as_render_view()) {
                     let buffer = w.render_buffer_mut();
                     buffer.resize(dim.width, dim.height);
@@ -1781,6 +1814,10 @@ impl GeometryEditor {
                 }
                 return true;
             }
+        }
+        #[cfg(feature = "native-render")]
+        {
+            self.native.baked = None;
         }
         let bg = *ui.style.theme().color(MaterialCanvas);
         let animation_tick = self
@@ -1841,6 +1878,8 @@ impl GeometryEditor {
                 ":{}:{}:{}:{}",
                 self.scene.tool, self.inspector.joint, self.inspector.part, self.inspector.section
             );
+        #[cfg(feature = "native-render")]
+        let key = if self.native.enabled { format!("{key}:fonts:{:?}", ctx.text.font_stamp()) } else { key };
         let context = format!(
             "{}:{:?}:{:?}:{}:{:?}:{:?}:{}:{}",
             self.source_revision,
@@ -1869,13 +1908,35 @@ impl GeometryEditor {
                         .find(|t| Some(&t.id) == self.selected_operation.as_ref())
                 })
                 .map(|t| rigging::profile(&t.op));
-            if self.camera == 3 {
+            let use_native = {
+                #[cfg(feature = "native-render")] { self.native.enabled }
+                #[cfg(not(feature = "native-render"))] { false }
+            };
+            if self.camera == 3 && use_native {
+                #[cfg(feature = "native-render")]
+                {
+                    let (paint, layout) = presentation::contour_paint(
+                        points.as_deref().unwrap_or(&[]), dim.width, dim.height,
+                        ui.style.theme().as_ref(),
+                        self.contour_drag_frame.as_ref().filter(|_| self.drag.is_some()),
+                        &mut ctx.text,
+                    );
+                    self.native.latest = None;
+                    self.native.contour = Some(native_host::ContourRequest {
+                        epoch: self.preview_epoch,
+                        revision: self.revision,
+                        paint: std::sync::Arc::new(paint),
+                        layout,
+                    });
+                }
+                changed = true;
+            } else if self.camera == 3 {
                 let (image, frame) = presentation::contour_image(
                     points.as_deref().unwrap_or(&[]),
                     dim.width,
                     dim.height,
                     ui.style.theme().as_ref(),
-                    self.contour_frame.as_ref().filter(|_| self.drag.is_some()),
+                    self.contour_drag_frame.as_ref().filter(|_| self.drag.is_some()),
                 );
                 self.contour_frame = frame;
                 if let Some(w) = ui.get_widget(PREVIEW).and_then(|w| w.as_render_view()) {
@@ -1883,10 +1944,6 @@ impl GeometryEditor {
                 }
                 changed = true;
             } else if let Some(evaluation) = &self.evaluation {
-                let use_native = {
-                    #[cfg(feature = "native-render")] { self.native.enabled }
-                    #[cfg(not(feature = "native-render"))] { false }
-                };
                 #[cfg(not(target_arch = "wasm32"))]
                 if !use_native && self.worker.is_none() {
                     if let Some((device, queue)) =
@@ -1990,7 +2047,7 @@ impl GeometryEditor {
                     };
                     if use_native {
                         #[cfg(feature = "native-render")]
-                        { self.native.latest=Some(request); }
+                        { self.native.contour=None; self.native.latest=Some(request); }
                     } else if let Some(worker)=&self.worker { worker.submit(request); }
                 } else {
                     Self::status(ctx, "Geometry preview requires the desktop GPU renderer");

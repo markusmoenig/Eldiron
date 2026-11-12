@@ -2076,3 +2076,69 @@ Next: convert contour paint/layout and baked-image previews using the common
 publication receipts, then remaining interactive previews and Creator ownership.
 This correctness checkpoint does not accept M5/M7/M9 or close visual/platform/
 performance gates. Full M0–M9 remains active.
+
+## Native contour and baked-isometric preview checkpoint (2026-11-12)
+
+Geometry's native Creator host now publishes three explicit output kinds: immutable
+mesh images, paint-only contours, and GPU-composited baked source images. Contour
+projection is extracted unchanged into `presentation::contour_layout`, shared
+with the CPU reference and picking. Native contours emit strokes/point circles
+and shared Parley/Swash glyph runs, without a viewport bitmap or mesh/material
+runtime. Only acknowledged presentation tokens install the contour hit layout;
+resize, selection/operation/source/camera changes and stale acknowledgements cannot
+revive an obsolete input receipt. A separate CPU drag plane survives GPU receipt
+invalidation, so recovery cannot refit a gesture in progress. Cancel restores
+the authored source. Font revisions invalidate retained contour label paint.
+
+`baked_preview.rs`/`.wgsl` retain an immutable authored tile frame as a source
+asset and perform checkerboard, nearest resampling and integer encoded-byte
+transparency composition on the injected device. Shared `isometric::preview_placement`
+preserves the reference framing. The output is tagged sRGB and decoded once by
+the common compositor. Source uploads occur only when source pixels change;
+changing viewport/density does not upload a CPU viewport. Source snapshots are
+provisionally bounded at 16 MiB, with three leased outputs and a 128 MiB output
+budget. These are implementation bounds, not measured M0 performance acceptance.
+The existing idle/walk frame selection and missing-frame mesh fallback remain.
+Empty/invalid geometry source states use the existing MaterialCanvas background
+and clear native content without opting into CPU raster storage. Reference
+workers, authoritative baked pixels, exports and project schemas remain usable.
+
+Verification:
+- **All seven focused actual GPU geometry tests pass**, 4.02 s:
+  `/private/tmp/eldiron-native-contour-baked-final.log`. Baked source/viewport
+  combinations match reference pixels byte-for-byte, including transparent and
+  partly transparent pixels; common GPU composition differs by at most one byte.
+  Caching, immutable leases/backpressure, fractional density, invalid inputs,
+  real device replacement, selected authored idle frames, diagnostics and mesh
+  parity also pass. Swash atlas uploads are counted as glyph source assets; a
+  repeated contour paint adds no upload or rasterization.
+- **All 68 geometry editor tests, including ignored GPU/reference/visual reviews,
+  pass**, 79.53 s: `/private/tmp/eldiron-native-geometry-full-regression.log`.
+  This includes authoring/undo/export, complete geometry controls, reference
+  captures, viewport actions and isometric publication. The expanded active-drag
+  recovery/cancel test subsequently passes, 0.66 s:
+  `/private/tmp/eldiron-native-contour-drag-recovery.log`.
+- Native contour capture `/private/tmp/eldiron-native-contour-preview.png` was
+  visually inspected: profile outline, point handles, background and shared text.
+  It verifies this preview, not full Creator visual parity.
+- Reference/staticlib configuration, framework/actual detached-layer application,
+  isolated assembled Creator root GPU capture, linked native Creator without
+  Pixels, all applications, browser/iOS player configurations, **11 boundaries**
+  and diff checks pass. Reproduce `/private/tmp/verify-native-contour-baked.py`;
+  summary `/private/tmp/eldiron-native-contour-baked-matrix-results.log` and its
+  named per-check logs. Root GPU capture passed in 17.44 s.
+
+Initial test harness corrections: use a valid mesh-output document for a contour
+fixture; do not call `render_buffer_mut` to inspect native output (that explicitly
+opts into CPU storage); distinguish glyph atlas uploads from viewport uploads;
+construct malformed texture data after its validating constructor. Final checks
+pass; none of these were waived production errors.
+
+This closes the converted geometry contour/baked display adapters, not M5/M7 or
+the full rewrite. Active material/appearance preview producers, main Creator world/
+tool/HUD, document/undo/workspace/Play global ownership, full visual matching,
+browser bootstrap/workers, Creator Apple wrapper, physical platform workflows,
+release/resource measurements and canonical legacy retirement remain. Next: share
+appearance scene preparation with an injected-device native output owner and
+separate interactive material outputs from explicit authoritative bake/readback
+jobs. Original checkout and unrelated networking concept remain untouched.

@@ -1,6 +1,6 @@
 //! Creator-owned geometry publication and completed-frame picking receipts.
 use super::*;
-use crate::geometry_editor::native_preview::{Frame, NativePreview};
+use crate::geometry_editor::native_preview::{Frame as MeshFrame, NativePreview};
 use renderkit::{ImageHandle, ImageRegistry};
 use std::sync::{
     Arc,
@@ -12,10 +12,46 @@ pub(crate) struct PreviewToken {
     owner: u64,
     serial: u64,
 }
+#[derive(Clone)]
+pub(super) struct ContourRequest {
+    pub epoch: u64,
+    pub revision: u64,
+    pub paint: Arc<theframework::paint::PaintList>,
+    pub layout: Option<presentation::ContourFrame>,
+}
+enum Frame {
+    Mesh(MeshFrame),
+    Contour(ContourRequest),
+    Baked(baked_preview::Frame),
+}
+impl Frame {
+    fn epoch(&self) -> u64 {
+        match self {
+            Self::Mesh(f) => f.epoch,
+            Self::Contour(f) => f.epoch,
+            Self::Baked(f) => f.epoch,
+        }
+    }
+    fn revision(&self) -> u64 {
+        match self {
+            Self::Mesh(f) => f.revision,
+            Self::Contour(f) => f.revision,
+            Self::Baked(f) => f.revision,
+        }
+    }
+    fn mesh(&self) -> Option<&MeshFrame> {
+        match self {
+            Self::Mesh(f) => Some(f),
+            _ => None,
+        }
+    }
+}
 struct Published {
     token: PreviewToken,
     frame: Frame,
-    image: ImageHandle,
+    image: Option<ImageHandle>,
+    camera: usize,
+    operation: Option<String>,
     density: u32,
     source_revision: u64,
     source_key: String,
@@ -26,12 +62,15 @@ struct Published {
 pub(super) struct Host {
     pub enabled: bool,
     pub latest: Option<preview::Request>,
+    pub contour: Option<ContourRequest>,
+    pub baked: Option<baked_preview::Request>,
     pub waiting: bool,
     pub error: Option<String>,
     owner: u64,
     serial: u64,
     registry: Option<u64>,
     producer: Option<NativePreview>,
+    baked_producer: Option<baked_preview::Preview>,
     staged: Option<Published>,
     displayed: Option<Published>,
     retired: Vec<ImageHandle>,
@@ -41,12 +80,15 @@ impl Default for Host {
         Self {
             enabled: false,
             latest: None,
+            contour: None,
+            baked: None,
             waiting: false,
             error: None,
             owner: NEXT_OWNER.fetch_add(1, Ordering::Relaxed),
             serial: 0,
             registry: None,
             producer: None,
+            baked_producer: None,
             staged: None,
             displayed: None,
             retired: Vec::new(),
@@ -56,15 +98,18 @@ impl Default for Host {
 impl Host {
     pub fn invalidate(&mut self) {
         self.latest = None;
+        self.contour = None;
+        self.baked = None;
         self.waiting = false;
         self.error = None;
         if let Some(frame) = self.staged.take() {
-            self.retired.push(frame.image);
+            self.retired.extend(frame.image);
         }
         if let Some(frame) = self.displayed.take() {
-            self.retired.push(frame.image);
+            self.retired.extend(frame.image);
         }
         self.producer = None;
+        self.baked_producer = None;
     }
     fn drain(&mut self, images: &mut ImageRegistry) {
         if self.registry != Some(images.owner_id()) {
@@ -81,14 +126,17 @@ impl Host {
 impl GeometryEditor {
     pub(crate) fn invalidate_gpu_preview(&mut self, ui: &mut TheUI) {
         let latest = self.native.latest.take();
+        let contour = self.native.contour.take();
+        let baked = self.native.baked.take();
         self.native.invalidate();
         self.native.latest = latest;
+        self.native.contour = contour;
+        self.native.baked = baked;
+        self.contour_frame = None;
         self.scene.projection = None;
         self.preview_key.clear();
-        if self.camera != 3 && self.camera != 4 {
-            if let Some(view) = ui.get_widget(PREVIEW).and_then(|w| w.as_render_view()) {
-                let _ = view.set_paint_list(None);
-            }
+        if let Some(view) = ui.get_widget(PREVIEW).and_then(|w| w.as_render_view()) {
+            let _ = view.set_paint_list(None);
         }
     }
     /// Select before the first CPU update. Converted preview requests must not
@@ -115,9 +163,22 @@ impl GeometryEditor {
         } else {
             None
         };
+        let contour = if registry_changed {
+            self.native.contour.take()
+        } else {
+            None
+        };
+        let baked = if registry_changed {
+            self.native.baked.take()
+        } else {
+            None
+        };
         self.native.drain(images);
         if registry_changed {
             self.native.latest = latest;
+            self.native.contour = contour;
+            self.native.baked = baked;
+            self.contour_frame = None;
             self.scene.projection = None;
             if let Some(view) = ui.get_widget(PREVIEW).and_then(|w| w.as_render_view()) {
                 view.set_paint_list(None).map_err(|e| e.to_string())?;
@@ -129,28 +190,36 @@ impl GeometryEditor {
         if !self.wants_realtime() || self.selected.is_none() {
             self.native.invalidate();
             self.native.drain(images);
+            self.contour_frame = None;
             self.scene.projection = None;
             if let Some(view) = ui.get_widget(PREVIEW).and_then(|w| w.as_render_view()) {
                 view.set_paint_list(None).map_err(|e| e.to_string())?;
             }
             return Ok(None);
         }
-        // Contour and baked-isometric previews are separately tracked adapters
-        // until their source/overlay contribution is converted.
-        if self.camera == 3 || self.camera == 4 {
-            self.native.invalidate();
-            self.native.drain(images);
-            return Ok(None);
-        }
-        let Some(request) = self.native.latest.as_ref() else {
-            return Ok(None);
+        let use_baked = self.camera == 4 && self.native.baked.is_some();
+        let (epoch, revision) = if use_baked {
+            let request = self.native.baked.as_ref().unwrap();
+            (request.epoch, request.revision)
+        } else if self.camera == 3 {
+            let Some(request) = self.native.contour.as_ref() else {
+                return Ok(None);
+            };
+            (request.epoch, request.revision)
+        } else {
+            let Some(request) = self.native.latest.as_ref() else {
+                return Ok(None);
+            };
+            (request.epoch, request.job.revision)
         };
-        if request.epoch != self.preview_epoch {
+        if epoch != self.preview_epoch {
             return Ok(None);
         }
         let same = |p: &Published| {
-            p.frame.epoch == request.epoch
-                && p.frame.revision == request.job.revision
+            p.frame.epoch() == epoch
+                && p.frame.revision() == revision
+                && p.camera == self.camera
+                && p.operation == self.selected_operation
                 && p.density == ctx.scale_factor.to_bits()
                 && p.selection == self.inspector
                 && p.tool == self.scene.tool
@@ -163,57 +232,99 @@ impl GeometryEditor {
         if let Some(current) = self.native.displayed.as_ref().filter(|p| same(p)) {
             return Ok(Some(current.token));
         }
-        if self
-            .native
-            .producer
-            .as_ref()
-            .is_none_or(|p| p.generation() != images.context().generation())
-        {
-            self.native.producer = Some(NativePreview::new(images.context().clone()));
-        }
-        self.native.waiting = false;
-        let Some(frame) = self
-            .native
-            .producer
-            .as_mut()
-            .unwrap()
-            .render(request, ctx.scale_factor)?
-        else {
-            self.native.waiting = true;
-            return Ok(self.native_preview_fallback_token());
+        let (frame, image, paint, handles) = if use_baked {
+            self.native.producer = None;
+            if self
+                .native
+                .baked_producer
+                .as_ref()
+                .is_none_or(|p| p.generation() != images.context().generation())
+            {
+                self.native.baked_producer =
+                    Some(baked_preview::Preview::new(images.context().clone()));
+            }
+            let request = self.native.baked.as_ref().unwrap();
+            let Some(frame) = self
+                .native
+                .baked_producer
+                .as_mut()
+                .unwrap()
+                .render(request, ctx.scale_factor)?
+            else {
+                self.native.waiting = true;
+                return Ok(self.native_preview_fallback_token());
+            };
+            let image = images
+                .insert(frame.image.clone())
+                .map_err(|e| e.to_string())?;
+            let paint = Arc::new(frame.paint(image));
+            (Frame::Baked(frame), Some(image), paint, Vec::new())
+        } else if self.camera == 3 {
+            self.native.baked_producer = None;
+            self.native.producer = None;
+            let request = self.native.contour.as_ref().unwrap().clone();
+            let paint = request.paint.clone();
+            (Frame::Contour(request), None, paint, Vec::new())
+        } else {
+            self.native.baked_producer = None;
+            if self
+                .native
+                .producer
+                .as_ref()
+                .is_none_or(|p| p.generation() != images.context().generation())
+            {
+                self.native.producer = Some(NativePreview::new(images.context().clone()));
+            }
+            let request = self.native.latest.as_ref().unwrap();
+            self.native.waiting = false;
+            let Some(frame) = self
+                .native
+                .producer
+                .as_mut()
+                .unwrap()
+                .render(request, ctx.scale_factor)?
+            else {
+                self.native.waiting = true;
+                return Ok(self.native_preview_fallback_token());
+            };
+            let mut scene = self.scene.clone();
+            scene.projection = Some(frame.projection.clone());
+            scene.posed = frame.posed.clone();
+            scene.previewing_animation = self.playback.selected > 0;
+            let (Some(doc), Some(evaluation)) = (&self.document, &self.evaluation) else {
+                return Ok(None);
+            };
+            let handles = scene
+                .handles(doc, evaluation, &self.inspector)
+                .into_iter()
+                .map(|(h, p, _)| (h, p))
+                .collect();
+            let mut list = frame.overlay.clone();
+            list.ops.extend(
+                scene
+                    .paint_native(doc, evaluation, &self.inspector, ui.style.theme().as_ref())
+                    .ops,
+            );
+            let image = images
+                .insert(frame.image.clone())
+                .map_err(|e| e.to_string())?;
+            let mut paint = frame.paint(image);
+            // Replace the frame's base guides with the assembled guides/handles.
+            paint.ops.truncate(1);
+            paint.ops.extend(list.ops);
+            (Frame::Mesh(frame), Some(image), Arc::new(paint), handles)
         };
         self.native.error = None;
-        let mut scene = self.scene.clone();
-        scene.projection = Some(frame.projection.clone());
-        scene.posed = frame.posed.clone();
-        scene.previewing_animation = self.playback.selected > 0;
-        let (Some(doc), Some(evaluation)) = (&self.document, &self.evaluation) else {
-            return Ok(None);
-        };
-        let handles = scene
-            .handles(doc, evaluation, &self.inspector)
-            .into_iter()
-            .map(|(h, p, _)| (h, p))
-            .collect();
-        let mut list = frame.overlay.clone();
-        list.ops.extend(
-            scene
-                .paint_native(doc, evaluation, &self.inspector, ui.style.theme().as_ref())
-                .ops,
-        );
-        let image = images
-            .insert(frame.image.clone())
-            .map_err(|e| e.to_string())?;
-        let mut paint = frame.paint(image);
-        // Replace the frame's base guides with the assembled guides/handles.
-        paint.ops.truncate(1);
-        paint.ops.extend(list.ops);
         let Some(view) = ui.get_widget(PREVIEW).and_then(|w| w.as_render_view()) else {
-            images.remove(image);
+            if let Some(image) = image {
+                images.remove(image);
+            }
             return Ok(None);
         };
-        if let Err(error) = view.set_paint_list(Some(Arc::new(paint))) {
-            images.remove(image);
+        if let Err(error) = view.set_paint_list(Some(paint)) {
+            if let Some(image) = image {
+                images.remove(image);
+            }
             return Err(error.to_string());
         }
         self.native.serial += 1;
@@ -225,6 +336,8 @@ impl GeometryEditor {
             token,
             frame,
             image,
+            camera: self.camera,
+            operation: self.selected_operation.clone(),
             density: ctx.scale_factor.to_bits(),
             source_revision: self.source_revision,
             source_key: self.key.clone().unwrap_or_default(),
@@ -232,9 +345,60 @@ impl GeometryEditor {
             tool: self.scene.tool,
             handles,
         }) {
-            self.native.retired.push(old.image);
+            self.native.retired.extend(old.image);
         }
         Ok(Some(token))
+    }
+    /// Snapshot only immutable authored source pixels. Viewport scaling and
+    /// alpha/checker composition are performed by the injected GPU producer.
+    pub(super) fn queue_baked_preview(
+        &mut self,
+        source: &rusterix::Texture,
+        dim: TheDim,
+        checker: [[u8; 4]; 2],
+    ) -> Result<bool, String> {
+        if !baked_preview::Preview::source_valid(source) {
+            return Err("Invalid baked preview source or source exceeds 16 MiB".into());
+        }
+        let size = [dim.width as u32, dim.height as u32];
+        let same_source = |request: &baked_preview::Request| {
+            request.source.width() as usize == source.width
+                && request.source.height() as usize == source.height
+                && request.source.pixels() == source.data
+        };
+        if self.native.baked.as_ref().is_some_and(|r| {
+            r.epoch == self.preview_epoch
+                && r.size == size
+                && r.checker == checker
+                && same_source(r)
+        }) {
+            return Ok(false);
+        }
+        let source = if let Some(old) = self.native.baked.as_ref().filter(|r| same_source(r)) {
+            old.source.clone()
+        } else {
+            Arc::new(
+                renderkit::ImageAsset::rgba(
+                    source.width as u32,
+                    source.height as u32,
+                    source.data.clone(),
+                )
+                .map_err(|e| e.to_string())?,
+            )
+        };
+        self.preview_epoch += 1;
+        self.revision += 1;
+        self.native.baked = Some(baked_preview::Request {
+            epoch: self.preview_epoch,
+            revision: self.revision,
+            source,
+            size,
+            checker,
+        });
+        self.native.latest = None;
+        self.native.contour = None;
+        self.preview_key.clear();
+        Ok(true)
     }
     pub(crate) fn gpu_preview_waiting(&self) -> bool {
         self.native.waiting
@@ -259,34 +423,53 @@ impl GeometryEditor {
         let Some(frame) = self.native.staged.as_ref().filter(|p| p.token == token) else {
             return false;
         };
-        if frame.frame.epoch != self.preview_epoch
+        if frame.frame.epoch() != self.preview_epoch
             || frame.source_revision != self.source_revision
             || frame.selection != self.inspector
             || frame.tool != self.scene.tool
+            || frame.camera != self.camera
+            || frame.operation != self.selected_operation
         {
             return false;
         }
         let frame = self.native.staged.take().unwrap();
-        self.displayed_revision = frame.frame.revision;
-        self.scene.projection = Some(frame.frame.projection.clone());
-        self.scene.posed = frame.frame.posed.clone();
+        self.displayed_revision = frame.frame.revision();
+        match &frame.frame {
+            Frame::Mesh(mesh) => {
+                self.scene.projection = Some(mesh.projection.clone());
+                self.scene.posed = mesh.posed.clone();
+                self.contour_frame = None;
+            }
+            Frame::Contour(contour) => {
+                self.contour_frame = contour.layout.clone();
+                self.scene.projection = None;
+                self.scene.posed.clear();
+            }
+            Frame::Baked(_) => {
+                self.contour_frame = None;
+                self.scene.projection = None;
+                self.scene.posed.clear();
+            }
+        }
         self.scene.previewing_animation = self.playback.selected > 0;
         if let Some(old) = self.native.displayed.replace(frame) {
-            self.native.retired.push(old.image);
+            self.native.retired.extend(old.image);
         }
         true
     }
     pub(super) fn native_pick_ready(&self, project: &Project) -> bool {
-        if !self.native.enabled || self.camera == 3 || self.camera == 4 {
+        if !self.native.enabled {
             return true;
         }
         let Some(p) = self.native.displayed.as_ref() else {
             return false;
         };
-        if p.frame.epoch != self.preview_epoch
+        if p.frame.epoch() != self.preview_epoch
             || p.source_revision != self.source_revision
             || p.selection != self.inspector
             || p.tool != self.scene.tool
+            || p.camera != self.camera
+            || p.operation != self.selected_operation
         {
             return false;
         }
@@ -306,7 +489,7 @@ impl GeometryEditor {
         e: &Evaluation,
         p: Vec2<i32>,
     ) -> Option<(scene::Handle, [f32; 3])> {
-        if !self.native.enabled || self.camera == 3 || self.camera == 4 {
+        if !self.native.enabled || self.camera == 3 {
             return self.scene.hit(doc, e, &self.inspector, p);
         }
         let frame = self.native.displayed.as_ref()?;
@@ -314,7 +497,7 @@ impl GeometryEditor {
             .handles
             .iter()
             .filter_map(|(handle, world)| {
-                let q = frame.frame.projection.project(*world);
+                let q = frame.frame.mesh()?.projection.project(*world);
                 let distance = (q[0] - p.x as f32).hypot(q[1] - p.y as f32);
                 (distance < 12.).then_some((handle.clone(), *world, distance))
             })
@@ -328,6 +511,356 @@ mod tests {
     use super::*;
     use renderkit::{GpuContext, GpuImage, ImageDescriptor};
     use theframework::render_wgpu::{PaintRenderer, UiImages};
+    #[test]
+    #[ignore = "requires native GPU"]
+    fn native_geometry_baked_host_selects_authored_idle_frames_and_rebuilds_sources() {
+        let gpu = pollster::block_on(GpuContext::headless()).unwrap();
+        let (mut ui, mut ctx) = super::super::viewport_tests::fixture(1100, 800);
+        ctx.ui.command_paint = true;
+        let mut project = Project::default();
+        project.config = "[ruleset]\nsource='project'\n".into();
+        let recipe = Uuid::new_v4();
+        project
+            .procedural_appearances
+            .insert(recipe, scene::new_document().save().unwrap());
+        let output = Uuid::new_v4();
+        let mut tile =
+            rusterix::Tile::from_texture(rusterix::Texture::new(vec![0, 0, 0, 255], 1, 1));
+        tile.id = output;
+        tile.isometric = Some(rusterix::isometric::SpriteLayout {
+            directions: 1,
+            frames_per_direction: 3,
+            walk_frames: 2,
+            frames: vec![
+                rusterix::Texture::new(vec![255, 0, 0, 255], 1, 1),
+                rusterix::Texture::new(vec![0, 255, 0, 255], 1, 1),
+                rusterix::Texture::new(vec![0, 0, 255, 128], 1, 1),
+            ],
+            ..Default::default()
+        });
+        project.tiles.insert(output, tile);
+        project.isometric_bakes.insert(
+            output,
+            shared::isometric::Bake {
+                recipe,
+                ground: false,
+                yaw: 0.,
+                directions: 1,
+                motion: None,
+                frames: 3,
+                signature: 0,
+            },
+        );
+        let original = serde_json::to_value(&project).unwrap();
+        let mut editor = GeometryEditor::default();
+        editor.enable_gpu_preview();
+        editor.handle_event(
+            &TheEvent::Custom(
+                TheId::named("Open Procedural Geometry"),
+                TheValue::Id(recipe),
+            ),
+            &mut project,
+            &mut ui,
+            &mut ctx,
+        );
+        editor.camera = 4;
+        editor.iso_output = Some(output);
+        ui.prepare_paint_layout(&mut ctx);
+        editor.update(&project, &mut ui, &mut ctx, &ServerContext::default());
+        ui.prepare_paint_layout(&mut ctx);
+        editor.update(&project, &mut ui, &mut ctx, &ServerContext::default());
+        assert!(editor.worker.is_none());
+        assert!(editor.native.latest.is_none());
+        assert_eq!(
+            editor.native.baked.as_ref().unwrap().source.pixels(),
+            [0, 0, 255, 128]
+        );
+        let mut images = ImageRegistry::new(gpu.clone());
+        let token = editor
+            .prepare_gpu_preview(&mut ui, &mut ctx, &mut images)
+            .unwrap()
+            .unwrap();
+        assert!(editor.native.producer.is_none());
+        assert!(!editor.native_pick_ready(&project));
+        assert!(editor.presented_gpu_preview(token));
+        assert!(editor.scene.projection.is_none());
+        assert!(editor.native_pick_ready(&project));
+        assert_eq!(gpu.transfers().uploaded_bytes, 4);
+        assert_eq!(gpu.transfers().readback_bytes, 0);
+        let old_image = editor.native.displayed.as_ref().unwrap().image.unwrap();
+        let transfers = gpu.transfers();
+        assert!(!editor.update(&project, &mut ui, &mut ctx, &ServerContext::default()));
+        assert_eq!(
+            editor
+                .prepare_gpu_preview(&mut ui, &mut ctx, &mut images)
+                .unwrap(),
+            Some(token)
+        );
+        assert_eq!(gpu.transfers(), transfers);
+        assert_eq!(serde_json::to_value(&project).unwrap(), original);
+        project
+            .tiles
+            .get_mut(&output)
+            .unwrap()
+            .isometric
+            .as_mut()
+            .unwrap()
+            .frames[2]
+            .data = vec![241, 19, 33, 255];
+        editor.update(&project, &mut ui, &mut ctx, &ServerContext::default());
+        let changed = editor
+            .prepare_gpu_preview(&mut ui, &mut ctx, &mut images)
+            .unwrap()
+            .unwrap();
+        assert_ne!(changed, token);
+        assert!(images.get(old_image).is_some());
+        assert!(!editor.native_pick_ready(&project));
+        assert!(editor.presented_gpu_preview(changed));
+        assert_eq!(gpu.transfers().uploaded_bytes, 8);
+        let mut replacement =
+            ImageRegistry::new(pollster::block_on(GpuContext::headless()).unwrap());
+        let rebuilt = editor
+            .prepare_gpu_preview(&mut ui, &mut ctx, &mut replacement)
+            .unwrap()
+            .unwrap();
+        assert!(!editor.native_pick_ready(&project));
+        assert!(!editor.presented_gpu_preview(changed));
+        assert!(editor.presented_gpu_preview(rebuilt));
+        assert_eq!(replacement.context().transfers().uploaded_bytes, 4);
+        assert_eq!(replacement.context().transfers().readback_bytes, 0);
+        editor.reset(&mut ui, &mut ctx);
+        assert!(
+            editor
+                .prepare_gpu_preview(&mut ui, &mut ctx, &mut replacement)
+                .unwrap()
+                .is_none()
+        );
+        assert!(!editor.presented_gpu_preview(rebuilt));
+    }
+    #[test]
+    #[ignore = "requires native GPU"]
+    fn native_geometry_contour_paint_shares_reference_layout_and_acknowledged_input() {
+        use theframework::paint::PaintOp;
+        let gpu = pollster::block_on(GpuContext::headless()).unwrap();
+        let (mut ui, mut ctx) = super::super::viewport_tests::fixture(1100, 800);
+        ctx.ui.command_paint = true;
+        let mut project = Project::default();
+        project.config = "[ruleset]\nsource='project'\n".into();
+        let doc=Document::load(r#"{"version":1,"id":"contour","label":"Profile","rows":[{"id":"profile","label":"Profile","tiles":[{"id":"outline","op":{"type":"contour","points":[[-0.1,0],[0.1,0],[0,0.8]]}}]},{"id":"model","label":"Model","tiles":[{"id":"box","op":{"type":"box","size":[1,1,1]}}]}],"output":"model"}"#).unwrap();
+        let id = Uuid::new_v4();
+        project
+            .procedural_appearances
+            .insert(id, doc.save().unwrap());
+        let original = serde_json::to_value(&project).unwrap();
+        let mut editor = GeometryEditor::default();
+        editor.enable_gpu_preview();
+        editor.handle_event(
+            &TheEvent::Custom(TheId::named("Open Procedural Geometry"), TheValue::Id(id)),
+            &mut project,
+            &mut ui,
+            &mut ctx,
+        );
+        editor.camera = 3;
+        editor.selected_operation = Some("outline".into());
+        ui.prepare_paint_layout(&mut ctx);
+        editor.update(&project, &mut ui, &mut ctx, &ServerContext::default());
+        ui.prepare_paint_layout(&mut ctx);
+        editor.update(&project, &mut ui, &mut ctx, &ServerContext::default());
+        assert!(editor.worker.is_none());
+        assert!(editor.native.latest.is_none());
+        assert!(
+            editor.contour_frame.is_none(),
+            "CPU update cannot promote unpresented picking geometry"
+        );
+        let dim = *ui.get_widget(PREVIEW).unwrap().dim();
+        let request = editor.native.contour.as_ref().unwrap();
+        let reference = presentation::contour_image(
+            &[[-0.1, 0.], [0.1, 0.], [0., 0.8]],
+            dim.width,
+            dim.height,
+            ui.style.theme().as_ref(),
+            None,
+        )
+        .1;
+        assert_eq!(request.layout, reference);
+        let paint = request.paint.clone();
+        assert!(
+            paint
+                .ops
+                .iter()
+                .any(|op| matches!(op, PaintOp::GlyphRun { .. }))
+        );
+        assert!(
+            !paint
+                .ops
+                .iter()
+                .any(|op| matches!(op, PaintOp::Image { .. }))
+        );
+        let mut images = ImageRegistry::new(gpu.clone());
+        let token = editor
+            .prepare_gpu_preview(&mut ui, &mut ctx, &mut images)
+            .unwrap()
+            .unwrap();
+        assert!(
+            editor.native.producer.is_none(),
+            "contours allocate neither mesh targets nor material runtimes"
+        );
+        assert!(editor.native.staged.as_ref().unwrap().image.is_none());
+        editor.handle_event(
+            &TheEvent::RenderViewClicked(TheId::named(PREVIEW), Vec2::new(100, 100)),
+            &mut project,
+            &mut ui,
+            &mut ctx,
+        );
+        assert!(editor.drag.is_none());
+        assert!(editor.presented_gpu_preview(token));
+        assert!(editor.native_pick_ready(&project));
+        let frame = editor.contour_frame.clone().unwrap();
+        let p = frame.project([-0.1, 0.]);
+        let p = Vec2::new(p[0].round() as i32, p[1].round() as i32);
+        assert_eq!(frame.hit(p), Some(0));
+        // Source-independent resize must retain the old hit transform until ack.
+        ui.canvas.set_dim(TheDim::new(0, 0, 1400, 900), &mut ctx);
+        ctx.width = 1400;
+        ctx.height = 900;
+        editor.update(&project, &mut ui, &mut ctx, &ServerContext::default());
+        let resized = editor
+            .prepare_gpu_preview(&mut ui, &mut ctx, &mut images)
+            .unwrap()
+            .unwrap();
+        assert_eq!(editor.contour_frame.as_ref(), Some(&frame));
+        assert!(!editor.native_pick_ready(&project));
+        assert!(!editor.presented_gpu_preview(token));
+        assert!(editor.presented_gpu_preview(resized));
+        assert_ne!(editor.contour_frame.as_ref(), Some(&frame));
+        assert!(editor.native_pick_ready(&project));
+        let new_frame = editor.contour_frame.clone().unwrap();
+        let p = new_frame.project([-0.1, 0.]);
+        let p = Vec2::new(p[0].round() as i32, p[1].round() as i32);
+        editor.handle_event(
+            &TheEvent::RenderViewClicked(TheId::named(PREVIEW), p),
+            &mut project,
+            &mut ui,
+            &mut ctx,
+        );
+        assert_eq!(editor.drag.as_ref().and_then(|d| d.1), Some(0));
+        // GPU receipt invalidation must not refit the CPU drag's frozen plane.
+        editor.invalidate_gpu_preview(&mut ui);
+        assert!(editor.contour_frame.is_none());
+        assert_eq!(editor.contour_drag_frame.as_ref(), Some(&new_frame));
+        editor.handle_event(
+            &TheEvent::RenderViewDragged(TheId::named(PREVIEW), p + Vec2::new(8, -6)),
+            &mut project,
+            &mut ui,
+            &mut ctx,
+        );
+        assert_ne!(serde_json::to_value(&project).unwrap(), original);
+        editor.update(&project, &mut ui, &mut ctx, &ServerContext::default());
+        assert_eq!(
+            editor
+                .native
+                .contour
+                .as_ref()
+                .unwrap()
+                .layout
+                .as_ref()
+                .unwrap()
+                .unproject(p),
+            new_frame.unproject(p)
+        );
+        let dragged = editor
+            .prepare_gpu_preview(&mut ui, &mut ctx, &mut images)
+            .unwrap()
+            .unwrap();
+        assert!(editor.presented_gpu_preview(dragged));
+        editor.finish_drag(&mut project, &mut ctx, true);
+        assert!(editor.contour_drag_frame.is_none());
+        editor.update(&project, &mut ui, &mut ctx, &ServerContext::default());
+        let restored = editor
+            .prepare_gpu_preview(&mut ui, &mut ctx, &mut images)
+            .unwrap()
+            .unwrap();
+        assert!(editor.presented_gpu_preview(restored));
+        assert_eq!(
+            gpu.transfers().uploaded_bytes,
+            0,
+            "profiles upload no source/viewport bitmaps"
+        );
+        let mut painter = PaintRenderer::new(gpu.clone()).unwrap();
+        let output = GpuImage::new(
+            &gpu,
+            ImageDescriptor::rgba(dim.width as u32, dim.height as u32),
+        )
+        .unwrap();
+        painter
+            .render(
+                &paint,
+                &images,
+                &output.view,
+                output.descriptor.format,
+                (dim.width as u32, dim.height as u32),
+                1.,
+                [0.; 4],
+            )
+            .unwrap();
+        assert!(painter.glyphs.rasterizations > 0);
+        let rasterizations = painter.glyphs.rasterizations;
+        assert_eq!(gpu.transfers().readback_bytes, 0);
+        let transfers = gpu.transfers();
+        painter
+            .render(
+                &paint,
+                &images,
+                &output.view,
+                output.descriptor.format,
+                (dim.width as u32, dim.height as u32),
+                1.,
+                [0.; 4],
+            )
+            .unwrap();
+        assert_eq!(painter.glyphs.rasterizations, rasterizations);
+        assert_eq!(gpu.transfers(), transfers);
+        let mut capture = renderkit::ReadbackTicket::capture(&gpu, output).unwrap();
+        gpu.device
+            .poll(wgpu::PollType::Wait {
+                submission_index: None,
+                timeout: Some(std::time::Duration::from_secs(30)),
+            })
+            .unwrap();
+        let captured = capture.try_finish(&gpu).unwrap().unwrap();
+        let mut encoder = png::Encoder::new(
+            std::fs::File::create("/private/tmp/eldiron-native-contour-preview.png").unwrap(),
+            dim.width as u32,
+            dim.height as u32,
+        );
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        encoder
+            .write_header()
+            .unwrap()
+            .write_image_data(captured.pixels())
+            .unwrap();
+        let mut replacement =
+            ImageRegistry::new(pollster::block_on(GpuContext::headless()).unwrap());
+        let rebuilt = editor
+            .prepare_gpu_preview(&mut ui, &mut ctx, &mut replacement)
+            .unwrap()
+            .unwrap();
+        assert!(editor.contour_frame.is_none());
+        assert!(!editor.native_pick_ready(&project));
+        assert!(!editor.presented_gpu_preview(resized));
+        assert!(editor.presented_gpu_preview(rebuilt));
+        assert_eq!(editor.contour_frame.as_ref(), Some(&new_frame));
+        assert_eq!(serde_json::to_value(&project).unwrap(), original);
+        editor.reset(&mut ui, &mut ctx);
+        assert!(
+            editor
+                .prepare_gpu_preview(&mut ui, &mut ctx, &mut replacement)
+                .unwrap()
+                .is_none()
+        );
+        assert!(!editor.presented_gpu_preview(rebuilt));
+    }
     #[test]
     #[ignore = "requires native GPU"]
     fn native_geometry_host_keeps_picks_on_presented_frames_and_rebuilds_only_gpu_ownership() {
@@ -461,7 +994,7 @@ mod tests {
         let restored = &mut editor.native.latest.as_mut().unwrap().job;
         restored.revision = valid.0;
         restored.yaw = valid.1;
-        let old_image = editor.native.displayed.as_ref().unwrap().image;
+        let old_image = editor.native.displayed.as_ref().unwrap().image.unwrap();
         let replacement_gpu = pollster::block_on(GpuContext::headless()).unwrap();
         let mut replacement = ImageRegistry::new(replacement_gpu.clone());
         let rebuilt = editor
@@ -472,11 +1005,15 @@ mod tests {
         assert!(!editor.presented_gpu_preview(newest));
         assert!(editor.presented_gpu_preview(rebuilt));
         let current = editor.native.displayed.as_ref().unwrap();
-        let target = GpuImage::new(&replacement_gpu, current.frame.image.descriptor).unwrap();
+        let target = GpuImage::new(
+            &replacement_gpu,
+            current.frame.mesh().unwrap().image.descriptor,
+        )
+        .unwrap();
         let mut compositor = PaintRenderer::new(replacement_gpu.clone()).unwrap();
         compositor
             .render(
-                &current.frame.paint(current.image),
+                &current.frame.mesh().unwrap().paint(current.image.unwrap()),
                 &replacement,
                 &target.view,
                 target.descriptor.format,
@@ -502,7 +1039,7 @@ mod tests {
             !editor.native_pick_ready(&project),
             "external source changes reject old handle input before the next CPU update"
         );
-        let last = editor.native.displayed.as_ref().unwrap().image;
+        let last = editor.native.displayed.as_ref().unwrap().image.unwrap();
         editor.reset(&mut ui, &mut ctx);
         assert!(
             editor

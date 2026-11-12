@@ -14,16 +14,21 @@ const HALF_W: f32 = 32.;
 const HALF_H: f32 = 16.;
 const VERTICAL: f32 = 39.1918359;
 
+/// Logical placement shared by reference capture and native baked-source display.
+/// The inset is in source pixels, preserving the established preview framing.
+pub fn preview_placement(width: f32, height: f32, source: [f32; 2]) -> (f32, [f32; 2]) {
+    let scale = (width / (source[0] + 16.)).min(height / (source[1] + 16.));
+    (scale, [(width - source[0] * scale) * 0.5, (height - source[1] * scale) * 0.5])
+}
+
 pub fn draw_preview(buffer: &mut TheRGBABuffer, image: &Texture, checker: [[u8; 4]; 2]) {
     let width = buffer.dim().width.max(0) as usize;
     let height = buffer.dim().height.max(0) as usize;
     if width == 0 || height == 0 || image.width == 0 || image.height == 0 {
         return;
     }
-    let scale = (width as f32 / (image.width as f32 + 16.))
-        .min(height as f32 / (image.height as f32 + 16.));
-    let size = Vec2::new(image.width as f32, image.height as f32) * scale;
-    let origin = (Vec2::new(width as f32, height as f32) - size) * 0.5;
+    let (scale, origin) = preview_placement(width as f32, height as f32, [image.width as f32, image.height as f32]);
+    let origin = Vec2::new(origin[0], origin[1]);
     for y in 0..height {
         for x in 0..width {
             let mut color = checker[(x / 12 + y / 12) % 2];

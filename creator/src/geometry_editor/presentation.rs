@@ -380,10 +380,20 @@ fn parameters(
         }
         Operation::StateSwitch { off, on } => {
             for (key, label, row) in [("off", "Off / Closed", off), ("on", "On / Open", on)] {
-                scalar(key, label, doc.rows.iter().position(|r| &r.id == row).unwrap_or(0) as f32,
-                    0., doc.rows.len().saturating_sub(1) as f32);
-                p.push(property(key, label, vec![key.into()], MaterialPropertyKind::Choice,
-                    doc.rows.iter().map(|r| r.label.clone()).collect()));
+                scalar(
+                    key,
+                    label,
+                    doc.rows.iter().position(|r| &r.id == row).unwrap_or(0) as f32,
+                    0.,
+                    doc.rows.len().saturating_sub(1) as f32,
+                );
+                p.push(property(
+                    key,
+                    label,
+                    vec![key.into()],
+                    MaterialPropertyKind::Choice,
+                    doc.rows.iter().map(|r| r.label.clone()).collect(),
+                ));
             }
         }
         Operation::Assemble { rows } => {
@@ -1188,7 +1198,7 @@ pub(super) fn set_transform(
     }
     Err("Invalid transform component".into())
 }
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ContourFrame {
     center: [f32; 2],
     scale: f32,
@@ -1213,25 +1223,26 @@ impl ContourFrame {
             -(p.y as f32 - self.size[1] / 2.) / self.scale + self.center[1],
         ]
     }
-    fn project(&self, p: [f32; 2]) -> [f32; 2] {
+    pub(super) fn project(&self, p: [f32; 2]) -> [f32; 2] {
         [
             (p[0] - self.center[0]) * self.scale + self.size[0] / 2.,
             -(p[1] - self.center[1]) * self.scale + self.size[1] / 2.,
         ]
     }
 }
-pub fn contour_image(
+/// Shared logical profile geometry for native paint, CPU captures and picking.
+pub fn contour_layout(
     points: &[[f32; 2]],
     width: i32,
     height: i32,
-    theme: &dyn TheTheme,
     fixed: Option<&ContourFrame>,
-) -> (TheRGBABuffer, Option<ContourFrame>) {
+) -> Option<ContourFrame> {
     let w = width.max(1) as usize;
     let h = height.max(1) as usize;
-    let mut pixels = theme.color(MaterialCanvas).repeat(w * h);
-    let mut frame = None;
-    if !points.is_empty() {
+    if points.is_empty() {
+        return None;
+    }
+    {
         let lo: [f32; 2] =
             std::array::from_fn(|k| points.iter().map(|p| p[k]).fold(f32::INFINITY, f32::min));
         let hi: [f32; 2] = std::array::from_fn(|k| {
@@ -1249,6 +1260,22 @@ pub fn contour_image(
             screen: vec![],
         });
         f.screen = points.iter().map(|p| f.project(*p)).collect();
+        Some(f)
+    }
+}
+
+pub fn contour_image(
+    points: &[[f32; 2]],
+    width: i32,
+    height: i32,
+    theme: &dyn TheTheme,
+    fixed: Option<&ContourFrame>,
+) -> (TheRGBABuffer, Option<ContourFrame>) {
+    let w = width.max(1) as usize;
+    let h = height.max(1) as usize;
+    let mut pixels = theme.color(MaterialCanvas).repeat(w * h);
+    let frame = contour_layout(points, width, height, fixed);
+    if let Some(f) = &frame {
         for i in 0..points.len() {
             line(
                 &mut pixels,
@@ -1274,7 +1301,6 @@ pub fn contour_image(
                 }
             }
         }
-        frame = Some(f);
     }
     let label = if points.is_empty() {
         "Select a Contour or Loft tile to edit its profile"
@@ -1299,6 +1325,68 @@ pub fn contour_image(
     }
     (TheRGBABuffer::from(pixels, w as u32, h as u32), frame)
 }
+#[cfg(feature = "native-render")]
+pub(super) fn contour_paint(
+    points: &[[f32; 2]],
+    width: i32,
+    height: i32,
+    theme: &dyn TheTheme,
+    fixed: Option<&ContourFrame>,
+    text: &mut theframework::text::TextSystem,
+) -> (theframework::paint::PaintList, Option<ContourFrame>) {
+    use std::sync::Arc;
+    use theframework::paint::*;
+    let w = width.max(1) as f32;
+    let h = height.max(1) as f32;
+    let color = |role| theme.color(role).map(|c| c as f32 / 255.);
+    let frame = contour_layout(points, width, height, fixed);
+    let mut list = PaintList::default();
+    list.rect(Rect::new(0., 0., w, h), 0., color(MaterialCanvas));
+    if let Some(f) = &frame {
+        let mut elements = vec![PathElement::Move(f.screen[0])];
+        elements.extend(f.screen.iter().skip(1).copied().map(PathElement::Line));
+        elements.push(PathElement::Close);
+        list.ops.push(PaintOp::Stroke {
+            path: Arc::new(Path { elements }),
+            stroke: Stroke {
+                width: 1.,
+                cap: LineCap::Butt,
+                join: LineJoin::Miter,
+                brush: color(MaterialWire).into(),
+            },
+        });
+        for p in &f.screen {
+            list.rect(
+                Rect::new(p[0] - 4.5, p[1] - 4.5, 9., 9.),
+                4.5,
+                color(SelectedTextEditBorder1),
+            );
+        }
+    }
+    if w >= 160. {
+        let label = if points.is_empty() {
+            "Select a Contour or Loft tile to edit its profile"
+        } else {
+            "Profile · drag points or rings"
+        };
+        let layout = text.layout(label, "Roboto", 11., None);
+        let rect = Rect::new(8., 4., w - 16., 24.);
+        // The reference text rectangle clears its background after the points.
+        list.rect(rect, 0., color(MaterialCanvas));
+        list.ops.push(PaintOp::PushClip(rect));
+        let y = 4. + (24. - layout.height()) / 2.;
+        for run in layout.runs {
+            list.ops.push(PaintOp::GlyphRun {
+                run,
+                origin: [8., y],
+                color: color(MaterialText),
+            });
+        }
+        list.ops.push(PaintOp::PopClip);
+    }
+    (list, frame)
+}
+
 pub(super) fn line(pixels: &mut [u8], w: usize, h: usize, a: [f32; 2], b: [f32; 2], color: RGBA) {
     let steps = ((a[0] - b[0]).abs().max((a[1] - b[1]).abs()).ceil() as usize)
         .max(1)
