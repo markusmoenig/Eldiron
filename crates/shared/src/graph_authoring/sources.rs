@@ -1,9 +1,12 @@
 //! Retained CPU sources for behavior and entity configuration graphs.
 //! Project persistence/validation is independent of view selection and rendering.
 use super::*;
+#[path = "transactions.rs"]
+mod transactions;
 use crate::{entity_graph, project::Project, rulesets};
 use std::collections::HashMap;
 use theframework::thegraph::*;
+pub use transactions::*;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NodeSourceKey {
@@ -74,6 +77,8 @@ pub struct NodeSourceChange {
     pub key: NodeSourceKey,
     pub before: GraphDocument,
     pub after: GraphDocument,
+    pub before_position: Option<NodeBranchPosition>,
+    pub after_position: Option<NodeBranchPosition>,
 }
 #[derive(Debug)]
 pub struct NodeSourceApply {
@@ -462,6 +467,7 @@ impl NodeGraphWorkspace {
             ));
             return Ok(self.outcome(key, true, None));
         }
+        let before_position = NodeBranchPosition::capture(&graphs.order, key.branch);
         graphs.replace(key.branch, source.document.clone());
         if key.branch.is_some() && source.document.nodes.is_empty() {
             let root = key.branch.unwrap();
@@ -486,6 +492,8 @@ impl NodeGraphWorkspace {
         source.error = None;
         source.validation = validation;
         let change = NodeSourceChange {
+            before_position,
+            after_position: NodeBranchPosition::capture(&graphs.order, key.branch),
             key: key.clone(),
             before,
             after: source.document.clone(),

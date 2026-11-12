@@ -1,5 +1,7 @@
 //! Application-owned view sessions around the shared CPU authoring workspace.
 //! No renderer, window, Project clone or raster/font cache is created here.
+#[path = "native_history.rs"]
+mod history;
 use super::native_view::NativeNodePanels;
 use super::*;
 use shared::graph_authoring::{
@@ -15,6 +17,8 @@ pub(super) struct NativeNodeSourceView {
     pub context: ProjectContext,
     pub shown: Option<GraphId>,
     revision: u64,
+    pub session: GraphId,
+    history: history::SourceHistory,
 }
 #[derive(Default)]
 pub(super) struct NativeNodesWorkspace {
@@ -128,34 +132,61 @@ impl NativeNodesWorkspace {
             .cpu
             .graphs(project, &owner, &definitions)
             .map_err(|error| error.to_string())?;
+        let retained_tombstone = |root| {
+            let key = NodeSourceKey {
+                owner: owner.clone(),
+                branch: Some(root),
+            };
+            self.cpu
+                .source(&key)
+                .is_some_and(|source| source.stored().is_none())
+                && self
+                    .views
+                    .get(&key)
+                    .is_some_and(|view| view.model.lock().unwrap().document().nodes.is_empty())
+                && (self.can_undo(&key) || self.can_redo(&key))
+        };
         if prototype.kind() != NodeGraphKind::Configuration
-            && branch.is_some_and(|root| !graphs.branches.contains_key(&root))
+            && branch.is_some_and(|root| {
+                !graphs.branches.contains_key(&root) && !retained_tombstone(root)
+            })
         {
             return Err(NodeSourceError::MissingBranch.to_string());
         }
-        let chosen = if prototype.kind() == NodeGraphKind::Configuration {
+        let remembered_draft = branch.is_none()
+            && self.selected.get(&owner) == Some(&None)
+            && self.views.get(&prototype).is_some_and(|view| {
+                !view.model.lock().unwrap().document().nodes.is_empty()
+                    || self.can_undo(&prototype)
+                    || self.can_redo(&prototype)
+            });
+        let chosen = if prototype.kind() == NodeGraphKind::Configuration || remembered_draft {
             None
         } else {
             branch
                 .or_else(|| self.selected.get(&owner).copied().flatten())
-                .filter(|root| graphs.branches.contains_key(root))
+                .filter(|root| graphs.branches.contains_key(root) || retained_tombstone(*root))
                 .or_else(|| graphs.order.first().copied())
         };
         let key = NodeSourceKey {
             owner: owner.clone(),
             branch: chosen,
         };
+        let tombstone = key
+            .branch
+            .is_some_and(|root| !graphs.branches.contains_key(&root) && retained_tombstone(root));
         if self.active.as_ref() != Some(&key)
             && let Some(previous) = self.active.clone()
         {
             let _ = self.suspend(&previous, fonts);
         }
         let preserve = self.pending(&key);
-        let source = self
-            .cpu
-            .load(project, key.clone(), &definitions, preserve)
-            .map_err(|error| error.to_string())?;
-        let revision = source.revision();
+        if !tombstone {
+            self.cpu
+                .load(project, key.clone(), &definitions, preserve)
+                .map_err(|error| error.to_string())?;
+        }
+        let revision = self.cpu.source(&key).unwrap().revision();
         self.cpu
             .project_source(project, &key, |doc, base, project| {
                 project_source_graph(doc, base, project, &key, &definitions)
@@ -206,6 +237,8 @@ impl NativeNodesWorkspace {
                     context,
                     shown,
                     revision,
+                    session: GraphId::new_v4(),
+                    history: history::SourceHistory::default(),
                 },
             );
         } else {
@@ -318,6 +351,13 @@ impl NativeNodesWorkspace {
                 }) {
                 Ok(outcome) => {
                     if let Some(change) = outcome.change {
+                        if let Some(view) = self.views.get_mut(&key) {
+                            view.history.record(
+                                shared::graph_authoring::NodeSourceTransaction::from_change(
+                                    &change,
+                                ),
+                            );
+                        }
                         self.changes.push(change);
                         changed = true;
                     }
@@ -831,5 +871,239 @@ mod tests {
         assert!(f.registry.checkpoint_all(&mut f.project).unwrap());
         assert!(f.project.characters[&f.character].data.contains("Orc"));
         assert_eq!(f.registry.take_changes().len(), 1);
+    }
+    #[test]
+    fn native_node_history_keeps_one_session_through_text_draft_promotion_undo_redo_and_owner_switches()
+     {
+        let mut f = Fixture::new();
+        f.registry.reset();
+        let mut say = catalog::definitions()
+            .instantiate("say", [60., 60.])
+            .unwrap();
+        say.branch = None;
+        f.project.node_graphs.insert("behavior/world".into(),serde_json::json!({"version":1,"branches":[GraphDocument {nodes:vec![say],..Default::default()}]}));
+        f.show(ProjectContext::WorldCode);
+        let draft = f.registry.active.clone().unwrap();
+        assert!(draft.branch.is_none());
+        let session = f.registry.views[&draft].session;
+        let original = f.registry.cpu.source(&draft).unwrap().document().clone();
+        let target = f.type_text("Committed 東京 e\u{301}", false);
+        f.send(InputEvent::CompositionFor {
+            target,
+            text: "日本".into(),
+            cursor: Some((0, 6)),
+        });
+        let retired = f.registry.views[&draft].model.clone();
+        f.registry
+            .edit_source(&mut f.project, &draft, &mut f.ctx.text, |doc, defs| {
+                let root = defs.instantiate("event", [10., 20.]).unwrap();
+                let to = NodeSourceKey {
+                    owner: draft.owner.clone(),
+                    branch: Some(root.id),
+                };
+                doc.nodes.insert(0, root);
+                Ok(to)
+            })
+            .unwrap();
+        let branch = f.registry.active.clone().unwrap();
+        assert!(branch.branch.is_some());
+        assert_eq!(f.registry.views[&branch].session, session);
+        assert!(!Arc::ptr_eq(&retired, &f.registry.views[&branch].model));
+        assert!(retired.lock().unwrap().document().nodes.is_empty());
+        assert!(
+            f.registry
+                .cpu
+                .binding_source(retired.lock().unwrap().binding())
+                .is_none()
+        );
+        f.show(ProjectContext::CharacterCode(f.character));
+        f.show(ProjectContext::WorldCode);
+        assert_eq!(f.registry.active.as_ref(), Some(&branch));
+        assert_eq!(f.registry.views[&branch].session, session);
+        assert!(
+            f.registry
+                .undo_source(&mut f.project, &branch, &mut f.ctx.text)
+                .unwrap()
+        );
+        assert_eq!(f.registry.active.as_ref(), Some(&draft));
+        assert_eq!(f.registry.views[&draft].session, session);
+        assert_eq!(f.saved(&draft.owner), "Committed 東京 e\u{301}");
+        assert!(f.registry.can_redo(&draft));
+        assert!(
+            f.registry
+                .undo_source(&mut f.project, &draft, &mut f.ctx.text)
+                .unwrap()
+        );
+        assert_eq!(f.registry.cpu.source(&draft).unwrap().document(), &original);
+        assert!(
+            f.registry
+                .redo_source(&mut f.project, &draft, &mut f.ctx.text)
+                .unwrap()
+        );
+        assert_eq!(f.saved(&draft.owner), "Committed 東京 e\u{301}");
+        assert!(
+            f.registry
+                .redo_source(&mut f.project, &draft, &mut f.ctx.text)
+                .unwrap()
+        );
+        assert_eq!(f.registry.active.as_ref(), Some(&branch));
+        assert_eq!(f.registry.views[&branch].session, session);
+        f.show(ProjectContext::WorldCode);
+        assert!(
+            !f.send(InputEvent::TextFor {
+                target,
+                text: "stale IME".into()
+            })
+            .consumed
+        );
+        let graphs = f
+            .registry
+            .cpu
+            .graphs(&f.project, &draft.owner, &catalog::definitions())
+            .unwrap();
+        assert!(graphs.draft.nodes.is_empty());
+        assert_eq!(graphs.order, vec![branch.branch.unwrap()]);
+    }
+    #[test]
+    fn native_node_history_retains_deleted_branch_undo_and_resets_on_clean_external_rebase() {
+        let mut f = Fixture::new();
+        let key = f.registry.active.clone().unwrap();
+        let session = f.registry.views[&key].session;
+        let original = f.registry.cpu.source(&key).unwrap().document().clone();
+        f.registry
+            .edit_source(&mut f.project, &key, &mut f.ctx.text, |doc, _| {
+                doc.nodes.clear();
+                doc.connections.clear();
+                Ok(key.clone())
+            })
+            .unwrap();
+        assert!(f.registry.can_undo(&key));
+        f.show(ProjectContext::CharacterCode(f.character));
+        f.show(ProjectContext::WorldCode);
+        assert_eq!(f.registry.active.as_ref(), Some(&key));
+        assert_eq!(f.registry.views[&key].session, session);
+        assert!(
+            f.registry
+                .undo_source(&mut f.project, &key, &mut f.ctx.text)
+                .unwrap()
+        );
+        assert_eq!(f.registry.cpu.source(&key).unwrap().document(), &original);
+        assert!(f.registry.can_redo(&key));
+        let binding = f.registry.views[&key].model.lock().unwrap().binding();
+        for doc in f.project.node_graphs[&key.owner]["branches"]
+            .as_array_mut()
+            .unwrap()
+        {
+            doc["nodes"][0]["title"] = "External content".into();
+        }
+        f.show(ProjectContext::WorldCode);
+        assert_ne!(f.registry.views[&key].session, session);
+        assert!(!f.registry.can_undo(&key));
+        assert!(!f.registry.can_redo(&key));
+        assert!(f.registry.cpu.binding_source(binding).is_none());
+        let before = serde_json::to_value(&f.project).unwrap();
+        assert!(
+            !f.registry
+                .redo_source(&mut f.project, &key, &mut f.ctx.text)
+                .unwrap()
+        );
+        assert_eq!(serde_json::to_value(&f.project).unwrap(), before);
+    }
+    #[test]
+    fn native_node_history_preserves_noop_bindings_and_the_undo_cursor_on_external_conflict() {
+        let mut f = Fixture::new();
+        let key = f.registry.active.clone().unwrap();
+        f.registry
+            .edit_source(&mut f.project, &key, &mut f.ctx.text, |doc, _| {
+                doc.nodes[0].disabled = true;
+                Ok(key.clone())
+            })
+            .unwrap();
+        let before = serde_json::to_value(&f.project).unwrap();
+        let binding = f.registry.views[&key].model.lock().unwrap().binding();
+        assert!(
+            !f.registry
+                .edit_source(
+                    &mut f.project,
+                    &key,
+                    &mut f.ctx.text,
+                    |_, _| Ok(key.clone())
+                )
+                .unwrap()
+        );
+        assert_eq!(
+            f.registry.views[&key].model.lock().unwrap().binding(),
+            binding
+        );
+        assert_eq!(serde_json::to_value(&f.project).unwrap(), before);
+        for doc in f.project.node_graphs[&key.owner]["branches"]
+            .as_array_mut()
+            .unwrap()
+        {
+            doc["nodes"][0]["title"] = "External".into();
+        }
+        let external = serde_json::to_value(&f.project).unwrap();
+        assert!(
+            f.registry
+                .undo_source(&mut f.project, &key, &mut f.ctx.text)
+                .is_err()
+        );
+        assert!(f.registry.can_undo(&key));
+        assert!(!f.registry.can_redo(&key));
+        assert_eq!(serde_json::to_value(&f.project).unwrap(), external);
+    }
+    #[test]
+    fn native_node_history_cannot_steal_another_live_empty_draft_session() {
+        let mut f = Fixture::new();
+        let key = f.registry.active.clone().unwrap();
+        let draft = NodeSourceKey {
+            owner: key.owner.clone(),
+            branch: None,
+        };
+        let defs = catalog::definitions();
+        let source = f
+            .registry
+            .cpu
+            .load(&f.project, draft.clone(), &defs, false)
+            .unwrap();
+        let revision = source.revision();
+        let document = source.document().clone();
+        let model = Arc::new(Mutex::new(GraphViewState::new(
+            "independent-draft",
+            document,
+        )));
+        f.registry
+            .cpu
+            .bind(&draft, model.lock().unwrap().binding())
+            .unwrap();
+        let session = GraphId::new_v4();
+        f.registry.views.insert(
+            draft.clone(),
+            NativeNodeSourceView {
+                model: model.clone(),
+                panels: Arc::new(Mutex::new(NativeNodePanels::default())),
+                id: TheId::named(VIEW),
+                context: ProjectContext::WorldCode,
+                shown: None,
+                revision,
+                session,
+                history: history::SourceHistory::default(),
+            },
+        );
+        let before = serde_json::to_value(&f.project).unwrap();
+        let binding = f.registry.views[&key].model.lock().unwrap().binding();
+        assert!(
+            f.registry
+                .edit_source(&mut f.project, &key, &mut f.ctx.text, |doc, defs| {
+                    doc.nodes.retain(|node| !is_branch_trigger(node, defs));
+                    Ok(draft.clone())
+                })
+                .is_err()
+        );
+        assert_eq!(serde_json::to_value(&f.project).unwrap(), before);
+        assert_eq!(f.registry.views[&draft].session, session);
+        assert!(Arc::ptr_eq(&f.registry.views[&draft].model, &model));
+        assert_eq!(f.registry.cpu.binding_source(binding), Some(&key));
+        assert!(!f.registry.can_undo(&key));
     }
 }
