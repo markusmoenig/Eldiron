@@ -24,6 +24,8 @@ pub struct SceneCache {
 /// A scene frame borrowing authored/derived asset sources in reference painter order.
 /// Geometry and sprite bytes are source assets; none are a composited viewport.
 pub struct ScenePlan<'a> {
+    /// Tick-selected floor/terrain phase before spatial page addressing.
+    pub material_frame: usize,
     pub terrain: Option<Arc<TerrainSurface>>,
     pub ground: Vec<Sprite<'a>>,
     pub upright: Vec<Sprite<'a>>,

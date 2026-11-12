@@ -422,6 +422,7 @@ pub(super) fn collect<'a>(
     upright.sort_by(Sprite::painter_cmp);
 
     ScenePlan {
+        material_frame: super::super::materials::animation_frame(seconds),
         terrain: terrain_model,
         ground,
         upright,

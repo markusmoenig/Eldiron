@@ -1,6 +1,7 @@
 //! Native 2D isometric sprite projection. Collision stays in the map's X/Z plane.
 pub mod elevation;
 pub mod lighting;
+pub mod materials;
 pub mod paint;
 pub mod surface;
 mod terrain;
@@ -440,7 +441,7 @@ fn draw_scene_impl(
         cache_height,
         &sprite_frames,
         if animated_floor {
-            (seconds.max(0.) / 0.25) as usize
+            materials::animation_frame(seconds)
         } else {
             0
         },
@@ -616,7 +617,7 @@ fn draw_scene_entry(
 ) {
     if let (Some(sector), Some(tile)) = (entry.floor, entry.tile) {
         if let Some(surfaces) = surfaces {
-            let frame = (seconds.max(0.) / 0.25) as usize
+            let frame = materials::animation_frame(seconds)
                 % tile
                     .uv_pages
                     .as_ref()
@@ -816,37 +817,8 @@ fn raster_floor_pixels(
         .collect::<Vec<_>>();
     let bbox = sector.bounding_box(map);
     let repeat = sector.properties.get_int_default("tile_mode", 1) != 0;
-    let frame = (seconds.max(0.) / 0.25) as usize;
-    // Keep the same world-cell overrides used by the top-down and 3D painters.
-    // A sector-local override takes precedence over the terrain's ground layer.
-    let resolve = |source: &crate::PixelSource| {
-        source
-            .render_tile_id(assets)
-            .and_then(|id| assets.tile_index(&id))
-            .and_then(|i| assets.tile_list.get(i as usize))
-    };
-    let mut overrides = std::collections::HashMap::new();
-    let mut blends = std::collections::HashMap::new();
-    for properties in [
-        (floor.abs() < 0.001).then_some(&map.properties),
-        Some(&sector.properties),
-    ]
-    .into_iter()
-    .flatten()
-    {
-        if let Some(Value::TileOverrides(tiles)) = properties.get("tiles") {
-            overrides.extend(
-                tiles
-                    .iter()
-                    .filter_map(|(cell, source)| resolve(source).map(|tile| (*cell, tile))),
-            );
-        }
-        if let Some(Value::BlendOverrides(tiles)) = properties.get("blend_tiles") {
-            blends.extend(tiles.iter().filter_map(|(cell, (preset, source))| {
-                resolve(source).map(|tile| (*cell, (preset.weights(), tile)))
-            }));
-        }
-    }
+    let frame = materials::animation_frame(seconds);
+    let materials = materials::SurfaceMaterials::for_floor(map, sector, tile, assets);
     let sample = |tile: &Tile, uv: Vec2<f32>| {
         tile.sample_2d(
             uv.into_array(),
@@ -903,8 +875,9 @@ fn raster_floor_pixels(
                     (world - bbox.min) / (bbox.max - bbox.min).map(|v| v.max(0.001))
                 };
                 let cell = (world.x.floor() as i32, world.y.floor() as i32);
-                let mut color = sample(overrides.get(&cell).copied().unwrap_or(tile), uv);
-                if let Some((weights, secondary)) = blends.get(&cell) {
+                let selection = materials.cell(cell).expect("floor has its explicit base source");
+                let mut color = sample(selection.primary, uv);
+                if let Some((weights, secondary)) = selection.secondary {
                     let (u, v) = (world.x.rem_euclid(1.), world.y.rem_euclid(1.));
                     let left = weights[0] * (1. - v) + weights[3] * v;
                     let right = weights[1] * (1. - v) + weights[2] * v;

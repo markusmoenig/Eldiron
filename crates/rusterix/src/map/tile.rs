@@ -537,6 +537,38 @@ impl Tile {
         let x = (uv[0] * (texture.width - 1) as f32).round() as u32;
         let y = (uv[1] * (texture.height - 1) as f32).round() as u32;
         let color = texture.sample_nearest(uv[0], uv[1]);
+        (color, self.source_material(index, texture, x, y, color))
+    }
+
+    /// Read an authored source texel and its live material channels for immutable
+    /// GPU asset preparation. Coordinates are source pixels, never a viewport.
+    /// Spatial/animation page selection remains explicit at the caller.
+    pub fn source_surface_texel(
+        &self,
+        index: usize,
+        x: u32,
+        y: u32,
+    ) -> Option<([u8; 4], [f32; 4])> {
+        let texture = self.textures.get(index)?;
+        if x as usize >= texture.width || y as usize >= texture.height {
+            return None;
+        }
+        let at = (y as usize)
+            .checked_mul(texture.width)?
+            .checked_add(x as usize)?
+            .checked_mul(4)?;
+        let color = texture.data.get(at..at.checked_add(4)?)?.try_into().ok()?;
+        Some((color, self.source_material(index, texture, x, y, color)))
+    }
+
+    fn source_material(
+        &self,
+        index: usize,
+        texture: &Texture,
+        x: u32,
+        y: u32,
+        color: [u8; 4],
+    ) -> [f32; 4] {
         let at = (y as usize * texture.width + x as usize) * 2;
         let material = self
             .material
@@ -555,7 +587,7 @@ impl Tile {
                     (0.95, 0., 1., 0.)
                 }
             });
-        (color, [material.0, material.1, material.2, material.3])
+        [material.0, material.1, material.2, material.3]
     }
 
     /// Parse a comma, semicolon, or newline separated gameplay tag list.

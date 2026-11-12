@@ -18,50 +18,7 @@ pub(super) fn render(
     if width == 0 || height == 0 {
         return depth;
     }
-    let outputs = crate::chunkbuilder::terrain_material::outputs(map);
-    let resolve = |source: &crate::PixelSource| {
-        source
-            .render_tile_id(assets)
-            .map(|id| crate::chunkbuilder::terrain_material::resolve(&outputs, assets, id))
-            .and_then(|id| assets.tile_index(&id))
-            .and_then(|i| assets.tile_list.get(i as usize))
-    };
-    let default = map
-        .properties
-        .get_source("default_terrain_tile")
-        .and_then(resolve);
-    let mut tiles = std::collections::HashMap::new();
-    for s in &map.sectors {
-        if s.properties.get_float_default("floor_height", 0.).abs() > 0.001 {
-            continue;
-        }
-        if let Some(tile) = s
-            .properties
-            .get_default_source()
-            .and_then(resolve)
-            .filter(|t| t.isometric.as_ref().is_some_and(|s| s.ground))
-        {
-            let b = s.bounding_box(map);
-            if (b.max - b.min - 1.).magnitude_squared() < 0.00001 {
-                tiles.insert((b.min.x.floor() as i32, b.min.y.floor() as i32), tile);
-            }
-        }
-    }
-    if let Some(Value::TileOverrides(overrides)) = map.properties.get("tiles") {
-        tiles.extend(
-            overrides
-                .iter()
-                .filter_map(|(cell, s)| resolve(s).map(|t| (*cell, t))),
-        );
-    }
-    let mut blends = std::collections::HashMap::new();
-    if let Some(Value::BlendOverrides(overrides)) = map.properties.get("blend_tiles") {
-        blends.extend(
-            overrides.iter().filter_map(|(cell, (preset, s))| {
-                resolve(s).map(|t| (*cell, (preset.weights(), t)))
-            }),
-        );
-    }
+    let materials = super::materials::SurfaceMaterials::for_terrain(map, assets);
     let mut clip = surface.bounds;
     let corners = [
         Vec2::zero(),
@@ -91,7 +48,7 @@ pub(super) fn render(
             }),
         f32::min,
     );
-    let frame = (seconds.max(0.) / 0.25) as usize;
+    let frame = super::materials::animation_frame(seconds);
     struct Facet<'a> {
         tri: [Vec3<f32>; 3],
         screen: [Vec2<f32>; 3],
@@ -105,9 +62,8 @@ pub(super) fn render(
     surface.triangles(clip, |tri| {
         let center = (tri[0] + tri[1] + tri[2]) / 3.;
         let cell = (center.x.floor() as i32, center.z.floor() as i32);
-        let Some(tile) = tiles.get(&cell).copied().or(default) else {
-            return;
-        };
+        let Some(selection) = materials.cell(cell) else { return; };
+        let tile = selection.primary;
         let screen = tri.map(|v| p.screen(Vec2::new(v.x, v.z), v.y));
         let min = screen
             .iter()
@@ -134,7 +90,7 @@ pub(super) fn render(
                 max,
                 normal: if normal.y < 0. { -normal } else { normal },
                 tile,
-                mix: blends.get(&cell).copied(),
+                mix: selection.secondary,
             });
         }
     });
