@@ -34,10 +34,12 @@ fn open(session: &GameSession, screen: &mut GameScreenController) {
         }
     ));
 }
-fn layout(session: &GameSession, screen: &GameScreenController) -> hud::model::ContainerFrame {
+fn layout(session: &GameSession, screen: &GameScreenController) -> hud::model::PanelFrame {
     screen
         .hud
-        .current(&session.view(), screen.elements.layout.viewport)
+        .frames(&session.view(), &screen.elements)
+        .into_iter()
+        .next()
         .unwrap()
 }
 fn center(rect: Rect) -> [f32; 2] {
@@ -233,7 +235,9 @@ fn close_capture_does_not_close_a_new_panel_and_header_drag_remembers_its_positi
     assert!(
         screen
             .hud
-            .current(&session.view(), screen.elements.layout.viewport)
+            .frames(&session.view(), &screen.elements)
+            .into_iter()
+            .next()
             .is_some()
     );
     ready(&session, &mut screen, &mut fonts, view);
@@ -325,7 +329,9 @@ fn container_keyboard_uses_the_original_receipt_and_closes_without_world_fallthr
     assert!(
         screen
             .hud
-            .current(&session.view(), screen.elements.layout.viewport)
+            .frames(&session.view(), &screen.elements)
+            .into_iter()
+            .next()
             .is_none()
     );
 }
@@ -370,7 +376,9 @@ fn world_container_ui_opens_only_from_the_addressed_server_request() {
     assert!(
         screen
             .hud
-            .current(&session.view(), screen.elements.layout.viewport)
+            .frames(&session.view(), &screen.elements)
+            .into_iter()
+            .next()
             .is_none()
     );
     let mut events = RegionEvents::default();
@@ -378,7 +386,13 @@ fn world_container_ui_opens_only_from_the_addressed_server_request() {
     screen.receive(&session.view(), &events);
     ready(&session, &mut screen, &mut fonts, view);
     let frame = layout(&session, &screen);
-    assert_eq!(frame.source().owner, None);
+    assert_eq!(
+        match frame.id {
+            hud::HudPanelId::Container { source, .. } => source.owner,
+            _ => panic!("expected container"),
+        },
+        None
+    );
     let point = center(frame.slots[0].hit);
     dispatch(&session, &mut screen, &mut fonts, button(point, true));
     assert_eq!(
@@ -419,7 +433,9 @@ fn paused_container_ui_survives_resize_and_never_reuses_a_stale_header_or_item_f
     assert!(
         screen
             .hud
-            .current(&session.view(), screen.elements.layout.viewport)
+            .frames(&session.view(), &screen.elements)
+            .into_iter()
+            .next()
             .is_some()
     );
 }
@@ -533,14 +549,10 @@ fn screen_handoff_retains_panel_sources_and_positions_but_revokes_old_input_and_
     assert!(
         other
             .hud
-            .current(&foreign.view(), other.elements.layout.viewport)
-            .is_none()
+            .frames(&foreign.view(), &other.elements)
+            .is_empty()
     );
-    assert!(
-        next.hud
-            .current(&session.view(), next.elements.layout.viewport)
-            .is_some()
-    );
+    assert!(!next.hud.frames(&session.view(), &next.elements).is_empty());
 }
 
 #[test]
@@ -569,8 +581,8 @@ fn rejected_screen_preparation_can_return_presentation_owners_without_losing_pan
     assert!(
         staged
             .hud
-            .current(&session.view(), staged.elements.layout.viewport)
-            .is_none()
+            .frames(&session.view(), &staged.elements)
+            .is_empty()
     );
     ready(&session, &mut screen, &mut fonts, view);
     let point = center(before.slots[0].hit);
@@ -581,4 +593,534 @@ fn rejected_screen_preparation_can_return_presentation_owners_without_losing_pan
             .len(),
         1
     );
+}
+
+fn actor_fixture() -> (GameSession, GameScreenController, GameFonts, Uuid) {
+    let (mut session, mut screen, fonts, view) = fixture();
+    screen.resize((640, 480));
+    screen.elements.custom_inventory_panel_config = Some(screen_model::InventoryPanelConfig {
+        columns: 2,
+        rows: 1,
+        cell_size: 24.,
+        spacing: 2.,
+        padding: 4.,
+        title_height: 24.,
+        tab_height: 20.,
+        footer_height: 24.,
+        font_size: 10.,
+        title_font_size: 14.,
+        authored_rect: Some(Rect::new(8., 8., 280., 180.)),
+        ..Default::default()
+    });
+    screen.elements.custom_equipment_panel_config = Some(screen_model::EquipmentPanelConfig {
+        slot_size: 24.,
+        padding: 4.,
+        title_height: 24.,
+        label_width: 60.,
+        avatar_width: 50.,
+        avatar_height: 70.,
+        font_size: 10.,
+        title_font_size: 14.,
+        authored_rect: Some(Rect::new(8., 8., 250., 120.)),
+        ..Default::default()
+    });
+    session.assets.rules.push_str(
+        "\n[equipment]\nweapon_slots=['main_hand','off_hand']\narmor_slots=['head','body']",
+    );
+    let mut alpha = Item::new();
+    alpha.id = 11;
+    alpha.set_attribute("name", Value::Str("Alpha".into()));
+    alpha.set_attribute("slot", Value::Str("main_hand".into()));
+    let mut zinc = Item::new();
+    zinc.id = 12;
+    zinc.set_attribute("name", Value::Str("Zinc".into()));
+    session.project.regions[0].map.entities[0]
+        .inventory
+        .extend([Some(alpha), None, Some(zinc)]);
+    (session, screen, fonts, view)
+}
+fn toggle_actor(session: &GameSession, screen: &mut GameScreenController, command: &str) {
+    assert!(screen.handle_hud_effect(
+        &session.view(),
+        &ScreenEffect::Command(rusterix::client::command::ClientCommandBinding::Ui(
+            command.into()
+        ))
+    ));
+}
+fn actor_layout(session: &GameSession, screen: &GameScreenController) -> hud::model::PanelFrame {
+    screen
+        .hud
+        .frames(&session.view(), &screen.elements)
+        .into_iter()
+        .last()
+        .unwrap()
+}
+fn part_point(frame: &hud::model::PanelFrame, part: HudPart) -> [f32; 2] {
+    center(
+        frame
+            .controls()
+            .into_iter()
+            .find(|(id, _)| id.part == part)
+            .unwrap()
+            .1,
+    )
+}
+fn hud_click(
+    session: &GameSession,
+    screen: &mut GameScreenController,
+    fonts: &mut GameFonts,
+    part: HudPart,
+) -> Vec<ScreenEffect> {
+    let point = part_point(&actor_layout(session, screen), part);
+    dispatch(session, screen, fonts, button(point, true));
+    dispatch(session, screen, fonts, button(point, false)).effects
+}
+#[test]
+fn native_inventory_pages_sort_popup_and_categories_keep_sparse_addresses() {
+    let (session, mut screen, mut fonts, view) = actor_fixture();
+    toggle_actor(&session, &mut screen, "inventory");
+    ready(&session, &mut screen, &mut fonts, view);
+    let frame = actor_layout(&session, &screen);
+    assert_eq!(
+        frame
+            .slots
+            .iter()
+            .map(|slot| slot.inventory_index)
+            .collect::<Vec<_>>(),
+        vec![Some(0), Some(3)]
+    );
+    assert!(hud_click(&session, &mut screen, &mut fonts, HudPart::NextPage).is_empty());
+    ready(&session, &mut screen, &mut fonts, view);
+    let frame = actor_layout(&session, &screen);
+    assert_eq!(
+        frame
+            .slots
+            .iter()
+            .map(|slot| slot.inventory_index)
+            .collect::<Vec<_>>(),
+        vec![Some(5), Some(1)]
+    );
+    assert!(hud_click(&session, &mut screen, &mut fonts, HudPart::Sort).is_empty());
+    ready(&session, &mut screen, &mut fonts, view);
+    assert!(screen.pointer_modal());
+    assert!(actor_layout(&session, &screen).popup.is_some());
+    assert!(hud_click(&session, &mut screen, &mut fonts, HudPart::SortOption(1)).is_empty());
+    ready(&session, &mut screen, &mut fonts, view);
+    assert!(!screen.pointer_modal());
+    assert_eq!(screen.elements.ui_state["inventory.sort"], "name");
+    assert_eq!(
+        actor_layout(&session, &screen).slots[0].inventory_index,
+        Some(3)
+    );
+    hud_click(&session, &mut screen, &mut fonts, HudPart::Category(1));
+    ready(&session, &mut screen, &mut fonts, view);
+    let frame = actor_layout(&session, &screen);
+    assert_eq!(screen.elements.ui_state["inventory.category"], "equipment");
+    assert_eq!(frame.slots[0].inventory_index, Some(3));
+    assert_eq!(frame.slots[1].inventory_index, Some(1));
+    assert!(
+        !frame
+            .controls()
+            .iter()
+            .any(|(id, _)| id.part == HudPart::NextPage)
+    );
+}
+#[test]
+fn native_inventory_action_release_rejects_reauthored_values_and_requires_displayed_controls() {
+    let (session, mut screen, mut fonts, view) = actor_fixture();
+    toggle_actor(&session, &mut screen, "inventory");
+    let point = part_point(&actor_layout(&session, &screen), HudPart::Category(1));
+    dispatch(&session, &mut screen, &mut fonts, button(point, true));
+    dispatch(&session, &mut screen, &mut fonts, button(point, false));
+    assert!(!screen.elements.ui_state.contains_key("inventory.category"));
+    ready(&session, &mut screen, &mut fonts, view);
+    dispatch(&session, &mut screen, &mut fonts, button(point, true));
+    screen
+        .elements
+        .custom_inventory_panel_config
+        .as_mut()
+        .unwrap()
+        .categories[1]
+        .value = "materials".into();
+    dispatch(&session, &mut screen, &mut fonts, button(point, false));
+    assert!(!screen.elements.ui_state.contains_key("inventory.category"));
+    ready(&session, &mut screen, &mut fonts, view);
+    hud_click(&session, &mut screen, &mut fonts, HudPart::Category(1));
+    assert_eq!(screen.elements.ui_state["inventory.category"], "materials");
+}
+#[test]
+fn native_inventory_keyboard_bag_and_modal_popup_are_balanced() {
+    let (session, mut screen, mut fonts, view) = actor_fixture();
+    toggle_actor(&session, &mut screen, "inventory");
+    ready(&session, &mut screen, &mut fonts, view);
+    let frame = actor_layout(&session, &screen);
+    let point = [frame.rect.x + 3., frame.rect.y + 5.];
+    dispatch(&session, &mut screen, &mut fonts, button(point, true));
+    dispatch(&session, &mut screen, &mut fonts, button(point, false));
+    dispatch(
+        &session,
+        &mut screen,
+        &mut fonts,
+        key(PhysicalKey::Tab, true, false),
+    );
+    dispatch(
+        &session,
+        &mut screen,
+        &mut fonts,
+        key(PhysicalKey::Tab, false, false),
+    );
+    dispatch(
+        &session,
+        &mut screen,
+        &mut fonts,
+        key(PhysicalKey::Enter, true, false),
+    );
+    let response = dispatch(
+        &session,
+        &mut screen,
+        &mut fonts,
+        key(PhysicalKey::Enter, false, false),
+    );
+    assert!(matches!(
+        response.effects.as_slice(),
+        [ScreenEffect::ToggleContainer {
+            item: 7,
+            owner: 1,
+            ..
+        }]
+    ));
+    assert!(
+        dispatch(
+            &session,
+            &mut screen,
+            &mut fonts,
+            key(PhysicalKey::Enter, false, false)
+        )
+        .effects
+        .is_empty()
+    );
+    hud_click(&session, &mut screen, &mut fonts, HudPart::Sort);
+    ready(&session, &mut screen, &mut fonts, view);
+    dispatch(
+        &session,
+        &mut screen,
+        &mut fonts,
+        key(PhysicalKey::Down, true, false),
+    );
+    dispatch(
+        &session,
+        &mut screen,
+        &mut fonts,
+        key(PhysicalKey::Enter, true, false),
+    );
+    dispatch(
+        &session,
+        &mut screen,
+        &mut fonts,
+        key(PhysicalKey::Enter, false, false),
+    );
+    assert_eq!(screen.elements.ui_state["inventory.sort"], "name");
+    ready(&session, &mut screen, &mut fonts, view);
+    hud_click(&session, &mut screen, &mut fonts, HudPart::Sort);
+    ready(&session, &mut screen, &mut fonts, view);
+    let response = dispatch(
+        &session,
+        &mut screen,
+        &mut fonts,
+        button([600., 400.], true),
+    );
+    assert!(response.input.consumed && response.effects.is_empty());
+    let response = dispatch(
+        &session,
+        &mut screen,
+        &mut fonts,
+        button([600., 400.], false),
+    );
+    assert!(response.input.consumed && response.effects.is_empty());
+    assert!(!screen.pointer_modal());
+    assert_eq!(
+        screen.hud.frames(&session.view(), &screen.elements).len(),
+        1
+    );
+}
+#[test]
+fn container_children_transfer_to_native_sparse_inventory_slots_and_native_equipment_slots() {
+    let (session, mut screen, mut fonts, view) = actor_fixture();
+    toggle_actor(&session, &mut screen, "inventory");
+    screen.handle_hud_effect(
+        &session.view(),
+        &ScreenEffect::ToggleContainer {
+            region: session.view().map.unwrap().id,
+            item: 7,
+            owner: 1,
+            anchor: Uv::new(450., 240., 20., 20.),
+        },
+    );
+    ready(&session, &mut screen, &mut fonts, view);
+    let frames = screen.hud.frames(&session.view(), &screen.elements);
+    assert_eq!(frames.len(), 2);
+    let source = center(frames[0].slots[0].hit);
+    hud_click(&session, &mut screen, &mut fonts, HudPart::NextPage);
+    ready(&session, &mut screen, &mut fonts, view);
+    let target = center(actor_layout(&session, &screen).slots[1].hit);
+    dispatch(&session, &mut screen, &mut fonts, button(source, true));
+    assert_eq!(
+        dispatch(&session, &mut screen, &mut fonts, button(target, false)).effects,
+        vec![ScreenEffect::Action(EntityAction::MoveContainerItem {
+            item_id: 8,
+            container_item_id: 7,
+            container_owner_entity_id: Some(1),
+            target_entity_id: Some(1),
+            to_inventory_index: Some(1),
+            to_equipped_slot: None
+        })]
+    );
+    toggle_actor(&session, &mut screen, "gear");
+    screen.handle_hud_effect(
+        &session.view(),
+        &ScreenEffect::ToggleContainer {
+            region: session.view().map.unwrap().id,
+            item: 7,
+            owner: 1,
+            anchor: Uv::new(450., 240., 20., 20.),
+        },
+    );
+    ready(&session, &mut screen, &mut fonts, view);
+    let frame = actor_layout(&session, &screen);
+    let target = center(
+        frame
+            .slots
+            .iter()
+            .find(|slot| slot.equipped_slot.as_deref() == Some("main_hand"))
+            .unwrap()
+            .hit,
+    );
+    dispatch(&session, &mut screen, &mut fonts, button(source, true));
+    assert_eq!(
+        dispatch(&session, &mut screen, &mut fonts, button(target, false)).effects,
+        vec![ScreenEffect::Action(EntityAction::MoveContainerItem {
+            item_id: 8,
+            container_item_id: 7,
+            container_owner_entity_id: Some(1),
+            target_entity_id: Some(1),
+            to_inventory_index: None,
+            to_equipped_slot: Some("main_hand".into())
+        })]
+    );
+}
+#[test]
+fn native_equipment_sources_and_destinations_use_canonical_slots_and_cancel_when_rebound() {
+    let (mut session, mut screen, mut fonts, view) = actor_fixture();
+    let mut sword = Item::new();
+    sword.id = 22;
+    session.project.regions[0].map.entities[0]
+        .equipped
+        .insert("main_hand".into(), sword);
+    screen
+        .elements
+        .custom_equipment_panel_config
+        .as_mut()
+        .unwrap()
+        .left_slots = vec!["MAIN_HAND".into()];
+    let mut destination = Widget::new();
+    destination.id = 40;
+    destination.rect = Rect::new(500., 300., 24., 24.);
+    destination.inventory_index = Some(2);
+    destination.drag_drop = true;
+    screen.elements.button_widgets.insert(40, destination);
+    toggle_actor(&session, &mut screen, "character");
+    ready(&session, &mut screen, &mut fonts, view);
+    let frame = actor_layout(&session, &screen);
+    let slot = frame
+        .slots
+        .iter()
+        .find(|slot| slot.equipped_slot.as_deref() == Some("main_hand"))
+        .unwrap();
+    assert_eq!(slot.source.unwrap().item(), 22);
+    let point = center(slot.hit);
+    dispatch(&session, &mut screen, &mut fonts, button(point, true));
+    assert_eq!(
+        dispatch(
+            &session,
+            &mut screen,
+            &mut fonts,
+            button([512., 312.], false)
+        )
+        .effects,
+        vec![ScreenEffect::Action(EntityAction::MoveItem {
+            item_id: 22,
+            owner_entity_id: Some(1),
+            target_entity_id: Some(1),
+            to_inventory_index: Some(2),
+            to_equipped_slot: None
+        })]
+    );
+    dispatch(&session, &mut screen, &mut fonts, button(point, true));
+    session.project.regions[0].map.entities[0]
+        .equipped
+        .get_mut("main_hand")
+        .unwrap()
+        .id = 23;
+    assert!(
+        dispatch(
+            &session,
+            &mut screen,
+            &mut fonts,
+            button([512., 312.], false)
+        )
+        .effects
+        .is_empty()
+    );
+}
+#[test]
+fn native_actor_panels_remain_virtual_when_constrained_and_closing_revokes_old_controls() {
+    let (session, mut screen, mut fonts, view) = actor_fixture();
+    screen.resize((128, 96));
+    let config = screen
+        .elements
+        .custom_inventory_panel_config
+        .as_mut()
+        .unwrap();
+    config.columns = usize::MAX;
+    config.rows = usize::MAX;
+    toggle_actor(&session, &mut screen, "bag");
+    ready(&session, &mut screen, &mut fonts, view);
+    let frame = actor_layout(&session, &screen);
+    assert!(frame.slots.len() < 100);
+    assert!(frame.max_scroll[0] > 0. && frame.max_scroll[1] > 0.);
+    assert!(
+        frame
+            .controls()
+            .iter()
+            .all(|(_, bounds)| bounds.x >= frame.rect.x
+                && bounds.y >= frame.rect.y
+                && bounds.x + bounds.width <= frame.rect.x + frame.rect.width
+                && bounds.y + bounds.height <= frame.rect.y + frame.rect.height)
+    );
+    let point = part_point(&frame, HudPart::Close);
+    dispatch(&session, &mut screen, &mut fonts, button(point, true));
+    toggle_actor(&session, &mut screen, "gear");
+    assert!(
+        dispatch(&session, &mut screen, &mut fonts, button(point, false))
+            .effects
+            .is_empty()
+    );
+    assert!(matches!(
+        actor_layout(&session, &screen).id,
+        hud::HudPanelId::Equipment { .. }
+    ));
+}
+#[test]
+fn covered_container_close_cannot_activate_behind_a_later_native_panel() {
+    let (session, mut screen, mut fonts, view) = actor_fixture();
+    toggle_actor(&session, &mut screen, "inventory");
+    screen.handle_hud_effect(
+        &session.view(),
+        &ScreenEffect::ToggleContainer {
+            region: session.view().map.unwrap().id,
+            item: 7,
+            owner: 1,
+            anchor: Uv::new(450., 240., 20., 20.),
+        },
+    );
+    ready(&session, &mut screen, &mut fonts, view);
+    let before = layout(&session, &screen);
+    let point = part_point(&before, HudPart::Close);
+    dispatch(&session, &mut screen, &mut fonts, button(point, true));
+    // Enlarge the existing inventory over the captured close without a new
+    // displayed frame. The old container identity and close bounds survive.
+    screen
+        .elements
+        .custom_inventory_panel_config
+        .as_mut()
+        .unwrap()
+        .authored_rect = Some(Rect::new(8., 8., 600., 400.));
+    dispatch(&session, &mut screen, &mut fonts, button(point, false));
+    assert_eq!(layout(&session, &screen).id, before.id);
+    assert_eq!(
+        screen.hud.frames(&session.view(), &screen.elements).len(),
+        2
+    );
+}
+#[test]
+fn inventory_item_receipts_reject_reordering_and_select_the_original_sparse_item() {
+    let (session, mut screen, mut fonts, view) = actor_fixture();
+    toggle_actor(&session, &mut screen, "inventory");
+    ready(&session, &mut screen, &mut fonts, view);
+    let point = center(actor_layout(&session, &screen).slots[1].hit);
+    dispatch(&session, &mut screen, &mut fonts, button(point, true));
+    assert!(actor_layout(&session, &screen).slots[1].selected);
+    screen
+        .elements
+        .ui_state
+        .insert("inventory.sort".into(), "name".into());
+    assert!(
+        dispatch(&session, &mut screen, &mut fonts, button(point, false))
+            .effects
+            .is_empty()
+    );
+    ready(&session, &mut screen, &mut fonts, view);
+    assert!(actor_layout(&session, &screen).slots[0].selected);
+}
+#[test]
+fn inventory_sort_popup_consumes_a_press_on_another_floating_panel() {
+    let (session, mut screen, mut fonts, view) = actor_fixture();
+    toggle_actor(&session, &mut screen, "inventory");
+    screen.handle_hud_effect(
+        &session.view(),
+        &ScreenEffect::ToggleContainer {
+            region: session.view().map.unwrap().id,
+            item: 7,
+            owner: 1,
+            anchor: Uv::new(450., 240., 20., 20.),
+        },
+    );
+    ready(&session, &mut screen, &mut fonts, view);
+    let container = layout(&session, &screen);
+    hud_click(&session, &mut screen, &mut fonts, HudPart::Sort);
+    ready(&session, &mut screen, &mut fonts, view);
+    let point = part_point(&container, HudPart::Close);
+    assert!(
+        dispatch(&session, &mut screen, &mut fonts, button(point, true))
+            .input
+            .consumed
+    );
+    assert!(
+        dispatch(&session, &mut screen, &mut fonts, button(point, false))
+            .effects
+            .is_empty()
+    );
+    assert!(!screen.pointer_modal());
+    assert_eq!(
+        screen.hud.frames(&session.view(), &screen.elements).len(),
+        2,
+        "dismissing the dropdown cannot also close a different floating panel"
+    );
+    assert_eq!(layout(&session, &screen).id, container.id);
+}
+#[test]
+fn native_inventory_choices_synchronize_authored_binding_owners() {
+    let (session, mut screen, mut fonts, view) = actor_fixture();
+    for (id, value) in [(40, "all"), (41, "equipment")] {
+        let mut widget = Widget::new();
+        widget.id = id;
+        widget.rect = Rect::new(500., (id - 40) as f32 * 32., 24., 24.);
+        widget.binding = Some("inventory.category".into());
+        widget.value = Some(value.into());
+        widget.selection = Some("single".into());
+        screen.elements.button_widgets.insert(id, widget);
+    }
+    screen.elements.set_binding("inventory.category", "all");
+    assert!(screen.elements.activated_widgets.contains(&40));
+    toggle_actor(&session, &mut screen, "inventory");
+    ready(&session, &mut screen, &mut fonts, view);
+    assert!(screen.geometry.is_some());
+    hud_click(&session, &mut screen, &mut fonts, HudPart::Category(1));
+    assert!(
+        screen.geometry.is_none(),
+        "bound authored paint is invalidated too"
+    );
+    assert!(!screen.elements.activated_widgets.contains(&40));
+    assert!(screen.elements.activated_widgets.contains(&41));
+    assert!(screen.elements.permanently_activated_widgets.contains(&41));
 }

@@ -69,12 +69,14 @@ struct Frame {
     occluders: Vec<Uv>,
     drops: Vec<DropTarget>,
     modal: bool,
+    author_modal: bool,
     immediate: bool,
     items: Vec<item_pointer::ItemSlot>,
     controls: Vec<UiControl>,
 }
 #[derive(Clone)]
 struct UiControl {
+    action: Option<super::hud::model::HudAction>,
     owner: Option<DropOwner>,
     rect: Uv,
 }
@@ -389,8 +391,11 @@ impl GameScreenController {
     pub(super) fn world_capture_owner(&self) -> Option<ScreenCapture> {
         self.world.owner()
     }
-    pub(super) fn pointer_modal(&self) -> bool {
+    pub(super) fn author_modal(&self) -> bool {
         self.choice_controller.open_id().is_some() || self.message_blocks_input()
+    }
+    pub(super) fn pointer_modal(&self) -> bool {
+        self.author_modal() || self.hud.popup_open()
     }
     fn pointer_occluders(&self, world: &RuntimeView<'_>) -> Vec<Uv> {
         self.pointer_controls(world)
@@ -403,13 +408,18 @@ impl GameScreenController {
         let mut controls = self
             .world_texts
             .visible_bounds()
-            .map(|rect| UiControl { owner: None, rect })
+            .map(|rect| UiControl {
+                action: None,
+                owner: None,
+                rect,
+            })
             .collect::<Vec<_>>();
         let mut add = |name: &str, bounds: Rect, owner| {
             if !screen_model::widget_name_is_hidden(name, &model.widgets_to_hide)
                 && visible_control_rect(model, bounds)
             {
                 controls.push(UiControl {
+                    action: None,
                     owner,
                     rect: rect(bounds),
                 });
@@ -440,8 +450,9 @@ impl GameScreenController {
                 add(&widget.name, widget.rect, None);
             }
         }
-        if let Some(hud) = self.hud.current(world, model.layout.viewport) {
+        for hud in self.hud.frames(world, model) {
             controls.extend(hud.controls().into_iter().map(|(id, bounds)| UiControl {
+                action: hud.action(id.part),
                 owner: Some(DropOwner::Hud(id)),
                 rect: rect(bounds),
             }));
@@ -452,6 +463,7 @@ impl GameScreenController {
                 && visible_control_rect(model, widget.rect)
             {
                 controls.push(UiControl {
+                    action: None,
                     owner: None,
                     rect: rect(widget.rect),
                 });
@@ -504,25 +516,16 @@ impl GameScreenController {
                 });
             }
         }
-        if let Some(hud) = self.hud.current(world, self.elements.layout.viewport) {
-            targets.extend(
-                hud.controls()
-                    .into_iter()
-                    .filter(|(id, _)| {
-                        matches!(
-                            id.part,
-                            super::hud::HudPart::Body | super::hud::HudPart::Slot(_)
-                        )
-                    })
-                    .map(|(id, bounds)| DropTarget {
-                        source: DropOwner::Hud(id),
-                        rect: bounds,
-                        destination: rusterix::item_interaction::ItemDestination::Container(
-                            hud.source(),
-                        ),
-                    }),
-            );
+        for hud in self.hud.frames(world, &self.elements) {
+            targets.extend(hud.controls().into_iter().filter_map(|(id, bounds)| {
+                Some(DropTarget {
+                    source: DropOwner::Hud(id),
+                    rect: bounds,
+                    destination: hud.destination(id.part)?,
+                })
+            }));
         }
+
         targets
     }
     pub(super) fn begin_world_frame(&mut self, world: &RuntimeView<'_>) -> Result<(), String> {
@@ -537,6 +540,7 @@ impl GameScreenController {
                     occluders: self.pointer_occluders(world),
                     drops: self.pointer_drops(world),
                     modal: self.pointer_modal(),
+                    author_modal: self.author_modal(),
                     immediate,
                     items: self.item_slots(world),
                     controls: self.pointer_controls(world),
@@ -570,6 +574,7 @@ impl GameScreenController {
             .map(|_| self.pointer_drops(world))
             .unwrap_or_default();
         let modal = self.pointer_modal();
+        let author_modal = self.author_modal();
         let items = world
             .map
             .map(|_| self.item_slots(world))
@@ -579,6 +584,7 @@ impl GameScreenController {
         frame.occluders = occluders;
         frame.drops = drops;
         frame.modal = modal;
+        frame.author_modal = author_modal;
         frame.items = items;
         frame.controls = controls;
     }
@@ -1041,17 +1047,47 @@ impl GameScreenController {
         id: super::hud::HudControlId,
         bounds: Rect,
     ) -> bool {
+        self.hud_action_valid(world, id, bounds, None)
+    }
+    pub(super) fn hud_action_valid(
+        &self,
+        world: &RuntimeView<'_>,
+        id: super::hud::HudControlId,
+        bounds: Rect,
+        action: Option<&super::hud::model::HudAction>,
+    ) -> bool {
+        let matches = |control: &UiControl| {
+            control.owner == Some(DropOwner::Hud(id))
+                && control.rect == rect(bounds)
+                && control.action.as_ref() == action
+        };
         self.ui_frame_matches(world)
-            && !self.pointer_modal()
-            && self.world.displayed.as_ref().is_some_and(|frame| {
-                !frame.modal
-                    && frame.controls.iter().any(|control| {
-                        control.owner == Some(DropOwner::Hud(id)) && control.rect == rect(bounds)
-                    })
-            })
-            && self.pointer_controls(world).iter().any(|control| {
-                control.owner == Some(DropOwner::Hud(id)) && control.rect == rect(bounds)
-            })
+            && !self.author_modal()
+            && self
+                .world
+                .displayed
+                .as_ref()
+                .is_some_and(|frame| !frame.author_modal && frame.controls.iter().any(matches))
+            && self.pointer_controls(world).iter().any(matches)
+    }
+    pub(super) fn hud_control_visible(
+        &self,
+        world: &RuntimeView<'_>,
+        id: super::hud::HudControlId,
+        point: [f32; 2],
+    ) -> bool {
+        let matches = |controls: &[UiControl]| {
+            controls
+                .iter()
+                .rev()
+                .find(|control| control.rect.contains(point))
+                .is_some_and(|control| control.owner == Some(DropOwner::Hud(id)))
+        };
+        self.world
+            .displayed
+            .as_ref()
+            .is_some_and(|frame| matches(&frame.controls))
+            && matches(&self.pointer_controls(world))
     }
     pub(super) fn hud_item_begin(
         &mut self,
@@ -1069,7 +1105,7 @@ impl GameScreenController {
         item_pointer::receipt_for_control(self, world, ItemControl::Hud(id), None)
     }
     pub(super) fn hud_item_activate(
-        &self,
+        &mut self,
         world: &RuntimeView<'_>,
         receipt: &ItemReceipt,
     ) -> Vec<ScreenEffect> {
@@ -1083,6 +1119,6 @@ impl GameScreenController {
             .then(|| self.world.displayed.as_ref().unwrap().binding)
     }
     pub(super) fn hud_capture_valid(&self, world: &RuntimeView<'_>, binding: Binding) -> bool {
-        self.hud_binding(world) == Some(binding) && !self.pointer_modal()
+        self.hud_binding(world) == Some(binding) && !self.author_modal()
     }
 }

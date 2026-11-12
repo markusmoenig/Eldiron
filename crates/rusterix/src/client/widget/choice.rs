@@ -297,41 +297,15 @@ impl ChoiceWidget {
     }
 
     pub fn tab_rect(&self, index: usize) -> Rect {
-        let count = self.options.len().max(1) as f32;
-        let total_spacing = self.spacing * (count - 1.0);
-        let available = (self.rect.width - total_spacing).max(1.0);
-        if self.equal_widths {
-            let width = (available / count).max(1.0);
-            return Rect::new(
-                self.rect.x + index as f32 * (width + self.spacing),
-                self.rect.y,
-                width,
-                self.rect.height,
-            );
-        }
-
-        let desired = self
-            .options
-            .iter()
-            .map(|option| {
-                let glyphs = option.label.chars().count().max(1) as f32;
-                (glyphs * self.font_size * 0.58 + self.text_padding * 2.0).max(self.font_size * 2.0)
-            })
-            .collect::<Vec<_>>();
-        let desired_total = desired.iter().sum::<f32>().max(1.0);
-        let extra = (available - desired_total).max(0.0) / count;
-        let scale = if desired_total > available {
-            available / desired_total
-        } else {
-            1.0
-        };
-        let widths = desired
-            .iter()
-            .map(|width| width * scale + extra)
-            .collect::<Vec<_>>();
-        let x = self.rect.x + widths.iter().take(index).sum::<f32>() + self.spacing * index as f32;
-        let width = widths.get(index).copied().unwrap_or(available);
-        Rect::new(x, self.rect.y, width, self.rect.height)
+        tab_option_rect(
+            &self.options,
+            self.rect,
+            self.font_size,
+            self.spacing,
+            self.text_padding,
+            self.equal_widths,
+            index,
+        )
     }
 
     fn tab_index_at(&self, point: Vec2<f32>) -> Option<usize> {
@@ -649,4 +623,50 @@ options = ["Newest", "Name"]
             ChoiceInteraction::Selected("name".to_string())
         );
     }
+}
+
+/// Logical tab allocation shared by reference and native floating panels.
+pub fn tab_option_rect(
+    options: &[ChoiceOption],
+    bounds: Rect,
+    font_size: f32,
+    spacing: f32,
+    text_padding: f32,
+    equal_widths: bool,
+    index: usize,
+) -> Rect {
+    let count = options.len().max(1) as f32;
+    let total_spacing = spacing * (count - 1.0);
+    let available = (bounds.width - total_spacing).max(1.0);
+    if equal_widths {
+        let width = (available / count).max(1.0);
+        return Rect::new(
+            bounds.x + index as f32 * (width + spacing),
+            bounds.y,
+            width,
+            bounds.height,
+        );
+    }
+
+    let desired = options
+        .iter()
+        .map(|option| {
+            let glyphs = option.label.chars().count().max(1) as f32;
+            (glyphs * font_size * 0.58 + text_padding * 2.0).max(font_size * 2.0)
+        })
+        .collect::<Vec<_>>();
+    let desired_total = desired.iter().sum::<f32>().max(1.0);
+    let extra = (available - desired_total).max(0.0) / count;
+    let scale = if desired_total > available {
+        available / desired_total
+    } else {
+        1.0
+    };
+    let widths = desired
+        .iter()
+        .map(|width| width * scale + extra)
+        .collect::<Vec<_>>();
+    let x = bounds.x + widths.iter().take(index).sum::<f32>() + spacing * index as f32;
+    let width = widths.get(index).copied().unwrap_or(available);
+    Rect::new(x, bounds.y, width, bounds.height)
 }

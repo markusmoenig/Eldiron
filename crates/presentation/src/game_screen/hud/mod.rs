@@ -2,14 +2,17 @@
 mod input;
 pub(in crate::game_screen) mod model;
 mod paint;
+mod style;
 use super::*;
-use model::{ContainerFrame, HudState};
+use model::{HudState, PanelFrame};
 use rusterix::item_interaction::{ItemRef, ItemSource};
 use theframework::text::TextLayout;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum HudPanelId {
     Container { source: ItemRef, incarnation: u64 },
+    Inventory { entity: u32, incarnation: u64 },
+    Equipment { entity: u32, incarnation: u64 },
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum HudPart {
@@ -17,6 +20,12 @@ pub enum HudPart {
     Title,
     Close,
     Slot(usize),
+    Category(usize),
+    Sort,
+    SortOption(usize),
+    SortPopup,
+    PreviousPage,
+    NextPage,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct HudControlId {
@@ -24,8 +33,10 @@ pub struct HudControlId {
     pub part: HudPart,
 }
 struct PreparedHud {
-    frame: ContainerFrame,
-    title_key: (String, GameFontVersion),
+    frame: PanelFrame,
+    title_key: (String, String, u32, GameFontVersion),
+    labels: Vec<(model::PanelLabel, Arc<TextLayout>)>,
+    avatar: Option<Arc<PreparedContent>>,
     title: Arc<TextLayout>,
     items: FxHashMap<usize, Arc<PreparedContent>>,
     quantities: FxHashMap<usize, (i32, Arc<TextLayout>)>,
@@ -33,23 +44,30 @@ struct PreparedHud {
 #[derive(Default)]
 pub(super) struct Hud {
     state: HudState,
-    prepared: Option<PreparedHud>,
+    prepared: Vec<PreparedHud>,
     capture: Option<input::HudCapture>,
     focused: Option<HudControlId>,
     pointer_present: bool,
 }
 impl Hud {
-    pub(super) fn current(
+    pub(super) fn select_item(&mut self, id: HudControlId, item: u32) {
+        self.state.select_item(id, item);
+    }
+    pub(super) fn popup_open(&self) -> bool {
+        self.state.popup_open()
+    }
+
+    pub(super) fn frames(
         &self,
         world: &RuntimeView<'_>,
-        size: scenevm::prelude::Vec2<i32>,
-    ) -> Option<ContainerFrame> {
-        self.state.layout(world, size)
+        elements: &ScreenElements,
+    ) -> Vec<PanelFrame> {
+        self.state.frames(world, elements)
     }
     pub(super) fn bind(&mut self, world: &RuntimeView<'_>) {
         self.state.bind(world);
         if world.state == rusterix::ServerState::Off {
-            self.prepared = None;
+            self.prepared.clear();
             self.focused = None;
         }
     }
@@ -68,80 +86,156 @@ impl Hud {
     pub(super) fn prepare(
         &mut self,
         world: &RuntimeView<'_>,
-        size: scenevm::prelude::Vec2<i32>,
+        elements: &ScreenElements,
         fonts: &mut GameFonts,
         sources: &mut ContentSources,
         revision: ContentRevision,
         animation_frame: usize,
     ) -> Result<(), String> {
         self.bind(world);
-        let Some(frame) = self.current(world, size) else {
-            self.prepared = None;
-            self.focused = None;
-            return Ok(());
-        };
-        self.state.retain_placement(&frame);
-        if self.focused.is_some_and(|id| id.panel != frame.id) {
+        let frames = self.frames(world, elements);
+        if self
+            .focused
+            .is_some_and(|id| !frames.iter().any(|frame| id.panel == frame.id))
+        {
             self.focused = None;
         }
-        let title_key = (frame.title.clone(), fonts.version());
-        let title = if let Some(old) = &self.prepared
-            && old.title_key == title_key
-        {
-            old.title.clone()
-        } else {
-            Arc::new(fonts.text.layout(&frame.title, "Roboto", 14., None))
-        };
-        let mut items = FxHashMap::default();
-        let mut quantities = FxHashMap::default();
-        for slot in &frame.slots {
-            if let Some(item) = slot.source.and_then(|source| source.resolve(world.map?)) {
-                let quantity = item.stack_quantity();
-                if quantity > 1 {
-                    let layout = self
-                        .prepared
-                        .as_ref()
-                        .filter(|old| old.title_key.1 == fonts.version())
-                        .and_then(|old| old.quantities.get(&slot.index))
-                        .filter(|(old, _)| *old == quantity)
-                        .map(|(_, layout)| layout.clone())
-                        .unwrap_or_else(|| {
-                            Arc::new(
-                                fonts
-                                    .text
-                                    .layout(&quantity.to_string(), "Roboto", 10., None),
-                            )
-                        });
-                    quantities.insert(slot.index, (quantity, layout));
-                }
-                if let Some(source) = sources.prepare(
-                    ContentRecipe::Item {
-                        item,
-                        frame: animation_frame,
-                    },
-                    world.assets,
-                    revision,
-                )? {
-                    items.insert(slot.index, source);
+        let old_panels = std::mem::take(&mut self.prepared);
+        for frame in frames {
+            self.state.retain_placement(&frame);
+            let old = old_panels.iter().find(|old| old.frame.id == frame.id);
+            let title_key = (
+                frame.title.clone(),
+                frame.style.font.clone(),
+                frame.style.title_size.to_bits(),
+                fonts.version(),
+            );
+            let title = old
+                .filter(|old| old.title_key == title_key)
+                .map(|old| old.title.clone())
+                .unwrap_or_else(|| {
+                    Arc::new(fonts.text.layout(
+                        &frame.title,
+                        &frame.style.font,
+                        frame.style.title_size,
+                        None,
+                    ))
+                });
+            let mut items = FxHashMap::default();
+            let mut quantities = FxHashMap::default();
+            for slot in &frame.slots {
+                if let Some(item) = slot
+                    .source
+                    .and_then(|source| world.map.and_then(|map| source.resolve(map)))
+                {
+                    let quantity = item.stack_quantity();
+                    if quantity > 1 {
+                        let layout = old
+                            .filter(|old| {
+                                old.title_key.3 == fonts.version()
+                                    && old.frame.style.font == frame.style.font
+                                    && old.frame.style.quantity_size == frame.style.quantity_size
+                            })
+                            .and_then(|old| old.quantities.get(&slot.index))
+                            .filter(|(old, _)| *old == quantity)
+                            .map(|(_, layout)| layout.clone())
+                            .unwrap_or_else(|| {
+                                Arc::new(fonts.text.layout(
+                                    &quantity.to_string(),
+                                    &frame.style.font,
+                                    frame.style.quantity_size,
+                                    None,
+                                ))
+                            });
+                        quantities.insert(slot.index, (quantity, layout));
+                    }
+                    if let Some(source) = sources.prepare(
+                        ContentRecipe::Item {
+                            item,
+                            frame: animation_frame,
+                        },
+                        world.assets,
+                        revision,
+                    )? {
+                        items.insert(slot.index, source);
+                    }
                 }
             }
+            let labels = frame
+                .labels
+                .iter()
+                .chain(frame.buttons.iter().map(|button| &button.label))
+                .map(|label| {
+                    let layout = old
+                        .filter(|old| {
+                            old.title_key.3 == fonts.version()
+                                && old.frame.style.font == frame.style.font
+                        })
+                        .and_then(|old| {
+                            old.labels.iter().find(|(spec, _)| {
+                                spec.text == label.text && spec.size == label.size
+                            })
+                        })
+                        .map(|(_, layout)| layout.clone())
+                        .unwrap_or_else(|| {
+                            Arc::new(fonts.text.layout(
+                                &label.text,
+                                &frame.style.font,
+                                label.size,
+                                None,
+                            ))
+                        });
+                    (label.clone(), layout)
+                })
+                .collect();
+            let avatar = if let Some((entity, _)) = frame.avatar {
+                if let Some(actor) = world
+                    .map
+                    .and_then(|map| map.entities.iter().find(|actor| actor.id == entity))
+                {
+                    sources.prepare(
+                        ContentRecipe::Avatar {
+                            entity: actor,
+                            settings: rusterix::client::content::AvatarSourceSettings {
+                                avatar: None,
+                                animation: None,
+                                direction: rusterix::AvatarDirection::Front,
+                                frame: 0,
+                                weapons: true,
+                            },
+                        },
+                        world.assets,
+                        revision,
+                    )?
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            self.prepared.push(PreparedHud {
+                frame,
+                title_key,
+                title,
+                labels,
+                avatar,
+                items,
+                quantities,
+            });
         }
-        self.prepared = Some(PreparedHud {
-            frame,
-            title_key,
-            title,
-            items,
-            quantities,
-        });
         Ok(())
     }
     pub(super) fn validate_prepared(
         &self,
         world: &RuntimeView<'_>,
-        size: scenevm::prelude::Vec2<i32>,
+        elements: &ScreenElements,
     ) -> Result<(), String> {
-        if self.prepared.as_ref().map(|prepared| &prepared.frame)
-            != self.current(world, size).as_ref()
+        if self
+            .prepared
+            .iter()
+            .map(|prepared| &prepared.frame)
+            .collect::<Vec<_>>()
+            != self.frames(world, elements).iter().collect::<Vec<_>>()
         {
             return Err("Prepare HUD geometry after changing its content or layout".into());
         }
@@ -176,6 +270,7 @@ impl GameScreenController {
     /// server queue is drained, and no authoritative inventory is mutated here.
     pub fn handle_hud_effect(&mut self, world: &RuntimeView<'_>, effect: &ScreenEffect) -> bool {
         self.bind_runtime(world);
+        self.hud.bind(world);
         if let ScreenEffect::ToggleContainer {
             region,
             item,
@@ -196,6 +291,16 @@ impl GameScreenController {
                 );
             }
             return true;
+        }
+        if let ScreenEffect::Command(rusterix::client::command::ClientCommandBinding::Ui(command)) =
+            effect
+        {
+            if self.hud.state.toggle(command) {
+                self.choice_controller
+                    .cancel(&mut self.elements.choice_widgets);
+                self.hud.clear_focus();
+                return true;
+            }
         }
         false
     }

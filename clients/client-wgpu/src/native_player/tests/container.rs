@@ -89,6 +89,9 @@ fn native_container_routes_one_real_server_transfer_and_keeps_its_owner_through_
         let mut child = Item::new();
         child.id = child_id;
         child.set_attribute("name", Value::Str("Native transfer item".into()));
+        // A project-defined custom equippable item uses the normal server slot
+        // validation; no authoritative permission or capacity check is skipped.
+        child.set_attribute("slot", Value::Str("main_hand".into()));
         let mut bag = Item::new();
         bag.id = bag_id;
         bag.max_capacity = 4;
@@ -105,6 +108,7 @@ fn native_container_routes_one_real_server_transfer_and_keeps_its_owner_through_
             actor.remove_item_from_slot(slot);
         }
         actor.inventory.resize(3, None);
+        actor.set_attribute("inventory_slots", Value::Int(3));
         assert_eq!(actor.add_item(bag).unwrap(), 0);
         actor.mark_all_dirty();
         (actor.id, bag_id, child_id, template)
@@ -268,6 +272,262 @@ fn native_container_routes_one_real_server_transfer_and_keeps_its_owner_through_
     pointer(&mut app, &mut host, point, false);
     assert_eq!(observed.lock().unwrap().containers_forwarded, 0);
     assert_eq!(gpu.transfers().readback_bytes, 0);
+    assert_eq!(gpu2.transfers().readback_bytes, 0);
+    // UI commands are consumed by the same retained presentation owner. The
+    // actual server and its delta publication confirm this is not a wire-only
+    // inventory fixture.
+    pump_until(&mut app, &mut host, "child publication", |app| {
+        app.player
+            .runtime
+            .view()
+            .map
+            .unwrap()
+            .entities
+            .iter()
+            .find(|actor| actor.id == actor_id)
+            .is_some_and(|actor| {
+                actor
+                    .inventory
+                    .iter()
+                    .flatten()
+                    .any(|item| item.id == child_id)
+            })
+    });
+    let inventory_config = screen_model::InventoryPanelConfig {
+        columns: 3,
+        rows: 1,
+        cell_size: 32.,
+        spacing: 4.,
+        padding: 8.,
+        title_height: 26.,
+        tab_height: 24.,
+        footer_height: 28.,
+        authored_rect: Some(ScreenRect::new(24., 24., 400., 180.)),
+        ..Default::default()
+    };
+    app.screen.elements.custom_inventory_panel_config = Some(inventory_config.clone());
+    app.command(ClientCommandBinding::Ui("inventory".into()))
+        .unwrap();
+    render(&mut app, &mut host, &mut images2, &mut renderer2, &target2);
+    app.presented(&mut host);
+    let geometry = {
+        let world = app.player.runtime.view();
+        let actor = world
+            .map
+            .unwrap()
+            .entities
+            .iter()
+            .find(|actor| actor.id == actor_id)
+            .unwrap();
+        screen_model::inventory_panel_geometry(
+            actor,
+            &inventory_config,
+            "all",
+            "newest",
+            0,
+            None,
+            Vec2::new(960, 540),
+        )
+    };
+    let child_slot = geometry
+        .slots()
+        .find(|slot| slot.item_id == Some(child_id))
+        .unwrap()
+        .rect;
+    let destination = geometry
+        .slots()
+        .find(|slot| slot.inventory_index == Some(2))
+        .unwrap_or_else(|| {
+            panic!(
+                "expected inventory destination 2, projected slots: {:?}; actor: {:?}",
+                geometry.slots().collect::<Vec<_>>(),
+                app.player
+                    .runtime
+                    .view()
+                    .map
+                    .unwrap()
+                    .entities
+                    .iter()
+                    .find(|actor| actor.id == actor_id)
+                    .unwrap()
+                    .inventory
+                    .iter()
+                    .enumerate()
+                    .map(|(index, item)| (
+                        index,
+                        item.as_ref().map(|item| (item.id, item.item_type.clone()))
+                    ))
+                    .collect::<Vec<_>>()
+            )
+        })
+        .rect;
+    let child_point = [
+        child_slot.x + child_slot.width / 2.,
+        child_slot.y + child_slot.height / 2.,
+    ];
+    let target_point = [
+        destination.x + destination.width / 2.,
+        destination.y + destination.height / 2.,
+    ];
+    pointer(&mut app, &mut host, child_point, true);
+    assert!(
+        matches!(app.screen.control_capture(), Some(ScreenCapture::Hud(id))
+        if matches!(id.panel, eldiron_presentation::HudPanelId::Inventory { entity, .. } if entity == actor_id))
+    );
+    pointer(&mut app, &mut host, target_point, false);
+    pump_until(&mut app, &mut host, "native inventory transfer", |_| {
+        let ctx = context.lock().unwrap();
+        let actor = ctx
+            .map
+            .entities
+            .iter()
+            .find(|actor| actor.id == actor_id)
+            .unwrap();
+        actor
+            .inventory
+            .get(2)
+            .and_then(Option::as_ref)
+            .is_some_and(|item| item.id == child_id)
+            && actor
+                .inventory
+                .iter()
+                .flatten()
+                .filter(|item| item.id == child_id)
+                .count()
+                == 1
+    });
+    pump_until(
+        &mut app,
+        &mut host,
+        "native inventory transfer publication",
+        |app| {
+            app.player
+                .runtime
+                .view()
+                .map
+                .unwrap()
+                .entities
+                .iter()
+                .find(|actor| actor.id == actor_id)
+                .is_some_and(|actor| {
+                    actor
+                        .inventory
+                        .get(2)
+                        .and_then(Option::as_ref)
+                        .is_some_and(|item| item.id == child_id)
+                })
+        },
+    );
+    let mut source_widget = rusterix::client::widget::Widget::new();
+    source_widget.id = 80;
+    source_widget.name = "Owned item exchange".into();
+    source_widget.rect = ScreenRect::new(600., 300., 40., 40.);
+    source_widget.inventory_index = Some(2);
+    source_widget.drag_drop = true;
+    app.screen.elements.button_widgets.insert(80, source_widget);
+    let equipment_config = screen_model::EquipmentPanelConfig {
+        slot_size: 32.,
+        padding: 8.,
+        title_height: 26.,
+        avatar_width: 60.,
+        avatar_height: 120.,
+        left_slots: vec!["MAIN_HAND".into()],
+        authored_rect: Some(ScreenRect::new(24., 24., 400., 220.)),
+        ..Default::default()
+    };
+    app.screen.elements.custom_equipment_panel_config = Some(equipment_config.clone());
+    app.command(ClientCommandBinding::Ui("equipment".into()))
+        .unwrap();
+    render(&mut app, &mut host, &mut images2, &mut renderer2, &target2);
+    app.presented(&mut host);
+    let geometry = {
+        let world = app.player.runtime.view();
+        let actor = world
+            .map
+            .unwrap()
+            .entities
+            .iter()
+            .find(|actor| actor.id == actor_id)
+            .unwrap();
+        screen_model::equipment_panel_geometry(
+            actor,
+            &equipment_config,
+            world.assets,
+            None,
+            Vec2::new(960, 540),
+        )
+    };
+    let equipment_slot = geometry
+        .slots
+        .iter()
+        .find(|slot| slot.slot == "main_hand")
+        .unwrap()
+        .rect;
+    let equipment_point = [
+        equipment_slot.x + equipment_slot.width / 2.,
+        equipment_slot.y + equipment_slot.height / 2.,
+    ];
+    pointer(&mut app, &mut host, [620., 320.], true);
+    pointer(&mut app, &mut host, equipment_point, false);
+    pump_until(&mut app, &mut host, "native equipment transfer", |_| {
+        context
+            .lock()
+            .unwrap()
+            .map
+            .entities
+            .iter()
+            .find(|actor| actor.id == actor_id)
+            .unwrap()
+            .get_equipped_item("main_hand")
+            .is_some_and(|item| item.id == child_id)
+    });
+    pump_until(&mut app, &mut host, "native equipment publication", |app| {
+        app.player
+            .runtime
+            .view()
+            .map
+            .unwrap()
+            .entities
+            .iter()
+            .find(|actor| actor.id == actor_id)
+            .unwrap()
+            .get_equipped_item("main_hand")
+            .is_some_and(|item| item.id == child_id)
+    });
+    render(&mut app, &mut host, &mut images2, &mut renderer2, &target2);
+    app.presented(&mut host);
+    pointer(&mut app, &mut host, equipment_point, true);
+    assert!(
+        matches!(app.screen.control_capture(), Some(ScreenCapture::Hud(id))
+        if matches!(id.panel, eldiron_presentation::HudPanelId::Equipment { entity, .. } if entity == actor_id))
+    );
+    pointer(&mut app, &mut host, [620., 320.], false);
+    pump_until(&mut app, &mut host, "native equipment return", |_| {
+        let ctx = context.lock().unwrap();
+        let actor = ctx
+            .map
+            .entities
+            .iter()
+            .find(|actor| actor.id == actor_id)
+            .unwrap();
+        actor
+            .inventory
+            .get(2)
+            .and_then(Option::as_ref)
+            .is_some_and(|item| item.id == child_id)
+            && actor
+                .inventory
+                .iter()
+                .flatten()
+                .chain(actor.equipped.values())
+                .filter(|item| item.id == child_id)
+                .count()
+                == 1
+    });
+    assert!(
+        observed.lock().unwrap().effects.is_empty(),
+        "native inventory commands never reach application service fallback"
+    );
     assert_eq!(gpu2.transfers().readback_bytes, 0);
     app.player.runtime.stop();
 }

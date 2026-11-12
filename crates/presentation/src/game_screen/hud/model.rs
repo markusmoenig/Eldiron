@@ -1,12 +1,20 @@
-//! Logical floating-container state and viewport geometry. No image buffers.
+//! Logical floating-panel state and viewport geometry. No image buffers.
+use super::style::PanelStyle;
 use super::*;
+use rusterix::item_interaction::ItemDestination;
 use rusterix::{ServerState, client::rules_ui, world_interaction::item_is_container};
 use scenevm::prelude::Vec2;
+mod actor_panels;
 
 struct OpenContainer {
     source: ItemRef,
     incarnation: u64,
     position: Vec2<i32>,
+    scroll: [f64; 2],
+}
+struct OpenActorPanel {
+    incarnation: u64,
+    position: Option<Vec2<i32>>,
     scroll: [f64; 2],
 }
 #[derive(Default)]
@@ -15,9 +23,14 @@ pub(super) struct HudState {
     positions: FxHashMap<ItemRef, Vec2<i32>>,
     open: Option<OpenContainer>,
     serial: u64,
+    inventory: Option<OpenActorPanel>,
+    equipment: Option<OpenActorPanel>,
+    page: usize,
+    sort_open: bool,
+    selected: Option<u32>,
 }
 #[derive(Clone, PartialEq)]
-pub(in crate::game_screen) struct ContainerFrame {
+pub(in crate::game_screen) struct PanelFrame {
     pub id: HudPanelId,
     pub rect: Rect,
     pub title_bar: Option<Rect>,
@@ -25,20 +38,57 @@ pub(in crate::game_screen) struct ContainerFrame {
     pub title_rect: Option<Rect>,
     pub title: String,
     pub clip: Rect,
-    pub template: rules_ui::ContainerUiTemplate,
-    pub slots: Vec<ContainerSlot>,
+    pub style: PanelStyle,
+    pub tiles: Vec<(String, Rect)>,
+    pub slot_tile: Option<String>,
+    pub labels: Vec<PanelLabel>,
+    pub buttons: Vec<PanelButton>,
+    pub avatar: Option<(u32, Rect)>,
+    pub body_destination: Option<ItemDestination>,
+    pub popup: Option<Rect>,
+    pub slots: Vec<PanelSlot>,
     pub scroll: [f64; 2],
     pub max_scroll: [f64; 2],
     pub position: Vec2<i32>,
 }
 #[derive(Clone, Debug, PartialEq)]
-pub(in crate::game_screen) struct ContainerSlot {
+pub(in crate::game_screen) struct PanelSlot {
     pub index: usize,
     pub rect: Rect,
     pub hit: Rect,
     pub source: Option<ItemSource>,
+    pub destination: Option<ItemDestination>,
+    pub inventory_index: Option<usize>,
+    pub equipped_slot: Option<String>,
+    pub selected: bool,
 }
-impl ContainerFrame {
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::game_screen) enum HudAction {
+    Category(String),
+    ToggleSort,
+    Sort(String),
+    Page(usize),
+}
+#[derive(Clone, PartialEq)]
+pub(in crate::game_screen) struct PanelLabel {
+    pub text: String,
+    pub rect: Rect,
+    pub size: f32,
+    pub color: [u8; 4],
+    pub centered: bool,
+    pub content: bool,
+}
+#[derive(Clone, PartialEq)]
+pub(in crate::game_screen) struct PanelButton {
+    pub part: HudPart,
+    pub rect: Rect,
+    pub action: HudAction,
+    pub label: PanelLabel,
+    pub background: [u8; 4],
+    pub selected: bool,
+    pub popup: bool,
+}
+impl PanelFrame {
     pub fn control(&self, part: HudPart) -> HudControlId {
         HudControlId {
             panel: self.id,
@@ -58,6 +108,21 @@ impl ContainerFrame {
         if let Some(close) = self.close {
             controls.push((self.control(HudPart::Close), close));
         }
+        controls.extend(
+            self.buttons
+                .iter()
+                .filter(|button| !button.popup)
+                .map(|button| (self.control(button.part), button.rect)),
+        );
+        if let Some(popup) = self.popup {
+            controls.push((self.control(HudPart::SortPopup), popup));
+            controls.extend(
+                self.buttons
+                    .iter()
+                    .filter(|button| button.popup)
+                    .map(|button| (self.control(button.part), button.rect)),
+            );
+        }
         controls
             .into_iter()
             .filter_map(|(id, bounds)| {
@@ -67,10 +132,23 @@ impl ContainerFrame {
             })
             .collect()
     }
-    pub fn source(&self) -> ItemRef {
-        match self.id {
-            HudPanelId::Container { source, .. } => source,
+    pub fn destination(&self, part: HudPart) -> Option<ItemDestination> {
+        match part {
+            HudPart::Body => self.body_destination.clone(),
+            HudPart::Slot(index) => self
+                .slots
+                .iter()
+                .find(|slot| slot.index == index)?
+                .destination
+                .clone(),
+            _ => None,
         }
+    }
+    pub fn action(&self, part: HudPart) -> Option<HudAction> {
+        self.buttons
+            .iter()
+            .find(|button| button.part == part)
+            .map(|button| button.action.clone())
     }
 }
 impl HudState {
@@ -79,6 +157,7 @@ impl HudState {
         if self.scope != scope {
             self.close();
             if self.scope.map(|s| s.0) != scope.map(|s| s.0) {
+                self.close_all();
                 self.positions.clear();
             }
             self.scope = scope;
@@ -92,6 +171,9 @@ impl HudState {
             })
         {
             self.close();
+        }
+        if world.state == ServerState::Off {
+            self.close_all();
         }
     }
     pub fn close(&mut self) {
@@ -117,7 +199,7 @@ impl HudState {
             return;
         }
         if toggle && self.open.as_ref().is_some_and(|open| open.source == source) {
-            self.close();
+            self.close_all();
             return;
         }
         self.close();
@@ -137,7 +219,7 @@ impl HudState {
             scroll: [0.; 2],
         });
     }
-    pub fn layout(&self, world: &RuntimeView<'_>, size: Vec2<i32>) -> Option<ContainerFrame> {
+    pub fn layout(&self, world: &RuntimeView<'_>, size: Vec2<i32>) -> Option<PanelFrame> {
         let map = world.map?;
         if self.scope != Some((world.session_id, map.id)) || world.state == ServerState::Off {
             return None;
@@ -190,10 +272,14 @@ impl HudState {
                 if hit.width <= 0. || hit.height <= 0. {
                     return None;
                 }
-                Some(ContainerSlot {
+                Some(PanelSlot {
                     index,
                     rect,
                     hit: Rect::new(hit.x, hit.y, hit.width, hit.height),
+                    destination: Some(ItemDestination::Container(open.source)),
+                    inventory_index: Some(index),
+                    equipped_slot: None,
+                    selected: false,
                     source: item
                         .container
                         .as_ref()
@@ -205,7 +291,7 @@ impl HudState {
                 })
             })
             .collect();
-        Some(ContainerFrame {
+        Some(PanelFrame {
             id: HudPanelId::Container {
                 source: open.source,
                 incarnation: open.incarnation,
@@ -236,14 +322,28 @@ impl HudState {
                 .unwrap_or("Container")
                 .to_string(),
             clip,
-            template,
+            style: PanelStyle::container(&template),
+            tiles: screen_model::container_frame_tiles(bounds, &template)
+                .into_iter()
+                .map(|(tile, rect)| (tile.to_string(), rect))
+                .collect(),
+            slot_tile: template.tiles.slot.clone(),
+            labels: Vec::new(),
+            buttons: Vec::new(),
+            avatar: None,
+            body_destination: Some(ItemDestination::Container(open.source)),
+            popup: None,
             slots,
             scroll,
             max_scroll,
             position: Vec2::new(bounds.x.round() as i32, bounds.y.round() as i32),
         })
     }
-    pub fn retain_placement(&mut self, frame: &ContainerFrame) {
+    pub fn retain_placement(&mut self, frame: &PanelFrame) {
+        if let Some(open) = self.actor_panel_mut(frame.id) {
+            open.position = Some(frame.position);
+            open.scroll = frame.scroll;
+        }
         if let Some(open) = self.open.as_mut().filter(|open| {
             frame.id
                 == HudPanelId::Container {
@@ -256,6 +356,12 @@ impl HudState {
         }
     }
     pub fn move_to(&mut self, id: HudPanelId, position: Vec2<i32>, size: Vec2<i32>) {
+        if let Some(open) = self.actor_panel_mut(id) {
+            open.position = Some(Vec2::new(
+                position.x.clamp(2, (size.x - 24).max(2)),
+                position.y.clamp(2, (size.y - 24).max(2)),
+            ));
+        }
         if let Some(open) = self.open.as_mut().filter(|open| {
             id == HudPanelId::Container {
                 source: open.source,
@@ -268,18 +374,32 @@ impl HudState {
             );
         }
     }
-    pub fn scroll(&mut self, frame: &ContainerFrame, delta: [f32; 2], precise: bool) {
+    pub fn scroll(&mut self, frame: &PanelFrame, delta: [f32; 2], precise: bool) {
         if !delta.into_iter().all(f32::is_finite) {
             return;
         }
-        if let Some(open) = &mut self.open {
-            let scale = if precise {
-                1.
-            } else {
-                frame.template.slot_size.max(8) as f64 + frame.template.gap.max(0) as f64
-            };
+        let scale = if precise {
+            1.
+        } else {
+            frame.style.scroll_step as f64
+        };
+        let scroll = if let Some(open) = self.actor_panel_mut(frame.id) {
+            Some(&mut open.scroll)
+        } else {
+            self.open
+                .as_mut()
+                .filter(|open| {
+                    frame.id
+                        == HudPanelId::Container {
+                            source: open.source,
+                            incarnation: open.incarnation,
+                        }
+                })
+                .map(|open| &mut open.scroll)
+        };
+        if let Some(scroll) = scroll {
             for axis in 0..2 {
-                open.scroll[axis] = (frame.scroll[axis] - delta[axis] as f64 * scale)
+                scroll[axis] = (frame.scroll[axis] - delta[axis] as f64 * scale)
                     .clamp(0., frame.max_scroll[axis]);
             }
         }

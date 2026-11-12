@@ -227,3 +227,278 @@ fn native_container_composes_template_tiles_swash_title_quantities_and_child_dra
         "presentation only emits the command"
     );
 }
+
+#[test]
+#[ignore = "requires native GPU; run with --include-ignored"]
+fn native_inventory_and_equipment_share_retained_sources_glyphs_and_typed_transfers() {
+    use rusterix::client::{command::ClientCommandBinding, screen_model};
+    use rusterix::{
+        Avatar, AvatarAnimation, AvatarAnimationFrame, AvatarDirection, AvatarPerspective,
+        AvatarPerspectiveCount,
+    };
+    let mut session = fixture(true);
+    session.server.state = rusterix::ServerState::Running;
+    session.assets.rules =
+        "[equipment]\nweapon_slots=['main_hand','off_hand']\narmor_slots=['head','body']".into();
+    let tile = Tile::from_texture(Texture::from_color([0, 255, 255, 255]));
+    let tile_id = tile.id;
+    session.assets.tiles.insert(tile_id, tile);
+    session.assets.avatars.insert(
+        "Human".into(),
+        Avatar {
+            id: Default::default(),
+            name: "Human".into(),
+            resolution: 1,
+            perspective_count: AvatarPerspectiveCount::Four,
+            animations: vec![AvatarAnimation {
+                id: Default::default(),
+                name: "Idle".into(),
+                speed: 1.,
+                perspectives: vec![AvatarPerspective {
+                    direction: AvatarDirection::Front,
+                    frames: vec![AvatarAnimationFrame::new(Texture::from_color([
+                        24, 128, 240, 255,
+                    ]))],
+                    weapon_main_anchor: None,
+                    weapon_off_anchor: None,
+                }],
+            }],
+        },
+    );
+    session.assets.default_avatar = Some("Human".into());
+    let mut item = rusterix::Item::new();
+    item.id = 7;
+    item.set_stack_quantity(17);
+    item.set_attribute("source", Value::Source(PixelSource::TileId(tile_id)));
+    let actor = &mut session.project.regions[0].map.entities[0];
+    actor.inventory = vec![Some(item.clone()), None];
+    let mut equipped = item;
+    equipped.id = 8;
+    actor.equipped.insert("main_hand".into(), equipped);
+    sector(
+        &mut session.project.screens.values_mut().next().unwrap().map,
+        21,
+        Rect::new(320., 180., 48., 48.),
+        "[ui]\nrole='button'\ninventory_index=1\ndrag_drop=true\nshow_icon=false",
+    );
+    let mut screen = GameScreenController::from_screen("Main", &session.view(), layout()).unwrap();
+    let inventory = screen_model::InventoryPanelConfig {
+        columns: 4,
+        rows: 2,
+        cell_size: 28.,
+        spacing: 4.,
+        padding: 4.,
+        title_height: 24.,
+        tab_height: 20.,
+        footer_height: 24.,
+        font_size: 10.,
+        title_font_size: 14.,
+        title: "Inventory 東京".into(),
+        authored_rect: Some(Rect::new(8., 8., 280., 164.)),
+        ..Default::default()
+    };
+    let equipment = screen_model::EquipmentPanelConfig {
+        slot_size: 24.,
+        padding: 4.,
+        title_height: 24.,
+        label_width: 60.,
+        avatar_width: 56.,
+        avatar_height: 70.,
+        font_size: 10.,
+        title_font_size: 14.,
+        title: "Equipment 東京".into(),
+        authored_rect: Some(Rect::new(8., 8., 280., 164.)),
+        ..Default::default()
+    };
+    let geometry = screen_model::inventory_panel_geometry(
+        &session.view().map.unwrap().entities[0],
+        &inventory,
+        "all",
+        "newest",
+        0,
+        None,
+        layout().viewport,
+    );
+    let slot = geometry.slot(0).unwrap().rect;
+    let point = [slot.x + slot.width / 2., slot.y + slot.height / 2.];
+    screen.elements.custom_inventory_panel_config = Some(inventory);
+    screen.elements.custom_equipment_panel_config = Some(equipment.clone());
+    assert!(screen.handle_hud_effect(
+        &session.view(),
+        &ScreenEffect::Command(ClientCommandBinding::Ui("inventory".into()))
+    ));
+    let mut fonts = GameFonts::default();
+    let gpu = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut registry = ImageRegistry::new(gpu.clone());
+    let mut images = ScreenImageCache::default();
+    let mut views = SceneViews::new(&registry, SharedAtlas::new(64, 64));
+    let mut renderer = PaintRenderer::new(gpu.clone()).unwrap();
+    let target = GpuImage::new(&gpu, ImageDescriptor::rgba(600, 360)).unwrap();
+    render(
+        &session,
+        &mut screen,
+        &mut fonts,
+        &mut views,
+        &mut registry,
+        &mut images,
+        &mut renderer,
+        &target,
+    );
+    let counts = (
+        gpu.transfers().uploaded_bytes,
+        renderer.glyphs.rasterizations,
+        screen.source_builds(),
+    );
+    assert!(counts.1 > 0);
+    let down = InputEvent::PointerButton {
+        button: PointerButton::Primary,
+        pressed: true,
+        position: point,
+    };
+    assert!(
+        screen
+            .input(&session.view(), &mut fonts, &down)
+            .unwrap()
+            .input
+            .consumed
+    );
+    screen.world_input(
+        &session.view(),
+        Some(&views),
+        &InputEvent::PointerMoved {
+            position: [340., 150.],
+        },
+        false,
+    );
+    render(
+        &session,
+        &mut screen,
+        &mut fonts,
+        &mut views,
+        &mut registry,
+        &mut images,
+        &mut renderer,
+        &target,
+    );
+    assert_eq!(
+        (
+            gpu.transfers().uploaded_bytes,
+            renderer.glyphs.rasterizations,
+            screen.source_builds()
+        ),
+        counts
+    );
+    assert_eq!(gpu.transfers().readback_bytes, 0);
+    assert!(screen.elements.game_widgets.values().all(
+        |widget| widget.buffer.pixels().is_empty() && widget.upscale_buffer.pixels().is_empty()
+    ));
+    let pixels = capture(&gpu, target.clone());
+    let pixel = |point: [f32; 2]| {
+        let (x, y) = ((point[0] * 1.5) as usize, (point[1] * 1.5) as usize);
+        &pixels[(y * 600 + x) * 4..(y * 600 + x) * 4 + 4]
+    };
+    write_panel_evidence("/private/tmp/eldiron-native-inventory-hud.png", &pixels);
+    assert_eq!(
+        pixel([slot.x + 8., slot.y + 8.]),
+        &[0, 255, 255, 255],
+        "native inventory source outside its quantity badge"
+    );
+    assert_eq!(
+        pixel([340., 150.]),
+        &[0, 255, 255, 255],
+        "retained GPU inventory drag"
+    );
+
+    let up = InputEvent::PointerButton {
+        button: PointerButton::Primary,
+        pressed: false,
+        position: [344., 204.],
+    };
+    assert_eq!(
+        screen
+            .world_input(&session.view(), Some(&views), &up, false)
+            .effects,
+        vec![ScreenEffect::Action(rusterix::EntityAction::MoveItem {
+            item_id: 7,
+            owner_entity_id: Some(1),
+            target_entity_id: Some(1),
+            to_inventory_index: Some(1),
+            to_equipped_slot: None
+        })]
+    );
+    assert!(screen.handle_hud_effect(
+        &session.view(),
+        &ScreenEffect::Command(ClientCommandBinding::Ui("equipment".into()))
+    ));
+    render(
+        &session,
+        &mut screen,
+        &mut fonts,
+        &mut views,
+        &mut registry,
+        &mut images,
+        &mut renderer,
+        &target,
+    );
+    let counts = (
+        gpu.transfers().uploaded_bytes,
+        renderer.glyphs.rasterizations,
+        screen.source_builds(),
+        gpu.transfers().readback_bytes,
+    );
+    render(
+        &session,
+        &mut screen,
+        &mut fonts,
+        &mut views,
+        &mut registry,
+        &mut images,
+        &mut renderer,
+        &target,
+    );
+    assert_eq!(
+        (
+            gpu.transfers().uploaded_bytes,
+            renderer.glyphs.rasterizations,
+            screen.source_builds(),
+            gpu.transfers().readback_bytes
+        ),
+        counts
+    );
+    let pixels = capture(&gpu, target.clone());
+    let geometry = screen_model::equipment_panel_geometry(
+        &session.view().map.unwrap().entities[0],
+        &equipment,
+        &session.assets,
+        None,
+        layout().viewport,
+    );
+    let slot = geometry
+        .slots
+        .iter()
+        .find(|slot| slot.slot == "main_hand")
+        .unwrap()
+        .rect;
+    let pixel = |x: f32, y: f32| {
+        let (x, y) = ((x * 1.5) as usize, (y * 1.5) as usize);
+        &pixels[(y * 600 + x) * 4..(y * 600 + x) * 4 + 4]
+    };
+    assert_eq!(pixel(slot.x + 8., slot.y + 8.), &[0, 255, 255, 255]);
+    let avatar = geometry.avatar_rect;
+    assert_eq!(
+        pixel(avatar.x + avatar.width / 2., avatar.y + avatar.height / 2.),
+        &[24, 128, 240, 255],
+        "retained equipment avatar source"
+    );
+    write_panel_evidence("/private/tmp/eldiron-native-equipment-hud.png", &pixels);
+}
+fn write_panel_evidence(path: &str, pixels: &[u8]) {
+    let mut encoder = png::Encoder::new(std::fs::File::create(path).unwrap(), 600, 360);
+    encoder.set_color(png::ColorType::Rgba);
+    encoder.set_depth(png::BitDepth::Eight);
+    encoder
+        .write_header()
+        .unwrap()
+        .write_image_data(pixels)
+        .unwrap();
+}

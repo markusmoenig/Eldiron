@@ -46,8 +46,7 @@ impl GameScreenController {
         if self.font_version != Some(fonts.version()) {
             return Err("Prepare screen layouts after changing their font owner".into());
         }
-        self.hud
-            .validate_prepared(world, self.elements.layout.viewport)?;
+        self.hud.validate_prepared(world, &self.elements)?;
         // Scene preparation updates each view's camera. Reproject retained
         // overlays against those cameras before painting; unchanged text reuses
         // its shaped layout. Input uses the last prepared display geometry.

@@ -121,52 +121,15 @@ impl ContainerGeometry {
         clip: Rect,
         offset: [f64; 2],
     ) -> impl Iterator<Item = (usize, Rect)> + '_ {
-        let valid = [clip.x, clip.y, clip.width, clip.height]
-            .into_iter()
-            .all(f32::is_finite)
-            && offset.into_iter().all(f64::is_finite)
-            && clip.width > 0.
-            && clip.height > 0.;
-        let range = |start: f64, extent: f32, origin: f64, limit: usize| {
-            if !valid {
-                return 0..0;
-            }
-            let first = (((start - origin - self.size) / self.step).floor() + 1.).max(0.) as usize;
-            let end = (((start + extent as f64 - origin) / self.step)
-                .ceil()
-                .max(0.) as usize)
-                .min(limit);
-            first.min(end)..end
-        };
-        let columns = range(
-            clip.x as f64 + offset[0],
-            clip.width,
-            self.origin[0],
+        super::grid::visible_square_grid(
+            self.origin,
             self.columns,
-        );
-        let rows = range(
-            clip.y as f64 + offset[1],
-            clip.height,
-            self.origin[1],
-            self.count.div_ceil(self.columns),
-        );
-        rows.flat_map(move |row| {
-            columns.clone().filter_map(move |column| {
-                let index = row.checked_mul(self.columns)?.checked_add(column)?;
-                if index >= self.count {
-                    return None;
-                }
-                Some((
-                    index,
-                    Rect::new(
-                        (self.origin[0] + column as f64 * self.step - offset[0]) as f32,
-                        (self.origin[1] + row as f64 * self.step - offset[1]) as f32,
-                        self.size as f32,
-                        self.size as f32,
-                    ),
-                ))
-            })
-        })
+            self.count,
+            self.size,
+            self.step,
+            clip,
+            offset,
+        )
     }
 }
 

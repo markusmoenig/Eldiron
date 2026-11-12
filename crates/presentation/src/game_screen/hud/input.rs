@@ -12,6 +12,7 @@ pub(super) struct HudCapture {
     position: Vec2<i32>,
     key: Option<PhysicalKey>,
     item: Option<Arc<world_pointer::ItemReceipt>>,
+    action: Option<model::HudAction>,
 }
 impl GameScreenController {
     pub(in crate::game_screen) fn hud_input(
@@ -36,14 +37,14 @@ impl GameScreenController {
             }
             return None;
         }
-        let current = self.hud.current(world, size);
+        let current = self.hud.frames(world, &self.elements);
         if let Some(mut capture) = self.hud.capture.take() {
             let valid = capture
                 .binding
                 .is_some_and(|binding| self.hud_capture_valid(world, binding))
                 && current
-                    .as_ref()
-                    .is_some_and(|frame| frame.id == capture.control.panel);
+                    .iter()
+                    .any(|frame| frame.id == capture.control.panel);
             capture.cancelled |= !valid;
             let mut released = false;
             match event {
@@ -66,7 +67,8 @@ impl GameScreenController {
                     self.cursor = *position;
                     released = true;
                     if !rect(capture.bounds).contains(*position) {
-                        capture.cancelled |= capture.control.part == HudPart::Close;
+                        capture.cancelled |=
+                            capture.control.part == HudPart::Close || capture.action.is_some();
                     }
                 }
                 InputEvent::Key {
@@ -83,14 +85,45 @@ impl GameScreenController {
             }
             if released {
                 let mut effects = Vec::new();
-                if !capture.cancelled {
+                if !capture.cancelled
+                    && (capture.control.part == HudPart::Title
+                        || self.hud_control_visible(world, capture.control, capture.point))
+                {
                     if let Some(item) = &capture.item {
                         effects = self.hud_item_activate(world, item);
                     } else if capture.control.part == HudPart::Close
                         && self.hud_frame_valid(world, capture.control, capture.bounds)
                     {
-                        self.hud.state.close();
+                        self.hud.state.close_panel(capture.control.panel);
                         self.hud.focused = None;
+                    } else if let Some(action) = &capture.action {
+                        if self.hud_action_valid(
+                            world,
+                            capture.control,
+                            capture.bounds,
+                            Some(action),
+                        ) {
+                            self.hud.state.activate(action, &mut self.elements);
+                            if matches!(
+                                action,
+                                model::HudAction::Category(_) | model::HudAction::Sort(_)
+                            ) {
+                                self.geometry = None;
+                            }
+                            if matches!(action, model::HudAction::ToggleSort)
+                                && self.hud.state.popup_open()
+                            {
+                                self.hud.focused = Some(HudControlId {
+                                    panel: capture.control.panel,
+                                    part: HudPart::SortOption(0),
+                                });
+                            } else if matches!(action, model::HudAction::Sort(_)) {
+                                self.hud.focused = Some(HudControlId {
+                                    panel: capture.control.panel,
+                                    part: HudPart::Sort,
+                                });
+                            }
+                        }
                     }
                 }
                 return Some(ScreenInputResponse {
@@ -101,14 +134,37 @@ impl GameScreenController {
             self.hud.capture = Some(capture);
             return Some(ScreenInputResponse::handled(true));
         }
-        if self.pointer_modal() || self.pointer_capture.is_some() || self.keyboard_capture.is_some()
+        if self.author_modal() || self.pointer_capture.is_some() || self.keyboard_capture.is_some()
         {
             return None;
         }
-        let frame = current?;
-        if self.hud.focused.is_some_and(|id| id.panel != frame.id) {
+        if self
+            .hud
+            .focused
+            .is_some_and(|id| !current.iter().any(|frame| frame.id == id.panel))
+        {
             self.hud.focused = None;
         }
+        let frame = current
+            .iter()
+            .rev()
+            .find(|frame| frame.popup.is_some())
+            .or_else(|| match event {
+                InputEvent::PointerButton { position, .. } => current
+                    .iter()
+                    .rev()
+                    .find(|frame| rect(frame.rect).contains(*position))
+                    .or_else(|| current.last()),
+                InputEvent::Scroll { .. } => current
+                    .iter()
+                    .rev()
+                    .find(|frame| rect(frame.rect).contains(self.cursor)),
+                _ => self
+                    .hud
+                    .focused
+                    .and_then(|id| current.iter().find(|frame| frame.id == id.panel))
+                    .or_else(|| current.last()),
+            })?;
         match event {
             InputEvent::PointerMoved { position } => {
                 self.hud.pointer_present = true;
@@ -121,6 +177,27 @@ impl GameScreenController {
                 position,
             } => {
                 self.hud.pointer_present = true;
+                if let Some(popup) = frame.popup {
+                    if !rect(popup).contains(*position)
+                        && !frame.buttons.iter().any(|button| {
+                            button.part == HudPart::Sort && rect(button.rect).contains(*position)
+                        })
+                    {
+                        self.hud.state.dismiss_popup();
+                        self.hud.capture = Some(HudCapture {
+                            control: frame.control(HudPart::SortPopup),
+                            cancelled: true,
+                            binding: self.hud_binding(world),
+                            bounds: popup,
+                            point: *position,
+                            position: frame.position,
+                            key: None,
+                            item: None,
+                            action: None,
+                        });
+                        return Some(ScreenInputResponse::handled(true));
+                    }
+                }
                 let Some((control, bounds)) = frame
                     .controls()
                     .into_iter()
@@ -139,7 +216,9 @@ impl GameScreenController {
                     }
                 }
                 let binding = self.hud_binding(world);
-                let cancelled = !self.hud_frame_valid(world, control, bounds);
+                let action = frame.action(control.part);
+                let cancelled = !self.hud_action_valid(world, control, bounds, action.as_ref())
+                    || !self.hud_control_visible(world, control, *position);
                 self.hud.capture = Some(HudCapture {
                     control,
                     cancelled,
@@ -149,6 +228,7 @@ impl GameScreenController {
                     position: frame.position,
                     key: None,
                     item: None,
+                    action,
                 });
                 Some(ScreenInputResponse {
                     cancel_controls: true,
@@ -162,7 +242,7 @@ impl GameScreenController {
                         .is_some_and(|point| rect(frame.rect).contains(point)) =>
             {
                 if self.hud_frame_valid(world, frame.control(HudPart::Body), frame.rect) {
-                    self.hud.state.scroll(&frame, *delta, *precise);
+                    self.hud.state.scroll(frame, *delta, *precise);
                 }
                 Some(ScreenInputResponse::handled(true))
             }
@@ -174,8 +254,13 @@ impl GameScreenController {
             } if self.hud.focused.is_some() => {
                 if *physical == PhysicalKey::Escape {
                     if *pressed && !repeat {
-                        self.hud.state.close();
-                        self.hud.focused = None;
+                        if self.hud.state.popup_open() {
+                            self.hud.state.dismiss_popup();
+                            self.hud.focused = Some(frame.control(HudPart::Sort));
+                        } else {
+                            self.hud.state.close_panel(frame.id);
+                            self.hud.focused = None;
+                        }
                     }
                     return Some(ScreenInputResponse::handled(true));
                 }
@@ -190,7 +275,21 @@ impl GameScreenController {
                         let controls: Vec<_> = frame
                             .controls()
                             .into_iter()
-                            .filter(|(id, _)| matches!(id.part, HudPart::Close | HudPart::Slot(_)))
+                            .filter(|(id, _)| {
+                                if frame.popup.is_some() {
+                                    matches!(id.part, HudPart::SortOption(_))
+                                } else {
+                                    matches!(
+                                        id.part,
+                                        HudPart::Close
+                                            | HudPart::Slot(_)
+                                            | HudPart::Category(_)
+                                            | HudPart::Sort
+                                            | HudPart::PreviousPage
+                                            | HudPart::NextPage
+                                    )
+                                }
+                            })
                             .collect();
                         if !controls.is_empty() {
                             let index = controls
@@ -220,8 +319,30 @@ impl GameScreenController {
                         | PhysicalKey::End
                 ) {
                     if *pressed {
-                        let step = frame.template.slot_size.max(8) as f32
-                            + frame.template.gap.max(0) as f32;
+                        if frame.popup.is_some() {
+                            let options: Vec<_> =
+                                frame.buttons.iter().filter(|button| button.popup).collect();
+                            if !options.is_empty() {
+                                let old = self
+                                    .hud
+                                    .focused
+                                    .and_then(|id| {
+                                        options.iter().position(|button| button.part == id.part)
+                                    })
+                                    .unwrap_or(0);
+                                let next = match physical {
+                                    PhysicalKey::Up | PhysicalKey::Left => {
+                                        (old + options.len() - 1) % options.len()
+                                    }
+                                    PhysicalKey::Home | PhysicalKey::PageUp => 0,
+                                    PhysicalKey::End | PhysicalKey::PageDown => options.len() - 1,
+                                    _ => (old + 1) % options.len(),
+                                };
+                                self.hud.focused = Some(frame.control(options[next].part));
+                            }
+                            return Some(ScreenInputResponse::handled(true));
+                        }
+                        let step = frame.style.scroll_step;
                         let delta = match physical {
                             PhysicalKey::Up => [0., step],
                             PhysicalKey::Down => [0., -step],
@@ -232,7 +353,7 @@ impl GameScreenController {
                             PhysicalKey::Home => [frame.scroll[0] as f32, frame.scroll[1] as f32],
                             _ => [-frame.max_scroll[0] as f32, -frame.max_scroll[1] as f32],
                         };
-                        self.hud.state.scroll(&frame, delta, true);
+                        self.hud.state.scroll(frame, delta, true);
                         self.hud.focused = Some(frame.control(HudPart::Body));
                     }
                     return Some(ScreenInputResponse::handled(true));
@@ -251,8 +372,9 @@ impl GameScreenController {
                     } else {
                         Ok(None)
                     };
-                    let cancelled =
-                        !self.hud_frame_valid(world, control, bounds) || receipt.is_err();
+                    let action = frame.action(control.part);
+                    let cancelled = !self.hud_action_valid(world, control, bounds, action.as_ref())
+                        || receipt.is_err();
                     self.hud.capture = Some(HudCapture {
                         control,
                         cancelled,
@@ -262,6 +384,7 @@ impl GameScreenController {
                         position: frame.position,
                         key: Some(*physical),
                         item: receipt.ok().flatten(),
+                        action,
                     });
                     return Some(ScreenInputResponse {
                         cancel_controls: true,

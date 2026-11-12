@@ -47,6 +47,7 @@ use crate::{
 use draw2d::Draw2D;
 use fontdue::*;
 use rayon::prelude::*;
+use screen_model::{EquipmentPanelLayout, EquipmentPanelSlotLayout, InventoryPanelSlotLayout};
 use std::sync::{Arc, Mutex};
 use theframework::prelude::*;
 use toml::*;
@@ -144,13 +145,6 @@ struct ContainerPanelLayout {
 }
 
 #[derive(Clone, Debug)]
-struct InventoryPanelSlotLayout {
-    rect: Rect,
-    inventory_index: Option<usize>,
-    item_id: Option<u32>,
-}
-
-#[derive(Clone, Debug)]
 struct InventoryPanelLayout {
     rect: Rect,
     title_rect: Rect,
@@ -164,23 +158,6 @@ struct InventoryPanelLayout {
     slots: Vec<InventoryPanelSlotLayout>,
     page: usize,
     page_count: usize,
-}
-
-#[derive(Clone, Debug)]
-struct EquipmentPanelSlotLayout {
-    slot: String,
-    rect: Rect,
-    label_rect: Rect,
-    item_id: Option<u32>,
-}
-
-#[derive(Clone, Debug)]
-struct EquipmentPanelLayout {
-    rect: Rect,
-    title_rect: Rect,
-    close_rect: Rect,
-    avatar_rect: Rect,
-    slots: Vec<EquipmentPanelSlotLayout>,
 }
 
 #[derive(Clone, Debug)]
@@ -4212,72 +4189,9 @@ impl Client {
             .unwrap_or_else(|| self.toolbar_equipment_panel_config.clone())
     }
 
-    fn equipment_panel_slot_columns(
-        config: &EquipmentPanelConfig,
-        assets: &Assets,
-    ) -> (Vec<String>, Vec<String>) {
-        let all_slots = assets
-            .rules_table()
-            .and_then(|root| eldiron_ruleset::resolve_equipment_policy(&root).ok())
-            .map(|policy| {
-                policy
-                    .weapon_slots
-                    .into_iter()
-                    .chain(policy.armor_slots)
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
-        let is_known = |slot: &str| {
-            all_slots
-                .iter()
-                .any(|known| known.eq_ignore_ascii_case(slot.trim()))
-        };
-        let mut left = config
-            .left_slots
-            .iter()
-            .filter(|slot| is_known(slot))
-            .cloned()
-            .collect::<Vec<_>>();
-        let mut right = config
-            .right_slots
-            .iter()
-            .filter(|slot| is_known(slot))
-            .cloned()
-            .collect::<Vec<_>>();
-        for slot in all_slots {
-            if left
-                .iter()
-                .chain(right.iter())
-                .any(|existing| existing.eq_ignore_ascii_case(&slot))
-            {
-                continue;
-            }
-            if left.len() <= right.len() {
-                left.push(slot);
-            } else {
-                right.push(slot);
-            }
-        }
-        (left, right)
-    }
-
     fn equipment_slot_label(slot: &str) -> String {
-        slot.split(['_', '-', '.'])
-            .filter(|part| !part.is_empty())
-            .map(|part| {
-                let mut chars = part.chars();
-                chars
-                    .next()
-                    .map(|first| {
-                        first.to_uppercase().collect::<String>()
-                            + &chars.as_str().to_ascii_lowercase()
-                    })
-                    .unwrap_or_default()
-            })
-            .collect::<Vec<_>>()
-            .join(" ")
+        screen_model::equipment_slot_label(slot)
     }
-
     fn equipment_panel_layout(
         &mut self,
         map: &Map,
@@ -4287,104 +4201,18 @@ impl Client {
             return None;
         }
         let actor = screen_model::resolve_party_entity(map, None)?;
-        let config = self.active_equipment_panel_config();
-        let (left, right) = Self::equipment_panel_slot_columns(&config, assets);
-        let row_count = left.len().max(right.len()).max(1);
-        let slots_height = config.slot_size * row_count as f32
-            + config.spacing * row_count.saturating_sub(1) as f32;
-        let avatar_width = config.avatar_width * config.avatar_scale;
-        let avatar_height = config.avatar_height * config.avatar_scale;
-        let content_height = slots_height.max(avatar_height);
-        let computed_width = config.padding * 2.0
-            + config.slot_size * 2.0
-            + config.label_width * 2.0
-            + config.column_gap * 2.0
-            + avatar_width;
-        let computed_height = config.title_height + config.padding * 2.0 + content_height;
-        let (panel_width, panel_height) = config
-            .authored_rect
-            .map(|rect| (rect.width.max(1.0), rect.height.max(1.0)))
-            .unwrap_or((computed_width, computed_height));
-        let viewport_width = self.target.dim().width.max(1) as f32;
-        let viewport_height = self.target.dim().height.max(1) as f32;
-        let default_x = config
-            .authored_rect
-            .map(|rect| rect.x)
-            .unwrap_or_else(|| ((viewport_width - panel_width) * 0.5).max(2.0));
-        let default_y = config
-            .authored_rect
-            .map(|rect| rect.y)
-            .unwrap_or_else(|| ((viewport_height - panel_height) * 0.5).max(2.0));
-        let position = self
-            .equipment_panel_position
-            .unwrap_or_else(|| Vec2::new(default_x.round() as i32, default_y.round() as i32));
-        let x = (position.x as f32).clamp(2.0, (viewport_width - panel_width - 2.0).max(2.0));
-        let y = (position.y as f32).clamp(2.0, (viewport_height - panel_height - 2.0).max(2.0));
-        self.equipment_panel_position = Some(Vec2::new(x.round() as i32, y.round() as i32));
-        let rect = Rect::new(x, y, panel_width, panel_height);
-        let title_rect = Rect::new(x, y, panel_width, config.title_height);
-        let close_rect = Rect::new(x + panel_width - 30.0, y + 6.0, 22.0, 22.0);
-        let content_y = y + config.title_height + config.padding;
-        let left_x = x + config.padding;
-        let avatar_x = left_x + config.slot_size + config.label_width + config.column_gap;
-        let right_label_x = avatar_x + avatar_width + config.column_gap;
-        let right_x = right_label_x + config.label_width;
-        let avatar_rect = Rect::new(
-            avatar_x,
-            content_y + (content_height - avatar_height) * 0.5,
-            avatar_width,
-            avatar_height,
-        );
-        let mut slots = Vec::with_capacity(left.len() + right.len());
-        for (index, slot) in left.iter().enumerate() {
-            let row_y = content_y + index as f32 * (config.slot_size + config.spacing);
-            slots.push(EquipmentPanelSlotLayout {
-                slot: slot.clone(),
-                rect: Rect::new(left_x, row_y, config.slot_size, config.slot_size),
-                label_rect: Rect::new(
-                    left_x + config.slot_size + 6.0,
-                    row_y,
-                    (config.label_width - 6.0).max(1.0),
-                    config.slot_size,
-                ),
-                item_id: actor.get_equipped_item(slot).map(|item| item.id),
-            });
-        }
-        for (index, slot) in right.iter().enumerate() {
-            let row_y = content_y + index as f32 * (config.slot_size + config.spacing);
-            slots.push(EquipmentPanelSlotLayout {
-                slot: slot.clone(),
-                rect: Rect::new(right_x, row_y, config.slot_size, config.slot_size),
-                label_rect: Rect::new(
-                    right_label_x,
-                    row_y,
-                    (config.label_width - 6.0).max(1.0),
-                    config.slot_size,
-                ),
-                item_id: actor.get_equipped_item(slot).map(|item| item.id),
-            });
-        }
-        Some(EquipmentPanelLayout {
-            rect,
-            title_rect,
-            close_rect,
-            avatar_rect,
-            slots,
-        })
-    }
-
-    fn inventory_panel_items<'a>(&self, actor: &'a Entity) -> Vec<(usize, &'a Item)> {
-        screen_model::inventory_items(
+        let layout = screen_model::equipment_panel_geometry(
             actor,
-            self.ui_state
-                .get("inventory.category")
-                .map(String::as_str)
-                .unwrap_or("all"),
-            self.ui_state
-                .get("inventory.sort")
-                .map(String::as_str)
-                .unwrap_or("newest"),
-        )
+            &self.active_equipment_panel_config(),
+            assets,
+            self.equipment_panel_position,
+            Vec2::new(self.target.dim().width, self.target.dim().height),
+        );
+        self.equipment_panel_position = Some(Vec2::new(
+            layout.rect.x.round() as i32,
+            layout.rect.y.round() as i32,
+        ));
+        Some(layout)
     }
 
     fn inventory_panel_choice(
@@ -4445,153 +4273,39 @@ impl Client {
             return None;
         }
         let actor = screen_model::resolve_party_entity(map, None)?;
-        let config = self.active_inventory_panel_config();
-        let content_width = config.columns as f32 * config.cell_size
-            + config.columns.saturating_sub(1) as f32 * config.spacing;
-        let grid_height = config.rows as f32 * config.cell_size
-            + config.rows.saturating_sub(1) as f32 * config.spacing;
-        let computed_width = content_width + config.padding * 2.0;
-        let computed_height = config.title_height
-            + config.tab_height
-            + grid_height
-            + config.footer_height
-            + config.padding * 3.0;
-        let authored = config.authored_rect;
-        let width = authored
-            .map(|rect| rect.width.max(computed_width))
-            .unwrap_or(computed_width);
-        let height = authored
-            .map(|rect| rect.height.max(computed_height))
-            .unwrap_or(computed_height);
-        let default_position = authored
-            .map(|rect| Vec2::new(rect.x.round() as i32, rect.y.round() as i32))
-            .unwrap_or_else(|| {
-                Vec2::new(
-                    ((self.target.dim().width as f32 - width) * 0.5).round() as i32,
-                    ((self.target.dim().height as f32 - height) * 0.5).round() as i32,
-                )
-            });
-        let mut position = self.inventory_panel_position.unwrap_or(default_position);
-        position.x = position.x.clamp(
-            2,
-            (self.target.dim().width - width.round() as i32 - 2).max(2),
+        let geometry = screen_model::inventory_panel_geometry(
+            actor,
+            &self.active_inventory_panel_config(),
+            self.ui_state
+                .get("inventory.category")
+                .map(String::as_str)
+                .unwrap_or("all"),
+            self.ui_state
+                .get("inventory.sort")
+                .map(String::as_str)
+                .unwrap_or("newest"),
+            self.inventory_panel_page,
+            self.inventory_panel_position,
+            Vec2::new(self.target.dim().width, self.target.dim().height),
         );
-        position.y = position.y.clamp(
-            2,
-            (self.target.dim().height - height.round() as i32 - 2).max(2),
-        );
-        self.inventory_panel_position = Some(position);
-
-        let rect = Rect::new(position.x as f32, position.y as f32, width, height);
-        let close_rect = Rect::new(
-            rect.x + rect.width - config.title_height + 5.0,
-            rect.y + 5.0,
-            config.title_height - 10.0,
-            config.title_height - 10.0,
-        );
-        let title_rect = Rect::new(
-            rect.x + config.padding,
-            rect.y,
-            rect.width - config.padding * 2.0,
-            config.title_height,
-        );
-        let tab_rect = Rect::new(
-            rect.x + config.padding,
-            rect.y + config.title_height,
-            rect.width - config.padding * 2.0,
-            config.tab_height,
-        );
-        let grid_x = rect.x + (rect.width - content_width) * 0.5;
-        let grid_y = tab_rect.y + tab_rect.height + config.padding;
-        let footer_y = rect.y + rect.height - config.footer_height - config.padding;
-        let sort_rect = Rect::new(
-            rect.x + config.padding,
-            footer_y,
-            config.sort_width.min(rect.width * 0.4),
-            config.footer_height,
-        );
-        let capacity_rect = Rect::new(
-            rect.x + rect.width - config.padding - 116.0,
-            footer_y,
-            116.0,
-            config.footer_height,
-        );
-
-        let items = self.inventory_panel_items(actor);
-        let page_size = (config.columns * config.rows).max(1);
-        let page_count = items.len().max(1).div_ceil(page_size);
-        self.inventory_panel_page = self.inventory_panel_page.min(page_count.saturating_sub(1));
-        let page = self.inventory_panel_page;
-        let page_items = items
-            .iter()
-            .skip(page * page_size)
-            .take(page_size)
-            .copied()
-            .collect::<Vec<_>>();
-        let empty_indices = actor
-            .inventory
-            .iter()
-            .enumerate()
-            .filter_map(|(index, item)| item.is_none().then_some(index))
-            .collect::<Vec<_>>();
-        let mut slots = Vec::with_capacity(page_size);
-        for slot_index in 0..page_size {
-            let col = slot_index % config.columns;
-            let row = slot_index / config.columns;
-            let entry = page_items.get(slot_index).copied();
-            slots.push(InventoryPanelSlotLayout {
-                rect: Rect::new(
-                    grid_x + col as f32 * (config.cell_size + config.spacing),
-                    grid_y + row as f32 * (config.cell_size + config.spacing),
-                    config.cell_size,
-                    config.cell_size,
-                ),
-                inventory_index: entry
-                    .map(|entry| entry.0)
-                    .or_else(|| empty_indices.get(slot_index - page_items.len()).copied()),
-                item_id: entry.map(|entry| entry.1.id),
-            });
-        }
-
-        let (previous_page_rect, next_page_rect, page_rect) = if page_count > 1 {
-            let center = rect.x + rect.width * 0.5;
-            (
-                Some(Rect::new(
-                    center - 54.0,
-                    footer_y,
-                    28.0,
-                    config.footer_height,
-                )),
-                Some(Rect::new(
-                    center + 26.0,
-                    footer_y,
-                    28.0,
-                    config.footer_height,
-                )),
-                Some(Rect::new(
-                    center - 24.0,
-                    footer_y,
-                    48.0,
-                    config.footer_height,
-                )),
-            )
-        } else {
-            (None, None, None)
-        };
-
+        self.inventory_panel_page = geometry.page;
+        self.inventory_panel_position = Some(Vec2::new(
+            geometry.rect.x.round() as i32,
+            geometry.rect.y.round() as i32,
+        ));
         Some(InventoryPanelLayout {
-            rect,
-            title_rect,
-            close_rect,
-            tab_rect,
-            sort_rect,
-            capacity_rect,
-            previous_page_rect,
-            next_page_rect,
-            page_rect,
-            slots,
-            page,
-            page_count,
+            rect: geometry.rect,
+            title_rect: geometry.title_rect,
+            close_rect: geometry.close_rect,
+            tab_rect: geometry.tab_rect,
+            sort_rect: geometry.sort_rect,
+            capacity_rect: geometry.capacity_rect,
+            previous_page_rect: geometry.previous_page_rect,
+            next_page_rect: geometry.next_page_rect,
+            page_rect: geometry.page_rect,
+            slots: geometry.slots().collect(),
+            page: geometry.page,
+            page_count: geometry.page_count,
         })
     }
 

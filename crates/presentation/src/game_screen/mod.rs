@@ -451,7 +451,7 @@ impl GameScreenController {
         }
         self.hud.prepare(
             world,
-            self.elements.layout.viewport,
+            &self.elements,
             fonts,
             &mut self.sources,
             revision,

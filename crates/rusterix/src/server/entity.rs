@@ -649,6 +649,15 @@ impl Entity {
             self.tilt = new_camera_tilt;
         }
 
+        // Capacity is already part of the authored attribute protocol. Empty
+        // trailing slots have no item delta, so reconstruct them when that
+        // explicit capacity arrives rather than inferring capacity from the
+        // largest occupied index. Unrelated partial updates preserve it.
+        if let Some(Value::Int(slots)) = update.attributes.get("inventory_slots") {
+            if let Ok(slots) = usize::try_from(*slots) {
+                self.inventory.resize(slots, None);
+            }
+        }
         // Update dynamic attributes
         for (key, value) in update.attributes {
             if key == "source" {
@@ -906,5 +915,80 @@ impl EntityUpdate {
             equipped_updates: None,
             wallet_updates: None,
         })
+    }
+}
+
+#[cfg(test)]
+mod inventory_capacity_tests {
+    use super::*;
+    #[test]
+    fn packed_inventory_updates_preserve_real_empty_destinations() {
+        let mut source = Entity::new();
+        source.id = 1;
+        source.inventory = vec![None; 4];
+        source.set_attribute("inventory_slots", Value::Int(4));
+        let mut item = Item::new();
+        item.id = 7;
+        assert_eq!(source.add_item(item).unwrap(), 0);
+        source.mark_all_dirty();
+        let mut client = Entity::new();
+        client.id = 1;
+        client.apply_update(EntityUpdate::unpack(&source.get_update().pack()));
+        assert_eq!(client.inventory.len(), 4);
+        assert_eq!(client.inventory[0].as_ref().unwrap().id, 7);
+        assert!(client.inventory[1..].iter().all(Option::is_none));
+        let mut second = Item::new();
+        second.id = 8;
+        assert_eq!(
+            client.add_item(second).unwrap(),
+            1,
+            "an empty slot exists independently of item additions"
+        );
+    }
+    #[test]
+    fn explicit_capacity_changes_and_unrelated_partial_updates_keep_their_own_semantics() {
+        let mut source = Entity::new();
+        source.id = 1;
+        source.inventory = vec![None; 4];
+        source.set_attribute("inventory_slots", Value::Int(4));
+        let mut item = Item::new();
+        item.id = 7;
+        source.add_item(item).unwrap();
+        let mut client = Entity::new();
+        client.id = 1;
+        client.apply_update(source.get_update());
+        source.clear_dirty();
+        source.set_attribute("name", Value::Str("Renamed".into()));
+        client.apply_update(source.get_update());
+        assert_eq!(client.inventory.len(), 4);
+        source.clear_dirty();
+        source.set_attribute("inventory_slots", Value::Int(6));
+        client.apply_update(source.get_update());
+        assert_eq!(client.inventory.len(), 6);
+        assert_eq!(client.inventory[0].as_ref().unwrap().id, 7);
+        source.clear_dirty();
+        source.set_attribute("inventory_slots", Value::Int(2));
+        client.apply_update(source.get_update());
+        assert_eq!(client.inventory.len(), 2);
+        assert_eq!(client.inventory[0].as_ref().unwrap().id, 7);
+    }
+    #[test]
+    fn absent_or_invalid_capacity_keeps_legacy_addition_addresses() {
+        let mut source = Entity::new();
+        source.id = 1;
+        source.inventory = vec![None; 4];
+        let mut item = Item::new();
+        item.id = 7;
+        source.inventory_additions.insert(3, item);
+        let mut client = Entity::new();
+        client.id = 1;
+        client.apply_update(source.get_update());
+        assert_eq!(client.inventory.len(), 4);
+        assert_eq!(client.inventory[3].as_ref().unwrap().id, 7);
+        source.clear_dirty();
+        source.set_attribute("inventory_slots", Value::Int(-1));
+        client.apply_update(source.get_update());
+        assert_eq!(client.inventory.len(), 4);
+        assert_eq!(client.inventory[3].as_ref().unwrap().id, 7);
     }
 }

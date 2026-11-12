@@ -35,6 +35,7 @@ pub(super) struct ItemSlot {
 #[derive(Clone, Debug)]
 pub(in crate::game_screen) struct ItemReceipt {
     slot: ItemSlot,
+    immediate: bool,
     binding: Binding,
     intent: Option<String>,
     point: [f32; 2],
@@ -93,7 +94,7 @@ impl GameScreenController {
                 })
             })
             .collect();
-        if let Some(frame) = self.hud.current(world, self.elements.layout.viewport) {
+        for frame in self.hud.frames(world, &self.elements) {
             slots.extend(frame.slots.iter().filter_map(|slot| {
                 Some(ItemSlot {
                     control: ItemControl::Hud(
@@ -101,8 +102,8 @@ impl GameScreenController {
                     ),
                     rect: slot.hit,
                     source: slot.source?,
-                    index: Some(slot.index),
-                    slot: None,
+                    index: slot.inventory_index,
+                    slot: slot.equipped_slot.clone(),
                     drag_drop: true,
                 })
             }));
@@ -202,6 +203,7 @@ pub(super) fn receipt_for_control(
         binding.size.1 as f32,
     ));
     let receipt = Arc::new(ItemReceipt {
+        immediate: screen.world.displayed.as_ref().ok_or(())?.immediate,
         slot,
         binding,
         // A pointer commits the visible location originally pressed. Keyboard
@@ -295,6 +297,9 @@ pub(super) fn begin(
             cancel_controls: true,
             ..ScreenInputResponse::handled(true)
         });
+    }
+    if let ItemControl::Hud(id) = slot.control {
+        screen.hud.select_item(id, slot.source.item());
     }
     screen.world.ui_item = Some(ItemCapture {
         slot,
@@ -487,7 +492,7 @@ impl GameScreenController {
 }
 
 pub(super) fn activate_hud_receipt(
-    screen: &GameScreenController,
+    screen: &mut GameScreenController,
     world: &RuntimeView<'_>,
     receipt: &ItemReceipt,
 ) -> Vec<ScreenEffect> {
@@ -496,16 +501,38 @@ pub(super) fn activate_hud_receipt(
     {
         return Vec::new();
     }
+    if let ItemControl::Hud(id) = receipt.slot.control {
+        screen.hud.select_item(id, receipt.slot.source.item());
+    }
     match world.map.and_then(|map| {
         item_interaction::click(
             map,
             receipt.slot.source,
             receipt.intent.as_deref(),
             0.,
-            false,
+            receipt.intent.is_none(),
         )
     }) {
-        Some(ItemClick::Action { action, .. }) => vec![ScreenEffect::Action(action)],
-        _ => Vec::new(),
+        Some(ItemClick::Action {
+            action,
+            uses_intent,
+        }) => {
+            if uses_intent && receipt.immediate {
+                screen.consume_targeting_intent();
+            }
+            vec![ScreenEffect::Action(action)]
+        }
+        Some(ItemClick::ToggleContainer(address)) => address
+            .owner
+            .map(|owner| {
+                vec![ScreenEffect::ToggleContainer {
+                    region: receipt.binding.region,
+                    item: address.item,
+                    owner,
+                    anchor: rect(receipt.slot.rect),
+                }]
+            })
+            .unwrap_or_default(),
+        None => Vec::new(),
     }
 }
