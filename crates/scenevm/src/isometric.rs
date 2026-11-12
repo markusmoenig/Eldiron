@@ -4,6 +4,14 @@
 use bytemuck::{Pod, Zeroable};
 pub mod shadows;
 pub use shadows::{ShadowGeometry, ShadowVertex};
+#[cfg(feature = "gpu")]
+mod blit;
+#[cfg(feature = "gpu")]
+mod output;
+#[cfg(feature = "gpu")]
+pub use blit::{GpuSpriteSource, IsometricBlitter, SpriteBlit};
+#[cfg(feature = "gpu")]
+pub use output::{IsometricCanvas, IsometricRenderer};
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable, Default)]
 pub struct Uniforms {
@@ -94,7 +102,7 @@ mod gpu {
         particle_layout: wgpu::BindGroupLayout,
         layout: wgpu::BindGroupLayout,
         buffers: [Buffer; 7],
-        output: Texture,
+        pub(super) output: Texture,
         shadows: shadows::gpu::Pass,
     }
     impl Pass {
@@ -231,7 +239,7 @@ mod gpu {
                 particle_layout,
                 layout,
                 buffers: std::array::from_fn(|i| Buffer::new(device, i == 0)),
-                output: Texture::new(1, 1),
+                output: Texture::render_target(1, 1),
                 shadows: shadows::gpu::Pass::new(device),
             }
         }
@@ -294,8 +302,38 @@ mod gpu {
             for (i, data) in data.into_iter().enumerate() {
                 self.buffers[i].write(device, queue, data, i == 0);
             }
+            self.encode_frame(device, queue, u, lights, particles, geometry, None)?;
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                self.output.download_from_gpu_with(device, queue);
+                albedo.copy_from_slice(&self.output.data);
+                Ok(RenderResult::Presented)
+            }
+            #[cfg(target_arch = "wasm32")]
+            {
+                // Use SceneVM's asynchronous readback; never block the browser.
+                if self.output.data.len() == albedo.len() {
+                    albedo.copy_from_slice(&self.output.data);
+                }
+                self.output.download_from_gpu_with(device, queue);
+                Ok(RenderResult::ReadbackPending)
+            }
+        }
+        /// Shared deferred pass; a native producer supplies GPU-resident albedo
+        /// and packed surfaces, while the compatibility adapter supplies buffers.
+        fn encode_frame(
+            &mut self,
+            device: &wgpu::Device,
+            queue: &wgpu::Queue,
+            u: &Uniforms,
+            lights: &[PointLight],
+            particles: &[Particle],
+            geometry: Option<&ShadowGeometry>,
+            canvas: Option<(&wgpu::Buffer, &wgpu::Buffer)>,
+        ) -> SceneVMResult<()> {
+            let [w, h, _, _] = u.counts;
             if self.output.width != w || self.output.height != h {
-                self.output = Texture::new(w, h);
+                self.output = Texture::render_target(w, h);
             }
             self.output.ensure_gpu_with(device);
             let view = &self.output.gpu.as_ref().unwrap().view;
@@ -305,7 +343,11 @@ mod gpu {
                 .enumerate()
                 .map(|(i, b)| wgpu::BindGroupEntry {
                     binding: i as u32,
-                    resource: b.buffer.as_entire_binding(),
+                    resource: match (i, canvas) {
+                        (1, Some((albedo, _))) => albedo.as_entire_binding(),
+                        (2, Some((_, surfaces))) => surfaces.as_entire_binding(),
+                        _ => b.buffer.as_entire_binding(),
+                    },
                 })
                 .collect::<Vec<_>>();
             bindings.push(wgpu::BindGroupEntry {
@@ -344,7 +386,13 @@ mod gpu {
             if !particles.is_empty() {
                 let entries = [0u32, 2, 6].map(|binding| wgpu::BindGroupEntry {
                     binding,
-                    resource: self.buffers[binding as usize].buffer.as_entire_binding(),
+                    resource: if binding == 2 {
+                        canvas
+                            .map_or(&self.buffers[2].buffer, |(_, s)| s)
+                            .as_entire_binding()
+                    } else {
+                        self.buffers[binding as usize].buffer.as_entire_binding()
+                    },
                 });
                 let bind = device.create_bind_group(&wgpu::BindGroupDescriptor {
                     label: Some("iso-particle-frame"),
@@ -372,19 +420,52 @@ mod gpu {
                 pass.draw(0..6, 0..particles.len() as u32);
             }
             queue.submit(Some(encoder.finish()));
-            #[cfg(not(target_arch = "wasm32"))]
-            {
-                self.output.download_from_gpu_with(device, queue);
-                albedo.copy_from_slice(&self.output.data);
-                Ok(RenderResult::Presented)
+            Ok(())
+        }
+
+        pub(super) fn draw_gpu(
+            &mut self,
+            context: &renderkit::GpuContext,
+            u: &Uniforms,
+            canvas: (&wgpu::Buffer, &wgpu::Buffer),
+            lights: &[PointLight],
+            casters: &[Caster],
+            columns: &[[f32; 2]],
+            particles: &[Particle],
+            geometry: Option<&ShadowGeometry>,
+        ) -> SceneVMResult<()> {
+            let data = [
+                bytemuck::bytes_of(u),
+                &[],
+                &[],
+                bytemuck::cast_slice(lights),
+                bytemuck::cast_slice(casters),
+                bytemuck::cast_slice(columns),
+                bytemuck::cast_slice(particles),
+            ];
+            let limit = context.device.limits().max_storage_buffer_binding_size as usize;
+            if data[3..].iter().any(|d| d.len() > limit) {
+                return Err(SceneVMError::BufferAllocationFailed(
+                    "Iso scene metadata exceeds device storage limits".into(),
+                ));
             }
-            #[cfg(target_arch = "wasm32")]
+            for (i, data) in data
+                .into_iter()
+                .enumerate()
+                .filter(|(i, _)| *i != 1 && *i != 2)
             {
-                // Use SceneVM's asynchronous readback; never block the browser.
-                albedo.copy_from_slice(&self.output.data);
-                self.output.download_from_gpu_with(device, queue);
-                Ok(RenderResult::ReadbackPending)
+                self.buffers[i].write(&context.device, &context.queue, data, i == 0);
+                context.record_upload(data.len() as u64);
             }
+            self.encode_frame(
+                &context.device,
+                &context.queue,
+                u,
+                lights,
+                particles,
+                geometry,
+                Some(canvas),
+            )
         }
     }
     impl SceneVM {
@@ -446,6 +527,7 @@ mod tests {
         for source in [
             include_str!("isometric.wgsl"),
             include_str!("isometric_shadow.wgsl"),
+            include_str!("isometric/blit.wgsl"),
         ] {
             let module = wgpu::naga::front::wgsl::parse_str(source).expect("iso shader parses");
             wgpu::naga::valid::Validator::new(
@@ -703,28 +785,61 @@ mod soft_shadow_tests {
     #[test]
     #[ignore = "requires native GPU"]
     fn point_shadow_softness_blends_edges_preserves_contact_and_crosses_cube_faces() {
-        let mut scene=crate::SceneVM::new(1,1);
-        let mut mesh=ShadowGeometry{revision:84,..Default::default()};
-        for triangle in [
-            [[-0.4,1.,-0.4],[0.4,1.,-0.4],[-0.4,1.,0.4]],
-            [[0.4,1.,-0.4],[0.4,1.,0.4],[-0.4,1.,0.4]],
-            [[-4.,0.,-4.],[4.,0.,-4.],[-4.,0.,4.]],
-            [[4.,0.,-4.],[4.,0.,4.],[-4.,0.,4.]],
-        ] {mesh.triangle(triangle);}
-        let surfaces=[[128|255<<8|14<<16,0]];
-        let mut sample=|x:f32,softness:f32| {
-            let u=Uniforms{projection:[0.5-x,0.5+x*0.5,1.,1.],counts:[1,1,1,0],shadow:[10.,1.,0.,1.],..Default::default()};
-            let light=PointLight{position:[0.,2.,0.,0.],color:[1.,1.,1.,0.],parameters:[12.,8.,0.,softness]};
-            let mut pixel=[160,160,160,255];
-            scene.render_isometric_geometry(&u,&mut pixel,&surfaces,&[light],&[],&[],&[],Some(&mesh)).unwrap();pixel[0]
+        let mut scene = crate::SceneVM::new(1, 1);
+        let mut mesh = ShadowGeometry {
+            revision: 84,
+            ..Default::default()
         };
-        let hard=sample(0.75,0.);
-        let soft=sample(0.75,0.2);
-        let clear=sample(1.3,0.2);
-        assert!(soft>hard+15&&soft<clear-10,"partial penumbra replaces a sharp edge: hard={hard},soft={soft},clear={clear}");
-        assert!(sample(0.,0.2)<20,"fully occluded regions stay dark");
-        assert!(clear>100,"the receiving floor does not shadow itself");
-        let a=sample(1.99,0.2);let b=sample(2.01,0.2);
-        assert!(a>80&&b>80&&a.abs_diff(b)<10,"filtering across cube faces stays continuous: {a} vs {b}");
+        for triangle in [
+            [[-0.4, 1., -0.4], [0.4, 1., -0.4], [-0.4, 1., 0.4]],
+            [[0.4, 1., -0.4], [0.4, 1., 0.4], [-0.4, 1., 0.4]],
+            [[-4., 0., -4.], [4., 0., -4.], [-4., 0., 4.]],
+            [[4., 0., -4.], [4., 0., 4.], [-4., 0., 4.]],
+        ] {
+            mesh.triangle(triangle);
+        }
+        let surfaces = [[128 | 255 << 8 | 14 << 16, 0]];
+        let mut sample = |x: f32, softness: f32| {
+            let u = Uniforms {
+                projection: [0.5 - x, 0.5 + x * 0.5, 1., 1.],
+                counts: [1, 1, 1, 0],
+                shadow: [10., 1., 0., 1.],
+                ..Default::default()
+            };
+            let light = PointLight {
+                position: [0., 2., 0., 0.],
+                color: [1., 1., 1., 0.],
+                parameters: [12., 8., 0., softness],
+            };
+            let mut pixel = [160, 160, 160, 255];
+            scene
+                .render_isometric_geometry(
+                    &u,
+                    &mut pixel,
+                    &surfaces,
+                    &[light],
+                    &[],
+                    &[],
+                    &[],
+                    Some(&mesh),
+                )
+                .unwrap();
+            pixel[0]
+        };
+        let hard = sample(0.75, 0.);
+        let soft = sample(0.75, 0.2);
+        let clear = sample(1.3, 0.2);
+        assert!(
+            soft > hard + 15 && soft < clear - 10,
+            "partial penumbra replaces a sharp edge: hard={hard},soft={soft},clear={clear}"
+        );
+        assert!(sample(0., 0.2) < 20, "fully occluded regions stay dark");
+        assert!(clear > 100, "the receiving floor does not shadow itself");
+        let a = sample(1.99, 0.2);
+        let b = sample(2.01, 0.2);
+        assert!(
+            a > 80 && b > 80 && a.abs_diff(b) < 10,
+            "filtering across cube faces stays continuous: {a} vs {b}"
+        );
     }
 }

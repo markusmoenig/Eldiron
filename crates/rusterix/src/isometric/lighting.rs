@@ -62,8 +62,99 @@ impl Lighting {
         }
     }
 }
+/// Compact scene metadata, independent of GPU ownership and viewport pixels.
+pub struct GpuLightingParameters {
+    pub uniforms: scenevm::isometric::Uniforms,
+    pub lights: Vec<scenevm::isometric::PointLight>,
+    pub casters: Vec<scenevm::isometric::Caster>,
+    pub columns: Vec<[f32; 2]>,
+}
+impl Lighting {
+    /// Identical light, flicker, shadow-column and exact-mesh policy for native
+    /// GPU production and the compatibility adapter. No canvas is built here.
+    pub fn gpu_parameters(
+        &self,
+        p: Projection,
+        size: (u32, u32),
+        source_casters: &[Caster<'_>],
+        exact_geometry: bool,
+        particle_count: usize,
+    ) -> GpuLightingParameters {
+        use scenevm::isometric::{Caster, PointLight, Uniforms};
+        let l = self;
+        let mut columns = Vec::new();
+        let mut casters = Vec::new();
+        for c in source_casters {
+            if exact_geometry && c.exact {
+                continue;
+            }
+            let g = c.grid;
+            if g.width == 0
+                || g.height == 0
+                || g.width > 128
+                || g.height > 128
+                || g.layers == 0
+                || g.layers > 8
+                || g.data.len() != g.width * g.height * g.layers * 8
+            {
+                continue;
+            }
+            let offset = columns.len();
+            columns.extend(g.data.chunks_exact(8).map(|d| {
+                [
+                    f32::from_le_bytes(d[..4].try_into().unwrap()),
+                    f32::from_le_bytes(d[4..].try_into().unwrap()),
+                ]
+            }));
+            casters.push(Caster {
+                min: [g.min[0], g.min[1], g.min[2], 0.],
+                max: [g.max[0], g.max[1], g.max[2], 0.],
+                position_scale: [c.position.x, c.position.y, c.position.z, c.scale],
+                grid: [
+                    g.width as u32,
+                    g.height as u32,
+                    offset as u32,
+                    u32::from(g.emissive) | (g.layers as u32) << 8,
+                ],
+            });
+        }
+        let lights = l
+            .points
+            .iter()
+            .map(|v| PointLight {
+                position: [v.position.x, v.position.y, v.position.z, 0.],
+                color: [v.color.x, v.color.y, v.color.z, 0.],
+                parameters: [
+                    v.intensity,
+                    v.end_distance,
+                    v.start_distance,
+                    l.point_shadow_softness,
+                ],
+            })
+            .collect::<Vec<_>>();
+        let u = Uniforms {
+            projection: [p.origin.x, p.origin.y, p.unit, size.0 as f32],
+            sun: [l.sun.x, l.sun.y, l.sun.z, 0.],
+            sun_color: [l.sun_color.x, l.sun_color.y, l.sun_color.z, 0.],
+            ambient: [l.ambient.x, l.ambient.y, l.ambient.z, 0.],
+            counts: [size.0, size.1, lights.len() as u32, casters.len() as u32],
+            shadow: [
+                l.shadow_distance,
+                l.shadow_strength,
+                particle_count as f32,
+                if exact_geometry { 1. } else { 0. },
+            ],
+        };
+        GpuLightingParameters {
+            uniforms: u,
+            lights,
+            casters,
+            columns,
+        }
+    }
+}
 #[derive(Clone, Copy)]
-pub(super) struct Caster<'a> {
+pub struct Caster<'a> {
     pub grid: &'a ShadowGrid,
     pub exact: bool,
     pub position: Vec3<f32>,
@@ -740,76 +831,18 @@ pub(super) fn gpu_draw(
     p: Projection,
     particles: &[scenevm::isometric::Particle],
 ) -> Result<(), String> {
-    use scenevm::isometric::{Caster, PointLight, Uniforms};
-    let l = frame.lighting;
-    let mut columns = Vec::new();
-    let mut casters = Vec::new();
-    for c in &frame.casters {
-        if frame.geometry.is_some() && c.exact {
-            continue;
-        }
-        let g = c.grid;
-        if g.width == 0
-            || g.height == 0
-            || g.width > 128
-            || g.height > 128
-            || g.layers == 0
-            || g.layers > 8
-            || g.data.len() != g.width * g.height * g.layers * 8
-        {
-            continue;
-        }
-        let offset = columns.len();
-        columns.extend(g.data.chunks_exact(8).map(|d| {
-            [
-                f32::from_le_bytes(d[..4].try_into().unwrap()),
-                f32::from_le_bytes(d[4..].try_into().unwrap()),
-            ]
-        }));
-        casters.push(Caster {
-            min: [g.min[0], g.min[1], g.min[2], 0.],
-            max: [g.max[0], g.max[1], g.max[2], 0.],
-            position_scale: [c.position.x, c.position.y, c.position.z, c.scale],
-            grid: [
-                g.width as u32,
-                g.height as u32,
-                offset as u32,
-                u32::from(g.emissive) | (g.layers as u32) << 8,
-            ],
-        });
-    }
-    let lights = l
-        .points
-        .iter()
-        .map(|v| PointLight {
-            position: [v.position.x, v.position.y, v.position.z, 0.],
-            color: [v.color.x, v.color.y, v.color.z, 0.],
-            parameters: [
-                v.intensity,
-                v.end_distance,
-                v.start_distance,
-                l.point_shadow_softness,
-            ],
-        })
-        .collect::<Vec<_>>();
-    let u = Uniforms {
-        projection: [p.origin.x, p.origin.y, p.unit, buffer.dim().width as f32],
-        sun: [l.sun.x, l.sun.y, l.sun.z, 0.],
-        sun_color: [l.sun_color.x, l.sun_color.y, l.sun_color.z, 0.],
-        ambient: [l.ambient.x, l.ambient.y, l.ambient.z, 0.],
-        counts: [
-            buffer.dim().width as u32,
-            buffer.dim().height as u32,
-            lights.len() as u32,
-            casters.len() as u32,
-        ],
-        shadow: [
-            l.shadow_distance,
-            l.shadow_strength,
-            particles.len() as f32,
-            if frame.geometry.is_some() { 1. } else { 0. },
-        ],
-    };
+    let GpuLightingParameters {
+        uniforms: u,
+        lights,
+        casters,
+        columns,
+    } = frame.lighting.gpu_parameters(
+        p,
+        (buffer.dim().width as u32, buffer.dim().height as u32),
+        &frame.casters,
+        frame.geometry.is_some(),
+        particles.len(),
+    );
     scene
         .render_isometric_geometry(
             &u,

@@ -4,6 +4,9 @@ pub mod lighting;
 pub mod paint;
 pub mod surface;
 mod terrain;
+pub mod scene;
+pub use scene::{SceneCache, ScenePlan};
+use scene::Sprite as Draw;
 use crate::{Assets, EntityAction, Map, Texture, Tile, Value};
 use serde::{Deserialize, Serialize};
 use theframework::prelude::*;
@@ -196,33 +199,15 @@ pub struct GroundCache {
     key: Option<u64>,
     pixels: Vec<u8>,
     sprite_owners: Vec<u32>,
-    terrain_key: Option<(Uuid, u32)>,
-    terrain_model: Option<std::sync::Arc<crate::chunkbuilder::terrain_surface::TerrainSurface>>,
+    scene: SceneCache,
     terrain_pixels: Vec<[f32; 8]>,
     surface_key: Option<u64>,
     surfaces: std::collections::HashMap<(u32, Uuid, usize), CachedSurface>,
-    shadow_geometry: Option<(u64, std::sync::Arc<scenevm::isometric::ShadowGeometry>)>,
-    terrain_shadow: Option<((Uuid, u32), std::sync::Arc<scenevm::isometric::ShadowGeometry>)>,
 }
 
 struct CachedSurface {
     image: Texture,
     offset: Vec2<f32>,
-}
-
-struct Draw<'a> {
-    tile: Option<&'a Tile>,
-    avatar: Option<&'a AvatarSprite>,
-    stamp: Option<&'a paint::TerrainStamp>,
-    scale: f32,
-    pos: Vec2<f32>,
-    height: f32,
-    frame: usize,
-    opacity: f32,
-    tie: u64,
-    support: Option<&'a crate::Sector>,
-    radius: f32,
-    floor: Option<&'a crate::Sector>,
 }
 
 /// Pixel ownership only resolves a floor painting over a sprite it supports.
@@ -235,84 +220,6 @@ struct ContactPass<'a> {
     /// use the ordinary blitter without reading or writing pixel ownership.
     rect: [i32; 4],
     terrain: Option<terrain::Occlusion<'a>>,
-}
-
-struct SpriteImage<'a> {
-    data: &'a [u8],
-    width: usize,
-    height: usize,
-    anchor: Vec2<f32>,
-    unit: f32,
-    surface: Option<&'a surface::SurfaceFrame>,
-    bitmap:bool,
-    prelit:bool,
-    ground:bool,
-}
-
-impl<'a> Draw<'a> {
-    fn image(&self) -> Option<SpriteImage<'a>> {
-        if let Some(stamp) = self.stamp {
-            return Some(SpriteImage {
-                data: &stamp.sprite.texture.data,
-                width: stamp.sprite.texture.width,
-                height: stamp.sprite.texture.height,
-                anchor: Vec2::from(stamp.sprite.anchor),
-                unit: paint::PIXELS_PER_UNIT,
-                surface: stamp.sprite.surface.as_ref(),
-                bitmap:false,prelit:false,ground:false,
-            });
-        }
-        if let Some(avatar) = self.avatar {
-            return Some(SpriteImage {
-                data: &avatar.pixels,
-                width: 128,
-                height: 128,
-                anchor: Vec2::new(64., 100.),
-                unit: 32.,
-                surface: avatar.surface.as_deref(),
-                bitmap:false,prelit:false,ground:false,
-            });
-        }
-        let tile = self.tile?;
-        let (textures, anchor, unit) = if let Some(layout) = &tile.isometric {
-            (
-                if layout.frames.is_empty() {
-                    &tile.textures
-                } else {
-                    &layout.frames
-                },
-                Vec2::new(layout.anchor[0] as f32, layout.anchor[1] as f32),
-                layout.pixels_per_unit,
-            )
-        } else {
-            let image = tile.textures.first()?;
-            (
-                &tile.textures,
-                Vec2::new(image.width as f32 * 0.5, image.height as f32),
-                image.height as f32 / 2.,
-            )
-        };
-        let texture = textures.get(self.frame)?;
-        Some(SpriteImage {
-            data: &texture.data,
-            width: texture.width,
-            height: texture.height,
-            anchor,
-            unit,
-            surface: tile.isometric.as_ref().and_then(|s|s.surfaces.get(self.frame)),
-            bitmap:tile.isometric.as_ref().is_some_and(|s|s.bitmap),
-            prelit:tile.isometric.as_ref().is_some_and(|s|s.prelit),
-            ground:tile.isometric.as_ref().is_some_and(|s|s.ground),
-        })
-    }
-
-    fn image_placement(&self, image: &SpriteImage<'_>, projection: Projection) -> (Vec2<f32>, f32) {
-        let scale = projection.unit / image.unit.max(0.001) * self.scale.max(0.01);
-        (
-            projection.screen(self.pos, self.height) - image.anchor * scale,
-            scale,
-        )
-    }
 }
 
 /// A presentation-only cutaway; identity, collision and intent picking remain active.
@@ -353,7 +260,7 @@ pub fn pick_item_index(map: &Map, assets: &Assets, projection: Projection, scree
             _ => None,
         });
         let avatar = sprites.get(&item_sprite_key(index));
-        let draw = Draw { tile, avatar, stamp: None,
+        let draw = Draw { owner: Some(scene::SpriteOwner::Item { index, id: item.id, creator_id: item.creator_id }), tile, avatar, stamp: None,
             scale: item.attributes.get_float_default(if avatar.is_some() {"appearance_scale"} else {"size_2d"}, 1.),
             pos: item.get_pos_xz(), height: item.position.y, frame: 0, opacity: 1., tie: 0,
             support: None, radius: 0., floor: None };
@@ -487,413 +394,19 @@ fn draw_scene_impl(
     lighting: Option<&lighting::Lighting>,
     mut gpu: Option<&mut dyn FnMut(&lighting::Frame<'_>, &mut TheRGBABuffer, Projection)>,
 ) {
-    let terrain_model = if let Some(c) = cache.as_deref_mut() {
-        let key = (map.id, map.changed);
-        if c.terrain_key != Some(key) {
-            c.terrain_key = Some(key);
-            c.terrain_model = crate::chunkbuilder::terrain_surface::TerrainSurface::from_map(map)
-                .map(std::sync::Arc::new);
-        }
-        c.terrain_model.clone()
-    } else {
-        crate::chunkbuilder::terrain_surface::TerrainSurface::from_map(map).map(std::sync::Arc::new)
-    };
-    let mut casters = Vec::new();
-    let mut mesh_instances = Vec::new();
-    let mut ground = Vec::new();
-    let mut upright = Vec::new();
-    let mut floors = Vec::new();
-    let columns: Vec<_> = map
-        .sectors
-        .iter()
-        .filter(|s| s.properties.get_bool_default("iso_walkable", false))
-        .map(|s| {
-            (
-                s.bounding_box(map),
-                s.properties.get_float_default("floor_height", 0.),
-            )
-        })
-        .collect();
-    let player = map
-        .entities
-        .iter()
-        .find(|e| e.is_player())
-        .map(|e| e.get_pos_xz())
-        .or_else(|| {
-            map.entities.iter().find_map(|entity| {
-                let shown = crate::server::data::character_for_display(entity, assets);
-                shown.is_player().then_some(shown.get_pos_xz())
-            })
-        });
-    let inside = player.is_some_and(|p| {
-        map.sectors
-            .iter()
-            .any(|s| s.properties.get_bool_default("iso_interior", false) && s.is_inside(map, p))
-    });
-    for sector in &map.sectors {
-        // Classic isometric interiors remove the roof and near walls entirely.
-        // Keeping translucent roof sprites here obscures furniture and actors.
-        let hidden = inside && sector.properties.get_bool_default("iso_cutaway", false);
-        let Some(source) = sector.properties.get_default_source() else {
-            continue;
-        };
-        let Some(tile) = source
-            .render_tile_id(assets)
-            .and_then(|id| assets.tile_index(&id))
-            .and_then(|i| assets.tile_list.get(i as usize))
-        else {
-            continue;
-        };
-        let Some(layout) = &tile.isometric else {
-            floors.push((sector, tile));
-            continue;
-        };
-        if layout.ground && !layout.bitmap && (!layout.frames.is_empty() || tile.uv_pages.is_some()) {
-            let height = sector.properties.get_float_default("floor_height", 0.);
-            if height.abs() < 0.001 {
-                floors.push((sector, tile));
-            } else if let Some(pos) = sector.center(map) {
-                upright.push(Draw {
-                    tile: Some(tile),
-                    avatar: None,
-                    stamp: None,
-                    scale: 1.,
-                    pos,
-                    height,
-                    frame: 0,
-                    opacity: 1.,
-                    tie: sector.id as u64,
-                    support: Some(sector),
-                    radius: 0.,
-                    floor: Some(sector),
-                });
-            }
-            continue;
-        }
-        let Some(center) = sector.center(map) else {
-            continue;
-        };
-        let pos = sector
-            .properties
-            .get_vec2("iso_anchor_offset")
-            .map(|offset| center + Vec2::from(offset))
-            .or_else(|| sector.properties.get_vec2("iso_anchor").map(Vec2::from))
-            .unwrap_or(center);
-        let entry = Draw {
-            tile: Some(tile),
-            avatar: None,
-            stamp: None,
-            scale: 1.,
-            pos,
-            height: {
-                let h = sector.properties.get_float_default("floor_height", 0.);
-                if h.abs() < 0.001
-                    && !sector.properties.get_bool_default("iso_walkable", false)
-                    && sector.properties.get_int("iso_snap_target").is_none()
-                {
-                    terrain_model
-                        .as_ref()
-                        .and_then(|t| t.height_at(pos))
-                        .unwrap_or(h)
-                } else {
-                    h
-                }
-            },
-            frame: {
-                let yaw = sector
-                    .properties
-                    .get_float_default("iso_yaw", 0.)
-                    .to_radians();
-                layout.frame(Vec2::new(yaw.sin(), yaw.cos()), true, seconds)
-            },
-            opacity: 1.,
-            tie: sector.id as u64,
-            support: if layout.bitmap && layout.ground {Some(sector)}else if !layout.ground && !tile.blocking && !columns.is_empty() {
-                let bounds = sector.bounding_box(map);
-                let height = sector.properties.get_float_default("floor_height", 0.);
-                // Fill blocks share a walkable column, but ordinary upright
-                // props at the same cell must remain occluders.
-                let footprint_top =
-                    (bounds.min.y - pos.y - (bounds.max.x - pos.x)) * 0.5 * layout.pixels_per_unit;
-                let is_top = sector.properties.get_bool_default("iso_walkable", false);
-                let below_anchor = layout.anchor[1] as f32 <= -footprint_top + 4.;
-                ((is_top || below_anchor)
-                    && columns.iter().any(|(b, h)| {
-                        *h + 0.001 >= height
-                            && (b.min - bounds.min).magnitude_squared() < 0.00001
-                            && (b.max - bounds.max).magnitude_squared() < 0.00001
-                    }))
-                .then_some(sector)
-            } else {
-                None
-            },
-            radius: 0.,
-            floor: None,
-        };
-        if let Some(mesh) = layout.surfaces.get(entry.frame).and_then(|f| f.shadow_mesh.as_ref()) {
-            mesh_instances.push((mesh, Vec3::new(entry.pos.x, entry.height, entry.pos.y), entry.scale));
-        }
-        if let Some(grid) = layout
-            .surfaces
-            .get(entry.frame)
-            .and_then(|f| f.shadow.as_ref())
-        {
-            casters.push(lighting::Caster {
-                exact: layout.surfaces.get(entry.frame).is_some_and(|s| s.shadow_mesh.is_some()),
-                grid,
-                position: Vec3::new(entry.pos.x, entry.height, entry.pos.y),
-                scale: entry.scale,
-            });
-        }
-        if hidden {
-            continue;
-        }
-        if layout.ground && !layout.bitmap && entry.height.abs() < 0.001 {
-            ground.push(entry)
-        } else {
-            upright.push(entry)
-        }
-        if sector.properties.get_bool_default("iso_walkable", false) {
-            if let Some(top) = layout
-                .top_material
-                .and_then(|id| assets.tile_index(&id))
-                .and_then(|i| assets.tile_list.get(i as usize))
-                .filter(|t| t.uv_pages.is_some())
-            {
-                upright.push(Draw {
-                    tile: Some(top),
-                    avatar: None,
-                    stamp: None,
-                    scale: 1.,
-                    pos,
-                    height: sector.properties.get_float_default("floor_height", 0.),
-                    frame: 0,
-                    opacity: 1.,
-                    tie: sector.id as u64,
-                    support: Some(sector),
-                    radius: 0.,
-                    floor: Some(sector),
-                });
-            }
-        }
-    }
-    for (index, item) in map.items.iter().enumerate() {
-        if !item.attributes.get_bool_default("visible", true) {
-            continue;
-        }
-        if item_cutaway(map,item) {
-            // Cutaway objects still cast their physical mesh shadows, like hidden walls.
-            if let Some(surface) = avatars.get(&item_sprite_key(index)).and_then(|a| a.surface.as_ref())
-                && let Some(mesh) = surface.shadow_mesh.as_ref()
-            {
-                mesh_instances.push((mesh,item.position,item.attributes.get_float_default("appearance_scale",1.)));
-            }
-            continue;
-        }
-        if let Some(sprite) = avatars.get(&item_sprite_key(index)) {
-            upright.push(Draw {
-                tile: None, avatar: Some(sprite), stamp: None,
-                scale: item.attributes.get_float_default("appearance_scale", 1.),
-                pos: item.get_pos_xz(), height: item.position.y, frame: 0, opacity: 1.,
-                tie: (1 << 32) + item.id as u64, support: None,
-                radius: item.attributes.get_float_default("radius", 0.15).max(0.), floor: None,
-            });
-            continue;
-        }
-        let Some(Value::Source(source)) = item.attributes.get("source") else {
-            continue;
-        };
-        let Some(tile) = source
-            .render_tile_id(assets)
-            .and_then(|id| assets.tile_index(&id))
-            .and_then(|i| assets.tile_list.get(i as usize))
-        else {
-            continue;
-        };
-        let Some(layout) = &tile.isometric else {
-            continue;
-        };
-        upright.push(Draw {
-            tile: Some(tile),
-            avatar: None,
-            stamp: None,
-            scale: item.attributes.get_float_default("size_2d", 1.),
-            pos: item.get_pos_xz(),
-            height: item.position.y,
-            frame: layout.frame(Vec2::new(0., 1.), true, seconds),
-            opacity: 1.,
-            tie: (1 << 32) + item.id as u64,
-            support: None,
-            radius: item.attributes.get_float_default("radius", 0.15).max(0.),
-            floor: None,
-        });
-    }
-    for (index, original) in map.entities.iter().enumerate() {
-        let display;
-        let entity = if original.attributes.get("source").is_none() {
-            display = crate::server::data::character_for_display(original, assets);
-            &display
-        } else {
-            original
-        };
-        if let Some(avatar) = avatars.get(&index) {
-            upright.push(Draw {
-                tile: None,
-                avatar: Some(avatar),
-                stamp: None,
-                scale: entity.attributes.get_float_default("size_2d", 1.),
-                pos: entity.get_pos_xz(),
-                height: entity.position.y,
-                frame: 0,
-                opacity: 1.,
-                tie: (2 << 32) + index as u64,
-                support: None,
-                radius: entity.attributes.get_float_default("radius", 0.22).max(0.),
-                floor: None,
-            });
-            continue;
-        }
-        if !entity.attributes.get_bool_default("visible", true) {
-            continue;
-        }
-        let Some(Value::Source(source)) = entity.attributes.get("source") else {
-            continue;
-        };
-        let Some(tile) = source
-            .render_tile_id(assets)
-            .and_then(|id| assets.tile_index(&id))
-            .and_then(|i| assets.tile_list.get(i as usize))
-        else {
-            continue;
-        };
-        let walking = entity
-            .attributes
-            .get_str("avatar_animation")
-            .is_some_and(|a| a.eq_ignore_ascii_case("walk"));
-        upright.push(Draw {
-            tile: Some(tile),
-            avatar: None,
-            stamp: None,
-            scale: entity.attributes.get_float_default("size_2d", 1.),
-            pos: entity.get_pos_xz(),
-            height: entity.position.y,
-            frame: tile.isometric.as_ref().map_or_else(
-                || tile.frame_index((seconds / 0.25) as usize),
-                |layout| layout.frame(entity.orientation, walking, seconds),
-            ),
-            opacity: 1.,
-            tie: (2 << 32) + entity.id as u64,
-            support: None,
-            radius: entity.attributes.get_float_default("radius", 0.22).max(0.),
-            floor: None,
-        });
-    }
-    if let Some(paint) = assets.terrain_paint.get(&map.id) {
-        for stamp in &paint.stamps {
-            let pos = Vec2::from(stamp.position);
-            let height = if let Some(terrain) = &terrain_model {
-                let Some(height) = terrain.height_at(pos) else {
-                    continue;
-                };
-                height
-            } else {
-                if !flat_terrain_contains(map, pos) {
-                    continue;
-                }
-                0.
-            };
-            upright.push(Draw {
-                tile: None,
-                avatar: None,
-                stamp: Some(stamp),
-                scale: 1.,
-                pos,
-                height,
-                frame: 0,
-                opacity: 1.,
-                tie: (3 << 32) + stamp.order,
-                support: None,
-                radius: 0.,
-                floor: None,
-            });
-        }
-    }
-    for entry in &upright {
-        if entry.tie < (1u64 << 32) {
-            continue;
-        }
-        if let Some(mesh) = entry.tile
-            .and_then(|t| t.isometric.as_ref())
-            .and_then(|s| s.surfaces.get(entry.frame))
-            .and_then(|s| s.shadow_mesh.as_ref())
-            .or_else(|| entry.avatar.and_then(|a| a.surface.as_ref()).and_then(|s| s.shadow_mesh.as_ref()))
-        {
-            mesh_instances.push((mesh, Vec3::new(entry.pos.x, entry.height, entry.pos.y), entry.scale));
-        }
-        if let Some(grid) = entry
-            .tile
-            .and_then(|t| t.isometric.as_ref())
-            .and_then(|s| s.surfaces.get(entry.frame))
-            .and_then(|s| s.shadow.as_ref())
-        {
-            casters.push(lighting::Caster {
-                exact: entry.tile.and_then(|t| t.isometric.as_ref()).and_then(|s| s.surfaces.get(entry.frame)).is_some_and(|s| s.shadow_mesh.is_some()),
-                grid,
-                position: Vec3::new(entry.pos.x, entry.height, entry.pos.y),
-                scale: entry.scale,
-            });
-        }
-    }
+    let mut uncached_scene = SceneCache::default();
+    let scene_cache = cache.as_deref_mut().map(|c| &mut c.scene).unwrap_or(&mut uncached_scene);
+    let plan = scene_cache.prepare(map, assets, seconds, avatars);
+    let geometry = if gpu.is_some() { scene_cache.shadow_geometry(map, assets, &plan) } else { None };
+    let ScenePlan { terrain: terrain_model, ground, upright, floors, casters, .. } = plan;
     let mut live = lighting.map(|lighting| {
         if gpu.is_some() {
-            lighting::Frame::gpu(
-                lighting,
-                casters,
-                buffer.dim().width as usize * buffer.dim().height as usize,
-            )
+            lighting::Frame::gpu(lighting, casters, buffer.dim().width as usize * buffer.dim().height as usize)
         } else {
             lighting::Frame::new(lighting, casters)
         }
     });
-    if gpu.is_some() && let Some(frame) = &mut live {
-        use std::hash::{Hash, Hasher};
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        (map.id, map.changed, assets.tiles_revision).hash(&mut hasher);
-        for (mesh, pos, scale) in &mesh_instances {
-            (mesh.vertices.as_ptr() as usize, mesh.vertices.len(), pos.x.to_bits(), pos.y.to_bits(), pos.z.to_bits(), scale.to_bits()).hash(&mut hasher);
-        }
-        let key = hasher.finish();
-        let cached = cache.as_ref().and_then(|c| c.shadow_geometry.as_ref()).filter(|c| c.0 == key).map(|c| c.1.clone());
-        let geometry = cached.unwrap_or_else(|| {
-            let mut geometry = scenevm::isometric::ShadowGeometry { revision: key, ..Default::default() };
-            if let Some(terrain) = &terrain_model {
-                let terrain_key = (map.id, map.changed);
-                let saved = cache.as_ref().and_then(|c| c.terrain_shadow.as_ref()).filter(|c| c.0 == terrain_key).map(|c| c.1.clone());
-                let triangles = saved.unwrap_or_else(|| {
-                    let mut triangles = scenevm::isometric::ShadowGeometry::default();
-                    terrain.triangles(terrain.bounds, |t| triangles.triangle(t.map(|p| [p.x, p.y, p.z])));
-                    let triangles = std::sync::Arc::new(triangles);
-                    if let Some(c) = cache.as_deref_mut() { c.terrain_shadow = Some((terrain_key, triangles.clone())); }
-                    triangles
-                });
-                geometry.append(&triangles, [0.; 3], 1.);
-            }
-            for (mesh, pos, scale) in mesh_instances {
-                geometry.append(mesh, [pos.x, pos.y, pos.z], scale);
-            }
-            let geometry = std::sync::Arc::new(geometry);
-            if let Some(c) = cache.as_deref_mut() { c.shadow_geometry = Some((key, geometry.clone())); }
-            geometry
-        });
-        if !geometry.vertices.is_empty() { frame.geometry = Some(geometry); }
-    }
-    let order = |a: &Draw<'_>, b: &Draw<'_>| {
-        (a.pos.y - a.pos.x + a.height * 0.8164966)
-            .total_cmp(&(b.pos.y - b.pos.x + b.height * 0.8164966))
-            .then(a.tie.cmp(&b.tie))
-    };
-    ground.sort_by(order);
-    upright.sort_by(order);
+    if let Some(frame) = &mut live { frame.geometry = geometry; }
     let animated_floor = floors.iter().any(|(_, t)| {
         t.uv_pages
             .as_ref()
@@ -1029,7 +542,7 @@ fn draw_scene_impl(
                 protected.push(
                     // A floor already behind the object cannot erase it. Keep
                     // the ordinary fast path unless a later floor overlaps.
-                    order(object, floor).is_lt()
+                    object.painter_cmp(floor).is_lt()
                         && object.height + 0.001 >= floor.height
                         && (nearest - object.pos).magnitude_squared()
                             <= object.radius * object.radius + 0.000001
@@ -1289,6 +802,7 @@ pub fn draw_tile_preview(
     let yaw = yaw.to_radians();
     draw_entry(
         Draw {
+            owner: None,
             tile: Some(tile),
             avatar: None,
             stamp: None,
