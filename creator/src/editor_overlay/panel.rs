@@ -92,9 +92,26 @@ impl<S: PartialEq, A: Clone> PanelFrames<S, A> {
         self.displayed = None;
     }
     fn stage(&mut self, scope: PanelScope, state: S, builder: PanelBuilder<A>) -> PanelFrame<S, A> {
+        self.stage_commands(
+            scope,
+            state,
+            builder.commands,
+            builder.bounds,
+            builder.buttons,
+        )
+    }
+    /// Stage a custom overlay without depending on button colors or theme state.
+    pub(crate) fn stage_commands(
+        &mut self,
+        scope: PanelScope,
+        state: S,
+        commands: EditorOverlay,
+        bounds: TheDim,
+        buttons: Vec<(TheDim, A)>,
+    ) -> PanelFrame<S, A> {
         let source = Arc::new(Source {
             scope,
-            size: builder.commands.size,
+            size: commands.size,
             state,
         });
         if self
@@ -110,10 +127,10 @@ impl<S: PartialEq, A: Clone> PanelFrames<S, A> {
             .expect("editor panel serial exhausted");
         self.prepared = Some(source.clone());
         PanelFrame {
-            commands: builder.commands,
+            commands,
             source,
-            bounds: builder.bounds,
-            buttons: builder.buttons,
+            bounds,
+            buttons,
             owner: self.owner,
             serial: self.serial,
             #[cfg(feature = "native-ui")]

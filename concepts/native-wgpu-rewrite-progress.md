@@ -3457,3 +3457,125 @@ Swash text metrics/AA and all DPI workflow acceptance remain open.
 Original checkout was rechecked: tracked sources unchanged at f8d8801103 and
 existing untracked concepts intact. Unrelated networking concept stays excluded.
 No checks remain live for this slice. Full M0–M9 Goal remains active/incomplete.
+
+
+### Profile display command/controller extraction in progress
+
+The legacy action-edit implementation now lives in neutral `editor_display`,
+with compatibility re-exports at the original actions path. The twelve original
+PNG fixtures were moved without regeneration. The reference adapter draws the
+same immutable overlay command description; all **20 focused display tests pass**
+under `native-host` (1.32 s), including the twelve byte-exact original PNGs and five
+new native scoped-input cases. Evidence:
+`/private/tmp/eldiron-profile-frame-controls-final.log` (terminal success).
+
+Native preparation does not activate transforms or input. The controller checks
+source/document/tool scope, owner, project context, view, size, visibility, local
+geometry revision and successful root receipts. Clones receive a fresh frame
+owner and no active input. Captured draft drag may continue between frames;
+new picking waits for current displayed geometry. Original data is retained for
+cancel; invalid bindings never restore into another owner. Hidden preset buttons
+are excluded from hit testing. Preparation receives no UI/font/GPU/destination
+service, and stamps local data revision without cloning whole profiles. Native
+profile output emits common rectangles, exact integer lines and Swash glyph runs;
+no profile bitmap is generated. Production tool/root integration is still pending.
+
+An actual-GPU independent-fixture/resource/device-replacement test has been added
+but is not yet verified. Shared overlay changes also need the affected regression
+matrix and full Creator check before committing. Current modifications remain
+uncommitted; the unrelated networking concept remains excluded. Full profile
+DPI appearance, text metrics/AA, physical Creator workflows and all M0–M9 gates
+remain incomplete. Next: run/fix the native profile test, verify moved fixtures,
+run affected checks, checkpoint, then continue main owner/root integration.
+
+
+### Profile native output and controller verified; affected matrix running
+
+All **23 focused display cases pass**, 4.78 s:
+`/private/tmp/eldiron-profile-gpu-final.log`. The actual Metal test compares the
+12 independently captured original PNGs at unit density. Every pixel outside
+the union of actual old/new glyph boxes is within **one RGB unit**, with at least
+109,618/115,200 narrow or 281,652/288,000 wide pixels compared. Native text is
+Swash-generated and GPU-blitted; text metrics/AA remain explicitly excluded and
+open. Both a native and original wide pan/zoom fixture were visually inspected:
+geometry, borders, colors and control placement agree; text placement differs.
+The saved GPU comparison images are
+`/private/tmp/eldiron-native-panel-profile-{kind}-{width}.png`.
+
+Frames contain integer-line operations and glyph runs, zero image handles, no
+profile bitmap upload and no implicit output readback. Warm rendering performs
+no further tracked image/glyph upload. Resource/receipt lifetimes pass at
+100/125/150/200% density. Reconstructing all resources on a second actual device
+reproduces every native RGBA pixel including text; retired receipts cannot
+activate input. These density runs are **not** whole Creator DPI visual parity.
+
+The new navigation/deletion/focus/commit case passes and preserves original
+source data. A new extreme-pan test first exposed the legacy dimension-midpoint
+integer overflow. Dimension arithmetic now uses i64 averages/saturating offsets;
+rounded offscreen markers are culled before integer-radius arithmetic. All
+original reference PNGs remain byte-exact after the fix. All thirteen relocated
+fixture/README files were also compared byte-for-byte directly against HEAD;
+none was regenerated. The first GPU test incorrectly required only opaque glyph
+runs for transparent-background labels; it was corrected to accept the common
+GlyphRun used by that label contract, with no visual tolerance changed.
+
+A **16-check affected matrix** is running via `/private/tmp/verify-profile.py`,
+live unified session **47879**, summary
+`/private/tmp/eldiron-profile-matrix-results.log`. Profile GPU evidence is kept
+separately rather than rerunning identical final checks. Panels, reference
+profile/panels, Creator iOS render-library compilation and HUD have passed so
+far; full ordinary Creator and later root/application/boundary checks still need
+authoritative completion. Inspect the live process/log instead of restarting on
+observation timeouts. Original checkout still has no tracked changes, with its
+untracked concepts preserved. Implementation remains uncommitted until review
+and affected checks finish. Production ToolList/native world adoption, source-
+epoch-aware owner writes/cancel, other tool overlays and ViewCube are next;
+all complete M0–M9 acceptance remains active/incomplete.
+
+
+### Profile extraction checkpoint verified
+
+All **16 affected checks pass**, terminal exit 0:
+`/private/tmp/eldiron-profile-matrix-results.log`. Evidence includes:
+
+- Full ordinary Creator **600 passed, 105 explicitly ignored**, 260.94 s.
+- Native profile **23 focused cases**, including actual Metal comparisons;
+  additional **175% density** resource/receipt/device validation passes, 4.12 s:
+  `/private/tmp/eldiron-profile-dpi-175.log`. The native profile test now covers
+  all five specified densities; only that test literal changed after the full
+  ordinary suite (the case is explicitly ignored by the ordinary suite).
+- Native panels/procedural sources **15 passed**, reference panels **10**,
+  reference profile **21**, native HUD **20**, reference HUD **17**; all original
+  panel/HUD/profile image readers remain in use.
+- All presentation suites, immutable CPU source publication, isolated assembled
+  Creator root (15.37 s), linked native Creator, four graphical/terminal app
+  compilation, native-ui/reference feature configurations, all eleven dependency
+  boundaries and whitespace checks pass.
+- Creator `aarch64-apple-ios-sim` render-library compilation with
+  `native-render,staticlib` passes. This is not a Creator Xcode wrapper or runtime
+  result. Physical Creator presentation, browser/other-platform workflows and
+  complete source-owner/world cutover remain unverified.
+
+Review confirmed all moved fixtures/README are R100 byte-identical renames and
+no serialized project representation changed. The compatibility import path
+remains available. Production native display APIs still have expected unused
+warnings until ToolList/main viewport adoption; no warning was hidden to imply
+that adoption is done. Existing original-checkout tracked work is unchanged;
+unrelated `concepts/networking-mmo-concept.md` is excluded from the checkpoint.
+No verification jobs remain live for this slice.
+
+The text comparison remains open: source inspection shows the old fontdue
+layout rounds individual advances/ascent while Parley uses its shaped layout
+metrics. Old/new glyph positions and coverage differ; non-text pixel checks and
+exact native reconstruction do not establish typography parity. Preserve the
+shared Swash direction and compare layout explicitly rather than restoring
+fontdue painting or silently widening whole-image tolerances.
+
+Next: capture original ViewCube fixtures (prepared one-time capture source is in
+`/private/tmp/viewcube-fixtures-test.rs`), convert immutable face/label/line
+commands and presented camera hit geometry; check common triangle mesh coverage
+against original inclusive CPU triangle coverage before choosing any extra
+primitive. Then adopt the tool frame boundary and native main viewport owner,
+converting remaining terrain/isometric/collision/guidance overlays during that
+integration. Owner writes and cancel must validate source/document epochs and
+preserve concurrent source changes. All full M0–M9 gates remain active/incomplete.

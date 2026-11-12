@@ -77,6 +77,13 @@ impl OverlaySources {
 
 enum Command {
     Rect(BoxRect, RGBA),
+    SignedRect(TheDim, RGBA),
+    SignedOutline(TheDim, RGBA),
+    PixelLine {
+        from: [i32; 2],
+        to: [i32; 2],
+        color: RGBA,
+    },
     Outline(BoxRect, RGBA),
     Text {
         position: (usize, usize),
@@ -119,6 +126,31 @@ impl EditorOverlay {
     }
     pub(crate) fn rect(&mut self, rect: &BoxRect, color: &RGBA) {
         self.commands.push(Command::Rect(*rect, *color));
+    }
+    pub(crate) fn signed_rect(&mut self, rect: TheDim, color: RGBA) {
+        self.commands.push(Command::SignedRect(rect, color));
+    }
+    pub(crate) fn signed_outline(&mut self, rect: &TheDim, color: &RGBA) {
+        self.commands.push(Command::SignedOutline(*rect, *color));
+    }
+    pub(crate) fn line(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, color: RGBA) {
+        self.commands.push(Command::PixelLine {
+            from: [x0, y0],
+            to: [x1, y1],
+            color,
+        });
+    }
+    pub(crate) fn horizontal_line(&mut self, x0: i32, x1: i32, y: i32, color: RGBA) {
+        self.line(x0, y, x1, y, color);
+    }
+    pub(crate) fn vertical_line(&mut self, x: i32, y0: i32, y1: i32, color: RGBA) {
+        self.line(x, y0, x, y1, color);
+    }
+    pub(crate) fn dim(&self) -> TheDim {
+        TheDim::sized(
+            i32::try_from(self.size.0).unwrap_or(i32::MAX),
+            i32::try_from(self.size.1).unwrap_or(i32::MAX),
+        )
     }
     pub(crate) fn rect_outline(&mut self, rect: &BoxRect, color: &RGBA) {
         self.commands.push(Command::Outline(*rect, *color));
@@ -190,6 +222,18 @@ impl EditorOverlay {
         let stride = buffer.stride();
         for command in &self.commands {
             match command {
+                Command::SignedRect(rect, color) => {
+                    // Explicit reference semantics of the original set_pixel square.
+                    for y in rect.y..rect.y.saturating_add(rect.height) {
+                        for x in rect.x..rect.x.saturating_add(rect.width) {
+                            buffer.set_pixel(x, y, color);
+                        }
+                    }
+                }
+                Command::SignedOutline(rect, color) => buffer.draw_rect_outline(rect, color),
+                Command::PixelLine { from, to, color } => {
+                    buffer.draw_line(from[0], from[1], to[0], to[1], *color)
+                }
                 Command::Rect(rect, color) => {
                     let width = (buffer.dim().width.max(0) as usize)
                         .saturating_sub(rect.0)
@@ -329,6 +373,43 @@ impl EditorOverlay {
         };
         for command in &self.commands {
             match command {
+                Command::PixelLine { from, to, color } => list.ops.push(PaintOp::PixelLine {
+                    from: from.map(|v| v as f32),
+                    to: to.map(|v| v as f32),
+                    color: opaque(color),
+                }),
+                Command::SignedRect(rect, color) => {
+                    if rect.width > 0 && rect.height > 0 {
+                        list.rect(
+                            Rect::new(
+                                rect.x as f32,
+                                rect.y as f32,
+                                rect.width as f32,
+                                rect.height as f32,
+                            ),
+                            0.,
+                            opaque(color),
+                        );
+                    }
+                }
+                Command::SignedOutline(rect, color) => {
+                    if rect.width > 0 && rect.height > 0 {
+                        let r = Rect::new(
+                            rect.x as f32,
+                            rect.y as f32,
+                            rect.width as f32,
+                            rect.height as f32,
+                        );
+                        for edge in [
+                            Rect::new(r.x, r.y, r.width, 1.),
+                            Rect::new(r.x, r.y + r.height - 1., r.width, 1.),
+                            Rect::new(r.x, r.y, 1., r.height),
+                            Rect::new(r.x + r.width - 1., r.y, 1., r.height),
+                        ] {
+                            list.rect(edge, 0., opaque(color));
+                        }
+                    }
+                }
                 Command::Rect(rect, color) => list.rect(bounds(rect), 0., opaque(color)),
                 Command::Outline(rect, color) => {
                     let r = bounds(rect);
