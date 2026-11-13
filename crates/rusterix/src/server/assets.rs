@@ -71,6 +71,8 @@ impl std::ops::DerefMut for RegionAssets {
 
 #[derive(Clone)]
 pub struct Assets {
+    /// CPU catalog publication stamp; independent of renderer/device lifetime.
+    pub visual_source_revision: u64,
     pub node_behaviors: Option<super::nodes::region::BehaviorAssets>,
     pub maps: FxHashMap<String, Map>,
 
@@ -350,8 +352,32 @@ impl Assets {
         }
     }
 
+    pub fn mark_visual_sources_changed(&mut self) {
+        self.visual_source_revision = self.visual_source_revision.checked_add(1).expect("visual source revision exhausted");
+    }
+    /// Publish authored catalog data while preserving session-owned map/routing
+    /// sources. Authoring preview tiles keyed by numeric actor IDs must never be
+    /// imported into another runtime incarnation's derived actor caches.
+    pub fn publish_visual_sources_from(&mut self, source: &Assets) {
+        let keep_entities = self.entities == source.entities
+            && self.visual_source_revision == source.visual_source_revision
+            && self.avatars.revision() == source.avatars.revision();
+        let keep_items = self.items == source.items && self.visual_source_revision == source.visual_source_revision;
+        let maps = std::mem::take(&mut self.maps);
+        let regions = std::mem::take(&mut self.region_sources);
+        let world = std::mem::take(&mut self.world_source);
+        let behaviors = self.node_behaviors.take();
+        let entity_tiles = std::mem::take(&mut self.entity_tiles);
+        let item_tiles = std::mem::take(&mut self.item_tiles);
+        *self = source.clone();
+        self.maps = maps; self.region_sources = regions; self.world_source = world; self.node_behaviors = behaviors;
+        self.entity_tiles.clear(); self.item_tiles.clear();
+        if keep_entities { self.entity_tiles = entity_tiles; }
+        if keep_items { self.item_tiles = item_tiles; }
+    }
     pub fn new() -> Self {
         Self {
+            visual_source_revision: 0,
             node_behaviors: None,
             maps: FxHashMap::default(),
             entities: FxHashMap::default(),
@@ -863,6 +889,20 @@ mod tests {
             world.rules_table().unwrap()["value"]["number"].as_integer(),
             Some(1)
         );
+        let generated = assets.maps["Britannia"].id;
+        let mut authored = Assets::new();
+        authored.maps.insert("Foreign preview".into(), Map::default());
+        authored.world_source = "foreign authoring preview".into();
+        authored.item_models.insert("new model".into(), "source".into());
+        authored.entity_tiles.insert(7, Default::default());
+        authored.mark_visual_sources_changed();
+        assets.world_source = "owned runtime world".into();
+        assets.publish_visual_sources_from(&authored);
+        assert_eq!(assets.maps["Britannia"].id, generated);
+        assert!(!assets.maps.contains_key("Foreign preview"));
+        assert_eq!(assets.world_source, "owned runtime world");
+        assert_eq!(assets.item_models["new model"], "source");
+        assert!(assets.entity_tiles.is_empty(), "foreign numeric actor caches never cross sessions");
     }
 
     #[test]

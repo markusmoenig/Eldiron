@@ -431,6 +431,10 @@ impl Editor {
         ctx: &mut TheContext,
     ) -> usize {
         let mut project = Self::new_project(crate::project_templates::ProjectDimension::ThreeD);
+        let mut unseen = Region::new();
+        unseen.name = "Unseen runtime region".into();
+        unseen.map.name = unseen.name.clone();
+        project.regions.push(unseen);
         // An ordinary authored field verifies embedded native text/IME ownership.
         let settings = eldiron_runtime::PlayerSettings::parse(&project.config).unwrap();
         let screen = project.screens.values_mut().next().unwrap();
@@ -476,40 +480,66 @@ impl Editor {
     pub(crate) fn native_play_stats_for_test(&self) -> Option<(u64, Uuid, usize)> {
         let session = self.play_session.as_ref()?;
         Some((
-            session.pump.tick_sequence(),
-            session.pump.session_id(),
+            session.pump().tick_sequence(),
+            session.pump().session_id(),
             self.pending_game_messages
                 .iter()
                 .filter(|m| m.3 == "Native Play delivery checkpoint")
                 .count(),
         ))
     }
+    pub(crate) fn native_owned_runtime_for_test(&self) -> Option<(bool, bool, std::time::Duration)> {
+        let play = self.play_session.as_ref()?;
+        let bridge = RUSTERIX.read().unwrap();
+        Some((play.owned(), bridge.server.state == rusterix::ServerState::Off && play.state(&bridge.server) == rusterix::ServerState::Running, play.clock_step()))
+    }
+    pub(crate) fn publish_native_runtime_sources_for_test(&mut self) {
+        let mut bridge = RUSTERIX.write().unwrap();
+        bridge.assets.item_models.insert("Owned catalog checkpoint".into(), "new CPU source".into());
+        bridge.assets.avatars.insert("Owned catalog checkpoint".into(), rusterix::Avatar::default());
+        bridge.assets.mark_visual_sources_changed();
+    }
+    pub(crate) fn native_runtime_sources_received_for_test(&self) -> bool {
+        let bridge = RUSTERIX.read().unwrap();
+        let play = self.play_session.as_ref().unwrap();
+        let assets = play.assets(&bridge.assets);
+        !std::ptr::eq(assets, &bridge.assets)
+            && assets.item_models.get("Owned catalog checkpoint").map(String::as_str) == Some("new CPU source")
+            && assets.avatars.revision() == bridge.assets.avatars.revision()
+    }
+    pub(crate) fn native_audio_commands_for_test(&self) -> u64 {
+        self.play_session.as_ref().unwrap().audio_stats().unwrap().delivered_commands
+    }
+    pub(crate) fn queue_native_unseen_audio_for_test(&mut self) {
+        let play = self.play_session.as_mut().unwrap();
+        let mut bridge = RUSTERIX.write().unwrap();
+        let bridge = &mut *bridge;
+        let parts = play.parts(&mut bridge.server, &mut bridge.assets);
+        let region = parts.server.region_id_map[&parts.project.regions[1].map.id];
+        parts.server.audio_commands.entry(region).or_default().push(rusterix::server::message::AudioCommand::SetBusVolume {
+            bus: "Owned audio checkpoint".into(), volume: 0.5,
+        });
+    }
     pub(crate) fn queue_native_play_message_for_test(&mut self) {
-        let id = self.documents.project.regions[0].map.id;
-        let mut runtime = RUSTERIX.write().unwrap();
-        let region = *runtime
-            .server
-            .region_id_map
-            .get(&id)
-            .expect("real started Creator region");
-        runtime.server.messages.entry(region).or_default().push((
-            None,
-            None,
-            0,
-            "Native Play delivery checkpoint".into(),
-            "status".into(),
-        ));
+        let play = self.play_session.as_mut().unwrap();
+        let mut bridge = RUSTERIX.write().unwrap();
+        let bridge = &mut *bridge;
+        let parts = play.parts(&mut bridge.server, &mut bridge.assets);
+        let id = parts.project.regions[0].map.id;
+        let region = parts.server.region_id_map[&id];
+        parts.server.messages.entry(region).or_default().push((None, None, 0, "Native Play delivery checkpoint".into(), "status".into()));
     }
     pub(crate) fn native_console_text_for_test(&self) -> String { self.sidebar.console_text_for_test() }
     pub(crate) fn native_console_runtime_link_for_test(&self) -> Option<TheValue> { self.sidebar.console_runtime_link_for_test() }
     pub(crate) fn tag_native_console_actor_for_test(&mut self) {
         let play = self.play_session.as_mut().unwrap();
         let mut bridge = RUSTERIX.write().unwrap();
-        let map = &mut play.project.regions[0].map;
-        let id = bridge.server.region_id_map[&map.id];
-        let actor = bridge.server.entities.get_mut(&id).unwrap().first_mut().unwrap();
-        actor.attributes.set("name", Value::Str("Console session actor".into()));
-        bridge.server.apply_entities_items(map);
+        let bridge = &mut *bridge;
+        let parts = play.parts(&mut bridge.server, &mut bridge.assets);
+        let map = &mut parts.project.regions[0].map;
+        let id = parts.server.region_id_map[&map.id];
+        parts.server.entities.get_mut(&id).unwrap().first_mut().unwrap().attributes.set("name", Value::Str("Console session actor".into()));
+        parts.server.apply_entities_items(map);
     }
     pub(crate) fn native_play_saved_map_for_test(
         &self,
@@ -526,17 +556,18 @@ impl Editor {
         )
     }
     pub(crate) fn inject_native_play_projection_for_test(&mut self) {
-        let play = self.play_session.as_ref().unwrap();
+        let play = self.play_session.as_mut().unwrap();
         let mut bridge = RUSTERIX.write().unwrap();
-        let mut map = play.project.regions[0].map.clone();
-        let region = bridge.server.region_id_map[&map.id];
-        map.properties.set("native-runtime-only", Value::Bool(true));
-        map.add_vertex_at(1000., 1000.);
-        bridge.server.runtime_maps.insert(region, map);
+        let bridge = &mut *bridge;
+        let parts = play.parts(&mut bridge.server, &mut bridge.assets);
+        let mut map = parts.project.regions[0].map.clone();
+        let region = parts.server.region_id_map[&map.id];
+        map.properties.set("native-runtime-only", Value::Bool(true)); map.add_vertex_at(1000., 1000.);
+        parts.server.runtime_maps.insert(region, map);
     }
     pub(crate) fn native_play_projection_received_for_test(&self) -> bool {
         self.play_session.as_ref().is_some_and(|play| {
-            let runtime = &play.project.regions[0].map;
+            let runtime = &play.project().regions[0].map;
             let authored = &self.documents.project.regions[0].map;
             let view = play.authoring_map(authored);
             runtime

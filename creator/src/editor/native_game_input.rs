@@ -19,7 +19,7 @@ impl Editor {
             && self.play_session.as_ref().is_some_and(|play| {
                 self.documents.active_id() == Some(play.document)
             })
-            && RUSTERIX.read().unwrap().server.state != rusterix::ServerState::Off
+            && self.runtime_state() != rusterix::ServerState::Off
             && self.native_world_owns_viewport()
     }
     pub(crate) fn sync_native_game_input(&mut self, ui: &mut TheUI, ctx: &TheContext) {
@@ -47,7 +47,7 @@ impl Editor {
         if input.frame != frame {
             if let Some(previous) = &input.frame
                 && let Some(play) = &mut self.play_session
-                && previous.owns_runtime(play.pump.session_id())
+                && previous.owns_runtime(play.pump().session_id())
             {
                 play.cancel_input(&mut RUSTERIX.write().unwrap().server);
             }
@@ -136,7 +136,7 @@ impl Editor {
         if session.ui.ctrl || session.ui.logo || session.ui.alt {
             return None;
         }
-        if bridge.server.state != rusterix::ServerState::Running || *repeat || !pressed {
+        if play.state(&bridge.server) != rusterix::ServerState::Running || *repeat || !pressed {
             return Some(declined());
         }
         let binding = play.input.controls.binding_for_key(&key);
@@ -185,7 +185,7 @@ impl Editor {
         &self,
     ) -> Option<(Uuid, eldiron_runtime::PlayerInputStats)> {
         let play = self.play_session.as_ref()?;
-        Some((play.pump.session_id(), play.input.input_stats()))
+        Some((play.pump().session_id(), play.input.input_stats()))
     }
     pub(crate) fn native_game_input_claim_for_test(&self) -> bool {
         self.server_ctx.native_game_input

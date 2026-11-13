@@ -1025,6 +1025,7 @@ pub fn prepare_live_rules(
 /// Rendering needs the same template data as server startup to resolve outfits
 /// and item appearances. This does not create region instances or run behavior.
 pub fn sync_display_templates(assets: &mut rusterix::Assets, project: &Project, debug: bool) {
+    assets.mark_visual_sources_changed();
     // Characters
     assets.entities.clear();
     assets.entity_authoring.clear();
@@ -1356,6 +1357,7 @@ mod scepter_display_template_tests {
 
 /// Prepare authoritative item icons independently of a display/controller.
 pub fn sync_item_icons(assets: &mut rusterix::Assets, project: &Project) {
+    assets.mark_visual_sources_changed();
     insert_bundled_ruleset_textures(assets, project);
     insert_bundled_ruleset_item_icons(assets, project);
     insert_project_item_icons(assets, project);
@@ -1364,6 +1366,7 @@ pub fn sync_item_icons(assets: &mut rusterix::Assets, project: &Project) {
 /// Publish authored audio bytes and FX source without creating a device,
 /// decoding clips or initializing the graphical client/font registry.
 pub fn sync_audio_sources(assets: &mut rusterix::Assets, project: &Project) {
+    assets.mark_visual_sources_changed();
     let mut previous = std::mem::take(&mut assets.audio);
     assets.audio_fx_src = project.audio_fx.clone();
     for asset in project.assets.values() {

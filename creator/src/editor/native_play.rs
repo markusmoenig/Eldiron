@@ -406,6 +406,8 @@ impl std::io::Write for HashWriter {
 fn content_key(world: &RuntimeView<'_>) -> Result<u64, String> {
     let mut h = HashWriter(Default::default());
     world.config().hash(&mut h.0);
+    world.assets.visual_source_revision.hash(&mut h.0);
+    world.assets.avatars.revision().hash(&mut h.0);
     world.assets.tiles_revision.hash(&mut h.0);
     world.assets.block_props_revision.hash(&mut h.0);
     world.assets.rules.hash(&mut h.0);
@@ -429,7 +431,7 @@ impl Editor {
             && self.play_session.as_ref().is_some_and(|play| {
                 self.documents.active_id() == Some(play.document)
             })
-            && RUSTERIX.read().unwrap().server.state != ServerState::Off
+            && self.runtime_state() != ServerState::Off
     }
     fn native_play_binding(&self, ui: &mut TheUI, ctx: &TheContext) -> Option<PlayBinding> {
         if !self.native_play_owns_viewport() || crate::geometry_editor::is_visible(ui) {
@@ -440,7 +442,7 @@ impl Editor {
         let dim = *view.dim();
         (dim.width > 0 && dim.height > 0).then(|| PlayBinding {
             document: play.document,
-            runtime: play.pump.session_id(),
+            runtime: play.pump().session_id(),
             view: view.id().clone(),
             rect: [dim.x, dim.y, dim.width, dim.height],
             density: ctx.scale_factor.to_bits(),
@@ -476,7 +478,7 @@ impl Editor {
             let same_runtime = owner
                 .binding
                 .as_ref()
-                .is_none_or(|old| old.runtime == play.pump.session_id());
+                .is_none_or(|old| old.runtime == play.pump().session_id());
             if same_runtime {
                 play.cancel_input(&mut bridge.server);
             }
@@ -490,13 +492,7 @@ impl Editor {
             owner.serial = owner.serial.checked_add(1).expect("Play serial exhausted");
         }
         owner.input_blocked = blocked;
-        let world = play.pump.view(
-            &play.project,
-            &bridge.server,
-            &bridge.assets,
-            &bridge.client.current_map,
-        )
-        .with_presentation_sources(&self.documents.project);
+        let world = play.view(&bridge, &self.documents.project);
         let created = owner.sync(
             binding.clone(),
             &world,
@@ -518,7 +514,7 @@ impl Editor {
         }
         let replaced = owner.advance(
             &world,
-            play.pump.tick_sequence(),
+            play.pump().tick_sequence(),
             elapsed,
             &play.input.controls,
         )?;
@@ -545,13 +541,7 @@ impl Editor {
             return Ok(None);
         };
         let bridge = RUSTERIX.read().unwrap();
-        let world = play.pump.view(
-            &play.project,
-            &bridge.server,
-            &bridge.assets,
-            &bridge.client.current_map,
-        )
-        .with_presentation_sources(&self.documents.project);
+        let world = play.view(&bridge, &self.documents.project);
         let Some((list, frame)) = self.native_viewport.play.paint(&world, images)? else {
             return Ok(None);
         };
@@ -588,13 +578,7 @@ impl Editor {
             return;
         };
         let bridge = RUSTERIX.read().unwrap();
-        let world = play.pump.view(
-            &play.project,
-            &bridge.server,
-            &bridge.assets,
-            &bridge.client.current_map,
-        )
-        .with_presentation_sources(&self.documents.project);
+        let world = play.view(&bridge, &self.documents.project);
         if let Some(screen) = &mut owner.screen {
             screen
                 .screen
@@ -637,13 +621,7 @@ struct PlayRuntime<'a> {
 }
 impl PlayRuntime<'_> {
     fn world(&self) -> RuntimeView<'_> {
-        self.play.pump.view(
-            &self.play.project,
-            &self.bridge.server,
-            &self.bridge.assets,
-            &self.bridge.client.current_map,
-        )
-        .with_presentation_sources(self.project)
+        self.play.view(self.bridge, self.project)
     }
 }
 impl NativePlay {
@@ -697,32 +675,10 @@ impl NativePlay {
                             .ui_state
                             .insert("start.class".into(), class.clone());
                     }
-                    let map = runtime
-                        .bridge
-                        .assets
-                        .maps
-                        .get(&runtime.bridge.client.current_map)
-                        .ok_or("Player start map is unavailable")?;
                     let name = owner.screen.elements.ui_state.get("start.name").cloned();
-                    let prepared = rusterix::player_start::prepare_player_start(
-                        &runtime.bridge.assets,
-                        map,
-                        eldiron_runtime::PlayerStartOptions {
-                            class: class.as_deref(),
-                            name: name.as_deref(),
-                            entrance: true,
-                        },
-                    )?;
-                    runtime
-                        .play
-                        .input
-                        .controls
-                        .configure(&prepared.info, &runtime.bridge.assets);
-                    runtime
-                        .bridge
-                        .server
-                        .process_client_commands(vec![prepared.command]);
-                    runtime.play.requested = true;
+                    runtime.play.start_player(runtime.bridge, eldiron_runtime::PlayerStartOptions {
+                        class: class.as_deref(), name: name.as_deref(), entrance: true,
+                    })?;
                     if !owner.settings.play_screen.is_empty() {
                         let name = owner.settings.play_screen.clone();
                         owner.navigate(&runtime.world(), &name)?;

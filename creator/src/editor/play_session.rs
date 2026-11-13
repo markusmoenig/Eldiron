@@ -1,154 +1,493 @@
-//! Creator's runtime projection, separate from the authored Documents owner.
-//! The facade still lends server/assets; only this projection receives simulation
-//! writes. Presentation borrows it and never drains server channels itself.
-use eldiron_runtime::{EventInterests, PlayerInput, SessionClock, SessionPump, SessionUpdate};
+//! CPU session ownership for Creator. Native Play owns GameSession; the explicit
+//! reference display adapter still lends its legacy facade's CPU storage.
+use eldiron_runtime::{
+    EventInterests, GameSession, PlayerInput, SessionClock, SessionParts, SessionPump,
+    SessionUpdate,
+};
+use rusterix::{Assets, EntityAction, Rusterix, Server, ServerState};
+use shared::project::Project;
 use theframework_core::Uuid;
 use web_time::{Duration, Instant};
 
+struct ReferenceSession {
+    project: Project,
+    pump: SessionPump,
+    clock: SessionClock,
+}
+enum Storage {
+    Owned(GameSession),
+    Reference(ReferenceSession),
+}
 pub(super) struct CreatorPlaySession {
     pub document: Uuid,
-    pub project: shared::project::Project,
-    pub pump: SessionPump,
+    storage: Storage,
     pub input: PlayerInput,
     pub requested: bool,
-    clock: SessionClock,
     last: Instant,
+    visual_key: u64,
+    audio: Option<rusterix::audio::output::AudioOutput>,
 }
 impl CreatorPlaySession {
     pub fn new(
         document: Uuid,
-        project: shared::project::Project,
+        project: Project,
         tick_ms: u64,
         controls: rusterix::input_action::ClientAction,
         requested: bool,
     ) -> Self {
         Self {
             document,
-            project,
+            storage: Storage::Reference(ReferenceSession {
+                project,
+                pump: SessionPump::new(EventInterests::default()),
+                clock: SessionClock::new(Duration::from_millis(tick_ms.max(1))),
+            }),
             input: PlayerInput::from_controls(controls),
             requested,
-            pump: SessionPump::new(EventInterests::default()),
-            clock: SessionClock::new(Duration::from_millis(tick_ms.max(1))),
             last: Instant::now(),
+            visual_key: 0,
+            audio: None,
         }
     }
-    pub fn text_runtime<'a>(
-        play: Option<&'a mut Self>,
-        authored: &'a shared::project::Project,
-        bridge: &'a mut rusterix::Rusterix,
-    ) -> (
-        &'a shared::project::Project,
-        crate::textplay::TextGameRuntime<'a>,
-    ) {
-        let (project, input) = if let Some(play) = play {
-            for region in &mut play.project.regions {
-                bridge.server.apply_entities_items(&mut region.map);
-                if region.map.name == bridge.client.current_map
-                    && let Some(time) = bridge.server.get_time(&region.map.id)
-                {
-                    bridge.client.set_server_time(time);
-                    play.project.time = time;
-                }
+    pub fn start_owned(
+        document: Uuid,
+        project: Project,
+        tick_ms: u64,
+        quick_start: bool,
+        bridge: &mut Rusterix,
+    ) -> Result<Self, String> {
+        let mut game = GameSession::new(project);
+        game.start(eldiron_runtime::SessionOptions {
+            debug: true,
+            create_local_player: false,
+            ..Default::default()
+        })?;
+        game.clock = SessionClock::new(Duration::from_millis(tick_ms.max(1)));
+        // CPU client setup remains an explicit presentation/start-menu adapter.
+        // It never receives the authoritative Server and cannot advance it.
+        bridge.assets = game.assets.clone();
+        bridge.set_block_props(game.project.block_props.clone());
+        let mut commands = shared::rusterix_utils::setup_client_sources(bridge, &mut game.project);
+        if quick_start {
+            commands.extend(bridge.start_with_entity_defaults());
+        }
+        game.assets = bridge.assets.clone();
+        game.current_map = bridge.client.current_map.clone();
+        game.submit_startup_commands(commands);
+        for _ in 0..3 {
+            game.tick_once();
+        }
+        bridge.client.set_server_time(game.project.time);
+        bridge.prepare_runtime_appearances_from(&game.server, &game.assets);
+        let requested = game.has_started_player();
+        let visual_key = Self::visual_key(&bridge.assets);
+        Ok(Self {
+            document,
+            storage: Storage::Owned(game),
+            input: PlayerInput::from_controls(bridge.client.player_input_snapshot()),
+            requested,
+            last: Instant::now(),
+            visual_key,
+            audio: Some(Default::default()),
+        })
+    }
+    pub fn wake_after(&self) -> Option<Duration> {
+        let tick = match &self.storage {
+            Storage::Owned(game) if game.server.state == ServerState::Running => {
+                Some(game.clock.until_tick())
             }
-            // Text command definitions remain live authoring inputs, while room
-            // state and entities come exclusively from the runtime projection.
-            play.project.authoring.clone_from(&authored.authoring);
-            play.project.config.clone_from(&authored.config);
-            (&play.project, Some((&mut play.input, play.requested)))
-        } else {
-            (authored, None)
+            _ => None,
         };
-        (
-            project,
-            crate::textplay::TextGameRuntime {
-                server: &mut bridge.server,
-                assets: &bridge.assets,
-                time: bridge.client.server_time,
-                input,
+        tick.into_iter()
+            .chain(self.audio.as_ref().and_then(|audio| audio.wake_after()))
+            .min()
+    }
+    #[cfg(test)]
+    pub fn clock_step(&self) -> Duration {
+        match &self.storage {
+            Storage::Owned(game) => game.clock.step(),
+            Storage::Reference(game) => game.clock.step(),
+        }
+    }
+    pub fn audio_suspended(&mut self, suspended: bool) {
+        if let Some(audio) = &mut self.audio {
+            audio.set_suspended(suspended);
+        }
+    }
+    pub fn audio_user_gesture(&mut self) {
+        if let Storage::Owned(game) = &self.storage
+            && let Some(audio) = &mut self.audio
+        {
+            audio.user_gesture(&game.assets, self.visual_key);
+        }
+    }
+    pub fn dispatch_audio(&mut self, commands: &[rusterix::server::message::AudioCommand]) -> bool {
+        if let Storage::Owned(game) = &self.storage
+            && let Some(audio) = &mut self.audio
+        {
+            audio.dispatch(&game.assets, self.visual_key, commands);
+            true
+        } else {
+            false
+        }
+    }
+    #[cfg(test)]
+    pub fn audio_stats(&self) -> Option<rusterix::audio::output::AudioOutputStats> {
+        self.audio.as_ref().map(|audio| audio.stats())
+    }
+    pub fn owned(&self) -> bool {
+        matches!(self.storage, Storage::Owned(_))
+    }
+    pub fn project(&self) -> &Project {
+        match &self.storage {
+            Storage::Owned(g) => &g.project,
+            Storage::Reference(g) => &g.project,
+        }
+    }
+    pub fn project_mut(&mut self) -> &mut Project {
+        match &mut self.storage {
+            Storage::Owned(g) => &mut g.project,
+            Storage::Reference(g) => &mut g.project,
+        }
+    }
+    pub fn pump(&self) -> &SessionPump {
+        match &self.storage {
+            Storage::Owned(g) => g.driver(),
+            Storage::Reference(g) => &g.pump,
+        }
+    }
+    pub fn pump_mut(&mut self) -> &mut SessionPump {
+        match &mut self.storage {
+            Storage::Owned(g) => g.parts().pump,
+            Storage::Reference(g) => &mut g.pump,
+        }
+    }
+    pub fn assets<'a>(&'a self, fallback: &'a Assets) -> &'a Assets {
+        match &self.storage {
+            Storage::Owned(g) => &g.assets,
+            _ => fallback,
+        }
+    }
+    pub fn parts<'a>(
+        &'a mut self,
+        server: &'a mut Server,
+        assets: &'a mut Assets,
+    ) -> SessionParts<'a> {
+        match &mut self.storage {
+            Storage::Owned(g) => g.parts(),
+            Storage::Reference(g) => SessionParts {
+                project: &mut g.project,
+                pump: &mut g.pump,
+                server,
+                assets,
             },
-        )
+        }
+    }
+    pub fn server<'a>(&'a self, fallback: &'a Server) -> &'a Server {
+        match &self.storage {
+            Storage::Owned(g) => &g.server,
+            _ => fallback,
+        }
+    }
+    pub fn server_mut<'a>(&'a mut self, fallback: &'a mut Server) -> &'a mut Server {
+        match &mut self.storage {
+            Storage::Owned(g) => &mut g.server,
+            _ => fallback,
+        }
+    }
+    pub fn state(&self, fallback: &Server) -> ServerState {
+        self.server(fallback).state
+    }
+    pub fn view<'a>(
+        &'a self,
+        bridge: &'a Rusterix,
+        sources: &'a Project,
+    ) -> eldiron_runtime::RuntimeView<'a> {
+        match &self.storage {
+            Storage::Owned(g) => g.view(),
+            Storage::Reference(g) => g.pump.view(
+                &g.project,
+                &bridge.server,
+                &bridge.assets,
+                &bridge.client.current_map,
+            ),
+        }
+        .with_presentation_sources(sources)
+    }
+    pub fn inspect_region<'a>(
+        &'a self,
+        server: &Server,
+        region: Uuid,
+    ) -> Option<eldiron_runtime::RegionInspection<'a>> {
+        let map = &self.project().get_region(&region)?.map;
+        match &self.storage {
+            Storage::Owned(g) => g.inspect_region(&map.id),
+            Storage::Reference(g) => g.pump.inspect_region(&g.project, server, &map.id),
+        }
     }
     pub fn suspend_clock(&mut self) {
-        self.clock.reset_elapsed();
+        match &mut self.storage {
+            Storage::Owned(g) => g.clock.reset_elapsed(),
+            Storage::Reference(g) => g.clock.reset_elapsed(),
+        }
         self.last = Instant::now();
     }
-    pub fn advance(&mut self, runtime: &mut rusterix::Rusterix) -> SessionUpdate {
+    fn visual_key(assets: &Assets) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut key = std::collections::hash_map::DefaultHasher::new();
+        assets.visual_source_revision.hash(&mut key);
+        assets.avatars.revision().hash(&mut key);
+        assets.locales_src.hash(&mut key);
+        assets.audio_fx_src.hash(&mut key);
+        for (name, source) in &assets.procedural_avatars {
+            name.hash(&mut key);
+            (std::sync::Arc::as_ptr(source) as usize).hash(&mut key);
+        }
+        assets
+            .entities
+            .iter()
+            .for_each(|entry| entry.hash(&mut key));
+        assets.items.iter().for_each(|entry| entry.hash(&mut key));
+        assets.tiles_revision.hash(&mut key);
+        assets.block_props_revision.hash(&mut key);
+        assets.config.hash(&mut key);
+        assets.rules.hash(&mut key);
+        assets.authoring_src.hash(&mut key);
+        serde_json::to_vec(&assets.palette)
+            .expect("serializable palette")
+            .hash(&mut key);
+        key.finish()
+    }
+    pub fn advance_elapsed(
+        &mut self,
+        elapsed: Duration,
+        authored: &Project,
+        bridge: &mut Rusterix,
+    ) -> Result<SessionUpdate, String> {
+        let update = match &mut self.storage {
+            Storage::Owned(g) => {
+                // Explicit live authoring publication. Runtime actors/maps/time
+                // remain owned here; CPU visual source caches may be refreshed.
+                if g.assets.rules != bridge.assets.rules {
+                    let rules = bridge
+                        .assets
+                        .rules
+                        .parse()
+                        .map_err(|error| format!("Rules publication: {error}"))?;
+                    g.server.publish_rules(rules);
+                }
+                let key = Self::visual_key(&bridge.assets);
+                if self.visual_key != key {
+                    g.assets.publish_visual_sources_from(&bridge.assets);
+                    g.assets.visual_source_revision = key;
+                    g.project
+                        .rules_document
+                        .clone_from(&authored.rules_document);
+                    g.project.authoring.clone_from(&authored.authoring);
+                    g.project.config.clone_from(&authored.config);
+                    g.project.locales.clone_from(&authored.locales);
+                    self.visual_key = key;
+                }
+                let update = g.advance(elapsed);
+                bridge.client.current_map.clone_from(&g.current_map);
+                bridge.client.set_server_time(g.project.time);
+                bridge.prepare_runtime_appearances_from(&g.server, &g.assets);
+                update
+            }
+            Storage::Reference(g) => {
+                let update = g.pump.advance(
+                    &mut g.clock,
+                    elapsed,
+                    &mut g.project,
+                    &mut bridge.server,
+                    &mut bridge.assets,
+                    &mut bridge.client.current_map,
+                );
+                if let Some(time) = update.time {
+                    g.project.time = time;
+                }
+                bridge.prepare_runtime_appearances();
+                update
+            }
+        };
+        if let Storage::Owned(game) = &self.storage
+            && let Some(audio) = &mut self.audio
+        {
+            audio.update(&game.assets, self.visual_key, elapsed);
+        }
+        self.finish_input(bridge)?;
+        Ok(update)
+    }
+    fn finish_input(&mut self, bridge: &mut Rusterix) -> Result<(), String> {
+        let isometric = self.project().regions.iter().find(|r| r.map.name == bridge.client.current_map)
+            .and_then(|r|r.map.entities.iter().find(|e|e.is_player()))
+            .is_some_and(|e|matches!(e.attributes.get("player_camera"),Some(rusterix::Value::PlayerCamera(camera)) if camera.is_isometric_2d()));
+        if let Some(action) = self.input.controls.set_isometric_controls(isometric) {
+            self.submit_action(&mut bridge.server, action)?;
+        }
+        let server = match &mut self.storage {
+            Storage::Owned(g) => &mut g.server,
+            _ => &mut bridge.server,
+        };
+        if server.state == ServerState::Running {
+            self.input.flush(server);
+        }
+        Ok(())
+    }
+    pub fn advance(&mut self, bridge: &mut Rusterix) -> SessionUpdate {
         let now = Instant::now();
         let elapsed = now.duration_since(self.last);
         self.last = now;
-        let update = self.pump.advance(
-            &mut self.clock,
+        let Storage::Reference(g) = &mut self.storage else {
+            unreachable!("owned sessions advance from host time");
+        };
+        let update = g.pump.advance(
+            &mut g.clock,
             elapsed,
-            &mut self.project,
-            &mut runtime.server,
-            &mut runtime.assets,
-            &mut runtime.client.current_map,
+            &mut g.project,
+            &mut bridge.server,
+            &mut bridge.assets,
+            &mut bridge.client.current_map,
         );
         if let Some(time) = update.time {
-            self.project.time = time;
+            g.project.time = time;
         }
-        runtime.prepare_runtime_appearances();
-        self.synchronize_controls(runtime);
-        if runtime.server.state == rusterix::ServerState::Running {
-            self.input.flush(&mut runtime.server);
-        }
+        bridge.prepare_runtime_appearances();
+        let _ = self.finish_input(bridge);
         update
     }
     pub fn submit_action(
         &mut self,
-        server: &mut rusterix::Server,
-        action: rusterix::EntityAction,
+        fallback: &mut Server,
+        action: EntityAction,
     ) -> Result<(), String> {
-        if server.state != rusterix::ServerState::Running && action != rusterix::EntityAction::Off {
+        let server = match &mut self.storage {
+            Storage::Owned(g) => &mut g.server,
+            _ => fallback,
+        };
+        if server.state != ServerState::Running && action != EntityAction::Off {
             return Ok(());
         }
         if let Err(error) = self.input.submit_action(server, self.requested, action) {
             self.input.controls.cancel_controls();
-            // Stop has reserved headroom even when registration is delayed and
-            // discrete commands have filled the bounded queue.
             let _ = self
                 .input
-                .submit_action(server, self.requested, rusterix::EntityAction::Off);
+                .submit_action(server, self.requested, EntityAction::Off);
             return Err(error);
         }
         Ok(())
     }
-    pub fn cancel_input(&mut self, server: &mut rusterix::Server) {
+    pub fn cancel_input(&mut self, server: &mut Server) {
         let stop = self.input.controls.cancel_controls();
         let _ = self.submit_action(server, stop);
     }
-    fn synchronize_controls(&mut self, runtime: &mut rusterix::Rusterix) {
-        let isometric=self.project.regions.iter().find(|r|r.map.name==runtime.client.current_map)
-            .and_then(|r|r.map.entities.iter().find(|e|e.is_player()))
-            .is_some_and(|e|matches!(e.attributes.get("player_camera"),Some(rusterix::Value::PlayerCamera(camera)) if camera.is_isometric_2d()));
-        if let Some(action) = self.input.controls.set_isometric_controls(isometric) {
-            let _ = self.submit_action(&mut runtime.server, action);
+    pub fn start_player(
+        &mut self,
+        bridge: &mut Rusterix,
+        options: eldiron_runtime::PlayerStartOptions<'_>,
+    ) -> Result<(), String> {
+        match &mut self.storage {
+            Storage::Owned(g) => {
+                if let Some(info) = g.start_player(options)? {
+                    self.input.controls.configure(&info, &g.assets);
+                    self.requested = true;
+                }
+            }
+            Storage::Reference(_) => {
+                let map = bridge
+                    .assets
+                    .maps
+                    .get(&bridge.client.current_map)
+                    .ok_or("Player start map is unavailable")?;
+                let prepared =
+                    rusterix::player_start::prepare_player_start(&bridge.assets, map, options)?;
+                self.input
+                    .controls
+                    .configure(&prepared.info, &bridge.assets);
+                bridge
+                    .server
+                    .process_client_commands(vec![prepared.command]);
+                self.requested = true;
+            }
+        }
+        Ok(())
+    }
+    pub fn flush_command(&mut self, bridge: &mut Rusterix) {
+        match &mut self.storage {
+            Storage::Owned(g) => {
+                g.tick_once();
+                bridge.client.current_map.clone_from(&g.current_map);
+                bridge.client.set_server_time(g.project.time);
+                bridge.prepare_runtime_appearances_from(&g.server, &g.assets);
+            }
+            Storage::Reference(g) => {
+                let update = g.pump.update(
+                    1,
+                    true,
+                    &mut g.project,
+                    &mut bridge.server,
+                    &mut bridge.assets,
+                    &mut bridge.client.current_map,
+                );
+                if let Some(time) = update.time {
+                    g.project.time = time;
+                }
+                bridge.prepare_runtime_appearances();
+            }
         }
     }
-    pub fn flush_command(&mut self, runtime: &mut rusterix::Rusterix) {
-        let update = self.pump.update(
-            1,
-            true,
-            &mut self.project,
-            &mut runtime.server,
-            &mut runtime.assets,
-            &mut runtime.client.current_map,
-        );
-        if let Some(time) = update.time {
-            self.project.time = time;
+    pub fn text_runtime<'a>(
+        play: Option<&'a mut Self>,
+        authored: &'a Project,
+        bridge: &'a mut Rusterix,
+    ) -> (&'a Project, crate::textplay::TextGameRuntime<'a>) {
+        if let Some(play) = play {
+            let (project, server, assets, current_map) = match &mut play.storage {
+                Storage::Owned(g) => (&mut g.project, &mut g.server, &g.assets, &g.current_map),
+                Storage::Reference(g) => (
+                    &mut g.project,
+                    &mut bridge.server,
+                    &bridge.assets,
+                    &bridge.client.current_map,
+                ),
+            };
+            for region in &mut project.regions {
+                server.apply_entities_items(&mut region.map);
+                if region.map.name == *current_map
+                    && let Some(time) = server.get_time(&region.map.id)
+                {
+                    project.time = time;
+                }
+            }
+            project.authoring.clone_from(&authored.authoring);
+            project.config.clone_from(&authored.config);
+            (
+                &*project,
+                crate::textplay::TextGameRuntime {
+                    server,
+                    assets,
+                    time: project.time,
+                    input: Some((&mut play.input, play.requested)),
+                },
+            )
+        } else {
+            (
+                authored,
+                crate::textplay::TextGameRuntime {
+                    server: &mut bridge.server,
+                    assets: &bridge.assets,
+                    time: bridge.client.server_time,
+                    input: None,
+                },
+            )
         }
-        runtime.prepare_runtime_appearances();
     }
-
-    /// The authoring viewport keeps current geometry, selection, placement and
-    /// camera edits. Borrow transient actors and prop state without replacing
-    /// that geometry with a server-generated dungeon or writing into its map.
     pub fn authoring_map<'a>(
         &self,
         authored: &'a rusterix::Map,
     ) -> std::borrow::Cow<'a, rusterix::Map> {
         let Some(region) = self
-            .project
+            .project()
             .regions
             .iter()
             .find(|r| r.map.id == authored.id)
@@ -169,5 +508,13 @@ impl CreatorPlaySession {
             }
         }
         std::borrow::Cow::Owned(map)
+    }
+}
+
+impl Drop for CreatorPlaySession {
+    fn drop(&mut self) {
+        if let Some(audio) = &mut self.audio {
+            audio.reset();
+        }
     }
 }

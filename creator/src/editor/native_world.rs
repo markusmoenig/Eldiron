@@ -18,6 +18,8 @@ use theframework::render_wgpu::{UiFrameImages, UiImageCache};
 
 #[derive(Clone, PartialEq)]
 struct AssetKey {
+    source: u64,
+    avatars: u64,
     tiles: u64,
     prefabs: u64,
     config: String,
@@ -665,7 +667,7 @@ impl Editor {
             return;
         };
         let owner = gesture.binding;
-        if self.play_session.as_ref().map(|session| session.pump.session_id()) != owner.runtime
+        if self.play_session.as_ref().map(|session| session.pump().session_id()) != owner.runtime
             || self.documents.active_id() != Some(owner.document)
         {
             return;
@@ -827,9 +829,10 @@ impl Editor {
         let view = view.id().clone();
         let slots = slots(map, &self.server_ctx);
         let bridge = RUSTERIX.read().unwrap();
+        let assets = self.play_session.as_ref().map(|play| play.assets(&bridge.assets)).unwrap_or(&bridge.assets);
         Some(Binding {
             document,
-            runtime: self.play_session.as_ref().map(|session| session.pump.session_id()),
+            runtime: self.play_session.as_ref().map(|session| session.pump().session_id()),
             view,
             tool,
             context: self.server_ctx.pc,
@@ -842,10 +845,12 @@ impl Editor {
             style: HudStyle::current(),
             slots,
             assets: AssetKey {
-                tiles: bridge.assets.tiles_revision,
-                prefabs: bridge.assets.block_props_revision,
-                config: bridge.assets.config.clone(),
-                palette: bridge.assets.palette.clone(),
+                source: assets.visual_source_revision,
+                avatars: assets.avatars.revision(),
+                tiles: assets.tiles_revision,
+                prefabs: assets.block_props_revision,
+                config: assets.config.clone(),
+                palette: assets.palette.clone(),
                 material: self.documents.project.procedural_materials.revision(),
                 appearance: self.documents.project.procedural_appearances.revision(),
                 geometry: self.procedural_appearance_revision,
@@ -861,7 +866,7 @@ impl Editor {
         let d2 = self.server_ctx.editor_view_mode == EditorViewMode::D2;
         let fx = self.server_ctx.pc.is_prefab()
             && self.server_ctx.curr_map_tool_type == MapToolType::Effects;
-        let running = RUSTERIX.read().unwrap().server.state == rusterix::ServerState::Running;
+        let running = self.runtime_state() == rusterix::ServerState::Running;
         if (d2 || fx || running)
             && let Some(gpu) = &mut self.native_viewport.world.gpu
         {
@@ -1019,6 +1024,7 @@ impl Editor {
         }
         // CPU-only bridge inputs: no legacy VM is borrowed, swapped or rendered.
         let bridge = RUSTERIX.read().unwrap();
+        let assets = self.play_session.as_ref().map(|play| play.assets(&bridge.assets)).unwrap_or(&bridge.assets);
         let source = bridge.scene_handler.build_index.snapshot();
         let ready = if binding.mode == EditorViewMode::D2 && map.camera == MapCamera::TwoDIso {
             // Iso source geometry is produced directly from this map. Creator
@@ -1037,10 +1043,10 @@ impl Editor {
                 gpu.scenes
                     .scene_mut(gpu.view)
                     .map_err(|e| e.to_string())?
-                    .sync_prefab_particle_sprites(&bridge.assets.block_props);
+                    .sync_prefab_particle_sprites(&assets.block_props);
             } else {
                 gpu.scenes
-                    .configure_editor(gpu.view, &bridge.assets)
+                    .configure_editor(gpu.view, assets)
                     .map_err(|e| e.to_string())?;
             }
             gpu.configured = Some(binding.assets.clone());
@@ -1065,8 +1071,10 @@ impl Editor {
             animation: bridge.client.animation_frame,
             canvas: bridge.client.editor_canvas_colors,
             build: self.build_values.clone(),
-            runtime: bridge.render_state_for_view(map, true),
-            terrain_paint: bridge.assets.terrain_paint.get(&map.id).map(|p| p.key),
+            runtime: bridge.render_state_for_view_from(
+                self.play_session.as_ref().map(|play| play.server(&bridge.server)).unwrap_or(&bridge.server), map, true,
+            ),
+            terrain_paint: assets.terrain_paint.get(&map.id).map(|p| p.key),
         };
         // The existing 3D guides include transient gizmos/ghosts beyond the 2D
         // key. Prepare them on requested frames until their owner revisions are
@@ -1095,7 +1103,7 @@ impl Editor {
                         (binding.size.0 as u32, binding.size.1 as u32),
                         &eldiron_presentation::GameSceneInput {
                             map,
-                            assets: &bridge.assets,
+                            assets: assets,
                             time: bridge.client.server_time,
                             animation_frame: bridge.client.animation_frame,
                             render_state: &key.runtime,
@@ -1116,13 +1124,13 @@ impl Editor {
                         map,
                         camera.as_ref(),
                         bridge.client.animation_frame,
-                        &bridge.assets,
+                        assets,
                         &Default::default(),
                     );
                     TOOLLIST.write().unwrap().prepare_geometry_overlay_3d(
                         &self.documents.project,
                         &self.server_ctx,
-                        &bridge.assets,
+                        assets,
                         camera.as_ref(),
                         scene,
                     );
@@ -1146,7 +1154,7 @@ impl Editor {
                             crate::block_props::merge_prefab_paint_for_map(
                                 &mut paint,
                                 map,
-                                &bridge.assets.block_props,
+                                &assets.block_props,
                                 &self.documents.project.block_prop_paint,
                             );
                             (region.id, 0, paint)
@@ -1217,7 +1225,7 @@ impl Editor {
                     gpu.guides.show_entity_markers = true;
                     gpu.guides.build_entities_items(
                         map,
-                        &bridge.assets,
+                        assets,
                         &mut gpu.guide_scene,
                         Vec2::new(binding.size.0 as f32, binding.size.1 as f32),
                         &None,
@@ -1227,7 +1235,7 @@ impl Editor {
                     scene.build_dynamics_2d(
                         map,
                         bridge.client.animation_frame,
-                        &bridge.assets,
+                        assets,
                         &Default::default(),
                     );
                     description
@@ -1275,7 +1283,7 @@ impl Editor {
                     hud: HudInputs {
                         map,
                         server: &self.server_ctx,
-                        assets: &bridge.assets,
+                        assets: assets,
                         selected_id: None,
                         material_slots: material_slots.as_deref(),
                         light,

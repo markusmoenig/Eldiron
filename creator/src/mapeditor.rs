@@ -746,8 +746,7 @@ impl MapEditor {
                 if id.name == "PolyView" {
                     let precise_trackpad_scroll =
                         matches!(event, TheEvent::RenderViewPreciseScrollBy(_, _));
-                    let is_running = crate::editor::RUSTERIX.read().unwrap().server.state
-                        == rusterix::ServerState::Running;
+                    let is_running = server_ctx.play_state == rusterix::ServerState::Running;
                     if is_running && server_ctx.game_mode {
                         let mut rusterix = crate::editor::RUSTERIX.write().unwrap();
                         if rusterix.client.scroll_messages(coord.y as isize) {
@@ -876,7 +875,7 @@ impl MapEditor {
                     && server_ctx.editor_view_mode == EditorViewMode::D2
                 {
                     let is_running =
-                        RUSTERIX.read().unwrap().server.state == rusterix::ServerState::Running;
+                        server_ctx.play_state == rusterix::ServerState::Running;
                     if !(is_running && server_ctx.game_mode)
                         && let Some(map) = project.get_map_mut(server_ctx)
                     {

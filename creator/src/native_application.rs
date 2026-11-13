@@ -107,6 +107,7 @@ impl UiApplication for NativeCreatorApplication {
     }
 
     fn raw_input(&mut self, event: &InputEvent, ui: &mut UiSession) -> Option<InputResponse> {
+        if matches!(event, InputEvent::PointerButton { pressed: true, .. } | InputEvent::Key { pressed: true, .. }) { self.editor.native_runtime_audio_gesture(); }
         ui.ui.prepare_paint_layout(&mut ui.context);
         let response = self.editor.native_game_input_raw(event, ui)
             .or_else(|| self.editor.native_play_raw_input(event, ui));
@@ -205,6 +206,9 @@ impl UiApplication for NativeCreatorApplication {
             return FrameRequest::idle();
         }
         self.editor.synchronize_native_document();
+        if let Err(error) = self.editor.advance_native_runtime(elapsed) {
+            ui.context.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
+        }
         let mut redraw = ui.ui.update(&mut ui.context);
         redraw |= self.editor.advance_native_world_camera(&mut ui.context);
         redraw |= self.editor.update_ui(&mut ui.ui, &mut ui.context);
@@ -221,8 +225,9 @@ impl UiApplication for NativeCreatorApplication {
         redraw |= self.smoke && self.presentations < 3;
         FrameRequest {
             redraw,
-            wake_after: Some(Duration::from_secs_f64(
-                1. / self.editor.target_fps().clamp(1., 240.),
+            wake_after: Some(self.editor.native_runtime_wake_after().map_or(
+                Duration::from_secs_f64(1. / self.editor.target_fps().clamp(1., 240.)),
+                |audio| audio.min(Duration::from_secs_f64(1. / self.editor.target_fps().clamp(1., 240.))),
             )),
         }
     }
@@ -314,6 +319,7 @@ impl UiApplication for NativeCreatorApplication {
         Ok(())
     }
     fn suspended(&mut self, ui: &mut UiSession) {
+        self.editor.native_runtime_suspended(true);
         self.editor.cancel_native_play_input(&mut ui.ui);
         self.pending = None;
         ui.input(&InputEvent::Focus(false));
@@ -323,6 +329,7 @@ impl UiApplication for NativeCreatorApplication {
         self.editor.invalidate_native_views(&mut ui.ui);
     }
     fn resumed(&mut self, ui: &mut UiSession) {
+        self.editor.native_runtime_suspended(false);
         ui.input(&InputEvent::Focus(true));
     }
     fn close_requested(&mut self, _: &mut UiSession) -> bool {
@@ -1867,6 +1874,16 @@ mod tests {
             .editor
             .native_play_stats_for_test()
             .expect("toolbar Play owns the shared runtime driver");
+        let owned = app.application.editor.native_owned_runtime_for_test().unwrap();
+        assert!(owned.0 && owned.1, "native Play owns the sole authoritative server; facade remains Off");
+        // Advance CPU time without preparing/presenting any scene. Visual
+        // consumers cannot determine simulation cadence or create tick debt.
+        app.update(&mut host, owned.2 * 3);
+        assert_eq!(app.application.editor.native_play_stats_for_test().unwrap().0, initial.0 + 3);
+        app.application.editor.publish_native_runtime_sources_for_test();
+        assert!(!app.application.editor.native_runtime_sources_received_for_test());
+        app.update(&mut host, Duration::ZERO);
+        assert!(app.application.editor.native_runtime_sources_received_for_test());
         assert_eq!(
             app.application.editor.native_play_authoring_checkpoint_for_test(),
             authored_session,
@@ -1936,6 +1953,18 @@ mod tests {
                 "Creator shared clock/output did not advance: {state:?}"
             );
         }
+        let audio_before = app.application.editor.native_audio_commands_for_test();
+        app.application.editor.queue_native_unseen_audio_for_test();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while app.application.editor.native_audio_commands_for_test() == audio_before {
+            std::thread::sleep(Duration::from_millis(10));
+            app.update(&mut host, Duration::ZERO);
+            assert!(Instant::now() < deadline, "unseen-region audio was tied to the authoring view");
+        }
+        assert_eq!(app.application.editor.native_audio_commands_for_test(), audio_before + 1);
+        std::thread::sleep(Duration::from_millis(40));
+        app.update(&mut host, Duration::ZERO);
+        assert_eq!(app.application.editor.native_audio_commands_for_test(), audio_before + 1, "audio cannot replay on another poll");
         app.application.editor.tag_native_console_actor_for_test();
         app.session.context.ui.send(TheEvent::Custom(
             TheId::named("Console Feedback Action"), TheValue::Text("list chars".into()),

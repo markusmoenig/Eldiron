@@ -62,7 +62,27 @@ pub struct GameSession {
     started: bool,
     local_player_started: bool,
 }
+/// Explicit mutable CPU host borrow. Presenters receive RuntimeView or
+/// RegionInspection instead, never this simulation/collection capability.
+pub struct SessionParts<'a> {
+    pub project: &'a mut Project,
+    pub pump: &'a mut SessionPump,
+    pub server: &'a mut Server,
+    pub assets: &'a mut Assets,
+}
 impl GameSession {
+    pub fn parts(&mut self) -> SessionParts<'_> {
+        SessionParts { project: &mut self.project, pump: &mut self.pump, server: &mut self.server, assets: &mut self.assets }
+    }
+    pub fn driver(&self) -> &SessionPump { &self.pump }
+    /// Migration startup adapters may still produce the legacy CPU registration
+    /// command. Ownership and duplicate-registration policy remain here.
+    pub fn submit_startup_commands(&mut self, commands: Vec<rusterix::Command>) {
+        self.local_player_started |= commands.iter().any(|command| {
+            matches!(command, rusterix::Command::CreateEntity(_, entity) if entity.is_player())
+        });
+        self.server.process_client_commands(commands);
+    }
     pub fn new(project: Project) -> Self {
         let config = project.config.parse::<toml::Table>().unwrap_or_default();
         let game = config.get("game").and_then(toml::Value::as_table);

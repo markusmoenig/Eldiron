@@ -690,6 +690,9 @@ pub struct ServerContext {
     pub game_input_mode: bool,
     /// Ephemeral ownership claim for native authoring keyboard routing.
     pub native_game_input: bool,
+    /// Ephemeral CPU runtime state supplied by the owning application. Tools do
+    /// not resolve an authoritative server through a renderer facade.
+    pub play_state: rusterix::ServerState,
 
     /// First-person editor fly navigation mode. When enabled, PolyView mouse
     /// movement controls look direction and WASD controls movement.
@@ -862,6 +865,7 @@ impl ServerContext {
 
             game_input_mode: false,
             native_game_input: false,
+            play_state: rusterix::ServerState::Off,
             editor_fly_nav_active: false,
             editor_fly_nav_mouse_down: false,
             editor_fly_nav_space_down: false,

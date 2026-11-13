@@ -56,7 +56,15 @@ impl Rusterix {
         map: &Map,
         apply_editor_preview: bool,
     ) -> crate::server::message::RuntimeRenderState {
-        let mut state = self.server.get_render_state(&map.id);
+        self.render_state_for_view_from(&self.server, map, apply_editor_preview)
+    }
+    pub fn render_state_for_view_from(
+        &self,
+        server: &Server,
+        map: &Map,
+        apply_editor_preview: bool,
+    ) -> crate::server::message::RuntimeRenderState {
+        let mut state = server.get_render_state(&map.id);
         if apply_editor_preview && !self.editor_preview_post_enabled {
             state.post.set("enabled", Value::Bool(false));
         }
@@ -301,7 +309,6 @@ impl Rusterix {
 
     /// Stop all currently playing voices on a bus/layer.
     pub fn clear_audio_bus(&mut self, bus: &str) {
-        self.ensure_audio_engine();
         if let Some(engine) = self.audio.as_ref() {
             engine.clear_bus(bus);
         }
@@ -309,7 +316,6 @@ impl Rusterix {
 
     /// Stop all currently playing clip voices across all buses/layers.
     pub fn clear_all_audio(&mut self) {
-        self.ensure_audio_engine();
         if let Some(engine) = self.audio.as_ref() {
             engine.clear_all_buses();
         }
@@ -1118,6 +1124,10 @@ impl Rusterix {
         #[cfg(not(target_arch = "wasm32"))]
         self.appearance_preparation
             .prepare(self.server.entities.values().flatten(), &self.assets);
+    }
+    pub fn prepare_runtime_appearances_from(&mut self, server: &Server, assets: &Assets) {
+        #[cfg(not(target_arch = "wasm32"))]
+        self.appearance_preparation.prepare(server.entities.values().flatten(), assets);
     }
 
     /// Update the tiles

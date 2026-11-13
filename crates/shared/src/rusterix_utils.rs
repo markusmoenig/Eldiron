@@ -95,6 +95,13 @@ pub fn warmup_runtime(rusterix: &mut Rusterix, project: &mut Project, ticks: usi
 }
 
 pub fn setup_client(rusterix: &mut Rusterix, project: &mut Project) -> Vec<Command> {
+    let commands = setup_client_sources(rusterix, project);
+    rusterix.load_audio_assets();
+    commands
+}
+
+/// CPU presentation/start-menu setup, without allocating an audio device.
+pub fn setup_client_sources(rusterix: &mut Rusterix, project: &mut Project) -> Vec<Command> {
     rusterix.assets.terrain_paint.clear();
     for region in &mut project.regions {
         crate::iso_paint_terrain::sync(&mut rusterix.assets, region.map.id, &mut region.iso_paint);
@@ -178,5 +185,5 @@ pub fn setup_client(rusterix: &mut Rusterix, project: &mut Project) -> Vec<Comma
     // Client setup can swap maps/widgets while keeping SceneVM alive.
     // Invalidate dynamic caches so first game frame always reuploads lights/dynamics.
     rusterix.scene_handler.mark_dynamics_dirty();
-    rusterix.setup_client()
+    rusterix.client.setup(&mut rusterix.assets, &mut rusterix.scene_handler)
 }

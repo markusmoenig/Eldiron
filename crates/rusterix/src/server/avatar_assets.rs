@@ -6,15 +6,37 @@ use rustc_hash::FxHashMap;
 use std::{
     ops::{Deref, DerefMut},
     sync::RwLock,
+    sync::atomic::{AtomicU64, Ordering},
 };
 
-#[derive(Default)]
+static NEXT_SOURCE: AtomicU64 = AtomicU64::new(1);
+fn source_revision() -> u64 {
+    let revision = NEXT_SOURCE.fetch_add(1, Ordering::Relaxed);
+    assert!(
+        revision != 0 && revision != u64::MAX,
+        "avatar source revision exhausted"
+    );
+    revision
+}
 pub struct AvatarAssets {
     data: FxHashMap<String, Avatar>,
     signatures: RwLock<FxHashMap<usize, u64>>,
+    revision: u64,
+}
+impl Default for AvatarAssets {
+    fn default() -> Self {
+        Self {
+            data: Default::default(),
+            signatures: Default::default(),
+            revision: source_revision(),
+        }
+    }
 }
 
 impl AvatarAssets {
+    pub fn revision(&self) -> u64 {
+        self.revision
+    }
     pub(crate) fn cached_signature(&self, avatar: &Avatar, calculate: impl FnOnce() -> u64) -> u64 {
         let key = avatar as *const Avatar as usize;
         if let Some(signature) = self.signatures.read().unwrap().get(&key).copied() {
@@ -35,6 +57,7 @@ impl Clone for AvatarAssets {
         Self {
             data: self.data.clone(),
             signatures: Default::default(),
+            revision: self.revision,
         }
     }
 }
@@ -46,6 +69,7 @@ impl Deref for AvatarAssets {
 }
 impl DerefMut for AvatarAssets {
     fn deref_mut(&mut self) -> &mut Self::Target {
+        self.revision = source_revision();
         self.signatures.get_mut().unwrap().clear();
         &mut self.data
     }
@@ -61,6 +85,7 @@ impl<'a> IntoIterator for &'a mut AvatarAssets {
     type Item = (&'a String, &'a mut Avatar);
     type IntoIter = std::collections::hash_map::IterMut<'a, String, Avatar>;
     fn into_iter(self) -> Self::IntoIter {
+        self.revision = source_revision();
         self.signatures.get_mut().unwrap().clear();
         self.data.iter_mut()
     }
@@ -70,6 +95,7 @@ impl FromIterator<(String, Avatar)> for AvatarAssets {
         Self {
             data: items.into_iter().collect(),
             signatures: Default::default(),
+            revision: source_revision(),
         }
     }
 }
@@ -103,6 +129,9 @@ mod tests {
         });
         assets.insert("body".into(), avatar);
         let original = signature(&assets);
+        let revision = assets.revision();
+        assert_eq!(revision, assets.clone().revision());
+        assert_ne!(revision, AvatarAssets::default().revision());
         assert_eq!(
             assets.cached_signature(&assets["body"], || panic!("unchanged avatar rehashed")),
             original
@@ -111,6 +140,7 @@ mod tests {
             .texture
             .data[0] = 31;
         let edited = signature(&assets);
+        assert_ne!(revision, assets.revision());
         assert_ne!(original, edited);
         for (_, avatar) in &mut assets {
             avatar.animations[0].perspectives[0].frames[0].weapon_main_anchor = Some((3, 4));
