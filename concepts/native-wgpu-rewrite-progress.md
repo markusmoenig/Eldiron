@@ -9542,3 +9542,34 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   stalled: task-only closed renderer40827 consumed98.7% CPU and CDP stopped
   responding. Restarting only task Chrome9267 with a fresh temporary profile;
   preserve failure logs and do not claim browser history acceptance yet.
+
+- History ownership checkpoint committed74ab4ff4. Corrected fresh-profile actual
+  browser150% workflow PASS: save History Saved, project Undo dirty, replace redo
+  branch with History Branch remains dirty, browser beforeunload fires and cancel
+  retains document, Save/Undo/Redo returns clean, actual device.destroy recovery
+  retains clean source. Doc e1d88d94-77c9-41c0-97fc-8fa77113ff77;38presentations,
+  generations/devices3, root/readback/assetreadback/colorcopies/Canvas2D all0;
+  GPU/JS errors[]. Log owned-history-browser-restart-check.log. Earlier failed
+  coordinate probes retained; no production focus policy change was needed.
+- Independently decoded four fresh ZIP/project.json saves: first region/map name
+  History Saved, branch/redone/recovered History Branch. Last3 whole projects AND
+  archive bytes equal1,447,287B SHA256
+  9c53efce95459ce56f795150171353b190c9c4578077e126ea9895d5f32fc39d.
+  Saved first1,447,268B SHA256
+  f85dd038a116df22a8e152290f7114701d8912d03201d55f457e88ca3e3b8f46.
+  Inspected unsaved branch capture (visible branch name and dirty tab marker);
+  durable evidence browser-creator-history-branch-150.png. Serialized format
+  unchanged. Task profile restart recovered the stalled closed renderer; fresh
+  startup was briefly CPU-busy compiling large WASM, then completed successfully.
+
+## 2026-11-14 — Application-owned action registry (active)
+
+- Moving mutable ActionList instances/parameters/editor-display drafts into lazy
+  CreatorActions owned by CreatorContext; stable dotted command IDs and action
+  constructors remain unchanged. Data-only context creation must stay cold.
+  Removed process-wide ACTIONLIST and wired all full-context callers explicitly;
+  two narrow ToolList helpers propagate CreatorActions through draft lifecycle.
+- First canonical native check reaches7 missing service arguments only; no other
+  error class. Continue compile/test caller convergence, actual two-owner draft
+  isolation, existing Scepter catalog/apply/profile interactions, then batched
+  native/reference/browser/Apple assembly. Uncommitted; no action test pass yet.
