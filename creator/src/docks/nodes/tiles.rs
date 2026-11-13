@@ -63,7 +63,7 @@ impl TileControls {
         frame: &crate::docks::particle_preview::ParticlePreviewFrame,
     ) {
         self.images.remove(key);
-        self.radials.insert(key.into(), frame.native_layer());
+        self.radials.insert(key.into(), frame.native_layer(false));
     }
 
     pub(super) fn refresh_equipment_names(&mut self, project: &Project) {

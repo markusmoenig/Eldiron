@@ -66,19 +66,21 @@ struct Draw {
 #[derive(Clone, Copy)]
 enum Field<'a> {
     Distance(&'a DistanceField, Point),
-    Radial(&'a PixelRadialLayer, [f32; 4]),
+    Radial(&'a PixelRadialLayer, Rect, [f32; 4]),
 }
 impl Field<'_> {
     fn count(self) -> u32 {
         match self {
             Self::Distance(field, _) => field.primitives.len() as u32,
-            Self::Radial(layer, _) => layer.radials.len() as u32,
+            Self::Radial(layer, ..) => {
+                layer.radials.len() as u32 + 1 + (layer.size[1] as u32).div_ceil(20)
+            }
         }
     }
     fn origin(self) -> [f32; 4] {
         match self {
             Self::Distance(_, p) => [p[0], p[1], 0., 0.],
-            Self::Radial(_, basis) => basis,
+            Self::Radial(_, _, basis) => basis,
         }
     }
 }
@@ -562,13 +564,16 @@ impl PaintRenderer {
                 |size| [size[0], size[1], 0., 0.],
             ),
         };
-        if let Some(Field::Radial(layer, _)) = field {
+        if let Some(Field::Radial(layer, rect, _)) = field {
             // The radial shader explicitly quantizes/composites encoded bytes,
             // then converts its final opaque color at the declared boundary.
             params.color0 = layer.top.map(|v| (v * 255.).round());
             params.color1 = layer.bottom.map(|v| (v * 255.).round());
-            params.color0[3] = layer.size[0];
-            params.color1[3] = layer.size[1];
+            params.color0[3] = rect.width / layer.size[0];
+            params.color1[3] = rect.height / layer.size[1];
+            if layer.opaque {
+                params.mode |= 512;
+            }
         }
         if let Some(ImageEffect::PixelTriangle(points)) = effect {
             params.color1 = [points[0][0], points[0][1], points[1][0], points[1][1]];
@@ -603,7 +608,7 @@ impl PaintRenderer {
         let sampler = &self.samplers[&image.map(|(_, s)| s).unwrap_or(Sampling::Linear)];
         let field_data = field.map(|field| match field {
             Field::Distance(field, _) => distance_data(field, self.legacy_display),
-            Field::Radial(layer, _) => radial_data(layer),
+            Field::Radial(layer, ..) => radial_data(layer),
         });
         let field_buffer = field_data.as_ref().filter(|v| !v.is_empty()).map(|data| {
             self.context
@@ -875,7 +880,7 @@ impl PaintRenderer {
                             size,
                             level,
                             0,
-                            Some(Field::Radial(layer, basis)),
+                            Some(Field::Radial(layer, *rect, basis)),
                             None,
                         ));
                     }
@@ -1588,41 +1593,71 @@ fn distance_data(field: &DistanceField, encoded: bool) -> Vec<DistanceData> {
 }
 fn radial_data(layer: &PixelRadialLayer) -> Vec<DistanceData> {
     let bytes = |color: Color| color.map(|v| (v * 255.).round());
-    layer
-        .radials
-        .iter()
-        .map(|radial| match radial {
-            PixelRadial::SoftCircle {
-                center,
-                radius,
-                color,
-            } => DistanceData {
-                bounds: [center[0], center[1], *radius, 0.],
-                radii: [0.; 4],
-                fill: bytes(*color),
-                border: [0.; 4],
-                meta: [0.; 4],
-            },
-            PixelRadial::Disc {
-                rect,
-                color,
-                border_width,
-                border,
-            } => {
-                let half_border = border_width * 0.5;
-                DistanceData {
-                    bounds: [rect.x, rect.y, rect.width, rect.height],
-                    radii: [
-                        (rect.x + rect.width * 0.5 - half_border).round(),
-                        (rect.y + rect.height * 0.5 - half_border).round(),
-                        rect.width * 0.5 - half_border,
-                        0.,
-                    ],
-                    fill: bytes(*color),
-                    border: bytes(*border),
-                    meta: [1., *border_width, 0., 0.],
-                }
+    // Compact one-dimensional byte-color metadata preserves the CPU gradient's
+    // truncation without Metal's reciprocal/FMA changing an exact row boundary.
+    // Twenty packed RGB rows occupy one storage entry; no viewport pixels exist.
+    let height = layer.size[1] as usize;
+    let top = bytes(layer.top);
+    let bottom = bytes(layer.bottom);
+    let rows = height.div_ceil(20);
+    let mut data = vec![DistanceData {
+        bounds: [layer.size[0], layer.size[1], rows as f32, 0.],
+        radii: [0.; 4],
+        fill: [0.; 4],
+        border: [0.; 4],
+        meta: [0.; 4],
+    }];
+    for block in 0..rows {
+        let mut words = [0.; 20];
+        for (index, word) in words.iter_mut().enumerate() {
+            let row = block * 20 + index;
+            if row >= height {
+                break;
             }
-        })
-        .collect()
+            let t = row as f32 / height as f32;
+            let color = [0, 1, 2].map(|k| (top[k] * (1. - t) + bottom[k] * t) as u8);
+            *word = (color[0] as u32 | ((color[1] as u32) << 8) | ((color[2] as u32) << 16)) as f32;
+        }
+        data.push(DistanceData {
+            bounds: words[0..4].try_into().unwrap(),
+            radii: words[4..8].try_into().unwrap(),
+            fill: words[8..12].try_into().unwrap(),
+            border: words[12..16].try_into().unwrap(),
+            meta: words[16..20].try_into().unwrap(),
+        });
+    }
+    data.extend(layer.radials.iter().map(|radial| match radial {
+        PixelRadial::SoftCircle {
+            center,
+            radius,
+            color,
+        } => DistanceData {
+            bounds: [center[0], center[1], *radius, 0.],
+            radii: [0.; 4],
+            fill: bytes(*color),
+            border: [0.; 4],
+            meta: [0.; 4],
+        },
+        PixelRadial::Disc {
+            rect,
+            color,
+            border_width,
+            border,
+        } => {
+            let half_border = border_width * 0.5;
+            DistanceData {
+                bounds: [rect.x, rect.y, rect.width, rect.height],
+                radii: [
+                    (rect.x + rect.width * 0.5 - half_border).round(),
+                    (rect.y + rect.height * 0.5 - half_border).round(),
+                    rect.width * 0.5 - half_border,
+                    0.,
+                ],
+                fill: bytes(*color),
+                border: bytes(*border),
+                meta: [1., *border_width, 0., 0.],
+            }
+        }
+    }));
+    data
 }

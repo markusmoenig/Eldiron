@@ -167,6 +167,7 @@ pub(crate) fn prepare_particle_emitter_preview(
 
 /// Explicit pixel/reference consumers. Native preview publication uses the
 /// prepared geometry instead of calling this display bitmap adapter.
+#[cfg(any(not(feature = "native-ui"), test))]
 pub fn render_particle_emitter_preview(
     emitter: &ParticleEmitter,
     width: i32,
@@ -178,6 +179,7 @@ pub fn render_particle_emitter_preview(
 }
 
 impl ParticlePreviewFrame {
+    #[cfg(any(not(feature = "native-ui"), test))]
     pub(crate) fn reference_pixels(&self) -> TheRGBABuffer {
         let mut preview = TheRGBABuffer::new(TheDim::sized(self.size.x, self.size.y));
         for y in 0..self.size.y {
@@ -206,7 +208,10 @@ impl ParticlePreviewFrame {
 
 #[cfg(feature = "native-ui")]
 impl ParticlePreviewFrame {
-    pub(crate) fn native_layer(&self) -> std::sync::Arc<theframework::paint::PixelRadialLayer> {
+    pub(crate) fn native_layer(
+        &self,
+        opaque: bool,
+    ) -> std::sync::Arc<theframework::paint::PixelRadialLayer> {
         use theframework::paint::{PixelRadial, PixelRadialLayer, Rect};
         let color = |color: [u8; 4]| color.map(|v| v as f32 / 255.);
         let mut radials = self
@@ -230,6 +235,7 @@ impl ParticlePreviewFrame {
             border: [0.; 4],
         });
         std::sync::Arc::new(PixelRadialLayer {
+            opaque,
             size: [self.size.x as f32, self.size.y as f32],
             top: color(self.top),
             bottom: color([6, 8, 14, 255]),
@@ -262,6 +268,7 @@ fn derive_particle_ramp(base: [u8; 4]) -> [[u8; 4]; 4] {
     ]
 }
 
+#[cfg(any(not(feature = "native-ui"), test))]
 fn draw_soft_particle(
     buffer: &mut TheRGBABuffer,
     center_x: f32,

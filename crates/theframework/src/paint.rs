@@ -231,6 +231,9 @@ pub struct PixelRadialLayer {
     /// Source logical extent, fitted to the operation's destination rect using
     /// top-left nearest sampling without allocating a scaled source image.
     pub size: Point,
+    /// Discard stored disc alpha for an opaque copied-framebuffer presentation.
+    /// Source-image previews preserve it and use ordinary alpha composition.
+    pub opaque: bool,
     /// Opaque vertical background; interpolation uses the logical row's origin.
     pub top: Color,
     pub bottom: Color,
@@ -476,7 +479,10 @@ impl PaintList {
                     if !rect_valid(*rect)
                         || !color_valid(layer.top)
                         || !color_valid(layer.bottom)
-                        || layer.size.iter().any(|v| !v.is_finite() || *v <= 0.)
+                        || layer
+                            .size
+                            .iter()
+                            .any(|v| !v.is_finite() || *v < 1. || *v > 65536. || v.fract() != 0.)
                         || layer.top[3] != 1.
                         || layer.bottom[3] != 1.
                         || layer.radials.len() > 16384

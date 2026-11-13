@@ -22,13 +22,11 @@ struct Image {
 #[derive(Default)]
 pub(super) struct Images {
     textures: HashMap<u64, Weak<Image>>,
-    particles: HashMap<u64, Weak<Image>>,
     crops: HashMap<(String, [usize; 4]), Weak<Image>>,
 }
 impl Images {
     fn prune(&mut self) {
         self.textures.retain(|_, image| image.strong_count() > 0);
-        self.particles.retain(|_, image| image.strong_count() > 0);
         self.crops.retain(|_, image| image.strong_count() > 0);
     }
     fn texture(&mut self, texture: &rusterix::Texture, bitmap: bool) -> Result<Arc<Image>, String> {
@@ -90,29 +88,6 @@ impl Images {
         self.textures.insert(key, Arc::downgrade(&image));
         Ok(image)
     }
-    fn particle(&mut self, emitter: &rusterix::ParticleEmitter, size: Vec2<i32>) -> Arc<Image> {
-        // A still asset thumbnail, not an interactive viewport framebuffer.
-        let scale = (512. / size.x.max(size.y).max(1) as f32).min(1.);
-        let width = (size.x as f32 * scale).round().max(1.) as i32;
-        let height = (size.y as f32 * scale).round().max(1.) as i32;
-        let key = rusterix::procedural_avatar::fingerprint(&(
-            serde_json::to_vec(emitter).expect("serializable particle source"),
-            width,
-            height,
-        ));
-        if let Some(image) = self.particles.get(&key).and_then(Weak::upgrade) {
-            return image;
-        }
-        let image = Arc::new(Image {
-            key: format!("tile-board-particle:{}", Uuid::new_v4()),
-            pixels: crate::docks::particle_preview::render_particle_emitter_preview(
-                emitter, width, height, 0.68,
-            ),
-            _parent: None,
-        });
-        self.particles.insert(key, Arc::downgrade(&image));
-        image
-    }
     fn crop(&mut self, image: Arc<Image>, crop: [usize; 4]) -> Arc<Image> {
         let width = image.pixels.dim().width as usize;
         let height = image.pixels.dim().height as usize;
@@ -143,6 +118,11 @@ enum Node {
         rects: Arc<[Rect]>,
         color: [f32; 4],
     },
+    Radials {
+        layer: Arc<theframework::paint::PixelRadialLayer>,
+        rect: Rect,
+        alpha: f32,
+    },
     Image {
         source: Arc<Image>,
         rect: Rect,
@@ -164,6 +144,18 @@ impl RenderViewPaintSource for Board {
                     rects: rects.clone(),
                     color: *color,
                 }),
+                Node::Radials { layer, rect, alpha } => {
+                    if *alpha < 1. {
+                        p.list.ops.push(PaintOp::PushOpacity(*alpha));
+                    }
+                    p.list.ops.push(PaintOp::PixelRadialLayer {
+                        rect: *rect,
+                        layer: layer.clone(),
+                    });
+                    if *alpha < 1. {
+                        p.list.ops.push(PaintOp::PopOpacity);
+                    }
+                }
                 Node::Image {
                     source,
                     rect,
@@ -319,61 +311,70 @@ impl TilesDock {
                 (rect.z - 4).max(1),
                 (rect.w - 4).max(1),
             );
-            let image = if let Some(emitter) = &tile.particle_emitter {
-                Ok(self
-                    .native_images
-                    .particle(emitter, Vec2::new(full.z, full.w)))
-            } else {
-                let iso = self.iso_mode && !project.procedural_materials.contains_key(&id);
-                let texture = if iso {
-                    tile.isometric
-                        .as_ref()
-                        .and_then(|s| s.frames.first())
-                        .unwrap_or(&tile.textures[0])
-                } else {
-                    &tile.textures[0]
-                };
-                let bitmap = tile.isometric.as_ref().is_some_and(|s| s.bitmap);
-                self.native_images
-                    .texture(texture, bitmap)
-                    .inspect(|image| {
-                        if bitmap || (iso && tile.isometric.is_some()) {
-                            let dim = image.pixels.dim();
-                            let scale = (full.z as f32 / dim.width as f32)
-                                .min(full.w as f32 / dim.height as f32);
-                            let w = (dim.width as f32 * scale).round().max(1.) as i32;
-                            let h = (dim.height as f32 * scale).round().max(1.) as i32;
-                            full.x += (full.z - w) / 2;
-                            full.y += (full.w - h) / 2;
-                            full.z = w;
-                            full.w = h;
-                        }
-                    })
-            };
-            match image {
-                Err(error) => {
-                    board.error.get_or_insert(error);
+            if let Some(emitter) = &tile.particle_emitter {
+                if let Some(draw) = clip(size, full, 0) {
+                    let frame = crate::docks::particle_preview::prepare_particle_emitter_preview(
+                        emitter, full.z, full.w, 0.68,
+                    );
+                    board.nodes.push(Node::Radials {
+                        layer: frame.native_layer(false),
+                        rect: draw,
+                        alpha,
+                    });
                 }
-                Ok(image) => {
-                    if let Some(draw) = clip(size, full, 0) {
-                        let width = image.pixels.dim().width as usize;
-                        let height = image.pixels.dim().height as usize;
-                        let u0 = ((draw.x - full.x as f32) / full.z as f32).clamp(0., 1.);
-                        let v0 = ((draw.y - full.y as f32) / full.w as f32).clamp(0., 1.);
-                        let u1 =
-                            ((draw.x + draw.width - full.x as f32) / full.z as f32).clamp(0., 1.);
-                        let v1 =
-                            ((draw.y + draw.height - full.y as f32) / full.w as f32).clamp(0., 1.);
-                        let x0 = ((u0 * width as f32).round() as usize).min(width - 1);
-                        let y0 = ((v0 * height as f32).round() as usize).min(height - 1);
-                        let x1 = ((u1 * width as f32).round() as usize).clamp(x0 + 1, width);
-                        let y1 = ((v1 * height as f32).round() as usize).clamp(y0 + 1, height);
-                        let source = self.native_images.crop(image, [x0, y0, x1 - x0, y1 - y0]);
-                        board.nodes.push(Node::Image {
-                            source,
-                            rect: draw,
-                            alpha,
-                        });
+            } else {
+                let image = {
+                    let iso = self.iso_mode && !project.procedural_materials.contains_key(&id);
+                    let texture = if iso {
+                        tile.isometric
+                            .as_ref()
+                            .and_then(|s| s.frames.first())
+                            .unwrap_or(&tile.textures[0])
+                    } else {
+                        &tile.textures[0]
+                    };
+                    let bitmap = tile.isometric.as_ref().is_some_and(|s| s.bitmap);
+                    self.native_images
+                        .texture(texture, bitmap)
+                        .inspect(|image| {
+                            if bitmap || (iso && tile.isometric.is_some()) {
+                                let dim = image.pixels.dim();
+                                let scale = (full.z as f32 / dim.width as f32)
+                                    .min(full.w as f32 / dim.height as f32);
+                                let w = (dim.width as f32 * scale).round().max(1.) as i32;
+                                let h = (dim.height as f32 * scale).round().max(1.) as i32;
+                                full.x += (full.z - w) / 2;
+                                full.y += (full.w - h) / 2;
+                                full.z = w;
+                                full.w = h;
+                            }
+                        })
+                };
+                match image {
+                    Err(error) => {
+                        board.error.get_or_insert(error);
+                    }
+                    Ok(image) => {
+                        if let Some(draw) = clip(size, full, 0) {
+                            let width = image.pixels.dim().width as usize;
+                            let height = image.pixels.dim().height as usize;
+                            let u0 = ((draw.x - full.x as f32) / full.z as f32).clamp(0., 1.);
+                            let v0 = ((draw.y - full.y as f32) / full.w as f32).clamp(0., 1.);
+                            let u1 = ((draw.x + draw.width - full.x as f32) / full.z as f32)
+                                .clamp(0., 1.);
+                            let v1 = ((draw.y + draw.height - full.y as f32) / full.w as f32)
+                                .clamp(0., 1.);
+                            let x0 = ((u0 * width as f32).round() as usize).min(width - 1);
+                            let y0 = ((v0 * height as f32).round() as usize).min(height - 1);
+                            let x1 = ((u1 * width as f32).round() as usize).clamp(x0 + 1, width);
+                            let y1 = ((v1 * height as f32).round() as usize).clamp(y0 + 1, height);
+                            let source = self.native_images.crop(image, [x0, y0, x1 - x0, y1 - y0]);
+                            board.nodes.push(Node::Image {
+                                source,
+                                rect: draw,
+                                alpha,
+                            });
+                        }
                     }
                 }
             }
@@ -395,7 +396,7 @@ pub(super) fn reference_cases() -> Vec<(&'static str, Arc<dyn RenderViewPaintSou
 {
     let mut project = Project::default();
     let mut ids = Vec::new();
-    for index in 0..3 {
+    for index in 0..4 {
         let (width, height) = (16 + index * 3, 20 + index * 2);
         let mut bytes = Vec::new();
         for y in 0..height {
@@ -423,6 +424,13 @@ pub(super) fn reference_cases() -> Vec<(&'static str, Arc<dyn RenderViewPaintSou
                 ..Default::default()
             });
         }
+        if index == 3 {
+            let mut emitter =
+                rusterix::ParticleEmitter::new(vek::Vec3::zero(), vek::Vec3::unit_y());
+            emitter.rate = 0.;
+            emitter.flame_base = true;
+            tile.particle_emitter = Some(emitter);
+        }
         let id = tile.id;
         ids.push(id);
         project.tiles.insert(id, tile);
@@ -433,6 +441,7 @@ pub(super) fn reference_cases() -> Vec<(&'static str, Arc<dyn RenderViewPaintSou
     for (label, size, offset, ghost) in [
         ("populated", Vec2::new(230, 140), Vec2::zero(), false),
         ("clipped ghost", Vec2::new(143, 83), Vec2::new(17, 9), true),
+        ("particle ghost", Vec2::new(143, 83), Vec2::new(17, 9), true),
     ] {
         let mut dock = <TilesDock as Dock>::new();
         dock.iso_mode = true;
@@ -442,9 +451,14 @@ pub(super) fn reference_cases() -> Vec<(&'static str, Arc<dyn RenderViewPaintSou
         dock.tile_hover_source = Some(TileSource::SingleTile(ids[1]));
         dock.selected_empty_cell = Some((0, Vec2::new(0, 1)));
         if ghost {
+            let ghost_id = if label == "particle ghost" {
+                ids[3]
+            } else {
+                ids[1]
+            };
             dock.drag_item = Some((
                 0,
-                TileSource::SingleTile(ids[1]),
+                TileSource::SingleTile(ghost_id),
                 Vec2::zero(),
                 Vec2::zero(),
             ));

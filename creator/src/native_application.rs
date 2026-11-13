@@ -2827,6 +2827,35 @@ mod tests {
                 .map(|(a, b)| a.abs_diff(*b))
                 .max()
                 .unwrap_or(0);
+            if delta > 1 {
+                std::fs::write(
+                    "/private/tmp/eldiron-source-mismatch-gpu.rgba",
+                    pixels.pixels(),
+                )
+                .unwrap();
+                std::fs::write(
+                    "/private/tmp/eldiron-source-mismatch-reference.rgba",
+                    reference.pixels(),
+                )
+                .unwrap();
+                std::fs::write(
+                    "/private/tmp/eldiron-source-mismatch.json",
+                    serde_json::to_vec(
+                        &serde_json::json!({"label": label,"size":size,"delta":delta}),
+                    )
+                    .unwrap(),
+                )
+                .unwrap();
+                let differences = pixels.pixels().chunks_exact(4).zip(reference.pixels().chunks_exact(4))
+                    .enumerate().filter(|(_, (actual, expected))| actual.iter().zip(expected.iter()).any(|(a,b)| a.abs_diff(*b) > 1))
+                    .take(12).map(|(index, (actual, expected))| serde_json::json!({
+                        "at": [index as u32 % size.0, index as u32 / size.0], "actual": actual, "expected": expected,
+                    })).collect::<Vec<_>>();
+                eprintln!(
+                    "Source mismatch details: {}",
+                    serde_json::json!({"label":label,"size":size,"differences":differences})
+                );
+            }
             assert!(
                 delta <= 1,
                 "{label} source preview differs from the CPU reference: max channel delta={delta}"

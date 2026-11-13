@@ -1221,7 +1221,7 @@ impl Dock for TilesDock {
             .get(&id)
             .and_then(|tile| tile.particle_emitter.as_ref())
         {
-            return Some(sources.particles(size, emitter, self.particle_preview_time()));
+            return Some(sources.particles(size, emitter, self.particle_preview_time(), true));
         }
         Some(sources.sprite(size, self.preview_texture(project, server_ctx, id)))
     }

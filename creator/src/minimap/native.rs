@@ -78,6 +78,7 @@ impl Sources {
         size: Vec2<i32>,
         emitter: &rusterix::ParticleEmitter,
         time: f32,
+        opaque: bool,
     ) -> Arc<dyn RenderViewPaintSource> {
         let mut hash = std::collections::hash_map::DefaultHasher::new();
         "particle-preview".hash(&mut hash);
@@ -94,6 +95,7 @@ impl Sources {
             }
         }
         time.to_bits().hash(&mut hash);
+        opaque.hash(&mut hash);
         let key = Some(hash.finish());
         if let Some((old_size, old_key, source)) = &self.active
             && *old_size == size
@@ -106,7 +108,7 @@ impl Sources {
         );
         let source: Arc<dyn RenderViewPaintSource> = Arc::new(Preview {
             image: None,
-            radials: Some(frame.native_layer()),
+            radials: Some(frame.native_layer(opaque)),
             error: None,
         });
         self.active = Some((size, key, source.clone()));
@@ -388,10 +390,50 @@ pub(crate) fn reference_cases() -> Vec<(&'static str, Arc<dyn RenderViewPaintSou
         }
         let source: Arc<dyn RenderViewPaintSource> = Arc::new(Preview {
             image: None,
-            radials: Some(frame.native_layer()),
+            radials: Some(frame.native_layer(true)),
             error: None,
         });
         cases.push(("minimap particles", source, reference));
+        struct SourceImage(Arc<theframework::paint::PixelRadialLayer>);
+        impl RenderViewPaintSource for SourceImage {
+            fn paint(&self, painter: &mut WidgetPainter<'_>, viewport: [f32; 2]) -> UiPaintResult {
+                let rect = Rect::new(0., 0., viewport[0], viewport[1]);
+                painter
+                    .list
+                    .rect(rect, 0., [42. / 255., 42. / 255., 42. / 255., 1.]);
+                painter.list.ops.push(PaintOp::PixelRadialLayer {
+                    rect,
+                    layer: self.0.clone(),
+                });
+                Ok(())
+            }
+        }
+        if std::env::var_os("ELDIRON_NATIVE_TILE_BOARD_ONLY").is_some() {
+            std::fs::write(format!("/private/tmp/eldiron-particle-alpha-{}x{}.json", size.x, size.y), serde_json::to_vec_pretty(&serde_json::json!({
+                "size":[size.x,size.y], "top":frame.top,
+                "circles":frame.circles.iter().map(|c| serde_json::json!({"center":c.center,"radius":c.radius,"color":c.color})).collect::<Vec<_>>(),
+                "marker":[frame.marker.x,frame.marker.y,frame.marker.width,frame.marker.height]
+            })).unwrap()).unwrap();
+        }
+        let pixels = frame.reference_pixels();
+        let mut reference = TheRGBABuffer::new(TheDim::sized(size.x, size.y));
+        reference.fill([42, 42, 42, 255]);
+        let ctx = TheContext::new(size.x as usize, size.y as usize, 1.);
+        ctx.draw.blend_scale_chunk(
+            reference.pixels_mut(),
+            &(0, 0, size.x as usize, size.y as usize),
+            size.x as usize,
+            pixels.pixels(),
+            &(size.x as usize, size.y as usize),
+        );
+        for pixel in reference.pixels_mut().chunks_exact_mut(4) {
+            pixel[3] = 255;
+        }
+        cases.push((
+            "particle source alpha",
+            Arc::new(SourceImage(frame.native_layer(false))),
+            reference,
+        ));
     }
     cases
 }

@@ -559,6 +559,7 @@ impl RulesEditor {
                 Vec2::new(280, 160),
                 emitter,
                 time,
+                false,
             )));
             return Some(Box::new(view));
         }
@@ -1351,6 +1352,7 @@ impl Dock for RulesEditor {
                 Vec2::new(280, 160),
                 &emitter,
                 time,
+                false,
             )));
             return true;
         }

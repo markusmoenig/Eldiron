@@ -5978,3 +5978,89 @@ Still open: the tile board's fixed-time CPU particle thumbnail bake, world and
 isometric minimap display producers, long-running particle simulation replay cost,
 full runtime/authoring ownership separation and the remaining M0–M9 host/resource
 acceptance matrix. Do not mark the full rewrite complete from these checkpoints.
+
+## 2026-11-13 — Particle board bake retirement/source alpha (verified checkpoint)
+
+Replaced the native board's remaining particle-thumbnail CPU source bake/cache
+with radial paint. Its source extent is the original padded cell size; a clipped
+cell fits that full source into the same clipped destination rectangle as the
+original draw_tile_into_rect_alpha path. Drag ghosts use compositor opacity.
+Added a deterministic rate-zero/flame-base thumbnail/ghost oracle, while actual
+stochastic circles retain the shared-simulation snapshot comparisons.
+
+Follow-up review found an alpha boundary that needed an explicit mode: minimap
+copied-framebuffer presentation discards stored alpha, while IconView/graph/board
+source images consume it. The previous checkpoint's particle RGB comparisons
+were for opaque minimaps; its inspector/graph tests verified publication and
+absence of CPU image requests, not source-alpha pixel parity. Added an explicit
+PixelRadialLayer opaque/source-alpha policy. Shader keeps the disc's original
+stored alpha before final premultiplication; minimaps discard it, Rules inspector,
+graph and board now retain it. Added CPU-oracle composition over a visible grey
+background for source-alpha cases. Final passing evidence is recorded below.
+
+First board compile identified one missing opacity argument at the inspector's
+initial publication. That caller is corrected. The initial caller correction and subsequent visual diagnosis are recorded below.
+Unrelated networking concept remains untouched.
+
+Particle board/source-alpha follow-up evidence:
+- Corrected caller build passed24.97s:
+  `/private/tmp/eldiron-native-particle-board-alpha-build.log`.
+- Sampling build passed45.87s:
+  `/private/tmp/eldiron-native-particle-board-sampling-build.log`.
+- Focused Metal run failed after2.47s: board/particle ghost and opaque particle
+  cases still max delta1, one source-alpha case max delta2. Failure is retained:
+  `/private/tmp/eldiron-native-particle-board-focused-metal.log`.
+- Production native check, now excluding the CPU particle bitmap helper and all
+  migrated reference callers entirely, passed23.83s:
+  `/private/tmp/eldiron-native-particle-bitmap-retirement-check.log`.
+- Diagnostic build22.67s, Metal diagnostic failed1.88s with two discrepant pixels
+  at(37,130)/(45,130) in83x143: GPU[19,17,14] vs CPU[18,15,14]. Logs:
+  `/private/tmp/eldiron-native-particle-alpha-diagnostic-build.log`,
+  `/private/tmp/eldiron-native-particle-alpha-diagnostic-metal.log`.
+  Prepared simulation snapshots are saved by the test-only focused route as
+  `/private/tmp/eldiron-particle-alpha-{width}x{height}.json`.
+- A CPU f32 reconstruction localized the difference to the emitter-marker edge
+  over a gradient row. Source fitting now uploads the CPU-computed scale rather
+  than multiplying/dividing equal extents in shader (which can drift below an
+  integer with reciprocal optimization). Stable-scale build passed40.15s:
+  `/private/tmp/eldiron-native-particle-stable-scale-build.log`.
+- Remaining exact-row-boundary FMA/reciprocal differences are addressed with
+  compact 1D byte-color metadata: twenty packed RGB rows per80-byte storage
+  entry, plus circle geometry. This is O(source-height) color metadata, not a
+  viewport bitmap, CPU composition, image upload or readback. GPU still evaluates
+  circles/disc coverage, source fitting, clipping and composition. Source extents
+  are positive integers bounded at65536; per-layer radial count remains bounded.
+  Build passed39.84s:
+  `/private/tmp/eldiron-native-particle-row-metadata-build.log`.
+- The source mismatch helper now writes raw GPU/reference RGBA plus metadata
+  under `/private/tmp/eldiron-source-mismatch*` if it observes delta>1. Keep the
+  strict one-level threshold. The final fix passes it; no tolerance was widened.
+
+
+Final particle bitmap-retirement evidence:
+- Focused actual Metal source/ghost/alpha/DPI checks **passed1,2.21s**. All source
+  comparisons and 125/150/175/200% particle DPI comparisons report max delta1:
+  `/private/tmp/eldiron-native-particle-row-metadata-metal.log`.
+- Final native production check passed22.25s, no new warnings. Particle display
+  bitmap helpers and their reference consumers are excluded from this build:
+  `/private/tmp/eldiron-native-particle-retirement-final-check.log`.
+- Reference Creator compile passed8.19s:
+  `/private/tmp/eldiron-particle-retirement-reference-check.log`.
+- Full assembled Metal Creator checkpoint, diagnostic environment explicitly
+  unset, **passed1,87.15s**. Board, ghost, raw source-alpha and all particle DPI
+  cases report max delta1:
+  `/private/tmp/eldiron-native-particle-retirement-root-metal.log`.
+- `git diff --check` passed. No new standalone test count or whole protected-file
+  formatting was introduced. Offscreen GPU evidence does not establish a fresh
+  physical host/IME run or loaded-project performance result.
+
+Next useful retirement: map minimap display. Its ordinary-region branch still
+calls the legacy SceneVM render_frame/readback, and its sprite-isometric branch
+still draws CPU pixels. Use the host's explicit GPU context and independent
+minimap producer/target. Preserve projection/bbox, selected geometry, action
+preview, camera markers and Swash labels. Publish/acknowledge a scoped minimap
+receipt and use its presented bbox/document/view for navigation instead of merely
+replacing the pixels while retaining unversioned global MINIMAPBOX input. Do not
+claim all minimaps migrated until the geometry/action/palette/custom cases and
+unconverted character rig preview are inventoried and verified. Full M0–M9 Goal
+remains active; runtime/authoring project separation and platform gates remain.
