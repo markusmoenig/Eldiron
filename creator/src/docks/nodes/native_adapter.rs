@@ -15,6 +15,45 @@ pub(super) type BlankView = (
 );
 
 impl NodesDock {
+    pub(super) fn native_particles_visible(&self, ui: &mut TheUI) -> bool {
+        if !self.is_rules() {
+            return false;
+        }
+        let mut size = None;
+        ui.canvas.visit_visible_widgets(&mut |widget| {
+            if widget.id().name == VIEW && widget.dim().width > 0 && widget.dim().height > 0 {
+                size = Some([widget.dim().width as f32, widget.dim().height as f32]);
+            }
+        });
+        let Some(size) = size else {
+            return false;
+        };
+        let Some(view) = self
+            .native
+            .active
+            .as_ref()
+            .and_then(|key| self.native.views.get(key))
+        else {
+            return false;
+        };
+        let model = view.model.lock().unwrap();
+        let metrics = model.document().metrics();
+        model.document().nodes.iter().any(|node| {
+            if node.definition.as_deref() != Some("rules_fx")
+                || node.disabled
+                || !model.editor().node_visible(node.id)
+            {
+                return false;
+            }
+            let rect = node.rect(&metrics);
+            let origin = model.editor().viewport.to_screen(rect.origin);
+            let zoom = model.editor().viewport.zoom();
+            origin[0] < size[0]
+                && origin[1] < size[1]
+                && origin[0] + rect.size[0] * zoom > 0.
+                && origin[1] + rect.size[1] * zoom > 0.
+        })
+    }
     fn native_status(&self, ctx: &mut TheContext, result: Result<bool, String>) -> bool {
         match result {
             Ok(changed) => changed,
@@ -121,6 +160,7 @@ impl NodesDock {
             .clone()
     }
     pub(super) fn render_native(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+        self.update_particle_preview();
         let (id, model, panels) = if let Some(view) = self
             .native
             .active

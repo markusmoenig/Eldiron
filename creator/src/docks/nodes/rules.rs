@@ -94,6 +94,16 @@ impl NodesDock {
         match result {
             Ok(emitter) => {
                 let time = 0.4 + self.particle_preview_started.elapsed().as_secs_f32() % 2.;
+                #[cfg(feature = "native-ui")]
+                if self.native_enabled {
+                    let frame = crate::docks::particle_preview::prepare_particle_emitter_preview(
+                        &emitter, 280, 160, time,
+                    );
+                    self.tiles
+                        .set_radial_preview("rules_particle_preview", &frame);
+                    self.particle_preview_updated = Some(Instant::now());
+                    return;
+                }
                 let image = crate::docks::particle_preview::render_particle_emitter_preview(
                     &emitter, 280, 160, time,
                 );

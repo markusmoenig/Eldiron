@@ -7,6 +7,13 @@ use crate::{
 use std::sync::Arc;
 pub trait GraphImageHandles {
     fn image_handle(&self, key: &str) -> Option<paint::ImageHandle>;
+    /// A preview may be immutable procedural paint rather than an image asset.
+    /// The graph model and interaction contracts remain independent of it.
+    fn paint_preview(&self, key: &str, rect: Rect, paint: &mut PaintList) {
+        if let Some(image) = self.image_handle(key) {
+            paint.image(image, rect, paint::Sampling::Linear);
+        }
+    }
 }
 impl GraphImageHandles for () {
     fn image_handle(&self, _: &str) -> Option<paint::ImageHandle> {
@@ -61,8 +68,6 @@ impl GraphPainter for PaintGraphPainter<'_> {
         });
     }
     fn preview(&mut self, r: GraphRect, key: &str) {
-        if let Some(image) = self.images.image_handle(key) {
-            self.paint.image(image, rect(r), paint::Sampling::Linear);
-        }
+        self.images.paint_preview(key, rect(r), self.paint);
     }
 }

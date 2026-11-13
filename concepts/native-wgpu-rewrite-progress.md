@@ -5914,3 +5914,67 @@ Evidence so far:
 Open: world minimap SceneVM readback, isometric CPU minimap producer, procedural
 particle preview display and fixed-time particle board thumbnail source bake.
 Full M0–M9 remains active. Concurrent networking concept is untouched.
+
+## 2026-11-13 — GPU procedural particle previews (verified checkpoint)
+
+Extracted particle simulation/projection from its raster adapter. Prepared frames
+contain source-size background colors, ordered circles, and the emitter marker;
+no destination image is needed. Added backend-neutral PixelRadialLayer paint,
+with GPU evaluation of the original byte-quantized radial/disc blending and
+logical-pixel nearest fitting. It shares the compositor's transform/clip/DPI and
+explicit linear/encoded display boundary. It owns no world, surface or device.
+
+The hovered-particle minimap now publishes radial paint; its CPU display method
+is excluded from native production. Rules inspector previews use a RenderView
+with the same immutable paint source, fitting current view dimensions at paint
+time (the source callback now receives the viewport). Native graph previews can
+resolve procedural paint alongside ordinary image handles. Rules graph animation
+now updates its GPU preview; visible-node/dock checks avoid continuous animation
+repaints for a hidden graph. The inspector also stops its preview polling when
+its preview is hidden/zero-sized. Source caches clear on document transitions.
+
+Evidence so far:
+- Native radial implementation check passed40.87s:
+  `/private/tmp/eldiron-native-particle-radials-check.log`.
+- First existing Creator checkpoint build passed42.47s:
+  `/private/tmp/eldiron-native-particle-radials-build.log`.
+- Focused actual Metal comparison **passed1,1.73s**. All previous source cases
+  and three particle cases (wide/tall/tiny-clipped, overlapping particles, flame
+  base and marker) report max channel delta1:
+  `/private/tmp/eldiron-native-particle-radials-focused-metal.log`.
+  Particle emission is stochastic: each comparison uses one prepared simulation
+  snapshot for the original raster loops and GPU primitive evaluation, rather
+  than comparing two independent random emissions. This is not a full-workflow
+  pass or a simulation determinism claim.
+- Follow-up checkpoint build passed24.82s:
+  `/private/tmp/eldiron-native-particle-radials-final-build.log`.
+- Native callers compile (graph + inspector + viewport-aware source) passed25.02s:
+  `/private/tmp/eldiron-native-particle-callers-check.log`.
+- Integrated test build passed51.74s after stable physical-center sampling,
+  125/150/175/200% particle DPI comparisons, inspector real-widget/poll checks,
+  and extending the existing graph visible-source test with procedural paint:
+  `/private/tmp/eldiron-native-particle-integrated-build.log`.
+- Focused actual Metal comparison passed1,2.56s, including the inspector's actual
+  RenderView publication/poll path, resize fitting, hidden preview suppression,
+  three particle source comparisons and all four additional DPI scales. Every
+  comparison reports max channel delta1:
+  `/private/tmp/eldiron-native-particle-integrated-focused-metal.log`.
+- Extended existing graph visible-source case passed1,0.42s: two visible
+  procedural graph rows emit radial paint and make zero CPU-image requests;
+  hidden sources remain unrequested:
+  `/private/tmp/eldiron-native-particle-graph-sources.log`.
+- Final native production check passed24.04s, no new warnings:
+  `/private/tmp/eldiron-native-particle-integrated-production-check.log`.
+- Final reference Creator check passed23.98s:
+  `/private/tmp/eldiron-particle-integrated-reference-check.log`.
+- Complete assembled Metal Creator checkpoint, diagnostic environment explicitly
+  unset, **passed1,91.85s**. All source/DPI comparisons report max delta1:
+  `/private/tmp/eldiron-native-particle-integrated-root-metal.log`.
+- `git diff --check` passed. No new test suite/count was added. This is offscreen
+  actual-GPU integration evidence; it does not claim a new physical Apple/IME
+  run or a fresh measured CPU/startup performance improvement.
+
+Still open: the tile board's fixed-time CPU particle thumbnail bake, world and
+isometric minimap display producers, long-running particle simulation replay cost,
+full runtime/authoring ownership separation and the remaining M0–M9 host/resource
+acceptance matrix. Do not mark the full rewrite complete from these checkpoints.

@@ -40,6 +40,35 @@ fn field_color(point: vec2<f32>, background: vec4<f32>) -> vec4<f32> {
     let edge=mix(border,fill,select(1.,inner,shape.properties.y>0.))*coverage;
     return edge+base*(1.-edge.a);
 }
+fn radial_color(point: vec2<f32>, rect: vec4<f32>) -> vec4<f32> {
+    let source_size=vec2<f32>(params.color0.a,params.color1.a);
+    let pixel=floor((point-rect.xy)*source_size/rect.zw);
+    let t=pixel.y/source_size.y;
+    var color=floor(params.color0.rgb*(1.-t)+params.color1.rgb*t);
+    for(var index=0u;index<params.source;index++){
+        let shape=field[index];
+        if(shape.properties.x==0.){
+            let delta=(pixel+vec2<f32>(0.5)-shape.bounds.xy)/max(shape.bounds.z,0.001);
+            let distance=length(delta);
+            if(distance<=1.){
+                let falloff=(1.-distance)*(1.-distance);
+                let alpha=(shape.fill.a/255.)*falloff;
+                color=floor(color*(1.-alpha)+shape.fill.rgb*alpha);
+            }
+        }else if(all(pixel>=shape.bounds.xy) && all(pixel<shape.bounds.xy+shape.bounds.zw)){
+            let distance=length(pixel-shape.radii.xy)-shape.radii.z;
+            if(distance<1.){
+                let alpha=clamp(-distance,0.,1.)*(shape.fill.a/255.);
+                color=floor((color/255.*(1.-alpha)+shape.fill.rgb/255.*alpha)*255.);
+                // The reference disc's border is a color mask, independent of
+                // its stored alpha. This preserves its black edge over glows.
+                let border=clamp(distance+shape.properties.y,0.,1.)-clamp(distance,0.,1.);
+                color=floor((color/255.*(1.-border)+shape.border.rgb/255.*border)*255.);
+            }
+        }
+    }
+    return vec4<f32>(target_color(color/255.),1.);
+}
 struct Out{@builtin(position)position:vec4<f32>,@location(0)local:vec2<f32>,@location(1)uv:vec2<f32>,@location(2)color:vec4<f32>,@location(3)@interpolate(flat)origin:vec2<f32>,@location(4)@interpolate(flat)pixel:vec2<f32>};
 @vertex fn vs(@location(0)p:vec2<f32>,@location(1)local:vec2<f32>,@location(2)uv:vec2<f32>,@location(3)color:vec4<f32>,@builtin(instance_index)instance:u32)->Out{
     var position=p;var output_local=local;var origin=vec2<f32>(0.);var sample_pixel=vec2<f32>(0.);
@@ -58,7 +87,7 @@ struct Out{@builtin(position)position:vec4<f32>,@location(0)local:vec2<f32>,@loc
         output_local=local*(vec2<f32>(1.)+2.*pad)-pad;
         position+=bx*(pixel.x+output_local.x-local.x)+by*(pixel.y+output_local.y-local.y);
     }
-    if((params.mode&255u)==15u){
+    if((params.mode&255u)==15u || (params.mode&255u)==16u){
         let bx=params.gradient.xy;let by=params.gradient.zw;
         origin=p-bx*local.x-by*local.y;
         let determinant=abs(bx.x*by.y-bx.y*by.x);
@@ -184,6 +213,12 @@ fn triangle_coverage(p:vec2<f32>)->bool {
 }
 @fragment fn fs(i:Out)->@location(0)vec4<f32>{
     let mode=params.mode&255u;
+    if(mode==16u){
+        let bx=params.gradient.xy;let by=params.gradient.zw;let q=i.position.xy-i.origin;
+        let logical=vec2<f32>(q.x*by.y-q.y*by.x,bx.x*q.y-bx.y*q.x)/(bx.x*by.y-bx.y*by.x);
+        if(any(logical<i.color.xy) || any(logical>=i.color.xy+i.color.zw)){return vec4<f32>(0.);}
+        return radial_color(logical,i.color);
+    }
     if(mode==8u){return vec4<f32>(linear(textureSample(image,image_sampler,i.uv).rgb),1.);}
     if(mode==9u){return vec4<f32>(textureSample(image,image_sampler,i.uv).rgb,1.);}
     var c=params.color0;

@@ -1532,6 +1532,32 @@ mod tests {
         f.ui.paint_commands(&mut f.ctx, &mut images).unwrap();
         assert_eq!(images.calls.len(), 3);
         assert!(images.calls[2].1);
+        let emitter = rusterix::ParticleEmitter::new(vek::Vec3::zero(), vek::Vec3::unit_y());
+        let frame = crate::docks::particle_preview::prepare_particle_emitter_preview(
+            &emitter, 280, 160, 0.68,
+        );
+        let mut assets = tiles::TileControls::default();
+        assets.set_radial_preview("visible", &frame);
+        f.ui.get_widget("Native Nodes")
+            .unwrap()
+            .as_any()
+            .downcast_mut::<NativeNodesView>()
+            .unwrap()
+            .set_assets(assets);
+        let list = f.ui.paint_commands(&mut f.ctx, &mut images).unwrap();
+        assert_eq!(
+            list.ops
+                .iter()
+                .filter(|op| matches!(op, PaintOp::PixelRadialLayer { .. }))
+                .count(),
+            2
+        );
+        assert_eq!(list.image_handles().count(), 0);
+        assert_eq!(
+            images.calls.len(),
+            3,
+            "procedural graph previews cannot upload a CPU display bitmap"
+        );
         f.model
             .lock()
             .unwrap()

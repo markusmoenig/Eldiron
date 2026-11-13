@@ -154,7 +154,7 @@ pub(super) struct Board {
     error: Option<String>,
 }
 impl RenderViewPaintSource for Board {
-    fn paint(&self, p: &mut WidgetPainter<'_>) -> UiPaintResult {
+    fn paint(&self, p: &mut WidgetPainter<'_>, _viewport: [f32; 2]) -> UiPaintResult {
         if let Some(error) = &self.error {
             return Err(UiPaintError(error.clone()));
         }

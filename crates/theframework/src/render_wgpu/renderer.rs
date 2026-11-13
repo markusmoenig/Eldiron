@@ -63,6 +63,25 @@ struct Draw {
     phase: u8,
     instances: u32,
 }
+#[derive(Clone, Copy)]
+enum Field<'a> {
+    Distance(&'a DistanceField, Point),
+    Radial(&'a PixelRadialLayer, [f32; 4]),
+}
+impl Field<'_> {
+    fn count(self) -> u32 {
+        match self {
+            Self::Distance(field, _) => field.primitives.len() as u32,
+            Self::Radial(layer, _) => layer.radials.len() as u32,
+        }
+    }
+    fn origin(self) -> [f32; 4] {
+        match self {
+            Self::Distance(_, p) => [p[0], p[1], 0., 0.],
+            Self::Radial(_, basis) => basis,
+        }
+    }
+}
 struct Pipelines {
     draw: wgpu::RenderPipeline,
     push: wgpu::RenderPipeline,
@@ -386,7 +405,7 @@ impl PaintRenderer {
         size: (u32, u32),
         stencil: u32,
         phase: u8,
-        field: Option<(&DistanceField, Point)>,
+        field: Option<Field<'_>>,
         effect: Option<ImageEffect>,
     ) -> Draw {
         let (mode, color0, color1, gradient) = match brush {
@@ -483,6 +502,8 @@ impl PaintRenderer {
                 6
             } else if threshold.is_some() {
                 7
+            } else if matches!(field, Some(Field::Radial(..))) {
+                16
             } else if field.is_some() {
                 4
             } else if filter.is_some() {
@@ -494,9 +515,7 @@ impl PaintRenderer {
             } else {
                 mode
             }) | if self.legacy_display { 256 } else { 0 },
-            source: field.map_or(source | if internal_image { 32 } else { 0 }, |(f, _)| {
-                f.primitives.len() as u32
-            }),
+            source: field.map_or(source | if internal_image { 32 } else { 0 }, Field::count),
             color0: threshold.map_or_else(
                 || {
                     filter.map_or(color0, |f| {
@@ -530,7 +549,7 @@ impl PaintRenderer {
                             outline.map_or_else(
                                 || {
                                     filter.map_or_else(
-                                        || field.map_or(gradient, |(_, p)| [p[0], p[1], 0., 0.]),
+                                        || field.map_or(gradient, Field::origin),
                                         |f| [f.bias[0], f.bias[1], f.bias[2], f.minimum],
                                     )
                                 },
@@ -543,6 +562,14 @@ impl PaintRenderer {
                 |size| [size[0], size[1], 0., 0.],
             ),
         };
+        if let Some(Field::Radial(layer, _)) = field {
+            // The radial shader explicitly quantizes/composites encoded bytes,
+            // then converts its final opaque color at the declared boundary.
+            params.color0 = layer.top.map(|v| (v * 255.).round());
+            params.color1 = layer.bottom.map(|v| (v * 255.).round());
+            params.color0[3] = layer.size[0];
+            params.color1[3] = layer.size[1];
+        }
         if let Some(ImageEffect::PixelTriangle(points)) = effect {
             params.color1 = [points[0][0], points[0][1], points[1][0], points[1][1]];
             params.gradient = [points[2][0], points[2][1], 0., 0.];
@@ -574,7 +601,10 @@ impl PaintRenderer {
             });
         let texture = image.map_or(&*self.white, |(image, _)| image);
         let sampler = &self.samplers[&image.map(|(_, s)| s).unwrap_or(Sampling::Linear)];
-        let field_data = field.map(|(f, _)| distance_data(f, self.legacy_display));
+        let field_data = field.map(|field| match field {
+            Field::Distance(field, _) => distance_data(field, self.legacy_display),
+            Field::Radial(layer, _) => radial_data(layer),
+        });
         let field_buffer = field_data.as_ref().filter(|v| !v.is_empty()).map(|data| {
             self.context
                 .device
@@ -821,7 +851,31 @@ impl PaintRenderer {
                             size,
                             level,
                             0,
-                            Some((field, [rect.x, rect.y])),
+                            Some(Field::Distance(field, [rect.x, rect.y])),
+                            None,
+                        ));
+                    }
+                }
+                PaintOp::PixelRadialLayer { rect, layer } => {
+                    let [a, b, c, d, _, _] = transform.0;
+                    let basis = [a * density, b * density, c * density, d * density];
+                    if rect.width > 0. && rect.height > 0. && transform.inverse().is_some() {
+                        if basis.iter().any(|v| !v.is_finite()) {
+                            return Err(RenderError("nonfinite radial transform".into()));
+                        }
+                        let (mut vertices, indices) =
+                            mesh::quad(*rect, Rect::default(), transform, density);
+                        for vertex in &mut vertices {
+                            vertex.color = [rect.x, rect.y, rect.width, rect.height];
+                        }
+                        draws.push(self.draw_with_effects(
+                            self.geometry(&vertices, &indices),
+                            &Brush::Solid([1.; 4]),
+                            None,
+                            size,
+                            level,
+                            0,
+                            Some(Field::Radial(layer, basis)),
                             None,
                         ));
                     }
@@ -1528,6 +1582,46 @@ fn distance_data(field: &DistanceField, encoded: bool) -> Vec<DistanceData> {
                 fill: if encoded { p.fill } else { linear(p.fill) },
                 border: if encoded { p.border } else { linear(p.border) },
                 meta: [kind, p.border_width.max(0.), 0., 0.],
+            }
+        })
+        .collect()
+}
+fn radial_data(layer: &PixelRadialLayer) -> Vec<DistanceData> {
+    let bytes = |color: Color| color.map(|v| (v * 255.).round());
+    layer
+        .radials
+        .iter()
+        .map(|radial| match radial {
+            PixelRadial::SoftCircle {
+                center,
+                radius,
+                color,
+            } => DistanceData {
+                bounds: [center[0], center[1], *radius, 0.],
+                radii: [0.; 4],
+                fill: bytes(*color),
+                border: [0.; 4],
+                meta: [0.; 4],
+            },
+            PixelRadial::Disc {
+                rect,
+                color,
+                border_width,
+                border,
+            } => {
+                let half_border = border_width * 0.5;
+                DistanceData {
+                    bounds: [rect.x, rect.y, rect.width, rect.height],
+                    radii: [
+                        (rect.x + rect.width * 0.5 - half_border).round(),
+                        (rect.y + rect.height * 0.5 - half_border).round(),
+                        rect.width * 0.5 - half_border,
+                        0.,
+                    ],
+                    fill: bytes(*color),
+                    border: bytes(*border),
+                    meta: [1., *border_width, 0., 0.],
+                }
             }
         })
         .collect()

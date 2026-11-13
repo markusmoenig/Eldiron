@@ -2796,7 +2796,9 @@ mod tests {
                 ui: &context.ui,
                 theme: style.theme().as_mut(),
             };
-            source.paint(&mut painter).unwrap();
+            source
+                .paint(&mut painter, [size.0 as f32, size.1 as f32])
+                .unwrap();
             images.finish_frame(&paint).unwrap();
             let target = GpuImage::new(&gpu, ImageDescriptor::rgba(size.0, size.1)).unwrap();
             renderer
@@ -2830,7 +2832,69 @@ mod tests {
                 "{label} source preview differs from the CPU reference: max channel delta={delta}"
             );
             eprintln!("Native asset {label}: max reference delta={delta}");
+            if label == "minimap particles" {
+                check_particle_dpi(gpu, renderer, &paint, &images.registry, &reference);
+            }
             images.clear();
+        }
+    }
+
+    fn check_particle_dpi(
+        gpu: &std::sync::Arc<GpuContext>,
+        renderer: &mut PaintRenderer,
+        paint: &PaintList,
+        images: &ImageRegistry,
+        reference: &TheRGBABuffer,
+    ) {
+        for density in [1.25, 1.5, 1.75, 2.] {
+            let size = (
+                (reference.dim().width as f32 * density).round() as u32,
+                (reference.dim().height as f32 * density).round() as u32,
+            );
+            let target = GpuImage::new(gpu, ImageDescriptor::rgba(size.0, size.1)).unwrap();
+            renderer
+                .render(
+                    paint,
+                    images,
+                    &target.view,
+                    target.descriptor.format,
+                    size,
+                    density,
+                    [0.; 4],
+                )
+                .unwrap();
+            let mut capture = ReadbackTicket::capture(gpu, target).unwrap();
+            gpu.device
+                .poll(wgpu::PollType::Wait {
+                    submission_index: None,
+                    timeout: Some(Duration::from_secs(30)),
+                })
+                .unwrap();
+            let pixels = capture.try_finish(gpu).unwrap().unwrap();
+            let mut delta = 0;
+            for y in 0..size.1 {
+                for x in 0..size.0 {
+                    let sx = ((x as f32 + 0.5) / density).floor() as i32;
+                    let sy = ((y as f32 + 0.5) / density).floor() as i32;
+                    let expected = if sx < reference.dim().width && sy < reference.dim().height {
+                        let offset =
+                            (sx as usize + sy as usize * reference.dim().width as usize) * 4;
+                        &reference.pixels()[offset..offset + 4]
+                    } else {
+                        &[0, 0, 0, 255]
+                    };
+                    let offset = (x as usize + y as usize * size.0 as usize) * 4;
+                    for channel in 0..4 {
+                        delta = delta
+                            .max(pixels.pixels()[offset + channel].abs_diff(expected[channel]));
+                    }
+                }
+            }
+            assert!(
+                delta <= 1,
+                "particle radial DPI={density}: max reference delta={delta}"
+            );
+            eprintln!("Native particle DPI={density}: max reference delta={delta}");
         }
     }
 

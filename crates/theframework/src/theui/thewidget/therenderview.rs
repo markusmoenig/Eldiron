@@ -17,6 +17,7 @@ pub trait RenderViewPaintSource: Send + Sync {
     fn paint(
         &self,
         painter: &mut crate::theui::paint::WidgetPainter<'_>,
+        viewport: [f32; 2],
     ) -> crate::theui::paint::UiPaintResult;
 }
 
@@ -83,7 +84,7 @@ impl TheWidget for TheRenderView {
                     p.list
                         .ops
                         .push(PaintOp::PushTransform(Transform::translate(r.x, r.y)));
-                    source.paint(p)?;
+                    source.paint(p, [r.width, r.height])?;
                     p.list.ops.push(PaintOp::PopTransform);
                 }
             }

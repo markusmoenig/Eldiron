@@ -23,6 +23,10 @@ pub struct RulesEditor {
     dirty: bool,
     undo: Vec<shared::rulesets::document::RulesState>,
     redo: Vec<shared::rulesets::document::RulesState>,
+    #[cfg(feature = "native-ui")]
+    native_preview: bool,
+    #[cfg(feature = "native-ui")]
+    preview_sources: crate::minimap::native::Sources,
     preview_started: std::time::Instant,
     preview_updated: std::time::Instant,
 }
@@ -477,6 +481,101 @@ fn parse_field(text: &str, old: &TomlValue) -> Result<TomlValue, String> {
 }
 
 impl RulesEditor {
+    #[cfg(all(test, feature = "native-ui"))]
+    pub(crate) fn check_native_particle_preview_for_test() {
+        use theframework::{
+            paint::{PaintList, PaintOp},
+            theui::paint::{UiImageResources, UiPaintError, WidgetPainter},
+        };
+        struct NoImages;
+        impl UiImageResources for NoImages {
+            fn image(
+                &mut self,
+                _: &str,
+                _: &TheRGBABuffer,
+                _: bool,
+            ) -> Result<theframework::paint::ImageHandle, UiPaintError> {
+                panic!("Rules particle display cannot upload a CPU preview bitmap");
+            }
+        }
+        let mut dock = Self::new();
+        let mut context = TheContext::new(1200, 650, 1.);
+        context.ui.command_paint = true;
+        let mut ui = TheUI::new();
+        ui.canvas = dock.setup(&mut context);
+        let mut project = Project::new();
+        dock.selected = Some(vec!["fx".into(), "presets".into(), "hit_burst".into()]);
+        dock.form(&mut ui, &project);
+        assert!(ui.get_icon_view("Rules Particle Preview").is_none());
+        let view = ui.get_render_view("Rules Particle Preview").unwrap();
+        view.set_dim(TheDim::sized(140, 80), &mut context);
+        assert!(!view.has_cpu_display_storage());
+        let mut list = PaintList::default();
+        let mut style = TheClassicStyle::new();
+        let mut images = NoImages;
+        view.paint(&mut WidgetPainter {
+            list: &mut list,
+            text: &mut context.text,
+            images: &mut images,
+            ui: &context.ui,
+            theme: style.theme().as_mut(),
+        })
+        .unwrap();
+        assert!(list.ops.iter().any(|op| matches!(op, PaintOp::PixelRadialLayer { rect, .. } if rect.width == 140. && rect.height == 80.)));
+        list.validate().unwrap();
+        dock.preview_updated = std::time::Instant::now() - std::time::Duration::from_millis(100);
+        assert!(dock.poll_background(
+            &mut ui,
+            &mut context,
+            &mut project,
+            &mut ServerContext::new()
+        ));
+        assert!(
+            !ui.get_render_view("Rules Particle Preview")
+                .unwrap()
+                .has_cpu_display_storage()
+        );
+        ui.get_render_view("Rules Particle Preview")
+            .unwrap()
+            .set_dim(TheDim::zero(), &mut context);
+        dock.preview_updated = std::time::Instant::now() - std::time::Duration::from_millis(100);
+        assert!(!dock.poll_background(
+            &mut ui,
+            &mut context,
+            &mut project,
+            &mut ServerContext::new()
+        ));
+    }
+    fn particle_preview_widget(
+        &mut self,
+        emitter: &rusterix::ParticleEmitter,
+        time: f32,
+    ) -> Option<Box<dyn TheWidget>> {
+        #[cfg(feature = "native-ui")]
+        if self.native_preview {
+            let mut view = TheRenderView::new(TheId::named("Rules Particle Preview"));
+            view.limiter_mut().set_max_size(Vec2::new(280, 160));
+            view.set_paint_source(Some(self.preview_sources.particles(
+                Vec2::new(280, 160),
+                emitter,
+                time,
+            )));
+            return Some(Box::new(view));
+        }
+        #[cfg(any(not(feature = "native-ui"), test))]
+        {
+            let image = crate::docks::particle_preview::render_particle_emitter_preview(
+                emitter, 280, 160, time,
+            );
+            let mut view = TheIconView::new(TheId::named("Rules Particle Preview"));
+            view.limiter_mut().set_max_size(Vec2::new(280, 160));
+            view.set_rgba_tile(TheRGBATile::buffer(image));
+            return Some(Box::new(view));
+        }
+        #[cfg(all(feature = "native-ui", not(test)))]
+        None
+    }
+
     fn catalogue(&mut self, ui: &mut TheUI, project: &Project) {
         self.entries.clear();
         let Ok(doc) = project.rules_document.document() else {
@@ -603,13 +702,9 @@ impl RulesEditor {
                             .unwrap_or(1.0) as f32;
                         emitter.radius_range.0 *= scale;
                         emitter.radius_range.1 *= scale;
-                        let image = crate::docks::particle_preview::render_particle_emitter_preview(
-                            &emitter, 280, 160, 1.0,
-                        );
-                        let mut preview = TheIconView::new(TheId::named("Rules Particle Preview"));
-                        preview.limiter_mut().set_max_size(Vec2::new(280, 160));
-                        preview.set_rgba_tile(TheRGBATile::buffer(image));
-                        form.add_pair("Preview".into(), Box::new(preview));
+                        if let Some(preview) = self.particle_preview_widget(&emitter, 1.) {
+                            form.add_pair("Preview".into(), preview);
+                        }
                     }
                 }
             }
@@ -1043,11 +1138,19 @@ impl Dock for RulesEditor {
             dirty: false,
             undo: Vec::new(),
             redo: Vec::new(),
+            #[cfg(feature = "native-ui")]
+            native_preview: false,
+            #[cfg(feature = "native-ui")]
+            preview_sources: Default::default(),
             preview_started: std::time::Instant::now(),
             preview_updated: std::time::Instant::now(),
         }
     }
     fn setup(&mut self, _ctx: &mut TheContext) -> TheCanvas {
+        #[cfg(feature = "native-ui")]
+        {
+            self.native_preview = cfg!(not(test)) || _ctx.ui.command_paint;
+        }
         let mut canvas = TheCanvas::new();
         let mut left = TheCanvas::new();
         let mut tree = TheTreeLayout::new(TheId::named(TREE));
@@ -1118,6 +1221,10 @@ impl Dock for RulesEditor {
         self.dirty = false;
     }
     fn reset_for_project_switch(&mut self) {
+        #[cfg(feature = "native-ui")]
+        {
+            self.preview_sources = Default::default();
+        }
         self.selected = None;
         self.form_path = None;
         self.entries.clear();
@@ -1189,6 +1296,18 @@ impl Dock for RulesEditor {
         project: &mut Project,
         _server: &mut ServerContext,
     ) -> bool {
+        #[cfg(feature = "native-ui")]
+        if self.native_preview {
+            let mut visible = false;
+            ui.canvas.visit_visible_widgets(&mut |widget| {
+                visible |= widget.id().name == "Rules Particle Preview"
+                    && widget.dim().width > 0
+                    && widget.dim().height > 0;
+            });
+            if !visible {
+                return false;
+            }
+        }
         let Some(path) = self
             .selected
             .as_ref()
@@ -1215,9 +1334,6 @@ impl Dock for RulesEditor {
         let Ok(def) = serde_json::from_value::<rusterix::ParticleEmitterDef>(json) else {
             return false;
         };
-        let Some(preview) = ui.get_icon_view("Rules Particle Preview") else {
-            return false;
-        };
         let mut emitter = def.instantiate(Vec3::zero(), def.direction);
         let scale = preset
             .get("size_scale")
@@ -1226,12 +1342,29 @@ impl Dock for RulesEditor {
         emitter.radius_range.0 *= scale;
         emitter.radius_range.1 *= scale;
         let time = 0.4 + self.preview_started.elapsed().as_secs_f32() % 2.0;
-        let image = crate::docks::particle_preview::render_particle_emitter_preview(
-            &emitter, 280, 160, time,
-        );
-        preview.set_rgba_tile(TheRGBATile::buffer(image));
-        true
+        #[cfg(feature = "native-ui")]
+        if self.native_preview {
+            let Some(preview) = ui.get_render_view("Rules Particle Preview") else {
+                return false;
+            };
+            preview.set_paint_source(Some(self.preview_sources.particles(
+                Vec2::new(280, 160),
+                &emitter,
+                time,
+            )));
+            return true;
+        }
+        #[cfg(any(not(feature = "native-ui"), test))]
+        if let Some(preview) = ui.get_icon_view("Rules Particle Preview") {
+            let image = crate::docks::particle_preview::render_particle_emitter_preview(
+                &emitter, 280, 160, time,
+            );
+            preview.set_rgba_tile(TheRGBATile::buffer(image));
+            return true;
+        }
+        false
     }
+
     fn handle_event(
         &mut self,
         event: &TheEvent,

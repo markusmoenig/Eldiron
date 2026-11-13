@@ -41,6 +41,23 @@ impl<'a> NativeImageFrame<'a> {
     }
 }
 impl GraphImageHandles for NativeImageFrame<'_> {
+    fn paint_preview(
+        &self,
+        key: &str,
+        rect: theframework::paint::Rect,
+        paint: &mut theframework::paint::PaintList,
+    ) {
+        if let Some(layer) = self.assets.radials.get(key) {
+            paint
+                .ops
+                .push(theframework::paint::PaintOp::PixelRadialLayer {
+                    rect,
+                    layer: layer.clone(),
+                });
+        } else if let Some(image) = self.image_handle(key) {
+            paint.image(image, rect, theframework::paint::Sampling::Linear);
+        }
+    }
     fn image_handle(&self, key: &str) -> Option<ImageHandle> {
         if let Some(handle) = self.handles.borrow().get(key) {
             return Some(*handle);

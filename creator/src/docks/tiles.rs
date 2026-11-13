@@ -1216,16 +1216,17 @@ impl Dock for TilesDock {
         std::sync::Arc<dyn theframework::theui::thewidget::therenderview::RenderViewPaintSource>,
     > {
         let TileSource::SingleTile(id) = self.tile_hover_source?;
-        if project
+        if let Some(emitter) = project
             .tiles
             .get(&id)
-            .is_some_and(|tile| tile.particle_emitter.is_some())
+            .and_then(|tile| tile.particle_emitter.as_ref())
         {
-            return None; // Animated procedural display remains an explicit adapter.
+            return Some(sources.particles(size, emitter, self.particle_preview_time()));
         }
         Some(sources.sprite(size, self.preview_texture(project, server_ctx, id)))
     }
 
+    #[cfg(any(not(feature = "native-ui"), test))]
     fn draw_minimap(
         &self,
         buffer: &mut TheRGBABuffer,
@@ -2284,16 +2285,16 @@ impl TilesDock {
         }
     }
 
+    #[cfg(any(not(feature = "native-ui"), test))]
     fn draw_source_preview(
         &self,
         buffer: &mut TheRGBABuffer,
         project: &Project,
-        _ctx: &mut TheContext,
-        _server_ctx: &ServerContext,
+        ctx: &mut TheContext,
+        _serverctx: &ServerContext,
         source: TileSource,
     ) {
         buffer.fill(BLACK);
-        #[cfg(any(not(feature = "native-ui"), test))]
         let stride = buffer.stride();
         let particle_time = self.particle_preview_time();
 
@@ -2310,9 +2311,8 @@ impl TilesDock {
                             );
                         buffer.pixels_mut().copy_from_slice(preview.pixels());
                     }
-                    #[cfg(any(not(feature = "native-ui"), test))]
                     if tile.particle_emitter.is_none()
-                        && let Some(tex) = self.preview_texture(project, _server_ctx, tile_id)
+                        && let Some(tex) = self.preview_texture(project, _serverctx, tile_id)
                     {
                         let src_w = tex.width as f32;
                         let src_h = tex.height as f32;
@@ -2323,7 +2323,7 @@ impl TilesDock {
                         let draw_h = src_h * scale;
                         let offset_x = ((dst_w - draw_w) * 0.5).round() as usize;
                         let offset_y = ((dst_h - draw_h) * 0.5).round() as usize;
-                        _ctx.draw.blend_scale_chunk(
+                        ctx.draw.blend_scale_chunk(
                             buffer.pixels_mut(),
                             &(
                                 offset_x,

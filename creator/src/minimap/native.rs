@@ -23,30 +23,37 @@ struct CachedImage {
     used: u64,
 }
 struct Preview {
-    size: Vec2<i32>,
     image: Option<Arc<Image>>,
+    radials: Option<Arc<theframework::paint::PixelRadialLayer>>,
     error: Option<String>,
 }
 impl RenderViewPaintSource for Preview {
-    fn paint(&self, painter: &mut WidgetPainter<'_>) -> UiPaintResult {
+    fn paint(&self, painter: &mut WidgetPainter<'_>, viewport: [f32; 2]) -> UiPaintResult {
         if let Some(error) = &self.error {
             return Err(UiPaintError(error.clone()));
         }
+        if let Some(layer) = &self.radials {
+            painter.list.ops.push(PaintOp::PixelRadialLayer {
+                rect: Rect::new(0., 0., viewport[0], viewport[1]),
+                layer: layer.clone(),
+            });
+            return Ok(());
+        }
         painter.list.ops.push(PaintOp::PixelRects {
-            rects: vec![Rect::new(0., 0., self.size.x as f32, self.size.y as f32)].into(),
+            rects: vec![Rect::new(0., 0., viewport[0], viewport[1])].into(),
             color: [0., 0., 0., 1.],
         });
         if let Some(source) = &self.image {
             let width = source.pixels.dim().width as f32;
             let height = source.pixels.dim().height as f32;
-            let scale = (self.size.x as f32 / width).min(self.size.y as f32 / height);
+            let scale = (viewport[0] / width).min(viewport[1] / height);
             let extent = [width * scale, height * scale];
             let image = painter.images.image(&source.key, &source.pixels, false)?;
             painter.list.ops.push(PaintOp::SpriteImage {
                 image,
                 origin: [
-                    ((self.size.x as f32 - extent[0]) * 0.5).round(),
-                    ((self.size.y as f32 - extent[1]) * 0.5).round(),
+                    ((viewport[0] - extent[0]) * 0.5).round(),
+                    ((viewport[1] - extent[1]) * 0.5).round(),
                 ],
                 scale: [extent[0].round() / width, extent[1].round() / height],
                 tint: [1.; 4],
@@ -66,6 +73,45 @@ pub struct Sources {
     active: Option<(Vec2<i32>, Option<u64>, Arc<dyn RenderViewPaintSource>)>,
 }
 impl Sources {
+    pub fn particles(
+        &mut self,
+        size: Vec2<i32>,
+        emitter: &rusterix::ParticleEmitter,
+        time: f32,
+    ) -> Arc<dyn RenderViewPaintSource> {
+        let mut hash = std::collections::hash_map::DefaultHasher::new();
+        "particle-preview".hash(&mut hash);
+        serde_json::to_vec(emitter)
+            .expect("serializable particle source")
+            .hash(&mut hash);
+        // Runtime source geometry is intentionally absent from project JSON.
+        // It still changes the preview and must participate in its identity.
+        for triangle in &emitter.spawn_surface_triangles {
+            for point in triangle {
+                for value in [point.x, point.y, point.z] {
+                    value.to_bits().hash(&mut hash);
+                }
+            }
+        }
+        time.to_bits().hash(&mut hash);
+        let key = Some(hash.finish());
+        if let Some((old_size, old_key, source)) = &self.active
+            && *old_size == size
+            && *old_key == key
+        {
+            return source.clone();
+        }
+        let frame = crate::docks::particle_preview::prepare_particle_emitter_preview(
+            emitter, size.x, size.y, time,
+        );
+        let source: Arc<dyn RenderViewPaintSource> = Arc::new(Preview {
+            image: None,
+            radials: Some(frame.native_layer()),
+            error: None,
+        });
+        self.active = Some((size, key, source.clone()));
+        source
+    }
     pub fn clear_active(&mut self) {
         self.active = None;
     }
@@ -140,7 +186,11 @@ impl Sources {
             let old = self.images.remove(&oldest).unwrap();
             self.bytes -= old.image.pixels.pixels().len();
         }
-        let source: Arc<dyn RenderViewPaintSource> = Arc::new(Preview { size, image, error });
+        let source: Arc<dyn RenderViewPaintSource> = Arc::new(Preview {
+            image,
+            radials: None,
+            error,
+        });
         self.active = Some((size, key, source.clone()));
         source
     }
@@ -152,6 +202,7 @@ impl Sources {
 #[cfg(test)]
 pub(crate) fn reference_cases() -> Vec<(&'static str, Arc<dyn RenderViewPaintSource>, TheRGBABuffer)>
 {
+    crate::docks::rules_editor::RulesEditor::check_native_particle_preview_for_test();
     use crate::{
         dockmanager::DockManagerState,
         docks::{tilemap::TilemapDock, tiles::TilesDock, tiles_editor::TilesEditorDock},
@@ -305,5 +356,42 @@ pub(crate) fn reference_cases() -> Vec<(&'static str, Arc<dyn RenderViewPaintSou
         pixel[3] = 255;
     }
     cases.push(("minimap edited pixels", source, reference));
+    // Particle emission is stochastic. Prepare one CPU simulation snapshot and
+    // compare the original raster loops with GPU radial evaluation of that
+    // same geometry, rather than comparing two independent random emissions.
+    let mut emitter = rusterix::ParticleEmitter::new(vek::Vec3::zero(), vek::Vec3::unit_y());
+    emitter.flame_base = true;
+    emitter.rate = 60.;
+    project.tiles.get_mut(&id).unwrap().particle_emitter = Some(emitter.clone());
+    let dock = TilesDock::native_minimap_fixture(id);
+    let source = dock
+        .native_minimap_source(size, &project, &server, &mut sources)
+        .unwrap();
+    let same = dock
+        .native_minimap_source(size, &project, &server, &mut sources)
+        .unwrap();
+    assert!(
+        Arc::ptr_eq(&source, &same),
+        "a repeated particle time/source does not replay simulation or invalidate the view"
+    );
+    for (size, time) in [
+        (Vec2::new(143, 83), 0.68),
+        (Vec2::new(83, 143), 1.4),
+        (Vec2::new(14, 9), 0.4),
+    ] {
+        let frame = crate::docks::particle_preview::prepare_particle_emitter_preview(
+            &emitter, size.x, size.y, time,
+        );
+        let mut reference = frame.reference_pixels();
+        for pixel in reference.pixels_mut().chunks_exact_mut(4) {
+            pixel[3] = 255;
+        }
+        let source: Arc<dyn RenderViewPaintSource> = Arc::new(Preview {
+            image: None,
+            radials: Some(frame.native_layer()),
+            error: None,
+        });
+        cases.push(("minimap particles", source, reference));
+    }
     cases
 }

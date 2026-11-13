@@ -5,11 +5,20 @@ use std::sync::Arc;
 #[derive(Clone, Default)]
 pub(super) struct TileControls {
     images: HashMap<String, Arc<TheRGBABuffer>>,
+    #[cfg(feature = "native-ui")]
+    pub(super) radials: HashMap<String, Arc<theframework::paint::PixelRadialLayer>>,
     names: HashMap<String, String>,
     pub(super) equipment_names: HashMap<String, String>,
     items: Vec<GraphPickerItem>,
 }
 impl TileControls {
+    fn has_preview(&self, key: &str) -> bool {
+        #[cfg(feature = "native-ui")]
+        if self.radials.contains_key(key) {
+            return true;
+        }
+        self.images.contains_key(key)
+    }
     #[cfg(feature = "native-ui")]
     pub(super) fn picker(
         &self,
@@ -39,11 +48,22 @@ impl TileControls {
         self.images.get(key).cloned()
     }
     pub(super) fn set_preview(&mut self, key: &str, image: Option<TheRGBABuffer>) {
+        #[cfg(feature = "native-ui")]
+        self.radials.remove(key);
         if let Some(image) = image {
             self.images.insert(key.into(), Arc::new(image));
         } else {
             self.images.remove(key);
         }
+    }
+    #[cfg(feature = "native-ui")]
+    pub(super) fn set_radial_preview(
+        &mut self,
+        key: &str,
+        frame: &crate::docks::particle_preview::ParticlePreviewFrame,
+    ) {
+        self.images.remove(key);
+        self.radials.insert(key.into(), frame.native_layer());
     }
 
     pub(super) fn refresh_equipment_names(&mut self, project: &Project) {
@@ -52,6 +72,8 @@ impl TileControls {
     pub fn refresh(&mut self, project: &Project) {
         self.refresh_equipment_names(project);
         self.images.clear();
+        #[cfg(feature = "native-ui")]
+        self.radials.clear();
         self.names.clear();
         self.items = vec![GraphPickerItem {
             id: String::new(),
@@ -195,7 +217,7 @@ impl GraphControls for TileControls {
         let size = (rect.size[1] - 4. * scale).max(scale).min(32. * scale);
         let id = data.as_str().unwrap_or_default();
         let mut offset = 8. * scale;
-        if self.images.contains_key(id) {
+        if self.has_preview(id) {
             painter.preview(
                 GraphRect {
                     origin: [

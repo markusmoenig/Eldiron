@@ -1381,6 +1381,14 @@ impl Dock for NodesDock {
     ) -> bool {
         #[cfg(feature = "native-ui")]
         if self.native_enabled {
+            if self.native_particles_visible(ui)
+                && self
+                    .particle_preview_updated
+                    .is_none_or(|last| last.elapsed() >= Duration::from_millis(67))
+            {
+                self.render_native(ui, ctx);
+                return true;
+            }
             if self.refresh_live(project, server) {
                 self.render_native(ui, ctx);
                 return true;

@@ -210,6 +210,32 @@ pub struct DistanceField {
     pub background: Color,
     pub primitives: Arc<[DistancePrimitive]>,
 }
+/// Ordered radial primitives sampled in logical pixels. Colors are encoded
+/// sRGB, with byte truncation after each blend for editable-preview parity.
+#[derive(Clone, Debug)]
+pub enum PixelRadial {
+    SoftCircle {
+        center: Point,
+        radius: f32,
+        color: Color,
+    },
+    Disc {
+        rect: Rect,
+        color: Color,
+        border_width: f32,
+        border: Color,
+    },
+}
+#[derive(Clone, Debug)]
+pub struct PixelRadialLayer {
+    /// Source logical extent, fitted to the operation's destination rect using
+    /// top-left nearest sampling without allocating a scaled source image.
+    pub size: Point,
+    /// Opaque vertical background; interpolation uses the logical row's origin.
+    pub top: Color,
+    pub bottom: Color,
+    pub radials: Arc<[PixelRadial]>,
+}
 /// CPU metadata identifying one application's immutable view contribution.
 /// A host may acknowledge it only after presenting the assembled list containing
 /// this marker. Renderers emit no GPU work for receipts.
@@ -286,6 +312,12 @@ pub enum PaintOp {
     DistanceField {
         rect: Rect,
         field: Arc<DistanceField>,
+    },
+    /// One GPU pass evaluates an ordered byte-quantized radial layer. Geometry
+    /// is local to the rect; transforms/DPI replicate its logical pixels.
+    PixelRadialLayer {
+        rect: Rect,
+        layer: Arc<PixelRadialLayer>,
     },
     Mesh {
         vertices: Arc<[PaintVertex]>,
@@ -430,6 +462,57 @@ impl PaintList {
         let mut scopes = Vec::new();
         for (index, op) in self.ops.iter().enumerate() {
             match op {
+                PaintOp::PixelRadialLayer { rect, layer } => {
+                    let color_valid = |color: Color| {
+                        color
+                            .iter()
+                            .all(|v| v.is_finite() && (0. ..=1.).contains(v))
+                    };
+                    let rect_valid = |r: Rect| {
+                        [r.x, r.y, r.width, r.height].iter().all(|v| v.is_finite())
+                            && r.width >= 0.
+                            && r.height >= 0.
+                    };
+                    if !rect_valid(*rect)
+                        || !color_valid(layer.top)
+                        || !color_valid(layer.bottom)
+                        || layer.size.iter().any(|v| !v.is_finite() || *v <= 0.)
+                        || layer.top[3] != 1.
+                        || layer.bottom[3] != 1.
+                        || layer.radials.len() > 16384
+                    {
+                        return Err("invalid pixel radial layer");
+                    }
+                    for radial in layer.radials.iter() {
+                        let valid = match radial {
+                            PixelRadial::SoftCircle {
+                                center,
+                                radius,
+                                color,
+                            } => {
+                                center.iter().all(|v| v.is_finite())
+                                    && radius.is_finite()
+                                    && *radius > 0.
+                                    && color_valid(*color)
+                            }
+                            PixelRadial::Disc {
+                                rect,
+                                color,
+                                border_width,
+                                border,
+                            } => {
+                                rect_valid(*rect)
+                                    && border_width.is_finite()
+                                    && *border_width >= 0.
+                                    && color_valid(*color)
+                                    && color_valid(*border)
+                            }
+                        };
+                        if !valid {
+                            return Err("invalid pixel radial primitive");
+                        }
+                    }
+                }
                 PaintOp::DisplayCompositing(_) if index != 0 => {
                     return Err("display composition metadata must be the first root operation");
                 }
