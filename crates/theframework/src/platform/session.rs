@@ -192,12 +192,16 @@ impl<'a> GpuPresenter<'a> {
         density: f32,
         clear: [f32; 4],
     ) -> Result<PresentResult> {
-        let view = frame.texture.create_view(&Default::default());
+        let format = self.surface.render_format();
+        let view = frame.texture.create_view(&renderkit::wgpu::TextureViewDescriptor {
+            format: Some(format),
+            ..Default::default()
+        });
         if let Err(error) = self.renderer.render(
             paint,
             &self.images,
             &view,
-            self.surface.format(),
+            format,
             self.surface.physical_size(),
             density,
             clear,

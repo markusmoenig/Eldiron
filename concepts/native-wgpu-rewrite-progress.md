@@ -7400,3 +7400,122 @@ Browser text host checkpoint final isolation:
  introducing rendering readbacks. Independently continue native Creator's
  remaining 3D paste/uncommon contexts, application/global ownership retirement,
  Creator Apple/browser bootstrap and the full M0–M9 acceptance matrix.
+
+
+Browser surface color contract correction (verification in progress):
+- Found a concrete host mismatch independent of speculative3D shader changes:
+  normal PaintRenderer emits linear premultiplied color, while WebGPU canvas
+  exposes a non-sRGB base texture and SurfaceState previously declared no sRGB
+  view. Native headless outputs/supported native surfaces use sRGB attachments.
+- SurfaceState now retains the legal base format, declares its compatible sRGB
+  view when needed, and exposes render_format separately. Shared GpuPresenter
+  creates that view and uses its format for paint pipelines. This performs the
+  same hardware display encoding once, without a CPU image, manual gamma pass,
+  VM/device duplication, or a forced legacy blending policy.
+- Confirmed the current primary canvas contract and existing locked wgpu29
+  WebGPU configure mapping (view_formats is forwarded):
+  https://www.w3.org/TR/webgpu/#canvas-configuration
+  Native surfaces already advertising sRGB retain their original format.
+- Extended the existing surface-format/alpha/group regression to compare whole
+  captured native sRGB pixels with RGBA/BGRA non-sRGB base textures rendered
+  through sRGB attachment views. Focused build passed7.83s; actual Metal test
+  and final optimized browser bundle are running. Do not classify the earlier
+  green3D diagnostic as fixed until actual browser pixels are rechecked.
+
+
+Surface encoding verified, browser queue backpressure implementation:
+- Existing extended native Metal format/alpha/group case passed1,0.32s:
+  /private/tmp/eldiron-browser-srgb-view-native-metal.log. It compares whole
+  native sRGB output against RGBA/BGRA base textures using declared sRGB views,
+  with zero transfer-count change before explicit evidence captures.
+- Optimized bundle passed45.21s, package54,146,407bytes. Actual Chrome config
+  reports format=bgra8unorm, viewFormats=[bgra8unorm-srgb], no GPU validation
+  errors. Full source-asserted2D commit/undo/redo/focus plus preedit device loss
+  and Start passed on session0b7615c7-6ab3-44ca-a459-c9dfb8bb13e4/gen2/tick19/
+  presents145, readback0/Canvas2D0/colorCopies0/errors[]. Logs:
+  /private/tmp/eldiron-browser-srgb-text-{bootstrap,lifecycle}.log.
+- The stronger3D stability probe (requires12 frames/tick10 BEFORE capture)
+  stalls at8 frames/tick2 without requesting a screenshot. This corrects the
+  earlier capture-only hypothesis: sustained browser GPU/backpressure is itself
+  unverified. Queue telemetry shows several finished raster/UI submissions,
+  then pending visual batches and the previously sampled IOSurface wait.
+  /private/tmp/eldiron-browser-3d-srgb-current.log. Do not claim normal3D works
+  merely because one paused/idle capture exists.
+- Browser host now bounds visual work to one submitted frame, releasing it via
+  nonblocking Queue::on_submitted_work_done and an epoch-addressed host event.
+  Runtime updates/input remain independent; native swapchain policy is unchanged.
+  Pending old-device callbacks cannot release a replacement surface's frame.
+  Suspension/replacement resets the pending state. Locked wgpu's browser callback
+  invokes completion on both resolve/reject, allowing device-loss recovery.
+  Optimized build and actual sustained3D/device-loss validation are pending.
+
+
+Browser bounded-frame callback compilation:
+- Initial build correctly rejected capturing a non-Send DOM/Winit proxy in
+  wgpu's Send-only completion callback. Kept its thread affinity intact: the
+  callback sends only () through an existing futures oneshot; spawn_local awaits
+  it and sends the epoch-addressed Winit notification on the browser thread.
+  No unsafe Send implementation, global renderer registry, new dependency, or
+  blocking wait was added. Final optimized build passed46.79s, package
+  54,146,846bytes: /private/tmp/eldiron-browser-bounded-frame-package-pipeline.log.
+- A fresh3D probe now requires12 presentations/tick10 before an ordinary capture,
+  without pausing RAF first. It observes actual queue completions and canvas
+  view configuration. Source-asserted2D text/device-recovery integration is also
+  running against this final host. Earlier8-frame/green/capture-stall results
+  remain superseded diagnostics, not acceptance passes.
+
+
+Bounded browser frame evidence; unresolved3D blocker retained:
+- Actual2D source-asserted text/IME/history/focus/device-loss/Start workflow passed
+  with the one-frame completion gate: session81286fe6-e523-4b3d-9a97-9c6edcefa32b,
+  gen2/tick19/presents150, readback0/Canvas2D0/colorCopies0/errors[]. Logs:
+  /private/tmp/eldiron-browser-bounded-text-{bootstrap,lifecycle}.log.
+- Actual3D telemetry now proves at most ONE unfinished UI frame (four source/
+  scene/UI command buffers), but still stalls at its fifth frame/tick2 before
+  capture. Thus bounding resources is implemented/observed but has NOT fixed the
+  underlying3D wait. /private/tmp/eldiron-browser-bounded-frame-current.log and
+  /private/tmp/eldiron-browser-3d-bounded-direct.log. Keep3D liveness/color/
+  physical-host gates open; do not weaken their thresholds to pass this run.
+- Native Creator and iOS-client builds plus the existing real CAMetalLayer UI
+  presenter case are running as this surface/host checkpoint's assembled checks.
+  Continue independent Creator/module work while the browser's specific GPU/
+  IOSurface wait is investigated. Source inspection, native Metal format parity
+  and browser2D/device recovery are independently verified above.
+
+
+Native/Apple surface assembled checks passed:
+- Native Creator compile passed24.54s; CPU/runtime/paint libraries remain the
+  same application owners. iOS ARM64 simulator common-player library compile
+  passed28.12s. Existing actual detached CAMetalLayer shared-UI presenter test
+  passed1,0.65s, with successful presentation and zero-size deferral. Logs:
+  /private/tmp/eldiron-surface-contract-{creator-native,ios-client,host-build,
+  host-metal}.log. These are build/surface checks, not physical iOS app parity.
+- The available platform can run a small independent finite WebGPU diagnostic:
+  task-owned temporary HTML uses an offscreen RGBA16 scene, linear sampling,
+  MSAA/stencil and the same sRGB canvas view, one completed frame at a time.
+  Running120 frames plus a final completed-GPU capture will distinguish a broad
+  local browser surface failure from SceneVM/application-specific behavior.
+  This is temporary validation tooling, not a new repository test suite or an
+  acceptance substitute for the actual Eldiron3D workflow.
+
+
+Surface checkpoint continuation:
+- Minimal native-WebGPU browser diagnostic completed120/120 GPU frames with
+  offscreen RGBA16→sRGB-view MSAA/stencil composition and a visually inspected
+  blue output, no validation errors: /private/tmp/eldiron-browser-minimal-surface.log
+  and /private/tmp/eldiron-browser-minimal-surface.png. Therefore do NOT classify
+  Eldiron3D as a general unavailable browser/GPU environment. The remaining
+  SceneVM/application-specific resources/shaders/presentation wait needs further
+  diagnosis; it is an open implementation/verification task, not permission to
+  skip M8 or call the overall rewrite complete.
+- The surface-view encoding contract, actual native CAMetalLayer presentation,
+  iOS/common-player compile, Creator compile and browser2D/source/device recovery
+  form a coherent checked checkpoint. Browser3D still stalls with one pending
+  frame; color parity is open. Keep the bounded queue for its observed resource
+  bound, not as a claimed fix for that independent defect.
+- Advance independent M5 ownership work next: the canonical authoring world
+  still borrows the global SCENEMANAGER/Rusterix CPU build publication. Move its
+  static source lifetime/publication into the native application, reusing the
+  bounded scene_source service already used by auxiliary/paste previews. Preserve
+  3D region configuration/placement filtering, direct isometric production,
+  explicit source/camera/document input guards and existing reference adapters.

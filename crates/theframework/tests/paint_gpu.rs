@@ -1117,6 +1117,68 @@ fn opaque_display_policy_preserves_encoded_blending_groups_and_surface_formats()
         image.pixels()[(3 * 16 + 3) * 4] > 180,
         "standard linear blending remains available and distinct"
     );
+    // Browser canvases expose non-sRGB base textures. A declared sRGB attachment
+    // view must store the same encoded pixels as the native sRGB attachment,
+    // including translucent/group composition, without an application readback.
+    for format in [
+        wgpu::TextureFormat::Rgba8Unorm,
+        wgpu::TextureFormat::Bgra8Unorm,
+    ] {
+        let render_format = format.add_srgb_suffix();
+        let texture = ctx.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("canvas-compatible-base"),
+            size: wgpu::Extent3d {
+                width: 16,
+                height: 8,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[render_format],
+        });
+        let output = std::sync::Arc::new(
+            GpuImage::from_texture(
+                &ctx,
+                texture,
+                ImageDescriptor {
+                    width: 16,
+                    height: 8,
+                    format,
+                    color_space: ColorSpace::Srgb,
+                    alpha_mode: AlphaMode::Opaque,
+                },
+            )
+            .unwrap(),
+        );
+        let view = output.texture.create_view(&wgpu::TextureViewDescriptor {
+            format: Some(render_format),
+            ..Default::default()
+        });
+        let before = ctx.transfers();
+        renderer
+            .render(&list, &images, &view, render_format, (16, 8), 1., [0.; 4])
+            .unwrap();
+        assert_eq!(ctx.transfers(), before);
+        let mut read = ReadbackTicket::capture(&ctx, output).unwrap();
+        ctx.device
+            .poll(wgpu::PollType::Wait {
+                submission_index: None,
+                timeout: Some(std::time::Duration::from_secs(30)),
+            })
+            .unwrap();
+        let actual = read.try_finish(&ctx).unwrap().unwrap();
+        assert!(
+            actual
+                .pixels()
+                .iter()
+                .zip(image.pixels())
+                .all(|(a, b)| a.abs_diff(*b) <= 1),
+            "{format:?} sRGB view must preserve native linear composition"
+        );
+    }
 }
 
 #[test]

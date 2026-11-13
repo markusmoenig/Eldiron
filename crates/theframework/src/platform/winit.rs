@@ -29,6 +29,8 @@ enum HostEvent {
     Clipboard(u64, ClipboardResult),
     #[cfg(target_arch = "wasm32")]
     BrowserInput(InputEvent),
+    #[cfg(target_arch = "wasm32")]
+    FrameCompleted(u64),
 }
 #[derive(Clone, Copy, PartialEq)]
 struct WindowState {
@@ -51,6 +53,8 @@ struct Host {
     occluded: bool,
     dirty: bool,
     redraw_requested: bool,
+    #[cfg(target_arch = "wasm32")]
+    frame_pending: bool,
     next_present: Instant,
     next_update: Option<Instant>,
     last_update: Instant,
@@ -141,6 +145,10 @@ impl Host {
         let Some(window) = self.window.clone() else {
             return;
         };
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.frame_pending = false;
+        }
         self.pending = true;
         self.epoch += 1;
         let epoch = self.epoch;
@@ -202,6 +210,10 @@ impl Host {
         if self.suspended || self.occluded {
             return;
         }
+        #[cfg(target_arch = "wasm32")]
+        if self.frame_pending {
+            return;
+        }
         let Some(p) = &mut self.presenter else {
             return;
         };
@@ -213,6 +225,24 @@ impl Host {
             self.app.frame(&mut self.context, images)
         }) {
             Ok(PresentResult::Presented) => {
+                #[cfg(target_arch = "wasm32")]
+                {
+                    // Canvas acquisition does not provide native swapchain
+                    // backpressure. Bound queued visual work without blocking
+                    // CPU runtime/input or waiting inside application drawing.
+                    self.frame_pending = true;
+                    let (epoch, proxy) = (self.epoch, self.proxy.clone());
+                    let (completed, ready) = futures::channel::oneshot::channel();
+                    p.images.context().queue.on_submitted_work_done(move || {
+                        let _ = completed.send(());
+                    });
+                    // wgpu requires a Send callback; the DOM/Winit proxy stays
+                    // on its browser thread and never crosses that boundary.
+                    wasm_bindgen_futures::spawn_local(async move {
+                        let _ = ready.await;
+                        let _ = proxy.send_event(HostEvent::FrameCompleted(epoch));
+                    });
+                }
                 self.app.presented(&mut self.context);
                 self.dirty = false;
                 self.sync_window_state();
@@ -304,6 +334,10 @@ impl ApplicationHandler<HostEvent> for Host {
     fn suspended(&mut self, _: &ActiveEventLoop) {
         self.suspended = true;
         self.redraw_requested = false;
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.frame_pending = false;
+        }
         self.route(InputEvent::Focus(false));
         if self.initialized {
             self.app.suspended(&mut self.context);
@@ -314,6 +348,13 @@ impl ApplicationHandler<HostEvent> for Host {
     }
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: HostEvent) {
         match event {
+            #[cfg(target_arch = "wasm32")]
+            HostEvent::FrameCompleted(epoch) => {
+                if epoch == self.epoch {
+                    self.frame_pending = false;
+                    self.next_present = Instant::now();
+                }
+            }
             #[cfg(target_arch = "wasm32")]
             HostEvent::BrowserInput(event) => {
                 if let InputEvent::Modifiers(modifiers) = &event {
@@ -602,6 +643,8 @@ impl ApplicationHandler<HostEvent> for Host {
                 let size = p.surface.physical_size();
                 size.0 > 0 && size.1 > 0
             });
+        #[cfg(target_arch = "wasm32")]
+        let can_present = can_present && !self.frame_pending;
         // Coalesce requests until Winit delivers the frame. Its web backend
         // cancels/replaces the previous RAF on every request_redraw; repeatedly
         // requesting during simulation wakes can otherwise starve presentation.
@@ -814,6 +857,8 @@ pub fn run(app: Box<dyn GpuApplication>) -> Result<()> {
         occluded: false,
         dirty: true,
         redraw_requested: false,
+        #[cfg(target_arch = "wasm32")]
+        frame_pending: false,
         next_present: now,
         next_update: Some(now),
         last_update: now,

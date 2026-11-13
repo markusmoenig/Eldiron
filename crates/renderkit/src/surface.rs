@@ -62,7 +62,14 @@ impl<'a> SurfaceState<'a> {
             height: size.1.max(1),
             present_mode,
             alpha_mode,
-            view_formats: vec![],
+            // WebGPU canvas configurations require a non-sRGB base format.
+            // Painting/blending is linear, so declare its compatible sRGB view
+            // and let attachment stores perform display encoding once.
+            view_formats: if format.add_srgb_suffix() != format {
+                vec![format.add_srgb_suffix()]
+            } else {
+                vec![]
+            },
             desired_maximum_frame_latency: 2,
         };
         let mut state = Self {
@@ -77,6 +84,15 @@ impl<'a> SurfaceState<'a> {
     }
     pub fn format(&self) -> wgpu::TextureFormat {
         self.config.format
+    }
+    /// Attachment view format, which can differ from a browser canvas's base
+    /// texture format. Application shaders emit linear premultiplied color.
+    pub fn render_format(&self) -> wgpu::TextureFormat {
+        self.config
+            .view_formats
+            .first()
+            .copied()
+            .unwrap_or(self.config.format)
     }
     pub fn physical_size(&self) -> (u32, u32) {
         self.physical_size
