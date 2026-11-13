@@ -1,4 +1,3 @@
-use crate::editor::{ACTIONLIST, };
 use crate::editor_overlay::procedural::{ColorNoise, ProceduralIcon};
 use crate::editor_overlay::{EditorOverlay, OverlaySources};
 use crate::prelude::*;
@@ -196,7 +195,7 @@ impl Hud {
         }
 
         if let Some(action_id) = server_ctx.curr_action_id
-            && let Some(action) = ACTIONLIST.read().unwrap().get_action_by_id(action_id)
+            && let Some(action) = server_ctx.actions.read().get_action_by_id(action_id)
         {
             if let Some(slots) = action.hud_material_slots(map, server_ctx) {
                 return Some(slots);

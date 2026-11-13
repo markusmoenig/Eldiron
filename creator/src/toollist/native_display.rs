@@ -67,14 +67,12 @@ impl ToolList {
         };
         active.then_some(session.owner)
     }
-    fn native_display_source_current(&self) -> bool {
+    fn native_display_source_current(&self, creator_actions: &CreatorActions) -> bool {
         let Some(session) = &self.editor_display_session else {
             return false;
         };
         match session.owner {
-            EditorDisplayOwner::Action(id) => ACTIONLIST
-                .read()
-                .unwrap()
+            EditorDisplayOwner::Action(id) => creator_actions.read()
                 .get_action_by_id(id)
                 .is_some_and(|action| {
                     action.editor_display().as_ref() == Some(session.working_display())
@@ -102,7 +100,7 @@ impl ToolList {
         if self.native_document != Some(binding.document)
             || self.active_editor_display_owner(server) != Some(binding.owner)
             || binding.context != server.pc
-            || !self.native_display_source_current()
+            || !self.native_display_source_current( &server.actions)
         {
             // A concurrent owner edit wins. Never restore an old draft over it.
             self.editor_display_session = None;
@@ -121,7 +119,7 @@ impl ToolList {
     ) -> bool {
         if self.native_document != Some(binding.document)
             || self.active_editor_display_owner(server) != Some(binding.owner)
-            || !self.native_display_source_current()
+            || !self.native_display_source_current( &server.actions)
         {
             return false;
         }
@@ -143,7 +141,7 @@ impl ToolList {
         if self.native_document != Some(binding.document)
             || self.active_editor_display_owner(server) != Some(binding.owner)
             || binding.context != server.pc
-            || !self.native_display_source_current()
+            || !self.native_display_source_current( &server.actions)
         {
             self.editor_display_session = None;
             ctx.ui.redraw_all = true;
@@ -185,7 +183,7 @@ impl ToolList {
             EditorDisplayResult::Ignored => return Pass,
             EditorDisplayResult::Handled => (),
             EditorDisplayResult::DisplayChanged(display) => {
-                if !self.update_editor_display_owner(binding.owner, &expected, &display) {
+                if !self.update_editor_display_owner(binding.owner, &expected, &display, &server.actions) {
                     self.editor_display_session = None;
                 }
             }
@@ -195,7 +193,7 @@ impl ToolList {
                 }
             }
             EditorDisplayResult::Cancel => {
-                self.cancel_editor_display_session();
+                self.cancel_editor_display_session( &server.actions);
                 ctx.ui.send(TheEvent::SetStatusText(
                     TheId::empty(),
                     "Editor display changes cancelled.".into(),

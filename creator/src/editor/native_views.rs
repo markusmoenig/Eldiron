@@ -160,7 +160,7 @@ impl Editor {
 
     pub(crate) fn enable_native_views(&mut self) {
         self.native_viewport.enabled = true;
-        TOOLLIST.write().unwrap().enable_native_display();
+        self.server_ctx.tools.write().enable_native_display();
         self.synchronize_native_document();
         self.geometry_editor.enable_gpu_preview();
         self.appearance_workspace.enable_gpu_preview();
@@ -283,7 +283,7 @@ impl Editor {
         self.sidebar.minimap_palette.invalidate(ui);
         self.native_viewport.play.invalidate(ui);
         self.invalidate_native_display_viewport(ui);
-        self.native_viewport.world.device_reset(ui, &mut self.server_ctx.camera);
+        self.native_viewport.world.device_reset(ui, &mut self.server_ctx.camera, &self.server_ctx.tools);
         self.geometry_editor.invalidate_gpu_preview(ui);
         self.appearance_workspace.invalidate_gpu_preview(ui);
         self.procedural_material.invalidate_gpu_preview(ui);
@@ -291,6 +291,7 @@ impl Editor {
 }
 #[cfg(test)]
 impl Editor {
+    pub(crate) fn controllers_for_test(&self) -> &CreatorContext { &self.server_ctx }
     pub(crate) fn native_pixel_dock_for_test(&mut self, ui: &mut TheUI, ctx: &mut TheContext, open: bool) {
         if open {
             self.server_ctx.game_mode = false;
@@ -302,9 +303,9 @@ impl Editor {
             self.server_ctx.editing_surface = None;
             self.server_ctx.profile_view = None;
             assert!(self.documents.project.get_map(&self.server_ctx).is_some());
-            DOCKMANAGER.write().unwrap().set_editor_dock("Tiles".into(), ui, ctx, &self.documents.project, &mut self.server_ctx);
+            self.server_ctx.docks.write().set_editor_dock("Tiles".into(), ui, ctx, &self.documents.project, &mut self.server_ctx);
         } else {
-            DOCKMANAGER.write().unwrap().minimize(ui, ctx, &self.documents.project, &mut self.server_ctx);
+            self.server_ctx.docks.write().minimize(ui, ctx, &self.documents.project, &mut self.server_ctx);
         }
     }
     pub(crate) fn native_camera_mode_for_test(&mut self, mode: EditorViewMode) -> EditorViewMode {
@@ -327,7 +328,7 @@ impl Editor {
         self.server_ctx.text_game_mode = false;
         self.synchronize_native_document();
         let (id, display) = {
-            let actions = ACTIONLIST.read().unwrap();
+            let actions = self.server_ctx.actions.read();
             let action = actions
                 .get_action_by_command_id("geometry.create_revolve")
                 .unwrap();
@@ -335,10 +336,8 @@ impl Editor {
         };
         self.server_ctx.curr_action_id = Some(id);
         ui.dialog = None;
-        TOOLLIST
-            .write()
-            .unwrap()
-            .begin_action_edit(id, self.server_ctx.pc, display, ctx);
+        self.server_ctx.tools.write()
+            .begin_action_edit(id, self.server_ctx.pc, display, ctx, &self.server_ctx.actions);
         crate::utils::map_editor_render_view(ui, &self.server_ctx)
             .unwrap()
             .id()
@@ -355,9 +354,7 @@ impl Editor {
             .len()
     }
     pub(crate) fn has_native_profile_for_test(&self) -> bool {
-        TOOLLIST
-            .read()
-            .unwrap()
+        self.server_ctx.tools.read()
             .active_editor_display_owner(&self.server_ctx)
             .is_some()
     }
@@ -437,7 +434,7 @@ impl Editor {
         self.server_ctx.curr_block_asset_name = Some(asset.name.clone());
         self.documents.project.block_props.insert(id, asset);
         crate::block_props::sync_existing_prefab_presentations(&self.documents.project, &self.server_ctx.jobs, &self.server_ctx.reference);
-        let mut docks = DOCKMANAGER.write().unwrap();
+        let mut docks = self.server_ctx.docks.write();
         docks.set_dock(
             "Prefabs".into(),
             ui,

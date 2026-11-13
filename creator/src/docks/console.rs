@@ -1,5 +1,5 @@
 use crate::actionscript::{EDITOR_ACTION_FUNCTION, EDITOR_TOOL_FUNCTION, EditorActionRequest};
-use crate::editor::{ACTIONLIST, TOOLLIST};
+
 use crate::prelude::*;
 use eldiron_runtime::RegionInspection;
 use rusterix::{
@@ -1017,7 +1017,7 @@ impl ConsoleDock {
 
         let default_map = Map::default();
         let map = project.get_map(server_ctx).unwrap_or(&default_map);
-        let actions = ACTIONLIST.read().unwrap();
+        let actions = server_ctx.actions.read();
         let mut entries = actions
             .actions
             .iter()
@@ -1056,8 +1056,8 @@ impl ConsoleDock {
         ]))
     }
 
-    fn list_tools(include_unavailable: bool) -> TheFeedbackDocument {
-        let tools = TOOLLIST.read().unwrap();
+    fn list_tools(include_unavailable: bool, creator_tools: &CreatorTools) -> TheFeedbackDocument {
+        let tools = creator_tools.read();
         let mut entries = Vec::new();
         for tool in &tools.game_tools {
             let Some(descriptor) = tools.game_tool_descriptor_by_id(tool.id().uuid) else {
@@ -1108,7 +1108,7 @@ impl ConsoleDock {
             ),
             ConsoleRequest::ListTools {
                 include_unavailable,
-            } => Ok(Self::list_tools(*include_unavailable)),
+            } => Ok(Self::list_tools(*include_unavailable, &server_ctx.tools)),
             ConsoleRequest::Clear => Ok(TheFeedbackDocument::default()),
             ConsoleRequest::RunAction(_) | ConsoleRequest::SelectTool { .. } => {
                 Err("Editor request was not dispatched by the sidebar.".to_string())

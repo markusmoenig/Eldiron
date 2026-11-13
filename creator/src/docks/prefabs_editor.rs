@@ -1,6 +1,6 @@
 use crate::docks::palette::PaletteDock;
 use crate::docks::tiles::TilesDock;
-use crate::editor::{TOOLLIST};
+
 use crate::prelude::*;
 use scenevm::GeoId;
 
@@ -2238,8 +2238,8 @@ impl PrefabsEditorDock {
         }
     }
 
-    fn active_tool_mode() -> PrefabEditorMode {
-        let tools = TOOLLIST.read().unwrap();
+    fn active_tool_mode(creator_tools: &CreatorTools) -> PrefabEditorMode {
+        let tools = creator_tools.read();
         if tools.palette_mode_active() {
             return PrefabEditorMode::Palette;
         }
@@ -2588,9 +2588,7 @@ impl Dock for PrefabsEditorDock {
                         .map(|(object, _)| *object)
                         .collect();
                 }
-                TOOLLIST
-                    .write()
-                    .unwrap()
+                server_ctx.tools.write()
                     .update_geometry_overlay_3d(project, server_ctx);
                 self.sync_part_inspector(ui, ctx, project, asset_id);
             }
@@ -2616,7 +2614,7 @@ impl Dock for PrefabsEditorDock {
                             * Vec4::new(local.x, local.y, local.z, 1.);
                         let origin = Vec3::new(world.x, world.y, world.z);
                         let plane_normal = {
-                            let tools = TOOLLIST.read().unwrap();
+                            let tools = server_ctx.tools.read();
                             if tools.native_world_input {
                                 tools
                                     .game_tools
@@ -2698,7 +2696,7 @@ impl Dock for PrefabsEditorDock {
                         drag.working = attachment.clone();
                         Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                         self.sync_effect_editor(ui, ctx, project, asset_id);
-                        if !TOOLLIST.read().unwrap().native_world_input
+                        if !server_ctx.tools.read().native_world_input
                             && let Some(translated) = Self::translated_view_event(event)
                         {
                             ctx.ui.send(translated);
@@ -2725,7 +2723,7 @@ impl Dock for PrefabsEditorDock {
             }
         }
         if let Some(event) = Self::translated_view_event(event) {
-            if TOOLLIST.read().unwrap().native_world_input {
+            if server_ctx.tools.read().native_world_input {
                 return true;
             }
             if self.close_door_preview(project, asset_id, server_ctx) {
@@ -2776,7 +2774,7 @@ impl Dock for PrefabsEditorDock {
         match event {
             TheEvent::Custom(id, _) if id.name == "Tool Changed" => {
                 self.close_door_preview(project, asset_id, server_ctx);
-                self.mode = Self::active_tool_mode();
+                self.mode = Self::active_tool_mode( &server_ctx.tools);
                 if let Some(layout) = ui.get_sharedvlayout("Prefab Editor Shared VLayout") {
                     // Effects need enough vertical room for two compact
                     // property columns while keeping a useful live viewport.
@@ -3463,9 +3461,7 @@ impl Dock for PrefabsEditorDock {
                 self.selected_support_surface_id = None;
                 crate::block_props::select_prefab_part(project, id.uuid);
                 self.sync_part_inspector(ui, ctx, project, asset_id);
-                TOOLLIST
-                    .write()
-                    .unwrap()
+                server_ctx.tools.write()
                     .update_geometry_overlay_3d(project, server_ctx);
                 ctx.ui.redraw_all = true;
                 true
@@ -3485,9 +3481,7 @@ impl Dock for PrefabsEditorDock {
                 }
                 self.selected_part_id = project.prefab_editor_part_by_object.get(&id.uuid).copied();
                 self.sync_part_inspector(ui, ctx, project, asset_id);
-                TOOLLIST
-                    .write()
-                    .unwrap()
+                server_ctx.tools.write()
                     .update_geometry_overlay_3d(project, server_ctx);
                 ctx.ui.redraw_all = true;
                 true
@@ -3515,7 +3509,7 @@ impl Dock for PrefabsEditorDock {
                         // Re-activating the already active face tool clears its
                         // selection. Only switch when necessary; a real switch
                         // carries these selected faces into face mode.
-                        if TOOLLIST.read().unwrap().current_game_tool_command_id()
+                        if server_ctx.tools.read().current_game_tool_command_id()
                             != Some("tool.sector")
                         {
                             ctx.ui.send(TheEvent::Custom(
@@ -3523,9 +3517,7 @@ impl Dock for PrefabsEditorDock {
                                 TheValue::Text("tool.sector".to_string()),
                             ));
                         }
-                        TOOLLIST
-                            .write()
-                            .unwrap()
+                        server_ctx.tools.write()
                             .update_geometry_overlay_3d(project, server_ctx);
                         ctx.ui.redraw_all = true;
                     }
@@ -3902,9 +3894,7 @@ impl Dock for PrefabsEditorDock {
                             asset_id,
                             SUPPORT_SURFACE_CREATE,
                         );
-                        TOOLLIST
-                            .write()
-                            .unwrap()
+                        server_ctx.tools.write()
                             .update_geometry_overlay_3d(project, server_ctx);
                         ctx.ui.send(TheEvent::SetStatusText(
                             TheId::empty(),
@@ -3943,9 +3933,7 @@ impl Dock for PrefabsEditorDock {
                         Self::push_project_undo(before, project, ctx, &server_ctx.history);
                         Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                         self.sync_part_tree(ui, ctx, project, asset_id);
-                        TOOLLIST
-                            .write()
-                            .unwrap()
+                        server_ctx.tools.write()
                             .update_geometry_overlay_3d(project, server_ctx);
                         ctx.ui.send(TheEvent::SetStatusText(
                             TheId::empty(),
@@ -4145,9 +4133,7 @@ impl Dock for PrefabsEditorDock {
                             .send(TheEvent::SetStatusText(TheId::empty(), message)),
                     }
                 }
-                TOOLLIST
-                    .write()
-                    .unwrap()
+                server_ctx.tools.write()
                     .update_geometry_overlay_3d(project, server_ctx);
                 ctx.ui.redraw_all = true;
                 true

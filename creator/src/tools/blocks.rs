@@ -5,7 +5,7 @@ use crate::blocks::{
     block_stroke_cells, block_surface_base_y, component_uses_cylinder, cylinder_vertices_and_faces,
     default_block_asset_id, localized_block_asset_name, style_block_asset_object,
 };
-use crate::editor::{DOCKMANAGER, };
+
 use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use MapEvent::*;
@@ -1030,7 +1030,7 @@ impl Tool for BlockTool {
                 }
                 self.clear_drag(server_ctx);
 
-                let current_dock = DOCKMANAGER.read().unwrap().dock.clone();
+                let current_dock = server_ctx.docks.read().dock.clone();
                 if current_dock != "Prefabs" {
                     self.previous_dock = if current_dock.is_empty() {
                         None
@@ -1038,7 +1038,7 @@ impl Tool for BlockTool {
                         Some(current_dock)
                     };
                 }
-                DOCKMANAGER.write().unwrap().set_dock(
+                server_ctx.docks.write().set_dock(
                     "Prefabs".into(),
                     ui,
                     ctx,
@@ -1067,11 +1067,11 @@ impl Tool for BlockTool {
                 server_ctx.hover_cursor_3d = None;
                 self.clear_drag(server_ctx);
                 let prefab_editor_open = {
-                    let manager = DOCKMANAGER.read().unwrap();
+                    let manager = server_ctx.docks.read();
                     manager.dock == "Prefabs" && manager.state == DockManagerState::Editor
                 };
-                if DOCKMANAGER.read().unwrap().dock == "Prefabs" && !prefab_editor_open {
-                    let mut dockmanager = DOCKMANAGER.write().unwrap();
+                if server_ctx.docks.read().dock == "Prefabs" && !prefab_editor_open {
+                    let mut dockmanager = server_ctx.docks.write();
                     dockmanager.minimize_for_tool_switch(ui, ctx, project, server_ctx);
                     if let Some(prev) = self.previous_dock.take() {
                         dockmanager.set_dock(prev, ui, ctx, project, server_ctx);

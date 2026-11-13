@@ -1,4 +1,3 @@
-use crate::editor::{DOCKMANAGER, };
 use crate::prelude::*;
 use MapEvent::*;
 use ToolEvent::*;
@@ -1517,12 +1516,10 @@ impl Tool for IsoPaintTool {
                 server_ctx.reference.write().set_overlay_dirty();
                 ctx.ui.redraw_all = true;
                 if !server_ctx.pc.is_prefab()
-                    && DOCKMANAGER.read().unwrap().dock == "Paint"
+                    && server_ctx.docks.read().dock == "Paint"
                     && let Some(prev) = self.previous_dock.take()
                 {
-                    DOCKMANAGER
-                        .write()
-                        .unwrap()
+                    server_ctx.docks.write()
                         .set_dock(prev, ui, ctx, project, server_ctx);
                 }
                 true

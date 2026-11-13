@@ -138,7 +138,13 @@ impl CreatorTheme {
         }
         menu
     }
-    fn apply(self, ui: &mut TheUI, ctx: &mut TheContext, reference: &CreatorReference) {
+    fn apply(
+        self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        reference: &CreatorReference,
+        creator_tools: &CreatorTools,
+    ) {
         let mut profile = crate::misc::FrameProfile::new();
         let theme: Box<dyn TheTheme> = match self {
             Self::Brown => Box::new(TheBrownTheme::new()),
@@ -157,9 +163,7 @@ impl CreatorTheme {
         if let Some(menu) = ui.get_menu("Menu") {
             menu.replace_context_menu(self.view_menu());
         }
-        TOOLLIST
-            .write()
-            .unwrap()
+        creator_tools.write()
             .set_overlay_theme(ui.style.theme().as_ref());
         profile.lap("theme_tools");
         crate::hud::set_theme(ui.style.theme().as_ref());
@@ -178,15 +182,6 @@ impl CreatorTheme {
 
 #[allow(dead_code)]
 const ISO_PAINT_PAR_COMPOSITE_PIXELS: usize = 32_768;
-
-pub static PREVIEW_ICON: LazyLock<RwLock<(TheRGBATile, i32)>> =
-    LazyLock::new(|| RwLock::new((TheRGBATile::default(), 0)));
-
-pub static TOOLLIST: LazyLock<RwLock<ToolList>> =
-    LazyLock::new(|| RwLock::new(ToolList::default()));
-pub static ACTIONLIST: LazyLock<RwLock<ActionList>> =
-    LazyLock::new(|| RwLock::new(ActionList::default()));
-// pub static PANELS: LazyLock<RwLock<Panels>> = LazyLock::new(|| RwLock::new(Panels::new()));
 
 const COMPACT_NAVIGATION_ICON_PATHS: [(&str, &str); 8] = [
     (
@@ -364,8 +359,6 @@ mod toolbar_icon_theme_tests {
         }
     }
 }
-pub static DOCKMANAGER: LazyLock<RwLock<DockManager>> =
-    LazyLock::new(|| RwLock::new(DockManager::default()));
 
 #[path = "editor/play_session.rs"]
 mod play_session;
@@ -4506,9 +4499,7 @@ impl Editor {
             return;
         }
 
-        if let Some(action) = ACTIONLIST
-            .read()
-            .unwrap()
+        if let Some(action) = self.server_ctx.actions.read()
             .get_action_by_command_id("tile.edit_metadata")
         {
             self.server_ctx.curr_action_id = Some(action.id().uuid);
@@ -4892,7 +4883,7 @@ impl Editor {
             return;
         }
         self.persist_active_region_view_state();
-        let dock_dirty = DOCKMANAGER.read().unwrap().has_dock_changes();
+        let dock_dirty = self.server_ctx.docks.read().has_dock_changes();
         let undo = self.server_ctx.history.read().clone();
         self.documents.store_active(undo, dock_dirty);
     }
@@ -4904,9 +4895,7 @@ impl Editor {
     }
 
     fn commit_authoring_views(&mut self, ctx: &mut TheContext) -> Result<bool, String> {
-        DOCKMANAGER
-            .write()
-            .unwrap()
+        self.server_ctx.docks.write()
             .commit_pending_edits(ctx, &mut self.documents.project, &self.server_ctx.jobs, &self.server_ctx.reference, &self.server_ctx.history)
     }
     fn deactivate_project_for_switch(
@@ -4933,18 +4922,16 @@ impl Editor {
         self.appearance_workspace.reset(ui, ctx);
         self.palette_switch.reset();
         // Finish editor-local interactions while the outgoing project is still
-        // installed, then snapshot it before clearing global UI state.
-        DOCKMANAGER
-            .write()
-            .unwrap()
+        // installed, then snapshot it before clearing application UI state.
+        self.server_ctx.docks.write()
             .minimize(ui, ctx, &self.documents.project, &mut self.server_ctx);
         {
-            let mut tools = TOOLLIST.write().unwrap();
+            let mut tools = self.server_ctx.tools.write();
             if tools.editor_mode {
                 tools.set_game_tools(ui, ctx);
             }
             tools.deactivte_tool(ui, ctx, &mut self.documents.project, &mut self.server_ctx);
-            tools.reset_for_project_switch(ctx);
+            tools.reset_for_project_switch(ctx, &self.server_ctx.actions);
         }
         self.server_ctx.sidebar_mode = SidebarMode::Region;
         self.server_ctx.camera.reset_for_project_switch();
@@ -4953,7 +4940,7 @@ impl Editor {
         #[cfg(feature = "native-render")]
         self.native_viewport.clear_world_speech();
         self.sync_active_session_from_editor();
-        DOCKMANAGER.write().unwrap().reset_for_project_switch();
+        self.server_ctx.docks.write().reset_for_project_switch();
 
         ctx.ui.clear_focus();
         ctx.ui.clear_hover();
@@ -5424,7 +5411,7 @@ impl Editor {
         // icon/model library again on the first redraw.
         self.procedural_appearance_revision = self.current_procedural_appearance_revision();
         self.server_ctx.clear();
-        self.server_ctx.text_game_mode = TOOLLIST.read().unwrap().text_game_mode;
+        self.server_ctx.text_game_mode = self.server_ctx.tools.read().text_game_mode;
         self.text_game.reset();
         if let Some(first) = self.documents.project.regions.first() {
             self.server_ctx.curr_region = first.id;
@@ -5458,7 +5445,7 @@ impl Editor {
             group.set_index(restored_view_index);
         }
         {
-            let mut actions = ACTIONLIST.write().unwrap();
+            let mut actions = self.server_ctx.actions.write();
             if let Some(action) = actions.get_action_by_command_id_mut(restored_camera_command_id) {
                 self.server_ctx.curr_action_id = Some(action.id().uuid);
                 if let Some(map) = self.documents.project.get_map_mut(&self.server_ctx) {
@@ -5500,9 +5487,7 @@ impl Editor {
         // tabs were cloned from the same project and therefore reuse map UUIDs.
         crate::utils::editor_scene_full_rebuild(&self.documents.project, &self.server_ctx);
         if self.server_ctx.editor_view_mode != EditorViewMode::D2 {
-            TOOLLIST
-                .write()
-                .unwrap()
+            self.server_ctx.tools.write()
                 .update_geometry_overlay_3d(&mut self.documents.project, &mut self.server_ctx);
         }
         ctx.ui.send(TheEvent::Custom(
@@ -5628,7 +5613,7 @@ impl Editor {
             .map(|session| session.detached_dock_dirty)
             .unwrap_or(false);
         self.server_ctx.history.read().has_unsaved()
-            || DOCKMANAGER.read().unwrap().has_dock_changes()
+            || self.server_ctx.docks.read().has_dock_changes()
             || detached_dock_dirty
     }
 
@@ -5748,7 +5733,7 @@ impl Editor {
             .documents.project
             .get_map(&self.server_ctx)
             .unwrap_or(&default_map);
-        let actions = ACTIONLIST.read().unwrap();
+        let actions = self.server_ctx.actions.read();
         let entries: Vec<serde_json::Value> = actions
             .actions
             .iter()
@@ -5847,7 +5832,7 @@ impl Editor {
 
     #[cfg(not(target_arch = "wasm32"))]
     fn scepter_tool_catalog(&self, command: &ScepterToolList) -> serde_json::Value {
-        let tools = TOOLLIST.read().unwrap();
+        let tools = self.server_ctx.tools.read();
         let entries: Vec<serde_json::Value> = tools
             .game_tools
             .iter()
@@ -8078,7 +8063,7 @@ impl TheTrait for Editor {
 
     fn init_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
         let mut init_profile = crate::misc::FrameProfile::new();
-        CreatorTheme::load().apply(ui, ctx, &self.server_ctx.reference);
+        CreatorTheme::load().apply(ui, ctx, &self.server_ctx.reference, &self.server_ctx.tools);
         self.server_ctx.reference.write().client.messages_font = ctx.ui.font.clone();
         init_profile.lap("init_theme_gpu");
 
@@ -8424,7 +8409,7 @@ impl TheTrait for Editor {
         init_profile.lap("init_sidebar");
 
         // Docks
-        let mut bottom_panels = DOCKMANAGER.write().unwrap().init_docks(ctx);
+        let mut bottom_panels = self.server_ctx.docks.write().init_docks(ctx);
         init_profile.lap("init_docks");
         bottom_panels.limiter_mut().set_min_height(140);
 
@@ -8436,9 +8421,7 @@ impl TheTrait for Editor {
         editor_stack.add_canvas(poly_canvas);
 
         // Add Dock Editors
-        DOCKMANAGER
-            .write()
-            .unwrap()
+        self.server_ctx.docks.write()
             .add_editors_to_stack(&mut editor_stack, ctx);
 
         editor_canvas.set_layout(editor_stack);
@@ -8470,7 +8453,7 @@ impl TheTrait for Editor {
             &mut self.server_ctx.shared, &self.server_ctx.reference);
 
         let (dock_is_normal, dock_is_available) = {
-            let dock_manager = DOCKMANAGER.read().unwrap();
+            let dock_manager = self.server_ctx.docks.read();
             (
                 dock_manager.state == DockManagerState::Minimized,
                 !dock_manager.dock.is_empty(),
@@ -8521,9 +8504,7 @@ impl TheTrait for Editor {
         v_tool_list_layout.set_margin(Vec4::new(2, 2, 2, 2));
         v_tool_list_layout.set_padding(1);
 
-        TOOLLIST
-            .write()
-            .unwrap()
+        self.server_ctx.tools.write()
             .set_active_editor(&mut v_tool_list_layout, ctx);
 
         tool_list_canvas.set_layout(v_tool_list_layout);
@@ -8545,7 +8526,7 @@ impl TheTrait for Editor {
         // The active tool can select its dock while the UI is still being
         // assembled. Synchronize once more now that these controls are part of
         // the live canvas, so their widget-local disabled state is updated too.
-        DOCKMANAGER.read().unwrap().sync_size_controls(ui, ctx);
+        self.server_ctx.docks.read().sync_size_controls(ui, ctx);
 
         // -
 
@@ -8759,13 +8740,13 @@ impl TheTrait for Editor {
 
         // Make sure on first startup the active tool is properly selected
         if self.update_counter == 0 {
-            let mut toollist = TOOLLIST.write().unwrap();
+            let mut toollist = self.server_ctx.tools.write();
             let id = toollist.get_current_tool().id().uuid;
 
             toollist.set_tool(id, ui, ctx, &mut self.documents.project, &mut self.server_ctx);
         }
 
-        if TOOLLIST.write().unwrap().update_current_tool(
+        if self.server_ctx.tools.write().update_current_tool(
             ui,
             ctx,
             &mut self.documents.project,
@@ -9045,9 +9026,7 @@ impl TheTrait for Editor {
 
             self.server_ctx.animation_counter = self.server_ctx.animation_counter.wrapping_add(1);
             // To update animated minimaps (only for docks that need it)
-            if DOCKMANAGER
-                .read()
-                .unwrap()
+            if self.server_ctx.docks.read()
                 .current_dock_supports_minimap_animation()
             {
                 ctx.ui.send(TheEvent::Custom(
@@ -9266,7 +9245,7 @@ impl TheTrait for Editor {
                             }
                         }
                         if refresh_visual_debug {
-                            DOCKMANAGER.write().unwrap().apply_eldrin_debug_data(
+                            self.server_ctx.docks.write().apply_eldrin_debug_data(
                                 ui,
                                 ctx,
                                 project,
@@ -9304,7 +9283,7 @@ impl TheTrait for Editor {
                     }
                 }
             }
-            DOCKMANAGER.write().unwrap().sync_text_play_dock(
+            self.server_ctx.docks.write().sync_text_play_dock(
                 ui,
                 ctx,
                 &self.documents.project,
@@ -9388,7 +9367,7 @@ impl TheTrait for Editor {
                     // If we are drawing billboard vertices in the geometry overlay, update them.
                     if !running_game_mode && self.server_ctx.editor_view_mode != EditorViewMode::D2
                     {
-                        let mut tools = TOOLLIST.write().unwrap();
+                        let mut tools = self.server_ctx.tools.write();
                         // `curr_map_tool_type` is also changed by docks/actions
                         // and can therefore say Vertex while another toolbar
                         // tool is visibly active. This redraw is specifically
@@ -9615,7 +9594,7 @@ impl TheTrait for Editor {
                             && self.server_ctx.get_map_context() == MapContext::Region
                         {
                             let entity_item_selection_visible =
-                                TOOLLIST.read().unwrap().current_game_tool_is("tool.entity");
+                                self.server_ctx.tools.read().current_game_tool_is("tool.entity");
                             rusterix
                                 .set_entity_item_selection_visible(entity_item_selection_visible);
                             if let Some(region) =
@@ -10060,7 +10039,7 @@ impl TheTrait for Editor {
                     };
                     if let Some(map) = map_for_hud {
                         let reference = self.server_ctx.reference.read();
-                        TOOLLIST.write().unwrap().draw_hud(
+                        self.server_ctx.tools.write().draw_hud(
                             render_view.render_buffer_mut(),
                             map,
                             ctx,
@@ -10155,9 +10134,7 @@ impl TheTrait for Editor {
             }
             if self.server_ctx.game_input_mode && !self.server_ctx.game_mode {
                 // In game input mode send events to the game tool
-                if let Some(game_tool) = TOOLLIST
-                    .write()
-                    .unwrap()
+                if let Some(game_tool) = self.server_ctx.tools.write()
                     .get_game_tool_by_command_id("tool.game")
                 {
                     redraw = game_tool.handle_event(
@@ -10181,7 +10158,7 @@ impl TheTrait for Editor {
             {
                 redraw = true;
             }
-            if TOOLLIST.write().unwrap().handle_event(
+            if self.server_ctx.tools.write().handle_event(
                 &event,
                 ui,
                 ctx,
@@ -10190,7 +10167,7 @@ impl TheTrait for Editor {
             ) {
                 redraw = true;
             }
-            if DOCKMANAGER.write().unwrap().handle_event(
+            if self.server_ctx.docks.write().handle_event(
                 &event,
                 ui,
                 ctx,
@@ -10230,7 +10207,7 @@ impl TheTrait for Editor {
                             && ((input == TextGameState::GAME_INPUT_ID && self.server_ctx.game_mode)
                                 || (input == TextGameState::DOCK_INPUT_ID
                                     && !self.server_ctx.game_mode
-                                    && DOCKMANAGER.read().unwrap().dock == "Text Play"))
+                                    && self.server_ctx.docks.read().dock == "Text Play"))
                             && ui.get_widget(&input).is_some_and(|widget| widget.id().uuid == id.uuid)
                         {
                             self.text_game.activate_input(&input, ui, ctx);
@@ -10276,7 +10253,7 @@ impl TheTrait for Editor {
                             }
                         }
                     } else if id.name == "Minimize Dock" {
-                        DOCKMANAGER.write().unwrap().minimize(
+                        self.server_ctx.docks.write().minimize(
                             ui,
                             ctx,
                             &self.documents.project,
@@ -10310,7 +10287,7 @@ impl TheTrait for Editor {
                                     );
                                 }
                                 if self.server_ctx.editor_view_mode != EditorViewMode::D2 {
-                                    TOOLLIST.write().unwrap().update_geometry_overlay_3d(
+                                    self.server_ctx.tools.write().update_geometry_overlay_3d(
                                         &mut self.documents.project,
                                         &mut self.server_ctx,
                                     );
@@ -10318,9 +10295,7 @@ impl TheTrait for Editor {
                             }
                         }
                     } else if id.name == "Tool Changed" {
-                        TOOLLIST
-                            .write()
-                            .unwrap()
+                        self.server_ctx.tools.write()
                             .update_geometry_overlay_3d(&mut self.documents.project, &mut self.server_ctx);
                     } else if id.name == "Update Client Properties" {
                         let mut rusterix = self.server_ctx.reference.write();
@@ -10799,11 +10774,11 @@ impl TheTrait for Editor {
                             "Theme Light" => CreatorTheme::Light,
                             _ => CreatorTheme::Brown,
                         };
-                        theme.apply(ui, ctx, &self.server_ctx.reference);
+                        theme.apply(ui, ctx, &self.server_ctx.reference, &self.server_ctx.tools);
                         theme.save();
                         redraw = true;
                     } else if id.name == "Dock Edit Maximize" && state == TheWidgetState::Clicked {
-                        DOCKMANAGER.write().unwrap().edit_maximize(
+                        self.server_ctx.docks.write().edit_maximize(
                             ui,
                             ctx,
                             &mut self.documents.project,
@@ -10817,7 +10792,7 @@ impl TheTrait for Editor {
                         ctx.ui.redraw_all = true;
                         redraw = true;
                     } else if id.name == "Dock Restore" && state == TheWidgetState::Clicked {
-                        DOCKMANAGER.write().unwrap().minimize(
+                        self.server_ctx.docks.write().minimize(
                             ui,
                             ctx,
                             &self.documents.project,
@@ -11346,7 +11321,7 @@ impl TheTrait for Editor {
                                 &self.server_ctx,
                             );
                         }
-                        if TOOLLIST.write().unwrap().leave_game_tool_after_stop(
+                        if self.server_ctx.tools.write().leave_game_tool_after_stop(
                             ui,
                             ctx,
                             &mut self.documents.project,
@@ -11443,16 +11418,16 @@ impl TheTrait for Editor {
                             } else {
                                 ui.redo(ctx);
                             }
-                        } else if DOCKMANAGER.read().unwrap().current_dock_supports_undo() {
+                        } else if self.server_ctx.docks.read().current_dock_supports_undo() {
                             if id.name == "Undo" {
-                                DOCKMANAGER.write().unwrap().undo(
+                                self.server_ctx.docks.write().undo(
                                     ui,
                                     ctx,
                                     &mut self.documents.project,
                                     &mut self.server_ctx,
                                 );
                             } else {
-                                DOCKMANAGER.write().unwrap().redo(
+                                self.server_ctx.docks.write().redo(
                                     ui,
                                     ctx,
                                     &mut self.documents.project,
@@ -11526,7 +11501,7 @@ impl TheTrait for Editor {
                             if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
                                 layout.set_split_position(screen_y);
                             }
-                            DOCKMANAGER.write().unwrap().remember_normal_split(ui);
+                            self.server_ctx.docks.write().remember_normal_split(ui);
                             ctx.ui.relayout = true;
                             ctx.ui.redraw_all = true;
                             redraw = true;
@@ -11719,7 +11694,7 @@ impl TheTrait for Editor {
             redraw = true;
         }
 
-        if DOCKMANAGER.write().unwrap().poll_background(
+        if self.server_ctx.docks.write().poll_background(
             ui,
             ctx,
             &mut self.documents.project,
@@ -12078,7 +12053,7 @@ mod tests {
         }
         editor.server_ctx.editor_view_mode = EditorViewMode::D2;
         {
-            let mut tools = TOOLLIST.write().unwrap();
+            let mut tools = editor.server_ctx.tools.write();
             let command = if std::env::var_os("ELDIRON_BENCH_SECTOR").is_some() {
                 "tool.sector"
             } else {
@@ -12181,7 +12156,7 @@ mod tests {
                 .enumerate()
             {
                 let start = web_time::Instant::now();
-                TOOLLIST.write().unwrap().handle_event(
+                editor.server_ctx.tools.write().handle_event(
                     &TheEvent::IndexChanged(TheId::named("Editor View Switch"), target),
                     &mut ui,
                     &mut ctx,
@@ -12333,7 +12308,7 @@ mod tests {
             println!("Creator game benchmark pid={}", std::process::id());
             let start = web_time::Instant::now();
             {
-                let mut tools = TOOLLIST.write().unwrap();
+                let mut tools = editor.server_ctx.tools.write();
                 let id = tools.get_game_tool_uuid_by_command_id("tool.game").unwrap();
                 tools.set_tool(
                     id,
@@ -12519,7 +12494,7 @@ mod tests {
         let props_bench = std::env::var_os("ELDIRON_BENCH_PROPS").is_some();
         if props_bench {
             let started = web_time::Instant::now();
-            let mut tools = TOOLLIST.write().unwrap();
+            let mut tools = editor.server_ctx.tools.write();
             let id = tools
                 .get_game_tool_uuid_by_command_id("tool.blocks")
                 .unwrap();

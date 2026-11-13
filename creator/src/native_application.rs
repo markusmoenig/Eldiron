@@ -619,9 +619,7 @@ mod tests {
                 .has_pending_geometry()
         );
         assert_eq!(
-            crate::editor::TOOLLIST
-                .read()
-                .unwrap()
+            app.application.editor.controllers_for_test().tools.read()
                 .current_game_tool_command_id(),
             Some("tool.vertex")
         );

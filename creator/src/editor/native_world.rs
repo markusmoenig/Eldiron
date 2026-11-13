@@ -457,6 +457,7 @@ impl NativeWorld {
         next: Option<Binding>,
         ui: &mut TheUI,
         camera: &mut EditCamera,
+        creator_tools: &CreatorTools,
     ) {
         if self.binding == next {
             return;
@@ -490,19 +491,24 @@ impl NativeWorld {
         if had_cube_capture && cube_capture.is_none() {
             camera.reset_mouse_tracking();
         }
-        self.invalidate(ui, camera);
+        self.invalidate(ui, camera, creator_tools);
         self.binding = next;
         self.world_capture = capture;
         self.retry_click = retry;
         self.cube_capture = cube_capture;
         self.relative_navigation = relative_navigation;
         if self.binding.is_some() {
-            let mut tools = TOOLLIST.write().unwrap();
+            let mut tools = creator_tools.write();
             tools.native_world_input = true;
             tools.get_current_tool().set_native_overlay_input(true);
         }
     }
-    pub(super) fn invalidate(&mut self, ui: &mut TheUI, camera: &mut EditCamera) {
+    pub(super) fn invalidate(
+        &mut self,
+        ui: &mut TheUI,
+        camera: &mut EditCamera,
+        creator_tools: &CreatorTools,
+    ) {
         if let Some((id, list)) = self.published.take()
             && let Some(view) = ui.get_render_view(&id.name)
             && view.id().uuid == id.uuid
@@ -510,7 +516,7 @@ impl NativeWorld {
             view.clear_paint_list(&list);
         }
         if self.binding.take().is_some() {
-            let mut tools = TOOLLIST.write().unwrap();
+            let mut tools = creator_tools.write();
             tools.native_world_input = false;
             for tool in &mut tools.game_tools {
                 tool.set_native_overlay_input(false);
@@ -534,8 +540,13 @@ impl NativeWorld {
         }
         self.events.clear();
     }
-    pub(super) fn device_reset(&mut self, ui: &mut TheUI, camera: &mut EditCamera) {
-        self.invalidate(ui, camera);
+    pub(super) fn device_reset(
+        &mut self,
+        ui: &mut TheUI,
+        camera: &mut EditCamera,
+        creator_tools: &CreatorTools,
+    ) {
+        self.invalidate(ui, camera, creator_tools);
         // The replaced host registry owns old handles and teardown.
         self.gpu = None;
     }
@@ -547,7 +558,7 @@ fn slots(
     crate::actions::named_geometry_hud_material_slots_for_selection(map)
         .or_else(|| crate::actions::prefab_hud_material_slots_for_selected_instances(map, &server.reference))
         .or_else(|| {
-            let actions = ACTIONLIST.read().unwrap();
+            let actions = server.actions.read();
             actions
                 .get_action_by_id(server.curr_action_id?)?
                 .hud_material_slots(map, server)
@@ -698,7 +709,7 @@ impl Editor {
         {
             self.cancel_native_world_gesture(ui, ctx);
         }
-        self.native_viewport.world.bind(next, ui, &mut self.server_ctx.camera);
+        self.native_viewport.world.bind(next, ui, &mut self.server_ctx.camera, &self.server_ctx.tools);
     }
     pub(crate) fn cancel_native_world_gesture(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
         self.native_viewport.world.relative_navigation = None;
@@ -713,7 +724,7 @@ impl Editor {
             return;
         }
         if owner.context.is_prefab() {
-            DOCKMANAGER.write().unwrap().cancel_native_view_gesture(
+            self.server_ctx.docks.write().cancel_native_view_gesture(
                 owner.context,
                 ui,
                 ctx,
@@ -729,7 +740,7 @@ impl Editor {
         {
             return;
         }
-        let mut tools = TOOLLIST.write().unwrap();
+        let mut tools = self.server_ctx.tools.write();
         if tools.get_current_tool().id().uuid != owner.tool {
             return;
         }
@@ -764,7 +775,7 @@ impl Editor {
         }
     }
     pub(crate) fn invalidate_native_world_viewport(&mut self, ui: &mut TheUI) {
-        self.native_viewport.world.invalidate(ui, &mut self.server_ctx.camera);
+        self.native_viewport.world.invalidate(ui, &mut self.server_ctx.camera, &self.server_ctx.tools);
     }
     pub(crate) fn native_world_owns_viewport(&self) -> bool {
         if !self.native_viewport.enabled
@@ -794,7 +805,7 @@ impl Editor {
                 return false;
             }
         }
-        let tools = TOOLLIST.read().unwrap();
+        let tools = self.server_ctx.tools.read();
         if tools.editor_mode
             || !matches!(
                 tools.current_game_tool_command_id(),
@@ -858,7 +869,7 @@ impl Editor {
         }
         let map = self.documents.project.get_map(&self.server_ctx)?;
         let document = self.documents.active_id()?;
-        let tool = TOOLLIST.write().unwrap().get_current_tool().id().uuid;
+        let tool = self.server_ctx.tools.write().get_current_tool().id().uuid;
         let view = crate::utils::map_editor_render_view(ui, &self.server_ctx)?;
         let dim = *view.dim();
         if dim.width <= 0 || dim.height <= 0 {
@@ -976,9 +987,7 @@ impl Editor {
         ctx: &mut TheContext,
         images: &mut UiFrameImages<'_>,
     ) -> Result<Option<Arc<NativeWorldFrame>>, String> {
-        TOOLLIST
-            .write()
-            .unwrap()
+        self.server_ctx.tools.write()
             .get_current_tool()
             .sync_overlay_sources(&self.documents.project, &self.server_ctx);
         let next = self.native_world_binding(ui, ctx);
@@ -1038,9 +1047,7 @@ impl Editor {
                     .epoch
                     .checked_add(1)
                     .expect("world binding epoch exhausted");
-                TOOLLIST
-                    .write()
-                    .unwrap()
+                self.server_ctx.tools.write()
                     .get_current_tool()
                     .invalidate_overlay();
             }
@@ -1191,7 +1198,7 @@ impl Editor {
                         binding.size.1 as f32,
                     );
                     scene.set_entity_item_selection_visible(
-                        TOOLLIST.read().unwrap().current_game_tool_is("tool.entity"),
+                        self.server_ctx.tools.read().current_game_tool_is("tool.entity"),
                     );
                     scene.build_dynamics_3d(
                         map,
@@ -1200,7 +1207,7 @@ impl Editor {
                         assets,
                         &Default::default(),
                     );
-                    TOOLLIST.write().unwrap().prepare_geometry_overlay_3d(
+                    self.server_ctx.tools.write().prepare_geometry_overlay_3d(
                         &self.documents.project,
                         &self.server_ctx,
                         assets,
@@ -1347,7 +1354,7 @@ impl Editor {
                 height: icon.pixel_height(),
                 pixels: icon.pixels(),
             });
-        let mut tools = TOOLLIST.write().unwrap();
+        let mut tools = self.server_ctx.tools.write();
         let tool = tools.get_current_tool();
         let overlay_inputs = ToolOverlayInputs {
             target,
@@ -1506,9 +1513,7 @@ impl Editor {
         ui: &mut TheUI,
         ctx: &mut TheContext,
     ) {
-        TOOLLIST
-            .write()
-            .unwrap()
+        self.server_ctx.tools.write()
             .get_current_tool()
             .sync_overlay_sources(&self.documents.project, &self.server_ctx);
         let next = self.native_world_binding(ui, ctx);
@@ -1520,9 +1525,7 @@ impl Editor {
         let world = &mut self.native_viewport.world;
         let Some(frame) = frame else {
             if next.is_some() {
-                TOOLLIST
-                    .write()
-                    .unwrap()
+                self.server_ctx.tools.write()
                     .get_current_tool()
                     .invalidate_overlay();
                 world.presented = None;
@@ -1549,9 +1552,7 @@ impl Editor {
                 return;
             }
         }
-        let accepted = frame.binding.paste.is_some() || TOOLLIST
-            .write()
-            .unwrap()
+        let accepted = frame.binding.paste.is_some() || self.server_ctx.tools.write()
             .get_current_tool()
             .presented_overlay(
                 &frame.overlay,
@@ -1585,9 +1586,7 @@ impl Editor {
             return Some(event);
         }
         while let Some(event) = self.native_viewport.world.events.pop_front() {
-            TOOLLIST
-                .write()
-                .unwrap()
+            self.server_ctx.tools.write()
                 .get_current_tool()
                 .sync_overlay_sources(&self.documents.project, &self.server_ctx);
             let next = self.native_world_binding(ui, ctx);
@@ -1599,7 +1598,7 @@ impl Editor {
             let Some(map) = self.documents.project.get_map(&self.server_ctx) else {
                 continue;
             };
-            let mut tools = TOOLLIST.write().unwrap();
+            let mut tools = self.server_ctx.tools.write();
             if let Some(event) = event.take_if_current(
                 tools.get_current_tool().as_mut(),
                 target,
@@ -1676,7 +1675,7 @@ impl Editor {
                 return true;
             }
         }
-        for tool in &mut TOOLLIST.write().unwrap().game_tools {
+        for tool in &mut self.server_ctx.tools.write().game_tools {
             tool.set_view_input(None);
         }
         if !matches!(
@@ -1690,9 +1689,7 @@ impl Editor {
         ) {
             return false;
         }
-        TOOLLIST
-            .write()
-            .unwrap()
+        self.server_ctx.tools.write()
             .get_current_tool()
             .sync_overlay_sources(&self.documents.project, &self.server_ctx);
         let next = self.native_world_binding(ui, ctx);
@@ -1790,7 +1787,7 @@ impl Editor {
                             .get_map(&self.server_ctx)
                             .is_some_and(|map| frame.stamp == SourceStamp::new(map))
                 })
-            && DOCKMANAGER.write().unwrap().prepare_native_view_input(
+            && self.server_ctx.docks.write().prepare_native_view_input(
                 ui,
                 ctx,
                 &mut self.documents.project,
@@ -1848,7 +1845,7 @@ impl Editor {
         }
         if let MapEvent::MapClicked(at) = input {
             if !self.server_ctx.game_input_mode
-                && TOOLLIST.read().unwrap().viewcube_navigation_enabled()
+                && self.server_ctx.tools.read().viewcube_navigation_enabled()
             {
                 let pick = world.cube.pick(
                     binding.cube_target(world.epoch),
@@ -1887,7 +1884,7 @@ impl Editor {
                 .is_some_and(|owner| owner.binding == binding)
         {
             let gesture = world.world_capture.take().unwrap();
-            let mut tools = TOOLLIST.write().unwrap();
+            let mut tools = self.server_ctx.tools.write();
             tools.get_current_tool().set_view_input(gesture.query);
             // Use the complete existing tool dispatcher for undo grouping,
             // surface rebuilding, moved entities and navigation release.
@@ -1901,7 +1898,7 @@ impl Editor {
             tools.get_current_tool().set_view_input(None);
             drop(tools);
             let dock_redraw = if binding.context.is_prefab() {
-                DOCKMANAGER.write().unwrap().handle_event(
+                self.server_ctx.docks.write().handle_event(
                     &TheEvent::RenderViewUp(binding.view.clone(), gesture.point),
                     ui,
                     ctx,
@@ -1921,7 +1918,7 @@ impl Editor {
         let Some(map) = self.documents.project.get_map_mut(&self.server_ctx) else {
             return true;
         };
-        let mut tools = TOOLLIST.write().unwrap();
+        let mut tools = self.server_ctx.tools.write();
         let tool = tools.get_current_tool().as_mut();
         let route = world.overlay_input.route(
             tool,
@@ -1971,7 +1968,7 @@ impl Editor {
             && binding.mode != EditorViewMode::D2
         {
             if let Some(at) = pointer {
-                let mut tools = TOOLLIST.write().unwrap();
+                let mut tools = self.server_ctx.tools.write();
                 let tool = tools.get_current_tool();
                 let rectangle = tool.view_rectangle_query(at);
                 let query = frame
@@ -2010,9 +2007,7 @@ impl Editor {
                     return true;
                 };
                 accepted_query = Some(query.clone());
-                TOOLLIST
-                    .write()
-                    .unwrap()
+                self.server_ctx.tools.write()
                     .get_current_tool()
                     .set_view_input(Some(query));
             }
@@ -2050,9 +2045,7 @@ impl Editor {
                 {
                     return true;
                 }
-                let capture_surface = TOOLLIST
-                    .read()
-                    .unwrap()
+                let capture_surface = self.server_ctx.tools.read()
                     .game_tools
                     .iter()
                     .find(|tool| tool.id().uuid == binding.tool)
@@ -2069,9 +2062,7 @@ impl Editor {
                 };
                 apply_pick(pick, map, &mut self.server_ctx);
                 accepted_query = Some(input.clone());
-                TOOLLIST
-                    .write()
-                    .unwrap()
+                self.server_ctx.tools.write()
                     .get_current_tool()
                     .set_view_input(Some(input));
             }
@@ -2094,9 +2085,7 @@ impl Editor {
                     return true;
                 };
                 accepted_query = Some(query.clone());
-                TOOLLIST
-                    .write()
-                    .unwrap()
+                self.server_ctx.tools.write()
                     .get_current_tool()
                     .set_view_input(Some(query));
             }

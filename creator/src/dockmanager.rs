@@ -1,4 +1,3 @@
-use crate::editor::TOOLLIST;
 use crate::prelude::*;
 use rusterix::prelude::EldrinDebugModule;
 
@@ -45,7 +44,7 @@ impl DockManager {
         TheAccelerator::new(TheAcceleratorKey::CTRLCMD, ']')
     }
 
-    /// Builds an action panel backed by the global action model.
+    /// Builds an action panel backed by the application action model.
     ///
     /// The panel is intentionally independent from the dock canvas so hosts can
     /// place it where it best fits their layout (the Creator sidebar uses it).
@@ -571,14 +570,12 @@ impl DockManager {
 
                     // Switch to editor tools if the dock provides them
                     if let Some(tools) = editor_dock.editor_tools() {
-                        TOOLLIST.write().unwrap().set_editor_tools(tools, ui, ctx);
+                        server_ctx.tools.write().set_editor_tools(tools, ui, ctx);
                     }
                 }
 
                 if self.dock == "Prefabs" {
-                    TOOLLIST
-                        .write()
-                        .unwrap()
+                    server_ctx.tools.write()
                         .set_prefab_tools(ui, ctx, server_ctx);
                 }
 
@@ -633,7 +630,7 @@ impl DockManager {
                 editor_dock.set_undo_state_to_ui(ctx);
             }
             if let Some(tools) = editor_dock.editor_tools() {
-                TOOLLIST.write().unwrap().set_editor_tools(tools, ui, ctx);
+                server_ctx.tools.write().set_editor_tools(tools, ui, ctx);
             }
         }
         self.set_supports_undo(supports_undo, ctx);
@@ -655,7 +652,7 @@ impl DockManager {
                     editor_dock.minimized(ui, ctx);
                 }
                 if restore_game_tools {
-                    TOOLLIST.write().unwrap().set_game_tools(ui, ctx);
+                    server_ctx.tools.write().set_game_tools(ui, ctx);
                     if self.dock == "Prefabs" {
                         server_ctx.palette_tool_active = false;
                     }
@@ -913,7 +910,7 @@ impl DockManager {
         server_ctx: &mut ServerContext,
         is_running: bool,
     ) {
-        let toollist = TOOLLIST.read().unwrap();
+        let toollist = server_ctx.tools.read();
         let current_tool_name = toollist.game_tools[toollist.curr_game_tool]
             .id()
             .name
@@ -1024,7 +1021,7 @@ mod native_graph_owner_tests {
             project: &mut Project,
             _jobs: &CreatorJobs,
             _reference: &CreatorReference,
-            creator_history: &CreatorHistory,
+            _creator_history: &CreatorHistory,
         ) -> Result<bool, String> {
             self.calls.fetch_add(1, Ordering::Relaxed);
             if self.fail {

@@ -55,7 +55,7 @@ impl Editor {
             json!({"x":d.x,"y":d.y,"width":d.width,"height":d.height})
         });
         let tool = {
-            let tools = TOOLLIST.read().unwrap();
+            let tools = self.server_ctx.tools.read();
             json!({"command":tools.current_game_tool_command_id(),"editor_mode":tools.editor_mode,"editor_index":tools.curr_editor_tool})
         };
         let map = self.documents.project.get_map(&self.server_ctx);
@@ -302,9 +302,7 @@ impl Editor {
             TheId::named("Update Minimap"),
             TheValue::Empty,
         ));
-        TOOLLIST
-            .write()
-            .unwrap()
+        self.server_ctx.tools.write()
             .update_geometry_overlay_3d(&mut self.documents.project, &mut self.server_ctx);
         Ok(self.scepter_context(ui))
     }
@@ -342,7 +340,7 @@ impl Editor {
         self.scepter_activate_region(i, ui, ctx);
         // Switch synchronously before setting the requested anchor; the normal
         // lifecycle restores saved cameras, which must not overwrite this focus.
-        TOOLLIST.write().unwrap().handle_event(
+        self.server_ctx.tools.write().handle_event(
             &TheEvent::IndexChanged(TheId::named("Editor View Switch"), view_index as usize),
             ui,
             ctx,

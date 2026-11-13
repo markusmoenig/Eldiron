@@ -238,7 +238,7 @@ pub(crate) fn reference_cases() -> Vec<(&'static str, Arc<dyn RenderViewPaintSou
             data::DataDock, data_editor::DataEditorDock, tilemap::TilemapDock, tiles::TilesDock,
             tiles_editor::TilesEditorDock,
         },
-        editor::DOCKMANAGER,
+
         sidebar::Sidebar,
     };
     let mut project = Project::default();
@@ -357,25 +357,12 @@ pub(crate) fn reference_cases() -> Vec<(&'static str, Arc<dyn RenderViewPaintSou
             }
 
             const KEY: &str = "Native Minimap Checkpoint";
-            struct Restore(DockManagerState, usize, String);
-            impl Drop for Restore {
-                fn drop(&mut self) {
-                    let mut manager = DOCKMANAGER.write().unwrap();
-                    manager.docks.shift_remove(KEY);
-                    manager.state = self.0;
-                    manager.index = self.1;
-                    manager.dock = self.2.clone();
-                }
-            }
-            let restore = {
-                let mut manager = DOCKMANAGER.write().unwrap();
-                assert!(!manager.docks.contains_key(KEY));
-                let saved = Restore(manager.state, manager.index, manager.dock.clone());
+            {
+                let mut manager = server.docks.write();
                 manager.docks.insert(KEY.into(), dock);
                 manager.index = manager.docks.get_index_of(KEY).unwrap();
                 manager.state = DockManagerState::Minimized;
-                saved
-            };
+            }
             let mut ui = TheUI::new();
             let mut view = TheRenderView::new(TheId::named("MiniMap"));
             view.set_dim(TheDim::sized(size.x, size.y), &mut context);
@@ -409,7 +396,7 @@ pub(crate) fn reference_cases() -> Vec<(&'static str, Arc<dyn RenderViewPaintSou
                 ),
                 "a cached static preview must not schedule another presentation"
             );
-            drop(restore);
+            server.docks.write().docks.shift_remove(KEY);
             cases.push((label, source, reference));
         }
         let (source, reference) =

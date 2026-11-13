@@ -27,7 +27,7 @@ impl Editor {
         if self.native_viewport.enabled
             && let Some(document) = self.documents.active_id()
         {
-            TOOLLIST.write().unwrap().bind_native_document(document);
+            self.server_ctx.tools.write().bind_native_document(document);
         }
     }
     pub(crate) fn native_display_owns_viewport(&self) -> bool {
@@ -35,9 +35,7 @@ impl Editor {
             && !self.server_ctx.game_mode
             && !self.server_ctx.game_input_mode
             && !self.server_ctx.text_game_mode
-            && TOOLLIST
-                .read()
-                .unwrap()
+            && self.server_ctx.tools.read()
                 .active_editor_display_owner(&self.server_ctx)
                 .is_some()
     }
@@ -45,9 +43,7 @@ impl Editor {
         let next = (|| {
             if self.native_display_owns_viewport() && !crate::geometry_editor::is_visible(ui) {
                 let document = self.documents.active_id()?;
-                let owner = TOOLLIST
-                    .read()
-                    .unwrap()
+                let owner = self.server_ctx.tools.read()
                     .active_editor_display_owner(&self.server_ctx)?;
                 let view = crate::utils::map_editor_render_view(ui, &self.server_ctx)?;
                 let dim = *view.dim();
@@ -85,7 +81,7 @@ impl Editor {
             .epoch
             .checked_add(1)
             .expect("native viewport binding epoch exhausted");
-        TOOLLIST.write().unwrap().invalidate_native_display();
+        self.server_ctx.tools.write().invalidate_native_display();
     }
     pub(super) fn prepare_native_display_viewport(
         &mut self,
@@ -112,9 +108,7 @@ impl Editor {
             return Ok(None);
         };
         let frame =
-            TOOLLIST
-                .write()
-                .unwrap()
+            self.server_ctx.tools.write()
                 .prepare_native_display(&binding, map, &self.server_ctx);
         let Some(frame) = frame else {
             self.invalidate_native_display_viewport(ui);
@@ -145,14 +139,14 @@ impl Editor {
         let binding = self.resolve_native_display_binding(ui);
         let Some(painted) = painted else {
             if binding.is_some() {
-                TOOLLIST.write().unwrap().invalidate_native_display();
+                self.server_ctx.tools.write().invalidate_native_display();
             }
             return;
         };
         if binding.as_ref() != Some(&painted.binding) {
             return;
         }
-        let accepted = TOOLLIST.write().unwrap().presented_native_display(
+        let accepted = self.server_ctx.tools.write().presented_native_display(
             &painted.binding,
             &painted.frame,
             &[painted.frame.receipt()],
@@ -204,7 +198,7 @@ impl Editor {
         if pointer_id.is_none() && !focused {
             return false;
         }
-        let outcome = TOOLLIST.write().unwrap().native_display_event(
+        let outcome = self.server_ctx.tools.write().native_display_event(
             &binding,
             event,
             focused,

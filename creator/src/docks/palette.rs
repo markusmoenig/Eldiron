@@ -1,7 +1,7 @@
 #[cfg(feature = "native-ui")]
 #[path = "palette_native.rs"]
 mod native;
-use crate::editor::{ACTIONLIST};
+
 use crate::prelude::*;
 use crate::undo::project_helper::{apply_palette, refresh_palette_runtime};
 use rusterix::PixelSource;
@@ -605,9 +605,7 @@ impl PaletteDock {
             && let Some(map) = project.get_map(server_ctx)
             && let Some(action_id) = server_ctx.curr_action_id
         {
-            applied_to_action_slot = ACTIONLIST
-                .write()
-                .unwrap()
+            applied_to_action_slot = server_ctx.actions.write()
                 .get_action_by_id_mut(action_id)
                 .is_some_and(|action| {
                     action
@@ -770,9 +768,7 @@ impl PaletteDock {
             if let Some(map) = project.get_map(server_ctx)
                 && let Some(action_id) = server_ctx.curr_action_id
             {
-                ACTIONLIST
-                    .write()
-                    .unwrap()
+                server_ctx.actions.write()
                     .get_action_by_id_mut(action_id)
                     .is_some_and(|action| {
                         action

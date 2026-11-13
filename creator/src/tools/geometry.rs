@@ -1,4 +1,3 @@
-use crate::editor::{ACTIONLIST, };
 use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use MapEvent::*;
@@ -2934,9 +2933,7 @@ fn activate_project_geometry_action(ui: &mut TheUI, map: &Map, server_ctx: &mut 
         return;
     }
 
-    if let Some(action) = ACTIONLIST
-        .read()
-        .unwrap()
+    if let Some(action) = server_ctx.actions.read()
         .get_action_by_command_id("geometry.edit")
     {
         server_ctx.curr_action_id = Some(action.id().uuid);

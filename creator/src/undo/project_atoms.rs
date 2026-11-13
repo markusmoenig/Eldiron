@@ -1,4 +1,3 @@
-use crate::editor::{DOCKMANAGER, TOOLLIST};
 use crate::prelude::*;
 use crate::toollist::ToolList;
 use shared::project::PaletteMaterial;
@@ -147,7 +146,7 @@ impl ProjectUndoAtom {
             ));
             return;
         }
-        let preserved_dock = DOCKMANAGER.read().unwrap().dock.clone();
+        let preserved_dock = server_ctx.docks.read().dock.clone();
         set_project_context(ctx, ui, project, server_ctx, pc);
         if let Some(map) = project.get_map_mut(server_ctx) {
             let revision = map.changed.max(restored_map.changed).wrapping_add(1);
@@ -185,15 +184,11 @@ impl ProjectUndoAtom {
                 ));
             }
         }
-        if !preserved_dock.is_empty() && DOCKMANAGER.read().unwrap().dock != preserved_dock {
-            DOCKMANAGER
-                .write()
-                .unwrap()
+        if !preserved_dock.is_empty() && server_ctx.docks.read().dock != preserved_dock {
+            server_ctx.docks.write()
                 .set_dock(preserved_dock, ui, ctx, project, server_ctx);
         }
-        TOOLLIST
-            .write()
-            .unwrap()
+        server_ctx.tools.write()
             .update_geometry_overlay_3d(project, server_ctx);
     }
 
@@ -205,7 +200,7 @@ impl ProjectUndoAtom {
         pc: ProjectContext,
         restored_region: &Region,
     ) {
-        let preserved_dock = DOCKMANAGER.read().unwrap().dock.clone();
+        let preserved_dock = server_ctx.docks.read().dock.clone();
         set_project_context(ctx, ui, project, server_ctx, pc);
         if let Some(region) = project.get_region_mut(&restored_region.id) {
             *region = restored_region.clone();
@@ -214,15 +209,11 @@ impl ProjectUndoAtom {
             server_ctx.jobs.scene_mut().update_map(region.map.clone());
             update_region(ctx, &server_ctx.reference);
         }
-        if !preserved_dock.is_empty() && DOCKMANAGER.read().unwrap().dock != preserved_dock {
-            DOCKMANAGER
-                .write()
-                .unwrap()
+        if !preserved_dock.is_empty() && server_ctx.docks.read().dock != preserved_dock {
+            server_ctx.docks.write()
                 .set_dock(preserved_dock, ui, ctx, project, server_ctx);
         }
-        TOOLLIST
-            .write()
-            .unwrap()
+        server_ctx.tools.write()
             .update_geometry_overlay_3d(project, server_ctx);
     }
 

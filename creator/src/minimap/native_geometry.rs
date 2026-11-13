@@ -379,7 +379,7 @@ impl GeometryOverview {
 #[cfg(test)]
 pub(crate) fn reference_cases() -> Vec<(&'static str, Arc<dyn RenderViewPaintSource>, TheRGBABuffer)>
 {
-    use crate::{dockmanager::DockManagerState, editor::DOCKMANAGER, sidebar::Sidebar};
+    use crate::{dockmanager::DockManagerState, sidebar::Sidebar};
     struct Plain;
     impl Dock for Plain {
         fn new() -> Self {
@@ -390,26 +390,6 @@ pub(crate) fn reference_cases() -> Vec<(&'static str, Arc<dyn RenderViewPaintSou
         }
     }
     const KEY: &str = "Geometry Minimap Checkpoint";
-    struct Restore(DockManagerState, usize, String);
-    impl Drop for Restore {
-        fn drop(&mut self) {
-            let mut manager = DOCKMANAGER.write().unwrap();
-            manager.docks.shift_remove(KEY);
-            manager.state = self.0;
-            manager.index = self.1;
-            manager.dock = self.2.clone();
-        }
-    }
-    let _restore = {
-        let mut manager = DOCKMANAGER.write().unwrap();
-        assert!(!manager.docks.contains_key(KEY));
-        let saved = Restore(manager.state, manager.index, manager.dock.clone());
-        manager.docks.insert(KEY.into(), Box::new(Plain));
-        manager.index = manager.docks.get_index_of(KEY).unwrap();
-        manager.state = DockManagerState::Minimized;
-        manager.dock = KEY.into();
-        saved
-    };
     struct Body(Arc<Frame>);
     impl RenderViewPaintSource for Body {
         fn paint(&self, p: &mut WidgetPainter<'_>, _: [f32; 2]) -> UiPaintResult {
@@ -459,6 +439,13 @@ pub(crate) fn reference_cases() -> Vec<(&'static str, Arc<dyn RenderViewPaintSou
             .insert(surface.id, surface.clone());
         project.prefab_editor_map = Some(isolated.clone());
         let mut server = ServerContext::new();
+        {
+            let mut manager = server.docks.write();
+            manager.docks.insert(KEY.into(), Box::new(Plain));
+            manager.index = manager.docks.get_index_of(KEY).unwrap();
+            manager.state = DockManagerState::Minimized;
+            manager.dock = KEY.into();
+        }
         server.pc = ProjectContext::Region(region_id);
         server.curr_region = region_id;
         server.editor_view_mode = EditorViewMode::FirstP;

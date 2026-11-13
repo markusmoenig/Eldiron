@@ -1,6 +1,3 @@
-use crate::editor::{
-    ACTIONLIST, DOCKMANAGER,
-    TOOLLIST, };
 use crate::minimap::{draw_minimap, draw_minimap_context_label, minimap_bbox_for_map};
 use crate::prelude::*;
 use crate::undo::project_helper::*;
@@ -135,7 +132,7 @@ impl Sidebar {
     ) -> bool {
         let changed = Self::set_navigation_page(index, ui, ctx);
         if index == 2 {
-            let prefab = DOCKMANAGER.read().unwrap().dock == "Prefabs";
+            let prefab = server_ctx.docks.read().dock == "Prefabs";
             if prefab {
                 crate::docks::prefab_nodes::sync_node_list(ui, ctx);
             }
@@ -143,9 +140,7 @@ impl Sidebar {
                 crate::docks::nodes::sync_node_list(ui, ctx, server_ctx.pc);
             }
             if !prefab && crate::docks::nodes::has_catalog(server_ctx.pc) {
-                DOCKMANAGER
-                    .write()
-                    .unwrap()
+                server_ctx.docks.write()
                     .set_dock("Nodes".into(), ui, ctx, project, server_ctx);
             }
         } else if index == 3 {
@@ -242,9 +237,7 @@ impl Sidebar {
         if dim.width <= 0 || dim.height <= 0 { return false; }
         #[cfg(feature = "native-ui")]
         if cfg!(not(test)) || ctx.ui.command_paint {
-            let source = DOCKMANAGER
-                .read()
-                .unwrap()
+            let source = server_ctx.docks.read()
                 .get_active_dock()
                 .and_then(|dock| {
                     dock.native_minimap_source(
@@ -295,9 +288,7 @@ impl Sidebar {
         let buffer = view.render_buffer_mut();
         buffer.resize(dim.width, dim.height);
         #[cfg(any(not(feature = "native-ui"), test))]
-        let handled = DOCKMANAGER
-            .read()
-            .unwrap()
+        let handled = server_ctx.docks.read()
             .get_active_dock()
             .is_some_and(|dock| dock.draw_minimap(buffer, project, ctx, server_ctx));
         #[cfg(all(feature = "native-ui", not(test)))]
@@ -917,7 +908,7 @@ impl Sidebar {
                                 );
 
                                 // Open the tile editor dock in editor mode
-                                let mut dm = DOCKMANAGER.write().unwrap();
+                                let mut dm = server_ctx.docks.write();
                                 dm.set_dock("Tiles".into(), ui, ctx, project, server_ctx);
                                 dm.edit_maximize(ui, ctx, project, server_ctx);
                             }
@@ -955,7 +946,7 @@ impl Sidebar {
                         if frame_index < frames.len() {
                             server_ctx.editing_ctx =
                                 PixelEditingContext::ItemIcon(item_id, on, frame_index);
-                            let mut dm = DOCKMANAGER.write().unwrap();
+                            let mut dm = server_ctx.docks.write();
                             dm.set_dock("Tiles".into(), ui, ctx, project, server_ctx);
                             dm.edit_maximize(ui, ctx, project, server_ctx);
                         }
@@ -971,7 +962,7 @@ impl Sidebar {
 
                         // Color selected
                         let palette_minimap_active = server_ctx.palette_tool_active
-                            && DOCKMANAGER.read().unwrap().dock == "Palette";
+                            && server_ctx.docks.read().dock == "Palette";
                         if palette_minimap_active {
                             #[cfg(feature = "native-render")]
                             let color = if ctx.ui.command_paint {
@@ -1319,9 +1310,7 @@ impl Sidebar {
                     // Update the current action params (if any)
                     self.sync_current_action_toml_params(ui, ctx, Some(project), server_ctx);
                     if let Some(curr_action_id) = server_ctx.curr_action_id {
-                        if let Some(action) = ACTIONLIST
-                            .write()
-                            .unwrap()
+                        if let Some(action) = server_ctx.actions.write()
                             .get_action_by_id_mut(curr_action_id)
                         {
                             if let Some(map) = project.get_map_mut(&server_ctx) {
@@ -1333,9 +1322,7 @@ impl Sidebar {
                     }
                 } else if id.name == "Refresh Action Parameters" {
                     if let Some(curr_action_id) = server_ctx.curr_action_id
-                        && let Some(action) = ACTIONLIST
-                            .write()
-                            .unwrap()
+                        && let Some(action) = server_ctx.actions.write()
                             .get_action_by_id_mut(curr_action_id)
                     {
                         self.show_action_toml_params(ui, ctx, server_ctx, action.as_ref());
@@ -1343,9 +1330,7 @@ impl Sidebar {
                 } else if id.name == "Update Action List" {
                     // Update the current action params (if any)
                     if let Some(curr_action_id) = server_ctx.curr_action_id {
-                        if let Some(_action) = ACTIONLIST
-                            .write()
-                            .unwrap()
+                        if let Some(_action) = server_ctx.actions.write()
                             .get_action_by_id_mut(curr_action_id)
                         {
                             // if let Some(map) = project.get_map_mut(&server_ctx) {
@@ -1664,7 +1649,7 @@ impl Sidebar {
             }
             TheEvent::DragStarted(id, text, offset) => {
                 if let Some(key) = id.name.strip_prefix("Node Catalog/") {
-                    let prefab = DOCKMANAGER.read().unwrap().dock == "Prefabs";
+                    let prefab = server_ctx.docks.read().dock == "Prefabs";
                     if (prefab && crate::docks::prefab_nodes::node_available(key))
                         || (!prefab && crate::docks::nodes::node_available(server_ctx.pc, key))
                     {
@@ -1711,7 +1696,7 @@ impl Sidebar {
                     && id.name.starts_with("action")
                 {
                     if let Some(action) =
-                        ACTIONLIST.write().unwrap().get_action_by_id_mut(action_id)
+                        server_ctx.actions.write().get_action_by_id_mut(action_id)
                     {
                         if action.handle_event(event, project, ui, ctx, server_ctx) {
                             return true;
@@ -1728,7 +1713,7 @@ impl Sidebar {
                     {
                         self.mirror_action_params_editor(ui, &id.name, &source);
                         if let Some(action) =
-                            ACTIONLIST.write().unwrap().get_action_by_id_mut(action_id)
+                            server_ctx.actions.write().get_action_by_id_mut(action_id)
                         {
                             let mut nodeui = action.params();
                             if apply_toml_to_nodeui(&mut nodeui, &source).is_ok() {
@@ -1936,7 +1921,7 @@ impl Sidebar {
                     && id.name.starts_with("action")
                 {
                     if let Some(action) =
-                        ACTIONLIST.write().unwrap().get_action_by_id_mut(action_id)
+                        server_ctx.actions.write().get_action_by_id_mut(action_id)
                     {
                         if action.handle_event(event, project, ui, ctx, server_ctx) {
                             if server_ctx.auto_action {
@@ -2047,7 +2032,7 @@ impl Sidebar {
                     && id.name.starts_with("action")
                 {
                     if let Some(action) =
-                        ACTIONLIST.write().unwrap().get_action_by_id_mut(action_id)
+                        server_ctx.actions.write().get_action_by_id_mut(action_id)
                     {
                         if action.handle_event(event, project, ui, ctx, server_ctx) {
                             return true;
@@ -2576,29 +2561,25 @@ impl Sidebar {
                     .matches(ui.shift, ui.ctrl, ui.alt, ui.logo, *c)
                 {
                     let can_maximize = {
-                        let dock_manager = DOCKMANAGER.read().unwrap();
+                        let dock_manager = server_ctx.docks.read();
                         dock_manager.get_state() == DockManagerState::Minimized
                             && !dock_manager.dock.is_empty()
                     };
                     if can_maximize {
-                        DOCKMANAGER
-                            .write()
-                            .unwrap()
+                        server_ctx.docks.write()
                             .edit_maximize(ui, ctx, project, server_ctx);
                         return true;
                     }
                 } else if DockManager::restore_accelerator()
                     .matches(ui.shift, ui.ctrl, ui.alt, ui.logo, *c)
-                    && DOCKMANAGER.read().unwrap().get_state() != DockManagerState::Minimized
+                    && server_ctx.docks.read().get_state() != DockManagerState::Minimized
                 {
-                    DOCKMANAGER
-                        .write()
-                        .unwrap()
+                    server_ctx.docks.write()
                         .minimize(ui, ctx, project, server_ctx);
                     return true;
                 }
 
-                let action_list = ACTIONLIST.write().unwrap();
+                let action_list = server_ctx.actions.write();
                 let mut needs_scene_redraw: bool = false;
                 let mut action_applied = false;
                 for action in &action_list.actions {
@@ -2618,9 +2599,7 @@ impl Sidebar {
                 }
                 if needs_scene_redraw {
                     crate::utils::editor_scene_full_rebuild(project, server_ctx);
-                    TOOLLIST
-                        .write()
-                        .unwrap()
+                    server_ctx.tools.write()
                         .update_geometry_overlay_3d(project, server_ctx);
                 }
                 if action_applied {
@@ -2632,11 +2611,9 @@ impl Sidebar {
             }
             TheEvent::KeyCodeDown(TheValue::KeyCode(code)) => {
                 if *code == TheKeyCode::Escape
-                    && DOCKMANAGER.read().unwrap().get_state() == DockManagerState::Editor
+                    && server_ctx.docks.read().get_state() == DockManagerState::Editor
                 {
-                    DOCKMANAGER
-                        .write()
-                        .unwrap()
+                    server_ctx.docks.write()
                         .minimize(ui, ctx, project, server_ctx);
                     return true;
                 }
@@ -2723,7 +2700,7 @@ impl Sidebar {
                     // updates must happen after releasing the global action
                     // list lock. Parameter editors can synchronously generate
                     // more UI work that also consults the action catalog.
-                    let mut actions = ACTIONLIST.write().unwrap();
+                    let mut actions = server_ctx.actions.write();
                     actions.get_action_by_id_mut(id.uuid).map(|action| {
                         server_ctx.curr_action_id = Some(action.id().uuid);
 
@@ -2747,12 +2724,12 @@ impl Sidebar {
                         )
                     })
                 } {
-                    TOOLLIST.write().unwrap().begin_action_edit(
+                    server_ctx.tools.write().begin_action_edit(
                         action_id,
                         server_ctx.pc,
                         editor_display,
                         ctx,
-                    );
+                     &server_ctx.actions);
                     self.show_action_toml_snapshot(ui, ctx, accelerator, &params, title);
 
                     if auto_apply {
@@ -2764,7 +2741,7 @@ impl Sidebar {
                 } else if id.name == "Action Apply" || id.name == "Project Action Apply" {
                     if let Some(action_id) = server_ctx.curr_action_id {
                         self.sync_current_action_toml_params(ui, ctx, Some(project), server_ctx);
-                        if let Some(action) = ACTIONLIST.read().unwrap().get_action_by_id(action_id)
+                        if let Some(action) = server_ctx.actions.read().get_action_by_id(action_id)
                         {
                             let mut needs_scene_redraw = false;
                             if let Some(map) = project.get_map_mut(&server_ctx) {
@@ -2781,9 +2758,7 @@ impl Sidebar {
 
                             if needs_scene_redraw {
                                 crate::utils::editor_scene_full_rebuild(project, server_ctx);
-                                TOOLLIST
-                                    .write()
-                                    .unwrap()
+                                server_ctx.tools.write()
                                     .update_geometry_overlay_3d(project, server_ctx);
                             }
                             // Keep applicability in sync after every apply.
@@ -3981,7 +3956,7 @@ impl Sidebar {
         self.show_actions(ui, ctx, project, server_ctx);
         self.update_tiles(ui, ctx, project, &server_ctx.jobs, &server_ctx.reference);
 
-        TOOLLIST.write().unwrap().get_current_tool().tool_event(
+        server_ctx.tools.write().get_current_tool().tool_event(
             ToolEvent::Activate,
             ui,
             ctx,
@@ -4864,7 +4839,7 @@ impl Sidebar {
         if source.trim().is_empty() {
             return false;
         }
-        let mut actionlist = ACTIONLIST.write().unwrap();
+        let mut actionlist = server_ctx.actions.write();
         let Some(action) = actionlist.get_action_by_id_mut(action_id) else {
             return false;
         };
@@ -4928,7 +4903,7 @@ impl Sidebar {
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> Result<(), String> {
-        let mut actions = ACTIONLIST.write().unwrap();
+        let mut actions = server_ctx.actions.write();
         let action = actions
             .get_action_by_command_id_mut(&request.command_id)
             .ok_or_else(|| format!("Unknown editor action '{}'.", request.command_id))?;
@@ -4967,9 +4942,7 @@ impl Sidebar {
 
         if needs_scene_redraw {
             crate::utils::editor_scene_full_rebuild(project, server_ctx);
-            TOOLLIST
-                .write()
-                .unwrap()
+            server_ctx.tools.write()
                 .update_geometry_overlay_3d(project, server_ctx);
         }
         ctx.ui.send(TheEvent::Custom(
@@ -4989,7 +4962,7 @@ impl Sidebar {
         server_ctx: &mut ServerContext,
     ) -> Result<bool, String> {
         let resolved = {
-            let tools = TOOLLIST.read().unwrap();
+            let tools = server_ctx.tools.read();
             tools
                 .get_game_tool_uuid_by_command_id(command_id)
                 .and_then(|id| {
@@ -5009,9 +4982,7 @@ impl Sidebar {
             ));
         }
 
-        let changed = TOOLLIST
-            .write()
-            .unwrap()
+        let changed = server_ctx.tools.write()
             .set_tool(tool_id, ui, ctx, project, server_ctx);
         ctx.ui.set_widget_state(tool_name, TheWidgetState::Selected);
         Ok(changed)
@@ -5057,12 +5028,12 @@ impl Sidebar {
             {
                 list_layout.clear();
 
-                let actions = ACTIONLIST.read().unwrap();
+                let actions = server_ctx.actions.read();
                 let mut found_current = false;
 
                 let mut visible_actions: Vec<(usize, usize, TheListItem)> = vec![];
                 let hide_camera_actions =
-                    DOCKMANAGER.read().unwrap().get_state() == DockManagerState::Editor;
+                    server_ctx.docks.read().get_state() == DockManagerState::Editor;
 
                 if let Some(map) = project.get_map(server_ctx).or(Some(&Map::default())) {
                     for (registration_index, action) in actions.actions.iter().enumerate() {
@@ -5125,7 +5096,7 @@ impl Sidebar {
 
         if let Some(action_id) = server_ctx.curr_action_id {
             self.sync_current_action_toml_params(ui, ctx, None, server_ctx);
-            if let Some(action) = ACTIONLIST.write().unwrap().get_action_by_id_mut(action_id) {
+            if let Some(action) = server_ctx.actions.write().get_action_by_id_mut(action_id) {
                 if let Some(map) = project.get_map(server_ctx) {
                     action.load_params(map);
                 } else {

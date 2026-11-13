@@ -64,9 +64,7 @@ impl Action for FirstPCamera {
         _ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) {
-        crate::editor::TOOLLIST
-            .write()
-            .unwrap()
+        server_ctx.tools.write()
             .update_geometry_overlay_3d(project, server_ctx);
     }
 

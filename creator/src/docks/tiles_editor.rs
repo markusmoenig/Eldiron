@@ -1,5 +1,5 @@
 use crate::docks::tiles_editor_undo::*;
-use crate::editor::TOOLLIST;
+
 use crate::prelude::*;
 #[path = "tiles_editor_clipboard.rs"]
 mod clipboard;
@@ -352,9 +352,7 @@ impl Dock for TilesEditorDock {
                     );
                     self.set_item_icon(&item, ui, ctx, server_ctx);
                 } else if id.name == "Tile Editor Undo Available" {
-                    if let Some(atom) = TOOLLIST
-                        .write()
-                        .unwrap()
+                    if let Some(atom) = server_ctx.tools.write()
                         .get_current_editor_tool()
                         .get_undo_atom(project)
                     {

@@ -132,7 +132,7 @@ pub fn activate(
     // the application dock here would minimize that editor and re-enter the
     // ToolList lock held by tool activation.
     if !server.pc.is_prefab() {
-        crate::editor::DOCKMANAGER.write().unwrap().set_dock(
+        server.docks.write().set_dock(
             "Tiles".into(),
             ui,
             ctx,

@@ -1,5 +1,5 @@
 use crate::actions::geometry_face_ops::surface_segment_points;
-use crate::editor::{ACTIONLIST, DOCKMANAGER};
+
 use crate::editor_display::{
     EditorDisplay, EditorDisplayOwner, EditorDisplayResult, EditorDisplaySession,
 };
@@ -254,8 +254,12 @@ impl ToolList {
     const DEFAULT_GAME_TOOL_COMMAND_ID: &'static str = "tool.sector";
     const GRID_SUBDIVISIONS: [f32; 6] = [1.0, 2.0, 4.0, 8.0, 16.0, 32.0];
 
-    pub fn reset_for_project_switch(&mut self, ctx: &mut TheContext) {
-        self.cancel_editor_display_session();
+    pub fn reset_for_project_switch(
+        &mut self,
+        ctx: &mut TheContext,
+        creator_actions: &CreatorActions,
+    ) {
+        self.cancel_editor_display_session( creator_actions);
         self.authoring_mode = false;
         self.text_game_mode = false;
         self.palette_mode = false;
@@ -287,11 +291,10 @@ impl ToolList {
         owner: EditorDisplayOwner,
         expected: &EditorDisplay,
         display: &EditorDisplay,
+        creator_actions: &CreatorActions,
     ) -> bool {
         match owner {
-            EditorDisplayOwner::Action(action_id) => ACTIONLIST
-                .write()
-                .unwrap()
+            EditorDisplayOwner::Action(action_id) => creator_actions.write()
                 .get_action_by_id_mut(action_id)
                 .is_some_and(|action| {
                     action.editor_display().as_ref() == Some(expected)
@@ -308,13 +311,13 @@ impl ToolList {
         }
     }
 
-    fn cancel_editor_display_session(&mut self) {
+    fn cancel_editor_display_session(&mut self, creator_actions: &CreatorActions) {
         if let Some(session) = self.editor_display_session.take() {
             self.update_editor_display_owner(
                 session.owner,
                 session.working_display(),
                 session.original_display(),
-            );
+             creator_actions);
         }
     }
 
@@ -328,13 +331,14 @@ impl ToolList {
         project_context: ProjectContext,
         display: Option<EditorDisplay>,
         ctx: &mut TheContext,
+        creator_actions: &CreatorActions,
     ) {
         self.begin_editor_display(
             EditorDisplayOwner::Action(action_id),
             project_context,
             display,
             ctx,
-        );
+         creator_actions);
     }
 
     pub fn begin_tool_edit(
@@ -343,13 +347,14 @@ impl ToolList {
         project_context: ProjectContext,
         display: Option<EditorDisplay>,
         ctx: &mut TheContext,
+        creator_actions: &CreatorActions,
     ) {
         self.begin_editor_display(
             EditorDisplayOwner::Tool(tool_id),
             project_context,
             display,
             ctx,
-        );
+         creator_actions);
     }
 
     fn begin_editor_display(
@@ -358,6 +363,7 @@ impl ToolList {
         project_context: ProjectContext,
         display: Option<EditorDisplay>,
         ctx: &mut TheContext,
+        creator_actions: &CreatorActions,
     ) {
         if self
             .editor_display_session
@@ -369,7 +375,7 @@ impl ToolList {
         {
             return;
         }
-        self.cancel_editor_display_session();
+        self.cancel_editor_display_session( creator_actions);
         if let Some(display) = display {
             let status_text = display.status_text().to_string();
             self.editor_display_session = Some(EditorDisplaySession::new_for_owner(
@@ -412,7 +418,7 @@ impl ToolList {
             .as_ref()
             .is_some_and(|session| session.project_context != server_ctx.pc)
         {
-            self.cancel_editor_display_session();
+            self.cancel_editor_display_session( &server_ctx.actions);
             return false;
         }
 
@@ -449,7 +455,7 @@ impl ToolList {
                 true
             }
             EditorDisplayResult::DisplayChanged(display) => {
-                if !self.update_editor_display_owner(owner, &expected, &display) {
+                if !self.update_editor_display_owner(owner, &expected, &display, &server_ctx.actions) {
                     self.editor_display_session = None;
                 }
                 ctx.ui.redraw_all = true;
@@ -496,7 +502,7 @@ impl ToolList {
                     session.owner,
                     session.working_display(),
                     session.original_display(),
-                );
+                 &server_ctx.actions);
                 ctx.ui.send(TheEvent::SetStatusText(
                     TheId::empty(),
                     "Editor display changes cancelled.".to_string(),
@@ -534,7 +540,7 @@ impl ToolList {
         {
             slots.len()
         } else if let Some(action_id) = server_ctx.curr_action_id {
-            let actionlist = ACTIONLIST.read().unwrap();
+            let actionlist = server_ctx.actions.read();
             actionlist
                 .get_action_by_id(action_id)
                 .and_then(|action| action.hud_material_slots(map, server_ctx))
@@ -2286,11 +2292,9 @@ impl ToolList {
         if self.editor_mode || self.prefab_mode || !self.palette_mode {
             return;
         }
-        let current_dock = DOCKMANAGER.read().unwrap().dock.clone();
+        let current_dock = server_ctx.docks.read().dock.clone();
         if current_dock == "Tiles" {
-            DOCKMANAGER
-                .write()
-                .unwrap()
+            server_ctx.docks.write()
                 .set_dock("Palette".into(), ui, ctx, project, server_ctx);
         }
     }
@@ -2336,7 +2340,7 @@ impl ToolList {
             return true;
         }
 
-        let current_dock = DOCKMANAGER.read().unwrap().dock.clone();
+        let current_dock = server_ctx.docks.read().dock.clone();
         if self.palette_mode {
             self.previous_sidebar_mode = Some(server_ctx.sidebar_mode);
             self.previous_palette_dock = if current_dock == "Palette" {
@@ -2345,9 +2349,7 @@ impl ToolList {
                 Some(current_dock)
             };
             server_ctx.sidebar_mode = SidebarMode::Palette;
-            DOCKMANAGER
-                .write()
-                .unwrap()
+            server_ctx.docks.write()
                 .set_dock("Palette".into(), ui, ctx, project, server_ctx);
         } else if current_dock == "Palette" {
             if let Some(mode) = self.previous_sidebar_mode.take() {
@@ -2357,9 +2359,7 @@ impl ToolList {
                 .previous_palette_dock
                 .take()
                 .unwrap_or_else(|| "Tiles".into());
-            DOCKMANAGER
-                .write()
-                .unwrap()
+            server_ctx.docks.write()
                 .set_dock(previous_dock, ui, ctx, project, server_ctx);
         } else if let Some(mode) = self.previous_sidebar_mode.take() {
             server_ctx.sidebar_mode = mode;
@@ -3297,14 +3297,14 @@ impl ToolList {
             TheEvent::StateChanged(id, state) => {
                 if id.name == Self::AUTHORING_BUTTON_NAME && *state == TheWidgetState::Clicked {
                     self.authoring_mode = !self.authoring_mode;
-                    let current_dock = DOCKMANAGER.read().unwrap().dock.clone();
+                    let current_dock = server_ctx.docks.read().dock.clone();
                     if self.authoring_mode || current_dock == "Authoring" {
                         let dock = if self.authoring_mode {
                             "Authoring"
                         } else {
                             "Tiles"
                         };
-                        DOCKMANAGER.write().unwrap().set_dock(
+                        server_ctx.docks.write().set_dock(
                             dock.into(),
                             ui,
                             ctx,
@@ -4516,7 +4516,7 @@ impl ToolList {
                 }
             }
             if switched_tool {
-                self.cancel_editor_display_session();
+                self.cancel_editor_display_session( &server_ctx.actions);
                 if self.current_game_tool_is("tool.game")
                     && !self.game_tool_index_is(old_tool_index, "tool.game")
                 {
@@ -4555,13 +4555,11 @@ impl ToolList {
                 // late event can reopen the lower dock after a full-screen
                 // tool such as Game has already hidden it.
                 let keep_prefab_editor_open = {
-                    let manager = DOCKMANAGER.read().unwrap();
+                    let manager = server_ctx.docks.read();
                     manager.state == DockManagerState::Editor && manager.dock == "Prefabs"
                 };
                 if !keep_prefab_editor_open {
-                    DOCKMANAGER
-                        .write()
-                        .unwrap()
+                    server_ctx.docks.write()
                         .minimize_for_tool_switch(ui, ctx, project, server_ctx);
                 }
             }
@@ -4577,7 +4575,7 @@ impl ToolList {
             if switched_tool {
                 let tool_id = self.game_tools[self.curr_game_tool].id().uuid;
                 let display = self.game_tools[self.curr_game_tool].editor_display();
-                self.begin_tool_edit(tool_id, server_ctx.pc, display, ctx);
+                self.begin_tool_edit(tool_id, server_ctx.pc, display, ctx, &server_ctx.actions);
             }
 
             let preserve_surface_detail_host = server_ctx.curr_map_tool_type

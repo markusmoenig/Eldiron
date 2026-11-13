@@ -15,7 +15,7 @@ fn capture(gpu: &GpuContext, mut ticket: ReadbackTicket) -> Vec<u8> {
 pub(crate) fn check(gpu: &Arc<GpuContext>, renderer: &mut PaintRenderer) {
     // Suppress unrelated dock previews while exercising the real Sidebar route.
     // Editor state and concurrent authoring content are restored on all exits.
-    use crate::{dockmanager::DockManagerState, editor::DOCKMANAGER, sidebar::Sidebar};
+    use crate::{dockmanager::DockManagerState, sidebar::Sidebar};
     struct Plain;
     impl Dock for Plain {
         fn new() -> Self {
@@ -26,26 +26,6 @@ pub(crate) fn check(gpu: &Arc<GpuContext>, renderer: &mut PaintRenderer) {
         }
     }
     const KEY: &str = "Scene Minimap Checkpoint";
-    struct Restore(DockManagerState, usize, String);
-    impl Drop for Restore {
-        fn drop(&mut self) {
-            let mut manager = DOCKMANAGER.write().unwrap();
-            manager.docks.shift_remove(KEY);
-            manager.state = self.0;
-            manager.index = self.1;
-            manager.dock = self.2.clone();
-        }
-    }
-    let _restore = {
-        let mut manager = DOCKMANAGER.write().unwrap();
-        assert!(!manager.docks.contains_key(KEY));
-        let saved = Restore(manager.state, manager.index, manager.dock.clone());
-        manager.docks.insert(KEY.into(), Box::new(Plain));
-        manager.index = manager.docks.get_index_of(KEY).unwrap();
-        manager.state = DockManagerState::Minimized;
-        manager.dock = KEY.into();
-        saved
-    };
     let mut assets = rusterix::Assets::default();
     let mut tile = rusterix::Tile::from_texture(rusterix::Texture::new(
         [100, 180, 80, 255].repeat(16 * 32),
@@ -87,6 +67,13 @@ pub(crate) fn check(gpu: &Arc<GpuContext>, renderer: &mut PaintRenderer) {
     let id = author.id;
     project.regions.push(author);
     let mut server = ServerContext::new();
+    {
+        let mut manager = server.docks.write();
+        manager.docks.insert(KEY.into(), Box::new(Plain));
+        manager.index = manager.docks.get_index_of(KEY).unwrap();
+        manager.state = DockManagerState::Minimized;
+        manager.dock = KEY.into();
+    }
     server.pc = ProjectContext::Region(id);
     server.curr_region = id;
     server.editor_view_mode = EditorViewMode::FirstP;

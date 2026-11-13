@@ -1,4 +1,3 @@
-use crate::editor::{DOCKMANAGER, };
 use crate::prelude::*;
 use rusterix::PixelSource;
 
@@ -52,7 +51,7 @@ impl Action for ApplyTile {
         (!map.selected_sectors.is_empty()
             || !map.selected_geometry_faces.is_empty()
             || !map.selected_geometry_objects.is_empty())
-            && DOCKMANAGER.read().unwrap().dock == "Tiles"
+            && server_ctx.docks.read().dock == "Tiles"
             && (server_ctx.curr_tile_source.is_some() || server_ctx.curr_tile_id.is_some())
     }
 

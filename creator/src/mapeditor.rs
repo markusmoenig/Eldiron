@@ -1,4 +1,3 @@
-
 use crate::prelude::*;
 use rusterix::Value;
 use vek::{Vec2, Vec3};
@@ -603,7 +602,7 @@ impl MapEditor {
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
-        let native_view_owned = crate::editor::TOOLLIST.read().unwrap().native_world_input;
+        let native_view_owned = server_ctx.tools.read().native_world_input;
         if native_view_owned
             && let Some(translated) = crate::utils::native_prefab_view_event(event, server_ctx, ui)
         {

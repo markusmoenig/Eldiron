@@ -9,7 +9,7 @@ impl Editor {
         result: &ImageClipboardResult,
         session: &mut UiSession,
     ) -> InputResponse {
-        let redraw = DOCKMANAGER.write().unwrap().handle_event(
+        let redraw = self.server_ctx.docks.write().handle_event(
             &TheEvent::ImageClipboardResult(request, result.clone()),
             &mut session.ui,
             &mut session.context,

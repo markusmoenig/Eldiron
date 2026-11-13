@@ -66,9 +66,7 @@ impl Action for FilterEditingGeo {
         server_ctx.editing_geo_filter = EditingGeoFilter::from_index(mode);
 
         crate::utils::editor_scene_full_rebuild(project, server_ctx);
-        crate::editor::TOOLLIST
-            .write()
-            .unwrap()
+        server_ctx.tools.write()
             .update_geometry_overlay_3d(project, server_ctx);
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Update Client Properties"),

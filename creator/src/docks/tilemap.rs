@@ -1,4 +1,3 @@
-
 use crate::prelude::*;
 use rusterix::TileRole;
 
@@ -543,7 +542,6 @@ impl TilemapDock {
 
         //     buffer.copy_into(0, 0, &tile.buffer[0]);
         // }
-        // *PREVIEW_ICON.write().unwrap() = (tile, 0);
     }
 
     /// Compute the selection preview

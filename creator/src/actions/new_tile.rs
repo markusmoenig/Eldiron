@@ -1,6 +1,6 @@
 use rusterix::Texture;
 
-use crate::editor::DOCKMANAGER;
+
 use crate::prelude::*;
 
 pub struct NewTile {
@@ -66,7 +66,7 @@ impl Action for NewTile {
         _ctx: &mut TheContext,
         _server_ctx: &ServerContext,
     ) -> bool {
-        DOCKMANAGER.read().unwrap().dock == "Tiles"
+        _server_ctx.docks.read().dock == "Tiles"
     }
 
     fn apply_project(

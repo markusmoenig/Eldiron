@@ -1,4 +1,3 @@
-use crate::editor::{DOCKMANAGER};
 use crate::prelude::*;
 
 const REMAP_ALL_ID: &str = "actionRemapAll";
@@ -299,7 +298,7 @@ impl Action for RemapTile {
     }
 
     fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        DOCKMANAGER.read().unwrap().dock == "Tiles"
+        server_ctx.docks.read().dock == "Tiles"
             && (server_ctx.curr_tile_source.is_some() || server_ctx.curr_tile_id.is_some())
     }
 

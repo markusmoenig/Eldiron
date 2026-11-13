@@ -1,4 +1,3 @@
-use crate::editor::{DOCKMANAGER};
 use crate::prelude::*;
 use crate::sidebar::SidebarMode;
 use ToolEvent::*;
@@ -70,7 +69,7 @@ impl Tool for PaletteTool {
                 server_ctx.hover_cursor = None;
                 server_ctx.hover_cursor_3d = None;
 
-                let current_dock = DOCKMANAGER.read().unwrap().dock.clone();
+                let current_dock = server_ctx.docks.read().dock.clone();
                 if current_dock != "Palette" {
                     self.previous_dock = if current_dock.is_empty() {
                         None
@@ -81,7 +80,7 @@ impl Tool for PaletteTool {
                 self.previous_sidebar_mode = Some(server_ctx.sidebar_mode);
                 server_ctx.sidebar_mode = SidebarMode::Palette;
 
-                DOCKMANAGER.write().unwrap().set_dock(
+                server_ctx.docks.write().set_dock(
                     "Palette".into(),
                     ui,
                     ctx,
@@ -98,12 +97,10 @@ impl Tool for PaletteTool {
                 if let Some(mode) = self.previous_sidebar_mode.take() {
                     server_ctx.sidebar_mode = mode;
                 }
-                if DOCKMANAGER.read().unwrap().dock == "Palette"
+                if server_ctx.docks.read().dock == "Palette"
                     && let Some(prev) = self.previous_dock.take()
                 {
-                    DOCKMANAGER
-                        .write()
-                        .unwrap()
+                    server_ctx.docks.write()
                         .set_dock(prev, ui, ctx, project, server_ctx);
                 }
                 true

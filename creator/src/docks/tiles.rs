@@ -1,4 +1,3 @@
-use crate::editor::{ACTIONLIST};
 use crate::prelude::*;
 use rusterix::{TileRole, TileSource, VertexBlendPreset};
 use web_time::Instant;
@@ -672,9 +671,7 @@ impl Dock for TilesDock {
                                 && let Some(action_id) = server_ctx.curr_action_id
                                 && let Some(source) = selected_material_source.clone()
                             {
-                                ACTIONLIST
-                                    .write()
-                                    .unwrap()
+                                server_ctx.actions.write()
                                     .get_action_by_id_mut(action_id)
                                     .is_some_and(|action| {
                                         action.hud_material_slots(map, server_ctx).is_some_and(
@@ -857,9 +854,7 @@ impl Dock for TilesDock {
                         if let Some(map) = project.get_map(server_ctx)
                             && let Some(action_id) = server_ctx.curr_action_id
                         {
-                            ACTIONLIST
-                                .write()
-                                .unwrap()
+                            server_ctx.actions.write()
                                 .get_action_by_id_mut(action_id)
                                 .is_some_and(|action| {
                                     action.hud_material_slots(map, server_ctx).is_some_and(
@@ -1305,9 +1300,7 @@ impl TilesDock {
             return;
         }
 
-        if let Some(action) = ACTIONLIST
-            .read()
-            .unwrap()
+        if let Some(action) = server_ctx.actions.read()
             .get_action_by_command_id("tile.edit_metadata")
         {
             server_ctx.curr_action_id = Some(action.id().uuid);

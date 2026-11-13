@@ -1,4 +1,3 @@
-use crate::editor::{DOCKMANAGER, TOOLLIST};
 use crate::prelude::*;
 use rusterix::material_library::MATERIAL_PRESET_NAMES;
 use theframework::prelude::*;
@@ -8,8 +7,8 @@ const ITEM_INSTANCE_TREE_PALETTE_SLOT: usize = ActionGroup::Bake.palette_slot();
 const AREA_TREE_PALETTE_SLOT: usize = ActionGroup::Geometry.palette_slot();
 const RULESET_ITEM_TREE_PALETTE_SLOT: usize = ITEM_INSTANCE_TREE_PALETTE_SLOT;
 
-fn tiles_or_authoring_dock() -> String {
-    let toollist = TOOLLIST.read().unwrap();
+fn tiles_or_authoring_dock(creator_tools: &CreatorTools) -> String {
+    let toollist = creator_tools.read();
     if toollist.authoring_mode {
         "Authoring".into()
     } else if !toollist.editor_mode {
@@ -1162,7 +1161,7 @@ pub fn set_project_context(
     }
 
     server_ctx.pc = pc;
-    let active_dock = crate::editor::DOCKMANAGER.read().unwrap().dock.clone();
+    let active_dock = server_ctx.docks.read().dock.clone();
     if active_dock == "Prefabs" {
         crate::docks::prefab_nodes::sync_node_list(ui, ctx);
     } else {
@@ -1203,8 +1202,8 @@ pub fn set_project_context(
                     TheValue::Text(format!("{}: {}", fl!("region"), region.name)),
                 );
             }
-            DOCKMANAGER.write().unwrap().set_dock(
-                tiles_or_authoring_dock(),
+            server_ctx.docks.write().set_dock(
+                tiles_or_authoring_dock( &server_ctx.tools),
                 ui,
                 ctx,
                 project,
@@ -1220,9 +1219,7 @@ pub fn set_project_context(
                     TheValue::Text(format!("Region Settings: {}", region.name)),
                 );
             }
-            DOCKMANAGER
-                .write()
-                .unwrap()
+            server_ctx.docks.write()
                 .set_dock("Data".into(), ui, ctx, project, server_ctx);
         }
         ProjectContext::RegionCode(id) => {
@@ -1234,9 +1231,7 @@ pub fn set_project_context(
                     TheValue::Text(format!("Region Behavior: {}", region.name)),
                 );
             }
-            DOCKMANAGER
-                .write()
-                .unwrap()
+            server_ctx.docks.write()
                 .set_dock("Nodes".into(), ui, ctx, project, server_ctx);
         }
         ProjectContext::RegionArea(region_id, area) => {
@@ -1253,9 +1248,7 @@ pub fn set_project_context(
                     TheValue::Text(format!("Area Behavior: {}", name)),
                 );
             }
-            DOCKMANAGER
-                .write()
-                .unwrap()
+            server_ctx.docks.write()
                 .set_dock("Nodes".into(), ui, ctx, project, server_ctx);
         }
         ProjectContext::RegionCharacterInstance(id, instance) => {
@@ -1282,9 +1275,7 @@ pub fn set_project_context(
                     TheValue::Text(format!("{name} · {source}")),
                 );
             }
-            DOCKMANAGER
-                .write()
-                .unwrap()
+            server_ctx.docks.write()
                 .set_dock("Nodes".into(), ui, ctx, project, server_ctx);
         }
         ProjectContext::RegionItemInstance(id, _) => {
@@ -1296,8 +1287,8 @@ pub fn set_project_context(
                     TheValue::Text(format!("Region ({}) Item", region.name)),
                 );
             }
-            DOCKMANAGER.write().unwrap().set_dock(
-                tiles_or_authoring_dock(),
+            server_ctx.docks.write().set_dock(
+                tiles_or_authoring_dock( &server_ctx.tools),
                 ui,
                 ctx,
                 project,
@@ -1312,8 +1303,8 @@ pub fn set_project_context(
                     TheValue::Text(format!("Character: {}", region.name)),
                 );
             }
-            DOCKMANAGER.write().unwrap().set_dock(
-                tiles_or_authoring_dock(),
+            server_ctx.docks.write().set_dock(
+                tiles_or_authoring_dock( &server_ctx.tools),
                 ui,
                 ctx,
                 project,
@@ -1328,9 +1319,7 @@ pub fn set_project_context(
                     TheValue::Text(format!("Character: {}", region.name)),
                 );
             }
-            DOCKMANAGER
-                .write()
-                .unwrap()
+            server_ctx.docks.write()
                 .set_dock("Nodes".into(), ui, ctx, project, server_ctx);
         }
         ProjectContext::CharacterData(id) => {
@@ -1341,9 +1330,7 @@ pub fn set_project_context(
                     TheValue::Text(format!("Character: {}", region.name)),
                 );
             }
-            DOCKMANAGER
-                .write()
-                .unwrap()
+            server_ctx.docks.write()
                 .set_dock("Nodes".into(), ui, ctx, project, server_ctx);
         }
         ProjectContext::CharacterPreviewRigging(id) => {
@@ -1354,9 +1341,7 @@ pub fn set_project_context(
                     TheValue::Text(format!("Character Preview Rigging: {}", region.name)),
                 );
             }
-            DOCKMANAGER
-                .write()
-                .unwrap()
+            server_ctx.docks.write()
                 .set_dock("Data".into(), ui, ctx, project, server_ctx);
         }
         ProjectContext::Item(id) => {
@@ -1367,8 +1352,8 @@ pub fn set_project_context(
                     TheValue::Text(format!("Item: {}", item.name)),
                 );
             }
-            DOCKMANAGER.write().unwrap().set_dock(
-                tiles_or_authoring_dock(),
+            server_ctx.docks.write().set_dock(
+                tiles_or_authoring_dock( &server_ctx.tools),
                 ui,
                 ctx,
                 project,
@@ -1383,9 +1368,7 @@ pub fn set_project_context(
                     TheValue::Text(format!("Item: {}", item.name)),
                 );
             }
-            DOCKMANAGER
-                .write()
-                .unwrap()
+            server_ctx.docks.write()
                 .set_dock("Nodes".into(), ui, ctx, project, server_ctx);
         }
         ProjectContext::ItemData(id) => {
@@ -1396,9 +1379,7 @@ pub fn set_project_context(
                     TheValue::Text(format!("Item: {}", item.name)),
                 );
             }
-            DOCKMANAGER
-                .write()
-                .unwrap()
+            server_ctx.docks.write()
                 .set_dock("Nodes".into(), ui, ctx, project, server_ctx);
         }
         ProjectContext::Tilemap(id) => {
@@ -1409,9 +1390,7 @@ pub fn set_project_context(
                     TheValue::Text(format!("Tilemap: {}", tilemap.name)),
                 );
             }
-            DOCKMANAGER
-                .write()
-                .unwrap()
+            server_ctx.docks.write()
                 .set_dock("Tilemap".into(), ui, ctx, project, server_ctx);
         }
         ProjectContext::Screen(id) => {
@@ -1425,8 +1404,8 @@ pub fn set_project_context(
                     TheValue::Text(format!("Screen: {}", screen.name)),
                 );
             }
-            DOCKMANAGER.write().unwrap().set_dock(
-                tiles_or_authoring_dock(),
+            server_ctx.docks.write().set_dock(
+                tiles_or_authoring_dock( &server_ctx.tools),
                 ui,
                 ctx,
                 project,
@@ -1443,9 +1422,7 @@ pub fn set_project_context(
                     TheValue::Text(format!("Screen Settings: {}", screen.name)),
                 );
             }
-            DOCKMANAGER
-                .write()
-                .unwrap()
+            server_ctx.docks.write()
                 .set_dock("Data".into(), ui, ctx, project, server_ctx);
         }
         ProjectContext::ScreenWidget(id, _widget_id) => {
@@ -1459,9 +1436,7 @@ pub fn set_project_context(
                     TheValue::Text(format!("Screen ({}) Widget", screen.name,)),
                 );
             }
-            DOCKMANAGER
-                .write()
-                .unwrap()
+            server_ctx.docks.write()
                 .set_dock("Data".into(), ui, ctx, project, server_ctx);
         }
         ProjectContext::Asset(id) => {
@@ -1472,8 +1447,8 @@ pub fn set_project_context(
                     TheValue::Text(format!("Asset: {}", asset.name)),
                 );
             }
-            DOCKMANAGER.write().unwrap().set_dock(
-                tiles_or_authoring_dock(),
+            server_ctx.docks.write().set_dock(
+                tiles_or_authoring_dock( &server_ctx.tools),
                 ui,
                 ctx,
                 project,
@@ -1489,8 +1464,8 @@ pub fn set_project_context(
                     TheValue::Text(format!("Avatar: {}", avatar.name)),
                 );
             }
-            DOCKMANAGER.write().unwrap().set_dock(
-                tiles_or_authoring_dock(),
+            server_ctx.docks.write().set_dock(
+                tiles_or_authoring_dock( &server_ctx.tools),
                 ui,
                 ctx,
                 project,
@@ -1510,8 +1485,8 @@ pub fn set_project_context(
                     );
                 }
             }
-            DOCKMANAGER.write().unwrap().set_dock(
-                tiles_or_authoring_dock(),
+            server_ctx.docks.write().set_dock(
+                tiles_or_authoring_dock( &server_ctx.tools),
                 ui,
                 ctx,
                 project,
@@ -1524,9 +1499,7 @@ pub fn set_project_context(
                 ctx,
                 TheValue::Text("Project Settings".into()),
             );
-            DOCKMANAGER
-                .write()
-                .unwrap()
+            server_ctx.docks.write()
                 .set_dock("Data".into(), ui, ctx, project, server_ctx);
         }
         ProjectContext::WorldCode => {
@@ -1535,16 +1508,12 @@ pub fn set_project_context(
                 ctx,
                 TheValue::Text(fl!("world_behavior_nodes")),
             );
-            DOCKMANAGER
-                .write()
-                .unwrap()
+            server_ctx.docks.write()
                 .set_dock("Nodes".into(), ui, ctx, project, server_ctx);
         }
         ProjectContext::GameRules => {
             ui.set_widget_value("Project Context", ctx, TheValue::Text("Game Rules".into()));
-            DOCKMANAGER
-                .write()
-                .unwrap()
+            server_ctx.docks.write()
                 .set_dock("Rules".into(), ui, ctx, project, server_ctx);
         }
         ProjectContext::GameLocales => {
@@ -1553,9 +1522,7 @@ pub fn set_project_context(
                 ctx,
                 TheValue::Text("Game Locales".into()),
             );
-            DOCKMANAGER
-                .write()
-                .unwrap()
+            server_ctx.docks.write()
                 .set_dock("Data".into(), ui, ctx, project, server_ctx);
         }
         ProjectContext::GameAudioFx => {
@@ -1564,9 +1531,7 @@ pub fn set_project_context(
                 ctx,
                 TheValue::Text("Game Audio FX".into()),
             );
-            DOCKMANAGER
-                .write()
-                .unwrap()
+            server_ctx.docks.write()
                 .set_dock("Data".into(), ui, ctx, project, server_ctx);
         }
         ProjectContext::GameAuthoring => {
@@ -1575,9 +1540,7 @@ pub fn set_project_context(
                 ctx,
                 TheValue::Text("Game Authoring".into()),
             );
-            DOCKMANAGER
-                .write()
-                .unwrap()
+            server_ctx.docks.write()
                 .set_dock("Data".into(), ui, ctx, project, server_ctx);
         }
         ProjectContext::GameShortcuts => {
@@ -1586,9 +1549,7 @@ pub fn set_project_context(
                 ctx,
                 TheValue::Text("Game Shortcuts".into()),
             );
-            DOCKMANAGER
-                .write()
-                .unwrap()
+            server_ctx.docks.write()
                 .set_dock("Data".into(), ui, ctx, project, server_ctx);
         }
         _ => {}
@@ -1778,7 +1739,7 @@ pub fn set_project_context(
     ));
 
     if let Some(list) = ui.get_vlayout("Tool List Layout") {
-        TOOLLIST.write().unwrap().set_active_editor(list, ctx);
+        server_ctx.tools.write().set_active_editor(list, ctx);
     }
 
     ctx.ui.relayout = true;

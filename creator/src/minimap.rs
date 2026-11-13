@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 use std::collections::hash_map::DefaultHasher;
 use vek::Vec2;
 
-use crate::editor::{ACTIONLIST, DOCKMANAGER};
+
 use std::hash::{Hash, Hasher};
 
 #[cfg(feature = "native-ui")]
@@ -17,7 +17,7 @@ pub(crate) mod native_scene;
 pub(crate) mod native_palette;
 
 fn palette_minimap_active(server_ctx: &ServerContext) -> bool {
-    server_ctx.palette_tool_active && DOCKMANAGER.read().unwrap().dock == "Palette"
+    server_ctx.palette_tool_active && server_ctx.docks.read().dock == "Palette"
 }
 
 fn minimap_context_key(server_ctx: &ServerContext) -> u64 {
@@ -409,7 +409,7 @@ fn active_action_minimap_preview(
     let Some(action_id) = server_ctx.curr_action_id else {
         return None;
     };
-    let actionlist = ACTIONLIST.read().unwrap();
+    let actionlist = server_ctx.actions.read();
     let Some(action) = actionlist.get_action_by_id(action_id) else {
         return None;
     };
@@ -589,7 +589,7 @@ pub fn draw_minimap_context_label(
     }
 
     let label = if let Some(action_id) = server_ctx.curr_action_id
-        && let Some(action) = ACTIONLIST.read().unwrap().get_action_by_id(action_id)
+        && let Some(action) = server_ctx.actions.read().get_action_by_id(action_id)
         && action.uses_minimap_preview()
     {
         action.id().name.clone()

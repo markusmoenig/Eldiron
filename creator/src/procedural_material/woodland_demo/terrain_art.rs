@@ -355,7 +355,7 @@ fn capture_geometry_terrain_toml() {
     sidebar.init_ui(&mut ui, &mut ctx, &mut server);
     server.curr_action_id = Some(Uuid::parse_str(crate::actions::edit_linedef::EDIT_LINEDEF_ACTION_ID).unwrap());
     {
-        let mut actions = crate::editor::ACTIONLIST.write().unwrap();
+        let mut actions = server.actions.write();
         actions.get_action_by_id_mut(server.curr_action_id.unwrap()).unwrap().load_params(&project.regions[0].map);
     }
     sidebar.handle_event(&TheEvent::Custom(TheId::named("Refresh Action Parameters"), TheValue::Empty), &mut ui, &mut ctx, &mut project, &mut server);

@@ -21,7 +21,7 @@ impl Capture {
             .set_dim(TheDim::sized(WIDTH as i32, HEIGHT as i32), &mut ctx);
         let mut editor = Editor::new();
         editor.init_ui(&mut ui, &mut ctx);
-        CreatorTheme::Brown.apply(&mut ui, &mut ctx, &editor.server_ctx.reference);
+        CreatorTheme::Brown.apply(&mut ui, &mut ctx, &editor.server_ctx.reference, &editor.server_ctx.tools);
         std::fs::create_dir_all(&destination).unwrap();
         Self {
             editor,
@@ -69,7 +69,7 @@ impl Capture {
         self.ui
             .canvas
             .layout(WIDTH as i32, HEIGHT as i32, &mut self.ctx);
-        if DOCKMANAGER.read().unwrap().dock == "Nodes" {
+        if self.editor.server_ctx.docks.read().dock == "Nodes" {
             self.ctx.ui.send(TheEvent::StateChanged(
                 TheId::named("Node Graph Branch Tidy"),
                 TheWidgetState::Clicked,
@@ -147,9 +147,7 @@ fn documentation_screenshots() {
         ));
     }
     capture.save("rect-tool");
-    let action = ACTIONLIST
-        .read()
-        .unwrap()
+    let action = capture.editor.server_ctx.actions.read()
         .get_action_by_command_id("tile.edit_metadata")
         .map(|a| a.id().clone());
     if let Some(action) = action {
@@ -180,7 +178,7 @@ fn documentation_screenshots() {
         .map(|c| c.id)
     {
         capture.context(ProjectContext::CharacterData(character));
-        DOCKMANAGER.write().unwrap().edit_maximize(
+        capture.editor.server_ctx.docks.write().edit_maximize(
             &mut capture.ui,
             &mut capture.ctx,
             &mut capture.editor.documents.project,
@@ -189,7 +187,7 @@ fn documentation_screenshots() {
         capture.save("character-attributes");
         capture.context(ProjectContext::CharacterCode(character));
         capture.save("behavior-nodes");
-        DOCKMANAGER.write().unwrap().minimize(
+        capture.editor.server_ctx.docks.write().minimize(
             &mut capture.ui,
             &mut capture.ctx,
             &mut capture.editor.documents.project,
@@ -197,14 +195,14 @@ fn documentation_screenshots() {
         );
     }
     capture.context(ProjectContext::ProjectSettings);
-    DOCKMANAGER.write().unwrap().edit_maximize(
+    capture.editor.server_ctx.docks.write().edit_maximize(
         &mut capture.ui,
         &mut capture.ctx,
         &mut capture.editor.documents.project,
         &mut capture.editor.server_ctx,
     );
     capture.save("game-settings");
-    DOCKMANAGER.write().unwrap().minimize(
+    capture.editor.server_ctx.docks.write().minimize(
         &mut capture.ui,
         &mut capture.ctx,
         &capture.editor.documents.project,
@@ -310,9 +308,7 @@ fn capture_3d(capture: &mut Capture, root: &std::path::Path) {
         runtime.editor_preview_post_enabled = false;
         runtime.set_dirty();
     }
-    TOOLLIST
-        .write()
-        .unwrap()
+    capture.editor.server_ctx.tools.write()
         .update_geometry_overlay_3d(&mut capture.editor.documents.project, &mut capture.editor.server_ctx);
     {
         let region = &mut capture.editor.documents.project.regions[0];

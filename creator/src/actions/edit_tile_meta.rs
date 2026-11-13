@@ -1,4 +1,3 @@
-use crate::editor::DOCKMANAGER;
 use crate::prelude::*;
 use rusterix::material_library::{
     MATERIAL_FINISH_NAMES as MATERIAL_FINISH_VALUES,
@@ -128,7 +127,7 @@ impl Action for EditTileMeta {
     }
 
     fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        DOCKMANAGER.read().unwrap().dock == "Tiles" && server_ctx.curr_tile_id.is_some()
+        server_ctx.docks.read().dock == "Tiles" && server_ctx.curr_tile_id.is_some()
     }
 
     fn load_params_project(&mut self, project: &Project, server_ctx: &mut ServerContext) {
