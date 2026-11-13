@@ -10409,3 +10409,64 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   227646B SHA130255e3f5db7da60d4b519accb4672c3b8c0f037406e99e953a6bf2863b501c.
   Camera caller batch verified within available native/browser scope. Physical
   platform/full M0–M9 acceptance remains open; proceeding to orthographic bakes.
+
+## 2026-11-14 — Orthographic bake source/producer (active)
+
+- Camera/cross-backend batch committed dc2229d4. Untracked networking concept
+  preserved. Full M0–M9 Goal remains active; no launcher cutover yet.
+- Added a borrowed original-tile source contract with publication UUIDs across
+  progressive samples, commit, fail, visibility and clear/replacement. No
+  destination pixels are generated at this boundary; serde models unchanged.
+- Fixed legacy length-only persisted signature: equal-size changed depth/color
+  payloads, tile coordinates and camera metadata now refresh derived data.
+  Unchanged payloads retain publication identity. Avoided assuming map.changed
+  alone is unique across document replacement; revision fast-path ownership is
+  still to be resolved, and full encoded comparison cost is not a performance
+  acceptance claim.
+- CPU bake suite PASS12/.10s including same-length depth replacement, metadata
+  rebase, tile relocation, wrong-region rejection, clear/reload identity,
+  transient preview vs committed channels, visibility and failure fallback.
+  Initial no-default-features command ran0 tests because the bake module is
+  graphics-gated; corrected graphics command executed all12. No0-test pass used.
+- New injected GPU producer composes original channels into retained color and
+  camera-linear depth resources, without CPU viewport or normal readback.
+  Preserves legacy no-depth versions and current-sun resolve. Source working
+  set capped64MiB with conservative visible-tile selection; above-budget visible
+  sets currently return explicit paging-required error rather than allocating
+  unbounded frame resources. This is a remaining functional/cache gate, not
+  complete large-bake parity. Legacy controller's eager decode cache also still
+  needs retirement/bounding. GPU oracle/build collecting; producer not yet
+  adopted by Creator or graphical clients. Dynamic overlays/progressive work
+  scheduling/export readback classification remain open.
+
+- First bake GPU oracle RED/.96s, color delta255 from texel-boundary sampling.
+  Applied the already-characterized f32 division/remainder correction and
+  explicit operation barriers to the camera-plane lookup, not CPU pixel work.
+  GREEN PASS1/1.05s: phases0/1/2 maxcolor0/0/1, rebased depth within1e-5,
+  unchanged sources upload only uniforms, target reuse/resize and legacy3
+  infinity-depth policy pass. Final API guards being checked separately below.
+- Chrome isolated bake shader validation PASS: no compilation messages,
+  clear/draw pipelines both created, scoped validation errornull; app remains
+  editing with normal counters0/errors[]. This is shader/backend validation,
+  not a browser pixel comparison or Creator bake-workflow acceptance.
+- Source publication metadata now private/read-only with accessors, preventing
+  callers from reassigning a revision while retaining unrelated tile channels.
+  Renderer rejects camera orientation mismatches. One wasm check raced this
+  API edit and linked old engine metadata; discarded and replaced with final
+  serialized source edits followed by native+wasm builds. No acceptance from
+  that raced build. Further independent builds can share the Cargo lock, but
+  dependent source mutations must wait until their compilers finish.
+
+- Final production API native test build PASS20.83s; wasm check PASS31.49s.
+  Final GPU oracle PASS1/.88s including invalid zero-size/wrong-camera guards.
+  Added real43-tile visible-source cap case to the same oracle: final build
+  PASS4.43s/oracle PASS1/1.59s, same maxcolor0/0/1 and depth compatibility;
+  above-budget request fails before any new source upload. No new project fields.
+- Source/GPU producer batch ready as a component checkpoint. It has no window,
+  server clock, hidden GPU or normal readback. Creator still deliberately keeps
+  its persisted/live bake adapter until dynamic-depth overlay and progressive
+  scheduling/asset capture are adopted together. Next: split surface GPU targets
+  from optional readback so depth-aware dynamic composition never allocates/maps
+  a full surface on the CPU; then wire bake lifecycle into the owned viewport.
+  Large visible-set paging, eager decoded-cache budget and fast persisted-source
+  identity remain explicit limitations before full bake acceptance.

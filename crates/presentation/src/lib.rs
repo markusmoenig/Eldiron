@@ -20,3 +20,4 @@ mod viewport;
 pub use viewport::{ScreenViewport, player_binding_key};
 
 pub mod overview2d;
+pub mod orthographic_bake;

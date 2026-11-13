@@ -6,6 +6,9 @@ use std::collections::HashMap;
 use uuid::Uuid;
 use vek::Vec3;
 
+mod source;
+pub use source::{OrthographicBakeSource, OrthographicBakeTileSource};
+
 const BAKE_VERSION: u32 = 5;
 const DEFAULT_TILE_SIZE: u32 = 256;
 const MAX_TILE_COUNT: usize = 4096;
@@ -58,7 +61,7 @@ pub struct OrthographicBakeController {
     committed_region: Option<Uuid>,
     committed: Option<OrthographicBakeAsset>,
     committed_tiles: HashMap<(i32, i32), DecodedBakeTile>,
-    loaded_signature: Option<(Uuid, u32, usize, usize)>,
+    source_revision: Uuid,
     pending_persisted_update: Option<Option<OrthographicBakeAsset>>,
 }
 
@@ -78,7 +81,7 @@ impl Default for OrthographicBakeController {
             committed_region: None,
             committed: None,
             committed_tiles: HashMap::new(),
-            loaded_signature: None,
+            source_revision: Uuid::new_v4(),
             pending_persisted_update: None,
         }
     }
@@ -86,6 +89,7 @@ impl Default for OrthographicBakeController {
 
 impl OrthographicBakeController {
     pub fn request_render(&mut self, region_id: Uuid, samples: u32) {
+        self.source_revision = Uuid::new_v4();
         self.requested_region = Some(region_id);
         self.requested_samples = samples.clamp(1, 256);
         self.staging_camera = None;
@@ -106,29 +110,14 @@ impl OrthographicBakeController {
         if self.is_rendering() && self.requested_region == Some(region_id) {
             return;
         }
-        let signature = persisted.map(|asset| {
-            (
-                region_id,
-                asset.version,
-                asset.tiles.len(),
-                asset
-                    .tiles
-                    .iter()
-                    .map(|tile| {
-                        tile.color_png_base64.len()
-                            + tile.depth_base64.as_ref().map_or(0, String::len)
-                            + tile.albedo_png_base64.as_ref().map_or(0, String::len)
-                            + tile.normal_png_base64.as_ref().map_or(0, String::len)
-                            + tile.material_png_base64.as_ref().map_or(0, String::len)
-                    })
-                    .sum(),
-            )
-        });
-        if self.loaded_signature == signature && self.committed_region == Some(region_id) {
+        // Encoded length is not content identity: equal-length replacement tiles,
+        // coordinates and camera metadata must all invalidate the derived source.
+        if self.committed_region == persisted.map(|_| region_id)
+            && self.committed.as_ref() == persisted
+        {
             return;
         }
-
-        self.loaded_signature = signature;
+        self.source_revision = Uuid::new_v4();
         self.committed_region = persisted.map(|_| region_id);
         self.committed = persisted.cloned();
         self.committed_tiles = persisted.map(decode_tiles).unwrap_or_default();
@@ -295,6 +284,7 @@ impl OrthographicBakeController {
             return Err("The progressive bake preview has an invalid tile size.".into());
         }
         self.staging_tiles.entry((x, y)).or_default().color = rgba.to_vec();
+        self.source_revision = Uuid::new_v4();
         Ok(())
     }
 
@@ -354,6 +344,7 @@ impl OrthographicBakeController {
                 material,
             },
         );
+        self.source_revision = Uuid::new_v4();
         self.current_tile += 1;
         self.current_sample = 0;
 
@@ -362,22 +353,6 @@ impl OrthographicBakeController {
             self.committed_region = self.requested_region;
             self.committed = Some(completed.clone());
             self.committed_tiles = std::mem::take(&mut self.staging_tiles);
-            self.loaded_signature = Some((
-                self.committed_region.unwrap(),
-                completed.version,
-                completed.tiles.len(),
-                completed
-                    .tiles
-                    .iter()
-                    .map(|tile| {
-                        tile.color_png_base64.len()
-                            + tile.depth_base64.as_ref().map_or(0, String::len)
-                            + tile.albedo_png_base64.as_ref().map_or(0, String::len)
-                            + tile.normal_png_base64.as_ref().map_or(0, String::len)
-                            + tile.material_png_base64.as_ref().map_or(0, String::len)
-                    })
-                    .sum(),
-            ));
             self.pending_persisted_update = Some(Some(completed));
             self.status = OrthographicBakeStatus::Ready;
             self.staging_camera = None;
@@ -390,6 +365,7 @@ impl OrthographicBakeController {
     }
 
     pub fn fail(&mut self, error: impl Into<String>) {
+        self.source_revision = Uuid::new_v4();
         self.status = OrthographicBakeStatus::Failed(error.into());
         self.staging_camera = None;
         self.staging_asset = None;
@@ -402,6 +378,7 @@ impl OrthographicBakeController {
         if self.committed.is_none() && !self.is_rendering() {
             return None;
         }
+        self.source_revision = Uuid::new_v4();
         self.visible = !self.visible;
         Some(self.visible)
     }
