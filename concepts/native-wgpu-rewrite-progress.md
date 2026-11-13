@@ -5389,3 +5389,74 @@ migration binary; it is not a source or user-project modification.
 Latest user steering: native startup feels slower than the CPU version. Prioritize
 same-project startup profiling and removal of avoidable work before continuing
 larger ownership changes. Keep the full M0–M9 objective active.
+
+## 2026-11-13 — Startup performance and GPU bootstrap priority
+
+User steering: startup feels slower than CPU, and the GPU conversion must not
+initialize legacy CPU presentation alongside the GPU path. Do not add a lazy CPU
+fallback to the native font bootstrap. Prioritize retiring that work.
+
+Measured the existing default-project startup in debug builds, excluding Cargo
+build time. Added opt-in ELDIRON_PROFILE_STARTUP stage diagnostics for UI-context,
+surface/device/compositor and first actual surface presentation, plus the existing
+ELDIRON_PROFILE_EDITOR initialization phases. The existing reference_ui_capture
+example reports comparable CPU initialization stages. Native first presentation
+and CPU offscreen frame completion are different endpoints; these are diagnostic
+measurements, not full release/platform performance acceptance.
+
+- Before: native first surface presentation **14,713.92 ms**;
+  `/private/tmp/eldiron-native-startup-before.log`. Device **13.62 ms** and paint
+  compositor **13.52 ms**; UI setup **5,119.52 ms**, system raster-font loading
+  **2,208.35 ms**, initial appearance synchronization **3,573.79 ms**.
+- CPU reference: first offscreen frame **14,382.94 ms**;
+  `/private/tmp/eldiron-reference-startup-before.log`. UI context **95.71 ms**,
+  editor construction/UI **7,905.98 ms**, system fonts **2,251.28 ms**, initial
+  appearance synchronization **3,808.42 ms**. This run used the same default
+  project through the existing reference harness, not a physical CPU window.
+- Removed the system raster-font bootstrap from NativeCreatorApplication. Native
+  fallback already uses Fontique/Parley and Swash; those fonts were previously
+  being parsed only for the legacy draw service and did not populate native text.
+  No new CPU fallback/dual text implementation was added. Full removal of the
+  remaining legacy context/draw/render adapters is still required by retirement.
+- Standard syntax definitions are now shared immutable Arc catalogs instead of
+  decompressed per code editor. Custom grammar catalogs are shared through weak
+  entries while each editor retains its selected syntax and theme. Unused
+  compiled custom grammars can be released; stale weak keys are pruned on insert.
+- After: native first surface presentation **9,646.30 ms**, about **34.4% faster**;
+  `/private/tmp/eldiron-native-startup-after.log`. UI setup **2,351.20 ms**, system
+  raster-font bootstrap absent, appearance synchronization **3,543.61 ms**. Both
+  native diagnostic runs acknowledged **3 successful surface presentations**.
+  A separate native test application was still open in both runs; no unrelated
+  processes or user documents were terminated for profiling.
+
+The existing highlighter/theme library check passed **1**, **0.71 s** (34.78 s
+build), `/private/tmp/eldiron-startup-syntax-owner.log`. Its assertions now also
+verify shared builtin/custom grammar catalogs and independent selected syntax.
+No new test suite was created. The assembled native Creator checkpoint and an
+optimized native executable build are running; record their terminal evidence
+before treating this checkpoint as verified. No unchanged runtime suite was rerun.
+
+Next startup work: evaluate material-cache decoding that currently performs full
+project/entity synchronization just to obtain cached bakes, then initial
+appearance-model evaluation. Do not trade incorrect assets, text, project loading
+or authoring behavior for an early timing number. Overall M0–M9 remains active.
+
+Startup checkpoint terminal results: the existing assembled Creator GPU workflow
+passed **1**, **126.36 s** (87 s build),
+`/private/tmp/eldiron-native-startup-cut-root.log`. It retained corrected Paint,
+Prefab authoring, GameInput, native Unicode screen text, Text Play and runtime/GPU
+lifecycle coverage after removing the native raster-font bootstrap. This run
+shared the machine with an optimized build and is not a performance measurement.
+
+Optimized native executable build passed **3m 14s**,
+`/private/tmp/eldiron-native-startup-release-build.log`. Running the executable
+separately from Cargo reached its first actual Winit surface presentation in
+**1,953.49 ms** and logged **3 successful surface presentations**,
+`/private/tmp/eldiron-native-startup-release-smoke.log`. Native UI initialization
+was **440.95 ms** and appearance synchronization **329.64 ms**. There is no
+before-change optimized measurement, so do not call 34.4% a verified release-build
+speedup. The optimized binary is
+`/Users/markusmoenig/Eldiron/target/release/eldiron-creator-native`.
+A temporary copied-binary bundle `/private/tmp/EldironNativeRelease.app` is prepared
+for visual inspection; app selection through the earlier symlink bundle timed out.
+No physical visual/input or full startup project/DPI matrix is claimed yet.

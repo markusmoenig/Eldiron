@@ -1,5 +1,5 @@
 use lazy_static::lazy_static;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, Weak};
 use syntect::{
     easy::HighlightLines,
     highlighting::{Theme, ThemeSet},
@@ -11,10 +11,16 @@ use crate::prelude::*;
 
 lazy_static! {
     static ref THEME_SET: ThemeSet = ThemeSet::load_defaults();
+    static ref DEFAULT_SYNTAXES: Arc<SyntaxSet> = Arc::new(SyntaxSet::load_defaults_nonewlines());
+    static ref CUSTOM_BASE: SyntaxSet = SyntaxSet::load_defaults_newlines();
+    // Immutable compiled grammars are shared; each editor keeps its own
+    // selected syntax/theme. Weak entries cannot retain closed project sources.
+    static ref CUSTOM_SYNTAXES: Mutex<FxHashMap<String, Weak<SyntaxSet>>> =
+        Mutex::new(FxHashMap::default());
 }
 
 pub struct TheCodeHighlighter {
-    syntax_set: SyntaxSet,
+    syntax_set: Arc<SyntaxSet>,
     syntax: Arc<SyntaxReference>,
     theme: Theme,
     using_custom_theme: bool,
@@ -23,7 +29,7 @@ pub struct TheCodeHighlighter {
 
 impl Default for TheCodeHighlighter {
     fn default() -> Self {
-        let syntax_set = SyntaxSet::load_defaults_nonewlines();
+        let syntax_set = Arc::clone(&DEFAULT_SYNTAXES);
         Self {
             syntax: Arc::new(syntax_set.find_syntax_plain_text().clone()),
             theme: THEME_SET.themes["Solarized (light)"].clone(),
@@ -101,17 +107,25 @@ impl TheCodeHighlighterTrait for TheCodeHighlighter {
     }
 
     fn add_syntax_from_string(&mut self, syntax_str: &str) -> Result<(), String> {
-        let mut builder = SyntaxSet::load_defaults_newlines().into_builder();
-
-        // Parse the new syntax from the provided string
-        match SyntaxDefinition::load_from_str(syntax_str, true, None) {
-            Ok(syntax) => {
-                builder.add(syntax); // Correct method
-                self.syntax_set = builder.build();
-                Ok(())
-            }
-            Err(e) => Err(format!("Failed to load syntax: {}", e)),
+        if let Some(syntaxes) = CUSTOM_SYNTAXES
+            .lock()
+            .unwrap()
+            .get(syntax_str)
+            .and_then(Weak::upgrade)
+        {
+            self.syntax_set = syntaxes;
+            return Ok(());
         }
+        let syntax = SyntaxDefinition::load_from_str(syntax_str, true, None)
+            .map_err(|e| format!("Failed to load syntax: {e}"))?;
+        let mut builder = CUSTOM_BASE.clone().into_builder();
+        builder.add(syntax);
+        let syntaxes = Arc::new(builder.build());
+        let mut cache = CUSTOM_SYNTAXES.lock().unwrap();
+        cache.retain(|_, entry| entry.strong_count() > 0);
+        cache.insert(syntax_str.into(), Arc::downgrade(&syntaxes));
+        self.syntax_set = syntaxes;
+        Ok(())
     }
 
     fn add_theme_from_string(&mut self, theme_str: &str) -> Result<(), String> {
@@ -226,6 +240,15 @@ mod theme_tests {
     #[test]
     fn light_theme_switch_restores_previous_syntax_theme() {
         let mut h = TheCodeHighlighter::default();
+        let mut sibling = TheCodeHighlighter::default();
+        assert!(Arc::ptr_eq(&h.syntax_set, &sibling.syntax_set));
+        let custom = "name: StartupGrammar\nscope: source.startup\ncontexts:\n  main:\n    - match: '[0-9]+'\n      scope: constant.numeric\n";
+        h.add_syntax_from_string(custom).unwrap();
+        h.set_syntax_by_name("StartupGrammar");
+        assert_eq!(sibling.syntax(), "Plain Text");
+        sibling.add_syntax_from_string(custom).unwrap();
+        assert!(Arc::ptr_eq(&h.syntax_set, &sibling.syntax_set));
+        assert_eq!(sibling.syntax(), "Plain Text");
         h.set_theme("base16-eighties.dark");
         let before = h.background().unwrap().to_u8_array();
         h.set_light_ui(true);

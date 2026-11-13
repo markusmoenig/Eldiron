@@ -14,7 +14,16 @@ pub struct UiSession {
 }
 impl UiSession {
     pub fn new(logical_size: (usize, usize), density: f32) -> Self {
+        let profile = std::env::var_os("ELDIRON_PROFILE_STARTUP")
+            .is_some()
+            .then(web_time::Instant::now);
         let mut context = TheContext::new(logical_size.0, logical_size.1, density);
+        if let Some(start) = profile {
+            eprintln!(
+                "Native startup UI context: {:.2}ms",
+                start.elapsed().as_secs_f64() * 1000.
+            );
+        }
         context.ui.command_paint = true;
         let mut ui = TheUI::new();
         ui.init(&mut context);
@@ -24,6 +33,7 @@ impl UiSession {
             requests: Vec::new(),
         }
     }
+
     pub fn resize(&mut self, physical: (u32, u32), density: f32) {
         let density = if density.is_finite() && density > 0. {
             density

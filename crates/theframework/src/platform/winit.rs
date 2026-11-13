@@ -129,9 +129,24 @@ impl Host {
         let size = window.inner_size();
         let proxy = self.proxy.clone();
         let initialize = async move {
-            let result = SurfaceState::from_target(window, (size.width, size.height))
-                .await
-                .and_then(GpuPresenter::new);
+            let profile = std::env::var_os("ELDIRON_PROFILE_STARTUP")
+                .is_some()
+                .then(Instant::now);
+            let surface = SurfaceState::from_target(window, (size.width, size.height)).await;
+            if let Some(start) = profile {
+                eprintln!(
+                    "Native startup surface/device: {:.2}ms",
+                    start.elapsed().as_secs_f64() * 1000.
+                );
+            }
+            let profile = profile.map(|_| Instant::now());
+            let result = surface.and_then(GpuPresenter::new);
+            if let Some(start) = profile {
+                eprintln!(
+                    "Native startup compositor: {:.2}ms",
+                    start.elapsed().as_secs_f64() * 1000.
+                );
+            }
             let _ = proxy.send_event(HostEvent::Ready(epoch, result));
         };
         #[cfg(not(target_arch = "wasm32"))]

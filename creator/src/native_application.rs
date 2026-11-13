@@ -14,11 +14,17 @@ pub struct NativeCreatorApplication {
     deadline: Option<Instant>,
     presentations: u64,
     start_services: bool,
+    startup: Option<Instant>,
 }
 impl NativeCreatorApplication {
     pub fn new(args: Vec<String>, smoke: bool) -> Self {
+        let startup = std::env::var_os("ELDIRON_PROFILE_STARTUP")
+            .is_some()
+            .then(Instant::now);
+        let mut profile = crate::misc::FrameProfile::new();
         let mut editor = Editor::new();
         editor.enable_native_views();
+        profile.lap("native_editor_construct");
         Self {
             editor,
             args,
@@ -27,8 +33,10 @@ impl NativeCreatorApplication {
             deadline: None,
             presentations: 0,
             start_services: true,
+            startup,
         }
     }
+
 }
 impl UiApplication for NativeCreatorApplication {
     fn title(&self) -> String {
@@ -57,6 +65,7 @@ impl UiApplication for NativeCreatorApplication {
             .window_resized(ui.context.width, ui.context.height);
     }
     fn initialize(&mut self, ui: &mut UiSession, _: &mut UiFrameImages<'_>) -> Result<()> {
+        let mut profile = crate::misc::FrameProfile::new();
         // Preserve Creator's existing root/layout bootstrap before docks are
         // constructed; some source-backed docks inspect their initial bounds.
         ui.ui.canvas.root = true;
@@ -65,19 +74,24 @@ impl UiApplication for NativeCreatorApplication {
             &mut ui.context,
         );
         self.editor.init_ui(&mut ui.ui, &mut ui.context);
+        profile.lap("native_init_ui");
         ui.ui.prepare_paint_layout(&mut ui.context);
-        #[cfg(not(target_arch = "wasm32"))]
-        ui.context.load_system_fonts(self.editor.fonts_to_load());
+        profile.lap("native_initial_layout");
+        // Fontique resolves native fallback for Parley/Swash. The raster
+        // system-font bootstrap belongs to the reference host, not GPU startup.
         if self.start_services {
             self.editor.init(&mut ui.context);
         }
+        profile.lap("native_services");
         self.editor
             .set_cmd_line_args(std::mem::take(&mut self.args), &mut ui.context);
+        profile.lap("native_arguments");
         if self.smoke {
             self.deadline = Some(Instant::now() + Duration::from_secs(10));
         }
         Ok(())
     }
+
     fn raw_input(&mut self, event: &InputEvent, ui: &mut UiSession) -> Option<InputResponse> {
         ui.ui.prepare_paint_layout(&mut ui.context);
         let response = self.editor.native_game_input_raw(event, ui)
@@ -229,6 +243,14 @@ impl UiApplication for NativeCreatorApplication {
         }
         self.editor.post_ui(&mut ui.context);
         self.presentations += 1;
+        if self.presentations == 1
+            && let Some(start) = self.startup.take()
+        {
+            eprintln!(
+                "Creator native first surface presentation: {:.2}ms",
+                start.elapsed().as_secs_f64() * 1000.
+            );
+        }
         if self.smoke && self.presentations >= 3 {
             eprintln!(
                 "Creator native smoke passed: {} successful surface presentations",
@@ -237,6 +259,7 @@ impl UiApplication for NativeCreatorApplication {
             ui.requests.push(HostRequest::Exit);
         }
     }
+
     fn gpu_recreated(&mut self, ui: &mut UiSession, images: &mut UiFrameImages<'_>) -> Result<()> {
         self.pending = None;
         self.editor.cancel_native_play_input(&mut ui.ui);
