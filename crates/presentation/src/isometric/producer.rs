@@ -112,6 +112,13 @@ impl IsometricSceneRenderer {
     pub fn has_readback_storage(&self) -> bool {
         self.output.has_readback_storage()
     }
+    /// A view may show an ephemeral projection with the authored map identity
+    /// and revision. Revoke its geometry/elevation without discarding immutable
+    /// source textures or the device/target lifetime.
+    pub(crate) fn invalidate_geometry(&mut self) {
+        self.scene = SceneCache::default();
+        self.elevation = None;
+    }
     pub fn source_builds(&self) -> [u64; 3] {
         [
             self.sprites.builds(),

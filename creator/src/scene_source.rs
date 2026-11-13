@@ -1,16 +1,18 @@
-//! Incremental CPU geometry for a parent overview whose editor is showing a
-//! different map. Never borrow that editor's chunk worker or display VM.
-use super::*;
+//! Bounded CPU geometry publication for auxiliary authoring views. Each owner
+//! keeps its own source identity; no display VM or application worker is lent.
+use crate::prelude::*;
+use rusterix::scene_build_index::SceneBuildSnapshot;
 use rusterix::{SceneManager, SceneManagerResult, scene_build_index::SceneBuildIndex};
+use std::sync::Arc;
 
 #[derive(Clone, Copy, PartialEq)]
-pub(super) struct SourceKey {
+pub(crate) struct SourceKey {
     pub document: Uuid,
     pub map: Uuid,
     pub source: u64,
     pub assets: u64,
 }
-pub(super) struct Source {
+pub(crate) struct Source {
     pub key: SourceKey,
     manager: SceneManager,
     index: SceneBuildIndex,

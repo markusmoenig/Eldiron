@@ -92,7 +92,7 @@ impl NativeViewTokens {
     }
 }
 impl Editor {
-    fn native_minimap_asset_key(&self, assets: &rusterix::Assets) -> u64 {
+    pub(super) fn native_minimap_asset_key(&self, assets: &rusterix::Assets) -> u64 {
         use std::hash::{Hash, Hasher};
         let mut key = std::collections::hash_map::DefaultHasher::new();
         assets.tiles_revision.hash(&mut key);

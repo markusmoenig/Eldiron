@@ -6,6 +6,21 @@ use crate::{
 };
 use rusterix::{client::widget::game::GameWidget, isometric::lighting::Lighting};
 impl SceneViews {
+    /// Revoke cached geometry when the owner changes a projection that retains
+    /// its authored map ID/revision, such as a clipboard preview. Other views
+    /// and immutable GPU source residency are unaffected.
+    pub fn invalidate_isometric_geometry(&mut self, id: ViewId) -> Result<()> {
+        let view = self
+            .views
+            .get_mut(&id)
+            .ok_or_else(|| RenderError("unknown scene view".into()))?;
+        if let Some(renderer) = &mut view.isometric_renderer {
+            renderer.invalidate_geometry();
+        }
+        view.isometric_frame = None;
+        view.dirty = true;
+        Ok(())
+    }
     /// A fitted, static isometric overview. The caller supplies the projection;
     /// this path has no player dynamics, particles or simulation clock.
     pub fn prepare_isometric_overview(

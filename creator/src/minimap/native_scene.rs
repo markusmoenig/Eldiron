@@ -12,8 +12,7 @@ use theframework::{
     },
 };
 
-#[path = "native_scene_source.rs"]
-mod sources;
+use crate::scene_source as sources;
 
 #[derive(Clone, PartialEq)]
 struct Binding {

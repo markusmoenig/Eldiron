@@ -6878,3 +6878,62 @@ Owned GameSession integration verified (2026-11-13):
   gates remain open. No M0–M9 milestone or complete Goal is marked achieved.
 - Next: continue native Creator ownership/remaining viewport producers, then
   canonical retirement and browser/Apple host implementation and acceptance.
+
+Native 2D paste preview conversion in progress (after c094a444):
+- Reviewed Collision Probe: it is deliberately hidden and unregistered in the
+  current ToolList. Preserved that product/workflow state rather than unhide it
+  as part of rendering work. Converted the active clipboard preview instead.
+- Native top-down/isometric paste now prepares an ephemeral map projection,
+  keyed by document/map/source, clipboard content, snapped target and assets.
+  It never enters Documents or serialization. Native 3D paste still retains
+  its explicitly classified adapter; immediate object paste behavior is intact.
+- Extracted the parent minimap's bounded CPU SceneManager/SceneBuildIndex source
+  into one shared scene_source module. Paste owns a separate incremental source
+  for ordinary 2D; isometric uses the existing direct producer. No main worker,
+  VM, surface or GPU device is lent/swapped. Source work stays in host update.
+- Paste uses passive viewport overlays and snapped native input, preserving real
+  authoring commit/undo. An unpresented/moved preview target cannot accept an
+  insertion; hover still updates while its source is pending. Escape remains
+  available without a presented frame. No per-viewport CPU color image.
+- Initial native check passed8.63s:
+  /private/tmp/eldiron-native-paste-check.log. Existing assembled checkpoint is
+  being extended with top-down/isometric staged preview, authored/source
+  isolation, GPU output/storage/readback, rejection-before-ack, real paste and
+  Undo/Redo/Escape. First test compilation needed the ordinary Arc import;
+  final build/integration pending. No completion gate is claimed yet.
+
+
+Native 2D paste projection checkpoint verified:
+- Final assembled test build passed24.08s:
+  /private/tmp/eldiron-native-paste-moved-build.log.
+- Full assembled Creator actual Metal checkpoint **passed1,99.57s**:
+  /private/tmp/eldiron-native-paste-moved-root-metal.log. Both top-down and
+  sprite-isometric cases verify staged and moved previews, projection reuse
+  when unchanged, no authored-map writes, unchanged main-source identity, GPU
+  image ownership, no display pixel storage/implicit color readback, rejection
+  before presentation and after target movement, actual single paste commit,
+  Undo/Redo/Undo and Escape. All earlier Play/source/minimap/tool/DPI assertions
+  remain intact. No new standalone test suite.
+- Explicit requested GPU captures visually inspected:
+  /private/tmp/eldiron-native-paste-topdown.png (snapped geometry/selection) and
+  /private/tmp/eldiron-native-paste-isometric.png (placed source diamond).
+  Normal frames are checked for zero color readback before those captures.
+- Isometric projections can reuse authored map IDs/revisions. Added explicit
+  per-view geometry/elevation invalidation on paste enter/move/exit, retaining
+  immutable source textures and GPU target/device lifetime. This prevents stale
+  terrain/shadow/selection caches without inventing serialized document edits.
+- Native/reference/staticlib production checks passed10.07s/7.89s/30.41s;
+  /private/tmp/eldiron-native-paste-{native,reference,staticlib}-check.log.
+  Six/six/48 existing Creator warnings remain. All11 boundary checks passed:
+  /private/tmp/eldiron-native-paste-boundaries-check.log. Scoped formatting and
+  git diff --check passed. Networking concept untouched/untracked.
+- Two integration fixture corrections, without weakening production gates:
+  paste's final acknowledgement initially pre-acknowledged Rect before its
+  existing unpresented-controls check; moved that paste case before tool
+  activation. Isometric movement can change only one map axis after snapping;
+  corrected its assertion to compare both axes. Superseded failure logs:
+  /private/tmp/eldiron-native-paste-root-metal.log and
+  /private/tmp/eldiron-native-paste-projection-root-metal.log.
+- Native 3D clipboard, orthographic bake/speech/visibility/custom-context
+  adapters, global authoring/source ownership, browser/Apple and physical/
+  performance acceptance still remain. No milestone or overall completion.

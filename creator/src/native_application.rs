@@ -214,6 +214,7 @@ impl UiApplication for NativeCreatorApplication {
         redraw |= self.editor.update_ui(&mut ui.ui, &mut ui.context);
         redraw |= self.editor.update(&mut ui.context);
         self.editor.publish_native_world_paint_sources();
+        redraw |= self.editor.advance_native_world_paste();
         redraw |= self.editor.advance_native_minimap_source();
         self.editor.sync_native_game_input(&mut ui.ui, &ui.context);
         if let Err(error) = self.editor.sync_native_play(&mut ui.ui, &mut ui.context, elapsed) {
@@ -344,6 +345,7 @@ mod tests {
     use super::*;
     use renderkit::{GpuContext, GpuImage, ImageDescriptor, ImageRegistry, ReadbackTicket, wgpu};
     use rusterix::D3Camera;
+    use std::sync::Arc;
     use theframework::render_wgpu::PaintRenderer;
     #[test]
     #[ignore = "requires actual native GPU; exercises the assembled Creator UI"]
@@ -633,6 +635,9 @@ mod tests {
             .unwrap();
         app.presented(&mut host);
         assert_eq!(gpu.transfers().readback_bytes, before_world);
+        check_native_paste(
+            &mut app, &mut host, &mut replacement, &gpu, &mut renderer, &output,
+        );
         assert!(app.application.editor.handle_native_world_input(
             &header,
             &mut app.session.ui,
@@ -966,6 +971,10 @@ mod tests {
             TheId::named("Editor View Switch"),
             1,
         ));
+        app.update(&mut host, Duration::from_millis(16));
+        check_native_paste(
+            &mut app, &mut host, &mut replacement, &gpu, &mut renderer, &output,
+        );
         app.session.context.ui.send(TheEvent::Custom(
             TheId::named("Set Tool"),
             TheValue::Text("tool.rect".into()),
@@ -2859,6 +2868,266 @@ mod tests {
             }
         }
         check_asset_sources(&gpu, &mut renderer, &mut app.session.context);
+    }
+    fn check_native_paste(
+        app: &mut UiApplicationAdapter<NativeCreatorApplication>,
+        host: &mut HostContext,
+        images: &mut ImageRegistry,
+        gpu: &Arc<GpuContext>,
+        renderer: &mut PaintRenderer,
+        output: &Arc<GpuImage>,
+    ) {
+        let source = crate::editor::RUSTERIX
+            .read()
+            .unwrap()
+            .scene_handler
+            .build_index
+            .snapshot();
+        let before_transfers = gpu.transfers();
+        let (view, vertices, authored) = app
+            .application
+            .editor
+            .stage_native_paste_for_test(&mut app.session.ui, &mut app.session.context);
+        app.update(host, Duration::from_millis(16));
+        assert!(app.application.editor.native_paste_active_for_test());
+        let size = *app.session.ui.get_render_view(&view.name).unwrap().dim();
+        let point = Vec2::new(size.width / 2 + 55, size.height / 2 + 45);
+        assert!(app.application.editor.handle_native_world_input(
+            &TheEvent::RenderViewHoverChanged(view.clone(), point),
+            &mut app.session.ui,
+            &mut app.session.context
+        ));
+        let click = TheEvent::RenderViewClicked(view.clone(), point);
+        assert!(
+            app.application.editor.handle_native_world_input(
+                &click,
+                &mut app.session.ui,
+                &mut app.session.context
+            ),
+            "unpresented paste must not commit"
+        );
+        for _ in 0..128 {
+            app.update(host, Duration::from_millis(16));
+            let list = app.frame(host, images).unwrap();
+            assert!(app.application.pending.as_ref().unwrap().world_for_test());
+            renderer
+                .render(
+                    &list,
+                    images,
+                    &output.view,
+                    output.descriptor.format,
+                    (1200, 800),
+                    1.,
+                    [0.; 4],
+                )
+                .unwrap();
+            app.presented(host);
+            if app.application.editor.native_paste_ready_for_test() {
+                break;
+            }
+        }
+        assert!(
+            app.application.editor.native_paste_ready_for_test(),
+            "paste must publish its own ready source"
+        );
+        assert_eq!(
+            app.application.editor.native_paste_authored_for_test(),
+            authored,
+            "preview cannot enter authored data"
+        );
+        assert!(
+            Arc::ptr_eq(
+                &source,
+                &crate::editor::RUSTERIX
+                    .read()
+                    .unwrap()
+                    .scene_handler
+                    .build_index
+                    .snapshot()
+            ),
+            "paste must not replace the main authored source"
+        );
+        assert_eq!(
+            gpu.transfers().readback_bytes,
+            before_transfers.readback_bytes
+        );
+        assert!(
+            !app.session
+                .ui
+                .get_render_view(&view.name)
+                .unwrap()
+                .has_cpu_display_storage()
+        );
+        let preview = app
+            .application
+            .editor
+            .native_paste_preview_for_test()
+            .unwrap();
+        assert_eq!(preview.0, vertices + 4);
+        assert!(
+            images.get(preview.1).is_some(),
+            "paste output is a native GPU resource"
+        );
+        let original_projection = app
+            .application
+            .editor
+            .native_paste_projection_for_test()
+            .unwrap();
+        app.update(host, Duration::ZERO);
+        assert!(
+            Arc::ptr_eq(
+                &original_projection,
+                &app.application
+                    .editor
+                    .native_paste_projection_for_test()
+                    .unwrap()
+            ),
+            "an unchanged paste must reuse its CPU projection"
+        );
+        let point = point + Vec2::new(38, 14);
+        assert!(app.application.editor.handle_native_world_input(
+            &TheEvent::RenderViewHoverChanged(view.clone(), point),
+            &mut app.session.ui,
+            &mut app.session.context
+        ));
+        let click = TheEvent::RenderViewClicked(view.clone(), point);
+        assert!(
+            app.application.editor.handle_native_world_input(
+                &click,
+                &mut app.session.ui,
+                &mut app.session.context
+            ),
+            "a moved preview must be acknowledged again"
+        );
+        for _ in 0..128 {
+            app.update(host, Duration::from_millis(16));
+            let list = app.frame(host, images).unwrap();
+            renderer
+                .render(
+                    &list,
+                    images,
+                    &output.view,
+                    output.descriptor.format,
+                    (1200, 800),
+                    1.,
+                    [0.; 4],
+                )
+                .unwrap();
+            app.presented(host);
+            if app.application.editor.native_paste_ready_for_test() {
+                break;
+            }
+        }
+        assert!(app.application.editor.native_paste_ready_for_test());
+        let moved = app
+            .application
+            .editor
+            .native_paste_projection_for_test()
+            .unwrap();
+        assert!(!Arc::ptr_eq(&moved, &original_projection));
+        assert_ne!(
+            [moved.vertices.last().unwrap().x, moved.vertices.last().unwrap().y],
+            [original_projection.vertices.last().unwrap().x, original_projection.vertices.last().unwrap().y],
+            "moving the preview must move its geometry on at least one map axis",
+        );
+        assert_eq!(
+            app.application.editor.native_paste_authored_for_test(),
+            authored
+        );
+        assert_eq!(
+            gpu.transfers().readback_bytes,
+            before_transfers.readback_bytes
+        );
+        // Requested test evidence only; normal preview display above had zero
+        // color readback and no destination pixel storage.
+        let preview = app
+            .application
+            .editor
+            .native_paste_preview_for_test()
+            .unwrap();
+        let mut capture =
+            ReadbackTicket::capture(gpu, images.get(preview.1).unwrap().clone()).unwrap();
+        gpu.device
+            .poll(wgpu::PollType::Wait {
+                submission_index: None,
+                timeout: Some(Duration::from_secs(30)),
+            })
+            .unwrap();
+        let pixels = capture.try_finish(gpu).unwrap().unwrap();
+        let mode = if moved.camera == rusterix::MapCamera::TwoDIso {
+            "isometric"
+        } else {
+            "topdown"
+        };
+        let path = format!("/private/tmp/eldiron-native-paste-{mode}.png");
+        let file = std::fs::File::create(path).unwrap();
+        let mut encoder = png::Encoder::new(file, pixels.width(), pixels.height());
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        encoder
+            .write_header()
+            .unwrap()
+            .write_image_data(pixels.pixels())
+            .unwrap();
+        app.session.context.ui.send(click);
+        app.update(host, Duration::from_millis(16));
+        assert!(!app.application.editor.native_paste_active_for_test());
+        assert_eq!(
+            app.application.editor.native_world_vertices_for_test(),
+            vertices + 4,
+            "real paste dispatcher commits once"
+        );
+        for (command, expected) in [
+            ("Undo", vertices),
+            ("Redo", vertices + 4),
+            ("Undo", vertices),
+        ] {
+            app.session.context.ui.send(TheEvent::StateChanged(
+                TheId::named(command),
+                TheWidgetState::Clicked,
+            ));
+            app.update(host, Duration::from_millis(16));
+            assert_eq!(
+                app.application.editor.native_world_vertices_for_test(),
+                expected
+            );
+        }
+        // Escape also revokes an unpresented projection without any authored edit.
+        let (_, _, authored) = app
+            .application
+            .editor
+            .stage_native_paste_for_test(&mut app.session.ui, &mut app.session.context);
+        app.update(host, Duration::from_millis(16));
+        app.session
+            .context
+            .ui
+            .send(TheEvent::KeyCodeDown(TheValue::KeyCode(TheKeyCode::Escape)));
+        app.update(host, Duration::from_millis(16));
+        assert!(!app.application.editor.native_paste_active_for_test());
+        assert_eq!(
+            app.application.editor.native_paste_authored_for_test(),
+            authored
+        );
+        for _ in 0..128 {
+            app.update(host, Duration::from_millis(16));
+            let list = app.frame(host, images).unwrap();
+            renderer
+                .render(
+                    &list,
+                    images,
+                    &output.view,
+                    output.descriptor.format,
+                    (1200, 800),
+                    1.,
+                    [0.; 4],
+                )
+                .unwrap();
+            app.presented(host);
+            if app.application.editor.native_world_ready_for_test() {
+                break;
+            }
+        }
+        assert!(app.application.editor.native_world_ready_for_test());
     }
     fn check_asset_sources(
         gpu: &std::sync::Arc<GpuContext>,

@@ -1,6 +1,8 @@
 //! Main authoring-world viewport on the host device. CPU source/controller
 //! bridges remain explicit while the remaining Creator owners are extracted.
 use super::*;
+#[path = "native_world_paste.rs"]
+mod paste;
 use crate::editor_overlay::panel::PanelScope;
 use crate::editor_overlay::procedural_gpu::GpuIcons;
 use crate::hud::{Hud, HudInputs, HudStyle};
@@ -42,6 +44,7 @@ impl AssetKey {
 struct Binding {
     document: Uuid,
     runtime: Option<Uuid>,
+    paste: Option<paste::Stamp>,
     view: TheId,
     tool: Uuid,
     context: ProjectContext,
@@ -59,6 +62,7 @@ impl Binding {
     fn capture_compatible(&self, next: &Self) -> bool {
         self.document == next.document
             && self.runtime == next.runtime
+            && self.paste.is_some() == next.paste.is_some()
             && self.view == next.view
             && self.tool == next.tool
             && self.context == next.context
@@ -169,6 +173,7 @@ impl PartialEq for GameInputFrame {
 }
 #[derive(PartialEq)]
 struct SceneInputKey {
+    paste: Option<paste::Stamp>,
     terrain_paint: Option<u64>,
     camera: Option<CameraStamp>,
     stamp: SourceStamp,
@@ -197,6 +202,7 @@ struct WorldGpu {
     view: ViewId,
     configured: Option<AssetKey>,
     scene_key: Option<SceneInputKey>,
+    projection_paste: Option<paste::Stamp>,
     scene_source: Option<Arc<SceneBuildSnapshot>>,
     guides: rusterix::scenebuilder::d2preview::D2PreviewBuilder,
     guide_scene: rusterix::Scene,
@@ -217,6 +223,7 @@ impl WorldGpu {
             view,
             configured: None,
             scene_key: None,
+            projection_paste: None,
             scene_source: None,
             guides: Default::default(),
             guide_scene: Default::default(),
@@ -343,6 +350,7 @@ pub(super) struct NativeWorldFrame {
     pub(super) receipt: FrameReceipt,
 }
 pub(crate) struct NativeWorld {
+    paste: Option<paste::Preview>,
     binding: Option<Binding>,
     epoch: u64,
     serial: u64,
@@ -381,6 +389,7 @@ struct CubeCapture {
 impl Default for NativeWorld {
     fn default() -> Self {
         Self {
+            paste: None,
             binding: None,
             epoch: 0,
             serial: 0,
@@ -412,6 +421,11 @@ impl NativeWorld {
                     .as_ref()
                     .and_then(|gpu| gpu.scenes.isometric_targets(frame.output))
                     .is_some_and(|current| Arc::ptr_eq(targets, &current))
+            } else if frame.binding.paste.is_some() {
+                self.paste.as_ref().is_some_and(|preview| {
+                    preview.matches(&frame.binding, map) && preview.ready()
+                        && preview.snapshot().is_some_and(|source| Arc::ptr_eq(&source, &frame.source))
+                })
             } else {
                 let builds = SCENEMANAGER.read().unwrap();
                 !builds.has_pending_geometry()
@@ -735,7 +749,8 @@ impl Editor {
             || self.server_ctx.world_mode
             || self.server_ctx.profile_view.is_some()
             || self.server_ctx.editing_surface.is_some()
-            || self.server_ctx.paste_clipboard.is_some()
+            || (self.server_ctx.paste_clipboard.is_some()
+                && self.server_ctx.editor_view_mode != EditorViewMode::D2)
         {
             return false;
         }
@@ -833,6 +848,7 @@ impl Editor {
         Some(Binding {
             document,
             runtime: self.play_session.as_ref().map(|session| session.pump().session_id()),
+            paste: paste::Stamp::current(&self.server_ctx),
             view,
             tool,
             context: self.server_ctx.pc,
@@ -967,10 +983,26 @@ impl Editor {
             ctx.ui.set_focus(&binding.view);
         }
         let map = self
-            .documents.project
+            .documents
+            .project
             .get_map(&self.server_ctx)
             .ok_or("missing native world map")?;
-        let projected = self.play_session.as_ref().map(|play| play.authoring_map(map));
+        let authored_stamp = SourceStamp::new(map);
+        let paste = self
+            .native_viewport
+            .world
+            .paste
+            .as_ref()
+            .filter(|preview| preview.matches(&binding, map));
+        let paste_map = paste.map(|preview| preview.map.clone());
+        let paste_source = paste.and_then(|preview| preview.snapshot());
+        let paste_ready = paste.is_some_and(|preview| preview.ready());
+        let authored_map = map;
+        let map = paste_map.as_deref().unwrap_or(map);
+        let projected = self
+            .play_session
+            .as_ref()
+            .map(|play| play.authoring_map(map));
         let map = projected.as_deref().unwrap_or(map);
         let camera = self.native_world_camera();
         let camera_stamp = camera
@@ -1004,7 +1036,12 @@ impl Editor {
         }
         let target = binding.target(world.epoch);
         let gpu = world.gpu.as_mut().unwrap();
-        let scope = (binding.document, binding.context, binding.map, binding.runtime);
+        let scope = (
+            binding.document,
+            binding.context,
+            binding.map,
+            binding.runtime,
+        );
         if gpu.scope != Some(scope) {
             // Reopened/copied documents may reuse map IDs and local revisions.
             // Neither atlas residency nor builder caches can cross that lifetime.
@@ -1017,6 +1054,7 @@ impl Editor {
                 .map_err(|e| e.to_string())?;
             gpu.configured = None;
             gpu.scene_key = None;
+            gpu.projection_paste = None;
             gpu.scene_source = None;
             gpu.guides = Default::default();
             gpu.guide_scene = Default::default();
@@ -1024,9 +1062,15 @@ impl Editor {
         }
         // CPU-only bridge inputs: no legacy VM is borrowed, swapped or rendered.
         let bridge = RUSTERIX.read().unwrap();
-        let assets = self.play_session.as_ref().map(|play| play.assets(&bridge.assets)).unwrap_or(&bridge.assets);
-        let source = bridge.scene_handler.build_index.snapshot();
-        let ready = if binding.mode == EditorViewMode::D2 && map.camera == MapCamera::TwoDIso {
+        let assets = self
+            .play_session
+            .as_ref()
+            .map(|play| play.assets(&bridge.assets))
+            .unwrap_or(&bridge.assets);
+        let source = paste_source.unwrap_or_else(|| bridge.scene_handler.build_index.snapshot());
+        let ready = if binding.paste.is_some() {
+            paste_ready
+        } else if binding.mode == EditorViewMode::D2 && map.camera == MapCamera::TwoDIso {
             // Iso source geometry is produced directly from this map. Creator
             // intentionally does not tick the unrelated legacy chunk builder.
             true
@@ -1053,6 +1097,7 @@ impl Editor {
             gpu.scene_key = None;
         }
         let key = SceneInputKey {
+            paste: binding.paste.clone(),
             camera: camera_stamp.clone(),
             stamp: SourceStamp::new(map),
             size: binding.size,
@@ -1072,7 +1117,12 @@ impl Editor {
             canvas: bridge.client.editor_canvas_colors,
             build: self.build_values.clone(),
             runtime: bridge.render_state_for_view_from(
-                self.play_session.as_ref().map(|play| play.server(&bridge.server)).unwrap_or(&bridge.server), map, true,
+                self.play_session
+                    .as_ref()
+                    .map(|play| play.server(&bridge.server))
+                    .unwrap_or(&bridge.server),
+                map,
+                true,
             ),
             terrain_paint: assets.terrain_paint.get(&map.id).map(|p| p.key),
         };
@@ -1086,6 +1136,13 @@ impl Editor {
                 .as_ref()
                 .is_some_and(|old| Arc::ptr_eq(old, &source));
         if !same_scene {
+            if gpu.projection_paste != binding.paste {
+                rusterix::chunkbuilder::terrain_surface::TerrainSurface::invalidate_cached(map.id);
+                gpu.scenes
+                    .invalidate_isometric_geometry(gpu.view)
+                    .map_err(|e| e.to_string())?;
+                gpu.projection_paste = binding.paste.clone();
+            }
             let source_changed = gpu
                 .scenes
                 .apply_editor_source(gpu.view, source.clone())
@@ -1139,7 +1196,8 @@ impl Editor {
                             (
                                 id,
                                 2,
-                                self.documents.project
+                                self.documents
+                                    .project
                                     .block_prop_paint
                                     .get(&id)
                                     .cloned()
@@ -1147,7 +1205,8 @@ impl Editor {
                             )
                         } else {
                             let region = self
-                                .documents.project
+                                .documents
+                                .project
                                 .get_region_ctx(&self.server_ctx)
                                 .ok_or("native 3D region removed")?;
                             let mut paint = region.iso_paint.clone();
@@ -1272,25 +1331,37 @@ impl Editor {
                 height: icon.pixel_height(),
                 pixels: icon.pixels(),
             });
+        let mut tools = TOOLLIST.write().unwrap();
+        let tool = tools.get_current_tool();
+        let overlay_inputs = ToolOverlayInputs {
+            target,
+            style: &binding.style,
+            hud: HudInputs {
+                map: if binding.paste.is_some() {
+                    authored_map
+                } else {
+                    map
+                },
+                server: &self.server_ctx,
+                assets: assets,
+                selected_id: None,
+                material_slots: material_slots.as_deref(),
+                light,
+            },
+        };
         let overlay = Arc::new(
-            TOOLLIST
-                .write()
-                .unwrap()
-                .get_current_tool()
-                .prepare_overlay(ToolOverlayInputs {
-                    target,
-                    style: &binding.style,
-                    hud: HudInputs {
-                        map,
-                        server: &self.server_ctx,
-                        assets: assets,
-                        selected_id: None,
-                        material_slots: material_slots.as_deref(),
-                        light,
-                    },
-                })
-                .ok_or("native world tool has no overlay producer")?,
+            if binding.paste.is_some() {
+                ToolOverlayFrame::passive(
+                    tool.as_ref(),
+                    overlay_inputs,
+                    crate::editor_overlay::EditorOverlay::new(binding.size),
+                )
+            } else {
+                tool.prepare_overlay(overlay_inputs)
+            }
+            .ok_or("native world tool has no overlay producer")?,
         );
+        drop(tools);
         let mut list = PaintList::default();
         list.image(
             output.image,
@@ -1373,7 +1444,7 @@ impl Editor {
         Ok(Some(Arc::new(NativeWorldFrame {
             binding,
             target,
-            stamp: SourceStamp::new(map),
+            stamp: authored_stamp,
             source,
             ready,
             camera: camera_stamp,
@@ -1434,7 +1505,7 @@ impl Editor {
                 return;
             }
         }
-        let accepted = TOOLLIST
+        let accepted = frame.binding.paste.is_some() || TOOLLIST
             .write()
             .unwrap()
             .get_current_tool()
@@ -1617,6 +1688,9 @@ impl Editor {
             if id.uuid != binding.view.uuid {
                 return true;
             }
+        }
+        if binding.paste.is_some() {
+            return self.handle_native_paste_input(&binding, input, ui, ctx, focused);
         }
         let current_camera = self
             .native_world_camera()
@@ -2020,6 +2094,62 @@ impl Editor {
 
 #[cfg(test)]
 impl Editor {
+    pub(crate) fn stage_native_paste_for_test(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+    ) -> (TheId, usize, Vec<u8>) {
+        let mut clipboard = Map::new();
+        let sector = crate::project_templates::rectangle(&mut clipboard, -0.5, -0.5, 1., 1.);
+        if let Some(id) = RUSTERIX.read().unwrap().assets.tiles.keys().next().copied() {
+            clipboard
+                .find_sector_mut(sector)
+                .unwrap()
+                .properties
+                .set("source", Value::Source(rusterix::PixelSource::TileId(id)));
+        }
+        self.server_ctx.clipboard = clipboard;
+        self.server_ctx.hover_cursor = None;
+        let map = self.documents.project.get_map(&self.server_ctx).unwrap();
+        let before = serde_json::to_vec(map).unwrap();
+        let vertices = map.vertices.len();
+        let view = crate::utils::map_editor_render_view(ui, &self.server_ctx)
+            .unwrap()
+            .id()
+            .clone();
+        ctx.ui.set_focus(&view);
+        ctx.ui.send(TheEvent::Paste(TheValue::Empty, None));
+        (view, vertices, before)
+    }
+    pub(crate) fn native_paste_authored_for_test(&self) -> Vec<u8> {
+        serde_json::to_vec(self.documents.project.get_map(&self.server_ctx).unwrap()).unwrap()
+    }
+    pub(crate) fn native_paste_projection_for_test(&self) -> Option<Arc<Map>> {
+        self.native_viewport
+            .world
+            .paste
+            .as_ref()
+            .map(|preview| preview.map.clone())
+    }
+    pub(crate) fn native_paste_active_for_test(&self) -> bool {
+        self.server_ctx.paste_clipboard.is_some()
+    }
+    pub(crate) fn native_paste_ready_for_test(&self) -> bool {
+        let world = &self.native_viewport.world;
+        let map = self.documents.project.get_map(&self.server_ctx).unwrap();
+        world.presented.as_ref().is_some_and(|frame| {
+            frame.binding.paste.is_some() && world.frame_is_fresh(frame, map, &None)
+        })
+    }
+    pub(crate) fn native_paste_preview_for_test(
+        &self,
+    ) -> Option<(usize, theframework_core::ImageHandle)> {
+        let world = &self.native_viewport.world;
+        Some((
+            world.paste.as_ref()?.map.vertices.len(),
+            world.presented.as_ref()?.output.image,
+        ))
+    }
     pub(crate) fn native_retry_state_for_test(&self) -> (bool, bool) {
         (
             self.native_viewport.world.retry_click.is_some(),

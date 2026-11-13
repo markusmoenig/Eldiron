@@ -12,6 +12,8 @@ pub mod blocks;
 pub mod configeditor;
 pub mod dockmanager;
 mod documents;
+#[cfg(feature = "native-render")]
+mod scene_source;
 pub mod docks;
 pub mod editcamera;
 pub mod editor;
