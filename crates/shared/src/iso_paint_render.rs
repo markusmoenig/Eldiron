@@ -111,11 +111,7 @@ pub struct IsoPaintRenderer;
 #[allow(dead_code)]
 impl IsoPaintRenderer {
     fn surface_paint_entry_hash(geo: [u32; 4], origin: [i32; 2]) -> u32 {
-        let mut hash = 2_166_136_261_u32;
-        for value in geo.into_iter().chain(origin.map(|value| value as u32)) {
-            hash = (hash ^ value).wrapping_mul(16_777_619);
-        }
-        hash
+        crate::surface_paint::Builder::surface_paint_entry_hash(geo, origin)
     }
 
     /// Arrange chunk metadata as a half-full open-addressed table. The raster shader can then
@@ -123,23 +119,7 @@ impl IsoPaintRenderer {
     fn surface_paint_entry_table(
         entries: Vec<scenevm::Raster3DSurfacePaintEntry>,
     ) -> Vec<scenevm::Raster3DSurfacePaintEntry> {
-        let table_len = (entries.len().saturating_mul(2)).next_power_of_two().max(2);
-        let empty = scenevm::Raster3DSurfacePaintEntry {
-            geo: [0; 4],
-            uv_origin: [0; 2],
-            uv_size: [0; 2],
-            atlas_rect: [0; 4],
-        };
-        let mut table = vec![empty; table_len];
-        for entry in entries {
-            let mut index = Self::surface_paint_entry_hash(entry.geo, entry.uv_origin) as usize
-                & (table_len - 1);
-            while table[index].uv_size != [0; 2] {
-                index = (index + 1) & (table_len - 1);
-            }
-            table[index] = entry;
-        }
-        table
+        crate::surface_paint::Builder::surface_paint_entry_table(entries)
     }
 
     /// Rasterize authored 3D paint into stable UV-space chunks.  The old renderer committed
@@ -308,77 +288,11 @@ impl IsoPaintRenderer {
         Vec<u8>,
         Vec<scenevm::Raster3DSurfacePaintEntry>,
     )> {
-        if baked_chunks.is_empty() {
-            return None;
-        }
-        let count = baked_chunks.len();
-        let columns = (count as f32).sqrt().ceil().max(1.0) as usize;
-        let rows = count.div_ceil(columns);
-        let chunk_size = ISO_PAINT_BAKED_CHUNK_SIZE as usize;
-        let width = (columns * chunk_size) as u32;
-        let height = (rows * chunk_size) as u32;
-        let mut color = vec![0_u8; width as usize * height as usize * 4];
-        let mut material = vec![0_u8; width as usize * height as usize * 4];
-        let mut entries = Vec::with_capacity(count);
-
-        for (index, chunk) in baked_chunks.values().enumerate() {
-            let atlas_x = (index % columns) * chunk_size;
-            let atlas_y = (index / columns) * chunk_size;
-            for row in 0..chunk_size {
-                let source = row * chunk_size * 4;
-                let destination = ((atlas_y + row) * width as usize + atlas_x) * 4;
-                color[destination..destination + chunk_size * 4]
-                    .copy_from_slice(&chunk.color_rgba[source..source + chunk_size * 4]);
-                material[destination..destination + chunk_size * 4]
-                    .copy_from_slice(&chunk.material_rgba[source..source + chunk_size * 4]);
-            }
-            entries.push(scenevm::Raster3DSurfacePaintEntry {
-                geo: chunk.paint_geo,
-                uv_origin: chunk.origin,
-                uv_size: [ISO_PAINT_BAKED_CHUNK_SIZE as u32; 2],
-                atlas_rect: [
-                    atlas_x as u32,
-                    atlas_y as u32,
-                    chunk_size as u32,
-                    chunk_size as u32,
-                ],
-            });
-        }
-        let entries = Self::surface_paint_entry_table(entries);
-        Some((width, height, color, material, entries))
+        crate::surface_paint::Builder::build_surface_paint_atlas(baked_chunks)
     }
 
     fn surface_paint_alpha_geo_ids(layer: &IsoPaintLayer) -> Vec<scenevm::GeoId> {
-        let mut seen = HashSet::new();
-        let mut geo_ids = Vec::new();
-        let mut has_alpha_paint = false;
-        for chunk in layer.baked_chunks.values() {
-            let needs_alpha = chunk.material_rgba.chunks_exact(4).any(|pixel| {
-                if (pixel[0] == 252 || (128..=187).contains(&pixel[0])) && pixel[3] > 0 { return true; }
-                if pixel[0] != 254 || pixel[3] == 0 || pixel[2] == 0 {
-                    return false;
-                }
-                let material_id = pixel[1];
-                let replace_opacity = pixel[2].saturating_sub(1);
-                replace_opacity < 254 || Self::iso_paint_material_is_translucent(material_id)
-            });
-            if needs_alpha {
-                has_alpha_paint = true;
-                let geo_id = Self::iso_paint_owner_geo_id(&chunk.owner);
-                if seen.insert(geo_id) {
-                    geo_ids.push(geo_id);
-                }
-            }
-        }
-        if has_alpha_paint {
-            for owner in &layer.surface_instance_owners {
-                let geo_id = Self::iso_paint_owner_geo_id(owner);
-                if seen.insert(geo_id) {
-                    geo_ids.push(geo_id);
-                }
-            }
-        }
-        geo_ids
+        crate::surface_paint::Builder::surface_paint_alpha_geo_ids(layer)
     }
 
     fn surface_chunks_with_stamps(layer: &IsoPaintLayer) -> IndexMap<String, IsoPaintBakedChunk> {
@@ -828,7 +742,7 @@ impl IsoPaintRenderer {
     }
 
     fn iso_paint_material_is_translucent(material_id: u8) -> bool {
-        matches!(material_id / 4, 5 | 6)
+        crate::surface_paint::Builder::iso_paint_material_is_translucent(material_id)
     }
 
     fn iso_paint_alpha_geo_ids(
@@ -1293,23 +1207,7 @@ impl IsoPaintRenderer {
     }
 
     fn iso_paint_owner_geo_id(owner: &IsoPaintOwner) -> scenevm::GeoId {
-        match owner {
-            IsoPaintOwner::Unknown(id) => scenevm::GeoId::Unknown(*id),
-            IsoPaintOwner::Vertex(id) => scenevm::GeoId::Vertex(*id),
-            IsoPaintOwner::Linedef(id) => scenevm::GeoId::Linedef(*id),
-            IsoPaintOwner::Sector(id) => scenevm::GeoId::Sector(*id),
-            IsoPaintOwner::Character(id) => scenevm::GeoId::Character(*id),
-            IsoPaintOwner::Item(id) => scenevm::GeoId::Item(*id),
-            IsoPaintOwner::Light(id) => scenevm::GeoId::Light(*id),
-            IsoPaintOwner::ItemLight(id) => scenevm::GeoId::ItemLight(*id),
-            IsoPaintOwner::Triangle(id) => scenevm::GeoId::Triangle(*id),
-            IsoPaintOwner::Terrain { x, z } => scenevm::GeoId::Terrain(*x, *z),
-            IsoPaintOwner::GeometryObject(id) => scenevm::GeoId::GeometryObject(*id),
-            IsoPaintOwner::Hole { sector_id, hole_id } => {
-                scenevm::GeoId::Hole(*sector_id, *hole_id)
-            }
-            IsoPaintOwner::Gizmo(id) => scenevm::GeoId::Gizmo(*id),
-        }
+        crate::surface_paint::Builder::iso_paint_owner_geo_id(owner)
     }
 
     fn iso_paint_geo_id_owner(geo_id: scenevm::GeoId) -> IsoPaintOwner {

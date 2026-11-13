@@ -83,6 +83,7 @@ impl SceneViews {
                 scene,
             )
             .map_err(RenderError)?;
+        self.apply_game_surface_paint(id, input.assets.surface_paint.get(&input.map.id))?;
         // Player/map synchronization can change the camera during preparation.
         self.select_game_mode(id, widget.camera.is_isometric_2d(), images)?;
         if widget.camera.is_isometric_2d() {

@@ -103,8 +103,12 @@ pub fn setup_client(rusterix: &mut Rusterix, project: &mut Project) -> Vec<Comma
 /// CPU presentation/start-menu setup, without allocating an audio device.
 pub fn setup_client_sources(rusterix: &mut Rusterix, project: &mut Project) -> Vec<Command> {
     rusterix.assets.terrain_paint.clear();
+    rusterix.assets.surface_paint.clear();
     for region in &mut project.regions {
         crate::iso_paint_terrain::sync(&mut rusterix.assets, region.map.id, &mut region.iso_paint);
+        if let Err(error) = crate::surface_paint::sync(&mut rusterix.assets, region.map.id, &mut region.iso_paint) {
+            eprintln!("{error}");
+        }
     }
     rusterix.assets.config = project.config.clone();
     rusterix.assets.world_source = project.world_source.clone();

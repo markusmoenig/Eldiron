@@ -9,6 +9,7 @@ use theframework_core::Uuid;
 mod editor;
 mod isometric;
 mod picking;
+mod surface_paint;
 pub use picking::{EditorPaintCapture, EditorPaintPick, EditorPick, ViewPick, ViewPickHit};
 
 /// Stable application/controller identity, independent of window/device lifetime.
@@ -44,6 +45,7 @@ pub struct ViewCapture {
 struct SceneView {
     scene: SceneHandler,
     editor_source: Option<Arc<rusterix::scene_build_index::SceneBuildSnapshot>>,
+    game_surface_paint: Option<Arc<rusterix::surface_paint::SurfacePaint>>,
     isometric: bool,
     isometric_renderer: Option<crate::isometric::IsometricSceneRenderer>,
     isometric_frame: Option<crate::isometric::IsometricPreparedFrame>,
@@ -117,6 +119,7 @@ impl SceneViews {
             SceneView {
                 scene: SceneHandler::with_vm(vm),
                 editor_source: None,
+                game_surface_paint: None,
                 isometric: false,
                 isometric_renderer: None,
                 isometric_frame: None,

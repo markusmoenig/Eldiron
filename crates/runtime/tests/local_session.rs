@@ -153,6 +153,19 @@ fn cpu_session_startup_publishes_authored_tiles_with_coherent_indices() {
     let tile = rusterix::Tile::from_texture(rusterix::Texture::new(vec![30, 90, 150, 255], 1, 1));
     let id = tile.id;
     project.tiles.insert(id, tile.clone());
+    let map = project.regions[0].map.id;
+    let mut chunk = shared::iso_paint::IsoPaintBakedChunk::new(
+        shared::iso_paint::IsoPaintOwner::Sector(7),
+        [4, 7, 0, 1],
+        [-64, 0],
+    );
+    chunk.color_rgba[..4].copy_from_slice(&[210, 50, 160, 192]);
+    chunk.material_rgba[..4].copy_from_slice(&[254, 0, 128, 255]);
+    project.regions[0]
+        .iso_paint
+        .baked_chunks
+        .insert("fixture".into(), chunk);
+    let authored_paint = project.regions[0].iso_paint.clone();
     let mut session = GameSession::new(project);
     session.server.print_log_messages = false;
     session.server.state = rusterix::ServerState::Running;
@@ -176,6 +189,48 @@ fn cpu_session_startup_publishes_authored_tiles_with_coherent_indices() {
         "publishing source assets cannot alter authored tile data"
     );
     assert!(session.assets.tiles_revision > 0);
+    let source = session.assets.surface_paint[&map].clone();
+    assert_eq!((source.width, source.height), (64, 64));
+    assert_eq!(&source.color_rgba[..4], &[210, 50, 160, 192]);
+    assert_eq!(
+        source.alpha_geo_ids.len(),
+        1,
+        "translucent replacement must route its owner through alpha rendering"
+    );
+    let mut persistent = session.project.regions[0].iso_paint.clone();
+    // Source-image cache revision is explicitly serde(skip), unlike paint data.
+    persistent.source_revision = authored_paint.source_revision;
+    assert!(
+        persistent == authored_paint,
+        "CPU publication must retain the complete persistent paint description"
+    );
+    assert!(
+        !shared::surface_paint::sync(
+            &mut session.assets,
+            map,
+            &mut session.project.regions[0].iso_paint
+        )
+        .unwrap()
+    );
+    assert!(std::sync::Arc::ptr_eq(
+        &source,
+        &session.assets.surface_paint[&map]
+    ));
+    session.project.regions[0].iso_paint.visible = false;
+    assert!(
+        shared::surface_paint::sync(
+            &mut session.assets,
+            map,
+            &mut session.project.regions[0].iso_paint
+        )
+        .unwrap()
+    );
+    assert!(!session.assets.surface_paint.contains_key(&map));
+    assert_eq!(
+        &source.color_rgba[..4],
+        &[210, 50, 160, 192],
+        "retired publications stay immutable"
+    );
     session.stop();
 }
 

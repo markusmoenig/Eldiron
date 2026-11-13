@@ -1534,6 +1534,13 @@ pub fn start_server(
     sync_procedural_avatar_assets(assets, project);
     publish_visual_tiles(assets,project);
 
+    assets.terrain_paint.clear();
+    assets.surface_paint.clear();
+    for region in &mut project.regions {
+        crate::iso_paint_terrain::sync(assets, region.map.id, &mut region.iso_paint);
+        crate::surface_paint::sync(assets, region.map.id, &mut region.iso_paint)?;
+    }
+
     // The session owns world-map lookup even when no graphical client is set up.
     // RegionAssets excludes this registry from the per-region snapshot.
     assets.maps = project
