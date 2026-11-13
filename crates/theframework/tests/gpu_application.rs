@@ -170,5 +170,45 @@ fn foreign_layer_hosts_widget_free_app_and_preserves_state_on_surface_replacemen
     app.input(&InputEvent::Focus(false), &mut host);
     assert!(host.text_input.is_none());
     drop(replacement);
+    let app = Application {
+        fonts: TextSystem::default(),
+        input: EditorView::new(false),
+        initializations: 0,
+        recreations: 0,
+        presentations: 0,
+    };
+    let mut foreign =
+        ForeignApplicationHost::new(app, create_presenter(&layer, (480, 180)), 1.5).unwrap();
+    foreign.update();
+    assert_eq!(foreign.present().unwrap(), Some(PresentResult::Presented));
+    assert!(
+        foreign.present().unwrap().is_none(),
+        "unchanged application should be idle"
+    );
+    let source = foreign.application.input.editor.text().to_owned();
+    let target = foreign.host.text_input.unwrap().target;
+    foreign.presenter.context().device.destroy();
+    let mut loss = None;
+    for _ in 0..100 {
+        loss = foreign.present().unwrap();
+        if loss.is_some() { break; }
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    assert_eq!(
+        loss,
+        Some(PresentResult::SurfaceLost),
+        "idle display callbacks must report loss without preparing another frame"
+    );
+    assert_eq!(foreign.presentations(), 1);
+    foreign
+        .replace_presenter(create_presenter(&layer, (480, 180)))
+        .unwrap();
+    assert_eq!(foreign.application.initializations, 1);
+    assert_eq!(foreign.application.recreations, 1);
+    assert_eq!(foreign.application.input.editor.text(), source);
+    assert_eq!(foreign.host.text_input.unwrap().target, target);
+    assert_eq!(foreign.present().unwrap(), Some(PresentResult::Presented));
+    assert_eq!(foreign.presenter.context().transfers().readback_bytes, 0);
+    drop(foreign);
     drop(layer);
 }

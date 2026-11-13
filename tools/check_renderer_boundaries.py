@@ -47,6 +47,7 @@ def main():
     check("eldiron-client-wgpu", {"pixels", "softbuffer"}, forbidden_features=('scenevm feature "windowing"',))
     check("eldiron-client-wgpu", {"winit", "pixels", "softbuffer"}, features="native-player")
     check("eldiron-creator", {"pixels", "softbuffer"}, features="native-host", forbidden_features=('scenevm feature "windowing"',))
+    check("eldiron-creator", {"pixels", "softbuffer", "open", "arboard", "ureq", "font-kit"}, features="browser-host", forbidden_features=('scenevm feature "windowing"', 'theframework feature "winit_app"'), target="wasm32-unknown-unknown")
     for package in ("eldiron-client", "eldiron-client-wgpu"):
         check(package, {"pixels", "softbuffer"}, forbidden_features=('scenevm feature "windowing"',), target="wasm32-unknown-unknown")
 

@@ -25,6 +25,13 @@ fn source_bytes(project: &Project) -> Result<Vec<u8>, String> {
     serde_json::to_vec(&source).map_err(|e| e.to_string())
 }
 impl Editor {
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn has_document(&self, document: Uuid) -> bool {
+        self.documents
+            .sessions
+            .iter()
+            .any(|session| session.id == document)
+    }
     pub(crate) fn enable_host_document_io(&mut self) {
         self.documents.host_io = true;
     }

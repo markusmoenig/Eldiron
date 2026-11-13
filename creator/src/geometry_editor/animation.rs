@@ -1,6 +1,6 @@
 use super::*;
 use denrim_materials::geometry::{Mesh, rig::Motion};
-use std::time::Instant;
+use web_time::Instant;
 pub struct Playback {
     pub clips: Vec<(String, String)>,
     pub scope: Vec<String>,

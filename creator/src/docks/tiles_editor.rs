@@ -606,6 +606,11 @@ impl Dock for TilesEditorDock {
                     redraw = true;
                 }
             }
+            #[cfg(target_arch = "wasm32")]
+            TheEvent::Copy | TheEvent::Cut | TheEvent::Paste(_, _) => {
+                ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), "Image clipboard is not available. No pixels were changed.".into()));
+            }
+            #[cfg(not(target_arch = "wasm32"))]
             TheEvent::Copy => {
                 if server_ctx.editing_ctx != PixelEditingContext::None {
                     if let Some(texture) = project.get_editing_texture(&server_ctx.editing_ctx) {
@@ -674,6 +679,7 @@ impl Dock for TilesEditorDock {
                     }
                 }
             }
+            #[cfg(not(target_arch = "wasm32"))]
             TheEvent::Cut => {
                 if server_ctx.editing_ctx != PixelEditingContext::None {
                     let selection =
@@ -736,6 +742,7 @@ impl Dock for TilesEditorDock {
                     }
                 }
             }
+            #[cfg(not(target_arch = "wasm32"))]
             TheEvent::Paste(_, _) => {
                 if server_ctx.editing_ctx != PixelEditingContext::None {
                     if let Ok(mut clipboard) = arboard::Clipboard::new() {

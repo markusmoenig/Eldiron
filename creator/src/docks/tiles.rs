@@ -1,7 +1,7 @@
 use crate::editor::{ACTIONLIST, UNDOMANAGER};
 use crate::prelude::*;
 use rusterix::{TileRole, TileSource, VertexBlendPreset};
-use std::time::Instant;
+use web_time::Instant;
 
 const TILES_TAB_LAYOUT: &str = "Tiles Dock Tabs";
 const TILE_VIEW_PREFIX: &str = "Tiles Dock View ";

@@ -24,6 +24,41 @@ fn resources_reject_stale_handles_and_capture_padded_rows() {
     let capture = ticket.try_finish(&ctx).unwrap().unwrap();
     assert_eq!(capture, source);
     assert!(ticket.try_finish(&ctx).is_err());
+    // Actual loss must wake idle owners, while retired listener leases do not.
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+    let wakes = Arc::new(AtomicUsize::new(0));
+    let count = wakes.clone();
+    let live = ctx.observe_faults(move || {
+        count.fetch_add(1, Ordering::SeqCst);
+    });
+    let count = wakes.clone();
+    let retired = ctx.observe_faults(move || {
+        count.fetch_add(100, Ordering::SeqCst);
+    });
+    drop(retired);
+    ctx.device.destroy();
+    for _ in 0..100 {
+        let _ = ctx.poll();
+        if ctx.is_lost() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    assert!(ctx.is_lost());
+    assert_eq!(wakes.load(Ordering::SeqCst), 1);
+    let count = wakes.clone();
+    let late = ctx.observe_faults(move || {
+        count.fetch_add(1, Ordering::SeqCst);
+    });
+    assert_eq!(
+        wakes.load(Ordering::SeqCst),
+        2,
+        "a late observer must not miss loss"
+    );
+    drop((live, late));
 }
 
 #[cfg(target_os = "macos")]

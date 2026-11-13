@@ -8,7 +8,7 @@ pub(super) struct LiveEvents {
     pub combat_status: HashMap<Uuid, (String, Option<u32>)>,
     pub active_nodes: std::collections::HashSet<Uuid>,
     pub active_connections: std::collections::HashSet<Uuid>,
-    highlight_revisions: HashMap<Uuid, (Uuid, std::time::Instant)>,
+    highlight_revisions: HashMap<Uuid, (Uuid, web_time::Instant)>,
     session: Option<Uuid>,
     pub latest: HashMap<Uuid, EventObservation>,
     pub traces: Vec<rusterix::server::nodes::Trace>,
@@ -66,7 +66,7 @@ pub(super) fn matches_owner(
 }
 impl NodesDock {
     pub(super) fn refresh_live(&mut self, project: &Project, server_ctx: &ServerContext) -> bool {
-        if let Some(runtime) = std::sync::LazyLock::get(&crate::editor::RUSTERIX) {
+        if let Some(runtime) = crate::editor::reference_runtime() {
             self.update_live(&runtime.read().unwrap().server, project, server_ctx)
         } else {
             let changed = self.live.active
@@ -116,7 +116,7 @@ impl NodesDock {
             self.live.traces.clear();
             return changed;
         }
-        let now = std::time::Instant::now();
+        let now = web_time::Instant::now();
         let mut nodes = std::collections::HashSet::new();
         let mut connections = std::collections::HashSet::new();
         let mut combat_status = HashMap::new();

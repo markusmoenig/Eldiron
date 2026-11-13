@@ -7927,3 +7927,265 @@ M9 Creator host/document checkpoint (verified local batch):
   platform". Log: /private/tmp/eldiron-browser-creator-dependencies-check.log.
   Continue fixing target boundaries; this is an implementation gap, not a
   platform-access blocker.
+
+
+M8 browser Creator bootstrap continuation (after61c0832c; in progress):
+- Added browser-host feature and eldiron-creator-web WASM entry point around
+  UiApplicationAdapter<NativeCreatorApplication> and the shared Winit/WebGPU
+  host. It selects the same GPU view/paint/Swash application, never the legacy
+  Pixels/Canvas2D application. Initial ?project= fetch uses existing byte-load/
+  migration/document activation after common UI initialization. Browser source
+  metadata includes actual presentation count, generation, document identity,
+  dirty flag, root CPU bytes and transfer readback counter for integration checks.
+- Target audit found unconditional desktop open/arboard/ureq dependencies. Moved
+  those to native dependencies; browser URL opening uses the Web API. Shared
+  Fluent macros/loader and embedded localizations now compile for WASM, selecting
+  navigator languages through i18n-embed's WebLanguageRequester. RustEmbed uses
+  debug-embed for WASM (no browser filesystem). Existing versions are retained;
+  offline Cargo lock changes only record direct dependencies/features.
+- Example catalog/project and Lospec palette fetches now yield through Web APIs
+  and return CPU results through the existing controller channels, keeping tab/
+  chooser/controller result policy. Native requests still use their thread and
+  ureq adapters. Browser fetches enforce declared/received size limits; exact
+  streaming/timeout/worker/decode budgets remain open. Example parsing/mapping
+  policy still needs consolidation where native/browser adapters duplicate it.
+- The remaining reference RUSTERIX facade cannot be a Sync global on WASM:
+  WebGPU owns thread-affine Rc values and appearance CPU queues are not Sync.
+  Added a safe browser-only thread-local lazy owner with parking_lot owned Arc
+  guards (already-resolved0.12.5/arc_lock). It neither leaks state nor invents
+  unsafe Send/Sync. The six active lazy-get errors (and native-only callers of
+  the same policy) use reference_runtime(), preserving no-initialization probes.
+  This is a named transitional compatibility adapter; retiring381 reference
+  borrows and all Creator globals remains M5 work, not counted complete here.
+- Browser geometry display uses its injected native producer. Gated the native
+  readback worker constructors that would move WebGPU handles to OS threads;
+  their native callers were already gated. Reconciled the old WASM material
+  Frame shape with composition's required CPU tile field. Browser MaterialZ
+  interactive/bake async adoption and other reference worker paths remain open.
+- Creator/application/profiling and production UI camera/animation timing now
+  use web_time; native aliases retain the same clock behavior. Local platform
+  clipboard gaps are explicit: browser image Copy/Cut/Paste and the old graph
+  text overlay report a disconnected service and do not delete/change source.
+  They are incomplete and must be replaced with addressed async clipboard
+  service support before full browser acceptance; no silent feature parity claim.
+- Browser file service owns its input/listeners and addressed CPU completions.
+  It captures the active document before file selection/read, rejects overlapping
+  pickers, retires cancel callbacks, and uses the M9 save snapshot/ticket. Where
+  File System Access exists it awaits createWritable/write/close and aborts on
+  failure before reporting success. Blob-download fallback explicitly cannot
+  confirm disk completion and keeps the tab's dirty state. Actual file-dialog/
+  read/write/cancel and permission workflows are not yet verified.
+- First final library WASM check passed8.28s:
+  /private/tmp/eldiron-browser-creator-library-check.log. Browser entry point
+  check passed8.36s (final-host-check.log). Native Creator compatibility check
+  passed16.19s (native-compat-check.log); same /private/tmp/eldiron-browser-creator-
+  prefix. No dependency versions/serialized schema or concurrent concept changed.
+- Optimized browser Creator build/package is running via
+  /private/tmp/eldiron-browser-creator-package.py, session98752, pipeline log
+  /private/tmp/eldiron-browser-creator-package-pipeline.log. Build log ends in
+  release-build.log; output intended /private/tmp/eldiron-browser-player/creator/
+  served by existing localhost8898 server. Exact wasm-bindgen0.2.114 packager:
+  /Users/markusmoenig/Eldiron/target/debug/eldiron-wasm-package-checkpoint.
+  Do not call browser acceptance passed from compilation. Next: actual task-owned
+  Chrome/WebGPU startup, completed-GPU pixels, byte load/file save, controls/Play,
+  real device recovery; fix runtime thread/clock/async pipeline failures as found.
+- Latest real Swift lifetime check remains pass with both listener binds;
+  M9 checkpoint61c0832c is coherent. Full M0–M9 objective stays active. Physical
+  Mac remains locked and all earlier platform/resource/performance/legacy gates
+  remain required. Untracked networking-mmo-concept.md remains untouched.
+
+
+M8 actual browser Creator and native assembled verification (in progress):
+- Optimized Creator WASM packaged successfully:97,266,958 bytes initially,
+ 97,284,836 bytes with async MaterialZ/Play diagnostics. Exact bundle lives at
+ /private/tmp/eldiron-browser-player/creator, served by task-owned localhost8898.
+ Package size/startup/font/CPU/GPU memory budgets remain unaccepted, not passed.
+ Current final build40.54s; pipeline async-final-package-pipeline.log and
+ release-build.log under /private/tmp/eldiron-browser-creator-.
+- Actual task-owned Chrome9250 uses profile
+ /private/tmp/eldiron-creator-web-bootstrap-9250, Apple Metal WebGPU and physical
+ --force-device-scale-factor=1.25. Canvas2000x1072 / CSS1600x858. First actual
+ loaded Hideout2D frame inspection exposed initialization's queued New command
+ reopening its chooser over loaded content. Browser initialize now drains the
+ common application update before its addressed initial byte load. Completed-
+ GPU image inspection verifies the map, tools, tile palette, sidebar and chrome
+ without that dialog. Temporary image:
+ /private/tmp/eldiron-browser-Creator-Hideout2D.png (not yet durable-copied).
+- Final bootstrap actual13 presentations/gen2 after real device.destroy retains
+ document d1f8504a-59e8-430e-bbde-458ffed78b46 (gen1/10 presentations initially).
+ Root CPU framebuffer bytes0, readback0, Canvas2D contexts0, scene color copies0,
+ GPU errors[], browser errors[]. Log:
+ /private/tmp/eldiron-browser-creator-async-bootstrap.log. Prior fixed-chooser
+ run3079c917-9527-4e47-9114-ad5f3b8b2965 also passed11→14 frames/gen2.
+ These are actual completed GPU/browser runs, not compilation/physical display.
+- Added nonblocking MaterialZ runtime creation and pipeline compilation in the
+ same native_preview producer used by main preview and thumbnail cache. Browser
+ uses one in-flight compile and source-addressed result polling; superseded jobs
+ cannot publish/error against another source. Device/owner retirement drops
+ receiver ownership. Native construction/compilation remains synchronous over
+ the same injected context. This removes pollster waiting on browser GPU scope
+ promises; browser workspace interaction still must actually exercise it.
+ WASM focused compile passed9.70s(material-async-check.log).
+- Existing assembled native Creator Metal integration passed1 test/132.94s
+ after all clock/reference-probe/preview changes, including native views/tools/
+ Play/documents. /private/tmp/eldiron-browser-creator-native-metal.log.
+ Existing13 renderer feature boundaries all pass (boundaries.log). No parallel
+ isolated fixture suite or repeated unchanged broad regression was added.
+- Real browser file and Play check passed after explicitly focusing its canvas;
+ first attempt sent shortcuts with BODY focused and obtained no download. This
+ was a harness focus omission. Focused retry exercised actual Ctrl+S/OPFS-free
+ Blob fallback download (1,250,273-byte archive on disk), Ctrl+O/input picker/
+ File.arrayBuffer, loaded3DStarter into a fresh doc UUID, and rejected malformed
+ bytes preserving that UUID. Real toolbar Play/pause/resume/stop used one CPU
+ session9502c648-885a-4e7e-86de-7453904bca0a, ticks8→13 paused (stable)→14 resumed,
+ then retired on stop; document4c2ccdce-697d-495b-93de-a736bb59af8c remained dirtyfalse.
+ All GPU/root/readback/error counters remained0/empty. Log:
+ /private/tmp/eldiron-browser-creator-focused-io-play.log. Screenshot of actual
+ Creator3D view and avatar also inspected (creator-current.png under /private/tmp).
+- Downloaded archive validates as eldiron.project/version1,2 regions/263 tiles;
+ region IDs and all vertices/linedefs/sectors/geometry_objects match original
+ Hideout2D. Actors/items differ after existing load/migration/canonical encode;
+ do not call exact whole-source parity proved from that legacy comparison.
+ Browser rendering did not use scene capture to save the document.
+- Actual region Name field uses the shared native TEXTAREA protocol (target233,
+ initial sourceStartScene/revision1). Typed `Browser Creator 日本語`, committed
+ a real authoring edit, observed dirtytrue; real Blob download preserved dirtytrue.
+ Then production createWritable/write/close path ran against a real origin-private
+ FileSystemFileHandle (only picker selection was redirected to OPFS), committed
+ 1,448,906-byte archive and marked dirtyfalse. Its decoded region name is exactly
+ `Browser Creator 日本語`. /private/tmp/eldiron-browser-creator-edit-save.log and
+ before-play.eldiron. This verifies real asynchronous writable persistence and
+ the conservative fallback, not physical OS picker/permissions.
+- Play after changing that fixture's region name did not start (no runtime
+ metadata), though original-name Play passed. Investigating/keeping the fixture
+ startup references separate from rewrite regressions; no source fixture changed.
+ Follow-up script /private/tmp/eldiron-browser-creator-restored-play-save.mjs
+ (session59009, log restored-play-save.log) undoes the saved rename, resaves its
+ real OPFS bytes, then tests running-session device recovery and before/after
+ authored archives. Do not claim this follow-up passed until inspected.
+- Next: finish that follow-up, exercise MaterialZ/graph workspace, add browser
+ unsaved-unload/document ownership handling and tighten file/helper policies;
+ confirm real file selection/permissions where available. Browser image/legacy
+ overlay clipboard and native worker/bake paths remain open, as do all prior
+ full M0–M9 gates. Browser file source/root title for ?project currently has no
+ origin filename and shows New Project; supply a virtual filename without
+ pretending to possess a native filesystem path. Still no browser-host feature
+ entry in tools/check_renderer_boundaries.py: add the independently resolved
+ wasmCreator boundary before committing this batch.
+
+
+M8/M5 browser source stability and M1 idle device fault work (in progress):
+- Browser restored-name Play check passed: the earlier renamed-region failure
+  comes from the fixture's `start_region="StartScene"` name reference, not GPU
+  startup. Undo/resave then actual Play reused session
+  91e5ce4e-4ead-4336-9838-d61dffa0d007 across gen2→3 and ticks8→9. Its harness
+  later referenced undefined `end` after initiating the final save; separate
+  copy-after-play.log confirmed the already committed OPFS bytes. Logs under
+  /private/tmp/eldiron-browser-creator-{restored-play-save,copy-after-play}.log.
+- Comparing complete authored JSON before/after that run found four camera
+  fields drifted (editing_position_3d.x/z and editing_position_iso_3d.x/z).
+  No transient runtime entity/item difference was found; all binary entries
+  equal. This is a FAILED whole-source parity check, being fixed, not accepted.
+  Common Winit forwards raw DeviceEvent motion even over toolbar controls;
+  Creator legacy mouse_motion unconditionally pans Iso/Orbit. The old host
+  gated motion by right button or explicit look capture.
+- Added native_world_navigation.rs: accepted logical Secondary drag bound to
+  the presented view/document/tool/runtime/map/size/DPI, with release, focus,
+  leave, device and owner-change cancellation. Unowned raw motion no longer
+  reaches legacy pan; raw look remains limited to focused game/FirstP fly.
+  Existing assembled native Metal integration passed1/124.49s with an added
+  unowned-relative-motion serialized-source assertion. navigation-metal.log.
+  Browser hover check now leaves the exact original camera unchanged.
+- Idle browser device.destroy exposed no recovery until another requested
+  frame. Added CPU-only weak leased fault listeners to renderkit; Winit wakes
+  with its addressed device epoch (browser uses CPU oneshot before DOM proxy).
+  Foreign host polls its context even when visually idle without preparing or
+  acknowledging another frame. Context listeners retire on suspend/recreation.
+  GPU contract observer cancellation/late-registration actual Metal passed0.18s;
+  foreign-layer existing test passed1/0.41s after allowing the real asynchronous
+  lost callback to become observable (first overly immediate assertion failed).
+  Logs /private/tmp/eldiron-idle-loss-{gpu-contract,foreign-final}.log.
+- Actual browser idle bootstrap now recovers3→4 presentations/gen1→2 retaining
+  document b51b2845-5417-4fea-adb7-e67e4d9ece1d and exact original Iso camera;
+  no input requested a frame. CPU root/readback/Canvas2D/colorCopies0; errors[].
+  idle-bootstrap.log. Repeated with panic diagnostics: c94a6f22-9880-4210-
+  bc7b-891df8444d59, same successful idle recovery. Native/wasm host checks passed
+  20.69s/20.14s. Optimized bundle97,371,697B (size budgets remain open).
+- Browser right-drag workflow then FAILED on first right click: panic says
+  std time unsupported. Captured console diagnostics identify remaining
+  creator/toollist.rs std::time::Instant in 3D hover/overlay timing. Changed to
+  web_time::Instant; browser retry pending, do not count drag/source parity yet.
+  Log panic-workflow.log captures real panic plus consequent Winit reentry error.
+- Browser filenames now preserve URL source name as virtual path; unsaved
+  beforeunload guard covers all tabs. Added browser-host independent feature
+  boundary; all14 resolved checks passed before idle-fault changes.
+- Browser host files now retain successful FileSystemFileHandle by ephemeral
+  document UUID, prune closed/replaced documents, serialize save requests, and
+  let Save As choose a new handle. Only an accepted addressed successful save
+  installs its handle; a later edit remains dirty by existing canonical-source
+  fence. Added Eldiron picker filters. Compilation/runtime verification pending.
+  Actual native picker permission UI still unavailable; OPFS uses real writes.
+- Latest packaging pipeline navigation-final-package.log is running after the
+  clock/handle changes. Next: rerun actual right-drag/release/loss cancellation,
+  Play/loss/stop/full-source archive parity, canceled dirty beforeunload; then
+  MaterialZ workspace GPU previews and handle reuse/SaveAs. Preserve task Chrome
+  9250 and server8898 for current tests. No M0–M9 completion claim; all earlier
+  platform/resource/performance/global/adapter gates remain required. Unrelated
+  untracked networking-mmo-concept.md remains untouched.
+
+
+M8 browser Creator assembled checkpoint verified (partial milestone):
+- Final optimized browser build passed34.65s; bundle97,348,044 bytes.
+  navigation-final-package.log. Native-host check passed9.47s and all14 independently
+  resolved feature boundaries pass, including browser Creator excluding native
+  clipboard/network/font/windowing dependencies. git diff --check passes.
+- Actual Chrome9250/Metal125% final browser run has document
+  982c3683-942e-474b-8a2d-b882f243fac3. Idle gen1→2,3→4 presentations retains exact
+  original camera. Fixed tool clock then actual right-drag pan changes position
+  [5.014869689941406,0,0.30367547273635864]→
+  [5.156553268432617,0,0.7916972041130066]; release retires it. Device destroy
+  while held retires that gesture; subsequent held pointer motion cannot resume it.
+  Play session42abdf1a-7b5c-4046-af0f-8ff5aa47654c survives gen3→4, ticks8→9,
+  then Stop retires the session without moving the authoring camera.
+  /private/tmp/eldiron-browser-creator-navigation-final-workflow.log.
+- Before/after Play real OPFS files have IDENTICAL complete archive bytes:
+ 1,448,872B SHA256 bc31f84d806b484f6b4e2fe6b06a87785852442eda9541cb46c1f5cf6ca5d5ff.
+ All ZIP entries, authored JSON and binary sources equal. Paths:
+ /private/tmp/eldiron-browser-creator-camera-{before,after}.eldiron.
+ This replaces the earlier FAILED camera/source parity result for this workflow.
+- Same real browser run edits CJK region Name, observes dirtytrue, navigates to
+ about:blank and receives real beforeunload dialog. Declining leaves identical
+ document UUID and dirtytrue. This tests the actual DOM event/browser guard,
+ not a synthetic callback. Native file-picker/IME physical matrix stays open.
+- Real retained Save test writes existing CameraAfter.eldiron without invoking
+ picker (counter0), clears dirty; SaveAs canceled with AbortError invokes picker
+ once; subsequent Save reuses original handle (counter still1). Existing file
+ on disk1,449,396B. retained-save.log. No fabricated writable result used;
+ picker interception only supplies real origin-private filesystem handles.
+- Actual MZ workspace: select empty tile slot then Make Proc, wait for common
+ async preview and graph thumbnails. Completed GPU image visibly contains
+ MaterialZ noise and Color thumbnails beside world/chrome. Destroy GPU while
+ workspace active; gen4→5,93→106 presentations; same document and dirtyfalse.
+ Instrumented actual GPU encoder labels include native material evaluation and
+ native material display, three evaluations/two display encoders after recreation.
+ Save reuses original handle. GPU/browser errors[], rootCPU/readback/Canvas2D/
+ colorCopies0. /private/tmp/eldiron-browser-creator-material-recovery.log.
+ Saved archive contains108 authored procedural materials and exact CJK region
+ name. This verifies interactive GPU display, not browser CPU asset baking.
+- Inspected completed GPU screenshots durably copied to
+ concepts/native-wgpu-evidence/browser-creator-{hideout2d,material-recovered}.png.
+ Browser assets currently retain stale CPU tile artwork after editing procedural
+ definitions because its existing WASM worker is disabled. Next useful work is
+ explicit asynchronous asset-bake jobs over injected context, with source/document
+ cancellation and counted readback, retaining GPU-only interactive previews.
+ Other open gates include browser image/legacy overlay clipboard, cooperative
+ geometry/appearance jobs, global-owner/adapter retirement, uncommon contexts,
+ bounded budgets/release comparisons, physical platform matrix. Overall Goal
+ remains ACTIVE and no milestone is declared complete from this checkpoint.
+
+- Compatibility assembled builds: reference desktop cargo check --locked
+ --offline --no-default-features --features desktop passed; staticlib check
+ passed21.05s. Logs browser-creator-{reference,staticlib}-final.log. These are
+ compile checks after browser adapters/idle-loss integration, not physical native
+ wrapper runtime revalidation. Native creator assembled Metal124.49s and foreign
+ idle-loss Metal0.41s remain the actual integration runs for this batch.

@@ -312,8 +312,16 @@ fn register_themed_bitmap_icons(ctx: &mut TheContext, color: RGBA) {
     }
 }
 
+#[cfg(target_arch = "wasm32")]
+pub use crate::reference_state::RUSTERIX;
+#[cfg(not(target_arch = "wasm32"))]
 pub static RUSTERIX: LazyLock<RwLock<Rusterix>> =
     LazyLock::new(|| RwLock::new(Rusterix::new_without_audio()));
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn reference_runtime() -> Option<&'static RwLock<Rusterix>> { LazyLock::get(&RUSTERIX) }
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn reference_runtime() -> Option<&'static crate::reference_state::BrowserReference> { RUSTERIX.get() }
+
 
 #[cfg(test)]
 mod toolbar_icon_theme_tests {
@@ -385,6 +393,7 @@ pub static DOCKMANAGER: LazyLock<RwLock<DockManager>> =
 #[path = "editor/play_session.rs"]
 mod play_session;
 mod document_io;
+mod example_sources;
 pub(crate) use document_io::{DocumentInfo, SaveInfo, SaveResult};
 use play_session::CreatorPlaySession;
 
@@ -515,8 +524,8 @@ pub struct Editor {
     scepter_sender: Option<std::sync::mpsc::Sender<ScepterEvent>>,
     #[cfg(not(target_arch = "wasm32"))]
     scepter_tracking: scepter_context::Tracking,
-    last_3d_hover_redraw_at: Option<std::time::Instant>,
-    last_authoring_input_at: Option<std::time::Instant>,
+    last_3d_hover_redraw_at: Option<web_time::Instant>,
+    last_authoring_input_at: Option<web_time::Instant>,
 
     #[cfg(all(
         feature = "self-update",
@@ -4573,6 +4582,7 @@ impl Editor {
         format!("{}{}", Self::EXAMPLE_REPO_RAW_BASE, repo_path)
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn fetch_url_bytes(url: &str) -> Option<Vec<u8>> {
         if let Ok(response) = ureq::get(url)
             .set("Cache-Control", "no-cache")
@@ -4588,6 +4598,7 @@ impl Editor {
         None
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn fetch_url_text(url: &str) -> Option<String> {
         let bytes = Self::fetch_url_bytes(url)?;
         String::from_utf8(bytes).ok()
@@ -4710,36 +4721,19 @@ impl Editor {
         project
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn load_example_manifest() -> Vec<ExampleProjectEntry> {
         let contents = match Self::fetch_url_text(&Self::example_manifest_url()) {
             Some(contents) => contents,
             None => return Vec::new(),
         };
-        let manifest = match toml::from_str::<ExampleProjectManifest>(&contents) {
-            Ok(manifest) => manifest,
-            Err(_) => return Vec::new(),
-        };
-
-        manifest
-            .example
-            .into_iter()
-            // Older deployed catalogs may still advertise retired examples.
-            .filter(|entry| !matches!(entry.id.as_str(), "starter-3d" | "cellar"))
-            .map(|entry| ExampleProjectEntry {
-                id: Uuid::new_v4(),
-                preview: entry
-                    .preview
-                    .as_deref()
-                    .and_then(Self::load_example_preview),
-                manifest_id: entry.id,
-                title: entry.title,
-                dimension: entry.dimension,
-                description: entry.description,
-                project_path: entry.project_path,
-            })
-            .collect()
+        Self::example_manifest_entries(&contents).into_iter().map(|entry| {
+            let preview = entry.preview.as_deref().and_then(Self::load_example_preview);
+            entry.with_preview(preview)
+        }).collect()
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn load_example_preview(repo_path: &str) -> Option<TheRGBATile> {
         let bytes = Self::fetch_url_bytes(&Self::example_repo_url(repo_path))?;
         Self::decode_png_tile(bytes)
@@ -4774,6 +4768,7 @@ impl Editor {
         )))
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn load_example_project(repo_path: &str) -> Option<Project> {
         let bytes = Self::fetch_url_bytes(&Self::example_repo_url(repo_path))?;
         Self::load_project_from_bytes(&bytes).ok()
@@ -5238,9 +5233,7 @@ impl Editor {
 
         let (tx, rx) = std::sync::mpsc::channel();
         self.example_loader_rx = Some(rx);
-        std::thread::spawn(move || {
-            let _ = tx.send(Self::load_example_manifest());
-        });
+        Self::start_example_manifest(tx);
     }
 
     fn rebuild_example_project_list(&self, ui: &mut TheUI, ctx: &mut TheContext) {
@@ -8059,6 +8052,7 @@ impl TheTrait for Editor {
         ) as f64
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn fonts_to_load(&self) -> Vec<TheFontScript> {
         vec![TheFontScript::Han]
     }
@@ -8888,7 +8882,7 @@ impl TheTrait for Editor {
                     | TheEvent::RenderViewZoomBy(_, _)
             )
         }) {
-            self.last_authoring_input_at = Some(std::time::Instant::now());
+            self.last_authoring_input_at = Some(web_time::Instant::now());
         }
         Self::coalesce_polyview_hover_events(&mut pending_events);
         if !pending_events.is_empty() {
@@ -8920,7 +8914,7 @@ impl TheTrait for Editor {
             }
 
             if only_3d_polyview_hover {
-                self.last_3d_hover_redraw_at = Some(std::time::Instant::now());
+                self.last_3d_hover_redraw_at = Some(web_time::Instant::now());
                 redraw_update = true;
             } else {
                 redraw_update = true;
@@ -10960,10 +10954,7 @@ impl TheTrait for Editor {
                                     TheId::empty(),
                                     fl!("example_loading_project"),
                                 ));
-                                std::thread::spawn(move || {
-                                    let project = Self::load_example_project(&project_path);
-                                    let _ = tx.send((manifest_id, project));
-                                });
+                                Self::start_example_project(project_path, manifest_id, tx);
                             } else {
                                 ctx.ui.send(TheEvent::SetStatusText(
                                     TheId::empty(),
@@ -10998,13 +10989,13 @@ impl TheTrait for Editor {
                         ctx.ui.clear_hover();
                         redraw = true;
                     } else if id.name == "Logo" {
-                        _ = open::that("https://eldiron.com");
+                        _ = crate::host_services::open_url("https://eldiron.com");
                         ctx.ui
                             .set_widget_state("Logo".to_string(), TheWidgetState::None);
                         ctx.ui.clear_hover();
                         redraw = true;
                     } else if id.name == "Patreon" {
-                        _ = open::that("https://www.patreon.com/eldiron");
+                        _ = crate::host_services::open_url("https://www.patreon.com/eldiron");
                         ctx.ui
                             .set_widget_state("Patreon".to_string(), TheWidgetState::None);
                         ctx.ui.clear_hover();
@@ -11061,7 +11052,7 @@ impl TheTrait for Editor {
                         }
                         #[cfg(all(feature = "self-update", target_os = "macos"))]
                         {
-                            _ = open::that("https://github.com/markusmoenig/Eldiron/releases");
+                            _ = crate::host_services::open_url("https://github.com/markusmoenig/Eldiron/releases");
                             ctx.ui
                                 .set_widget_state("Update".to_string(), TheWidgetState::None);
                             ctx.ui.clear_hover();
@@ -11819,7 +11810,7 @@ impl TheTrait for Editor {
         }
 
         if handled {
-            self.last_authoring_input_at = Some(std::time::Instant::now());
+            self.last_authoring_input_at = Some(web_time::Instant::now());
             RUSTERIX.write().unwrap().set_dirty();
             ctx.ui.redraw_all = true;
         }
@@ -11904,7 +11895,7 @@ mod tests {
     #[test]
     fn integration_pass_existing_projects_reuse_embedded_material_bakes() {
         let bytes = shared::project_io::encode_project(&Project::new()).unwrap();
-        let started = std::time::Instant::now();
+        let started = web_time::Instant::now();
         let loaded = Editor::load_project_from_bytes(&bytes).unwrap();
         eprintln!("Existing project load: {:.2?}", started.elapsed());
         let cached = Editor::default_material_bakes().unwrap();
@@ -11924,7 +11915,7 @@ mod tests {
     fn integration_pass_new_projects_reuse_validated_embedded_bakes() {
         let archive = crate::Embedded::get("materials/default-bakes.eldiron").unwrap();
         let cached = shared::project_io::decode_project(archive.data.as_ref()).unwrap();
-        let started = std::time::Instant::now();
+        let started = web_time::Instant::now();
         let project = Editor::load_empty_project_template();
         eprintln!(
             "Embedded default project: {:.2}ms",
@@ -12036,7 +12027,7 @@ mod tests {
     #[ignore = "requires a native GPU and ELDIRON_BENCH_PROJECT_PATH"]
     fn benchmark_u5_creator_redraw() {
         let path = std::env::var("ELDIRON_BENCH_PROJECT_PATH").unwrap();
-        let stage = std::time::Instant::now();
+        let stage = web_time::Instant::now();
         let mut project = Editor::load_project_from_path(std::path::Path::new(&path)).unwrap();
         if std::env::var_os("ELDIRON_BENCH_GAME_TIMINGS").is_some() {
             let mut config = project.config.parse::<toml_edit::DocumentMut>().unwrap();
@@ -12057,7 +12048,7 @@ mod tests {
             );
         }
         let saved_palette = serde_json::to_string(&project.palette).unwrap();
-        let stage = std::time::Instant::now();
+        let stage = web_time::Instant::now();
         let mut editor = Editor::new();
         let scale = std::env::var("ELDIRON_BENCH_UI_SCALE")
             .ok()
@@ -12076,7 +12067,7 @@ mod tests {
             "Creator load init_ui={:.2}ms",
             stage.elapsed().as_secs_f64() * 1000.
         );
-        let stage = std::time::Instant::now();
+        let stage = web_time::Instant::now();
         editor.open_project_as_session(
             project,
             Some(PathBuf::from(&path)),
@@ -12136,7 +12127,7 @@ mod tests {
                 serde_json::to_string(&editor.documents.project.palette).unwrap(),
             )
         });
-        let stage = std::time::Instant::now();
+        let stage = web_time::Instant::now();
         for warmup in 0..10 {
             if warmup == 2 && std::env::var("ELDIRON_BENCH_VIEW").is_ok_and(|v| v == "3d") {
                 // Frame authored geometry instead of an unrelated saved camera.
@@ -12200,7 +12191,7 @@ mod tests {
                 .into_iter()
                 .enumerate()
             {
-                let start = std::time::Instant::now();
+                let start = web_time::Instant::now();
                 TOOLLIST.write().unwrap().handle_event(
                     &TheEvent::IndexChanged(TheId::named("Editor View Switch"), target),
                     &mut ui,
@@ -12211,7 +12202,7 @@ mod tests {
                 let event_ms = start.elapsed().as_secs_f64() * 1000.;
                 let mut worst_frame_ms = 0f64;
                 for _ in 0..3 {
-                    let frame_start = std::time::Instant::now();
+                    let frame_start = web_time::Instant::now();
                     editor.update_tracker = crate::misc::UpdateTracker::new();
                     ui.update(&mut ctx);
                     editor.update_ui(&mut ui, &mut ctx);
@@ -12296,7 +12287,7 @@ mod tests {
                         ctx.ui.send(event);
                     }
                     editor.update_tracker = crate::misc::UpdateTracker::new();
-                    let start = std::time::Instant::now();
+                    let start = web_time::Instant::now();
                     ui.update(&mut ctx);
                     editor.update_ui(&mut ui, &mut ctx);
                     let update = start.elapsed();
@@ -12351,7 +12342,7 @@ mod tests {
         }
         if std::env::var_os("ELDIRON_BENCH_GAME").is_some() {
             println!("Creator game benchmark pid={}", std::process::id());
-            let start = std::time::Instant::now();
+            let start = web_time::Instant::now();
             {
                 let mut tools = TOOLLIST.write().unwrap();
                 let id = tools.get_game_tool_uuid_by_command_id("tool.game").unwrap();
@@ -12371,7 +12362,7 @@ mod tests {
                 "Creator game select={:.2}ms",
                 start.elapsed().as_secs_f64() * 1000.
             );
-            let start = std::time::Instant::now();
+            let start = web_time::Instant::now();
             ctx.ui.send(TheEvent::StateChanged(
                 TheId::named("Play"),
                 TheWidgetState::Clicked,
@@ -12386,7 +12377,7 @@ mod tests {
             if let Ok(restarts) = std::env::var("ELDIRON_BENCH_GAME_RESTART") {
                 for restart in 0..restarts.parse::<usize>().unwrap_or(1) {
                     for action in ["Stop", "Play"] {
-                        let start = std::time::Instant::now();
+                        let start = web_time::Instant::now();
                         ctx.ui.send(TheEvent::StateChanged(
                             TheId::named(action),
                             TheWidgetState::Clicked,
@@ -12433,7 +12424,7 @@ mod tests {
             let mut stress = std::env::var_os("ELDIRON_BENCH_GAME_STRESS")
                 .map(|_| benchmark_stress::StressRun::new(&RUSTERIX.read().unwrap()));
             for i in 0..game_frames {
-                let frame_started = std::time::Instant::now();
+                let frame_started = web_time::Instant::now();
                 if let Some(stress) = &mut stress {
                     stress.before_frame(i);
                 }
@@ -12446,7 +12437,7 @@ mod tests {
                         warmup_runtime(&mut rusterix, &mut editor.documents.project, 3);
                     }
                 }
-                let start = std::time::Instant::now();
+                let start = web_time::Instant::now();
                 ui.update(&mut ctx);
                 if stress.is_some() {
                     editor.update_tracker.force_redraw();
@@ -12538,7 +12529,7 @@ mod tests {
         }
         let props_bench = std::env::var_os("ELDIRON_BENCH_PROPS").is_some();
         if props_bench {
-            let started = std::time::Instant::now();
+            let started = web_time::Instant::now();
             let mut tools = TOOLLIST.write().unwrap();
             let id = tools
                 .get_game_tool_uuid_by_command_id("tool.blocks")
@@ -12664,7 +12655,7 @@ mod tests {
                         ),
                     });
                 }
-                let start = std::time::Instant::now();
+                let start = web_time::Instant::now();
                 ui.update(&mut ctx);
                 editor.update_ui(&mut ui, &mut ctx);
                 update.push(start.elapsed().as_secs_f64() * 1000.);
@@ -12676,7 +12667,7 @@ mod tests {
                 }
                 if mode == "minimap" {
                     // Include the queued marker refresh in navigation timing.
-                    let marker_start = std::time::Instant::now();
+                    let marker_start = web_time::Instant::now();
                     editor.update_tracker = crate::misc::UpdateTracker::new();
                     ui.update(&mut ctx);
                     editor.update_ui(&mut ui, &mut ctx);
@@ -12687,14 +12678,14 @@ mod tests {
                     );
                     assert_eq!(editor.documents.project.regions[0].map.changed, map_changed);
                     assert_ne!(editor.documents.project.regions[0].map.offset, initial_offset);
-                    let before_close = std::time::Instant::now();
+                    let before_close = web_time::Instant::now();
                     let _ = editor.has_changes();
                     println!(
                         "Creator close check={:.2}ms",
                         before_close.elapsed().as_secs_f64() * 1000.
                     );
                 }
-                let start = std::time::Instant::now();
+                let start = web_time::Instant::now();
                 ui.draw(&mut frame, &mut ctx);
                 composition.push(start.elapsed().as_secs_f64() * 1000.);
             }

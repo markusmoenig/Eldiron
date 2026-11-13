@@ -4,7 +4,7 @@ use std::hash::{Hash, Hasher};
 /// Projection adapter for already assembled legacy presentation owners. CPU
 /// authoring and undo call this only after their data/placement transaction.
 pub(crate) fn sync_existing_prefab_presentations(project: &Project) {
-    if let Some(runtime) = std::sync::LazyLock::get(&crate::editor::RUSTERIX) {
+    if let Some(runtime) = crate::editor::reference_runtime() {
         runtime
             .write()
             .unwrap()

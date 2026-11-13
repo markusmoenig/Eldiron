@@ -2077,7 +2077,7 @@ mod tests {
         use shared::prefab_graph::{PrefabGraphChange, PrefabGraphs};
         let isolated = std::env::var_os("ELDIRON_NATIVE_PREFAB_ISOLATED").is_some();
         if isolated {
-            assert!(std::sync::LazyLock::get(&RUSTERIX).is_none());
+            assert!(crate::editor::reference_runtime().is_none());
             assert!(std::sync::LazyLock::get(&SCENEMANAGER).is_none());
         }
         let mut project = Project::default();
@@ -2129,7 +2129,7 @@ mod tests {
             assert!(ui.canvas.buffer.pixels().is_empty());
         }
         if isolated {
-            assert!(std::sync::LazyLock::get(&RUSTERIX).is_none());
+            assert!(crate::editor::reference_runtime().is_none());
             assert!(std::sync::LazyLock::get(&SCENEMANAGER).is_none());
         }
     }

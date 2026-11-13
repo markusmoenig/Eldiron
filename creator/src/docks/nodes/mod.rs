@@ -28,12 +28,12 @@ use conversation::{Click as ConversationClick, ConversationEditor, Field as Conv
 use overlay::{TextOverlay, TextTarget};
 use rusterix::server::nodes::Conversation;
 use std::collections::HashMap;
-use std::time::{Duration, Instant};
+use web_time::{Duration, Instant};
 use theframework::thegraph::*;
 
 /// Editing rules does not initialize a renderer in headless tooling.
 pub(crate) fn sync_live_rules(project: &Project) -> Result<(), String> {
-    if let Some(runtime) = std::sync::LazyLock::get(&RUSTERIX) {
+    if let Some(runtime) = crate::editor::reference_runtime() {
         shared::rusterix_utils::sync_live_rules(&mut runtime.write().unwrap(), project)?;
     } else {
         project.rules_source()?;
@@ -410,7 +410,7 @@ impl NodesDock {
             if owner.starts_with(shared::entity_graph::PREFIX) {
                 let _ = shared::entity_graph::update_owner(project, &owner, &self.doc);
             } else {
-                if let Some(runtime) = std::sync::LazyLock::get(&RUSTERIX) {
+                if let Some(runtime) = crate::editor::reference_runtime() {
                     runtime
                         .write()
                         .unwrap()
@@ -1012,11 +1012,13 @@ impl NodesDock {
         self.apply_branch_filter();
         true
     }
+    #[cfg(not(target_arch = "wasm32"))]
     fn set_clipboard(text: &str) {
         if let Ok(mut clipboard) = arboard::Clipboard::new() {
             let _ = clipboard.set_text(text.to_string());
         }
     }
+    #[cfg(not(target_arch = "wasm32"))]
     fn get_clipboard() -> Option<String> {
         arboard::Clipboard::new()
             .ok()
@@ -2001,10 +2003,17 @@ impl Dock for NodesDock {
             TheEvent::KeyDown(TheValue::Char(c)) if focused => {
                 if let Some(overlay) = &mut self.text_overlay {
                     if ui.ctrl || ui.logo {
+                        #[cfg(target_arch = "wasm32")]
+                        if matches!(c.to_ascii_lowercase(), 'c' | 'x' | 'v') {
+                            ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), "Clipboard is not available in this text overlay. Text was kept.".into()));
+                        }
                         match c.to_ascii_lowercase() {
                             'a' => overlay.input(GraphTextInput::SelectAll),
+                            #[cfg(not(target_arch = "wasm32"))]
                             'c' => Self::set_clipboard(&overlay.copy()),
+                            #[cfg(not(target_arch = "wasm32"))]
                             'x' => Self::set_clipboard(&overlay.cut()),
+                            #[cfg(not(target_arch = "wasm32"))]
                             'v' => {
                                 if let Some(text) = Self::get_clipboard() {
                                     overlay.paste(&text);

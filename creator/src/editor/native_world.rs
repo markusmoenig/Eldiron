@@ -5,6 +5,8 @@ use super::*;
 mod paste;
 #[path = "native_world_source.rs"]
 mod source;
+#[path = "native_world_navigation.rs"]
+mod navigation;
 use crate::editor_overlay::panel::PanelScope;
 use crate::editor_overlay::procedural_gpu::GpuIcons;
 use crate::hud::{Hud, HudInputs, HudStyle};
@@ -365,6 +367,7 @@ pub(crate) struct NativeWorld {
     retry_click: Option<RetryClick>,
     cube: ViewCubeFrames,
     cube_capture: Option<CubeCapture>,
+    relative_navigation: Option<Navigation>,
     events: std::collections::VecDeque<ScopedToolOverlayEvent>,
     published: Option<(TheId, Arc<PaintList>)>,
     gpu: Option<WorldGpu>,
@@ -383,6 +386,10 @@ struct WorldGesture {
     binding: Binding,
     point: Vec2<i32>,
     query: Option<crate::tools::ToolViewInput>,
+}
+struct Navigation {
+    binding: Binding,
+    pointer: [f32; 2],
 }
 struct CubeCapture {
     binding: Binding,
@@ -405,6 +412,7 @@ impl Default for NativeWorld {
             retry_click: None,
             cube: Default::default(),
             cube_capture: None,
+            relative_navigation: None,
             events: Default::default(),
             published: None,
             gpu: None,
@@ -456,6 +464,9 @@ impl NativeWorld {
             next.as_ref()
                 .is_some_and(|next| retry.binding.capture_compatible(next))
         });
+        let relative_navigation = self.relative_navigation.take().filter(|owner| {
+            next.as_ref().is_some_and(|next| owner.binding.capture_compatible(next))
+        });
         let had_cube_capture = self.cube_capture.is_some();
         let cube_capture = self.cube_capture.take().and_then(|mut owner| {
             next.as_ref()
@@ -473,6 +484,7 @@ impl NativeWorld {
         self.world_capture = capture;
         self.retry_click = retry;
         self.cube_capture = cube_capture;
+        self.relative_navigation = relative_navigation;
         if self.binding.is_some() {
             let mut tools = TOOLLIST.write().unwrap();
             tools.native_world_input = true;
@@ -502,6 +514,7 @@ impl NativeWorld {
         self.presented = None;
         self.overlay_input.invalidate();
         self.world_capture = None;
+        self.relative_navigation = None;
         self.retry_click = None;
         self.cube.invalidate();
         if self.cube_capture.take().is_some() {
@@ -673,6 +686,7 @@ impl Editor {
         self.native_viewport.world.bind(next, ui);
     }
     pub(crate) fn cancel_native_world_gesture(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+        self.native_viewport.world.relative_navigation = None;
         self.native_viewport.world.retry_click = None;
         let Some(gesture) = self.native_viewport.world.world_capture.take() else {
             return;

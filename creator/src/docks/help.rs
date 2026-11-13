@@ -511,7 +511,7 @@ impl HelpDock {
                 fallback_assets.textures.insert(asset.id.into(), texture);
             }
         }
-        let runtime = std::sync::LazyLock::get(&RUSTERIX).map(|runtime| runtime.read().unwrap());
+        let runtime = crate::editor::reference_runtime().map(|runtime| runtime.read().unwrap());
         let assets = runtime
             .as_ref()
             .map(|r| &r.assets)

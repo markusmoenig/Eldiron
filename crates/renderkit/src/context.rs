@@ -28,6 +28,7 @@ pub struct GpuContext {
     pub queue: wgpu::Queue,
     generation: u64,
     lost: Arc<AtomicBool>,
+    faults: Arc<crate::fault::Notifications>,
     counters: Arc<Counters>,
     #[cfg(target_arch = "wasm32")]
     validation_error: Arc<std::sync::Mutex<Option<String>>>,
@@ -58,25 +59,31 @@ impl GpuContext {
         // cannot establish that a shader/pipeline was accepted. Preserve the
         // first uncaptured error for the next host poll. Native wgpu retains its
         // default synchronous validation/panic behavior.
+        let faults = Arc::new(crate::fault::Notifications::default());
         #[cfg(target_arch = "wasm32")]
         let validation_error = {
             let error = Arc::new(std::sync::Mutex::new(None));
             let capture = error.clone();
+            let notify = faults.clone();
             device.on_uncaptured_error(Arc::new(move |error: wgpu::Error| {
                 capture
                     .lock()
                     .unwrap()
                     .get_or_insert_with(|| error.to_string());
+                notify.signal();
             }));
             error
         };
         let lost = Arc::new(AtomicBool::new(false));
         let flag = lost.clone();
+        let notify = faults.clone();
         device.set_device_lost_callback(move |_, _| {
             flag.store(true, Ordering::Release);
+            notify.signal();
         });
         Ok(Arc::new(Self {
             lost,
+            faults,
             instance,
             adapter,
             device,
@@ -113,6 +120,14 @@ impl GpuContext {
     pub fn record_capture(&self, bytes: u64) {
         self.counters.readback.fetch_add(bytes, Ordering::Relaxed);
         self.counters.captures.fetch_add(1, Ordering::Relaxed);
+    }
+    /// Wake a host even when no redraw or simulation update is scheduled. This
+    /// registers no thread or event loop and retains the listener only weakly.
+    pub fn observe_faults(
+        &self,
+        wake: impl Fn() + Send + Sync + 'static,
+    ) -> crate::GpuFaultListener {
+        self.faults.observe(wake)
     }
     pub fn is_lost(&self) -> bool {
         self.lost.load(Ordering::Acquire)

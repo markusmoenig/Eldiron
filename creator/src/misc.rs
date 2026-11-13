@@ -1,5 +1,5 @@
 // use crate::prelude::*;
-use std::time::{Duration, Instant};
+use web_time::{Duration, Instant};
 
 /// Opt-in frame phase timings for native benchmark runs. Disabled by default.
 pub(crate) struct FrameProfile {

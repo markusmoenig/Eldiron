@@ -1,4 +1,3 @@
-#[cfg(not(target_arch = "wasm32"))]
 #[macro_use]
 mod macros;
 
@@ -12,6 +11,9 @@ pub mod blocks;
 pub mod configeditor;
 pub mod dockmanager;
 mod documents;
+mod host_services;
+#[cfg(target_arch = "wasm32")]
+mod reference_state;
 #[cfg(feature = "native-render")]
 mod scene_source;
 pub mod docks;
@@ -19,12 +21,13 @@ pub mod editcamera;
 pub mod editor;
 #[cfg(feature = "native-render")]
 pub mod native_application;
+#[cfg(all(target_arch = "wasm32", feature = "browser-host"))]
+pub mod browser;
 mod editor_overlay;
 pub mod editor_display;
 pub mod editor_tools;
 mod geometry_editor;
 pub mod hud;
-#[cfg(not(target_arch = "wasm32"))]
 pub mod i18n;
 mod iso_editor;
 mod tileset_creation;

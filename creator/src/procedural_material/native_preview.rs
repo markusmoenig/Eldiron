@@ -119,7 +119,14 @@ impl Evaluation {
 }
 pub(super) struct Preview {
     context: Arc<GpuContext>,
-    runtime: MaterialZ,
+    runtime: Option<Arc<MaterialZ>>,
+    #[cfg(target_arch = "wasm32")]
+    initializing: Option<std::sync::mpsc::Receiver<Result<Arc<MaterialZ>, String>>>,
+    #[cfg(target_arch = "wasm32")]
+    compiling: Option<(
+        Arc<EditableMaterialAsset>,
+        std::sync::mpsc::Receiver<Result<MaterialInstance, String>>,
+    )>,
     compiled: Option<MaterialInstance>,
     compiled_asset: Option<Arc<EditableMaterialAsset>>,
     evaluation: Option<Evaluation>,
@@ -131,8 +138,26 @@ pub(super) struct Preview {
 }
 impl Preview {
     pub fn new(context: Arc<GpuContext>) -> Result<Self, String> {
-        let runtime = pollster::block_on(MaterialZ::new(&context.device, &context.queue))
-            .map_err(|e| e.to_string())?;
+        #[cfg(not(target_arch = "wasm32"))]
+        let runtime = Some(Arc::new(
+            pollster::block_on(MaterialZ::new(&context.device, &context.queue))
+                .map_err(|e| e.to_string())?,
+        ));
+        #[cfg(target_arch = "wasm32")]
+        let runtime = None;
+        #[cfg(target_arch = "wasm32")]
+        let initializing = {
+            let (done, receive) = std::sync::mpsc::channel();
+            let context = context.clone();
+            wasm_bindgen_futures::spawn_local(async move {
+                let result = MaterialZ::new(&context.device, &context.queue)
+                    .await
+                    .map(Arc::new)
+                    .map_err(|e| e.to_string());
+                let _ = done.send(result);
+            });
+            Some(receive)
+        };
         let mut entries = vec![wgpu::BindGroupLayoutEntry {
             binding: 0,
             visibility: wgpu::ShaderStages::FRAGMENT,
@@ -205,6 +230,10 @@ impl Preview {
         Ok(Self {
             context,
             runtime,
+            #[cfg(target_arch = "wasm32")]
+            initializing,
+            #[cfg(target_arch = "wasm32")]
+            compiling: None,
             compiled: None,
             compiled_asset: None,
             evaluation: None,
@@ -227,6 +256,90 @@ impl Preview {
     }
     pub fn generation(&self) -> u64 {
         self.context.generation()
+    }
+    fn runtime(&mut self) -> Result<Option<Arc<MaterialZ>>, String> {
+        #[cfg(target_arch = "wasm32")]
+        if self.runtime.is_none() {
+            let receive = self
+                .initializing
+                .as_ref()
+                .ok_or("Material runtime initialization was retired")?;
+            match receive.try_recv() {
+                Ok(result) => {
+                    self.initializing = None;
+                    self.runtime = Some(result?);
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => return Ok(None),
+                Err(_) => return Err("Material runtime initialization was cancelled".into()),
+            }
+        }
+        Ok(self.runtime.clone())
+    }
+    fn compile(
+        &mut self,
+        runtime: Arc<MaterialZ>,
+        asset: &Arc<EditableMaterialAsset>,
+    ) -> Result<bool, String> {
+        if self
+            .compiled_asset
+            .as_ref()
+            .is_some_and(|old| Arc::ptr_eq(old, asset))
+        {
+            return Ok(true);
+        }
+        #[cfg(target_arch = "wasm32")]
+        if let Some((pending, receive)) = &self.compiling {
+            match receive.try_recv() {
+                Ok(result) => {
+                    let same = Arc::ptr_eq(pending, asset);
+                    let pending = pending.clone();
+                    self.compiling = None;
+                    if same {
+                        self.compiled = Some(result?);
+                        self.compiled_asset = Some(pending);
+                        return Ok(true);
+                    }
+                    // A newer source superseded this job. Its result/error may
+                    // not publish against the current request's identity.
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => return Ok(false),
+                Err(_) => {
+                    self.compiling = None;
+                    return Err("Material compile was cancelled".into());
+                }
+            }
+        }
+        if self
+            .compiled
+            .as_mut()
+            .is_some_and(|instance| instance.update_asset(asset).is_ok())
+        {
+            self.compiled_asset = Some(asset.clone());
+            return Ok(true);
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            self.compiled = Some(
+                pollster::block_on(runtime.compile(asset, InstanceRecord::new("eldiron-preview")))
+                    .map_err(|e| e.to_string())?,
+            );
+            self.compiled_asset = Some(asset.clone());
+            Ok(true)
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            let (done, receive) = std::sync::mpsc::channel();
+            let source = asset.clone();
+            self.compiling = Some((source.clone(), receive));
+            wasm_bindgen_futures::spawn_local(async move {
+                let result = runtime
+                    .compile(&source, InstanceRecord::new("eldiron-preview"))
+                    .await
+                    .map_err(|e| e.to_string());
+                let _ = done.send(result);
+            });
+            Ok(false)
+        }
     }
     pub fn render(&mut self, request: &Request, density: f32) -> Result<Option<Frame>, String> {
         if self.context.is_lost() {
@@ -293,25 +406,11 @@ impl Preview {
                 .as_ref()
                 .is_none_or(|e| !e.same(request, span, origin))
         {
-            if self
-                .compiled_asset
-                .as_ref()
-                .is_none_or(|a| !Arc::ptr_eq(a, &request.asset))
-            {
-                if !self
-                    .compiled
-                    .as_mut()
-                    .is_some_and(|i| i.update_asset(&request.asset).is_ok())
-                {
-                    self.compiled = Some(
-                        pollster::block_on(
-                            self.runtime
-                                .compile(&request.asset, InstanceRecord::new("eldiron-preview")),
-                        )
-                        .map_err(|e| e.to_string())?,
-                    );
-                }
-                self.compiled_asset = Some(request.asset.clone());
+            let Some(runtime) = self.runtime()? else {
+                return Ok(None);
+            };
+            if !self.compile(runtime.clone(), &request.asset)? {
+                return Ok(None);
             }
             let grid = Grid::new(origin, span, request.pixels, source_size);
             let parameters = RenderRequest {
@@ -319,8 +418,7 @@ impl Preview {
                 resolution: grid.resolution,
                 domain: SurfaceDomain::rect(grid.origin, grid.span),
             };
-            let surface = self
-                .runtime
+            let surface = runtime
                 .create_surface(&parameters)
                 .map_err(|e| e.to_string())?;
             let mut encoder =
@@ -329,8 +427,7 @@ impl Preview {
                     .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                         label: Some("native material evaluation"),
                     });
-            let ticket = self
-                .runtime
+            let ticket = runtime
                 .encode(
                     &mut encoder,
                     self.compiled.as_ref().unwrap(),

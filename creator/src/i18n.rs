@@ -1,5 +1,5 @@
 use i18n_embed::{
-    DesktopLanguageRequester, I18nEmbedError, LanguageLoader,
+    I18nEmbedError, LanguageLoader,
     fluent::{FluentLanguageLoader, fluent_language_loader},
     unic_langid::LanguageIdentifier,
 };
@@ -68,7 +68,10 @@ pub fn select_locales(
 }
 
 pub fn select_system_locales() -> Result<Vec<LanguageIdentifier>, I18nEmbedError> {
-    let requested_languages = DesktopLanguageRequester::requested_languages();
+    #[cfg(not(target_arch = "wasm32"))]
+    let requested_languages = i18n_embed::DesktopLanguageRequester::requested_languages();
+    #[cfg(target_arch = "wasm32")]
+    let requested_languages = i18n_embed::WebLanguageRequester::requested_languages();
 
     let selected = i18n_embed::select(&*LANGUAGE_LOADER, &Localizations, &requested_languages)?;
     LANGUAGE_LOADER.set_use_isolating(false);

@@ -3,7 +3,7 @@
 //! unconverted world/tool/history orchestration; this is not M5/M7 retirement.
 use crate::editor::{Editor, native_views::NativeViewTokens};
 use renderkit::{RenderError, Result};
-use std::time::{Duration, Instant};
+use web_time::{Duration, Instant};
 use theframework::{paint::PaintList, platform::*, prelude::*, render_wgpu::UiFrameImages};
 
 #[path = "native_documents.rs"]
@@ -112,6 +112,7 @@ impl UiApplication for NativeCreatorApplication {
     fn raw_input(&mut self, event: &InputEvent, ui: &mut UiSession) -> Option<InputResponse> {
         if matches!(event, InputEvent::PointerButton { pressed: true, .. } | InputEvent::Key { pressed: true, .. }) { self.editor.native_runtime_audio_gesture(); }
         ui.ui.prepare_paint_layout(&mut ui.context);
+        self.editor.track_native_world_navigation(event, ui);
         let response = self.editor.native_game_input_raw(event, ui)
             .or_else(|| self.editor.native_play_raw_input(event, ui));
         if response.is_some() && matches!(event, InputEvent::Modifiers(_) | InputEvent::Focus(_)) {
@@ -165,9 +166,7 @@ impl UiApplication for NativeCreatorApplication {
                 }
             }
             InputEvent::RelativeMotion { delta } => {
-                let handled = self
-                    .editor
-                    .mouse_motion(delta[0], delta[1], &mut ui.context);
+                let handled = self.editor.native_world_relative_motion(*delta, ui);
                 InputResponse {
                     consumed: handled,
                     redraw: handled,
@@ -2880,6 +2879,11 @@ mod tests {
         gpu: &Arc<GpuContext>,
     ) {
         let before = gpu.transfers().readback_bytes;
+        let mode = app.application.editor.native_camera_mode_for_test(crate::prelude::EditorViewMode::Iso);
+        let idle_source = serde_json::to_value(app.application.editor.project_for_native_test()).unwrap();
+        app.input(&InputEvent::RelativeMotion { delta: [40., -25.] }, host);
+        assert_eq!(serde_json::to_value(app.application.editor.project_for_native_test()).unwrap(), idle_source, "unowned device motion must not pan the authored camera over toolbars or other controls");
+        app.application.editor.native_camera_mode_for_test(mode);
         let original = app.application.host_document_info().unwrap();
         let source = serde_json::to_vec(app.application.editor.project_for_native_test()).unwrap();
         assert!(app.application.host_load_document(&mut app.session, original.document, b"invalid project", None, false).is_err());

@@ -4,7 +4,7 @@ use crate::prelude::*;
 use MapEvent::*;
 use ToolEvent::*;
 use rusterix::prelude::*;
-use std::time::{Duration, Instant};
+use web_time::{Duration, Instant};
 use vek::{Vec2, Vec3};
 
 const LIVE_PAINT_SYNC_INTERVAL: Duration = Duration::from_millis(75);

@@ -1,6 +1,8 @@
 //! Explicit GPU ownership and resources shared by UI and scene renderers.
 //! No application event loop, widget tree, or gameplay state lives here.
 mod context;
+mod fault;
+pub use fault::GpuFaultListener;
 mod image;
 mod readback;
 mod status_readback;

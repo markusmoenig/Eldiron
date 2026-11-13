@@ -252,7 +252,7 @@ mod tests {
     fn configuration_projection_keeps_a_newer_working_draft_and_project_source_separate() {
         let isolated = std::env::var_os("ELDIRON_NATIVE_NODES_ISOLATED").is_some();
         if isolated {
-            assert!(std::sync::LazyLock::get(&crate::editor::RUSTERIX).is_none());
+            assert!(crate::editor::reference_runtime().is_none());
         }
         let (project, owner, definitions, canonical) = fixture();
         let project_source = serde_json::to_value(&project).unwrap();
@@ -277,7 +277,7 @@ mod tests {
         assert_eq!(persisted, canonical);
         assert_eq!(serde_json::to_value(&project).unwrap(), project_source);
         if isolated {
-            assert!(std::sync::LazyLock::get(&crate::editor::RUSTERIX).is_none());
+            assert!(crate::editor::reference_runtime().is_none());
         }
     }
     #[test]

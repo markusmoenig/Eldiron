@@ -723,7 +723,7 @@ mod tests {
     fn native_prefab_edits_compile_serialize_once_and_do_not_construct_world_renderers() {
         let isolated = std::env::var_os("ELDIRON_NATIVE_PREFAB_ISOLATED").is_some();
         if isolated {
-            assert!(std::sync::LazyLock::get(&crate::editor::RUSTERIX).is_none());
+            assert!(crate::editor::reference_runtime().is_none());
             assert!(std::sync::LazyLock::get(&crate::editor::SCENEMANAGER).is_none());
         }
         let mut f = Fixture::new();
@@ -763,7 +763,7 @@ mod tests {
         assert!(f.ui.canvas.buffer.pixels().is_empty());
         assert!(!f.pane.has_native_pending());
         if isolated {
-            assert!(std::sync::LazyLock::get(&crate::editor::RUSTERIX).is_none());
+            assert!(crate::editor::reference_runtime().is_none());
             assert!(std::sync::LazyLock::get(&crate::editor::SCENEMANAGER).is_none());
         }
     }

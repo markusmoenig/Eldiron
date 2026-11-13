@@ -680,7 +680,7 @@ mod tests {
             assert!(Arc::ptr_eq(&f.registry.views[&world].model, &model));
             assert_eq!(f.saved("behavior/world"), "World 東京");
             if std::env::var_os("ELDIRON_NATIVE_NODE_SOURCE_ISOLATED").is_some() {
-                assert!(std::sync::LazyLock::get(&crate::editor::RUSTERIX).is_none());
+                assert!(crate::editor::reference_runtime().is_none());
                 assert!(std::sync::LazyLock::get(&crate::editor::SCENEMANAGER).is_none());
                 assert!(std::sync::LazyLock::get(&crate::editor::EDITCAMERA).is_none());
             }

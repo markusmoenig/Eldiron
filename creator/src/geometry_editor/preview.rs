@@ -45,6 +45,7 @@ pub struct Worker {
     pub results: mpsc::Receiver<Frame>,
 }
 impl Worker {
+    #[cfg(not(target_arch = "wasm32"))]
     fn spawn<F, R>(create: F) -> Self
     where
         F: FnOnce() -> R + Send + 'static,
@@ -87,6 +88,7 @@ impl Worker {
         });
         Self { pending, results }
     }
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn new(device: wgpu::Device, queue: wgpu::Queue) -> Self {
         Self::spawn(move || {
             let renderer = Renderer::new(&device);

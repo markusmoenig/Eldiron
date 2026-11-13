@@ -424,6 +424,10 @@ fn content_key(world: &RuntimeView<'_>) -> Result<u64, String> {
     Ok(h.0.finish())
 }
 impl Editor {
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn native_runtime_status(&self) -> Option<(Uuid, u64, ServerState)> {
+        self.play_session.as_ref().map(|play| (play.pump().session_id(), play.pump().tick_sequence(), self.runtime_state()))
+    }
     pub(crate) fn native_play_owns_viewport(&self) -> bool {
         self.native_viewport.enabled
             && self.server_ctx.game_mode

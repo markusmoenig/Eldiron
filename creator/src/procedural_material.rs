@@ -2736,6 +2736,7 @@ pub(crate) mod gpu;
 #[cfg(target_arch = "wasm32")]
 mod gpu {
     pub struct Frame {
+        pub tile: rusterix::Texture,
         pub size: usize,
         pub animation_images: Vec<[Vec<u8>; 5]>,
         pub animation_selections: Vec<Vec<u8>>,

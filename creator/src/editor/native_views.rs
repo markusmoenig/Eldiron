@@ -269,6 +269,9 @@ impl Editor {
 }
 #[cfg(test)]
 impl Editor {
+    pub(crate) fn native_camera_mode_for_test(&mut self, mode: EditorViewMode) -> EditorViewMode {
+        std::mem::replace(&mut self.server_ctx.editor_view_mode, mode)
+    }
     pub(crate) fn project_for_native_test(&self) -> &Project {
         &self.documents.project
     }

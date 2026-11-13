@@ -1,6 +1,7 @@
 //! One entry point for a definition's model, materials, icons and equipped preview.
 use crate::{editor::RUSTERIX, prelude::*};
-use std::{sync::Arc, time::Instant};
+use std::sync::Arc;
+use web_time::Instant;
 pub mod data;
 mod preview;
 #[cfg(feature = "native-render")]

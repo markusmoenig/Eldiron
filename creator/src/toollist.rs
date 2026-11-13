@@ -16,7 +16,7 @@ use rusterix::TopologyBuilder;
 use rusterix::TopologyScene;
 use rusterix::chunkbuilder::terrain_generator::{TerrainConfig, TerrainGenerator};
 use scenevm::GeoId;
-use std::time::Instant;
+use web_time::Instant;
 
 fn rect_stroke_streams_scene_update(tool_type: MapToolType, view_mode: EditorViewMode) -> bool {
     tool_type == MapToolType::Rect && view_mode == EditorViewMode::D2

@@ -7,7 +7,7 @@ use rusterix::chunkbuilder::{
     terrain_surface::TerrainSurface,
 };
 use rusterix::{Assets, MapCamera, PixelSource, Value};
-use std::time::{Duration, Instant};
+use web_time::{Duration, Instant};
 
 struct Stroke {
     before: Map,

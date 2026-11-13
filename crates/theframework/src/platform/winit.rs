@@ -25,6 +25,7 @@ type ClipboardState = Option<arboard::Clipboard>;
 struct ClipboardState;
 
 enum HostEvent {
+    GpuFault(u64),
     Ready(u64, Result<GpuPresenter<'static>>),
     Clipboard(u64, ClipboardResult),
     #[cfg(target_arch = "wasm32")]
@@ -44,6 +45,7 @@ struct Host {
     context: HostContext,
     window: Option<Arc<Window>>,
     presenter: Option<GpuPresenter<'static>>,
+    fault_listener: Option<renderkit::GpuFaultListener>,
     proxy: EventLoopProxy<HostEvent>,
     epoch: u64,
     initialized: bool,
@@ -149,6 +151,7 @@ impl Host {
         {
             self.frame_pending = false;
         }
+        self.fault_listener = None;
         self.pending = true;
         self.epoch += 1;
         let epoch = self.epoch;
@@ -342,12 +345,23 @@ impl ApplicationHandler<HostEvent> for Host {
         if self.initialized {
             self.app.suspended(&mut self.context);
         }
+        self.fault_listener = None;
         self.presenter = None;
         self.pending = false;
         self.epoch += 1;
     }
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: HostEvent) {
         match event {
+            HostEvent::GpuFault(epoch) => {
+                if epoch != self.epoch || self.suspended { return; }
+                let Some(presenter) = &self.presenter else { return; };
+                let context = presenter.context();
+                if context.is_lost() {
+                    self.fault_listener = None;
+                    self.presenter = None;
+                    self.request_surface();
+                } else if let Err(error) = context.poll() { self.fail(event_loop, error); }
+            }
             #[cfg(target_arch = "wasm32")]
             HostEvent::FrameCompleted(epoch) => {
                 if epoch == self.epoch {
@@ -403,6 +417,27 @@ impl ApplicationHandler<HostEvent> for Host {
                         if let Some(window) = &self.window {
                             let size = window.inner_size();
                             presenter.surface.resize(size.width, size.height);
+                        }
+                        #[cfg(not(target_arch = "wasm32"))]
+                        {
+                            let proxy = std::sync::Mutex::new(self.proxy.clone());
+                            self.fault_listener = Some(presenter.context().observe_faults(move || {
+                                let _ = proxy.lock().unwrap().send_event(HostEvent::GpuFault(epoch));
+                            }));
+                        }
+                        #[cfg(target_arch = "wasm32")]
+                        {
+                            // wgpu requires Send callbacks. The DOM proxy stays
+                            // on its browser thread, woken through a CPU channel.
+                            let (done, ready) = futures::channel::oneshot::channel();
+                            let done = std::sync::Mutex::new(Some(done));
+                            self.fault_listener = Some(presenter.context().observe_faults(move || {
+                                if let Some(done) = done.lock().unwrap().take() { let _ = done.send(()); }
+                            }));
+                            let proxy = self.proxy.clone();
+                            wasm_bindgen_futures::spawn_local(async move {
+                                if ready.await.is_ok() { let _ = proxy.send_event(HostEvent::GpuFault(epoch)); }
+                            });
                         }
                         self.presenter = Some(presenter);
                         self.dirty = true;
@@ -848,6 +883,7 @@ pub fn run(app: Box<dyn GpuApplication>) -> Result<()> {
         context: HostContext::new(size),
         window: None,
         presenter: None,
+        fault_listener: None,
         proxy,
         epoch: 0,
         initialized: false,

@@ -27,8 +27,8 @@ pub struct RulesEditor {
     native_preview: bool,
     #[cfg(feature = "native-ui")]
     preview_sources: crate::minimap::native::Sources,
-    preview_started: std::time::Instant,
-    preview_updated: std::time::Instant,
+    preview_started: web_time::Instant,
+    preview_updated: web_time::Instant,
 }
 
 fn lookup<'a>(table: &'a Table, path: &[String]) -> Option<&'a TomlValue> {
@@ -523,7 +523,7 @@ impl RulesEditor {
         .unwrap();
         assert!(list.ops.iter().any(|op| matches!(op, PaintOp::PixelRadialLayer { rect, .. } if rect.width == 140. && rect.height == 80.)));
         list.validate().unwrap();
-        dock.preview_updated = std::time::Instant::now() - std::time::Duration::from_millis(100);
+        dock.preview_updated = web_time::Instant::now() - std::time::Duration::from_millis(100);
         assert!(dock.poll_background(
             &mut ui,
             &mut context,
@@ -538,7 +538,7 @@ impl RulesEditor {
         ui.get_render_view("Rules Particle Preview")
             .unwrap()
             .set_dim(TheDim::zero(), &mut context);
-        dock.preview_updated = std::time::Instant::now() - std::time::Duration::from_millis(100);
+        dock.preview_updated = web_time::Instant::now() - std::time::Duration::from_millis(100);
         assert!(!dock.poll_background(
             &mut ui,
             &mut context,
@@ -1143,8 +1143,8 @@ impl Dock for RulesEditor {
             native_preview: false,
             #[cfg(feature = "native-ui")]
             preview_sources: Default::default(),
-            preview_started: std::time::Instant::now(),
-            preview_updated: std::time::Instant::now(),
+            preview_started: web_time::Instant::now(),
+            preview_updated: web_time::Instant::now(),
         }
     }
     fn setup(&mut self, _ctx: &mut TheContext) -> TheCanvas {
@@ -1319,7 +1319,7 @@ impl Dock for RulesEditor {
         if self.preview_updated.elapsed().as_millis() < 80 {
             return false;
         }
-        self.preview_updated = std::time::Instant::now();
+        self.preview_updated = web_time::Instant::now();
         let Ok(doc) = project.rules_document.document() else {
             return false;
         };

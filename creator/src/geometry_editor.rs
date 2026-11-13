@@ -199,7 +199,7 @@ pub struct GeometryEditor {
     viewport_visible: bool,
     open_in_rig: bool,
     source_revision: u64,
-    effect_clock: Option<std::time::Instant>,
+    effect_clock: Option<web_time::Instant>,
     preview_epoch: u64,
     preview_context: String,
     displayed_revision: u64,
@@ -1843,7 +1843,7 @@ impl GeometryEditor {
                 || {
                     if self.playback.playing {
                         self.effect_clock
-                            .get_or_insert_with(std::time::Instant::now)
+                            .get_or_insert_with(web_time::Instant::now)
                             .elapsed()
                             .as_secs_f32()
                     } else {
@@ -1860,7 +1860,7 @@ impl GeometryEditor {
         {
             (self
                 .effect_clock
-                .get_or_insert_with(std::time::Instant::now)
+                .get_or_insert_with(web_time::Instant::now)
                 .elapsed()
                 .as_secs_f32()
                 * 30.)

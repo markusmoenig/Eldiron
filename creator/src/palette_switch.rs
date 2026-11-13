@@ -147,9 +147,7 @@ impl PaletteSwitchController {
                             Ok(slug) => {
                                 let (tx, rx) = std::sync::mpsc::channel();
                                 self.receiver = Some(rx);
-                                std::thread::spawn(move || {
-                                    let _ = tx.send(lospec::fetch(&slug));
-                                });
+                                lospec::start(slug, tx);
                                 ctx.ui.send(TheEvent::SetStatusText(
                                     TheId::empty(),
                                     "Loading Lospec palette…".into(),

@@ -69,7 +69,22 @@ impl<A: GpuApplication> ForeignApplicationHost<A> {
     }
 
     pub fn present(&mut self) -> Result<Option<PresentResult>> {
-        if self.suspended || !self.dirty {
+        if self.suspended {
+            return Ok(None);
+        }
+        // A display callback must still observe a lost/invalid device while
+        // the application is visually idle. Polling does not prepare/present.
+        let context = self.presenter.context();
+        if context.is_lost() {
+            return Ok(Some(PresentResult::SurfaceLost));
+        }
+        if let Err(error) = context.poll() {
+            if context.is_lost() {
+                return Ok(Some(PresentResult::SurfaceLost));
+            }
+            return Err(error);
+        }
+        if !self.dirty {
             return Ok(None);
         }
         let app = &mut self.application;

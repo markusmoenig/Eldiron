@@ -1320,6 +1320,7 @@ name = "eldiron-creator"
 version = "0.96.0"
 dependencies = [
  "arboard",
+ "console_error_panic_hook",
  "denrim-materials",
  "earcutr",
  "eldiron-presentation",
@@ -1331,8 +1332,10 @@ dependencies = [
  "i18n-embed",
  "i18n-embed-fl",
  "indexmap",
+ "js-sys",
  "lazy_static",
  "open",
+ "parking_lot",
  "png 0.18.0",
  "pollster",
  "rand",
@@ -1353,6 +1356,9 @@ dependencies = [
  "ureq 2.12.1",
  "vectorize",
  "vek",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
  "web-time",
  "wgpu",
 ]
@@ -2321,6 +2327,7 @@ dependencies = [
  "thiserror 1.0.69",
  "unic-langid",
  "walkdir",
+ "web-sys",
 ]
 
 [[package]]

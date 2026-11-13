@@ -4,6 +4,20 @@ use super::*;
 use crate::editor::{DocumentInfo, SaveInfo, SaveResult};
 use std::path::PathBuf;
 impl NativeCreatorApplication {
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn host_has_document(&self, document: Uuid) -> bool {
+        self.editor.has_document(document)
+    }
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn host_view_diagnostics(&self) -> serde_json::Value {
+        self.editor.native_view_diagnostics()
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn host_runtime_status(&self) -> Option<(Uuid, u64, rusterix::ServerState)> {
+        self.editor.native_runtime_status()
+    }
+
     pub(crate) fn host_enable_document_io(&mut self) {
         self.editor.enable_host_document_io();
     }

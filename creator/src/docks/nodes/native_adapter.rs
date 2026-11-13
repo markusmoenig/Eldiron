@@ -72,7 +72,7 @@ impl NodesDock {
                 && owners.insert(change.key.owner.clone())
                 && let Some(value) = project.node_graphs.get(&change.key.owner)
             {
-                if let Some(runtime) = std::sync::LazyLock::get(&RUSTERIX) {
+                if let Some(runtime) = crate::editor::reference_runtime() {
                     runtime
                         .write()
                         .unwrap()
@@ -1168,7 +1168,7 @@ mod tests {
         f.paint();
     }
     fn assert_no_world_owners() {
-        assert!(std::sync::LazyLock::get(&crate::editor::RUSTERIX).is_none());
+        assert!(crate::editor::reference_runtime().is_none());
         assert!(std::sync::LazyLock::get(&crate::editor::SCENEMANAGER).is_none());
         assert!(std::sync::LazyLock::get(&crate::editor::EDITCAMERA).is_none());
     }

@@ -56,6 +56,7 @@ pub fn decode(text: &str) -> Result<Palette, String> {
     }
     Ok(result)
 }
+#[cfg(not(target_arch = "wasm32"))]
 pub fn fetch(slug: &str) -> Result<Palette, String> {
     let slug = self::slug(slug)?;
     let url = format!("https://lospec.com/palette-list/{slug}.json");
@@ -117,4 +118,25 @@ mod tests {
         assert_eq!(p.colors.len(), 32);
         assert!(p.name.to_lowercase().contains("endesga"));
     }
+}
+
+pub(super) fn start(slug: String, tx: std::sync::mpsc::Sender<Result<Palette, String>>) {
+    #[cfg(not(target_arch = "wasm32"))]
+    std::thread::spawn(move || {
+        let _ = tx.send(fetch(&slug));
+    });
+    #[cfg(target_arch = "wasm32")]
+    wasm_bindgen_futures::spawn_local(async move {
+        let result = async {
+            let bytes = crate::host_services::fetch_bytes(
+                &format!("https://lospec.com/palette-list/{slug}.json"),
+                1_048_576,
+            )
+            .await?;
+            let text = String::from_utf8(bytes).map_err(|_| "Lospec returned invalid UTF-8")?;
+            decode(&text)
+        }
+        .await;
+        let _ = tx.send(result);
+    });
 }
