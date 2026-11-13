@@ -218,6 +218,22 @@ impl CreatorPlaySession {
         }
         .with_presentation_sources(sources)
     }
+    /// The authoring viewport can inspect a different region from the player.
+    /// Keep its speech anchors/time addressed to the displayed runtime map.
+    pub fn view_region<'a>(
+        &'a self,
+        bridge: &'a Rusterix,
+        sources: &'a Project,
+        map: &Uuid,
+    ) -> Option<eldiron_runtime::RuntimeView<'a>> {
+        match &self.storage {
+            Storage::Owned(game) => game.view_region(map),
+            Storage::Reference(game) => game.pump.view_region(
+                &game.project, &bridge.server, &bridge.assets, map,
+            ),
+        }
+        .map(|world| world.with_presentation_sources(sources))
+    }
     pub fn inspect_region<'a>(
         &'a self,
         server: &Server,

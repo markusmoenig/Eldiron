@@ -357,3 +357,75 @@ fn native_speech_gpu_composes_each_view_styles_with_cached_swash_and_no_bubble_i
         }
     }
 }
+
+#[test]
+fn application_projected_speech_shares_layout_and_simulation_lifecycle_without_game_widgets() {
+    use eldiron_presentation::SpeechOverlay;
+    use theframework::paint::{PaintList, Rect as Clip};
+    let (mut session, _, mut fonts) = setup();
+    let mut overlay = SpeechOverlay::default();
+    let view = Uuid::new_v4();
+    let events = RegionEvents {
+        says: vec![(
+            Some(1),
+            None,
+            "World e\u{301} مرحبا 東京".into(),
+            "warning".into(),
+        )],
+        ..Default::default()
+    };
+    overlay.receive(&session.view(), &events);
+    let prepare =
+        |overlay: &mut SpeechOverlay, session: &GameSession, fonts: &mut GameFonts, point| {
+            overlay.prepare_projected(
+                &session.view(),
+                view,
+                Clip::new(10., 20., 300., 180.),
+                fonts,
+                |_| point,
+            );
+        };
+    prepare(&mut overlay, &session, &mut fonts, Some([150., 100.]));
+    assert_eq!(overlay.messages().len(), 1);
+    let before = overlay.visible_bounds().next().unwrap().1;
+    let built = overlay.layouts_built();
+    let mut list = PaintList::default();
+    overlay.paint_view(view, &mut list);
+    assert!(list.ops.iter().any(|op| matches!(op, PaintOp::GlyphRun {color, ..} if *color == [204./255.,34./255.,68./255.,128./255.])));
+    assert!(
+        !list
+            .ops
+            .iter()
+            .any(|op| matches!(op, PaintOp::Image { .. } | PaintOp::SpriteImage { .. }))
+    );
+    session.server.state = ServerState::Paused;
+    for _ in 0..5 {
+        prepare(&mut overlay, &session, &mut fonts, Some([180., 110.]));
+    }
+    assert_eq!(overlay.layouts_built(), built);
+    assert!(overlay.visible_bounds().next().unwrap().1.x > before.x);
+    prepare(&mut overlay, &session, &mut fonts, None);
+    assert_eq!(overlay.visible_bounds().count(), 0);
+    assert_eq!(
+        overlay.messages().len(),
+        1,
+        "hidden/off-camera does not replay or discard the batch"
+    );
+    overlay.invalidate_geometry();
+    prepare(&mut overlay, &session, &mut fonts, Some([180., 110.]));
+    assert_eq!(overlay.visible_bounds().count(), 1);
+    session.project.time.minutes += 1;
+    prepare(&mut overlay, &session, &mut fonts, Some([180., 110.]));
+    assert!(
+        overlay.messages().is_empty(),
+        "expiry observes simulation time"
+    );
+    overlay.receive(&session.view(), &events);
+    session.project.regions[0].map.id = Uuid::new_v4();
+    prepare(&mut overlay, &session, &mut fonts, Some([180., 110.]));
+    assert!(overlay.messages().is_empty());
+    overlay.receive(&session.view(), &events);
+    session.server.state = ServerState::Off;
+    prepare(&mut overlay, &session, &mut fonts, Some([180., 110.]));
+    assert!(overlay.messages().is_empty());
+}

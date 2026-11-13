@@ -1,4 +1,4 @@
-//! Simulation-clocked speech, projected independently in every game view. The
+//! Simulation-clocked speech, projected per game or application world view. The
 //! shared CPU owner receives Say batches; paint never drains or redelivers them.
 use super::*;
 use rusterix::{
@@ -38,6 +38,87 @@ pub struct SpeechOverlay {
     placed: Vec<Placed>,
     layouts_built: u64,
 }
+struct Placer<'a> {
+    prepared: &'a mut FxHashMap<(Uuid, u32), Prepared>,
+    placed: &'a mut Vec<Placed>,
+    layouts_built: &'a mut u64,
+    used: &'a mut std::collections::HashSet<(Uuid, u32)>,
+    fonts: &'a mut GameFonts,
+    config: &'a toml::Table,
+}
+impl Placer<'_> {
+    fn place(
+        &mut self,
+        view: Uuid,
+        clip: Uv,
+        local: Option<&toml::Table>,
+        message: &Utterance,
+        point: [f32; 2],
+    ) {
+        let width = clip.width - 22.;
+        let key = (message.id, width.to_bits());
+        self.used.insert(key);
+        let version = self.fonts.version();
+        if self.prepared.get(&key).is_none_or(|p| p.fonts != version) {
+            let measured = self
+                .fonts
+                .text
+                .layout(&message.text, "Roboto", 15., Some(width));
+            let width = (measured
+                .lines()
+                .iter()
+                .map(|line| line.advance)
+                .fold(0., f32::max)
+                .ceil()
+                + 1.)
+                .clamp(1., width);
+            let text = self.fonts.text.layout_aligned(
+                &message.text,
+                TextOptions {
+                    family: "Roboto",
+                    size: 15.,
+                    width: Some(width),
+                    line_height: Some(19.5),
+                },
+                &[],
+                TextAlignment::Center,
+            );
+            self.prepared.insert(
+                key,
+                Prepared {
+                    fonts: version,
+                    text,
+                    width,
+                },
+            );
+            *self.layouts_built += 1;
+        }
+        let prepared = &self.prepared[&key];
+        let width = prepared.width + 10.;
+        let height = (prepared.text.height() + 6.).min(clip.height - 12.);
+        let x = (point[0] - width * 0.5).clamp(clip.x + 6., clip.x + clip.width - width - 6.);
+        let y = (point[1] - height - 4.).clamp(clip.y + 6., clip.y + clip.height - height - 6.);
+        let bounds = Uv::new(x, y, width, height);
+        let text = Uv::new(x + 5., y + 3., width - 10., height - 6.);
+        let lines = prepared
+            .text
+            .visible_lines(0., text.height)
+            .last()
+            .map_or(0, |(index, _)| index + 1);
+        self.placed.push(Placed {
+            view,
+            key,
+            bounds,
+            clip,
+            text,
+            lines,
+            foreground: style::color(&self.config, local, &message.category, [229, 229, 1, 255]),
+            background: style::background_enabled(&self.config, local)
+                .then(|| style::background_color(&self.config, local)),
+        });
+    }
+}
+
 impl SpeechOverlay {
     pub(super) fn bind_runtime(&mut self, world: &RuntimeView<'_>) {
         if self.session != Some(world.session_id) {
@@ -139,6 +220,14 @@ impl SpeechOverlay {
                 }
                 let local = self.styles[&id].say.as_ref();
                 let duration = style::duration_ticks(&self.config, local);
+                let mut placer = Placer {
+                    prepared: &mut self.prepared,
+                    placed: &mut self.placed,
+                    layouts_built: &mut self.layouts_built,
+                    used: &mut used,
+                    fonts,
+                    config: &self.config,
+                };
                 for message in self.state.messages() {
                     if !self.state.is_live(message, duration, rate) {
                         continue;
@@ -156,77 +245,64 @@ impl SpeechOverlay {
                     let Some(point) = project(game, position) else {
                         continue;
                     };
-                    let width = clip.width - 22.;
-                    let key = (message.id, width.to_bits());
-                    used.insert(key);
-                    let version = fonts.version();
-                    if self.prepared.get(&key).is_none_or(|p| p.fonts != version) {
-                        let measured = fonts.text.layout(&message.text, "Roboto", 15., Some(width));
-                        let width = (measured
-                            .lines()
-                            .iter()
-                            .map(|line| line.advance)
-                            .fold(0., f32::max)
-                            .ceil()
-                            + 1.)
-                            .clamp(1., width);
-                        let text = fonts.text.layout_aligned(
-                            &message.text,
-                            TextOptions {
-                                family: "Roboto",
-                                size: 15.,
-                                width: Some(width),
-                                line_height: Some(19.5),
-                            },
-                            &[],
-                            TextAlignment::Center,
-                        );
-                        self.prepared.insert(
-                            key,
-                            Prepared {
-                                fonts: version,
-                                text,
-                                width,
-                            },
-                        );
-                        self.layouts_built += 1;
-                    }
-                    let prepared = &self.prepared[&key];
-                    let width = prepared.width + 10.;
-                    let height = (prepared.text.height() + 6.).min(clip.height - 12.);
-                    let x = (point.x - width * 0.5)
-                        .clamp(clip.x + 6., clip.x + clip.width - width - 6.);
-                    let y = (point.y - height - 4.)
-                        .clamp(clip.y + 6., clip.y + clip.height - height - 6.);
-                    let bounds = Uv::new(x, y, width, height);
-                    let text = Uv::new(x + 5., y + 3., width - 10., height - 6.);
-                    let lines = prepared
-                        .text
-                        .visible_lines(0., text.height)
-                        .last()
-                        .map_or(0, |(index, _)| index + 1);
-                    self.placed.push(Placed {
-                        view: id,
-                        key,
-                        bounds,
-                        clip,
-                        text,
-                        lines,
-                        foreground: style::color(
-                            &self.config,
-                            local,
-                            &message.category,
-                            [229, 229, 1, 255],
-                        ),
-                        background: style::background_enabled(&self.config, local)
-                            .then(|| style::background_color(&self.config, local)),
-                    });
+                    placer.place(id, clip, local, message, [point.x, point.y]);
                 }
             }
         }
         self.prepared.retain(|key, _| used.contains(key));
     }
-    pub(super) fn paint_view(&self, view: Uuid, list: &mut PaintList) {
+    /// Prepare one application-owned world view. Projection comes from the
+    /// renderer's actual camera/transform, independent of any game widget.
+    /// The receiver owns speech; this method only observes simulation time.
+    pub fn prepare_projected(
+        &mut self,
+        world: &RuntimeView<'_>,
+        view: Uuid,
+        clip: Uv,
+        fonts: &mut GameFonts,
+        mut project: impl FnMut(&Utterance) -> Option<[f32; 2]>,
+    ) {
+        self.bind_runtime(world);
+        self.placed.clear();
+        self.state.synchronize(world.map, &world.time);
+        if world.state == ServerState::Off {
+            self.clear();
+            return;
+        }
+        if self.source != world.config() {
+            self.source = world.config().into();
+            self.config = self.source.parse().unwrap_or_default();
+        }
+        self.state.expire(
+            style::duration_ticks(&self.config, None),
+            style::ticks_per_minute(&self.config),
+        );
+        let mut used = std::collections::HashSet::new();
+        if [clip.x, clip.y, clip.width, clip.height]
+            .iter()
+            .all(|v| v.is_finite())
+            && clip.width >= 36.
+            && clip.height >= 36.
+        {
+            let mut placer = Placer {
+                prepared: &mut self.prepared,
+                placed: &mut self.placed,
+                layouts_built: &mut self.layouts_built,
+                used: &mut used,
+                fonts,
+                config: &self.config,
+            };
+            for message in self.state.messages() {
+                if let Some(point) =
+                    project(message).filter(|p| p[0].is_finite() && p[1].is_finite())
+                {
+                    placer.place(view, clip, None, message, point);
+                }
+            }
+        }
+        self.prepared.retain(|key, _| used.contains(key));
+    }
+    pub fn paint_view(&self, view: Uuid, list: &mut PaintList) {
         for placed in self.placed.iter().filter(|placed| placed.view == view) {
             list.ops.push(PaintOp::PushClip(placed.clip));
             if let Some(background) = placed.background {

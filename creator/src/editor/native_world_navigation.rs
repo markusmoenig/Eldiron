@@ -153,6 +153,7 @@ impl Editor {
             "navigation": self.native_viewport.world.relative_navigation.is_some(), "moving": camera.move_action.is_some(), "fly": self.server_ctx.editor_fly_nav_active,
             "fly_mouse": self.server_ctx.editor_fly_nav_mouse_down,
             "world": self.native_world_owns_viewport(),
+            "speech": self.native_viewport.world.speech.diagnostics(),
         })
     }
 }

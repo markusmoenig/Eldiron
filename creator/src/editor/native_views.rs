@@ -645,3 +645,18 @@ impl Editor {
             .len()
     }
 }
+
+impl NativeViewport {
+    pub(crate) fn receive_world_speech(
+        &mut self,
+        world: &eldiron_runtime::RuntimeView<'_>,
+        events: &eldiron_runtime::RegionEvents,
+    ) {
+        if self.enabled {
+            self.world.receive_speech(world, events);
+        }
+    }
+    pub(crate) fn clear_world_speech(&mut self) {
+        self.world.clear_speech();
+    }
+}

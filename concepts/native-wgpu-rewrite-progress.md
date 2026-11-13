@@ -22,10 +22,11 @@ Started: 2026-11-11 (Asia/Bangkok). Overall Goal: active; full M0–M9 scope rem
 
 - M0: in progress. Baseline compile, explicit ownership/paint/text decisions and GPU visual fixtures exist; release performance baselines and complete workflow inventory remain.
 - M1: in progress. Shared GPU context, scene output leases, explicit captures, native/foreign surface presentation and independent normal/isometric game-view lifecycle/recovery work; main Creator/auxiliary view adoption and full resource/platform acceptance remain.
-- M2: in progress. Paint/Swash/Parley pipeline and native/foreign hosts work; supplied browser CJK/Cyrillic fallback, source-byte sharing and actual IME/GPU recovery now pass. Batching, resource lifetime budgets and full text/input parity remain.
+- M2: in progress. Paint/Swash/Parley pipeline and native/foreign hosts work; supplied browser CJK/Cyrillic/Arabic fallback, source-byte sharing and actual IME/GPU recovery now pass. Batching, resource lifetime budgets and full text/input parity remain.
 - M3: in progress. Every active built-in TheWidget implementation now has a command paint path, including procedural controls and the legacy node canvas. Complex Creator integration, full widget catalog parity and legacy adapter retirement remain.
 - M4: in progress. CPU schema/identity extraction, shared `GameSession`, CPU startup preparation, message/party/world-target policies and terminal adoption are implemented and tested. Per-session routing, local players, world values, runtime IDs and region context ownership now pass controlled overlapping-session and parallel assembled-player regressions. Graphical clients adopt GameSession; Creator shares its clock/output pump and runtime-owned PlayerInput. Text Play state is now Editor-owned and uses explicit CPU runtime borrows. Canonical Creator Play now owns a separate runtime Project projection; startup/warmup, entities/generated geometry and time no longer mutate authored Documents. The Console also consumes explicit addressed CPU inspections and rejects stale runtime actor links/history without reading the global server or authored entity fallbacks. Native Creator now owns its GameSession server/assets/current-map/clock/audio lifetime and advances from host elapsed time independently of rendering. Reference storage/start-menu/source bridges and remaining bitmap/value data extraction remain; this evidence does not establish full simultaneous Creator Play workflows.
 - M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Immutable ordinary editor-view preparation, exact reference/native view outputs and retained CPU chunk publication are now available through SceneViews. Common HUD, paint/props panels, profile displays and ViewCube now have retained command frames, guarded input and actual GPU composition/reconstruction evidence. Six standard tools additionally emit ordered typed overlay aggregates with exact presented-frame and detail-profile source guards. Full-viewport profile editing is now connected to the actual native Creator root with document/widget binding, presentation-gated input and inline commit/cancel; ordinary stopped top-down, sprite-isometric and 3D region rendering and the six standard tool overlays now use the same native application owner and real tool dispatch. Orbit/orthographic/first-person views include depth-aware guides, retained ViewCube and explicit tool query snapshots; surface paint uses the view-owned GPU scene. The Terrain tool now also uses retained native controls and GPU brush guides with real sculpt/cancel integration. Rect now also uses presentation-gated composition/rotation controls, shared source sprite previews blitted on the GPU, terrain-conforming perimeters, and view-owned 3D queries; actual isometric placement and fractional-DPI sprite sampling pass in the assembled checkpoint. Isometric terrain Paint now also uses retained native controls, batched GPU brush feedback, update-phase editable source publication and the existing authoring/undo dispatch. Native 3D Paint now also consumes dedicated scene-owned paint-coordinate queries and explicit authoring surface captures, with camera-scoped drafts and GPU composition; full Paint workflow/platform parity remains unverified. The isolated Prefab viewport now also uses native top-down/isometric/3D outputs, live effects with hierarchy-aware owned drags, and actual 3D Paint authoring on its asset-owned layer. Paint now shares the normal tile picker; its settings live only in the viewport overlay. The canonical Creator Play toolbar now owns the same CPU clock/output pump as GameSession, and its live authoring viewport keeps its own native SceneView. The authored Game-tool viewport now also uses the common GameScreenController/SceneViews/Swash presentation; authoring GameInput now also shares runtime controls while retaining the native scene in supported contexts. Region geometry, ordinary scene and sprite-isometric minimaps now have owned GPU outputs and presentation-scoped navigation; palette and rig previews also have retained native sources and acknowledged palette input. Authored screen minimaps now also use a GPU-only ordered 2D overview producer with compatible source sampling and acknowledged screen-scoped navigation. Parent-region minimaps during Prefab/profile/detail editing also have independent native source production and presented-parent navigation without modifying the isolated editor map. Main native authoring static geometry/readiness/billboards now use an application-owned bounded CPU source, retained across GPU reconstruction and isolated from clipboard projections. Remaining uncommon contexts/tools retain explicit migration adapters. Application/global/document/Play ownership, main world/tool/HUD integration, remaining producers, full visual/workflow/performance acceptance and canonical retirement remain.
+- M5 ownership checkpoint (2026-11-14): CreatorContext now owns camera, cooperative scene jobs and reference engine/assets. Canonical scene/context injection keeps the compatibility GPU cold on startup; native 2D visibility and owned authoring speech use paint commands. Other application globals, custom/bake/clipboard view adapters and resource/performance acceptance remain open.
 - M6: in progress. Independent GPU game views, common player/input/camera components, authored screen paint, private world descriptions, view-owned speech, acknowledged-frame world pointer gestures, relative first-person mouse look, default/world-intent cursors, world/UI item drag previews and acknowledged authored inventory/equipment pointer/keyboard gestures are implemented. Application-owned audio is integrated into the common player with cancellable CPU preparation jobs. The native container HUD now includes acknowledged paint/input, real server transfers, scrolling, GPU recovery and navigation lifetime. Floating inventory/equipment, action catalogue/spellbook and preferences now use typed native HUD owners, retained text/source resources and acknowledged input. Acknowledged UI-origin tooltips now use retained text and host deadlines. UI-origin Drop cursors and acknowledged drag/assignment highlighting now have GPU and authoritative transfer evidence. Native isometric source production, shared CPU source publication, game-view outputs and acknowledged input receipts now have GPU/CPU and shipped-source device-reconstruction evidence. Persistent region 3D paint now also crosses the CPU asset boundary into independent per-view GPU uploads; actual painted browser rendering/device recovery and native integration pass. Browser worker hosting, uncommon Prefab/stamp/live paint publication, remaining game-mode/HUD policy parity and performance acceptance remain. Canonical native desktop launchers now share the common application/host; see launcher verification below.
 - M7/M8/M9: Retirement and full platform acceptance remain pending. Canonical desktop clients share the common player; the Xcode client and versioned Creator host use Rust-created CAMetalLayer surfaces with retained compatibility exports. Addressed document load/save, owned CPU transfers and application lifetime checks have compiled/linked/runtime evidence. Browser player and Creator now use the shared WebGPU host, with actual source loading, Swash/fallback/IME, scene/pixel/material rendering, explicit asset bakes, OPFS save, addressed cancellation and idle device recovery evidence below. Physical native/monitor/clipboard/mobile workflows, remaining ownership/adapter retirement, resource budgets and measured release performance remain open. Compile checks and detached-layer tests do not establish complete platform parity.
 
@@ -9169,3 +9170,127 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   introduced to pass imagery. Local checkpoint this batch, then continue speech/
   effects/tile-picker/other viewport and application ownership migration. Full
   M0–M9 Goal ACTIVE. Concurrent networking concept untouched/excluded.
+
+
+### Native authoring-world speech migration (active, 2026-11-14)
+
+- Visibility checkpointf3a5b4e5 contains8 files, excludes concurrent networking
+  concept. Reclassified two prior guard inventory entries after checking actual
+  caller availability: region tool.effects/tool.tile_picker are intentionally
+  unavailable (ToolList::is_prefab_tool_command_id/game_tool_is_available tests).
+  Their exclusion is an availability contract, not proof of a visible missing
+  region viewport. Preserve that guard; do not invent new region tools.
+- Actual speech gap: legacy Client::process_messages measures via Fontdue and
+  populates messages_to_draw only when its raster font exists; native world guard
+  can select CPU display for that table. Owned Play outputs are collected once in
+  editor update; active-region batches already fan out to native Game-screen UI,
+  but normal authoring view has no native speech presenter. Do not drain again,
+  tick from paint, or make a game widget/framebuffer merely to project text.
+- Started shared presentation extraction: one private speech Placer keeps existing
+  game-screen layout/paint logic unchanged, plus SpeechOverlay::prepare_projected
+  accepts the application's actual world projection and observes simulation time.
+  Existing CPU SpeechMessages/style and GameFonts/Parley/Swash are reused. This
+  API foundation is UNVERIFIED and uncommitted; first compile pending.
+- Next application-local lazy world speech owner receives the SAME active-region
+  batch at collection, survives GPU replacement, renders flat/iso/3D against its
+  actual view, and clears/rebinds on stop/document/runtime/region changes. Reuse
+  common layout/paint and fonts; keep source/schema/runtime clocks unchanged.
+
+- Shared foundation first compile found an unnecessary direct `vek` reference;
+  projected API now uses plain [f32;2]. Shared speech tests PASS4/1ignored0.57s,
+  including no-widget projected text/style, off-camera retention, pause, time
+  expiry, region replacement and Stop. Existing game-view layout tests retained.
+- New module editor/native_world_speech.rs owns lazy GameFonts and SpeechOverlay
+  outside WorldGpu; actual renderer camera/2D/iso transforms feed common glyph
+  paint. Stop/document retirement explicitly clears the CPU model; binding/GPU
+  invalidation revokes only placement. No GameWidget/framebuffer is created.
+  Empty speech does not initialize a text owner. Correct raw font fingerprints
+  bridge missing dedicated authored-font revision; byte-hashing budgets OPEN.
+- Refined region routing before integration: Creator authoring can display a
+  different region from current player map. Added narrow borrowed
+  CreatorPlaySession::view_region and fan-out of the already-collected selected
+  region batch. Game-screen output remains addressed to active player region.
+  Both observe the existing pump/time; no second drain/tick or schema change.
+- First native compile caught private nested-method visibility and an undeclared
+  hasher import; narrowed visibility to native_views ancestor and used existing
+  std DefaultHasher. Canonical no-default-features native-host test build running.
+  Existing assembled workflow extended for lazy initialization, actual Say queue,
+  paused 2D/iso/3D composition, shape reuse, no readback/CPU storage, CPU-message
+  retention through GPU recovery and retirement on Stop. No native PASS yet.
+
+- First assembled Metal run FAILED74.79s at the new 3D speech assertion:
+  message retained1 but visible0. Diagnosed fixture camera: the new ThreeD project
+  starts editor isometric center at (8,8,8), scale4, while Player is at origin.
+  Its elevated anchor is correctly outside that viewport; flat and sprite-iso
+  assertions already passed. Do not relax production off-camera culling. Scope
+  the test's actual editor camera to the visible actor and restore exact prior
+  authored center/mode/camera afterward. GPU retention check moved into paused
+  speech, avoiding an invalid assumption that time-limited words live through all
+  later running-input tests. Second assembled build/run pending.
+- Browser release/package PASS48.84s/98,163,314B. Added opt-in existing view
+  diagnostics counts (messages/visible/layouts/lazy fonts); disposable legacy JSON
+  fixture adds an actual startup Event→Say behavior graph. No test-only delivery
+  bypass. Browser real boot/recovery run underway, not yet verified.
+
+- First real browser world-speech workflow functional PASS on actual1.5 profile:
+  doca7f5854c-adbd-465a-aa10-2a67f8ab3689, runtime09c110f5-c81c-4fd0-adbd-
+  547236164d45; startup graph emits exactly1 message,1 visible bubble,1 layout.
+  Paused tick9 and layout1 retained through real device loss gen2→3; resize
+  rebuilds layout2 and retains message; Stop clears messages/placement. Root/
+  readback/asset readback/color copies/Canvas2D0, devices3/gen3, GPU/errors[].
+  Three FRESH current archives before/paused/stopped BYTE IDENTICAL1,447,273B,
+  SHA25630428eeb79d2c8674128fd7f28bcb8efbf6400fe0c37c29e906025cfd40bd6af;
+  WHOLE authored JSON exactly equal. Logs world-speech-browser-{bootstrap,check}.
+- Visual inspection of GPU-completed1920x1140 browser capture discovered Arabic
+  tofu while Latin/combining/CJK rendered. Functional lifecycle PASS is NOT full
+  text acceptance. Existing browser font policy supplied only Latin/CJK/Cyrillic;
+  native system-font tests had masked missing Arabic. Added unmodified hinted
+  Noto Sans Arabic Regular2.013 as browser-only Arab-script fallback using the
+  same shared immutable blob policy. Upstream primary source release/commit,
+  SIL OFL1.1, verified archive and font/license SHA256 in webfonts/README.txt.
+  Archive digest matches upstream API1301aceaea84c501cf2e6dcfb3182e2328c8eae5
+  725817fcb239672bda7154f1; face234,892B. No native production font-policy change.
+- Extended EXISTING no-system-font fallback test (labels AND editor exact metrics,
+  nonzero glyphIDs, shared blob identity, actual Swash Arabic ink): PASS1/0.35s.
+  Browser rebuild/re-run/visual verification pending; first tofu screenshot is
+  failure evidence, not release image. Reference Creator compile PASS22.30s.
+  Second assembled native test continues beyond speech/paused projection/recovery
+  and runtime restart; final result still pending. Full Goal remains ACTIVE.
+
+- Corrected assembled native workflow PASS1/136.40s. Paused active utterance is
+  visible in flat2D/sprite-iso/3D against the actual camera; same-width camera
+  changes reuse shaping; replacement GPU targets retain CPU speech/layout; no
+  ordinary readback/CPU view storage. The rest of the existing tools, painting,
+  documents, source, Play, fractional-DPI and recovery integration also passes.
+- Existing shared GPU speech composition/cache/overlap test PASS1/0.71s after
+  Placer extraction. Reference compile PASS22.30s; actual staticlib PASS48.07s.
+  Current Swift host linked; runtime document/PNG/CAMetalLayer checks underway.
+- Arabic fallback browser release PASS1m28s/package98,417,328B; actual1.5 browser
+  startup, idle recovery and authored Say/Play/Pause/loss/resize/Stop PASS again.
+  Current doc6ec79ff3-7eeb-44ca-8d4d-186fcbcfcf5d, runtime1d40c911-b90b-40e5-
+  9474-83fd6b9c14c7; tick9 unchanged across paused recovery gen2→3;1 message/
+  1 layout before resize,2 layouts after resize,0 messages/placement after Stop.
+  21 frames/devices3/gen3, root/readback/asset readback/color copies/Canvas2D0,
+  GPU/errors[]. FRESH current archives before/paused/stopped BYTE IDENTICAL
+  1,447,306B SHA256858946754785432907f9a200a68f95f1861ade67dee7c4c3c6cbfedd950db8d3;
+  whole authored JSON exactly equal. Do not compare compressed hashes across
+  distinct legacy-project opens that can generate migration identities.
+- Corrected GPU-completed1920x1140 capture visually inspected: actual joined
+  Arabic, composed e-accent, Japanese and Latin all readable over the3D scene,
+  with surrounding controls/tile view intact. Durable release evidence
+  native-wgpu-evidence/browser-creator-world-speech-150.png. Original tofu image
+  retained separately at /private/tmp/eldiron-world-speech-browser-arabic-tofu.png.
+  Final browser logs world-speech-font-browser-{bootstrap,check}.log.
+- Retired owned-native authoring speech display fallback; legacy non-owned
+  reference messages_to_draw guard remains explicit. Selected-region CPU model
+  fans out the existing event batch; actual text uses common Parley/Swash paint.
+  Physical Mac window/IME/clipboard/monitor and unavailable platform checks,
+  performance/resource budgets and remaining M5/M7 owners/adapters stay OPEN.
+  Next coherent owner migration: CONFIGEDITOR/CONFIG (20 references, current
+  process-wide defaults/table can leak across Creator application instances).
+- Linked Swift current staticlib runtime PASS: actual Rust-owned CAMetalLayer,
+  handle/document and controlled PNG transactions, with zero ordinary readback.
+  Log /private/tmp/eldiron-world-speech-swift-host-runtime.log. Actual OS clipboard
+  remains unverified. All available checks for this coherent speech/fallback
+  checkpoint pass; no full-M0–M9 completion claim. Concurrent networking document
+  untouched/excluded. Continue application configuration ownership next.

@@ -834,7 +834,9 @@ mod tests {
         fallback.register_bundled_fonts();
         let cjk = fonts::cjk_data();
         fallback.register_cjk_fallback(cjk.clone(), Some("zh-TW"));
-        let source = "編輯器 简体中文 日本語 ひらがな カタカナ 한국어 Журнал";
+        let arabic = fonts::arabic_data();
+        fallback.register_arabic_fallback(arabic.clone());
+        let source = "編輯器 简体中文 日本語 ひらがな カタカナ 한국어 Журнал مرحبا";
         let shaped = fallback.layout(source, "Roboto", 13., None);
         assert!(
             shaped
@@ -846,7 +848,16 @@ mod tests {
         );
         let mut indices = std::collections::HashSet::new();
         let mut raster = GlyphCache::new(2 * 1024 * 1024);
+        let mut arabic_ink = false;
         for run in &shaped.runs {
+            if run.font.data.len() == arabic.len() {
+                assert!(Arc::ptr_eq(&run.font.data, &arabic));
+                arabic_ink |= run
+                    .glyphs
+                    .iter()
+                    .filter_map(|glyph| raster.glyph(run, glyph.id, 1.5, glyph.position))
+                    .any(|(_, image)| image.pixels.iter().any(|value| *value > 0));
+            }
             if run.font.data.len() == cjk.len() {
                 assert!(
                     Arc::ptr_eq(&run.font.data, &cjk),
@@ -864,6 +875,10 @@ mod tests {
                 );
             }
         }
+        assert!(
+            arabic_ink,
+            "Arabic fallback produces real Swash ink without system fonts"
+        );
         assert!(
             indices.contains(&0) && indices.contains(&1) && indices.contains(&3),
             "kana/Korean/default traditional Han retain their own collection faces: {indices:?}"

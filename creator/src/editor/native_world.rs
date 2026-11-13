@@ -9,6 +9,8 @@ mod source;
 mod navigation;
 #[path = "native_world_visibility.rs"]
 mod visibility;
+#[path = "native_world_speech.rs"]
+mod speech;
 use crate::editor_overlay::panel::PanelScope;
 use crate::editor_overlay::procedural_gpu::GpuIcons;
 use crate::hud::{Hud, HudInputs, HudStyle};
@@ -373,6 +375,7 @@ pub(crate) struct NativeWorld {
     events: std::collections::VecDeque<ScopedToolOverlayEvent>,
     published: Option<(TheId, Arc<PaintList>)>,
     gpu: Option<WorldGpu>,
+    speech: speech::WorldSpeech,
 }
 /// An already accepted down which changed preview geometry before authoring.
 /// Keep its physical continuation bounded until the replacement is presented.
@@ -418,6 +421,7 @@ impl Default for NativeWorld {
             events: Default::default(),
             published: None,
             gpu: None,
+            speech: Default::default(),
         }
     }
 }
@@ -519,6 +523,7 @@ impl NativeWorld {
             .checked_add(1)
             .expect("world binding epoch exhausted");
         self.presented = None;
+        self.speech.invalidate_geometry();
         self.overlay_input.invalidate();
         self.world_capture = None;
         self.relative_navigation = None;
@@ -820,13 +825,13 @@ impl Editor {
         }
         let bridge = self.server_ctx.reference.read();
         // The shared CPU pump publishes live actors into a separate projection.
-        // Speech, orthographic bakes and the remaining custom
+        // Orthographic bakes and the remaining custom
         // contexts still have explicit migration adapters.
         let owned_play = self.play_session.as_ref().is_some_and(|play| {
             self.documents.active_id() == Some(play.document)
         });
         (bridge.server.state == rusterix::ServerState::Off || owned_play)
-            && bridge.client.messages_to_draw.is_empty()
+            && (owned_play || bridge.client.messages_to_draw.is_empty())
             && !bridge.orthographic_bake.is_rendering()
     }
     pub(super) fn native_world_gesture_active(&self) -> bool {
@@ -1419,6 +1424,16 @@ impl Editor {
                     })
                 },
             );
+        }
+        if let Some(runtime) = self.play_session.as_ref().filter(|play| {
+            play.document == binding.document
+        }).and_then(|play| play.view_region(&bridge, &self.documents.project, &map.id)) {
+            world.speech.paint(
+                &runtime,
+                &binding, map, assets, camera.as_deref(), &mut list,
+            );
+        } else {
+            world.speech.clear();
         }
         let mut resources = gpu.icons.frame(&mut gpu.images, images.registry);
         list.ops.extend(

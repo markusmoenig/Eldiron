@@ -1960,6 +1960,9 @@ mod tests {
             authored_session,
             "server-generated geometry belongs only to the runtime projection"
         );
+        assert_eq!(app.application.editor.native_world_speech_for_test(), (0, 0, 0, false),
+            "a world with no speech does not create a font registry");
+        app.application.editor.queue_native_world_speech_for_test();
         app.application.editor.queue_native_play_message_for_test();
         let deadline = Instant::now() + Duration::from_secs(5);
         loop {
@@ -2006,6 +2009,53 @@ mod tests {
             Some(paused),
             "paused Play cannot tick or drain a message twice"
         );
+        let mut original_projection = None;
+        let mut speech_layouts = None;
+        for (mode, camera) in [
+            (crate::prelude::EditorViewMode::D2, rusterix::MapCamera::TwoD),
+            (crate::prelude::EditorViewMode::D2, rusterix::MapCamera::TwoDIso),
+            (crate::prelude::EditorViewMode::Iso, rusterix::MapCamera::ThreeDIso),
+        ] {
+            let old = app.application.editor.native_world_speech_projection_for_test(mode, camera, crate::prelude::Vec3::zero());
+            original_projection.get_or_insert(old);
+            let deadline = Instant::now() + Duration::from_secs(5);
+            loop {
+                app.update(&mut host, Duration::ZERO);
+                let before = gpu.transfers();
+                let frame = app.frame(&mut host, &mut replacement).unwrap();
+                assert!(app.application.pending.as_ref().unwrap().world_for_test());
+                let speech = app.application.editor.native_world_speech_for_test();
+                assert_eq!((speech.0, speech.1, speech.3), (1, 1, true), "speech in {camera:?}");
+                renderer.render(&frame, &replacement, &output.view, output.descriptor.format,
+                    (1600, 1000), 1., [0.; 4]).unwrap();
+                app.presented(&mut host);
+                assert_eq!(gpu.transfers().readback_bytes, before.readback_bytes);
+                assert!(!app.application.editor.native_world_has_cpu_storage_for_test());
+                if app.application.editor.native_world_ready_for_test() {
+                    break;
+                }
+                assert!(Instant::now() < deadline, "speech view source was not published");
+            }
+            let built = app.application.editor.native_world_speech_for_test().2;
+            if let Some(before) = speech_layouts {
+                assert_eq!(built, before, "camera changes reuse speech shaping");
+            }
+            speech_layouts = Some(built);
+        }
+        let speech_before_recovery = app.application.editor.native_world_speech_for_test();
+        app.gpu_recreated(&mut host, &mut replacement).unwrap();
+        assert_eq!(app.application.editor.native_world_speech_for_test().0, speech_before_recovery.0,
+            "GPU recovery retains CPU speech");
+        let frame = app.frame(&mut host, &mut replacement).unwrap();
+        renderer.render(&frame, &replacement, &output.view, output.descriptor.format,
+            (1600, 1000), 1., [0.; 4]).unwrap();
+        app.presented(&mut host);
+        assert_eq!(app.application.editor.native_world_speech_for_test(), speech_before_recovery,
+            "replacement targets rebuild placement and reuse the retained speech layout");
+        let (mode, camera, center) = original_projection.unwrap();
+        app.application.editor.native_world_speech_projection_for_test(mode, camera, center);
+        assert_eq!(app.application.editor.native_play_stats_for_test(), Some(paused),
+            "speech projection never ticks or drains the shared runtime");
         app.session.context.ui.send(TheEvent::StateChanged(
             TheId::named("Play"),
             TheWidgetState::Clicked,
@@ -2156,6 +2206,7 @@ mod tests {
             0,
             "GPU recovery cancels accepted controls without replacing their CPU owner"
         );
+
         assert_eq!(
             app.application
                 .editor
@@ -2713,6 +2764,8 @@ mod tests {
         ));
         app.update(&mut host, Duration::from_millis(16));
         assert!(app.application.editor.native_play_stats_for_test().is_none());
+        assert_eq!(app.application.editor.native_world_speech_for_test().0, 0,
+            "Stop retires speech even if its world view is hidden");
         assert!(!app.application.editor.native_text_output_for_test("> intent look"));
         assert_eq!(
             serde_json::to_value(&app.application.editor.project_for_native_test().regions).unwrap(),

@@ -4959,6 +4959,8 @@ impl Editor {
         *SIDEBARMODE.write().unwrap() = SidebarMode::Region;
         self.server_ctx.camera.reset_for_project_switch();
         self.play_session = None;
+        #[cfg(feature = "native-render")]
+        self.native_viewport.clear_world_speech();
         self.sync_active_session_from_editor();
         DOCKMANAGER.write().unwrap().reset_for_project_switch();
 
@@ -8636,6 +8638,8 @@ impl TheTrait for Editor {
             // A delayed runtime update must never project one document into
             // the newly active authoring project, even if serialized IDs match.
             self.play_session = None;
+            #[cfg(feature = "native-render")]
+            self.native_viewport.clear_world_speech();
             let mut runtime = self.server_ctx.reference.write();
             runtime.server.stop();
             runtime.clear_all_audio();
@@ -9096,6 +9100,10 @@ impl TheTrait for Editor {
                 self.runtime_state() == rusterix::ServerState::Running;
             let running_game_mode = is_running && self.server_ctx.game_mode;
 
+            #[cfg(feature = "native-render")]
+            let world_speech_region = self.server_ctx.pc.is_region()
+                .then(|| self.documents.project.get_map(&self.server_ctx).map(|map| map.id))
+                .flatten();
             // Native Play owns its GameSession; only the reference adapter
             // lends facade storage while both use the shared CPU output pump.
             {
@@ -9185,6 +9193,12 @@ impl TheTrait for Editor {
                                 if region.map.name == active_game_map {
                                     let world = pump.view(project, server, assets, &active_game_map);
                                     self.native_viewport.play.receive(&world, &outputs);
+                                }
+                                #[cfg(feature = "native-render")]
+                                if world_speech_region == Some(region.map.id)
+                                    && let Some(world) = pump.view_region(project, server, assets, &region.map.id)
+                                {
+                                    self.native_viewport.receive_world_speech(&world, &outputs);
                                 }
                                 region_outputs.insert(region.map.id, outputs);
                             }
@@ -11284,6 +11298,8 @@ impl TheTrait for Editor {
                             self.invalidate_native_world_viewport(ui);
                         }
                         self.play_session = None;
+                        #[cfg(feature = "native-render")]
+                        self.native_viewport.clear_world_speech();
                         {
                             let mut rusterix = self.server_ctx.reference.write();
                             rusterix.server.stop();
