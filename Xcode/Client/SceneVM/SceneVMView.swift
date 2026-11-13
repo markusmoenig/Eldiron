@@ -26,6 +26,7 @@ final class MetalContainer: NSView {
     private var loadedSource: Data?
     private var observations: [NSObjectProtocol] = []
     private var hiddenCursor = false
+    private var synchronizingNativeText = false
     private var nativeClient: NativeTextClient?
     private var nativeContext: NativeTextContext?
     override var inputContext: NSTextInputContext? { nativeContext }
@@ -116,6 +117,9 @@ final class MetalContainer: NSView {
         _ = handle.loadProject(data: document.projectData)
     }
     private func hostState(_ state: NativeHostState) {
+        guard !synchronizingNativeText else { return }
+        synchronizingNativeText = true
+        defer { synchronizingNativeText = false }
         window?.title = state.title
         let hide = !state.cursorVisible && window?.isKeyWindow == true
         if hide != hiddenCursor { if hide { NSCursor.hide() } else { NSCursor.unhide() }; hiddenCursor = hide }

@@ -50,6 +50,15 @@
 		DD8FB2B52BD396C7008D2A3C /* SystemConfiguration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DD8FB2B42BD396C7008D2A3C /* SystemConfiguration.framework */; };
 		DDB240202CF5A8E600425D2F /* Carbon.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DDB2401F2CF5A8E600425D2F /* Carbon.framework */; };
 		DDFD01872D69925400CEFB70 /* libz.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = DDFD01852D6990B700CEFB70 /* libz.tbd */; };
+		CE7700000000000000000101 /* NativeTextHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE7700000000000000000001 /* NativeTextHost.swift */; };
+		CE7700000000000000000102 /* NativeTextHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE7700000000000000000001 /* NativeTextHost.swift */; };
+		CE7700000000000000000103 /* NativeTextHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE7700000000000000000001 /* NativeTextHost.swift */; };
+		CE7700000000000000000104 /* NativeTextClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE7700000000000000000002 /* NativeTextClient.swift */; };
+		CE7700000000000000000105 /* NativeTextClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE7700000000000000000002 /* NativeTextClient.swift */; };
+		CE7700000000000000000106 /* NativeTextClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE7700000000000000000002 /* NativeTextClient.swift */; };
+		CE7700000000000000000107 /* NativeUIKitTextClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE7700000000000000000003 /* NativeUIKitTextClient.swift */; };
+		CE7700000000000000000108 /* NativeUIKitTextClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE7700000000000000000003 /* NativeUIKitTextClient.swift */; };
+		CE7700000000000000000109 /* NativeUIKitTextClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE7700000000000000000003 /* NativeUIKitTextClient.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -88,6 +97,9 @@
 		DDB2401F2CF5A8E600425D2F /* Carbon.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Carbon.framework; path = System/Library/Frameworks/Carbon.framework; sourceTree = SDKROOT; };
 		DDFD01852D6990B700CEFB70 /* libz.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libz.tbd; path = usr/lib/libz.tbd; sourceTree = SDKROOT; };
 		DDFD01862D6990CA00CEFB70 /* libz.1.2.8.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libz.1.2.8.tbd; path = usr/lib/libz.1.2.8.tbd; sourceTree = SDKROOT; };
+		CE7700000000000000000001 /* NativeTextHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../../Client/SceneVM/NativeTextHost.swift"; sourceTree = "<group>"; };
+		CE7700000000000000000002 /* NativeTextClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../../Client/SceneVM/NativeTextClient.swift"; sourceTree = "<group>"; };
+		CE7700000000000000000003 /* NativeUIKitTextClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../../Client/SceneVM/NativeUIKitTextClient.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -139,6 +151,9 @@
 			isa = PBXGroup;
 			children = (
 				DD5FD0FA28FBD15A00853829 /* Renderer.swift */,
+				CE7700000000000000000001 /* NativeTextHost.swift */,
+				CE7700000000000000000002 /* NativeTextClient.swift */,
+				CE7700000000000000000003 /* NativeUIKitTextClient.swift */,
 				DD976A9B290E65DA007131BA /* Bridge.h */,
 				DD5FD0FB28FBD15A00853829 /* Metal.h */,
 				DD5B036C290E834C003F7C12 /* RMKTView.swift */,
@@ -349,6 +364,9 @@
 			files = (
 				DD219B89297672ED00E978F5 /* Keycodes.swift in Sources */,
 				DD5FD12F28FBD15C00853829 /* Renderer.swift in Sources */,
+				CE7700000000000000000107 /* NativeUIKitTextClient.swift in Sources */,
+				CE7700000000000000000104 /* NativeTextClient.swift in Sources */,
+				CE7700000000000000000101 /* NativeTextHost.swift in Sources */,
 				DD5FD10728FBD15B00853829 /* GameViewController.swift in Sources */,
 				DD5B036D290E834C003F7C12 /* RMKTView.swift in Sources */,
 				DD5FD10528FBD15B00853829 /* AppDelegate.swift in Sources */,
@@ -364,6 +382,9 @@
 			files = (
 				DD219B8A297672ED00E978F5 /* Keycodes.swift in Sources */,
 				DD5FD13028FBD15C00853829 /* Renderer.swift in Sources */,
+				CE7700000000000000000108 /* NativeUIKitTextClient.swift in Sources */,
+				CE7700000000000000000105 /* NativeTextClient.swift in Sources */,
+				CE7700000000000000000102 /* NativeTextHost.swift in Sources */,
 				DD5FD11728FBD15B00853829 /* GameViewController.swift in Sources */,
 				DD5B0370290E84B3003F7C12 /* RMKTView.swift in Sources */,
 				DD5FD11528FBD15B00853829 /* AppDelegate.swift in Sources */,
@@ -379,6 +400,9 @@
 			files = (
 				DD219B8B297672ED00E978F5 /* Keycodes.swift in Sources */,
 				DD5FD13128FBD15C00853829 /* Renderer.swift in Sources */,
+				CE7700000000000000000109 /* NativeUIKitTextClient.swift in Sources */,
+				CE7700000000000000000106 /* NativeTextClient.swift in Sources */,
+				CE7700000000000000000103 /* NativeTextHost.swift in Sources */,
 				DD5FD12728FBD15C00853829 /* GameViewController.swift in Sources */,
 				DD5B0371290E84B3003F7C12 /* RMKTView.swift in Sources */,
 				DD5FD12528FBD15C00853829 /* AppDelegate.swift in Sources */,
@@ -675,6 +699,8 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = "Eldiron Shared/Bridge.h";
 				SWIFT_VERSION = 5.0;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
@@ -716,6 +742,8 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = "Eldiron Shared/Bridge.h";
 				SWIFT_VERSION = 5.0;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VALIDATE_PRODUCT = YES;
 			};
@@ -745,6 +773,8 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = "Eldiron Shared/Bridge.h";
 				SWIFT_VERSION = 5.0;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				TARGETED_DEVICE_FAMILY = 3;
 				TVOS_DEPLOYMENT_TARGET = 16.0;
 			};
@@ -774,6 +804,8 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = "Eldiron Shared/Bridge.h";
 				SWIFT_VERSION = 5.0;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				TARGETED_DEVICE_FAMILY = 3;
 				TVOS_DEPLOYMENT_TARGET = 16.0;
 				VALIDATE_PRODUCT = YES;
@@ -817,6 +849,8 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = "Eldiron Shared/Bridge.h";
 				SWIFT_VERSION = 5.0;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 			};
 			name = Debug;
 		};
@@ -857,6 +891,8 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = "Eldiron Shared/Bridge.h";
 				SWIFT_VERSION = 5.0;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 			};
 			name = Release;
 		};

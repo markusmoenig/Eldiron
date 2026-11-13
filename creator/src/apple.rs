@@ -239,77 +239,6 @@ unsafe fn string(ptr: *const c_char) -> Option<String> {
             .map(str::to_owned)
     }
 }
-fn key(text: String, pressed: bool) -> bool {
-    let physical = if text.len() == 1 && text.as_bytes()[0].is_ascii_alphabetic() {
-        PhysicalKey::Letter(text.as_bytes()[0].to_ascii_lowercase())
-    } else {
-        PhysicalKey::Other(0)
-    };
-    event(InputEvent::Key {
-        physical,
-        logical: LogicalKey::Character(text),
-        pressed,
-        repeat: false,
-    })
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn rust_key_down(ptr: *const c_char) -> bool {
-    let Some(text) = (unsafe { string(ptr) }) else {
-        return false;
-    };
-    let handled = key(text.clone(), true);
-    let editing = with_app(|app| {
-        let ui = &app.application.session.ui;
-        !ui.logo && !ui.ctrl
-    });
-    if editing {
-        event(InputEvent::Text(text)) || handled
-    } else {
-        handled
-    }
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn rust_key_up(ptr: *const c_char) -> bool {
-    unsafe { string(ptr) }.is_some_and(|text| key(text, false))
-}
-#[unsafe(no_mangle)]
-pub extern "C" fn rust_special_key_down(code: u32) -> bool {
-    let handled = special_key(code, true);
-    if code == KEY_SPACE
-        && with_app(|app| !app.application.session.ui.logo && !app.application.session.ui.ctrl)
-    {
-        event(InputEvent::Text(" ".into())) || handled
-    } else {
-        handled
-    }
-}
-#[unsafe(no_mangle)]
-pub extern "C" fn rust_special_key_up(code: u32) -> bool {
-    special_key(code, false)
-}
-
-fn special_key(code: u32, pressed: bool) -> bool {
-    let (physical, logical) = match code {
-        KEY_ESCAPE => (PhysicalKey::Escape, TheKeyCode::Escape),
-        KEY_RETURN => (PhysicalKey::Enter, TheKeyCode::Return),
-        KEY_DELETE => (PhysicalKey::Backspace, TheKeyCode::Delete),
-        KEY_HOME => (PhysicalKey::Home, TheKeyCode::Home),
-        KEY_END => (PhysicalKey::End, TheKeyCode::End),
-        KEY_UP => (PhysicalKey::Up, TheKeyCode::Up),
-        KEY_RIGHT => (PhysicalKey::Right, TheKeyCode::Right),
-        KEY_DOWN => (PhysicalKey::Down, TheKeyCode::Down),
-        KEY_LEFT => (PhysicalKey::Left, TheKeyCode::Left),
-        KEY_SPACE => (PhysicalKey::Space, TheKeyCode::Space),
-        KEY_TAB => (PhysicalKey::Tab, TheKeyCode::Tab),
-        _ => return false,
-    };
-    event(InputEvent::Key {
-        physical,
-        logical: LogicalKey::Named(logical),
-        pressed,
-        repeat: false,
-    })
-}
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn rust_dropped_file(ptr: *const c_char) {
     if let Some(path) = unsafe { string(ptr) } {
@@ -427,15 +356,150 @@ pub extern "C" fn rust_take_requests() -> *mut c_char {
 #[unsafe(no_mangle)]
 pub extern "C" fn rust_host_state() -> *mut c_char {
     with_app(|app| {
+        let source = app
+            .host
+            .text_input
+            .and_then(|_| app.application.native_text_snapshot(&mut app.host));
+        let selection = source.as_ref().and_then(|s| {
+            Some([
+                s.utf16_from_byte(s.selection.0)?,
+                s.utf16_from_byte(s.selection.1)?,
+            ])
+        });
+        let input = app.host.text_input.map(|s| serde_json::json!({
+            "target": s.target.raw(),
+            "revision": source.as_ref().filter(|source| source.target == s.target).map(|source|source.revision),
+            "selection": selection,
+            "area": [s.area.x,s.area.y,s.area.width,s.area.height],
+        }));
         let state = serde_json::json!({
             "presentations": app.presentations(),
+            "updates": app.updates(),
             "physical_size": app.host.physical_size,
             "logical_size": app.host.logical_size,
             "density": app.host.density,
             "root_cpu_bytes": app.application.session.ui.canvas.buffer.pixels().len(),
             "readback_bytes": app.presenter.context().transfers().readback_bytes,
+            "text_input": input,
         });
         CString::new(state.to_string()).unwrap().into_raw()
+    })
+}
+
+fn json_app(f: impl FnOnce(&mut CreatorHost) -> Result<serde_json::Value, String>) -> *mut c_char {
+    match with_app(|app| Some(f(app))) {
+        Some(Ok(value)) => CString::new(value.to_string()).unwrap().into_raw(),
+        Some(Err(error)) => {
+            eprintln!("[EldironCreator] {error}");
+            std::ptr::null_mut()
+        }
+        None => std::ptr::null_mut(),
+    }
+}
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_text_snapshot() -> *mut c_char {
+    json_app(|app| {
+        native_text_wire::snapshot(app.application.native_text_snapshot(&mut app.host).as_ref())
+            .map_err(str::to_owned)
+    })
+}
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_text_query(
+    target: u64,
+    revision: u64,
+    kind: u32,
+    start: isize,
+    end: isize,
+    x: f32,
+    y: f32,
+) -> *mut c_char {
+    json_app(|app| {
+        let Some(source) = app
+            .application
+            .native_text_snapshot(&mut app.host)
+            .filter(|s| s.target.raw() == target && s.revision == revision)
+        else {
+            return Ok(serde_json::Value::Null);
+        };
+        let request =
+            native_text_wire::query(&source, kind, start, end, x, y).map_err(str::to_owned)?;
+        let answer = app.application.native_text_query(&mut app.host, &request);
+        Ok(native_text_wire::answer(&source, answer))
+    })
+}
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn rust_text_edit(
+    target: u64,
+    revision: u64,
+    kind: u32,
+    start: isize,
+    end: isize,
+    data: *const u8,
+    len: usize,
+    cursor_start: isize,
+    cursor_end: isize,
+) -> i32 {
+    if len > 1024 * 1024 * 1024 || (len > 0 && data.is_null()) {
+        return -1;
+    }
+    let bytes = if len == 0 {
+        &[]
+    } else {
+        unsafe { std::slice::from_raw_parts(data, len) }
+    };
+    let Ok(text) = std::str::from_utf8(bytes) else {
+        return -1;
+    };
+    with_app(|app| {
+        let Some(source) = app
+            .application
+            .native_text_snapshot(&mut app.host)
+            .filter(|s| s.target.raw() == target && s.revision == revision)
+        else {
+            return Some(0);
+        };
+        match native_text_wire::edit(
+            &source,
+            kind,
+            start,
+            end,
+            text.into(),
+            cursor_start,
+            cursor_end,
+        ) {
+            Ok(action) => Some(i32::from(
+                app.input(&InputEvent::NativeText {
+                    target: source.target,
+                    revision,
+                    action,
+                })
+                .consumed,
+            )),
+            Err(error) => {
+                eprintln!("[EldironCreator] {error}");
+                Some(-1)
+            }
+        }
+    })
+    .unwrap_or(-1)
+}
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn rust_physical_key(
+    code: u32,
+    pressed: bool,
+    repeated: bool,
+    logical: *const c_char,
+) -> bool {
+    let physical = PhysicalKey::from_native_code(code);
+    let logical = unsafe { string(logical) }
+        .filter(|text| !text.is_empty())
+        .map(LogicalKey::Character)
+        .unwrap_or(LogicalKey::Other);
+    event(InputEvent::Key {
+        physical,
+        logical,
+        pressed,
+        repeat: repeated,
     })
 }
 #[unsafe(no_mangle)]

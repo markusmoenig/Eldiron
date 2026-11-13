@@ -18,3 +18,5 @@ pub use session::*;
 pub use foreign::*;
 #[cfg(all(feature = "render-wgpu", feature = "ui"))]
 pub use ui::*;
+#[cfg(feature = "text")]
+pub mod native_text_wire;

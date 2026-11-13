@@ -195,3 +195,38 @@ impl InputEvent {
         }
     }
 }
+
+impl PhysicalKey {
+    /// Stable native-host wire identity, independent of composed text/layout.
+    pub fn from_native_code(code: u32) -> Self {
+        match code {
+            65..=90 => Self::Letter(code as u8 + 32),
+            97..=122 => Self::Letter(code as u8),
+            48..=57 => Self::Digit(code as u8 - b'0'),
+            0x100 => Self::Enter,
+            0x101 => Self::Escape,
+            0x102 => Self::Backspace,
+            0x103 => Self::Tab,
+            0x104 => Self::Space,
+            0x105 => Self::Delete,
+            0x106 => Self::Left,
+            0x107 => Self::Right,
+            0x108 => Self::Up,
+            0x109 => Self::Down,
+            0x10a => Self::Home,
+            0x10b => Self::End,
+            0x10c => Self::PageUp,
+            0x10d => Self::PageDown,
+            0x110 => Self::ShiftLeft,
+            0x111 => Self::ShiftRight,
+            0x112 => Self::ControlLeft,
+            0x113 => Self::ControlRight,
+            0x114 => Self::AltLeft,
+            0x115 => Self::AltRight,
+            0x116 => Self::SuperLeft,
+            0x117 => Self::SuperRight,
+            0x201..=0x218 => Self::Function((code - 0x200) as u8),
+            _ => Self::Other(code),
+        }
+    }
+}

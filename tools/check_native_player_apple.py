@@ -69,7 +69,7 @@ def main():
         raise RuntimeError(f"Missing compatibility exports: {sorted(expected - exported)}")
     print(f"abi: {len(expected)} established exports preserved", flush=True)
     sources = [ROOT / "Xcode/Client/SceneVM" / (name + ".swift")
-               for name in ["SceneVMDocument", "SceneVMFFI", "SceneVMView", "NativeTextClient", "NativeUIKitTextClient"]]
+               for name in ["SceneVMDocument", "SceneVMFFI", "SceneVMView", "NativeTextHost", "NativeTextClient", "NativeUIKitTextClient"]]
     # Match Xcode's Swift 5 mode and Approachable Concurrency flags. A plain
     # typecheck can otherwise miss closure actor-isolation diagnostics in the
     # actual bundle build.

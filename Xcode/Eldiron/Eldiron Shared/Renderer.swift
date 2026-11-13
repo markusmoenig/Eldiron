@@ -2,6 +2,7 @@
 import MetalKit
 import QuartzCore
 
+@MainActor
 final class Renderer: NSObject, MTKViewDelegate {
     unowned let view: RMTKView
     private var timer: Timer?
@@ -9,6 +10,8 @@ final class Renderer: NSObject, MTKViewDelegate {
     private var ready = false
     private var failed = false
     private var hasChanges = false
+    private(set) var nativeInputState: NativeTextInput?
+    private var sourceSnapshot: NativeTextSnapshot?
     // Outlive Rust's surface, including while the NSView/UIView is torn down.
     private var backingLayer: CAMetalLayer?
 
@@ -34,7 +37,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         ready = rust_init(Unmanaged.passUnretained(layer).toOpaque(), size.0, size.1, density)
         guard ready else { NSLog("Could not initialize native Creator WGPU surface"); return }
         observeLifecycle()
-        let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in self?.tick() }
+        let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in MainActor.assumeIsolated { self?.tick() } }
         self.timer = timer
         RunLoop.main.add(timer, forMode: .common)
     }
@@ -64,6 +67,7 @@ final class Renderer: NSObject, MTKViewDelegate {
             NSLog("Native Creator presentation failed")
         }
         serviceRequests()
+        refreshTextState()
         #if os(macOS)
         let changed = rust_has_changes()
         if hasChanges != changed {
@@ -145,4 +149,58 @@ final class Renderer: NSObject, MTKViewDelegate {
     }
     func needsUpdate() { tick() }
     func updateOnce() { tick() }
+}
+
+
+extension Renderer: NativeTextHost {
+    private func decode<T: Decodable>(_ type: T.Type, _ pointer: UnsafeMutablePointer<CChar>?) -> T? {
+        guard let pointer else { return nil }
+        defer { rust_free_string(pointer) }
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return try? decoder.decode(type, from: Data(String(cString: pointer).utf8))
+    }
+    private func refreshTextState() {
+        struct TextState: Decodable { let textInput: NativeTextInput? }
+        nativeInputState = decode(TextState.self, rust_host_state())?.textInput
+        view.synchronizeNativeText(host: self)
+    }
+    func nativeTextSnapshot() -> NativeTextSnapshot? {
+        guard let input = nativeInputState else { sourceSnapshot = nil; return nil }
+        if var cached = sourceSnapshot, cached.target == input.target, cached.revision == input.revision {
+            if let selection = input.selection { cached.selection = selection }
+            sourceSnapshot = cached
+            return cached
+        }
+        sourceSnapshot = decode(NativeTextSnapshot.self, rust_text_snapshot())
+        return sourceSnapshot
+    }
+    private func endpoints(_ range: NSRange?) -> (Int, Int)? {
+        guard let range, range.location != NSNotFound else { return (-1, -1) }
+        guard range.location >= 0, range.length >= 0 else { return nil }
+        let end = range.location.addingReportingOverflow(range.length)
+        return end.overflow ? nil : (range.location, end.partialValue)
+    }
+    func queryNativeText(source: NativeTextSnapshot, range: NSRange?, point: CGPoint?) -> NativeTextAnswer? {
+        guard let range = endpoints(range) else { return nil }
+        return decode(NativeTextAnswer.self, rust_text_query(source.target, source.revision,
+            point == nil ? 0 : 1, range.0, range.1, Float(point?.x ?? 0), Float(point?.y ?? 0)))
+    }
+    func navigateNativeText(source: NativeTextSnapshot, position: Int, direction: Int, count: Int) -> Int? {
+        guard (0...3).contains(direction), count >= 0 else { return nil }
+        return decode(NativeTextAnswer.self, rust_text_query(source.target, source.revision,
+            UInt32(direction + 2), position, count, 0, 0))?.position
+    }
+    func editNativeText(kind: UInt32, source: NativeTextSnapshot, range: NSRange?, text: String, selection: NSRange?) -> Bool {
+        guard var range = endpoints(range), let cursor = endpoints(selection) else { return false }
+        if (kind == 5 || kind == 6) && range.0 == -1 && source.selection.count == 2 {
+            range = (source.selection[0], source.selection[1])
+        }
+        let result = Array(text.utf8).withUnsafeBufferPointer {
+            rust_text_edit(source.target, source.revision, kind, range.0, range.1,
+                $0.baseAddress, UInt($0.count), cursor.0, cursor.1)
+        }
+        refreshTextState()
+        return result > 0
+    }
 }

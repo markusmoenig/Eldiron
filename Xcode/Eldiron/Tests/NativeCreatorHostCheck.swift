@@ -31,11 +31,18 @@ struct NativeCreatorHostCheck {
         precondition((snapshot["root_cpu_bytes"] as! NSNumber).uint64Value == 0)
         precondition((snapshot["readback_bytes"] as! NSNumber).uint64Value == 0)
         let frames = (snapshot["presentations"] as! NSNumber).uint64Value
+        let updates = (snapshot["updates"] as! NSNumber).uint64Value
         rust_suspend()
         pump(0.1)
         precondition((state()["presentations"] as! NSNumber).uint64Value == frames)
+        precondition((state()["updates"] as! NSNumber).uint64Value > updates,
+                     "Presentation suppression must not stop CPU application updates")
         rust_resume()
         pump(0.1)
+        let beforeZeroSize = (state()["presentations"] as! NSNumber).uint64Value
+        rust_resize(0, 0, 1)
+        pump(0.1)
+        precondition((state()["presentations"] as! NSNumber).uint64Value == beforeZeroSize)
         rust_resize(1440, 960, 1.5)
         pump(0.1)
         snapshot = state()

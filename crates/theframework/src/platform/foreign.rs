@@ -11,6 +11,7 @@ pub struct ForeignApplicationHost<A: GpuApplication> {
     dirty: bool,
     suspended: bool,
     presentations: u64,
+    updates: u64,
     last_update: Instant,
     next_update: Option<Instant>,
 }
@@ -32,6 +33,7 @@ impl<A: GpuApplication> ForeignApplicationHost<A> {
             dirty: true,
             suspended: false,
             presentations: 0,
+            updates: 0,
             last_update: now,
             next_update: Some(now),
         })
@@ -52,14 +54,12 @@ impl<A: GpuApplication> ForeignApplicationHost<A> {
     /// Simulation/polling advances even if no drawable is available. Display
     /// callbacks faster than the requested cadence do not multiply CPU updates.
     pub fn update(&mut self) {
-        if self.suspended {
-            return;
-        }
         let now = Instant::now();
         if self.next_update.is_some_and(|deadline| now >= deadline) {
             let request = self
                 .application
                 .update(&mut self.host, now - self.last_update);
+            self.updates += 1;
             self.last_update = now;
             self.next_update = request
                 .wake_after
@@ -89,6 +89,9 @@ impl<A: GpuApplication> ForeignApplicationHost<A> {
 
     pub fn presentations(&self) -> u64 {
         self.presentations
+    }
+    pub fn updates(&self) -> u64 {
+        self.updates
     }
 
     pub fn resize(&mut self, size: (u32, u32), density: f32) {

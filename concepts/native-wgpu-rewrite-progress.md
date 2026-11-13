@@ -5683,3 +5683,79 @@ preserved. M9 and the full M0–M9 Goal remain active: native text responder ado
 full physical Xcode/mobile workflows, wrapper/session multiwindow ownership,
 browser/platform acceptance and remaining Creator storage/bitmap retirement
 remain open.
+
+### Shared Creator/client native text responder adoption (active)
+
+Creator now reuses the exact existing AppKit NSTextInputContext/client and UIKit
+UITextInput responder implementations. Extracted their already-shared protocol
+and immutable source/answer types into `Xcode/Client/SceneVM/NativeTextHost.swift`;
+both Xcode projects compile those source files. The player verification script's
+explicit source inventory includes the new file. No parallel editable Swift text
+document was introduced.
+
+Extracted the player's existing UTF-16 snapshot/edit/query/geometry conversion
+into `theframework::platform::native_text_wire`, used by both Apple facades.
+Creator now exports addressed source, geometry/navigation and edit operations;
+stale target/revision pairs cannot reach another field. Host frame metadata only
+carries target/revision/selection, and source strings are queried on demand.
+An unfocused idle Creator does not prepare the UI tree for text metadata.
+
+Extracted the existing stable native physical key map into PhysicalKey. Creator's
+macOS/iOS adapters forward physical presses/releases/repeats separately from
+logical shortcut characters and native IME insertion. Retired its old character
+and special-key bridge functions. Added input-context replacement/deactivation,
+reentrancy guards, iOS hardware keys and real pinch forwarding. Creator Xcode
+uses the same Swift MainActor/Approachable Concurrency settings as the client.
+
+Code review caught the initial foreign-host update guard incorrectly suppressing
+CPU updates while presentation was suspended. Removed it: minimization continues
+the application's requested CPU cadence, while the presenter stays inactive.
+Extended the single combined Creator layer check with suspended CPU-update and
+zero-size presentation assertions; no new suite.
+
+Available evidence so far:
+- Combined Creator staticlib/player native Rust check passed13.69s:
+  `/private/tmp/eldiron-native-shared-native-text-check.log`.
+- Creator iOS simulator Rust check passed24.78s:
+  `/private/tmp/eldiron-native-creator-shared-text-ios-check.log` (pre-final host
+  cadence correction; the final integration build is running).
+- Creator shared-responder macOS and iOS Swift typechecks passed; client shared
+  protocol/responder macOS typecheck passed. Logs:
+  `eldiron-native-creator-shared-text-swift-check.log`,
+  `eldiron-native-creator-shared-text-ios-swift-check.log`,
+  `eldiron-native-client-shared-text-swift-check.log` under `/private/tmp`.
+- Existing player Apple ABI cases rebuilt23.83s and **passed2,49.69s** against
+  Metal, including Unicode/range rejection, source/selection/composition,
+  clipboard, real presentation/lifecycle, stale callbacks and project byte
+  preservation. No unchanged CPU runtime suite was rerun. Logs:
+  `/private/tmp/eldiron-shared-native-text-abi-build.log` and
+  `eldiron-shared-native-text-abi-metal.log`.
+
+Final Creator native library, combined Swift/layer check and updated complete
+Xcode app build are pending. Do not claim physical IME/accessibility or iOS
+runtime interaction from these SDK checks. Prior physical startup evidence was
+for commit63b5d5c0 before native responder adoption. Full acceptance remains open.
+
+Final integration evidence for native responder adoption:
+- Final Creator native static library build passed40.22s:
+  `/private/tmp/eldiron-native-creator-shared-text-integrated-build.log`.
+- The updated combined Swift/static-library layer executable **passed, exit0**:
+  `/private/tmp/eldiron-native-creator-shared-text-layer-check.log`. In addition
+  to presentation/readback/DPI/replacement it now asserts CPU update callbacks
+  continue while presentations are suspended, and zero-sized surfaces do not
+  acknowledge frames. Link log:
+  `eldiron-native-creator-shared-text-swift-link.log`.
+- Full unsigned macOS Xcode app build passed with shared responders, then passed
+  again after the final first-responder activation/deactivation changes. Logs:
+  `/private/tmp/eldiron-native-creator-shared-text-xcode-build.log` and
+  `eldiron-native-creator-native-text-focus-xcode-build.log`.
+- The simulator runtime blocker is unchanged: CoreSimulator1171.7.0 versus
+  Xcode1174.21.0, simulator device support disabled. No iOS runtime success is
+  claimed. Source/SDK compilation remains available.
+
+Native text host integration is implemented; full physical IME/accessibility,
+editor workflow/platform acceptance and older OS configurations remain open.
+No whole Creator/root or CPU runtime suite was repeated for this input-only
+follow-up. Native Creator Winit behavior has not been changed by these Apple
+adapter changes; the shared physical wire mapping preserves the player's
+previous values exactly.

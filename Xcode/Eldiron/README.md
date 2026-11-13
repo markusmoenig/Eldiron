@@ -40,5 +40,10 @@ available. It is a detached-layer check, separate from physical window evidence.
 
 Native macOS/iOS composition/accessibility, complete physical input/document
 workflows, mobile runtime execution, multiwindow ownership and distribution
-remain in the rewrite acceptance matrix. The legacy Swift text-key adapter is
-still an input adapter, pending adoption of the client's native text responders.
+remain in the rewrite acceptance matrix. Creator reuses the client's
+`NativeTextHost`, AppKit input context and UIKit UITextInput responders. The
+shared Rust UTF-16 protocol validates source identity/revision and Unicode
+boundaries before edits. Source text is queried on demand and selection-only
+updates reuse it. Physical game controls and logical keyboard shortcuts remain
+separate from IME text insertion. SDK compilation alone does not verify an
+actual input method or mobile runtime interaction.

@@ -400,35 +400,7 @@ pub unsafe extern "C" fn unified_app_runner_modifiers(ptr: *mut EldironPlayerRun
     );
 }
 fn physical(code: u32) -> PhysicalKey {
-    match code {
-        65..=90 => PhysicalKey::Letter(code as u8 + 32),
-        97..=122 => PhysicalKey::Letter(code as u8),
-        48..=57 => PhysicalKey::Digit(code as u8 - b'0'),
-        0x100 => PhysicalKey::Enter,
-        0x101 => PhysicalKey::Escape,
-        0x102 => PhysicalKey::Backspace,
-        0x103 => PhysicalKey::Tab,
-        0x104 => PhysicalKey::Space,
-        0x105 => PhysicalKey::Delete,
-        0x106 => PhysicalKey::Left,
-        0x107 => PhysicalKey::Right,
-        0x108 => PhysicalKey::Up,
-        0x109 => PhysicalKey::Down,
-        0x10a => PhysicalKey::Home,
-        0x10b => PhysicalKey::End,
-        0x10c => PhysicalKey::PageUp,
-        0x10d => PhysicalKey::PageDown,
-        0x110 => PhysicalKey::ShiftLeft,
-        0x111 => PhysicalKey::ShiftRight,
-        0x112 => PhysicalKey::ControlLeft,
-        0x113 => PhysicalKey::ControlRight,
-        0x114 => PhysicalKey::AltLeft,
-        0x115 => PhysicalKey::AltRight,
-        0x116 => PhysicalKey::SuperLeft,
-        0x117 => PhysicalKey::SuperRight,
-        0x201..=0x218 => PhysicalKey::Function((code - 0x200) as u8),
-        _ => PhysicalKey::Other(code),
-    }
+    PhysicalKey::from_native_code(code)
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn unified_app_runner_key(
@@ -553,25 +525,7 @@ pub unsafe extern "C" fn unified_app_runner_text_snapshot(
         clear_output(out, len);
     }
     call(ptr, |r| {
-        let snapshot = if let Some(source) = r.core.native_text_snapshot() {
-            let position = |index| {
-                source
-                    .utf16_from_byte(index)
-                    .ok_or("Invalid native text position")
-            };
-            let selection = [position(source.selection.0)?, position(source.selection.1)?];
-            let marked = source
-                .composition
-                .as_ref()
-                .map(|range| -> Result<_, &str> {
-                    Ok([position(range.start)?, position(range.end)?])
-                })
-                .transpose()?;
-            serde_json::json!({"target":source.target.raw(), "revision":source.revision,
-                "text":source.text.as_ref(), "selection":selection, "marked":marked})
-        } else {
-            serde_json::Value::Null
-        };
+        let snapshot = native_text_wire::snapshot(r.core.native_text_snapshot().as_ref())?;
         unsafe {
             output(
                 &serde_json::to_vec(&snapshot).map_err(|e| e.to_string())?,
@@ -598,60 +552,13 @@ pub unsafe extern "C" fn unified_app_runner_text_query(
         clear_output(out, len);
     }
     call(ptr, |r| {
-        use theframework::text_edit::{
-            NativeTextAnswer, NativeTextDirection, NativeTextQuery, NativeTextRequest,
-        };
         let answer = if let Some(source) = r
             .core
             .native_text_snapshot()
             .filter(|s| s.target.raw() == target && s.revision == revision)
         {
-            let query = match kind {
-                0 => {
-                    let start = usize::try_from(start).map_err(|_| "Invalid native text range")?;
-                    let end = usize::try_from(end).map_err(|_| "Invalid native text range")?;
-                    NativeTextQuery::Geometry(
-                        source
-                            .byte_range_from_utf16(start, end)
-                            .ok_or("Invalid native UTF-16 text range")?,
-                    )
-                }
-                1 if x.is_finite() && y.is_finite() => NativeTextQuery::Hit([x, y]),
-                2..=5 => NativeTextQuery::Navigate {
-                    position: source
-                        .byte_from_utf16(
-                            usize::try_from(start).map_err(|_| "Invalid native text position")?,
-                        )
-                        .ok_or("Invalid native UTF-16 text position")?,
-                    direction: match kind {
-                        2 => NativeTextDirection::Left,
-                        3 => NativeTextDirection::Right,
-                        4 => NativeTextDirection::Up,
-                        _ => NativeTextDirection::Down,
-                    },
-                    count: usize::try_from(end).map_err(|_| "Invalid native movement count")?,
-                },
-                _ => return Err("Invalid native text geometry/hit query".into()),
-            };
-            match r.core.native_text_query(&NativeTextRequest {
-                target: source.target,
-                revision,
-                query,
-            }) {
-                Some(NativeTextAnswer::Geometry {
-                    caret,
-                    selection,
-                    first_range,
-                }) => {
-                    let rect = |r: theframework::paint::Rect| [r.x, r.y, r.width, r.height];
-                    serde_json::json!({"caret":rect(caret),"selection":selection.into_iter().map(rect).collect::<Vec<_>>(),
-                        "first_range":[source.utf16_from_byte(first_range.start),source.utf16_from_byte(first_range.end)]})
-                }
-                Some(NativeTextAnswer::Hit(index)) => {
-                    serde_json::json!({"position":source.utf16_from_byte(index)})
-                }
-                None => serde_json::Value::Null,
-            }
+            let request = native_text_wire::query(&source, kind, start, end, x, y)?;
+            native_text_wire::answer(&source, r.core.native_text_query(&request))
         } else {
             serde_json::Value::Null
         };
@@ -688,62 +595,15 @@ pub unsafe extern "C" fn unified_app_runner_text_edit(
         else {
             return Ok(0);
         };
-        let position = |index: isize| {
-            usize::try_from(index)
-                .ok()
-                .and_then(|i| source.byte_from_utf16(i))
-                .ok_or("Native range must use valid UTF-16 positions")
-        };
-        let range = || {
-            let (start, end) = (position(start)?, position(end)?);
-            if start > end {
-                return Err("Native replacement range is reversed");
-            }
-            Ok(start..end)
-        };
-        let action = match kind {
-            0 => NativeTextAction::Select {
-                anchor: position(start)?,
-                focus: position(end)?,
-            },
-            1 => NativeTextAction::Replace {
-                range: range()?,
-                text: unsafe { text(data, len) }?,
-            },
-            2 => {
-                let text = unsafe { text(data, len) }?;
-                let cursor = if cursor_start == -1 && cursor_end == -1 {
-                    None
-                } else {
-                    let index = |i: isize| {
-                        usize::try_from(i)
-                            .ok()
-                            .and_then(|i| theframework::text_edit::utf16_byte_offset(&text, i))
-                            .ok_or("Native preedit cursor must use valid UTF-16 positions")
-                    };
-                    Some((index(cursor_start)?, index(cursor_end)?))
-                };
-                NativeTextAction::Compose {
-                    range: if start == -1 && end == -1 {
-                        None
-                    } else {
-                        Some(range()?)
-                    },
-                    text,
-                    cursor,
-                }
-            }
-            5 => NativeTextAction::Insert {
-                selection: (position(start)?, position(end)?),
-                text: unsafe { text(data, len) }?,
-            },
-            6 => NativeTextAction::DeleteBackward {
-                selection: (position(start)?, position(end)?),
-            },
-            3 => NativeTextAction::CommitComposition,
-            4 => NativeTextAction::CancelComposition,
-            _ => return Err("Unknown native text operation".into()),
-        };
+        let action = native_text_wire::edit(
+            &source,
+            kind,
+            start,
+            end,
+            unsafe { text(data, len) }?,
+            cursor_start,
+            cursor_end,
+        )?;
         Ok(i32::from(
             r.core
                 .input(&InputEvent::NativeText {

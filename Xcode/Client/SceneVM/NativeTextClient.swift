@@ -39,6 +39,7 @@ final class NativeTextClient: NSObject, NSTextInputClient {
     func beginKey() { keySource = source() }
     func endKey() { keySource = nil }
     func cancelForDeactivation() {
+        guard !cancelling else { return }
         cancelling = true
         if let source = compositionSource ?? queriedSource ?? source() { _ = host?.editText(kind: 4, source: source) }
         compositionSource = nil; queriedSource = nil; keySource = nil

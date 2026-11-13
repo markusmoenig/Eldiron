@@ -17,19 +17,6 @@
 
 #define GAME_TICK_IN_MS 250
 
-// Keep physical key identities aligned with Rust's Creator constants.
-#define KEY_ESCAPE 0
-#define KEY_RETURN 1
-#define KEY_DELETE 2
-#define KEY_HOME 3
-#define KEY_END 4
-#define KEY_UP 5
-#define KEY_RIGHT 6
-#define KEY_DOWN 7
-#define KEY_LEFT 8
-#define KEY_SPACE 9
-#define KEY_TAB 10
-
 // Main-thread calls. Retain CAMetalLayer until rust_shutdown/replacement returns.
 // Dimensions are physical pixels; pointer coordinates are logical points.
 // Swift never acquires or presents this layer's drawables.
@@ -43,6 +30,10 @@ void rust_resume(void);
 void rust_focus(bool focused);
 char *rust_take_requests(void);
 char *rust_host_state(void);
+char *rust_text_snapshot(void);
+char *rust_text_query(uint64_t target, uint64_t revision, uint32_t kind, intptr_t start, intptr_t end, float x, float y);
+int32_t rust_text_edit(uint64_t target, uint64_t revision, uint32_t kind, intptr_t start, intptr_t end, const uint8_t *data, uintptr_t length, intptr_t cursor_start, intptr_t cursor_end);
+bool rust_physical_key(uint32_t code, bool pressed, bool repeated, const char *logical);
 void rust_free_string(char *text);
 void rust_clipboard_complete(uint64_t request, bool write, bool success, const char *text);
 void rust_edit_command(uint32_t command);
@@ -77,10 +68,6 @@ bool rust_touch_wheel(float x, float y);
 bool rust_touch_precise_scroll(float x, float y);
 bool rust_pinch(float delta);
 
-bool rust_key_down(const char *);
-bool rust_key_up(const char *);
-bool rust_special_key_down(uint32_t key);
-bool rust_special_key_up(uint32_t key);
 bool rust_key_modifier_changed(bool, bool, bool, bool);
 
 void rust_open();
