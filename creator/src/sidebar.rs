@@ -1,5 +1,5 @@
 use crate::editor::{
-    ACTIONLIST, CONFIG, CONFIGEDITOR, DOCKMANAGER, PALETTE, SIDEBARMODE,
+    ACTIONLIST, DOCKMANAGER, PALETTE,
     TOOLLIST, UNDOMANAGER,
 };
 use crate::minimap::{draw_minimap, draw_minimap_context_label, minimap_bbox_for_map};
@@ -861,7 +861,7 @@ impl Sidebar {
                             ProjectContext::Asset(id.uuid),
                         );
                     } else if id.uuid == server_ctx.tree_palette_id {
-                        *SIDEBARMODE.write().unwrap() = SidebarMode::Palette;
+                        server_ctx.sidebar_mode = SidebarMode::Palette;
                         apply_palette(ui, ctx, server_ctx, project);
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Update Action List"),
@@ -3961,10 +3961,7 @@ impl Sidebar {
         // ui.select_first_list_item("Asset List", ctx);
 
         // ui.set_widget_value("ConfigEdit", ctx, TheValue::Text(project.config.clone()));
-        if let Ok(toml) = project.config.parse::<Table>() {
-            *CONFIG.write().unwrap() = toml;
-        }
-        CONFIGEDITOR.write().unwrap().read_defaults();
+        server_ctx.config.read_config(&project.config);
         {
             let mut rusterix = server_ctx.reference.write();
             rusterix.assets.palette = project.palette.clone();

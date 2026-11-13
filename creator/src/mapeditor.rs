@@ -1,4 +1,4 @@
-use crate::editor::{SIDEBARMODE, UNDOMANAGER};
+use crate::editor::{UNDOMANAGER};
 use crate::prelude::*;
 use rusterix::Value;
 use vek::{Vec2, Vec3};
@@ -1080,14 +1080,14 @@ impl MapEditor {
                             found = true;
                             is_character_instance = true;
 
-                            if *SIDEBARMODE.write().unwrap() == SidebarMode::Region {
+                            if server_ctx.sidebar_mode == SidebarMode::Region {
                                 /*
                                 ui.set_widget_value(
                                     "CodeEdit",
                                     ctx,
                                     TheValue::Text(character.source.clone()),
                                 );*/
-                            } else if *SIDEBARMODE.write().unwrap() == SidebarMode::Character {
+                            } else if server_ctx.sidebar_mode == SidebarMode::Character {
                                 character_template_id = Some(character.character_id);
                             }
                             region.map.selected_entity_item = Some(id.uuid);
@@ -1118,7 +1118,7 @@ impl MapEditor {
                             }
                         } else if let Some(item) = region.items.get(&id.uuid) {
                             found = true;
-                            // if *SIDEBARMODE.write().unwrap() == SidebarMode::Region {
+                            // if server_ctx.sidebar_mode == SidebarMode::Region {
                             //     ui.set_widget_value(
                             //         "CodeEdit",
                             //         ctx,

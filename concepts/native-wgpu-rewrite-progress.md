@@ -26,7 +26,7 @@ Started: 2026-11-11 (Asia/Bangkok). Overall Goal: active; full M0–M9 scope rem
 - M3: in progress. Every active built-in TheWidget implementation now has a command paint path, including procedural controls and the legacy node canvas. Complex Creator integration, full widget catalog parity and legacy adapter retirement remain.
 - M4: in progress. CPU schema/identity extraction, shared `GameSession`, CPU startup preparation, message/party/world-target policies and terminal adoption are implemented and tested. Per-session routing, local players, world values, runtime IDs and region context ownership now pass controlled overlapping-session and parallel assembled-player regressions. Graphical clients adopt GameSession; Creator shares its clock/output pump and runtime-owned PlayerInput. Text Play state is now Editor-owned and uses explicit CPU runtime borrows. Canonical Creator Play now owns a separate runtime Project projection; startup/warmup, entities/generated geometry and time no longer mutate authored Documents. The Console also consumes explicit addressed CPU inspections and rejects stale runtime actor links/history without reading the global server or authored entity fallbacks. Native Creator now owns its GameSession server/assets/current-map/clock/audio lifetime and advances from host elapsed time independently of rendering. Reference storage/start-menu/source bridges and remaining bitmap/value data extraction remain; this evidence does not establish full simultaneous Creator Play workflows.
 - M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Immutable ordinary editor-view preparation, exact reference/native view outputs and retained CPU chunk publication are now available through SceneViews. Common HUD, paint/props panels, profile displays and ViewCube now have retained command frames, guarded input and actual GPU composition/reconstruction evidence. Six standard tools additionally emit ordered typed overlay aggregates with exact presented-frame and detail-profile source guards. Full-viewport profile editing is now connected to the actual native Creator root with document/widget binding, presentation-gated input and inline commit/cancel; ordinary stopped top-down, sprite-isometric and 3D region rendering and the six standard tool overlays now use the same native application owner and real tool dispatch. Orbit/orthographic/first-person views include depth-aware guides, retained ViewCube and explicit tool query snapshots; surface paint uses the view-owned GPU scene. The Terrain tool now also uses retained native controls and GPU brush guides with real sculpt/cancel integration. Rect now also uses presentation-gated composition/rotation controls, shared source sprite previews blitted on the GPU, terrain-conforming perimeters, and view-owned 3D queries; actual isometric placement and fractional-DPI sprite sampling pass in the assembled checkpoint. Isometric terrain Paint now also uses retained native controls, batched GPU brush feedback, update-phase editable source publication and the existing authoring/undo dispatch. Native 3D Paint now also consumes dedicated scene-owned paint-coordinate queries and explicit authoring surface captures, with camera-scoped drafts and GPU composition; full Paint workflow/platform parity remains unverified. The isolated Prefab viewport now also uses native top-down/isometric/3D outputs, live effects with hierarchy-aware owned drags, and actual 3D Paint authoring on its asset-owned layer. Paint now shares the normal tile picker; its settings live only in the viewport overlay. The canonical Creator Play toolbar now owns the same CPU clock/output pump as GameSession, and its live authoring viewport keeps its own native SceneView. The authored Game-tool viewport now also uses the common GameScreenController/SceneViews/Swash presentation; authoring GameInput now also shares runtime controls while retaining the native scene in supported contexts. Region geometry, ordinary scene and sprite-isometric minimaps now have owned GPU outputs and presentation-scoped navigation; palette and rig previews also have retained native sources and acknowledged palette input. Authored screen minimaps now also use a GPU-only ordered 2D overview producer with compatible source sampling and acknowledged screen-scoped navigation. Parent-region minimaps during Prefab/profile/detail editing also have independent native source production and presented-parent navigation without modifying the isolated editor map. Main native authoring static geometry/readiness/billboards now use an application-owned bounded CPU source, retained across GPU reconstruction and isolated from clipboard projections. Remaining uncommon contexts/tools retain explicit migration adapters. Application/global/document/Play ownership, main world/tool/HUD integration, remaining producers, full visual/workflow/performance acceptance and canonical retirement remain.
-- M5 ownership checkpoint (2026-11-14): CreatorContext now owns camera, cooperative scene jobs and reference engine/assets. Canonical scene/context injection keeps the compatibility GPU cold on startup; native 2D visibility and owned authoring speech use paint commands. Other application globals, custom/bake/clipboard view adapters and resource/performance acceptance remain open.
+- M5 ownership checkpoint (2026-11-14): CreatorContext now owns camera, configuration/table/sidebar mode, cooperative scene jobs and reference engine/assets. Canonical scene/context injection keeps the compatibility GPU cold on startup; native 2D visibility and owned authoring speech use paint commands. Other application globals, custom/bake/clipboard view adapters and resource/performance acceptance remain open.
 - M6: in progress. Independent GPU game views, common player/input/camera components, authored screen paint, private world descriptions, view-owned speech, acknowledged-frame world pointer gestures, relative first-person mouse look, default/world-intent cursors, world/UI item drag previews and acknowledged authored inventory/equipment pointer/keyboard gestures are implemented. Application-owned audio is integrated into the common player with cancellable CPU preparation jobs. The native container HUD now includes acknowledged paint/input, real server transfers, scrolling, GPU recovery and navigation lifetime. Floating inventory/equipment, action catalogue/spellbook and preferences now use typed native HUD owners, retained text/source resources and acknowledged input. Acknowledged UI-origin tooltips now use retained text and host deadlines. UI-origin Drop cursors and acknowledged drag/assignment highlighting now have GPU and authoritative transfer evidence. Native isometric source production, shared CPU source publication, game-view outputs and acknowledged input receipts now have GPU/CPU and shipped-source device-reconstruction evidence. Persistent region 3D paint now also crosses the CPU asset boundary into independent per-view GPU uploads; actual painted browser rendering/device recovery and native integration pass. Browser worker hosting, uncommon Prefab/stamp/live paint publication, remaining game-mode/HUD policy parity and performance acceptance remain. Canonical native desktop launchers now share the common application/host; see launcher verification below.
 - M7/M8/M9: Retirement and full platform acceptance remain pending. Canonical desktop clients share the common player; the Xcode client and versioned Creator host use Rust-created CAMetalLayer surfaces with retained compatibility exports. Addressed document load/save, owned CPU transfers and application lifetime checks have compiled/linked/runtime evidence. Browser player and Creator now use the shared WebGPU host, with actual source loading, Swash/fallback/IME, scene/pixel/material rendering, explicit asset bakes, OPFS save, addressed cancellation and idle device recovery evidence below. Physical native/monitor/clipboard/mobile workflows, remaining ownership/adapter retirement, resource budgets and measured release performance remain open. Compile checks and detached-layer tests do not establish complete platform parity.
 
@@ -9294,3 +9294,70 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   remains unverified. All available checks for this coherent speech/fallback
   checkpoint pass; no full-M0–M9 completion claim. Concurrent networking document
   untouched/excluded. Continue application configuration ownership next.
+
+### Application-owned Creator configuration (active, 2026-11-14)
+
+- Speech/native text checkpoint76921d3d committed16 files and excludes concurrent
+  networking work. Continued immediately with two small remaining app globals.
+- CreatorContext now owns ConfigEditor and its parsed TOML table. Removed both
+  CONFIGEDITOR and CONFIG declarations/callers. Editor frame cadence, runtime
+  tick setup, legacy screen dimensions and build sampling now borrow explicit
+  owner settings; Sidebar's existing project application updates that owner.
+- Preserve last-valid-config behavior during malformed/partial edits; valid
+  document replacement discards keys absent from its source. No project schema,
+  serialized bytes or new UI/renderer service is introduced. Constructor remains
+  CPU-only and leaves reference engine/scene jobs uninitialized.
+- Focused two-context regression covers independent cadence/sampling/viewport,
+  malformed edits and valid replacement/defaults. Existing actual native context
+  ownership check also expanded; first canonical native check running, all
+  integration/feature checks still pending. Batch uncommitted/UNVERIFIED.
+- First config canonical native compile PASS23.41s. Inventory found the adjacent
+  SIDEBARMODE global has only18 textual references (including comments/imports),
+  all controllers already receive CreatorContext. Moved its enum value into the
+  same app owner and rewired palette toggle/restore, project reset and map
+  selection. ToolList/PaletteTool still own their existing restoration behavior;
+  their own broader global ownership is NOT declared retired. Two-context test
+  expanded for independent sidebar state. Batch these related owners before one
+  assembled/platform checkpoint, rather than rerun broad suites per field.
+- Config+sidebar canonical test build PASS26.30s. Focused two-context test PASS
+  1/0.00s, including no lazy reference/jobs initialization. rg finds no CONFIG,
+  CONFIGEDITOR or SIDEBARMODE symbol references anywhere in Creator Rust sources.
+  Actual native assembled workflow and browser release running; independent
+  reference/staticlib checks queued. Preserve all unchanged test coverage and do
+  not expand this owner batch to tool/dock/history/palette globals mid-validation.
+- Batched config/sidebar assembled native workflow PASS1/152.72s (includes
+  concurrent release/staticlib compiler load; not a performance comparison).
+  Real context isolation assertions and all existing Play/source/documents/tools/
+  recovery/fractional-DPI integration pass. Reference compile PASS16.30s;
+  staticlib PASS52.42s; browser release PASS1m32s/package98,260,993B. Linked Swift
+  runtime and actual125% browser regression are now running.
+- Next-owner inventory (textual references, includes declarations/imports/tests):
+  UNDOMANAGER179/41files, TOOLLIST104/19, ACTIONLIST43/14, DOCKMANAGER141/26,
+  PALETTE15/7, legacy minimap buffer5/1,bbox15/5,key5/2, unused preview icon2/2.
+  Minimap native producers already own their presented bounds; remaining static
+  buffer/key serve reference caches and oracles. Palette selection helpers lack
+  a project/palette argument in the Tool/Action map-only APIs; plan an explicit
+  source/owner boundary rather than silently read another app's global palette.
+- Actual125% browser regression PASS: docc1ee6add-d4da-4c83-abc4-5522bcefe98e,
+  runtime619e53b1-3f85-427c-9e60-7602890b8372, Play/paused tick9/loss gen2→3/
+  resize/Stop retained source and speech cache.20 frames/devices3/gen3, root/
+  readback/asset readback/color copies/Canvas2D0/errors[]. Three fresh current
+  archives BYTE IDENTICAL1,447,294B SHA256d4945e823fba482c5f63de83f12c15e0
+  172184b0b1636b354c16c2df6564229d; WHOLE authored JSON exactly equal.
+- Linked current Swift host runtime PASS: two Creator lifetimes, actual foreign
+  CAMetalLayer, document/handle and controlled PNG transactions. Physical OS
+  clipboard/window checks stay OPEN. Extra sidebar toggle probe's synthetic P
+  key did NOT activate UI (identical screenshots); no shortcut PASS claimed.
+  Continue with visible palette button input before final sidebar evidence.
+- Actual visible palette-button toggle/restore PASS after inspecting both GPU-
+  completed captures: Palette controls/swatches/HSL overview replace Tiles, then
+  Tiles/region overview return. Durable enabled125% evidence
+  native-wgpu-evidence/browser-creator-owned-palette-mode-125.png. Same document
+  clean,23 frames/gen3/devices3, no CPU root/readback/color copy/Canvas2D/errors.
+  No synthetic-shortcut acceptance claimed. Sidebar enum itself now app-owned;
+  global ToolList/DockManager restoration controllers remain explicit next work.
+- All available config/sidebar checkpoint checks PASS. No source/schema change,
+  no deferred project data restoration, no new GPU or renderer ownership. Full
+  rewrite Goal remains ACTIVE; concurrent networking concept excluded. Continue
+  isolating the remaining legacy minimap cache/bounds into the application-owned
+  reference service, retaining native presented-bound navigation semantics.

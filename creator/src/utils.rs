@@ -1,4 +1,4 @@
-use crate::editor::{CONFIGEDITOR, DOCKMANAGER, PALETTE, };
+use crate::editor::{DOCKMANAGER, PALETTE, };
 use crate::prelude::*;
 use rusterix::{PixelSource, Value, ValueContainer, pixel_to_vec4};
 use std::str::FromStr;
@@ -211,7 +211,7 @@ pub fn set_code(
     }
 
     /*
-    let sidebarmode = SIDEBARMODE.read().unwrap();
+    let sidebarmode = &server_ctx.sidebar_mode;
     if *sidebarmode == SidebarMode::Region {
         if let Some(region_content_id) = server_ctx.curr_region_content {
             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
@@ -654,8 +654,7 @@ pub fn clear_surface_source_on_sector(map: &mut Map, sector_id: u32, source_key:
     false
 }
 
-pub fn extract_build_values_from_config(values: &mut ValueContainer) {
-    let config = CONFIGEDITOR.read().unwrap();
+pub fn extract_build_values_from_config(values: &mut ValueContainer, config: &ConfigEditor) {
     let sample_mode = config.get_string_default("render", "sample_mode", "nearest");
     if sample_mode == "linear" {
         values.set(

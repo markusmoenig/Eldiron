@@ -2,15 +2,17 @@
 //! CPU context through explicit borrows; they never own the editor's camera.
 mod jobs;
 mod reference;
-pub use reference::CreatorReference;
 pub use jobs::CreatorJobs;
+pub use reference::CreatorReference;
 
-use crate::editcamera::EditCamera;
+use crate::{configeditor::ConfigEditor, editcamera::EditCamera, sidebar::SidebarMode};
 use std::ops::{Deref, DerefMut};
 
 pub struct CreatorContext {
     pub shared: shared::context::ServerContext,
     pub camera: EditCamera,
+    pub config: ConfigEditor,
+    pub sidebar_mode: SidebarMode,
     pub jobs: CreatorJobs,
     pub reference: CreatorReference,
 }
@@ -24,6 +26,8 @@ impl CreatorContext {
         Self {
             shared: shared::context::ServerContext::new(),
             camera: EditCamera::new(),
+            config: ConfigEditor::new(),
+            sidebar_mode: SidebarMode::Region,
             jobs: CreatorJobs::default(),
             reference: CreatorReference::default(),
         }

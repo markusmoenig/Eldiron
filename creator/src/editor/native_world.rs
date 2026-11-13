@@ -2150,6 +2150,14 @@ impl Editor {
         let initial_scale = self.server_ctx.camera.iso_camera.scale;
         self.server_ctx.camera.move_action = Some(CustomMoveAction::Forward);
         let mut independent = CreatorContext::new();
+        let target_fps = self.server_ctx.config.target_fps;
+        let sidebar_mode = self.server_ctx.sidebar_mode;
+        independent.sidebar_mode = SidebarMode::Palette;
+        assert_eq!(self.server_ctx.sidebar_mode, sidebar_mode);
+        independent.config.read_config("[game]\ntarget_fps=59\ngame_tick_ms=123\n[render]\nsample_mode='linear'");
+        assert_eq!(self.server_ctx.config.target_fps, target_fps);
+        assert_eq!(independent.config.game_tick_ms, 123);
+        assert_eq!(independent.config.get_string_default("render", "sample_mode", "nearest"), "linear");
         assert!(!self.server_ctx.jobs.scene_initialized());
         assert!(!self.server_ctx.reference.initialized());
         assert!(!independent.jobs.scene_initialized());

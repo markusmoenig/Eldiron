@@ -1,5 +1,5 @@
 use crate::actions::geometry_face_ops::surface_segment_points;
-use crate::editor::{ACTIONLIST, DOCKMANAGER, SIDEBARMODE, UNDOMANAGER};
+use crate::editor::{ACTIONLIST, DOCKMANAGER, UNDOMANAGER};
 use crate::editor_display::{
     EditorDisplay, EditorDisplayOwner, EditorDisplayResult, EditorDisplaySession,
 };
@@ -2338,20 +2338,20 @@ impl ToolList {
 
         let current_dock = DOCKMANAGER.read().unwrap().dock.clone();
         if self.palette_mode {
-            self.previous_sidebar_mode = Some(*SIDEBARMODE.read().unwrap());
+            self.previous_sidebar_mode = Some(server_ctx.sidebar_mode);
             self.previous_palette_dock = if current_dock == "Palette" {
                 None
             } else {
                 Some(current_dock)
             };
-            *SIDEBARMODE.write().unwrap() = SidebarMode::Palette;
+            server_ctx.sidebar_mode = SidebarMode::Palette;
             DOCKMANAGER
                 .write()
                 .unwrap()
                 .set_dock("Palette".into(), ui, ctx, project, server_ctx);
         } else if current_dock == "Palette" {
             if let Some(mode) = self.previous_sidebar_mode.take() {
-                *SIDEBARMODE.write().unwrap() = mode;
+                server_ctx.sidebar_mode = mode;
             }
             let previous_dock = self
                 .previous_palette_dock
@@ -2362,7 +2362,7 @@ impl ToolList {
                 .unwrap()
                 .set_dock(previous_dock, ui, ctx, project, server_ctx);
         } else if let Some(mode) = self.previous_sidebar_mode.take() {
-            *SIDEBARMODE.write().unwrap() = mode;
+            server_ctx.sidebar_mode = mode;
             self.previous_palette_dock = None;
         }
         ctx.ui.send(TheEvent::Custom(

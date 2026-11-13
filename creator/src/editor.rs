@@ -182,8 +182,6 @@ const ISO_PAINT_PAR_COMPOSITE_PIXELS: usize = 32_768;
 pub static PREVIEW_ICON: LazyLock<RwLock<(TheRGBATile, i32)>> =
     LazyLock::new(|| RwLock::new((TheRGBATile::default(), 0)));
 
-pub static SIDEBARMODE: LazyLock<RwLock<SidebarMode>> =
-    LazyLock::new(|| RwLock::new(SidebarMode::Region));
 pub static UNDOMANAGER: LazyLock<RwLock<UndoManager>> =
     LazyLock::new(|| RwLock::new(UndoManager::default()));
 pub static TOOLLIST: LazyLock<RwLock<ToolList>> =
@@ -370,10 +368,6 @@ mod toolbar_icon_theme_tests {
         }
     }
 }
-pub static CONFIGEDITOR: LazyLock<RwLock<ConfigEditor>> =
-    LazyLock::new(|| RwLock::new(ConfigEditor::new()));
-pub static CONFIG: LazyLock<RwLock<toml::Table>> =
-    LazyLock::new(|| RwLock::new(toml::Table::default()));
 pub static DOCKMANAGER: LazyLock<RwLock<DockManager>> =
     LazyLock::new(|| RwLock::new(DockManager::default()));
 
@@ -4956,7 +4950,7 @@ impl Editor {
             tools.deactivte_tool(ui, ctx, &mut self.documents.project, &mut self.server_ctx);
             tools.reset_for_project_switch(ctx);
         }
-        *SIDEBARMODE.write().unwrap() = SidebarMode::Region;
+        self.server_ctx.sidebar_mode = SidebarMode::Region;
         self.server_ctx.camera.reset_for_project_switch();
         self.play_session = None;
         #[cfg(feature = "native-render")]
@@ -7867,7 +7861,7 @@ impl Editor {
     }
 
     fn redraw_interval_ms(&self) -> u64 {
-        let config = CONFIGEDITOR.read().unwrap();
+        let config = &self.server_ctx.config;
         (1000
             / Self::presentation_fps(
                 self.server_ctx.game_mode,
@@ -8038,7 +8032,7 @@ impl TheTrait for Editor {
         Self::presentation_fps(
             self.server_ctx.game_mode,
             self.authoring_is_interacting(),
-            CONFIGEDITOR.read().unwrap().target_fps,
+            self.server_ctx.config.target_fps,
         ) as f64
     }
 
@@ -8847,7 +8841,7 @@ impl TheTrait for Editor {
 
         // Check for redraw (30fps) and tick updates
         let redraw_ms = self.redraw_interval_ms();
-        let tick_ms = CONFIGEDITOR.read().unwrap().game_tick_ms.max(1) as u64;
+        let tick_ms = self.server_ctx.config.game_tick_ms.max(1) as u64;
         let (mut redraw_update, tick_update) = self.update_tracker.update(redraw_ms, tick_ms);
 
         self.server_ctx.play_state = self.runtime_state();
@@ -9091,7 +9085,7 @@ impl TheTrait for Editor {
                 Value::Bool(self.server_ctx.no_rect_geo_on_map),
             );
 
-            extract_build_values_from_config(&mut self.build_values);
+            extract_build_values_from_config(&mut self.build_values, &self.server_ctx.config);
 
             let mut messages = Vec::new();
             let mut says = Vec::new();
@@ -9974,8 +9968,8 @@ impl TheTrait for Editor {
                                         },
                                     ));
                                 } else {
-                                    let viewport = CONFIGEDITOR.read().unwrap().viewport;
-                                    let grid_size = CONFIGEDITOR.read().unwrap().grid_size as f32;
+                                    let viewport = self.server_ctx.config.viewport;
+                                    let grid_size = self.server_ctx.config.grid_size as f32;
                                     let w = viewport.x as f32 / grid_size;
                                     let h = viewport.y as f32 / grid_size;
                                     rusterix.client.builder_d2.set_clip_rect(Some(
@@ -11207,7 +11201,7 @@ impl TheTrait for Editor {
                                 }
                                 if self.native_runtime_host() {
                                     let document = self.documents.active_id().expect("active Play document");
-                                    let tick_ms = CONFIGEDITOR.read().unwrap().game_tick_ms.max(1) as u64;
+                                    let tick_ms = self.server_ctx.config.game_tick_ms.max(1) as u64;
                                     let quick = ui
                                         .get_widget("Game Entity Defaults")
                                         .is_some_and(|button| button.state() == TheWidgetState::Clicked);
@@ -11252,7 +11246,7 @@ impl TheTrait for Editor {
                                         .sessions
                                         .get(self.documents.active_session)
                                         .map(|document| {
-                                            let tick_ms = CONFIGEDITOR.read().unwrap().game_tick_ms.max(1) as u64;
+                                            let tick_ms = self.server_ctx.config.game_tick_ms.max(1) as u64;
                                             let runtime = self.server_ctx.reference.read();
                                             CreatorPlaySession::new(
                                                 document.id,
