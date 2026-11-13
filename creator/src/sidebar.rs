@@ -276,6 +276,11 @@ impl Sidebar {
                 return ui.get_render_view("MiniMap").unwrap().needs_redraw();
             }
             self.minimap_scene.deactivate(ui);
+            if server_ctx.pc.is_screen() && project.get_map(server_ctx).is_none() {
+                let view = ui.get_render_view("MiniMap").unwrap();
+                view.set_image_handle(None);
+                return view.needs_redraw();
+            }
         }
         let view = ui.get_render_view("MiniMap").unwrap();
         // Explicit adapter for the remaining world/procedural minimaps.

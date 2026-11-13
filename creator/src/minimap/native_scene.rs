@@ -16,6 +16,7 @@ use theframework::{
 struct Binding {
     document: Uuid,
     region: Uuid,
+    context: ProjectContext,
     map: Uuid,
     source: u64,
     mode: EditorViewMode,
@@ -32,6 +33,7 @@ struct Frame {
     markers: PaintList,
     marker_key: [u32; 4],
     receipt: FrameReceipt,
+    label: &'static str,
 }
 impl RenderViewPaintSource for Frame {
     fn paint(&self, p: &mut WidgetPainter<'_>, viewport: [f32; 2]) -> UiPaintResult {
@@ -51,7 +53,7 @@ impl RenderViewPaintSource for Frame {
         });
         p.label(
             Rect::new(4., 0., 46., 16.),
-            "Region",
+            self.label,
             11.,
             [215, 215, 215, 255],
             TheHorizontalAlign::Left,
@@ -88,6 +90,8 @@ struct Gpu {
     animation: usize,
     version: u32,
     opaque: Option<(renderkit::ImageHandle, renderkit::ImageHandle)>,
+    overview: Option<eldiron_presentation::overview2d::Overview2DRenderer>,
+    overview_output: Option<ViewImage>,
 }
 impl Gpu {
     fn new(images: &renderkit::ImageRegistry) -> Result<Self, String> {
@@ -104,6 +108,8 @@ impl Gpu {
             animation: 0,
             version: 0,
             opaque: None,
+            overview: None,
+            overview_output: None,
         })
     }
 }
@@ -146,6 +152,23 @@ fn region<'a>(project: &'a Project, server: &ServerContext) -> Option<&'a Region
     }
     Some(region)
 }
+fn overview_map<'a>(
+    project: &'a Project,
+    server: &ServerContext,
+) -> Option<(&'a Map, Option<Uuid>)> {
+    if server.pc.is_screen()
+        && server.editor_view_mode == EditorViewMode::D2
+        && server.editing_surface.is_none()
+        && !palette_minimap_active(server)
+    {
+        let map = project.get_map(server)?;
+        if active_action_minimap_preview(map, server).is_none() {
+            return Some((map, None));
+        }
+        return None;
+    }
+    region(project, server).map(|region| (&region.map, Some(region.id)))
+}
 fn source_map(map: &Map) -> (Map, u64) {
     let mut map = map.clone();
     // Camera movement only changes the marker, not the fitted scene or terrain
@@ -170,17 +193,18 @@ impl SceneOverview {
         ui: &mut TheUI,
         ctx: &TheContext,
     ) -> Option<(Binding, Map)> {
-        let region = region(project, server)?;
+        let (original, region) = overview_map(project, server)?;
         let view = ui.get_render_view("MiniMap")?;
         let dim = *view.dim();
         if dim.width <= 0 || dim.height <= 0 {
             return None;
         }
-        let (map, source) = source_map(&region.map);
+        let (map, source) = source_map(original);
         Some((
             Binding {
                 document: server.document_instance,
-                region: region.id,
+                region: region.unwrap_or_default(),
+                context: server.pc,
                 map: map.id,
                 source,
                 mode: server.editor_view_mode,
@@ -233,6 +257,9 @@ impl SceneOverview {
                 if let Some((_, image)) = gpu.opaque.take() {
                     images.remove(image);
                 }
+                if let Some(output) = gpu.overview_output.take() {
+                    images.remove(output.image);
+                }
                 gpu.scenes.clear(images).map_err(|e| e.to_string())?;
             }
             self.gpu = None;
@@ -243,7 +270,9 @@ impl SceneOverview {
             return Ok(None);
         };
         let iso = map.camera == MapCamera::TwoDIso;
-        if !iso && !ready {
+        let screen = binding.context.is_screen();
+        let raster_overview = screen && !iso;
+        if !iso && !screen && !ready {
             self.waiting = true;
             self.invalidate(ui);
             ui.get_render_view("MiniMap")
@@ -277,6 +306,7 @@ impl SceneOverview {
             || gpu.assets != asset_revision
             || gpu.binding.as_ref() != Some(&binding)
             || (!iso
+                && !screen
                 && (gpu.animation != animation
                     || gpu
                         .source
@@ -293,9 +323,15 @@ impl SceneOverview {
                 gpu.scenes
                     .create(gpu.view, (0, 0))
                     .map_err(|e| e.to_string())?;
-                gpu.scenes
-                    .configure_editor(gpu.view, assets)
-                    .map_err(|e| e.to_string())?;
+                if let Some(output) = gpu.overview_output.take() {
+                    images.remove(output.image);
+                }
+                gpu.overview = None;
+                if !screen {
+                    gpu.scenes
+                        .configure_editor(gpu.view, assets)
+                        .map_err(|e| e.to_string())?;
+                }
             }
             gpu.version = gpu
                 .version
@@ -305,7 +341,68 @@ impl SceneOverview {
             // IDs and serialized revision numbers have been reused.
             map.changed = gpu.version;
             let size = (binding.rect[2] as u32, binding.rect[3] as u32);
-            if iso {
+            if !raster_overview {
+                if let Some(output) = gpu.overview_output.take() {
+                    images.remove(output.image);
+                }
+                gpu.overview = None;
+            }
+            if raster_overview {
+                let mut builder = rusterix::D2PreviewBuilder::new();
+                let scene = builder.build(
+                    &map,
+                    assets,
+                    Vec2::new(size.0 as f32, size.1 as f32),
+                    &Default::default(),
+                );
+                let scale = Vec2::new(size.0 as f32 / bbox.z, size.1 as f32 / bbox.w);
+                let center = Vec2::new(bbox.x + bbox.z * 0.5, bbox.y + bbox.w * 0.5);
+                let transform = Mat3::<f32>::translation_2d(
+                    Vec2::new(size.0 as f32, size.1 as f32) * 0.5 - center * scale,
+                ) * Mat3::new(scale.x, 0., 0., 0., scale.y, 0., 0., 0., 1.);
+                if gpu.overview.is_none() {
+                    gpu.overview = Some(
+                        eldiron_presentation::overview2d::Overview2DRenderer::new(
+                            images.context().clone(),
+                        )
+                        .map_err(|e| e.to_string())?,
+                    );
+                }
+                let image = gpu
+                    .overview
+                    .as_mut()
+                    .unwrap()
+                    .render(
+                        &scene,
+                        assets,
+                        size,
+                        transform,
+                        binding.document,
+                        asset_revision,
+                        &[], // The reference overview never installs a MapMini on Rasterizer.
+                    )
+                    .map_err(|e| e.to_string())?;
+                let existing = gpu.overview_output.filter(|old| {
+                    images
+                        .get(old.image)
+                        .is_some_and(|old| Arc::ptr_eq(&old, &image))
+                });
+                let handle = if let Some(existing) = existing {
+                    existing.image
+                } else {
+                    if let Some(old) = gpu.overview_output.take() {
+                        images.remove(old.image);
+                    }
+                    images.insert(image.clone()).map_err(|e| e.to_string())?
+                };
+                gpu.overview_output = Some(ViewImage {
+                    view: gpu.view,
+                    image: handle,
+                    descriptor: image.descriptor,
+                    revision: gpu.version as u64,
+                    content_revision: map.changed as u64,
+                });
+            } else if iso {
                 gpu.scenes
                     .prepare_isometric_overview(
                         gpu.view,
@@ -333,18 +430,22 @@ impl SceneOverview {
                     )
                     .map_err(|e| e.to_string())?;
             }
-            gpu.scenes
-                .render(gpu.view, gpu.version as u64, images)
-                .map_err(|e| e.to_string())?;
+            if !raster_overview {
+                gpu.scenes
+                    .render(gpu.view, gpu.version as u64, images)
+                    .map_err(|e| e.to_string())?;
+            }
             gpu.binding = Some(binding.clone());
             gpu.assets = asset_revision;
             gpu.source = Some(source);
             gpu.animation = animation;
         }
-        let output = gpu
-            .scenes
-            .output(gpu.view)
-            .ok_or("minimap output unavailable")?;
+        let output = if raster_overview {
+            gpu.overview_output
+        } else {
+            gpu.scenes.output(gpu.view)
+        }
+        .ok_or("minimap output unavailable")?;
         // The reference copied RGB into the opaque application framebuffer.
         // Alias the same texture with explicit opaque metadata: no copy, upload,
         // CPU composition or extra target is needed to preserve stored RGB.
@@ -372,30 +473,27 @@ impl SceneOverview {
             gpu.opaque = Some((output.image, image));
             image
         };
-        let region = project.get_region(&binding.region).unwrap();
+        let (original, region_id) =
+            overview_map(project, server).ok_or("minimap context changed")?;
+        let region = region_id.and_then(|id| project.get_region(&id));
         let size = Vec2::new(binding.rect[2] as f32, binding.rect[3] as f32);
-        let center = if server.editor_view_mode == EditorViewMode::D2 {
-            editor_view_center(&region.map)
+        let center = if server.editor_view_mode == EditorViewMode::D2 || region.is_none() {
+            editor_view_center(original)
         } else {
+            let region = region.unwrap();
             Vec2::new(region.editing_position_3d.x, region.editing_position_3d.z)
         };
+        let look = region
+            .filter(|_| server.editor_view_mode == EditorViewMode::FirstP)
+            .map(|region| Vec2::new(region.editing_look_at_3d.x, region.editing_look_at_3d.z));
         let marker_key = [
             center.x.to_bits(),
             center.y.to_bits(),
-            region.editing_look_at_3d.x.to_bits(),
-            region.editing_look_at_3d.z.to_bits(),
+            look.map_or(0., |p| p.x).to_bits(),
+            look.map_or(0., |p| p.y).to_bits(),
         ];
         let mut markers = PaintList::default();
-        for (world, color) in [
-            (Some(center), [255, 0, 0, 255]),
-            (
-                (server.editor_view_mode == EditorViewMode::FirstP).then_some(Vec2::new(
-                    region.editing_look_at_3d.x,
-                    region.editing_look_at_3d.z,
-                )),
-                [255, 255, 0, 255],
-            ),
-        ] {
+        for (world, color) in [(Some(center), [255, 0, 0, 255]), (look, [255, 255, 0, 255])] {
             if let Some(world) = world {
                 let p = minimap_world_to_pixel_on_map(world, size, bbox, &map);
                 let (x, y) = (p.x as i32 as f32 - 4., p.y as i32 as f32 - 4.);
@@ -406,6 +504,10 @@ impl SceneOverview {
                         Rect::new(x, y, 1., 8.),
                         Rect::new(x + 7., y, 1., 8.),
                     ]
+                    .into_iter()
+                    .map(|rect| rect.intersection(Rect::new(0., 0., size.x, size.y)))
+                    .filter(|rect| rect.width > 0. && rect.height > 0.)
+                    .collect::<Vec<_>>()
                     .into(),
                     color: rgba(color),
                 });
@@ -442,6 +544,7 @@ impl SceneOverview {
                 owner: self.owner,
                 serial: self.serial,
             },
+            label: if screen { "Screen" } else { "Region" },
         });
         ui.get_render_view("MiniMap")
             .unwrap()
@@ -496,7 +599,7 @@ impl SceneOverview {
         ui: &mut TheUI,
         ctx: &TheContext,
     ) -> Result<Option<Vec2<f32>>, ()> {
-        if region(project, server).is_none() {
+        if overview_map(project, server).is_none() {
             return Ok(None);
         }
         let (binding, _) = Self::binding(project, server, ui, ctx).ok_or(())?;

@@ -433,4 +433,400 @@ pub(crate) fn check(gpu: &Arc<GpuContext>, renderer: &mut PaintRenderer) {
         );
         reference_scene.clear(&mut images).unwrap();
     }
+    check_screens(gpu, renderer);
+}
+
+fn check_screens(gpu: &Arc<GpuContext>, renderer: &mut PaintRenderer) {
+    fn quad(map: &mut Map, min: [f32; 2], max: [f32; 2], tile: Uuid, clamp: bool, occlusion: f32) {
+        let v = [[min[0], min[1]], [max[0], min[1]], max, [min[0], max[1]]]
+            .map(|p| map.add_vertex_at(p[0], p[1]));
+        for i in 0..4 {
+            map.create_linedef_manual(v[i], v[(i + 1) % 4]);
+        }
+        let id = map.close_polygon_manual().unwrap();
+        let s = map.find_sector_mut(id).unwrap();
+        s.properties.set(
+            "source",
+            rusterix::Value::Source(rusterix::PixelSource::TileId(tile)),
+        );
+        s.properties
+            .set("tile_mode", rusterix::Value::Int(if clamp { 0 } else { 1 }));
+        s.properties
+            .set("occlusion", rusterix::Value::Float(occlusion));
+    }
+    let mut tile = rusterix::Tile::default();
+    tile.id = Uuid::new_v4();
+    for frame in 0..4 {
+        let (w, h) = (11 + 3 * frame, 7 + 2 * frame);
+        let mut pixels = Vec::new();
+        for y in 0..h {
+            for x in 0..w {
+                pixels.extend([
+                    (x * 17 + frame * 23) as u8,
+                    (y * 31 + frame * 47) as u8,
+                    ((x + y) * 13 + frame * 17) as u8,
+                    [64, 128, 255][(x + y) % 3],
+                ]);
+            }
+        }
+        tile.textures.push(rusterix::Texture::new(pixels, w, h));
+    }
+    let top = rusterix::Tile::from_texture(rusterix::Texture::new(
+        [200, 70, 40, 180].repeat(3 * 5),
+        3,
+        5,
+    ));
+    let mut map = Map::new();
+    quad(&mut map, [-2., -1.], [3., 2.], tile.id, false, 0.6);
+    quad(&mut map, [-0.75, -0.25], [2., 1.25], top.id, true, 0.8);
+    let mut project = Project::default();
+    let mut screen = shared::screen::Screen::new();
+    screen.map = map;
+    let id = screen.id;
+    let mut other_screen = screen.clone();
+    other_screen.id = Uuid::new_v4();
+    let other_id = other_screen.id;
+    project.screens.insert(other_id, other_screen);
+    project.screens.insert(id, screen);
+    let mut server = ServerContext::new();
+    server.pc = ProjectContext::Screen(id);
+    server.editor_view_mode = EditorViewMode::D2;
+    let mut assets = rusterix::Assets::default();
+    for mode in 0..3 {
+        tile.uv_pages = if mode == 0 {
+            None
+        } else {
+            Some(rusterix::TileUvPages {
+                animation_frames: 1,
+                repeat_period: if mode == 2 { [0.75, 1.25] } else { [0.; 2] },
+                origin: [0, 0],
+                size: [2, 2],
+                axes: [[0.; 3]; 2],
+                units_per_page: 1,
+            })
+        };
+        assets.set_tiles(
+            [(tile.id, tile.clone()), (top.id, top.clone())]
+                .into_iter()
+                .collect(),
+        );
+        let saved = serde_json::to_value(&project).unwrap();
+        for size in [Vec2::new(143, 83), Vec2::new(84, 144)] {
+            let mut images = ImageRegistry::new(gpu.clone());
+            let mut ctx = TheContext::new(size.x as usize, size.y as usize, 1.);
+            ctx.ui.command_paint = true;
+            let mut ui = TheUI::new();
+            let mut view = TheRenderView::new(TheId::named("MiniMap"));
+            let view_id = view.id().clone();
+            view.set_dim(TheDim::new(13, 29, size.x, size.y), &mut ctx);
+            view.render_buffer_mut().resize(size.x, size.y);
+            ui.canvas.set_widget(view);
+            let mut sidebar = crate::sidebar::Sidebar::new();
+            assert!(sidebar.handle_event(
+                &TheEvent::Custom(TheId::named("Soft Update Minimap"), TheValue::Empty),
+                &mut ui,
+                &mut ctx,
+                &mut project,
+                &mut server
+            ));
+            let mut owner = std::mem::take(&mut sidebar.minimap_scene);
+            let source =
+                Arc::new(rusterix::scene_build_index::SceneBuildIndex::default()).snapshot();
+            let prepare = |owner: &mut SceneOverview,
+                           project: &Project,
+                           ui: &mut TheUI,
+                           ctx: &TheContext,
+                           images: &mut ImageRegistry| {
+                owner
+                    .prepare(
+                        project,
+                        &server,
+                        ui,
+                        ctx,
+                        &assets,
+                        100 + mode,
+                        source.clone(),
+                        false,
+                        0,
+                        images,
+                    )
+                    .unwrap()
+                    .unwrap()
+            };
+            let before = gpu.transfers();
+            let token = prepare(&mut owner, &project, &mut ui, &ctx, &mut images);
+            assert_eq!(before.readback_bytes, gpu.transfers().readback_bytes);
+            assert!(
+                !owner.waiting(),
+                "screen overviews do not wait for the unrelated region chunk worker"
+            );
+            assert!(
+                !ui.get_render_view("MiniMap")
+                    .unwrap()
+                    .has_cpu_display_storage()
+            );
+            assert!(
+                owner
+                    .navigate(
+                        &view_id,
+                        Vec2::new(70, 42),
+                        &project,
+                        &server,
+                        &mut ui,
+                        &ctx
+                    )
+                    .is_err()
+            );
+            owner.presented(Some(token.clone()));
+            let expected = owner
+                .navigate(
+                    &view_id,
+                    Vec2::new(70, 42),
+                    &project,
+                    &server,
+                    &mut ui,
+                    &ctx,
+                )
+                .unwrap()
+                .unwrap();
+            let frame = owner.current.as_ref().unwrap().clone();
+            let mut other = ServerContext::new();
+            other.document_instance = server.document_instance;
+            other.pc = ProjectContext::Screen(other_id);
+            other.editor_view_mode = EditorViewMode::D2;
+            assert!(
+                owner
+                    .navigate(&view_id, Vec2::new(70, 42), &project, &other, &mut ui, &ctx)
+                    .is_err(),
+                "a second screen cannot reuse a presented map ID from another screen context"
+            );
+            let stable = gpu.transfers();
+            let repeated = prepare(&mut owner, &project, &mut ui, &ctx, &mut images);
+            assert_eq!(repeated.receipt(), token.receipt());
+            assert_eq!(stable, gpu.transfers());
+            let original = &project.screens[&id].map;
+            let original_offset = original.offset;
+            let mut map = original.clone();
+            map.selected_linedefs.clear();
+            map.selected_sectors.clear();
+            let bounds = frame.bbox;
+            let scale = Vec2::new(size.x as f32 / bounds.z, size.y as f32 / bounds.w);
+            map.grid_size = scale.x.min(scale.y);
+            map.camera = MapCamera::TwoD;
+            map.offset = Vec2::new(
+                -(bounds.x + bounds.z * 0.5) * scale.x,
+                (bounds.y + bounds.w * 0.5) * scale.y,
+            );
+            let transform = Mat3::<f32>::translation_2d(Vec2::new(
+                map.offset.x + size.x as f32 / 2.,
+                -map.offset.y + size.y as f32 / 2.,
+            )) * Mat3::new(scale.x, 0., 0., 0., scale.y, 0., 0., 0., 1.);
+            let mut scene = rusterix::D2PreviewBuilder::new().build(
+                &map,
+                &assets,
+                Vec2::new(size.x as f32, size.y as f32),
+                &Default::default(),
+            );
+            let mut reference = TheRGBABuffer::new(TheDim::sized(size.x, size.y));
+            rusterix::Rasterizer::setup(Some(transform), Mat4::identity(), Mat4::identity())
+                .background([42, 42, 42, 255])
+                .ambient(Vec4::one())
+                .render_mode(rusterix::RenderMode::render_2d())
+                .rasterize(
+                    &mut scene,
+                    reference.pixels_mut(),
+                    size.x as usize,
+                    size.y as usize,
+                    40,
+                    &assets,
+                );
+            let actual = capture(
+                gpu,
+                ReadbackTicket::capture(gpu, images.get(frame.output.image).unwrap()).unwrap(),
+            );
+            let delta = actual
+                .iter()
+                .zip(reference.pixels())
+                .map(|(a, b)| a.abs_diff(*b))
+                .max()
+                .unwrap();
+            if delta > 1 {
+                std::fs::write("/private/tmp/eldiron-overview2d-gpu.rgba", &actual).unwrap();
+                std::fs::write(
+                    "/private/tmp/eldiron-overview2d-reference.rgba",
+                    reference.pixels(),
+                )
+                .unwrap();
+                let differences=actual.chunks_exact(4).zip(reference.pixels().chunks_exact(4)).enumerate().filter(|(_, (a,b))|a.iter().zip(b.iter()).any(|(a,b)|a.abs_diff(*b)>1)).take(8)
+                    .map(|(i,(a,b))|serde_json::json!({"at":[i%size.x as usize,i/size.x as usize],"actual":a,"expected":b})).collect::<Vec<_>>();
+                eprintln!(
+                    "Screen overview mismatch: {}",
+                    serde_json::json!({"mode":mode,"size":[size.x,size.y],"delta":delta,"differences":differences})
+                );
+            }
+            assert!(
+                delta <= 1,
+                "screen overview mode={mode} size={size:?}: source delta={delta}"
+            );
+            eprintln!("Native screen overview mode={mode} size={size:?}: max delta={delta}");
+            if mode == 1 && size.x == 143 {
+                // The generic minimap intentionally has no occlusion. Exercise
+                // the producer's explicit first-match policy independently.
+                let regions = scene.mapmini.occlusion_regions().to_vec();
+                assert!(!regions.is_empty());
+                let mut native =
+                    eldiron_presentation::overview2d::Overview2DRenderer::new(gpu.clone()).unwrap();
+                let image = native
+                    .render(
+                        &scene,
+                        &assets,
+                        (size.x as u32, size.y as u32),
+                        transform,
+                        server.document_instance,
+                        assets.tiles_revision,
+                        &regions,
+                    )
+                    .unwrap();
+                let mut expected = TheRGBABuffer::new(TheDim::sized(size.x, size.y));
+                let mut raster = rusterix::Rasterizer::setup(
+                    Some(transform),
+                    Mat4::identity(),
+                    Mat4::identity(),
+                )
+                .background([42, 42, 42, 255])
+                .ambient(Vec4::one())
+                .render_mode(rusterix::RenderMode::render_2d());
+                raster.mapmini = scene.mapmini.clone();
+                raster.rasterize(
+                    &mut scene,
+                    expected.pixels_mut(),
+                    size.x as usize,
+                    size.y as usize,
+                    40,
+                    &assets,
+                );
+                assert_ne!(
+                    expected.pixels(),
+                    reference.pixels(),
+                    "explicit occlusion changes actual image colors"
+                );
+                let actual = capture(gpu, ReadbackTicket::capture(gpu, image).unwrap());
+                let delta = actual
+                    .iter()
+                    .zip(expected.pixels())
+                    .map(|(a, b)| a.abs_diff(*b))
+                    .max()
+                    .unwrap();
+                assert!(
+                    delta <= 1,
+                    "explicit ordered overview occlusion delta={delta}"
+                );
+                assert!(native.source_resident_bytes() <= 64 * 1024 * 1024);
+                eprintln!("Native screen explicit occlusion: max delta={delta}");
+            }
+
+            let old = *MINIMAPBOX.read().unwrap();
+            *MINIMAPBOX.write().unwrap() = bounds;
+            draw_camera_marker(original, None, &mut reference, &server);
+            *MINIMAPBOX.write().unwrap() = old;
+            let mut paint = PaintList::default();
+            paint.ops.push(PaintOp::DisplayCompositing(
+                theframework::paint::DisplayCompositing::LegacyOpaque,
+            ));
+            paint.ops.push(PaintOp::SpriteImage {
+                image: frame.image,
+                origin: [0.; 2],
+                scale: [1.; 2],
+                tint: [1.; 4],
+            });
+            paint.ops.extend(frame.markers.ops.iter().cloned());
+            for density in [1., 1.25, 1.5, 1.75, 2.] {
+                let extent = (
+                    (size.x as f32 * density).round() as u32,
+                    (size.y as f32 * density).round() as u32,
+                );
+                let image = renderkit::GpuImage::new(
+                    gpu,
+                    renderkit::ImageDescriptor::rgba(extent.0, extent.1),
+                )
+                .unwrap();
+                renderer
+                    .render(
+                        &paint,
+                        &images,
+                        &image.view,
+                        image.descriptor.format,
+                        extent,
+                        density,
+                        [0.; 4],
+                    )
+                    .unwrap();
+                let pixels = capture(gpu, ReadbackTicket::capture(gpu, image).unwrap());
+                let mut delta = 0;
+                for y in 0..extent.1 {
+                    for x in 0..extent.0 {
+                        let sx = ((x as f32 + 0.5) / density).floor() as i32;
+                        let sy = ((y as f32 + 0.5) / density).floor() as i32;
+                        let expected = reference.get_pixel(sx, sy).unwrap_or([0, 0, 0, 255]);
+                        let at = ((y * extent.0 + x) * 4) as usize;
+                        for c in 0..4 {
+                            delta = delta.max(pixels[at + c].abs_diff(expected[c]));
+                        }
+                    }
+                }
+                assert!(
+                    delta <= 1,
+                    "screen overview mode={mode} DPI={density} delta={delta}"
+                );
+            }
+            sidebar.minimap_scene = owner;
+            sidebar.handle_event(
+                &TheEvent::RenderViewClicked(view_id.clone(), Vec2::new(70, 42)),
+                &mut ui,
+                &mut ctx,
+                &mut project,
+                &mut server,
+            );
+            assert!(
+                (editor_view_center(&project.screens[&id].map) - expected).magnitude() < 0.0001,
+                "actual screen navigation uses presented screen bounds"
+            );
+            // Restore this camera-only mutation before the saved-content assertion.
+            project.screens.get_mut(&id).unwrap().map.offset = original_offset;
+            let mut owner = std::mem::take(&mut sidebar.minimap_scene);
+            owner.deactivate(&mut ui);
+            owner
+                .prepare(
+                    &project,
+                    &server,
+                    &mut ui,
+                    &ctx,
+                    &assets,
+                    100 + mode,
+                    source.clone(),
+                    false,
+                    0,
+                    &mut images,
+                )
+                .unwrap();
+            assert!(images.get(frame.output.image).is_none());
+            let current = server.pc;
+            server.pc = ProjectContext::Screen(Uuid::new_v4());
+            sidebar.handle_event(
+                &TheEvent::Custom(TheId::named("Soft Update Minimap"), TheValue::Empty),
+                &mut ui,
+                &mut ctx,
+                &mut project,
+                &mut server,
+            );
+            assert!(
+                !ui.get_render_view("MiniMap")
+                    .unwrap()
+                    .has_cpu_display_storage(),
+                "deleting an authored screen cannot opt its minimap back into a bitmap adapter"
+            );
+            server.pc = current;
+        }
+        assert_eq!(saved, serde_json::to_value(&project).unwrap());
+    }
 }

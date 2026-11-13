@@ -135,6 +135,12 @@ impl MapMini {
         }
     }
 
+    /// Ordered immutable region metadata for GPU consumers. First match wins,
+    /// exactly as get_occlusion; this exposes no renderer or destination pixels.
+    pub fn occlusion_regions(&self) -> &[(BBox, f32)] {
+        &self.occluded_sectors
+    }
+
     /// Returns the sector occlusion at the given position.
     pub fn get_occlusion(&self, at: Vec2<f32>) -> f32 {
         for (bbox, occlusion) in &self.occluded_sectors {
