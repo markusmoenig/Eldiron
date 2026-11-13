@@ -249,17 +249,30 @@ impl Editor {
             ..Default::default()
         };
         let attachment_id = attachment.id;
-        asset.parts[0].attachments.push(attachment);
+        let mut mount = rusterix::BlockPropPart::new_authored("FX mount", Vec::new());
+        let angle = 0.6f32;
+        mount.local_transform = [
+            [angle.cos() * 1.2, 0., -angle.sin() * 1.2, 0.],
+            [0., 0.8, 0., 0.],
+            [angle.sin() * 1.4, 0., angle.cos() * 1.4, 0.],
+            [0.25, 0.3, 0.15, 1.],
+        ];
+        let mut nozzle = rusterix::BlockPropPart::new_authored("FX nozzle", Vec::new());
+        nozzle.parent_part_id = Some(mount.id);
+        nozzle.local_transform[3][0] = 0.1;
+        nozzle.attachments.push(attachment);
         asset
             .particle_effects
             .push(rusterix::BlockPropParticleEffect {
                 id: Uuid::new_v4(),
                 name: "Native particles".into(),
-                part_id: asset.parts[0].id,
+                part_id: nozzle.id,
                 attachment_id,
                 enabled: true,
                 emitter: Default::default(),
             });
+        asset.parts.push(mount);
+        asset.parts.push(nozzle);
         let id = asset.id;
         self.server_ctx.curr_block_asset_id = Some(id);
         self.server_ctx.curr_block_asset_name = Some(asset.name.clone());
@@ -280,7 +293,15 @@ impl Editor {
     }
     pub(crate) fn native_prefab_effect_for_test(&self, id: Uuid) -> ([f32; 3], String) {
         let asset = &self.project.block_props[&id];
-        (asset.parts[0].attachments[0].position, asset.name.clone())
+        let effect = &asset.particle_effects[0];
+        let attachment = asset
+            .find_part(effect.part_id)
+            .unwrap()
+            .attachments
+            .iter()
+            .find(|a| a.id == effect.attachment_id)
+            .unwrap();
+        (attachment.position, asset.name.clone())
     }
     pub(crate) fn rename_native_prefab_for_test(&mut self, id: Uuid, name: &str) {
         self.project.block_props.get_mut(&id).unwrap().name = name.into();

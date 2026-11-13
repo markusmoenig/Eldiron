@@ -88,7 +88,11 @@ struct PrefabEffectDrag {
     effect_id: Uuid,
     direction_handle: bool,
     origin: Vec3<f32>,
+    pointer_origin: Vec3<f32>,
     plane_normal: Vec3<f32>,
+    part_id: Uuid,
+    part_world: rusterix::BlockPropTransform,
+    world_to_part: Mat4<f32>,
     asset_id: Uuid,
     before: rusterix::BlockPropAttachment,
     working: rusterix::BlockPropAttachment,
@@ -136,6 +140,11 @@ impl PrefabsEditorDock {
         let Some(asset) = project.block_props.get_mut(&drag.asset_id) else {
             return false;
         };
+        if Self::effect_attachment_ref(asset, drag.effect_id)
+            != Some((drag.part_id, drag.working.id))
+        {
+            return false;
+        }
         let Some(attachment) = Self::effect_attachment_mut(asset, drag.effect_id) else {
             return false;
         };
@@ -154,6 +163,22 @@ impl PrefabsEditorDock {
             attachment.position = drag.before.position;
         }
         true
+    }
+    fn effect_part_frame(
+        asset: &rusterix::BlockPropAsset,
+        part_id: Uuid,
+    ) -> Option<(rusterix::BlockPropTransform, Mat4<f32>)> {
+        let transform = rusterix::block_prop_part_world_transform(
+            asset,
+            &rusterix::BlockPropInstance::new(asset.id),
+            part_id,
+        )?;
+        let matrix = Mat4::<f32>::from_col_arrays(transform);
+        let determinant = matrix.determinant();
+        (matrix.into_col_array().iter().all(|v| v.is_finite())
+            && determinant.is_finite()
+            && determinant.abs() > 1e-10)
+            .then(|| (transform, matrix.inverted()))
     }
     fn effect_id_for_gizmo(asset: &rusterix::BlockPropAsset, gizmo: u32) -> Option<(Uuid, bool)> {
         let (index, direction) = if (0xEFFE_0000..0xEFFF_0000).contains(&gizmo) {
@@ -2572,26 +2597,51 @@ impl Dock for PrefabsEditorDock {
                 TheEvent::RenderViewClicked(id, _) if id.name == PREFAB_VIEW => {
                     if let Some(GeoId::Gizmo(gizmo)) = server_ctx.geo_hit
                         && let Some(asset) = project.block_props.get(&asset_id)
-                        && let Some((effect_id, direction_handle)) =
-                            Self::effect_id_for_gizmo(asset, gizmo)
+                        && let Some((effect_id, direction_handle)) = Self::effect_id_for_gizmo(asset, gizmo)
                         && let Some((part_id, attachment_id)) =
                             Self::effect_attachment_ref(asset, effect_id)
-                        && let Some(attachment) = asset.find_part(part_id).and_then(|part| {
-                            part.attachments.iter().find(|a| a.id == attachment_id)
-                        })
+                        && let Some(attachment) = asset
+                            .find_part(part_id)
+                            .and_then(|part| part.attachments.iter().find(|a| a.id == attachment_id))
+                        && let Some((part_world, world_to_part)) = Self::effect_part_frame(asset, part_id)
                     {
                         self.selected_effect_id = Some(effect_id);
                         server_ctx.selected_prefab_effect_id = Some(effect_id);
-                        let origin = Vec3::from(attachment.position);
-                        let plane_normal = server_ctx
-                            .hover_ray_dir_3d
-                            .and_then(|direction| direction.try_normalized())
-                            .unwrap_or(Vec3::unit_z());
+                        let local = Vec3::from(attachment.position);
+                        let world = Mat4::<f32>::from_col_arrays(part_world)
+                            * Vec4::new(local.x, local.y, local.z, 1.);
+                        let origin = Vec3::new(world.x, world.y, world.z);
+                        let plane_normal = {
+                            let tools = TOOLLIST.read().unwrap();
+                            if tools.native_world_input {
+                                tools
+                                    .game_tools
+                                    .get(tools.curr_game_tool)
+                                    .and_then(|tool| tool.view_input_camera())
+                                    .map(|camera| camera.forward)
+                            } else {
+                                Some(
+                                    rusterix::D3Camera::basis_vectors(
+                                        &crate::editor::EDITCAMERA.read().unwrap().orbit_camera,
+                                    )
+                                    .0,
+                                )
+                            }
+                        }
+                        .and_then(|direction| direction.try_normalized());
+                        let Some(plane_normal) = plane_normal else {
+                            return true;
+                        };
                         self.effect_drag = Some(PrefabEffectDrag {
                             effect_id,
                             direction_handle,
                             origin,
+                            pointer_origin: Self::ray_drag_point(server_ctx, origin, plane_normal)
+                                .unwrap_or(origin),
                             plane_normal,
+                            part_id,
+                            part_world,
+                            world_to_part,
                             asset_id,
                             before: attachment.clone(),
                             working: attachment.clone(),
@@ -2610,6 +2660,10 @@ impl Dock for PrefabsEditorDock {
                         && let Some(point) =
                             Self::ray_drag_point(server_ctx, drag.origin, drag.plane_normal)
                         && let Some(asset) = project.block_props.get_mut(&asset_id)
+                        && Self::effect_attachment_ref(asset, drag.effect_id)
+                            == Some((drag.part_id, drag.working.id))
+                        && Self::effect_part_frame(asset, drag.part_id)
+                            .is_some_and(|(frame, _)| frame == drag.part_world)
                         && let Some(attachment) = Self::effect_attachment_mut(asset, drag.effect_id)
                         && attachment.id == drag.working.id
                         && if drag.direction_handle {
@@ -2619,14 +2673,23 @@ impl Dock for PrefabsEditorDock {
                         }
                     {
                         if drag.direction_handle {
-                            if let Some(direction) = (point - drag.origin).try_normalized() {
-                                attachment.direction = [direction.x, direction.y, direction.z];
+                            let world_direction = point - drag.origin;
+                            let local = drag.world_to_part
+                                * Vec4::new(world_direction.x, world_direction.y, world_direction.z, 0.);
+                            if let Some(direction) = Vec3::new(local.x, local.y, local.z).try_normalized() {
+                                attachment.direction = direction.into_array();
                                 drag.changed = true;
                             }
                         } else {
-                            attachment.position = [point.x, point.y, point.z];
-                            drag.origin = point;
-                            drag.changed = true;
+                            // Preserve the exact pointer grab offset; do not jump the
+                            // attachment to a picked cube face or a world-space value.
+                            let target = drag.origin + point - drag.pointer_origin;
+                            let local = drag.world_to_part * Vec4::new(target.x, target.y, target.z, 1.);
+                            let position = [local.x, local.y, local.z];
+                            if position.iter().all(|v| v.is_finite()) {
+                                attachment.position = position;
+                                drag.changed = true;
+                            }
                         }
                         drag.working = attachment.clone();
                         Self::sync_prefab_runtime(project);

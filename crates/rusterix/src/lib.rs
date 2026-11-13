@@ -183,6 +183,7 @@ pub use crate::{
             block_prop_door_controls_part, block_prop_door_is_open, block_prop_instance_object_id,
             block_prop_interaction_verb, block_prop_interaction_world_anchor,
             block_prop_material_override_key, block_prop_part_world_anchor,
+            block_prop_part_world_transform,
             block_prop_support_surface_local_point, block_prop_support_surface_world_point,
             block_prop_support_surface_world_transform,
             block_prop_surface_placement_world_position, identity_block_prop_transform,

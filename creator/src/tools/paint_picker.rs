@@ -128,10 +128,18 @@ pub fn activate(
         server.curr_tile_id = Some(id);
         server.curr_tile_source = Some(rusterix::TileSource::SingleTile(id));
     }
-    crate::editor::DOCKMANAGER
-        .write()
-        .unwrap()
-        .set_dock("Tiles".into(), ui, ctx, project, server);
+    // The isolated Prefab editor owns its lower Paint/Tiles panels. Switching
+    // the application dock here would minimize that editor and re-enter the
+    // ToolList lock held by tool activation.
+    if !server.pc.is_prefab() {
+        crate::editor::DOCKMANAGER.write().unwrap().set_dock(
+            "Tiles".into(),
+            ui,
+            ctx,
+            project,
+            server,
+        );
+    }
     crate::utils::editor_scene_refresh_material_textures(project, server);
     ctx.ui.send(TheEvent::Custom(
         TheId::named("Update Tilepicker"),

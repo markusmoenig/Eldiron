@@ -129,6 +129,10 @@ pub trait Tool: Send + Sync {
 
     /// The viewport supplies checked CPU queries immediately before dispatch.
     fn set_view_input(&mut self, _input: Option<ToolViewInput>) {}
+    /// Camera of the current explicitly supplied authoring query, if retained.
+    fn view_input_camera(&self) -> Option<scenevm::Camera3D> {
+        None
+    }
     /// Request CPU authoring surface data for this event, independently of paint.
     fn view_surface_capture(&self, _event: &MapEvent) -> bool { false }
     fn sync_overlay_sources(&mut self, _project: &Project, _server: &ServerContext) {}

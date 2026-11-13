@@ -4,6 +4,7 @@ use crate::prelude::*;
 /// uses this tool selection to expose its particle/light dock.
 pub struct EffectsTool {
     id: TheId,
+    view_input: Option<ToolViewInput>,
 }
 
 impl Tool for EffectsTool {
@@ -13,6 +14,7 @@ impl Tool for EffectsTool {
     {
         Self {
             id: TheId::named("Prefab Effects Tool"),
+            view_input: None,
         }
     }
 
@@ -20,6 +22,12 @@ impl Tool for EffectsTool {
         self.id.clone()
     }
 
+    fn set_view_input(&mut self, input: Option<ToolViewInput>) {
+        self.view_input = input;
+    }
+    fn view_input_camera(&self) -> Option<scenevm::Camera3D> {
+        self.view_input.as_ref()?.camera
+    }
     fn prepare_overlay(&mut self, input: ToolOverlayInputs<'_>) -> Option<ToolOverlayFrame> {
         ToolOverlayFrame::passive(
             self,

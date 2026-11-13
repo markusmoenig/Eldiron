@@ -1349,6 +1349,11 @@ mod tests {
             .native_prefab_handle_for_test()
             .expect("actual Prefab effect move handle");
         let original = app.application.editor.native_prefab_effect_for_test(prefab);
+        let origin = app
+            .application
+            .editor
+            .native_prefab_projection_for_test()
+            .unwrap();
         let before = gpu.transfers();
         app.session
             .context
@@ -1366,6 +1371,15 @@ mod tests {
                 .0,
             original.0,
             "actual effect drag changes its attachment"
+        );
+        let moved = app
+            .application
+            .editor
+            .native_prefab_projection_for_test()
+            .unwrap();
+        assert!(
+            (moved - origin - Vec2::new(24., 12.)).magnitude() < 0.1,
+            "hierarchy/scaled effect movement must follow the exact pointer delta"
         );
         app.application
             .editor
@@ -1442,6 +1456,54 @@ mod tests {
             gpu.transfers().readback_bytes,
             before.readback_bytes,
             "Prefab rendering and effect queries perform no color readback"
+        );
+        app.session.context.ui.send(TheEvent::Custom(
+            TheId::named("Set Tool"),
+            TheValue::Text("tool.iso_paint".into()),
+        ));
+        app.session.context.ui.send(TheEvent::IndexChanged(
+            TheId::named(crate::tools::paint_picker::MODE),
+            0,
+        ));
+        settle_prefab(&mut app, &mut host, &mut replacement);
+        let at = app
+            .application
+            .editor
+            .native_paint_3d_target_for_test()
+            .expect("real visible Prefab paint surface");
+        let original = app.application.editor.native_paint_state_for_test();
+        let before = gpu.transfers();
+        app.session
+            .context
+            .ui
+            .send(TheEvent::RenderViewClicked(prefab_view.clone(), at));
+        app.session
+            .context
+            .ui
+            .send(TheEvent::RenderViewUp(prefab_view.clone(), at));
+        app.update(&mut host, Duration::from_millis(16));
+        assert!(
+            app.application.editor.native_paint_state_for_test().1 > original.1,
+            "Prefab Paint commits into the owning asset layer"
+        );
+        assert!(app.application.editor.native_paint_has_3d_data_for_test());
+        let authored = gpu.transfers();
+        assert_eq!(
+            authored.capture_requests,
+            before.capture_requests + 1,
+            "Prefab projected authoring explicitly requests one surface capture"
+        );
+        settle_prefab(&mut app, &mut host, &mut replacement);
+        assert_eq!(
+            gpu.transfers().readback_bytes,
+            authored.readback_bytes,
+            "Prefab paint display never recaptures its surface"
+        );
+        assert_eq!(
+            serde_json::to_value(&app.application.editor.project_for_native_test().regions)
+                .unwrap(),
+            regions,
+            "Prefab Paint leaves region data untouched"
         );
         drop(settle_prefab);
         drop(present_prefab);

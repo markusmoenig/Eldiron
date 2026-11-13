@@ -1871,23 +1871,39 @@ impl Editor {
                         .is_some_and(|map| frame.stamp == SourceStamp::new(map))
             })
     }
-    pub(crate) fn native_prefab_handle_for_test(&mut self) -> Option<Vec2<i32>> {
+    pub(crate) fn native_prefab_projection_for_test(&self) -> Option<Vec2<f32>> {
         let asset = self
             .project
             .block_props
             .get(&self.server_ctx.curr_block_asset_id?)?;
-        let origin = Vec3::from(asset.parts.first()?.attachments.first()?.position);
+        let effect = asset.particle_effects.first()?;
+        let attachment = asset
+            .find_part(effect.part_id)?
+            .attachments
+            .iter()
+            .find(|a| a.id == effect.attachment_id)?;
+        let transform = rusterix::block_prop_part_world_transform(
+            asset,
+            &rusterix::BlockPropInstance::new(asset.id),
+            effect.part_id,
+        )?;
+        let p = Vec3::from(attachment.position);
+        let origin = Mat4::<f32>::from_col_arrays(transform) * Vec4::new(p.x, p.y, p.z, 1.);
         let camera = self.native_world_camera()?;
+        let size = self.native_viewport.world.presented.as_ref()?.binding.size;
+        let clip = camera.projection_matrix(size.0 as f32, size.1 as f32)
+            * camera.view_matrix_for_surface(size.0 as f32, size.1 as f32)
+            * origin;
+        Some(Vec2::new(
+            (clip.x / clip.w + 1.) * 0.5 * size.0 as f32,
+            (1. - clip.y / clip.w) * 0.5 * size.1 as f32,
+        ))
+    }
+    pub(crate) fn native_prefab_handle_for_test(&mut self) -> Option<Vec2<i32>> {
+        let center = self.native_prefab_projection_for_test()?.map(|v| v as i32);
         let world = &mut self.native_viewport.world;
         let frame = world.presented.clone()?;
         let size = frame.binding.size;
-        let clip = camera.projection_matrix(size.0 as f32, size.1 as f32)
-            * camera.view_matrix_for_surface(size.0 as f32, size.1 as f32)
-            * Vec4::new(origin.x, origin.y, origin.z, 1.);
-        let center = Vec2::new(
-            ((clip.x / clip.w + 1.) * 0.5 * size.0 as f32) as i32,
-            ((1. - clip.y / clip.w) * 0.5 * size.1 as f32) as i32,
-        );
         let gpu = world.gpu.as_mut()?;
         // Confirm the real marker near its projected position, avoiding a full
         // viewport scan. This still obtains every hit from the displayed scene.
@@ -1947,12 +1963,19 @@ impl Editor {
             scene.and_then(|s| s.vm.vm.scene_bounds_3d())
         )
     }
+    fn native_paint_layer_for_test(&self) -> &shared::iso_paint::IsoPaintLayer {
+        if let ProjectContext::Prefab(id) = self.server_ctx.pc {
+            &self.project.block_prop_paint[&id]
+        } else {
+            &self
+                .project
+                .get_region(&self.server_ctx.curr_region)
+                .unwrap()
+                .iso_paint
+        }
+    }
     pub(crate) fn native_paint_has_3d_data_for_test(&self) -> bool {
-        let paint = &self
-            .project
-            .get_region(&self.server_ctx.curr_region)
-            .unwrap()
-            .iso_paint;
+        let paint = self.native_paint_layer_for_test();
         paint
             .chunks
             .values()
@@ -1970,14 +1993,11 @@ impl Editor {
             })
     }
     pub(crate) fn native_paint_state_for_test(&self) -> (f32, usize, Option<u64>) {
-        let region = self
-            .project
-            .get_region(&self.server_ctx.curr_region)
-            .unwrap();
+        let paint = self.native_paint_layer_for_test();
+        let map = self.project.get_map(&self.server_ctx).unwrap();
         (
-            region.iso_paint.active_opacity,
-            region
-                .iso_paint
+            paint.active_opacity,
+            paint
                 .chunks
                 .values()
                 .map(|c| c.strokes.len() + c.stamps.len())
@@ -1987,7 +2007,7 @@ impl Editor {
                 .unwrap()
                 .assets
                 .terrain_paint
-                .get(&region.map.id)
+                .get(&map.id)
                 .map(|p| p.key),
         )
     }

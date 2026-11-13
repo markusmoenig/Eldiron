@@ -1473,6 +1473,22 @@ pub fn sync_block_prop_surface_prop_transforms(
     updated
 }
 
+/// Resolve a part's complete affine frame, including its hierarchy and current
+/// component state. Authoring must use this same frame as runtime effects.
+/// Invalid hierarchies return no frame instead of authoring in a partial frame.
+pub fn block_prop_part_world_transform(
+    asset: &BlockPropAsset,
+    instance: &BlockPropInstance,
+    part_id: Uuid,
+) -> Option<BlockPropTransform> {
+    let part = asset.find_part(part_id)?;
+    let mut diagnostics = Vec::new();
+    let transform = resolved_part_transform(asset, instance, part, &mut diagnostics);
+    diagnostics
+        .is_empty()
+        .then(|| multiply_block_prop_transforms(transform, instance.world_transform))
+}
+
 /// World-space anchor for whole-Prefab authoring interactions. The selected
 /// part pivot provides a stable, server-verifiable point even when no component
 /// interaction target exists.
@@ -1482,13 +1498,8 @@ pub fn block_prop_part_world_anchor(
     part_id: Uuid,
 ) -> Option<Vec3<f32>> {
     let part = asset.find_part(part_id)?;
-    let mut diagnostics = Vec::new();
-    let part_transform = resolved_part_transform(asset, instance, part, &mut diagnostics);
-    if !diagnostics.is_empty() {
-        return None;
-    }
-    let world_transform = multiply_block_prop_transforms(part_transform, instance.world_transform);
-    Some(transform_block_prop_point(world_transform, part.pivot))
+    let transform = block_prop_part_world_transform(asset, instance, part_id)?;
+    Some(transform_block_prop_point(transform, part.pivot))
 }
 
 /// Context-sensitive default verb for a target on one linked instance.
@@ -1628,13 +1639,7 @@ pub fn resolve_block_prop_effects(
                 .attachments
                 .iter()
                 .find(|attachment| attachment.id == attachment_id)?;
-            let mut diagnostics = Vec::new();
-            let part_transform = resolved_part_transform(asset, instance, part, &mut diagnostics);
-            if !diagnostics.is_empty() {
-                return None;
-            }
-            let world_transform =
-                multiply_block_prop_transforms(part_transform, instance.world_transform);
+            let world_transform = block_prop_part_world_transform(asset, instance, part_id)?;
             let origin = transform_block_prop_point(world_transform, attachment.position);
             let direction = transform_block_prop_direction(world_transform, attachment.direction)
                 .try_normalized()
