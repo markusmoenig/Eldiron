@@ -10,7 +10,7 @@ pub(super) struct Description {
 }
 impl Description {
     pub(super) fn current(map: &Map, server: &ServerContext) -> Option<Self> {
-        if server.editor_view_mode != EditorViewMode::D2 || map.camera != MapCamera::TwoD {
+        if server.editor_view_mode != EditorViewMode::D2 || map.camera == MapCamera::TwoDIso {
             return None;
         }
         let clip = match server.get_map_context() {
@@ -182,6 +182,19 @@ mod tests {
         server.editor_view_mode = EditorViewMode::D2;
         server.pc = ProjectContext::Region(Uuid::new_v4());
         assert!(Description::current(&map, &server).is_none());
+        server.pc = ProjectContext::Screen(Uuid::new_v4());
+        map.camera = MapCamera::ThreeDIso;
+        assert!(
+            Description::current(&map, &server).is_some(),
+            "stored game camera does not change the Screen editing projection"
+        );
+        map.camera = MapCamera::TwoDIso;
+        assert!(
+            Description::current(&map, &server).is_none(),
+            "isometric maps use the dedicated producer"
+        );
+        map.camera = MapCamera::TwoD;
+        server.pc = ProjectContext::Region(Uuid::new_v4());
         server.editing_surface = Some(rusterix::Surface::new(0));
         assert!(
             Description::current(&map, &server)
@@ -261,6 +274,12 @@ impl Editor {
         self.server_ctx.reference.write().assets.set_tiles(tiles);
         let mut map = Map::new();
         map.subdivisions = 4.;
+        if kind == 2 || kind == 5 {
+            map.camera = MapCamera::ThreeDIso;
+        }
+        if kind == 3 || kind == 4 {
+            map.camera = MapCamera::TwoDIso;
+        }
         map.grid_size = 32.25;
         map.offset = Vec2::new(0.25, -0.5);
         for (x, y, width, height) in [(-2., -1., 4., 2.), (-0.5, -0.5, 2., 2.)] {
@@ -271,18 +290,22 @@ impl Editor {
                 Value::Source(rusterix::PixelSource::TileId(tile_id)),
             );
             sector.properties.set("tile_mode", Value::Int(0));
+            sector.properties.set(
+                "floor_source",
+                Value::Source(rusterix::PixelSource::TileId(tile_id)),
+            );
         }
         map.clear_selection();
         map.clear_temp();
         let context = match kind {
-            0 => {
+            0 | 2 | 3 => {
                 let mut screen = shared::screen::Screen::new();
                 screen.map = map;
                 let id = screen.id;
                 self.documents.project.screens.insert(id, screen);
                 ProjectContext::Screen(id)
             }
-            1 => {
+            1 | 4 | 5 => {
                 let region = self
                     .documents
                     .project
@@ -330,10 +353,9 @@ impl Editor {
         fixture: &Fixture,
     ) -> Option<(PaintList, (u32, u32))> {
         let world = &self.native_viewport.world;
-        let frame = world
-            .presented
-            .as_ref()
-            .filter(|frame| frame.ready && frame.binding.custom.is_some())?;
+        let frame = world.presented.as_ref().filter(|frame| {
+            frame.ready && (frame.binding.custom.is_some() || frame.isometric.is_some())
+        })?;
         let map = scope::map(&self.documents.project, &self.server_ctx).unwrap();
         assert_eq!(serde_json::to_vec(map).unwrap(), fixture.authored);
         if let Some((id, authored)) = &fixture.parent {
@@ -358,7 +380,7 @@ impl Editor {
             world.source.as_ref().unwrap().source.is_none(),
             "custom view cannot need a hidden scene builder"
         );
-        assert!(world.gpu.as_ref().unwrap().custom.image.is_some());
+        assert!(world.gpu.as_ref().unwrap().custom.image.is_some() || frame.isometric.is_some());
         let mut list = PaintList::default();
         list.ops.push(PaintOp::DisplayCompositing(
             theframework::paint::DisplayCompositing::LegacyOpaque,
@@ -371,7 +393,12 @@ impl Editor {
                 .1
                 .ops
                 .iter()
-                .take(2)
+                .take_while(|op| {
+                    matches!(
+                        op,
+                        PaintOp::SpriteImage { .. } | PaintOp::SampledLine { .. }
+                    )
+                })
                 .cloned(),
         );
         Some((
@@ -391,6 +418,9 @@ impl Editor {
                 scenevm::SceneVM::new_with_context(gpu.clone(), size.0, size.1),
             ));
         reference.assets = bridge.assets.clone();
+        reference
+            .scene_handler
+            .sync_base_render_settings(&reference.assets.config);
         reference.scene_handler.clear_overlay();
         reference
             .scene_handler
@@ -408,11 +438,14 @@ impl Editor {
             .builder_d2
             .set_map_hover_info(self.server_ctx.hover, self.server_ctx.hover_cursor);
         reference.client.builder_d2.draw_grid = self.server_ctx.show_editor_grid;
-        let map = scope::map(&self.documents.project, &self.server_ctx).unwrap();
         reference
             .client
             .builder_d2
-            .set_clip_rect(Description::current(map, &self.server_ctx).unwrap().clip());
+            .set_properties(&self.build_values);
+        let map = scope::map(&self.documents.project, &self.server_ctx).unwrap();
+        reference.client.builder_d2.set_clip_rect(
+            Description::current(map, &self.server_ctx).and_then(|description| description.clip()),
+        );
         reference.build_custom_scene_d2(
             Vec2::new(size.0 as f32, size.1 as f32),
             map,
@@ -425,7 +458,15 @@ impl Editor {
             true,
         );
         let mut pixels = vec![0; size.0 as usize * size.1 as usize * 4];
-        reference.draw_custom_d2(map, &mut pixels, size.0 as usize, size.1 as usize);
+        reference.scene_handler.runtime_render_state = bridge.render_state_for_view(map, true);
+        reference.client.draw_custom_d2(
+            map,
+            &mut pixels,
+            size.0 as usize,
+            size.1 as usize,
+            &reference.assets,
+            &mut reference.scene_handler,
+        );
         pixels
     }
 

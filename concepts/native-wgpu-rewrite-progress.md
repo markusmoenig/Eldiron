@@ -10333,3 +10333,79 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   progressive bake producer/ownership, canonical default launcher, data/cache
   boundaries, release measurements and physical/cross-platform gates remain.
   Next work proceeds autonomously through these remaining producers.
+
+## 2026-11-14 — Stored Screen camera variants (active)
+
+- Surface/profile batch committed75b6d644. Concurrent networking concept remains
+  untouched/untracked. Full Goal active across remaining M0–M9 gates.
+- Legacy draw_custom_d2 treats every non-TwoDIso camera as a flat custom map.
+  Native Description now follows that policy rather than rejecting stored3D
+  game-camera values in Screen's forced2D editor. Screen TwoDIso uses the existing
+  dedicated isometric producer; stale unrelated region editing_surface state
+  cannot reject a Screen's producer. No camera field or UI activation change.
+- Extended controlled custom fixture with stored3D Screen and sprite-isometric
+  Screen, explicit floor source, matching inherited render settings/properties,
+  direct world image+guide capture, source immutability/readiness and clipboard
+  integration. Isometric reference remains the explicit legacy client output on
+  an injected device; normal frame readbacks remain separately forbidden.
+  Build1 PASS22.97s; CPU and full assembled comparison pending.
+
+- Custom camera CPU PASS1/.01s. First assembled run fails34.34s at isometric
+  Screen phase0, maxRGBdelta31 in356 pixels; all ordinary Screen, surface and
+  stored3D Screen phases remain exact0. Inspected pairs show sparse diagonal
+  grid-line placement/overdraw differences, with matching scene content.
+- Added focused native GPU capped-DDA oracle (all five densities, negative and
+  near-half samples, cap and repeated alpha). RED reproduced failure0/1/
+  .29s: source x=.49999997 was placed on pixel1 by GPU instead of CPU pixel0.
+  Shared SampledLine shader now preserves intermediatef32 rounding/division and
+  splits the integer part before half-away-from-zero rounding; adding .5 first
+  could round a just-below-half value before floor. Uniform source=0 identity
+  prevents backend FMA contraction, without CPU pixel generation. Focused GREEN
+  PASS1/.54s across100/125/150/175/200%. Build1 fixture compile needed only an
+  f64→f32 clear-color correction; shader buildPASS2.03s. Creator rebuild2 and
+  assembled isometric parity pending. No isometric Screen acceptance yet.
+
+- Shared DDA fix brings isometric Screen phases0/1 to exactRGB0; prior matrix
+  assembled run2 PASS1/193.46s. Extended final matrix also includes isometric
+  surface child and stored3D surface child, reusing the actual child scope and
+  ignoring unsupported legacy footprint overlays in the same way as the
+  dedicated legacy isometric draw. Removed the last projection-only surface
+  exclusion; all non-isometric custom maps use ordered base+guides, all iso maps
+  use the existing dedicated producer. No data/camera field conversion.
+- Build3 PASS24.13s. Final matrix phases all exactRGB0 (six context/projection
+  cases, animation/canvas/footprint where applicable), surrounding workflow still
+  running. Only newly edited test helper formatted afterward; no semantic change.
+  Final browser release PASS36.17s/package98,334,914B. Reference/staticlib builds
+  and actual browser ScreenIso/source/recovery verification collecting.
+
+- Final assembled camera matrix PASS1/191.19s: six caller/projection cases,
+  seventeen phases exactRGB0, sourceDPImaxdelta<=1, clipboard and document/device
+  assertions pass. Reference check PASS; staticlib archive PASS35.74s (no new
+  Swift runtime claimed for this unchanged FFI boundary).
+- Browser ScreenIso selection reached the correct current/presented Screen/map
+  with readytrue, but the subsequent fresh save failed because rendering had
+  entered error: Chrome WGSL rejects constant bitcast negative infinity in
+  iso-source-blit's terrain clear. This is a real portability failure, not a
+  save acceptance. No browser camera gate accepted from that run.
+- Moved the exact negative-infinity bits into the clear uniform and bitcasts at
+  runtime; preserves the native sentinel and avoids invalid WGSL constant
+  evaluation. Rebuilding both hosts and rerunning actual camera presentation,
+  fresh saves and device recovery before accepting the fix.
+
+- Portable browser build PASS78s/package98,335,031B. Actual ScreenIso selection
+  and recovery now PASS, docb826e887-ba85-43eb-9db5-37efc73f1f60, correct current
+  and presented Screen/map identity, readytrue, customfalse (dedicated iso
+  producer),3devices/gen3, actual2400x1287/CSS1600x858, root/readback/asset and
+  color copies/Canvas2D0, errors[]. Inspected recovered capture retained.
+- Fresh base/shown/recovered archives independently ZIP-read: project.json
+  byte-identical29,429,400B, SHAc5e175f639a7ba743703439d2e09861e14e0537f2852f8f41e72003ada026e4d;
+  Screen.camera remains TwoDIso. The initial browser shader-error run is
+  superseded, not promoted. New final native assembly still collecting.
+
+- Portable final native assembled PASS1/191.51s, all17 custom phases exactRGB0
+  and remaining sourceDPImaxdelta<=1, actual document/clipboard/runtime/device
+  assertions pass. Native build PASS; browser actual shared shader runtime PASS.
+  Final camera captures inspected and retained, plus recovered browser capture
+  227646B SHA130255e3f5db7da60d4b519accb4672c3b8c0f037406e99e953a6bf2863b501c.
+  Camera caller batch verified within available native/browser scope. Physical
+  platform/full M0–M9 acceptance remains open; proceeding to orthographic bakes.

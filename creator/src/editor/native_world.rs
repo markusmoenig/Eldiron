@@ -802,12 +802,7 @@ impl Editor {
         let Some(map) = scope::map(&self.documents.project, &self.server_ctx) else {
             return false;
         };
-        if self.server_ctx.editing_surface.is_some()
-            && self.server_ctx.editor_view_mode == EditorViewMode::D2
-            && custom::Description::current(map, &self.server_ctx).is_none() {
-            return false;
-        }
-        if !(scope::uses_region(&self.server_ctx) || self.server_ctx.pc.is_prefab()
+        if !(scope::uses_region(&self.server_ctx) || self.server_ctx.pc.is_prefab() || self.server_ctx.pc.is_screen()
             || custom::Description::current(map, &self.server_ctx).is_some()) { return false; }
         if self.server_ctx.editor_view_mode != EditorViewMode::D2 {
             // Persisted/live orthographic bakes retain their explicit adapter

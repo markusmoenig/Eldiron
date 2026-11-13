@@ -1,5 +1,5 @@
 struct Params {
-    canvas:vec4<u32>, // width,height,unused,unused
+    canvas:vec4<u32>, // width,height,background,empty terrain depth bits
     screen:vec4<i32>, // rounded x0,y0,x1,y1
     image:vec4<u32>, // width,height,bitmap flags,has source geometry
     scale:vec4<f32>, // screen scale,base height,world scale,opacity
@@ -20,7 +20,8 @@ struct Params {
 fn clear(@builtin(global_invocation_id) id:vec3<u32>) {
     if any(id.xy>=p.canvas.xy) {return;}
     let i=id.y*p.canvas.x+id.x;
-    albedo[i]=p.canvas.z;surfaces[i]=vec2<u32>(0u,0x7f800000u);owners[i]=0u;terrain[i]=vec2<f32>(bitcast<f32>(0xff800000u),0.0);
+    // Nonfinite values are permitted at runtime, but not as WGSL constants.
+    albedo[i]=p.canvas.z;surfaces[i]=vec2<u32>(0u,0x7f800000u);owners[i]=0u;terrain[i]=vec2<f32>(bitcast<f32>(p.canvas.w),0.0);
 }
 fn bytes(v:u32)->vec4<u32> { return vec4<u32>(v&255u,(v>>8u)&255u,(v>>16u)&255u,v>>24u); }
 fn word(v:vec4<u32>)->u32 { return v.x|(v.y<<8u)|(v.z<<16u)|(v.w<<24u); }

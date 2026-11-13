@@ -356,7 +356,12 @@ impl IsometricBlitter {
         let mut masks = Vec::<u32>::with_capacity(mask_words.max(1) as usize);
         let (width, height) = canvas.size();
         let base = Params {
-            canvas: [width, height, u32::from_le_bytes(background), 0],
+            canvas: [
+                width,
+                height,
+                u32::from_le_bytes(background),
+                f32::NEG_INFINITY.to_bits(),
+            ],
             ..Zeroable::zeroed()
         };
         let mut params = vec![0u8; count as usize];

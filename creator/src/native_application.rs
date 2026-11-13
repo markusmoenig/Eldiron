@@ -3075,14 +3075,25 @@ mod tests {
         renderer: &mut PaintRenderer,
         output: &Arc<GpuImage>,
     ) {
-        for (kind, name) in [(0, "screen"), (1, "surface")] {
+        for (kind, name) in [
+            (0, "screen"),
+            (1, "surface"),
+            (2, "screen-stored-3d"),
+            (3, "screen-iso"),
+            (4, "surface-iso"),
+            (5, "surface-stored-3d"),
+        ] {
             let fixture = app.application.editor.begin_native_custom_for_test(
                 kind,
                 &mut app.session.ui,
                 &mut app.session.context,
             );
             let mut previous_pixels = None;
-            for phase in 0..if kind == 1 { 4 } else { 3 } {
+            for phase in 0..match kind {
+                1 => 4,
+                3 | 4 => 2,
+                _ => 3,
+            } {
                 let mut phase_pending = true;
                 let before = gpu.transfers().readback_bytes;
                 let deadline = Instant::now() + Duration::from_secs(10);
@@ -3091,7 +3102,9 @@ mod tests {
                     if phase_pending {
                         // Set the controlled clock after the real update pump;
                         // wall time during reference capture may advance ticks.
-                        app.application.editor.set_native_custom_phase_for_test(phase);
+                        app.application
+                            .editor
+                            .set_native_custom_phase_for_test(phase);
                         phase_pending = false;
                     }
                     let paint = app.frame(host, images).unwrap();

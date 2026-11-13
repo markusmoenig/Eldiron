@@ -81,14 +81,26 @@ fn radial_color(point: vec2<f32>, rect: vec4<f32>) -> vec4<f32> {
     return vec4<f32>(target_color(color.rgb/255.)*alpha,alpha);
 }
 struct Out{@builtin(position)position:vec4<f32>,@location(0)local:vec2<f32>,@location(1)uv:vec2<f32>,@location(2)color:vec4<f32>,@location(3)@interpolate(flat)origin:vec2<f32>,@location(4)@interpolate(flat)pixel:vec2<f32>};
+// SampledLine has no image and source is zero. The uniform identity keeps
+// backend contraction from changing the CPU DDA's observable f32 rounding.
+fn dda_fp(value:f32)->f32 {return bitcast<f32>(bitcast<u32>(value)^params.source);}
+fn dda_divide(a:f32,b:f32)->f32 {
+    let q=dda_fp(a/b);
+    return dda_fp(q+dda_fp(fma(-q,b,a)/b));
+}
 @vertex fn vs(@location(0)p:vec2<f32>,@location(1)local:vec2<f32>,@location(2)uv:vec2<f32>,@location(3)color:vec4<f32>,@builtin(instance_index)instance:u32)->Out{
     var position=p;var output_local=local;var origin=vec2<f32>(0.);var sample_pixel=vec2<f32>(0.);
     if((params.mode&255u)==14u){
-        let a=params.color1.xy;let delta=params.color1.zw-a;
+        let a=params.color1.xy;
+        let delta=vec2<f32>(dda_fp(params.color1.z-a.x),dda_fp(params.color1.w-a.y));
         let count=min(ceil(max(abs(delta.x),abs(delta.y))),8192.);
-        let q=a+delta*(f32(instance)/count);
+        let t=dda_divide(f32(instance),count);
+        let q=vec2<f32>(dda_fp(a.x+dda_fp(delta.x*t)),dda_fp(a.y+dda_fp(delta.y*t)));
         // WGSL round uses ties-to-even; the reference uses ties-away-from-zero.
-        let pixel=sign(q)*floor(abs(q)+vec2<f32>(0.5));
+        // Split the integer part first: adding .5 can itself round a value just
+        // below a half to the next integer before floor observes it.
+        let base=floor(abs(q));
+        let pixel=sign(q)*(base+select(vec2<f32>(0.),vec2<f32>(1.),abs(q)-base>=vec2<f32>(0.5)));
         let bx=params.gradient.xy;let by=params.gradient.zw;
         origin=p-bx*local.x-by*local.y;sample_pixel=pixel;
         let determinant=abs(bx.x*by.y-bx.y*by.x);
