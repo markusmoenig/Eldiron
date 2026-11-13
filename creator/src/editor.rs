@@ -384,6 +384,10 @@ pub static DOCKMANAGER: LazyLock<RwLock<DockManager>> =
 pub static TEXTGAME: LazyLock<RwLock<TextGameState>> =
     LazyLock::new(|| RwLock::new(TextGameState::default()));
 
+#[path = "editor/play_session.rs"]
+mod play_session;
+use play_session::CreatorPlaySession;
+
 #[derive(Clone)]
 struct ProjectSession {
     id: Uuid,
@@ -552,6 +556,7 @@ pub struct Editor {
     /// runtime. Playing must never permanently install a runtime dungeon into
     /// the Creator project.
     play_map_snapshots: Option<Vec<(Uuid, Map)>>,
+    play_session: Option<CreatorPlaySession>,
 
     build_values: ValueContainer,
     window_state: CreatorWindowState,
@@ -4936,6 +4941,8 @@ impl Editor {
             ));
             return false;
         }
+        #[cfg(feature = "native-render")]
+        self.cancel_native_world_gesture(ui, ctx);
         self.procedural_material.reset(ui, ctx);
         self.geometry_editor
             .finish_drag(&mut self.project, ctx, false);
@@ -4958,6 +4965,7 @@ impl Editor {
         }
         *SIDEBARMODE.write().unwrap() = SidebarMode::Region;
         EDITCAMERA.write().unwrap().reset_for_project_switch();
+        self.play_session = None;
         self.restore_authored_maps_after_play();
         self.sync_active_session_from_editor();
         DOCKMANAGER.write().unwrap().reset_for_project_switch();
@@ -8012,6 +8020,7 @@ impl TheTrait for Editor {
             pending_text_game_command: None,
             pending_text_game_runtime_flush: false,
             play_map_snapshots: None,
+            play_session: None,
 
             build_values: ValueContainer::default(),
             window_state: Self::load_window_state(),
@@ -8664,6 +8673,20 @@ impl TheTrait for Editor {
         let mut profile = crate::misc::FrameProfile::new();
         let mut redraw = false;
         let mut update_server_icons = false;
+        if self.play_session.as_ref().is_some_and(|session| {
+            self.sessions
+                .get(self.active_session)
+                .is_none_or(|document| document.id != session.document)
+        }) {
+            // A delayed runtime update must never project one document into
+            // the newly active authoring project, even if serialized IDs match.
+            self.play_session = None;
+            let mut runtime = RUSTERIX.write().unwrap();
+            runtime.server.stop();
+            runtime.clear_all_audio();
+            runtime.clear_say_messages();
+            update_server_icons = true;
+        }
         redraw |= self.palette_switch.update(ctx);
         redraw |= self
             .procedural_material
@@ -8729,13 +8752,29 @@ impl TheTrait for Editor {
             let is_running =
                 RUSTERIX.read().unwrap().server.state == rusterix::ServerState::Running;
             if is_running && self.server_ctx.text_game_mode {
-                warmup_runtime(&mut RUSTERIX.write().unwrap(), &mut self.project, 1);
+                if let Some(session) = &mut self.play_session {
+                    session.flush_command(&mut self.project, &mut RUSTERIX.write().unwrap());
+                } else {
+                    warmup_runtime(&mut RUSTERIX.write().unwrap(), &mut self.project, 1);
+                }
 
                 if let Some(region) = self.project.get_region_ctx(&self.server_ctx) {
                     let region_id = region.map.id;
-                    let mut messages = RUSTERIX.write().unwrap().server.get_messages(&region_id);
-                    let mut says = RUSTERIX.write().unwrap().server.get_says(&region_id);
-                    let mut choices = RUSTERIX.write().unwrap().server.get_choices(&region_id);
+                    let (mut messages, mut says, mut choices) = if let Some(session) = &mut self.play_session {
+                        let outputs = session.pump.pending_events(&region_id).unwrap();
+                        (
+                            std::mem::take(&mut outputs.messages),
+                            std::mem::take(&mut outputs.says),
+                            std::mem::take(&mut outputs.choices),
+                        )
+                    } else {
+                        let mut runtime = RUSTERIX.write().unwrap();
+                        (
+                            runtime.server.get_messages(&region_id),
+                            runtime.server.get_says(&region_id),
+                            runtime.server.get_choices(&region_id),
+                        )
+                    };
 
                     TEXTGAME.write().unwrap().update(
                         &self.project,
@@ -9084,24 +9123,33 @@ impl TheTrait for Editor {
                 RUSTERIX.read().unwrap().server.state == rusterix::ServerState::Running;
             let running_game_mode = is_running && self.server_ctx.game_mode;
 
-            // Update entities when the server is running
+            // One CPU pump, shared with GameSession. The facade still lends
+            // its CPU storage while presentation and Play ownership are migrated.
             {
-                let rusterix = &mut RUSTERIX.write().unwrap();
+                let mut runtime = RUSTERIX.write().unwrap();
+                let rusterix = &mut *runtime;
                 rusterix.scene_handler.preview_character_setup =
                     rusterix.server.state == rusterix::ServerState::Off;
+                if rusterix.server.state != rusterix::ServerState::Off
+                    && let Some(session) = &mut self.play_session
+                {
+                    // Paused sessions still poll control/worker results without
+                    // issuing system ticks or accumulating paused-time debt.
+                    session.advance(&mut self.project, rusterix);
+                }
                 if is_running {
-                    // Send a game tick to all servers
-                    if tick_update {
-                        rusterix.server.system_tick();
-                    }
-
-                    // Send a redraw tick to all servers
-                    if redraw_update {
-                        rusterix.server.redraw_tick();
-                    }
-
-                    if let Some(new_region_name) = rusterix.update_server() {
-                        rusterix.client.current_map = new_region_name;
+                    if self.play_session.is_none() {
+                        // Explicit reference/tooling entry points can still start
+                        // the facade directly. Canonical toolbar Play owns a pump.
+                        if tick_update {
+                            rusterix.server.system_tick();
+                        }
+                        if redraw_update {
+                            rusterix.server.redraw_tick();
+                        }
+                        if let Some(name) = rusterix.update_server() {
+                            rusterix.client.current_map = name;
+                        }
                     }
                     if rusterix.server.log_changed {
                         let log_text = rusterix.server.get_log();
@@ -9128,7 +9176,13 @@ impl TheTrait for Editor {
                     let active_game_map = rusterix.client.current_map.clone();
                     let mut refresh_visual_debug = false;
                     for r in &mut self.project.regions {
-                        rusterix.server.apply_entities_items(&mut r.map);
+                        if self.play_session.is_none() {
+                            rusterix.server.apply_entities_items(&mut r.map);
+                        }
+                        let mut outputs = self
+                            .play_session
+                            .as_mut()
+                            .map(|session| session.pump.take_events(&r.map.id));
 
                         let is_active_region = if running_game_mode {
                             r.map.name == active_game_map
@@ -9144,9 +9198,27 @@ impl TheTrait for Editor {
                                     widget.set_value(TheValue::Time(rusterix.client.server_time));
                                 }
                             }
-                            messages = rusterix.server.get_messages(&r.map.id);
-                            says = rusterix.server.get_says(&r.map.id);
-                            choices = rusterix.server.get_choices(&r.map.id);
+                            let audio = if let Some(outputs) = &mut outputs {
+                                messages = std::mem::take(&mut outputs.messages);
+                                says = std::mem::take(&mut outputs.says);
+                                choices = std::mem::take(&mut outputs.choices);
+                                rusterix.client.receive_world_texts(
+                                    &r.map,
+                                    &rusterix.assets,
+                                    std::mem::take(&mut outputs.world_text),
+                                );
+                                rusterix
+                                    .client
+                                    .process_open_container_requests(std::mem::take(
+                                        &mut outputs.containers,
+                                    ));
+                                std::mem::take(&mut outputs.audio)
+                            } else {
+                                messages = rusterix.server.get_messages(&r.map.id);
+                                says = rusterix.server.get_says(&r.map.id);
+                                choices = rusterix.server.get_choices(&r.map.id);
+                                rusterix.server.get_audio_commands(&r.map.id)
+                            };
 
                             if !running_game_mode {
                                 self.pending_game_messages.append(&mut messages);
@@ -9154,8 +9226,7 @@ impl TheTrait for Editor {
                                 self.pending_game_choices.append(&mut choices);
                             } else {
                                 if !self.pending_game_messages.is_empty() {
-                                    let mut pending =
-                                        std::mem::take(&mut self.pending_game_messages);
+                                    let mut pending = std::mem::take(&mut self.pending_game_messages);
                                     pending.append(&mut messages);
                                     messages = pending;
                                 }
@@ -9165,13 +9236,12 @@ impl TheTrait for Editor {
                                     says = pending;
                                 }
                                 if !self.pending_game_choices.is_empty() {
-                                    let mut pending =
-                                        std::mem::take(&mut self.pending_game_choices);
+                                    let mut pending = std::mem::take(&mut self.pending_game_choices);
                                     pending.append(&mut choices);
                                     choices = pending;
                                 }
                             }
-                            for cmd in rusterix.server.get_audio_commands(&r.map.id) {
+                            for cmd in audio {
                                 match cmd {
                                     AudioCommand::Play {
                                         name,
@@ -11000,6 +11070,11 @@ impl TheTrait for Editor {
                     }
                     // Server
                     else if id.name == "Play" {
+                        #[cfg(feature = "native-render")]
+                        {
+                            self.cancel_native_world_gesture(ui, ctx);
+                            self.invalidate_native_world_viewport(ui);
+                        }
                         if let Err(message) = self.commit_authoring_views(ctx) {
                             ctx.ui.send(TheEvent::SetStatusText(
                                 TheId::empty(),
@@ -11021,6 +11096,9 @@ impl TheTrait for Editor {
                             TEXTGAME.write().unwrap().reset();
                             if self.server_ctx.text_game_mode {
                                 TEXTGAME.write().unwrap().sync_output(ui, ctx);
+                            }
+                            if let Some(session) = &mut self.play_session {
+                                session.suspend_clock();
                             }
                             RUSTERIX.write().unwrap().server.continue_instances();
                             update_server_icons = true;
@@ -11070,6 +11148,12 @@ impl TheTrait for Editor {
                                     &mut self.project,
                                     3,
                                 );
+                                self.play_session = self.sessions.get(self.active_session).map(|document| {
+                                    CreatorPlaySession::new(
+                                        document.id,
+                                        CONFIGEDITOR.read().unwrap().game_tick_ms.max(1) as u64,
+                                    )
+                                });
                                 ctx.ui.send(TheEvent::SetStatusText(
                                     TheId::empty(),
                                     "Server has been started.".to_string(),
@@ -11081,12 +11165,26 @@ impl TheTrait for Editor {
                             update_server_icons = true;
                         }
                     } else if id.name == "Pause" {
+                        #[cfg(feature = "native-render")]
+                        {
+                            self.cancel_native_world_gesture(ui, ctx);
+                            self.invalidate_native_world_viewport(ui);
+                        }
                         let state = RUSTERIX.read().unwrap().server.state;
                         if state == rusterix::ServerState::Running {
                             RUSTERIX.write().unwrap().server.pause();
+                            if let Some(session) = &mut self.play_session {
+                                session.suspend_clock();
+                            }
                             update_server_icons = true;
                         }
                     } else if id.name == "Stop" {
+                        #[cfg(feature = "native-render")]
+                        {
+                            self.cancel_native_world_gesture(ui, ctx);
+                            self.invalidate_native_world_viewport(ui);
+                        }
+                        self.play_session = None;
                         {
                             let mut rusterix = RUSTERIX.write().unwrap();
                             rusterix.server.stop();

@@ -67,7 +67,7 @@ impl GameSession {
     pub fn view_region(&self, id: &theframework_core::Uuid) -> Option<RuntimeView<'_>> {
         let map = &self.project.regions.iter().find(|r| &r.map.id == id)?.map;
         Some(RuntimeView {
-            session_id: self.session_id,
+            session_id: self.pump.session_id(),
             project: &self.project,
             assets: &self.assets,
             map: Some(map),
@@ -84,7 +84,7 @@ impl GameSession {
             .find(|r| r.map.name == self.current_map)
             .map(|r| &r.map);
         RuntimeView {
-            session_id: self.session_id,
+            session_id: self.pump.session_id(),
             project: &self.project,
             assets: &self.assets,
             map,

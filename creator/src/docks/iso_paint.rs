@@ -149,7 +149,7 @@ impl IsoPaintBrushBoard {
 
     fn draw_engine_preview(
         buffer: &mut TheRGBABuffer,
-        draw: &TheDraw2D,
+        ctx: &mut TheContext,
         rect: &(usize, usize, usize, usize),
         stride: usize,
         key: &str,
@@ -161,7 +161,7 @@ impl IsoPaintBrushBoard {
             return;
         }
         if key == "brick" {
-            Self::draw_brick_preview(buffer, draw, rect, stride, palette);
+            Self::draw_brick_preview(buffer, ctx, rect, stride, palette);
             return;
         }
         if key == "puddle"
@@ -181,7 +181,7 @@ impl IsoPaintBrushBoard {
                         | "mud"
                 ))
         {
-            Self::draw_icon_preview(buffer, draw, rect, stride, key, palette);
+            Self::draw_icon_preview(buffer, ctx, rect, stride, key, palette);
             return;
         }
 
@@ -197,7 +197,7 @@ impl IsoPaintBrushBoard {
             w.saturating_sub(2).max(1),
             h.saturating_sub(2).max(1),
         );
-        draw.rect(buffer.draw_target(), &fill, stride, &bg);
+        ctx.draw.rect(buffer.draw_target(), &fill, stride, &bg);
 
         let radius = ((w.max(h) as f32) * 4.0).round().max(4.0) as i32;
         let shape = iso_paint_brush::default_shape_for_brush(key);
@@ -365,7 +365,7 @@ impl IsoPaintBrushBoard {
 
     fn draw_icon_preview(
         buffer: &mut TheRGBABuffer,
-        draw: &TheDraw2D,
+        ctx: &mut TheContext,
         rect: &(usize, usize, usize, usize),
         stride: usize,
         key: &str,
@@ -393,7 +393,7 @@ impl IsoPaintBrushBoard {
             w.saturating_sub(2).max(1),
             h.saturating_sub(2).max(1),
         );
-        draw.rect(buffer.draw_target(), &fill, stride, &bg);
+        ctx.draw.rect(buffer.draw_target(), &fill, stride, &bg);
 
         let left = x as i32;
         let top = y as i32;
@@ -923,7 +923,7 @@ impl IsoPaintBrushBoard {
 
     fn draw_brick_preview(
         buffer: &mut TheRGBABuffer,
-        draw: &TheDraw2D,
+        ctx: &mut TheContext,
         rect: &(usize, usize, usize, usize),
         stride: usize,
         palette: &[[u8; 4]],
@@ -934,7 +934,7 @@ impl IsoPaintBrushBoard {
             .or_else(|| palette.last())
             .copied()
             .unwrap_or([55, 48, 42, 255]);
-        draw.rect(buffer.draw_target(), rect, stride, &mortar);
+        ctx.draw.rect(buffer.draw_target(), rect, stride, &mortar);
 
         let brick_palette: Vec<[u8; 4]> = if palette.is_empty() {
             vec![
@@ -976,7 +976,7 @@ impl IsoPaintBrushBoard {
                     let clipped_w = (rx + rw).min(x as i32 + w as i32) - clipped_x as i32;
                     let clipped_h = (ry + rh).min(y as i32 + h as i32) - clipped_y as i32;
                     if clipped_w > 0 && clipped_h > 0 {
-                        draw.rect(
+                        ctx.draw.rect(
                             buffer.draw_target(),
                             &(clipped_x, clipped_y, clipped_w as usize, clipped_h as usize),
                             stride,
@@ -1162,7 +1162,7 @@ impl TheWidget for IsoPaintBrushBoard {
                     .unwrap_or(&[]);
                 Self::draw_engine_preview(
                     buffer,
-                    &ctx.draw,
+                    ctx,
                     &preview,
                     stride,
                     brush.key,
@@ -1227,8 +1227,6 @@ struct IsoPaintPresetStrip {
     drag_start_scroll: i32,
     is_dragging: bool,
     is_dirty: bool,
-    #[cfg(feature = "native-ui")]
-    native_previews: native::BrushPreviews,
 }
 
 impl IsoPaintPresetStrip {
@@ -1250,8 +1248,6 @@ impl IsoPaintPresetStrip {
             drag_start_scroll: 0,
             is_dragging: false,
             is_dirty: true,
-            #[cfg(feature = "native-ui")]
-            native_previews: Default::default(),
         }
     }
 
@@ -1301,11 +1297,6 @@ impl IsoPaintPresetStrip {
 }
 
 impl TheWidget for IsoPaintPresetStrip {
-    #[cfg(feature = "native-ui")]
-    fn paint(&mut self,painter:&mut theframework::theui::paint::WidgetPainter<'_>) -> theframework::theui::paint::UiPaintResult {
-        self.paint_native(painter)
-    }
-
     fn new(id: TheId) -> Self
     where
         Self: Sized,
@@ -1503,7 +1494,7 @@ impl TheWidget for IsoPaintPresetStrip {
                 .unwrap_or(&[]);
             IsoPaintBrushBoard::draw_engine_preview(
                 &mut tile_buffer,
-                &ctx.draw,
+                ctx,
                 &preview,
                 tile_stride,
                 brush.key,
@@ -1783,8 +1774,6 @@ struct IsoPaintBrushEditor {
         TheRGBABuffer,
     )>,
     is_dirty: bool,
-    #[cfg(feature = "native-ui")]
-    native_previews: native::BrushPreviews,
 }
 
 impl IsoPaintBrushEditor {
@@ -1800,8 +1789,6 @@ impl IsoPaintBrushEditor {
             preview_mode: IsoPaintPreviewMode::Paint,
             preview_cache: None,
             is_dirty: true,
-            #[cfg(feature = "native-ui")]
-            native_previews: Default::default(),
         }
     }
 
@@ -1883,7 +1870,7 @@ impl IsoPaintBrushEditor {
             let mut preview = TheRGBABuffer::new(TheDim::sized(rect.2 as i32, rect.3 as i32));
             IsoPaintBrushBoard::draw_engine_preview(
                 &mut preview,
-                &ctx.draw,
+                ctx,
                 &(0, 0, rect.2, rect.3),
                 rect.2,
                 brush_key,
@@ -1907,11 +1894,6 @@ impl IsoPaintBrushEditor {
 }
 
 impl TheWidget for IsoPaintBrushEditor {
-    #[cfg(feature = "native-ui")]
-    fn paint(&mut self,painter:&mut theframework::theui::paint::WidgetPainter<'_>) -> theframework::theui::paint::UiPaintResult {
-        self.paint_native(painter)
-    }
-
     fn new(id: TheId) -> Self
     where
         Self: Sized,
@@ -2115,11 +2097,6 @@ impl IsoPaintMaterialStrip {
 }
 
 impl TheWidget for IsoPaintMaterialStrip {
-    #[cfg(feature = "native-ui")]
-    fn paint(&mut self,painter:&mut theframework::theui::paint::WidgetPainter<'_>) -> theframework::theui::paint::UiPaintResult {
-        self.paint_native(painter)
-    }
-
     fn new(id: TheId) -> Self
     where
         Self: Sized,
@@ -4333,7 +4310,3 @@ impl Dock for IsoPaintDock {
         false
     }
 }
-
-#[cfg(feature = "native-ui")]
-#[path = "iso_paint_native.rs"]
-mod native;

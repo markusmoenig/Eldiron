@@ -1109,10 +1109,15 @@ impl Rusterix {
     /// Update the server messages.
     pub fn update_server(&mut self) -> Option<String> {
         let region = self.server.update(&mut self.assets);
+        self.prepare_runtime_appearances();
+        region
+    }
+
+    /// CPU appearance jobs after an externally owned runtime driver polls Server.
+    pub fn prepare_runtime_appearances(&mut self) {
         #[cfg(not(target_arch = "wasm32"))]
         self.appearance_preparation
             .prepare(self.server.entities.values().flatten(), &self.assets);
-        region
     }
 
     /// Update the tiles

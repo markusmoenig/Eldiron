@@ -1318,6 +1318,7 @@ dependencies = [
  "denrim-materials",
  "earcutr",
  "eldiron-presentation",
+ "eldiron-runtime",
  "eldiron-shared",
  "eldiron_scepter",
  "fontdue",
@@ -1347,6 +1348,7 @@ dependencies = [
  "ureq 2.12.1",
  "vectorize",
  "vek",
+ "web-time",
  "wgpu",
 ]
 

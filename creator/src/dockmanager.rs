@@ -94,9 +94,6 @@ impl DockManager {
         let dock: Box<dyn Dock> = Box::new(crate::docks::palette::PaletteDock::new());
         docks.insert("Palette".into(), dock);
 
-        let dock: Box<dyn Dock> = Box::new(crate::docks::iso_paint::IsoPaintDock::new());
-        docks.insert("Paint".into(), dock);
-
         let dock: Box<dyn Dock> = Box::new(crate::docks::authoring::AuthoringDock::new());
         docks.insert("Authoring".into(), dock);
 
@@ -191,6 +188,9 @@ impl DockManager {
         project: &Project,
         server_ctx: &mut ServerContext,
     ) {
+        // Older callers may still request the retired Paint dock by name.
+        // Paint sources now live in the normal tile picker.
+        let dock = if dock == "Paint" { "Tiles".into() } else { dock };
         if dock != self.dock {
             self.minimize(ui, ctx, project, server_ctx);
 

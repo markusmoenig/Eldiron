@@ -25,7 +25,7 @@ Started: 2026-11-11 (Asia/Bangkok). Overall Goal: active; full M0–M9 scope rem
 - M2: in progress. Paint/Swash/Parley pipeline and native/foreign hosts work; batching, resource lifetime budgets and full text/input parity remain.
 - M3: in progress. Every active built-in TheWidget implementation now has a command paint path, including procedural controls and the legacy node canvas. Complex Creator integration, full widget catalog parity and legacy adapter retirement remain.
 - M4: in progress. CPU schema/identity extraction, shared `GameSession`, CPU startup preparation, message/party/world-target policies and terminal adoption are implemented and tested. Per-session routing, local players, world values, runtime IDs and region context ownership now pass controlled overlapping-session and parallel assembled-player regressions. Graphical/Creator adoption and remaining bitmap/value data extraction remain; this evidence does not establish full simultaneous Creator Play workflows.
-- M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Immutable ordinary editor-view preparation, exact reference/native view outputs and retained CPU chunk publication are now available through SceneViews. Common HUD, paint/props panels, profile displays and ViewCube now have retained command frames, guarded input and actual GPU composition/reconstruction evidence. Six standard tools additionally emit ordered typed overlay aggregates with exact presented-frame and detail-profile source guards. Full-viewport profile editing is now connected to the actual native Creator root with document/widget binding, presentation-gated input and inline commit/cancel; ordinary stopped top-down, sprite-isometric and 3D region rendering and the six standard tool overlays now use the same native application owner and real tool dispatch. Orbit/orthographic/first-person views include depth-aware guides, retained ViewCube and explicit tool query snapshots; surface paint uses the view-owned GPU scene. The Terrain tool now also uses retained native controls and GPU brush guides with real sculpt/cancel integration. Rect now also uses presentation-gated composition/rotation controls, shared source sprite previews blitted on the GPU, terrain-conforming perimeters, and view-owned 3D queries; actual isometric placement and fractional-DPI sprite sampling pass in the assembled checkpoint. Isometric terrain Paint now also uses retained native controls, batched GPU brush feedback, update-phase editable source publication and the existing authoring/undo dispatch. Native 3D Paint now also consumes dedicated scene-owned paint-coordinate queries and explicit authoring surface captures, with camera-scoped drafts and GPU composition; full Paint workflow/platform parity remains unverified. The isolated Prefab viewport now also uses native top-down/isometric/3D outputs, live effects with hierarchy-aware owned drags, and actual 3D Paint authoring on its asset-owned layer. Its active custom Paint controls emit GPU paint with cached brush-source artwork. Other contexts/tools and Play remain on their explicit migration adapters. Application/global/document/Play ownership, main world/tool/HUD integration, remaining producers, full visual/workflow/performance acceptance and canonical retirement remain.
+- M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Immutable ordinary editor-view preparation, exact reference/native view outputs and retained CPU chunk publication are now available through SceneViews. Common HUD, paint/props panels, profile displays and ViewCube now have retained command frames, guarded input and actual GPU composition/reconstruction evidence. Six standard tools additionally emit ordered typed overlay aggregates with exact presented-frame and detail-profile source guards. Full-viewport profile editing is now connected to the actual native Creator root with document/widget binding, presentation-gated input and inline commit/cancel; ordinary stopped top-down, sprite-isometric and 3D region rendering and the six standard tool overlays now use the same native application owner and real tool dispatch. Orbit/orthographic/first-person views include depth-aware guides, retained ViewCube and explicit tool query snapshots; surface paint uses the view-owned GPU scene. The Terrain tool now also uses retained native controls and GPU brush guides with real sculpt/cancel integration. Rect now also uses presentation-gated composition/rotation controls, shared source sprite previews blitted on the GPU, terrain-conforming perimeters, and view-owned 3D queries; actual isometric placement and fractional-DPI sprite sampling pass in the assembled checkpoint. Isometric terrain Paint now also uses retained native controls, batched GPU brush feedback, update-phase editable source publication and the existing authoring/undo dispatch. Native 3D Paint now also consumes dedicated scene-owned paint-coordinate queries and explicit authoring surface captures, with camera-scoped drafts and GPU composition; full Paint workflow/platform parity remains unverified. The isolated Prefab viewport now also uses native top-down/isometric/3D outputs, live effects with hierarchy-aware owned drags, and actual 3D Paint authoring on its asset-owned layer. Paint now shares the normal tile picker; its settings live only in the viewport overlay. The canonical Creator Play toolbar now owns the same CPU clock/output pump as GameSession, and its live authoring viewport keeps its own native SceneView. Authored game-screen mode and remaining contexts/tools retain explicit migration adapters. Application/global/document/Play ownership, main world/tool/HUD integration, remaining producers, full visual/workflow/performance acceptance and canonical retirement remain.
 - M6: in progress. Independent GPU game views, common player/input/camera components, authored screen paint, private world descriptions, view-owned speech, acknowledged-frame world pointer gestures, relative first-person mouse look, default/world-intent cursors, world/UI item drag previews and acknowledged authored inventory/equipment pointer/keyboard gestures are implemented. Application-owned audio is integrated into the common player with cancellable CPU preparation jobs. The native container HUD now includes acknowledged paint/input, real server transfers, scrolling, GPU recovery and navigation lifetime. Floating inventory/equipment, action catalogue/spellbook and preferences now use typed native HUD owners, retained text/source resources and acknowledged input. Acknowledged UI-origin tooltips now use retained text and host deadlines. UI-origin Drop cursors and acknowledged drag/assignment highlighting now have GPU and authoritative transfer evidence. Native isometric source production, shared CPU source publication, game-view outputs and acknowledged input receipts now have GPU/CPU and shipped-source device-reconstruction evidence. Browser worker hosting, remaining game-mode/HUD policy parity, performance acceptance remain. Canonical native desktop launchers now share the common application/host; see launcher verification below.
 - M7/M8/M9: Retirement and platform/full acceptance pending. Canonical desktop clients share one common player; the Xcode client now uses it through the retained ABI over a Rust-created CAMetalLayer surface. Native/ARM64 simulator app bundles link, and real Swift/static-library and registered-scene layer checks pass. Browser bootstrap, native text/platform parity, Creator wrapper and complete physical/release acceptance remain; this is not complete application/platform parity.
 
@@ -4963,3 +4963,82 @@ light/direction handle cases, full Paint operation/camera/DPI matrix, resource/
 idle/performance/release, browser and Apple/physical host acceptance remain open.
 Preserve the intentionally hidden Collision Probe and unrelated networking
 concept. Full M0–M9 completion is still unverified; keep the Goal active.
+
+
+### Paint dock correction from user review (2026-11-13)
+
+The user correctly identified that the prior Prefab capture revived the old Paint
+dock alongside the new overlay. The previous custom Paint-panel conversion and
+`eldiron-native-creator-prefab-paint.png` are **superseded**, not acceptance proof
+for the intended Paint UI.
+
+- Prefab Paint and Tile Picker now select the same embedded normal `TilesDock`.
+  The obsolete Paint stack page, field, activation and event forwarding are
+  removed. The remaining internal stack indices are not serialized project data.
+- Removed the obsolete global Paint registration; legacy `set_dock("Paint")`
+  requests resolve to Tiles. No old Paint widget tree is constructed. Original
+  legacy source and helper APIs are retained; only our unnecessary custom-panel
+  GPU conversion was reverted and its new module removed.
+- Source publication and Reveal Tile Collection reach the embedded picker even
+  when activation precedes its queued Tool Changed notification. Paint settings
+  remain in the viewport overlay; source selection uses normal Tile Picked events.
+- Kept the Prefab activation deadlock fix, transformed effects/owned transactions,
+  Swash glyph atlases, GPU source blits and asset-owned Paint authoring.
+
+Validation is recorded below with the shared Play integration checkpoint. The
+initial correction run compiled but its panel assertion ran before the queued
+Tool Changed notification (`eldiron-native-paint-picker-correction.log`). The
+check now performs the next normal update before checking the visible stack;
+production dispatch and presentation guards were not relaxed.
+
+### Shared CPU driver and native live-authoring Play (2026-11-13)
+
+- Extracted CPU `SessionPump` into eldiron-runtime. GameSession retains its public
+  CPU storage/clock API and delegates monotonic ticks, worker polling, entity
+  projection and sole addressed output collection to the pump. Its runtime ID
+  changes on restart/stop, with the previous failed-start output semantics kept.
+- Canonical Creator Play owns a document-scoped pump and monotonic `web_time`
+  clock. Pause/resume discard elapsed debt while retaining identity; paused
+  sessions poll results without issuing system ticks. Command flushes use the
+  same collector. Active-region outputs are delivered once; offscreen batches
+  are discarded according to the existing Creator policy rather than retained
+  indefinitely. Authored project time remains unchanged by runtime clock policy.
+- The live authoring world during Play/pause uses the host-owned SceneView with
+  private particle cadence, no CPU display target and no display color readback.
+  Native bindings and GPU scene scopes include the ephemeral runtime identity;
+  Play/pause/stop and document transitions cancel drafts before replacing runtime
+  data or restoring authored maps. Stale runtime rollback is rejected.
+- This is explicitly a temporary **CPU facade-storage adapter**, not complete
+  GameSession ownership or renderer/global retirement. Creator still lends the
+  facade's Server/Assets/current-map storage, startup uses existing orchestration,
+  and authored game-screen/GameInput presentation remains on its bitmap adapter.
+  These remain required M4/M5/M6 retirement work.
+
+Existing CPU runtime checks passed **8** (3 unit, 4 local_session, 1 isolation):
+`/private/tmp/eldiron-session-pump-runtime-tests.log`. No new suite was added and
+unchanged runtime checks were not rerun for the Paint layout correction.
+Reference Creator compile passed, **21.18 s**:
+`/private/tmp/eldiron-native-paint-session-reference.log`.
+
+Assembled native GPU checkpoint **passed 1**, **76.80 s** (25.02 s build):
+`/private/tmp/eldiron-native-paint-session-root.log`. It retains the existing
+application integrations and verifies visible normal Paint picker/obsolete-widget
+absence, real Prefab Paint commit, real toolbar Play/output-once/pause/resume,
+Stop/same-map restart and document-switch restoration. Both real runtime starts
+report 0 rules errors. Native presentation and live Play checks retain zero
+unrequested color readback and no CPU scene-target storage.
+
+Visually inspected corrected capture:
+`/private/tmp/eldiron-native-creator-prefab-tilepicker.png`. It shows the Paint
+overlay above the normal picker with Paint Brushes selected, without the old
+Paint dock. This is offscreen GPU evidence; physical presentation remains open.
+`git diff --check` passed. An automatic review rejected broad whole-file rustfmt;
+only changed code was adjusted, and no source-wide formatting was performed.
+
+All M0–M9 acceptance remains open. Physical-window presentation is still blocked
+by the locked Mac, and simulator runtime by the documented Xcode/CoreSimulator
+mismatch. The normal authoring-context matrix, full Paint operations/save/reopen,
+accepted-click retry, complete GameSession/renderer/global ownership, authored
+Play screens/HUD/input, resource/performance/release, browser and Apple acceptance
+remain required. Preserve the hidden Collision Probe and unrelated networking
+concept; keep the overall Goal active.

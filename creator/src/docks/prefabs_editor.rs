@@ -1,4 +1,3 @@
-use crate::docks::iso_paint::IsoPaintDock;
 use crate::docks::palette::PaletteDock;
 use crate::docks::tiles::TilesDock;
 use crate::editor::{RUSTERIX, TOOLLIST, UNDOMANAGER};
@@ -78,7 +77,6 @@ const EFFECT_SURFACE_OFFSET: &str = "Prefab Editor Surface Offset";
 enum PrefabEditorMode {
     #[default]
     Parts,
-    Paint,
     Tiles,
     Palette,
     Effects,
@@ -103,10 +101,9 @@ impl PrefabEditorMode {
     fn index(self) -> i32 {
         match self {
             Self::Parts => 0,
-            Self::Paint => 1,
-            Self::Tiles => 2,
-            Self::Palette => 3,
-            Self::Effects => 4,
+            Self::Tiles => 1,
+            Self::Palette => 2,
+            Self::Effects => 3,
         }
     }
 }
@@ -130,7 +127,6 @@ pub struct PrefabsEditorDock {
     parent_options: Vec<Option<Uuid>>,
     assignment_options: Vec<Uuid>,
     door_preview_open: bool,
-    paint_dock: IsoPaintDock,
     tiles_dock: TilesDock,
     palette_dock: PaletteDock,
 }
@@ -2248,8 +2244,7 @@ impl PrefabsEditorDock {
             return PrefabEditorMode::Palette;
         }
         match tools.current_game_tool_command_id() {
-            Some("tool.iso_paint") => PrefabEditorMode::Paint,
-            Some("tool.tile_picker") => PrefabEditorMode::Tiles,
+            Some("tool.iso_paint" | "tool.tile_picker") => PrefabEditorMode::Tiles,
             Some("tool.effects") => PrefabEditorMode::Effects,
             _ => PrefabEditorMode::Parts,
         }
@@ -2360,7 +2355,6 @@ impl Dock for PrefabsEditorDock {
             parent_options: Vec::new(),
             assignment_options: Vec::new(),
             door_preview_open: false,
-            paint_dock: IsoPaintDock::new_prefab(),
             tiles_dock: TilesDock::new_prefab(),
             palette_dock: PaletteDock::new_prefab(),
         }
@@ -2417,7 +2411,6 @@ impl Dock for PrefabsEditorDock {
         stack.add_canvas(super::prefab_nodes::PrefabNodePane::canvas(
             Self::part_actions_toolbar(),
         ));
-        stack.add_canvas(self.paint_dock.setup(ctx));
         stack.add_canvas(self.tiles_dock.setup(ctx));
         stack.add_canvas(self.palette_dock.setup(ctx));
         stack.add_canvas(Self::effects_canvas());
@@ -2450,7 +2443,6 @@ impl Dock for PrefabsEditorDock {
         self.door_preview_open = false;
         self.sync_mode(ui, ctx, project);
         self.sync_part_tree(ui, ctx, project, asset_id);
-        self.paint_dock.activate(ui, ctx, project, server_ctx);
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Update Action List"),
             TheValue::Empty,
@@ -2730,14 +2722,11 @@ impl Dock for PrefabsEditorDock {
             ctx.ui.send(event);
             return true;
         }
-        if self.mode == PrefabEditorMode::Paint
-            && self
-                .paint_dock
-                .handle_event(event, ui, ctx, project, server_ctx)
-        {
-            return true;
-        }
-        if self.mode == PrefabEditorMode::Tiles {
+        // Activation queues source publication before the Tool Changed event.
+        // Keep the embedded picker current even while its stack is still hidden.
+        let picker_refresh = matches!(event, TheEvent::Custom(id, _)
+            if matches!(id.name.as_str(), "Update Tilepicker" | "Update Tilepicker Textures" | "Reveal Tile Collection"));
+        if self.mode == PrefabEditorMode::Tiles || picker_refresh {
             let edits_prefab = self.tiles_dock.edits_map_for_event(event);
             let redraw = self
                 .tiles_dock
@@ -2789,9 +2778,7 @@ impl Dock for PrefabsEditorDock {
                 if self.mode == PrefabEditorMode::Parts {
                     self.sync_part_inspector(ui, ctx, project, asset_id);
                 }
-                if self.mode == PrefabEditorMode::Paint {
-                    self.paint_dock.activate(ui, ctx, project, server_ctx);
-                } else if self.mode == PrefabEditorMode::Tiles {
+                if self.mode == PrefabEditorMode::Tiles {
                     self.tiles_dock.activate(ui, ctx, project, server_ctx);
                 } else if self.mode == PrefabEditorMode::Palette {
                     self.palette_dock.activate(ui, ctx, project, server_ctx);
@@ -4226,7 +4213,6 @@ impl Dock for PrefabsEditorDock {
             }
             TheEvent::Custom(id, _) if id.name == crate::docks::blocks::BLOCKS_DOCK_SYNC_EVENT => {
                 self.sync_part_tree(ui, ctx, project, asset_id);
-                self.paint_dock.activate(ui, ctx, project, server_ctx);
                 if self.mode == PrefabEditorMode::Tiles {
                     self.tiles_dock.activate(ui, ctx, project, server_ctx);
                 } else if self.mode == PrefabEditorMode::Palette {
@@ -4276,10 +4262,9 @@ mod tests {
     #[test]
     fn prefab_editor_modes_have_stable_stack_indices() {
         assert_eq!(PrefabEditorMode::Parts.index(), 0);
-        assert_eq!(PrefabEditorMode::Paint.index(), 1);
-        assert_eq!(PrefabEditorMode::Tiles.index(), 2);
-        assert_eq!(PrefabEditorMode::Palette.index(), 3);
-        assert_eq!(PrefabEditorMode::Effects.index(), 4);
+        assert_eq!(PrefabEditorMode::Tiles.index(), 1);
+        assert_eq!(PrefabEditorMode::Palette.index(), 2);
+        assert_eq!(PrefabEditorMode::Effects.index(), 3);
     }
 
     #[test]

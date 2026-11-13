@@ -128,7 +128,7 @@ pub fn activate(
         server.curr_tile_id = Some(id);
         server.curr_tile_source = Some(rusterix::TileSource::SingleTile(id));
     }
-    // The isolated Prefab editor owns its lower Paint/Tiles panels. Switching
+    // The isolated Prefab editor owns its lower tile picker. Switching
     // the application dock here would minimize that editor and re-enter the
     // ToolList lock held by tool activation.
     if !server.pc.is_prefab() {

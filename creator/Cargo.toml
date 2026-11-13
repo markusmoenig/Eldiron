@@ -26,6 +26,8 @@ path = "examples/reference_ui_capture.rs"
 required-features = ["desktop"]
 
 [dependencies]
+web-time = "1.1.0"
+eldiron-runtime = { path = "../crates/runtime" }
 theframework-core = { path = "../crates/theframework-core" }
 renderkit = { path = "../crates/renderkit", optional = true }
 eldiron-presentation = { path = "../crates/presentation", optional = true }

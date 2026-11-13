@@ -2,10 +2,11 @@
 //! There is no surface, UI context, font shaping, GPU device or render callback.
 mod clock;
 mod events;
+mod pump;
 mod view;
 pub use clock::SessionClock;
 pub use events::{EventInterests, RegionEvents, RegionOutputs};
-use rustc_hash::FxHashMap;
+pub use pump::SessionPump;
 pub use rusterix::player_start::{PlayerStartInfo, PlayerStartOptions};
 use rusterix::{Assets, EntityAction, Server, ServerState};
 pub use shared::project::Project;
@@ -53,12 +54,9 @@ pub struct GameSession {
     pub server: Server,
     pub current_map: String,
     pub clock: SessionClock,
-    events: FxHashMap<Uuid, RegionEvents>,
-    interests: EventInterests,
+    pump: SessionPump,
     started: bool,
     local_player_started: bool,
-    session_id: Uuid,
-    tick_sequence: u64,
 }
 impl GameSession {
     pub fn new(project: Project) -> Self {
@@ -80,12 +78,9 @@ impl GameSession {
             server: Server::default(),
             current_map,
             clock: SessionClock::new(Duration::from_millis(tick)),
-            events: FxHashMap::default(),
-            interests: EventInterests::default(),
+            pump: SessionPump::new(EventInterests::default()),
             started: false,
             local_player_started: false,
-            session_id: Uuid::new_v4(),
-            tick_sequence: 0,
         }
     }
     pub fn start(&mut self, options: SessionOptions) -> Result<(), String> {
@@ -111,7 +106,7 @@ impl GameSession {
         if !start_map.is_empty() && !self.project.regions.iter().any(|r| r.name == start_map) {
             return Err(format!("Start region '{}' not found", start_map));
         }
-        self.session_id = Uuid::new_v4();
+        self.pump.renew_identity();
         shared::runtime_assets::start_server(
             &mut self.server,
             &mut self.assets,
@@ -119,12 +114,10 @@ impl GameSession {
             options.debug,
         )?;
         self.current_map = start_map;
+        self.pump.restart_collection(options.events);
         self.clock = SessionClock::new(Duration::from_millis(tick));
-        self.tick_sequence = 0;
         self.started = true;
         self.local_player_started = false;
-        self.interests = options.events;
-        self.events.clear();
         self.clock.reset_elapsed();
         if options.create_local_player {
             if let Err(e) = self.create_local_player() {
@@ -178,7 +171,7 @@ impl GameSession {
     /// Monotonic count of local system ticks issued by this session. Resets on
     /// successful start; rendering, polling and GPU lifetime do not advance it.
     pub fn tick_sequence(&self) -> u64 {
-        self.tick_sequence
+        self.pump.tick_sequence()
     }
     pub fn has_started_player(&self) -> bool {
         self.local_player_started
@@ -187,77 +180,64 @@ impl GameSession {
         self.server.local_player_action(action);
     }
     pub fn advance(&mut self, elapsed: Duration) -> SessionUpdate {
-        let ticks = if self.server.state == ServerState::Running {
-            self.clock.advance(elapsed)
-        } else {
-            self.clock.reset_elapsed();
-            0
-        };
-        self.update(ticks)
+        let update = self.pump.advance(
+            &mut self.clock,
+            elapsed,
+            &mut self.project,
+            &mut self.server,
+            &mut self.assets,
+            &mut self.current_map,
+        );
+        if let Some(time) = update.time {
+            self.project.time = time;
+        }
+        update
     }
     /// Explicit deterministic step for command-driven hosts and startup settling.
     pub fn tick_once(&mut self) -> SessionUpdate {
         self.update(u32::from(self.server.state == ServerState::Running))
     }
-    /// Drain worker results even on a frame with no simulation tick. Every output
-    /// channel is collected once and remains owned until its consumer takes it.
+    /// Polling cannot issue a system tick; output stays owned until consumed.
     pub fn poll(&mut self) -> SessionUpdate {
         self.update(0)
     }
     fn update(&mut self, ticks: u32) -> SessionUpdate {
-        self.tick_sequence = self.tick_sequence.saturating_add(u64::from(ticks));
-        for _ in 0..ticks {
-            self.server.system_tick();
+        let update = self.pump.update(
+            ticks,
+            true,
+            &mut self.project,
+            &mut self.server,
+            &mut self.assets,
+            &mut self.current_map,
+        );
+        if let Some(time) = update.time {
+            self.project.time = time;
         }
-        self.server.redraw_tick();
-        let changed = self.server.update(&mut self.assets);
-        if let Some(name) = &changed {
-            self.current_map = name.clone();
-        }
-        let mut time = None;
-        for region in &mut self.project.regions {
-            self.server.apply_entities_items(&mut region.map);
-            if region.map.name == self.current_map {
-                time = self.server.get_time(&region.map.id);
-                if let Some(t) = time {
-                    self.project.time = t;
-                }
-            }
-            self.events.entry(region.map.id).or_default().collect(
-                &mut self.server,
-                &region.map.id,
-                self.interests,
-            );
-        }
-        SessionUpdate {
-            system_ticks: ticks,
-            region_changed: changed,
-            time,
-        }
+        update
     }
     pub fn take_events(&mut self, id: &Uuid) -> RegionEvents {
-        self.events.remove(id).unwrap_or_default()
+        self.pump.take_events(id)
     }
     pub fn take_messages(&mut self, id: &Uuid) -> Vec<rusterix::server::Message> {
-        self.events
-            .get_mut(id)
+        self.pump
+            .pending_events(id)
             .map(|e| std::mem::take(&mut e.messages))
             .unwrap_or_default()
     }
     pub fn take_says(&mut self, id: &Uuid) -> Vec<rusterix::server::Say> {
-        self.events
-            .get_mut(id)
+        self.pump
+            .pending_events(id)
             .map(|e| std::mem::take(&mut e.says))
             .unwrap_or_default()
     }
     pub fn stop(&mut self) {
         if self.started {
-            self.session_id = Uuid::new_v4();
+            self.pump.invalidate();
             self.server.stop();
             self.started = false;
             self.local_player_started = false;
         }
-        self.events.clear();
+        self.pump.clear_events();
         self.clock.reset_elapsed();
     }
 }

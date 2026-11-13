@@ -1465,7 +1465,22 @@ mod tests {
             TheId::named(crate::tools::paint_picker::MODE),
             0,
         ));
+        // Tool activation queues the dock-mode notification for the next update.
+        app.update(&mut host, Duration::from_millis(16));
         settle_prefab(&mut app, &mut host, &mut replacement);
+        assert_eq!(
+            app.session.ui.get_stack_layout("Prefab Editor Mode Stack").unwrap().index(),
+            1,
+            "Paint shares the normal embedded tile picker"
+        );
+        let picker = app.session.ui.get_layout("Prefab Editor Tiles Dock Tabs").unwrap();
+        assert!(picker.dim().width > 0 && picker.dim().height > 0);
+        for prefix in ["", "Prefab "] {
+            for obsolete in ["3D Paint Preset Strip", "3D Paint Material Strip", "3D Paint Brush Editor"] {
+                assert!(app.session.ui.get_widget(&format!("{prefix}{obsolete}")).is_none(),
+                    "the retired Paint dock must not be constructed");
+            }
+        }
         let at = app
             .application
             .editor
@@ -1527,6 +1542,149 @@ mod tests {
             .unwrap()
             .write_image_data(image.pixels())
             .unwrap();
+        // Continue through actual toolbar Play controls using the same CPU
+        // driver as the common player. The live authoring world also retains
+        // its own GPU scene; authored game-screen mode is migrated separately.
+        let play_document = app
+            .application
+            .editor
+            .begin_native_play_for_test(&mut app.session.ui, &mut app.session.context);
+        app.update(&mut host, Duration::from_millis(16));
+        let authored =
+            serde_json::to_value(&app.application.editor.project_for_native_test().regions)
+                .unwrap();
+        app.session.context.ui.send(TheEvent::StateChanged(
+            TheId::named("Play"),
+            TheWidgetState::Clicked,
+        ));
+        app.update(&mut host, Duration::from_millis(16));
+        let initial = app
+            .application
+            .editor
+            .native_play_stats_for_test()
+            .expect("toolbar Play owns the shared runtime driver");
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            app.update(&mut host, Duration::from_millis(16));
+            let before = gpu.transfers();
+            let frame = app.frame(&mut host, &mut replacement).unwrap();
+            assert!(
+                app.application.pending.as_ref().unwrap().world_for_test(),
+                "live Play authoring uses the owning native scene"
+            );
+            renderer
+                .render(
+                    &frame,
+                    &replacement,
+                    &output.view,
+                    output.descriptor.format,
+                    (1600, 1000),
+                    1.,
+                    [0.; 4],
+                )
+                .unwrap();
+            app.presented(&mut host);
+            assert_eq!(
+                gpu.transfers().readback_bytes,
+                before.readback_bytes,
+                "live authoring presentation performs no color readback"
+            );
+            assert!(
+                !app.application
+                    .editor
+                    .native_world_has_cpu_storage_for_test()
+            );
+            if app.application.editor.native_world_ready_for_test() {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "live Play source never became ready"
+            );
+        }
+        app.application.editor.queue_native_play_message_for_test();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            std::thread::sleep(Duration::from_millis(50));
+            app.update(&mut host, Duration::from_millis(50));
+            let state = app.application.editor.native_play_stats_for_test().unwrap();
+            if state.0 > initial.0 && state.2 == 1 {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "Creator shared clock/output did not advance: {state:?}"
+            );
+        }
+        app.session.context.ui.send(TheEvent::StateChanged(
+            TheId::named("Pause"),
+            TheWidgetState::Clicked,
+        ));
+        app.update(&mut host, Duration::from_millis(16));
+        let paused = app.application.editor.native_play_stats_for_test().unwrap();
+        std::thread::sleep(Duration::from_millis(300));
+        app.update(&mut host, Duration::from_millis(300));
+        assert_eq!(
+            app.application.editor.native_play_stats_for_test(),
+            Some(paused),
+            "paused Play cannot tick or drain a message twice"
+        );
+        app.session.context.ui.send(TheEvent::StateChanged(
+            TheId::named("Play"),
+            TheWidgetState::Clicked,
+        ));
+        app.update(&mut host, Duration::from_millis(16));
+        app.update(&mut host, Duration::from_millis(16));
+        let resumed = app.application.editor.native_play_stats_for_test().unwrap();
+        assert_eq!(
+            (resumed.0, resumed.1),
+            (paused.0, paused.1),
+            "resume preserves runtime identity and discards paused elapsed time"
+        );
+        assert_eq!(
+            resumed.2, 0,
+            "the existing Resume policy clears pending presentation messages"
+        );
+        app.session.context.ui.send(TheEvent::StateChanged(
+            TheId::named("Stop"),
+            TheWidgetState::Clicked,
+        ));
+        app.update(&mut host, Duration::from_millis(16));
+        assert!(app.application.editor.native_play_stats_for_test().is_none());
+        assert_eq!(
+            serde_json::to_value(&app.application.editor.project_for_native_test().regions).unwrap(),
+            authored,
+            "Stop restores the authored document before restarting the same map IDs"
+        );
+        app.session.context.ui.send(TheEvent::StateChanged(
+            TheId::named("Play"),
+            TheWidgetState::Clicked,
+        ));
+        app.update(&mut host, Duration::from_millis(16));
+        let restarted = app.application.editor.native_play_stats_for_test().unwrap();
+        assert_ne!(restarted.1, initial.1, "restarting revokes the prior runtime identity");
+        // Project replacement stops the original runtime before projecting or
+        // saving the new document, and restores its original authored map.
+        app.application
+            .editor
+            .begin_native_play_for_test(&mut app.session.ui, &mut app.session.context);
+        assert!(
+            app.application
+                .editor
+                .native_play_stats_for_test()
+                .is_none()
+        );
+        assert!(crate::editor::RUSTERIX.read().unwrap().server.state == rusterix::ServerState::Off);
+        assert_eq!(
+            serde_json::to_value(
+                app.application
+                    .editor
+                    .native_play_saved_map_for_test(play_document)
+            )
+            .unwrap(),
+            authored,
+            "project switching cannot save transient Play data"
+        );
         // Check the new sampler within this assembled checkpoint. The reference
         // uses the existing independent CPU DDA, including duplicate blending.
         use theframework::paint::{DisplayCompositing, PaintOp};

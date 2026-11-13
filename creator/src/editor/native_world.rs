@@ -39,6 +39,7 @@ impl AssetKey {
 #[derive(Clone, PartialEq)]
 struct Binding {
     document: Uuid,
+    runtime: Option<Uuid>,
     view: TheId,
     tool: Uuid,
     context: ProjectContext,
@@ -55,6 +56,7 @@ struct Binding {
 impl Binding {
     fn capture_compatible(&self, next: &Self) -> bool {
         self.document == next.document
+            && self.runtime == next.runtime
             && self.view == next.view
             && self.tool == next.tool
             && self.context == next.context
@@ -170,7 +172,7 @@ struct SceneInputKey {
 }
 struct WorldGpu {
     registry: u64,
-    scope: Option<(Uuid, ProjectContext, Uuid)>,
+    scope: Option<(Uuid, ProjectContext, Uuid, Option<Uuid>)>,
     scenes: SceneViews,
     view: ViewId,
     configured: Option<AssetKey>,
@@ -592,10 +594,11 @@ impl Editor {
             return;
         };
         let owner = gesture.binding;
-        if self
-            .sessions
-            .get(self.active_session)
-            .is_none_or(|session| session.id != owner.document)
+        if self.play_session.as_ref().map(|session| session.pump.session_id()) != owner.runtime
+            || self
+                .sessions
+                .get(self.active_session)
+                .is_none_or(|session| session.id != owner.document)
         {
             return;
         }
@@ -711,9 +714,15 @@ impl Editor {
             return false;
         }
         let bridge = RUSTERIX.read().unwrap();
-        // Named remaining adapters: runtime speech/visibility, sprite-isometric,
-        // orthographic bakes, custom contexts/tools and Play.
-        bridge.server.state == rusterix::ServerState::Off
+        // The shared CPU pump publishes live actors into the authoring map.
+        // Game-screen mode, speech/visibility, orthographic bakes and the
+        // remaining custom contexts still have explicit migration adapters.
+        let owned_play = self.play_session.as_ref().is_some_and(|play| {
+            self.sessions
+                .get(self.active_session)
+                .is_some_and(|document| document.id == play.document)
+        });
+        (bridge.server.state == rusterix::ServerState::Off || owned_play)
             && bridge.client.messages_to_draw.is_empty()
             && !bridge.orthographic_bake.is_rendering()
             && (self.server_ctx.editor_view_mode != EditorViewMode::D2
@@ -737,6 +746,7 @@ impl Editor {
         let bridge = RUSTERIX.read().unwrap();
         Some(Binding {
             document,
+            runtime: self.play_session.as_ref().map(|session| session.pump.session_id()),
             view,
             tool,
             context: self.server_ctx.pc,
@@ -768,7 +778,8 @@ impl Editor {
         let d2 = self.server_ctx.editor_view_mode == EditorViewMode::D2;
         let fx = self.server_ctx.pc.is_prefab()
             && self.server_ctx.curr_map_tool_type == MapToolType::Effects;
-        if (d2 || fx)
+        let running = RUSTERIX.read().unwrap().server.state == rusterix::ServerState::Running;
+        if (d2 || fx || running)
             && let Some(gpu) = &mut self.native_viewport.world.gpu
         {
             let _ = gpu.scenes.tick_editor_particles(gpu.view, d2);
@@ -901,7 +912,7 @@ impl Editor {
         }
         let target = binding.target(world.epoch);
         let gpu = world.gpu.as_mut().unwrap();
-        let scope = (binding.document, binding.context, binding.map);
+        let scope = (binding.document, binding.context, binding.map, binding.runtime);
         if gpu.scope != Some(scope) {
             // Reopened/copied documents may reuse map IDs and local revisions.
             // Neither atlas residency nor builder caches can cross that lifetime.

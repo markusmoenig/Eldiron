@@ -307,6 +307,57 @@ impl Editor {
         self.project.block_props.get_mut(&id).unwrap().name = name.into();
         crate::block_props::sync_existing_prefab_presentations(&self.project);
     }
+    pub(crate) fn begin_native_play_for_test(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+    ) -> usize {
+        let project = Self::new_project(crate::project_templates::ProjectDimension::ThreeD);
+        let mut icons = false;
+        let mut redraw = false;
+        assert!(self.open_project_as_session(project, None, ui, ctx, &mut icons, &mut redraw));
+        self.server_ctx.game_mode = false;
+        self.server_ctx.game_input_mode = false;
+        self.server_ctx.text_game_mode = false;
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named("Set Tool"),
+            TheValue::Text("tool.geometry".into()),
+        ));
+        self.active_session
+    }
+    pub(crate) fn native_play_stats_for_test(&self) -> Option<(u64, Uuid, usize)> {
+        let session = self.play_session.as_ref()?;
+        Some((
+            session.pump.tick_sequence(),
+            session.pump.session_id(),
+            self.pending_game_messages
+                .iter()
+                .filter(|m| m.3 == "Native Play delivery checkpoint")
+                .count(),
+        ))
+    }
+    pub(crate) fn queue_native_play_message_for_test(&mut self) {
+        let id = self.project.regions[0].map.id;
+        let mut runtime = RUSTERIX.write().unwrap();
+        let region = *runtime
+            .server
+            .region_id_map
+            .get(&id)
+            .expect("real started Creator region");
+        runtime.server.messages.entry(region).or_default().push((
+            None,
+            None,
+            0,
+            "Native Play delivery checkpoint".into(),
+            "status".into(),
+        ));
+    }
+    pub(crate) fn native_play_saved_map_for_test(
+        &self,
+        index: usize,
+    ) -> &Vec<shared::region::Region> {
+        &self.sessions[index].project.regions
+    }
     pub(crate) fn native_world_vertices_for_test(&self) -> usize {
         self.project
             .get_map(&self.server_ctx)
