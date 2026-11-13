@@ -15,6 +15,9 @@ pub struct RectTool {
     hovered_vertices: Option<[Vec2<f32>; 4]>,
     mode: i32,
     hud: Hud,
+    native_panel: super::rect_overlay::RectPanel,
+    overlay_sources: crate::editor_overlay::OverlaySources,
+    view_input: Option<ToolViewInput>,
     composition_mode_rects: Vec<TheDim>,
     rotation_rects: Vec<(TheDim, f32)>,
     // A gesture beginning on the HUD must never become a map-paint stroke.
@@ -52,6 +55,9 @@ impl Tool for RectTool {
             hovered_vertices: None,
             mode: 0,
             hud: Hud::new(HudMode::Rect),
+            native_panel: Default::default(),
+            overlay_sources: crate::editor_overlay::OverlaySources::new(Uuid::new_v4()),
+            view_input: None,
             composition_mode_rects: Vec::new(),
             rotation_rects: Vec::new(),
             hud_control_active: false,
@@ -72,6 +78,130 @@ impl Tool for RectTool {
 
     fn id(&self) -> TheId {
         self.id.clone()
+    }
+    fn set_view_input(&mut self, input: Option<ToolViewInput>) {
+        self.view_input = input;
+    }
+    fn set_native_overlay_input(&mut self, native: bool) {
+        self.hud.set_native_input(native);
+        self.composition_mode_rects.clear();
+        self.rotation_rects.clear();
+    }
+    fn overlay_hud(&mut self) -> Option<&mut Hud> {
+        Some(&mut self.hud)
+    }
+    fn hud_selected_id(&self, map: &Map, _server: &ServerContext) -> Option<u32> {
+        map.selected_linedefs.first().copied()
+    }
+    fn prepare_overlay(&mut self, input: ToolOverlayInputs<'_>) -> Option<ToolOverlayFrame> {
+        let brush = self.prepare_native_brush(input);
+        let highlight =
+            Self::prepare_native_highlight(input.hud.map, input.hud.server, input.target.size);
+        let source = super::rect_overlay::Source::read(input.hud.map, input.hud.server);
+        let mut frame = ToolOverlayFrame::prepare_standard(self, input)?;
+        frame.prepend_commands(brush);
+        frame.push_rect(self.native_panel.prepare(input.target, source, highlight));
+        Some(frame)
+    }
+    fn invalidate_overlay(&mut self) {
+        self.hud.invalidate_frame();
+        self.native_panel.invalidate();
+    }
+    fn overlay_input_current(
+        &mut self,
+        frame: &ToolOverlayFrame,
+        target: ToolOverlayTarget,
+        map: &Map,
+        server: &ServerContext,
+    ) -> bool {
+        frame.hud_input_current(&self.hud, target, map, server)
+            && frame.rect_current(
+                &self.native_panel,
+                &super::rect_overlay::Source::read(map, server),
+                target,
+                false,
+            )
+    }
+    fn overlay_command_source_current(
+        &mut self,
+        frame: &ToolOverlayFrame,
+        target: ToolOverlayTarget,
+        map: &Map,
+        server: &ServerContext,
+    ) -> bool {
+        frame.hud_command_source_current(&self.hud, target, map, server)
+            && frame.rect_current(
+                &self.native_panel,
+                &super::rect_overlay::Source::read(map, server),
+                target,
+                true,
+            )
+    }
+    fn apply_rect_overlay(
+        &mut self,
+        action: super::rect_overlay::Action,
+        map: &mut Map,
+        server: &mut ServerContext,
+    ) -> Option<Vec<TheEvent>> {
+        use super::rect_overlay::Action;
+        let mut events = vec![];
+        match action {
+            Action::Compose(compose) => {
+                self.reset_stroke();
+                server.rect_compose_mode = compose;
+                server.rect_composition_target = None;
+                events.push(TheEvent::Custom(
+                    TheId::named("Map Selection Changed"),
+                    TheValue::Empty,
+                ));
+                events.push(TheEvent::SetStatusText(
+                    self.id.clone(),
+                    if compose {
+                        "Compose: click an individual painted tile to edit its material layers."
+                    } else {
+                        "Paint: paint tiles normally. Alt-click samples a tile."
+                    }
+                    .into(),
+                ));
+            }
+            Action::Rotate { delta, button } if map.camera == MapCamera::TwoDIso => {
+                if button {
+                    self.reset_stroke();
+                }
+                Self::rotate_brush(map, delta);
+            }
+            Action::Height(delta) if map.camera == MapCamera::TwoDIso => {
+                let step = map
+                    .properties
+                    .get_float_default("iso_step_height", 0.25)
+                    .clamp(0.05, 8.);
+                let height = (map.properties.get_float_default("iso_edit_height", 0.)
+                    + delta * step)
+                    .clamp(0., 32.);
+                map.properties.set("iso_edit_height", Value::Float(height));
+                map.changed = map.changed.wrapping_add(1);
+                map.curr_rectangle = None;
+            }
+            _ => return None,
+        }
+        Some(events)
+    }
+    #[cfg(feature = "native-ui")]
+    fn presented_overlay(
+        &mut self,
+        frame: &ToolOverlayFrame,
+        receipts: &[theframework::paint::FrameReceipt],
+        target: ToolOverlayTarget,
+        map: &Map,
+        server: &mut ServerContext,
+    ) -> bool {
+        let source = super::rect_overlay::Source::read(map, server);
+        let hud = frame.presented_hud(self, receipts, target, map, server);
+        let panel = frame.presented_rect(&mut self.native_panel, &source, receipts, target);
+        if !hud || !panel {
+            self.invalidate_overlay();
+        }
+        hud && panel
     }
     fn info(&self) -> String {
         fl!("tool_rect")
@@ -1405,6 +1535,139 @@ impl RectTool {
             .last()
             .copied()
     }
+    fn native_rectangle(
+        commands: &mut crate::editor_overlay::EditorOverlay,
+        map: &Map,
+        size: (usize, usize),
+        a: Vec2<f32>,
+        b: Vec2<f32>,
+        color: [u8; 4],
+        edit_plane: bool,
+    ) {
+        let size = Vec2::new(size.0 as f32, size.1 as f32);
+        if map.camera == MapCamera::TwoDIso {
+            let mut projection = rusterix::isometric::Projection::editor(map, size);
+            if edit_plane {
+                projection =
+                    projection.at_height(map.properties.get_float_default("iso_edit_height", 0.));
+            }
+            rusterix::isometric::terrain_rectangle_segments(map, projection, a, b, &mut |a, b| {
+                commands.sampled_line([a.x, a.y], [b.x, b.y], color)
+            });
+        } else {
+            let a = ServerContext::map_grid_to_local(size, a, map);
+            let b = ServerContext::map_grid_to_local(size, b, map);
+            commands.signed_outline(
+                &TheDim::new(
+                    a.x.min(b.x).round() as i32,
+                    a.y.min(b.y).round() as i32,
+                    if edit_plane {
+                        ((a.x.max(b.x).round() - a.x.min(b.x).round()) as i32).max(1) + 1
+                    } else {
+                        (b.x - a.x).abs().round() as i32 + 1
+                    },
+                    if edit_plane {
+                        ((a.y.max(b.y).round() - a.y.min(b.y).round()) as i32).max(1) + 1
+                    } else {
+                        (b.y - a.y).abs().round() as i32 + 1
+                    },
+                ),
+                &color,
+            );
+        }
+    }
+    fn prepare_native_brush(
+        &mut self,
+        input: ToolOverlayInputs<'_>,
+    ) -> crate::editor_overlay::EditorOverlay {
+        let mut commands = crate::editor_overlay::EditorOverlay::new(input.target.size);
+        let map = input.hud.map;
+        self.overlay_sources.begin();
+        if input.hud.server.editor_view_mode == EditorViewMode::D2
+            && let Some((a, b)) = map.curr_rectangle
+        {
+            if map.camera == MapCamera::TwoDIso {
+                let center = (a + b) * 0.5;
+                let edit_height = map.properties.get_float_default("iso_edit_height", 0.);
+                let height = if edit_height.abs() < 0.001 {
+                    rusterix::chunkbuilder::terrain_surface::TerrainSurface::cached(map)
+                        .and_then(|t| t.height_at(center))
+                        .unwrap_or(edit_height)
+                } else {
+                    edit_height
+                };
+                if let Some(rusterix::TileSource::SingleTile(id)) =
+                    input.hud.server.curr_tile_source
+                    && let Some(tile) = input.hud.assets.tiles.get(&id)
+                    && let Some(sprite) = rusterix::isometric::tile_preview_sprite(
+                        tile,
+                        center,
+                        map.properties.get_float_default("iso_brush_yaw", 0.),
+                    )
+                    && let Some(image) = sprite.image()
+                {
+                    let projection = rusterix::isometric::Projection::editor(
+                        map,
+                        Vec2::new(input.target.size.0 as f32, input.target.size.1 as f32),
+                    )
+                    .at_height(height);
+                    let (origin, scale) = sprite.image_placement(&image, projection);
+                    if let Some(source) = self.overlay_sources.image(
+                        "rect-tile-preview",
+                        image.width,
+                        image.height,
+                        image.data,
+                    ) {
+                        commands.sprite(source, [origin.x, origin.y], scale, sprite.opacity);
+                    }
+                }
+            }
+            Self::native_rectangle(
+                &mut commands,
+                map,
+                input.target.size,
+                a,
+                b,
+                if map.camera == MapCamera::TwoDIso {
+                    [223, 226, 209, 200]
+                } else {
+                    [255; 4]
+                },
+                true,
+            );
+        }
+        self.overlay_sources.finish();
+        commands
+    }
+    fn prepare_native_highlight(
+        map: &Map,
+        server: &ServerContext,
+        size: (usize, usize),
+    ) -> crate::editor_overlay::EditorOverlay {
+        let mut commands = crate::editor_overlay::EditorOverlay::new(size);
+        if server.editor_view_mode == EditorViewMode::D2 && server.rect_compose_mode {
+            use shared::material_composition::CompositionSurface;
+            let bounds = server
+                .rect_composition_target
+                .as_ref()
+                .filter(|b| b.map == map.id)
+                .and_then(|binding| match binding.surface {
+                    CompositionSurface::RectTile { sector } => map.find_sector(sector).map(|s| {
+                        let b = s.bounding_box(map);
+                        (b.min, b.max)
+                    }),
+                    CompositionSurface::TerrainTile { cell } => {
+                        let p = Vec2::new(cell[0] as f32, cell[1] as f32);
+                        Some((p, p + 1.))
+                    }
+                    _ => None,
+                });
+            if let Some((a, b)) = bounds {
+                Self::native_rectangle(&mut commands, map, size, a, b, [210, 176, 92, 255], false);
+            }
+        }
+        commands
+    }
     fn rotate_brush(map: &mut Map, delta: f32) {
         let yaw = (map.properties.get_float_default("iso_brush_yaw", 0.) + delta).rem_euclid(360.);
         map.properties.set("iso_brush_yaw", Value::Float(yaw));
@@ -2388,15 +2651,15 @@ impl RectTool {
                 coord.y as f32 / dim.height as f32,
             ];
 
-            let rusterix = RUSTERIX.read().unwrap();
-
-            let rc = rusterix.scene_handler.vm.pick_geo_id_at_uv(
-                dim.width as u32,
-                dim.height as u32,
-                screen_uv,
-                false,
-                false,
-            );
+            let rc = if let Some(input) = &self.view_input {
+                input.base
+            } else if self.hud.uses_native_input() {
+                None
+            } else {
+                RUSTERIX.read().unwrap().scene_handler.vm.pick_geo_id_at_uv(
+                    dim.width as u32, dim.height as u32, screen_uv, false, false,
+                )
+            };
 
             let mut found = false;
             server_ctx.rect_geometry_face_3d = None;

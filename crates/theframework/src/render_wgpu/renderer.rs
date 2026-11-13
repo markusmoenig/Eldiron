@@ -36,6 +36,10 @@ enum ImageEffect {
         basis: [f32; 4],
         samples: u32,
     },
+    Sprite {
+        scale: Point,
+        basis: [f32; 4],
+    },
     GlyphBackdrop(Color),
     PixelNearest(Point),
     Group,
@@ -284,13 +288,51 @@ impl PaintRenderer {
                     _ => wgpu::StencilOperation::Keep,
                 },
             };
-            self.context.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor{
-                label:Some("ui-paint-pipeline"),layout:Some(&self.pipeline_layout),
-                vertex:wgpu::VertexState{module:&self.shader,entry_point:Some("vs"),compilation_options:Default::default(),buffers:&[Vertex::layout()]},
-                fragment:Some(wgpu::FragmentState{module:&self.shader,entry_point:Some("fs"),compilation_options:Default::default(),targets:&[Some(wgpu::ColorTargetState{format,blend:Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),write_mask:if phase==0{wgpu::ColorWrites::ALL}else{wgpu::ColorWrites::empty()}})]}),
-                primitive:wgpu::PrimitiveState::default(),depth_stencil:Some(wgpu::DepthStencilState{format:wgpu::TextureFormat::Depth24PlusStencil8,depth_write_enabled:Some(false),depth_compare:Some(wgpu::CompareFunction::Always),stencil:wgpu::StencilState{front:stencil,back:stencil,read_mask:255,write_mask:if phase==0{0}else{255}},bias:Default::default()}),
-                multisample:wgpu::MultisampleState{count:samples,..Default::default()},multiview_mask:None,cache:None,
-            })
+            self.context
+                .device
+                .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                    label: Some("ui-paint-pipeline"),
+                    layout: Some(&self.pipeline_layout),
+                    vertex: wgpu::VertexState {
+                        module: &self.shader,
+                        entry_point: Some("vs"),
+                        compilation_options: Default::default(),
+                        buffers: &[Vertex::layout()],
+                    },
+                    fragment: Some(wgpu::FragmentState {
+                        module: &self.shader,
+                        entry_point: Some("fs"),
+                        compilation_options: Default::default(),
+                        targets: &[Some(wgpu::ColorTargetState {
+                            format,
+                            blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+                            write_mask: if phase == 0 {
+                                wgpu::ColorWrites::ALL
+                            } else {
+                                wgpu::ColorWrites::empty()
+                            },
+                        })],
+                    }),
+                    primitive: wgpu::PrimitiveState::default(),
+                    depth_stencil: Some(wgpu::DepthStencilState {
+                        format: wgpu::TextureFormat::Depth24PlusStencil8,
+                        depth_write_enabled: Some(false),
+                        depth_compare: Some(wgpu::CompareFunction::Always),
+                        stencil: wgpu::StencilState {
+                            front: stencil,
+                            back: stencil,
+                            read_mask: 255,
+                            write_mask: if phase == 0 { 0 } else { 255 },
+                        },
+                        bias: Default::default(),
+                    }),
+                    multisample: wgpu::MultisampleState {
+                        count: samples,
+                        ..Default::default()
+                    },
+                    multiview_mask: None,
+                    cache: None,
+                })
         };
         let p = Arc::new(Pipelines {
             draw: make(0),
@@ -425,6 +467,8 @@ impl PaintRenderer {
             viewport: [size.0 as f32, size.1 as f32],
             mode: (if let Some(ImageEffect::Present(srgb)) = effect {
                 if srgb { 8 } else { 9 }
+            } else if matches!(effect, Some(ImageEffect::Sprite { .. })) {
+                15
             } else if matches!(effect, Some(ImageEffect::SampledLine { .. })) {
                 14
             } else if matches!(effect, Some(ImageEffect::PixelTriangle(_))) {
@@ -509,8 +553,15 @@ impl PaintRenderer {
             params.color1 = points.map(|p| ((p as u32) >> 16) as f32);
             params.gradient = points.map(|p| ((p as u32) & 65535) as f32);
         }
-        if let Some(ImageEffect::SampledLine { endpoints, basis, .. }) = effect {
+        if let Some(ImageEffect::SampledLine {
+            endpoints, basis, ..
+        }) = effect
+        {
             params.color1 = endpoints;
+            params.gradient = basis;
+        }
+        if let Some(ImageEffect::Sprite { scale, basis }) = effect {
+            params.color1 = [scale[0], scale[1], 0., 0.];
             params.gradient = basis;
         }
         let uniform = self
@@ -974,15 +1025,20 @@ impl PaintRenderer {
                     }
                     if let Some((vertices, indices)) = mesh::pixel_triangle(physical, size) {
                         draws.push(self.draw_with_effects(
-                            self.geometry(&vertices, &indices), &Brush::Solid(*color),
-                            None, size, level, 0, None, Some(ImageEffect::PixelTriangle(physical)),
+                            self.geometry(&vertices, &indices),
+                            &Brush::Solid(*color),
+                            None,
+                            size,
+                            level,
+                            0,
+                            None,
+                            Some(ImageEffect::PixelTriangle(physical)),
                         ));
                     }
                 }
                 PaintOp::PixelLine { from, to, color } => {
-                    let physical = |point: Point| {
-                        transform.point(point).map(|v| (v * density).round() as i32)
-                    };
+                    let physical =
+                        |point: Point| transform.point(point).map(|v| (v * density).round() as i32);
                     let a = physical(*from);
                     let b = physical(*to);
                     if let Some((vertices, indices)) = mesh::pixel_line(a, b, size) {
@@ -1001,7 +1057,9 @@ impl PaintRenderer {
                 PaintOp::SampledLine { from, to, color } => {
                     let delta = [to[0] - from[0], to[1] - from[1]];
                     let transformed = [transform.point(*from), transform.point(*to)];
-                    if delta.iter().chain(transformed.iter().flatten())
+                    if delta
+                        .iter()
+                        .chain(transformed.iter().flatten())
                         .any(|v| !v.is_finite() || !(v * density).is_finite())
                     {
                         return Err(RenderError("nonfinite sampled line transform".into()));
@@ -1009,16 +1067,72 @@ impl PaintRenderer {
                     let steps = delta[0].abs().max(delta[1].abs()).ceil().min(8192.) as u32;
                     if steps > 0 && transform.inverse().is_some() {
                         let (vertices, indices) = mesh::quad(
-                            Rect::new(0., 0., 1., 1.), Rect::default(), transform, density,
+                            Rect::new(0., 0., 1., 1.),
+                            Rect::default(),
+                            transform,
+                            density,
                         );
                         let [a, b, c, d, _, _] = transform.0;
                         draws.push(self.draw_with_effects(
-                            self.geometry(&vertices, &indices), &Brush::Solid(*color),
-                            None, size, level, 0, None,
+                            self.geometry(&vertices, &indices),
+                            &Brush::Solid(*color),
+                            None,
+                            size,
+                            level,
+                            0,
+                            None,
                             Some(ImageEffect::SampledLine {
                                 endpoints: [from[0], from[1], to[0], to[1]],
                                 basis: [a * density, b * density, c * density, d * density],
                                 samples: steps + 1,
+                            }),
+                        ));
+                    }
+                }
+                PaintOp::SpriteImage {
+                    image,
+                    origin,
+                    scale,
+                    tint,
+                } => {
+                    let image = images.get(*image).ok_or_else(|| {
+                        RenderError("paint references a stale sprite image handle".into())
+                    })?;
+                    let origin = origin.map(f32::round);
+                    let extent = [
+                        (image.descriptor.width as f32 * scale[0]).round(),
+                        (image.descriptor.height as f32 * scale[1]).round(),
+                    ];
+                    let [a, b, c, d, _, _] = transform.0;
+                    let basis = [a * density, b * density, c * density, d * density];
+                    if origin
+                        .iter()
+                        .chain(extent.iter())
+                        .chain(basis.iter())
+                        .any(|v| !v.is_finite())
+                    {
+                        return Err(RenderError("nonfinite sprite transform".into()));
+                    }
+                    if extent[0] > 0. && extent[1] > 0. && transform.inverse().is_some() {
+                        let rect = Rect::new(origin[0], origin[1], extent[0], extent[1]);
+                        let (mut vertices, indices) =
+                            mesh::quad(rect, Rect::default(), transform, density);
+                        for vertex in &mut vertices {
+                            vertex.color = [origin[0], origin[1], extent[0], extent[1]];
+                        }
+                        let mut geometry = self.geometry(&vertices, &indices);
+                        geometry.colored = false;
+                        draws.push(self.draw_with_effects(
+                            geometry,
+                            &Brush::Solid(*tint),
+                            Some((&image, Sampling::Nearest)),
+                            size,
+                            level,
+                            0,
+                            None,
+                            Some(ImageEffect::Sprite {
+                                scale: *scale,
+                                basis,
                             }),
                         ));
                     }

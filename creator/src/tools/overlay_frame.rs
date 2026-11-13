@@ -62,6 +62,7 @@ enum Part {
     Commands(EditorOverlay),
     Hud(HudFrame),
     Terrain(terrain_overlay::Frame),
+    Rect(rect_overlay::Frame),
     Props(PanelFrame<props_overlay::PropsSource, props_overlay::Action>),
 }
 /// Opaque typed aggregate; its source identities and frozen hit metadata remain
@@ -191,6 +192,54 @@ impl ToolOverlayFrame {
             parts: vec![Part::Commands(commands)],
         })
     }
+    pub(crate) fn prepend_commands(&mut self, commands: EditorOverlay) {
+        self.parts.insert(0, Part::Commands(commands));
+    }
+    pub(crate) fn push_rect(&mut self, frame: Option<rect_overlay::Frame>) {
+        if let Some(frame) = frame {
+            self.parts.push(Part::Rect(frame));
+        }
+    }
+    fn has_rect(&self) -> bool {
+        self.parts.iter().any(|p| matches!(p, Part::Rect(_)))
+    }
+    pub(crate) fn rect_current(
+        &self,
+        panel: &rect_overlay::RectPanel,
+        source: &rect_overlay::Source,
+        target: ToolOverlayTarget,
+        command: bool,
+    ) -> bool {
+        self.parts
+            .iter()
+            .find_map(|part| {
+                if let Part::Rect(frame) = part {
+                    Some(panel.current(frame, target, source, command))
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(!rect_overlay::RectPanel::visible(target))
+    }
+    #[cfg(feature = "native-ui")]
+    pub(crate) fn presented_rect(
+        &self,
+        panel: &mut rect_overlay::RectPanel,
+        source: &rect_overlay::Source,
+        receipts: &[theframework::paint::FrameReceipt],
+        target: ToolOverlayTarget,
+    ) -> bool {
+        self.parts
+            .iter()
+            .find_map(|part| {
+                if let Part::Rect(frame) = part {
+                    Some(panel.presented(frame, receipts, target, source))
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(!rect_overlay::RectPanel::visible(target))
+    }
     pub(crate) fn push_terrain(&mut self, frame: Option<terrain_overlay::Frame>) {
         if let Some(frame) = frame {
             self.parts.push(Part::Terrain(frame));
@@ -258,6 +307,7 @@ impl ToolOverlayFrame {
             Part::Commands(commands) => commands,
             Part::Hud(frame) => frame.commands(),
             Part::Terrain(frame) => &frame.commands,
+            Part::Rect(frame) => &frame.commands,
             Part::Props(frame) => &frame.commands,
         })
     }
@@ -419,6 +469,7 @@ impl ToolOverlayFrame {
                 Part::Commands(commands) => commands.paint(text, images, density)?,
                 Part::Hud(frame) => frame.paint(text, images, density)?,
                 Part::Terrain(frame) => frame.paint(text, images, density)?,
+                Part::Rect(frame) => frame.paint(text, images, density)?,
                 Part::Props(frame) => frame.paint(text, images, density)?,
             };
             list.ops.extend(next.ops);

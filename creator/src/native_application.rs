@@ -800,6 +800,181 @@ mod tests {
             original,
             "a cancelled terrain stroke cannot continue sculpting"
         );
+        app.input(&InputEvent::Focus(true), &mut host);
+        app.application.editor.native_rect_source_for_test();
+        app.session.context.ui.send(TheEvent::IndexChanged(
+            TheId::named("Editor View Switch"),
+            1,
+        ));
+        app.session.context.ui.send(TheEvent::Custom(
+            TheId::named("Set Tool"),
+            TheValue::Text("tool.rect".into()),
+        ));
+        app.update(&mut host, Duration::from_millis(16));
+        let rect = app.frame(&mut host, &mut replacement).unwrap();
+        assert!(app.application.pending.as_ref().unwrap().world_for_test());
+        let compose = TheEvent::RenderViewClicked(world_view.clone(), Vec2::new(120, 35));
+        assert!(app.application.editor.handle_native_world_input(
+            &compose,
+            &mut app.session.ui,
+            &mut app.session.context
+        ));
+        assert!(
+            !app.application.editor.native_rect_state_for_test().0,
+            "unpresented Rect controls cannot author state"
+        );
+        renderer
+            .render(
+                &rect,
+                &replacement,
+                &output.view,
+                output.descriptor.format,
+                (1200, 800),
+                1.,
+                [0.; 4],
+            )
+            .unwrap();
+        app.presented(&mut host);
+        let before = app.application.editor.native_rect_state_for_test();
+        let width = app
+            .session
+            .ui
+            .get_render_view(&world_view.name)
+            .unwrap()
+            .dim()
+            .width;
+        let rotate = if width >= 490 {
+            Vec2::new(360, 35)
+        } else {
+            Vec2::new(180, 60)
+        };
+        assert!(app.application.editor.handle_native_world_input(
+            &TheEvent::RenderViewClicked(world_view.clone(), rotate),
+            &mut app.session.ui,
+            &mut app.session.context,
+        ));
+        app.session.context.ui.send(TheEvent::RenderViewDragged(
+            world_view.clone(),
+            Vec2::new(480, 240),
+        ));
+        app.session.context.ui.send(TheEvent::RenderViewUp(
+            world_view.clone(),
+            Vec2::new(480, 240),
+        ));
+        app.update(&mut host, Duration::from_millis(16));
+        let rotated = app.application.editor.native_rect_state_for_test();
+        assert_eq!(
+            rotated.1,
+            (before.1 + 90.) % 360.,
+            "the acknowledged Rotate control changes the real brush"
+        );
+        assert_eq!(
+            rotated.2, before.2,
+            "a control drag cannot become a paint stroke"
+        );
+        let rect = app.frame(&mut host, &mut replacement).unwrap();
+        renderer
+            .render(
+                &rect,
+                &replacement,
+                &output.view,
+                output.descriptor.format,
+                (1200, 800),
+                1.,
+                [0.; 4],
+            )
+            .unwrap();
+        app.presented(&mut host);
+        assert!(app.application.editor.handle_native_world_input(
+            &compose,
+            &mut app.session.ui,
+            &mut app.session.context
+        ));
+        assert!(app.application.editor.native_rect_state_for_test().0);
+        app.session.context.ui.send(TheEvent::RenderViewUp(
+            world_view.clone(),
+            Vec2::new(120, 35),
+        ));
+        app.update(&mut host, Duration::from_millis(16));
+        let rect = app.frame(&mut host, &mut replacement).unwrap();
+        renderer
+            .render(
+                &rect,
+                &replacement,
+                &output.view,
+                output.descriptor.format,
+                (1200, 800),
+                1.,
+                [0.; 4],
+            )
+            .unwrap();
+        app.presented(&mut host);
+        app.session.context.ui.send(TheEvent::RenderViewClicked(
+            world_view.clone(),
+            Vec2::new(40, 35),
+        ));
+        app.session.context.ui.send(TheEvent::RenderViewUp(
+            world_view.clone(),
+            Vec2::new(40, 35),
+        ));
+        app.update(&mut host, Duration::from_millis(16));
+        let rect = app.frame(&mut host, &mut replacement).unwrap();
+        renderer
+            .render(
+                &rect,
+                &replacement,
+                &output.view,
+                output.descriptor.format,
+                (1200, 800),
+                1.,
+                [0.; 4],
+            )
+            .unwrap();
+        app.presented(&mut host);
+        let dim = *app
+            .session
+            .ui
+            .get_render_view(&world_view.name)
+            .unwrap()
+            .dim();
+        let at = Vec2::new(dim.width / 2 + 100, dim.height / 2 + 90);
+        app.session
+            .context
+            .ui
+            .send(TheEvent::RenderViewHoverChanged(world_view.clone(), at));
+        app.update(&mut host, Duration::from_millis(16));
+        let rect = app.frame(&mut host, &mut replacement).unwrap();
+        assert!(
+            rect.ops
+                .iter()
+                .any(|op| matches!(op, theframework::paint::PaintOp::SpriteImage { .. })),
+            "actual Rect hover emits a source sprite GPU blit"
+        );
+        renderer
+            .render(
+                &rect,
+                &replacement,
+                &output.view,
+                output.descriptor.format,
+                (1200, 800),
+                1.,
+                [0.; 4],
+            )
+            .unwrap();
+        app.presented(&mut host);
+        app.session
+            .context
+            .ui
+            .send(TheEvent::RenderViewClicked(world_view.clone(), at));
+        app.session
+            .context
+            .ui
+            .send(TheEvent::RenderViewUp(world_view.clone(), at));
+        app.update(&mut host, Duration::from_millis(16));
+        assert!(
+            app.application.editor.native_rect_state_for_test().2 > before.2,
+            "the actual Rect controller commits authored placement"
+        );
         // Check the new sampler within this assembled checkpoint. The reference
         // uses the existing independent CPU DDA, including duplicate blending.
         use theframework::paint::{DisplayCompositing, PaintOp};
@@ -827,6 +1002,49 @@ mod tests {
                 color: color.map(|v| v as f32 / 255.),
             });
         }
+        let mut tile = rusterix::Tile::default();
+        let data = (0..12)
+            .flat_map(|i| {
+                [
+                    (i * 17) as u8,
+                    (220 - i * 11) as u8,
+                    (30 + i * 13) as u8,
+                    [0, 80, 160, 255][i % 4],
+                ]
+            })
+            .collect::<Vec<_>>();
+        tile.textures
+            .push(rusterix::Texture::new(data.clone(), 4, 3));
+        tile.isometric = Some(rusterix::isometric::SpriteLayout {
+            pixels_per_unit: 1.,
+            directions: 1,
+            frames_per_direction: 1,
+            ..Default::default()
+        });
+        let source = theframework_core::ImageAsset::rgba(4, 3, data).unwrap();
+        let image = replacement.upload_linear(&source).unwrap();
+        // Fractional downsampling differs from resizing to the rounded extent.
+        // The second case clips a partially transparent upscaled sprite.
+        for (origin, scale) in [([1.4, 1.4], 0.6), ([-0.6, 2.4], 1.6)] {
+            rusterix::isometric::draw_tile_preview(
+                &mut reference,
+                &tile,
+                rusterix::isometric::Projection {
+                    origin: Vec2::new(origin[0], origin[1]),
+                    unit: scale,
+                },
+                Vec2::zero(),
+                0.,
+            );
+            guide.ops.push(PaintOp::SpriteImage {
+                image,
+                origin,
+                scale: [scale; 2],
+                tint: [1., 1., 1., 0.65],
+            });
+        }
+        guide.validate().unwrap();
+        assert!(guide.image_handles().any(|handle| handle == image));
         for density in [1., 1.5, 2.] {
             let extent = (8. * density) as u32;
             let pixels = GpuImage::new(&gpu, ImageDescriptor::rgba(extent, extent)).unwrap();

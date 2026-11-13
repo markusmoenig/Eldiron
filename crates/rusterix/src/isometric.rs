@@ -747,29 +747,21 @@ pub fn draw_tile_preview(
     position: Vec2<f32>,
     yaw: f32,
 ) {
-    let Some(layout) = &tile.isometric else {
-        return;
-    };
+    if let Some(sprite) = tile_preview_sprite(tile, position, yaw) {
+        draw_entry(sprite, buffer, p);
+    }
+}
+
+/// Source frame and placement shared by CPU reference and native GPU previews.
+pub fn tile_preview_sprite(tile: &Tile, position: Vec2<f32>, yaw: f32) -> Option<scene::Sprite<'_>> {
+    let layout = tile.isometric.as_ref()?;
     let yaw = yaw.to_radians();
-    draw_entry(
-        Draw {
-            owner: None,
-            tile: Some(tile),
-            avatar: None,
-            stamp: None,
-            scale: 1.,
-            pos: position,
-            height: 0.,
-            support: None,
-            radius: 0.,
-            floor: None,
-            frame: layout.frame(Vec2::new(yaw.sin(), yaw.cos()), false, 0.),
-            opacity: 0.65,
-            tie: 0,
-        },
-        buffer,
-        p,
-    );
+    Some(Draw {
+        owner: None, tile: Some(tile), avatar: None, stamp: None,
+        scale: 1., pos: position, height: 0., support: None, radius: 0., floor: None,
+        frame: layout.frame(Vec2::new(yaw.sin(), yaw.cos()), false, 0.),
+        opacity: 0.65, tie: 0,
+    })
 }
 
 fn raster_floor(

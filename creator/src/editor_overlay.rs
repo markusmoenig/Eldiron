@@ -114,6 +114,12 @@ enum Command {
         rect: BoxRect,
         image: OverlayImage,
     },
+    Sprite {
+        origin: [f32; 2],
+        scale: f32,
+        opacity: f32,
+        image: OverlayImage,
+    },
     Procedural {
         rect: BoxRect,
         source: procedural::ProceduralIcon,
@@ -129,6 +135,9 @@ impl EditorOverlay {
             size,
             commands: Vec::new(),
         }
+    }
+    pub(crate) fn append(&mut self, other: Self) {
+        self.commands.extend(other.commands);
     }
     pub(crate) fn is_empty(&self) -> bool {
         self.commands.is_empty()
@@ -226,6 +235,20 @@ impl EditorOverlay {
             vertical,
         });
     }
+    pub(crate) fn sprite(
+        &mut self,
+        image: OverlayImage,
+        origin: [f32; 2],
+        scale: f32,
+        opacity: f32,
+    ) {
+        self.commands.push(Command::Sprite {
+            origin,
+            scale,
+            opacity,
+            image,
+        });
+    }
     pub(crate) fn image(&mut self, image: OverlayImage, rect: BoxRect) {
         self.commands.push(Command::Image { rect, image });
     }
@@ -249,7 +272,10 @@ impl EditorOverlay {
                 Command::SignedOutline(rect, color) => buffer.draw_rect_outline(rect, color),
                 Command::SampledLine { from, to, color } => {
                     rusterix::isometric::line(
-                        buffer, Vec2::new(from[0], from[1]), Vec2::new(to[0], to[1]), *color,
+                        buffer,
+                        Vec2::new(from[0], from[1]),
+                        Vec2::new(to[0], to[1]),
+                        *color,
                     );
                 }
                 Command::PixelLine { from, to, color } => {
@@ -342,6 +368,14 @@ impl EditorOverlay {
                             copy_vertical(vertical),
                         );
                     }
+                }
+                Command::Sprite {
+                    origin,
+                    scale,
+                    opacity,
+                    image,
+                } => {
+                    draw_reference_sprite(buffer, image, *origin, *scale, *opacity);
                 }
                 Command::Image { rect, image } => draw_reference_image(
                     buffer,
@@ -537,6 +571,19 @@ impl EditorOverlay {
                         tint: [1.; 4],
                     });
                 }
+                Command::Sprite {
+                    origin,
+                    scale,
+                    opacity,
+                    image,
+                } => {
+                    list.ops.push(PaintOp::SpriteImage {
+                        image: images.asset(&image.key, &image.source, false)?,
+                        origin: *origin,
+                        scale: [*scale; 2],
+                        tint: [1., 1., 1., *opacity],
+                    });
+                }
                 Command::Image { rect, image } => {
                     if rect.2 == 0 || rect.3 == 0 {
                         continue;
@@ -673,9 +720,49 @@ impl EditorOverlay {
     #[cfg(test)]
     pub(crate) fn images(&self) -> impl Iterator<Item = &Arc<ImageAsset>> {
         self.commands.iter().filter_map(|command| match command {
-            Command::Image { image, .. } => Some(&image.source),
+            Command::Image { image, .. } | Command::Sprite { image, .. } => Some(&image.source),
             _ => None,
         })
+    }
+}
+// Explicit reference adapter only. Native preparation retains the source and
+// emits a source-scaled GPU blit; it never allocates a preview framebuffer.
+fn draw_reference_sprite(
+    buffer: &mut TheRGBABuffer,
+    image: &OverlayImage,
+    origin: [f32; 2],
+    scale: f32,
+    opacity: f32,
+) {
+    if !scale.is_finite() || scale <= 0. || origin.iter().any(|v| !v.is_finite()) {
+        return;
+    }
+    let width = buffer.dim().width.max(0) as usize;
+    let height = buffer.dim().height.max(0) as usize;
+    let source = &image.source;
+    let x0 = origin[0].round() as i32;
+    let y0 = origin[1].round() as i32;
+    let x1 = x0.saturating_add((source.width() as f32 * scale).round() as i32);
+    let y1 = y0.saturating_add((source.height() as f32 * scale).round() as i32);
+    let pixels = buffer.pixels_mut();
+    for y in y0.max(0)..y1.min(height as i32) {
+        for x in x0.max(0)..x1.min(width as i32) {
+            let sx = (((x - x0) as f32 / scale) as usize).min(source.width() as usize - 1);
+            let sy = (((y - y0) as f32 / scale) as usize).min(source.height() as usize - 1);
+            let src = (sy * source.width() as usize + sx) * 4;
+            let alpha = (source.pixels()[src + 3] as f32 * opacity).round() as u32;
+            if alpha == 0 {
+                continue;
+            }
+            let dst = (y as usize * width + x as usize) * 4;
+            for k in 0..3 {
+                pixels[dst + k] = ((source.pixels()[src + k] as u32 * alpha
+                    + pixels[dst + k] as u32 * (255 - alpha)
+                    + 127)
+                    / 255) as u8;
+            }
+            pixels[dst + 3] = 255;
+        }
     }
 }
 fn copy_settings(settings: &TheFontSettings) -> TheFontSettings {

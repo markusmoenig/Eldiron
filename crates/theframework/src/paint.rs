@@ -337,6 +337,16 @@ pub enum PaintOp {
         to: Point,
         color: Color,
     },
+    /// Source-pixel scaled sprite. Origin and output extent round in logical
+    /// pixels; source lookup uses floor(destination_pixel / scale), preserving
+    /// source scale independently of the rounded extent. Alpha is quantized to
+    /// bytes before composition, matching editable bitmap sprite previews.
+    SpriteImage {
+        image: ImageHandle,
+        origin: Point,
+        scale: Point,
+        tint: Color,
+    },
     /// Full source image, using top-left aligned nearest sampling in destination
     /// physical pixels. Matches explicit CPU left-edge image resizing without
     /// allocating a resized source image or relying on half-texel UV biases.
@@ -401,6 +411,7 @@ impl PaintList {
         self.ops.iter().filter_map(|op| match op {
             PaintOp::Image { image, .. }
             | PaintOp::PixelImage { image, .. }
+            | PaintOp::SpriteImage { image, .. }
             | PaintOp::FilteredImage { image, .. }
             | PaintOp::ThresholdImage { image, .. }
             | PaintOp::ImageOutline { image, .. }
@@ -522,6 +533,22 @@ impl PaintList {
                         return Err("nonfinite image mesh data");
                     }
                 }
+                PaintOp::SpriteImage {
+                    origin,
+                    scale,
+                    tint,
+                    ..
+                } => {
+                    if origin
+                        .iter()
+                        .chain(scale.iter())
+                        .chain(tint.iter())
+                        .any(|v| !v.is_finite())
+                        || scale.iter().any(|v| *v <= 0.)
+                    {
+                        return Err("invalid sprite geometry or color");
+                    }
+                }
                 PaintOp::PixelTriangle { points, color } => {
                     if points
                         .iter()
@@ -532,7 +559,8 @@ impl PaintList {
                         return Err("nonfinite pixel triangle");
                     }
                 }
-                PaintOp::PixelLine { from, to, color } | PaintOp::SampledLine { from, to, color } => {
+                PaintOp::PixelLine { from, to, color }
+                | PaintOp::SampledLine { from, to, color } => {
                     if from
                         .iter()
                         .chain(to.iter())

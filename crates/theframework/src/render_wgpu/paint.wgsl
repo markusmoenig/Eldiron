@@ -58,6 +58,14 @@ struct Out{@builtin(position)position:vec4<f32>,@location(0)local:vec2<f32>,@loc
         output_local=local*(vec2<f32>(1.)+2.*pad)-pad;
         position+=bx*(pixel.x+output_local.x-local.x)+by*(pixel.y+output_local.y-local.y);
     }
+    if((params.mode&255u)==15u){
+        let bx=params.gradient.xy;let by=params.gradient.zw;
+        origin=p-bx*local.x-by*local.y;
+        let determinant=abs(bx.x*by.y-bx.y*by.x);
+        let pad=vec2<f32>(abs(by.y)+abs(by.x),abs(bx.y)+abs(bx.x))/determinant;
+        let delta=((local-color.xy)/color.zw*2.-vec2<f32>(1.))*pad;
+        position+=bx*delta.x+by*delta.y;
+    }
     var o:Out;o.position=vec4<f32>(position.x/params.viewport.x*2.-1.,1.-position.y/params.viewport.y*2.,0.,1.);o.local=output_local;o.uv=uv;o.color=color;o.origin=origin;o.pixel=sample_pixel;return o;
 }
 
@@ -179,6 +187,16 @@ fn triangle_coverage(p:vec2<f32>)->bool {
     if(mode==8u){return vec4<f32>(linear(textureSample(image,image_sampler,i.uv).rgb),1.);}
     if(mode==9u){return vec4<f32>(textureSample(image,image_sampler,i.uv).rgb,1.);}
     var c=params.color0;
+    if(mode==15u){
+        let bx=params.gradient.xy;let by=params.gradient.zw;let q=i.position.xy-i.origin;
+        let logical=vec2<f32>(q.x*by.y-q.y*by.x,bx.x*q.y-bx.y*q.x)/(bx.x*by.y-bx.y*by.x);
+        let pixel=floor(logical-i.color.xy);
+        if(any(pixel<vec2<f32>(0.)) || any(pixel>=i.color.zw)){return vec4<f32>(0.);}
+        let position=vec2<i32>(min(floor(pixel/params.color1.xy),vec2<f32>(textureDimensions(image))-vec2<f32>(1.)));
+        let tex=target_image(normalized_texel(textureLoad(image,position,0)));
+        let alpha=floor(clamp(tex.a*c.a,0.,1.)*255.+0.5)/255.;
+        return vec4<f32>(straight_sample(tex)*c.rgb*alpha,alpha);
+    }
     if(mode==14u){
         // Invert the draw basis at the physical center. Interpolated local
         // coordinates can drift across exact texel boundaries at fractional DPI.

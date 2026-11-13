@@ -21,6 +21,7 @@ pub mod rect;
 pub mod sector;
 pub mod terrain;
 pub mod terrain_overlay;
+pub mod rect_overlay;
 pub mod tile_picker;
 // pub mod tileset;
 pub mod effects;
@@ -183,6 +184,10 @@ pub trait Tool: Send + Sync {
         self.overlay_hud()
             .is_some_and(|hud| frame.hud_command_source_current(hud, target, map, server))
     }
+    fn apply_rect_overlay(
+        &mut self, _action: rect_overlay::Action, _map: &mut Map,
+        _server: &mut ServerContext,
+    ) -> Option<Vec<TheEvent>> { None }
     fn apply_terrain_overlay(
         &mut self,
         _action: terrain_overlay::Action,

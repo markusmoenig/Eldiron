@@ -20,6 +20,7 @@ pub struct ToolOverlayInputState {
 enum Action {
     Hud(HudAction),
     Terrain(terrain_overlay::Action),
+    Rect(rect_overlay::Action),
     Props {
         rect: TheDim,
         action: props_overlay::Action,
@@ -100,6 +101,21 @@ impl ToolOverlayCommand {
         }
         let mut effects = ToolOverlayEffects::empty();
         match &self.action {
+            Action::Rect(action) => {
+                let events = tool.apply_rect_overlay(*action, map, server)?;
+                effects.scene_dirty = true;
+                effects.overlay_dirty = true;
+                effects.redraw = true;
+                effects.events = events
+                    .into_iter()
+                    .map(|event| ScopedToolOverlayEvent {
+                        target,
+                        frame: self.frame.clone(),
+                        event: Some(event),
+                        authoring: false,
+                    })
+                    .collect();
+            }
             Action::Terrain(action) => {
                 if !tool.apply_terrain_overlay(*action, map, server, ctx) {
                     return None;
@@ -217,7 +233,13 @@ impl ToolOverlayInputState {
             }
             _ => None,
         };
-        if point.is_none() && key.is_none() && terrain_key.is_none() {
+        let rect_key = match event {
+            MapEvent::MapKey(key) if focused && frame.is_some_and(|frame| frame.has_rect()) => {
+                rect_overlay::shortcut(*key, map.camera)
+            }
+            _ => None,
+        };
+        if point.is_none() && key.is_none() && terrain_key.is_none() && rect_key.is_none() {
             return ToolOverlayRoute::Outside { redraw: false };
         }
         if matches!(event, MapEvent::MapClicked(_)) {
@@ -228,6 +250,16 @@ impl ToolOverlayInputState {
         };
         if !frame.input_current(tool, target, map, server) {
             return ToolOverlayRoute::Unavailable;
+        }
+        if let Some(action) = rect_key {
+            return ToolOverlayRoute::Consumed {
+                redraw: true,
+                command: Some(ToolOverlayCommand {
+                    target,
+                    frame: frame.clone(),
+                    action: Action::Rect(action),
+                }),
+            };
         }
         if let Some(action) = terrain_key {
             return ToolOverlayRoute::Consumed {
@@ -265,6 +297,21 @@ impl ToolOverlayInputState {
         let clicked = matches!(event, MapEvent::MapClicked(_));
         // Reverse painter order: an interactive foreground part wins over the HUD.
         for part in frame.parts.iter().rev() {
+            if let Part::Rect(panel) = part
+                && let Some((_, action)) = panel.buttons.iter().find(|(rect, _)| rect.contains(at))
+            {
+                if clicked {
+                    self.capture = Some(target);
+                }
+                return ToolOverlayRoute::Consumed {
+                    redraw: redraw || clicked,
+                    command: clicked.then(|| ToolOverlayCommand {
+                        target,
+                        frame: frame.clone(),
+                        action: Action::Rect(*action),
+                    }),
+                };
+            }
             if let Part::Terrain(panel) = part
                 && panel.bounds.contains(at)
             {

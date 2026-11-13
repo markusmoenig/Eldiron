@@ -617,6 +617,7 @@ impl Editor {
                         | "tool.geometry"
                         | "tool.blocks"
                         | "tool.terrain"
+                        | "tool.rect"
                 )
             )
         {
@@ -1593,6 +1594,34 @@ impl Editor {
             frame.is_some_and(|f| f.stamp == SourceStamp::new(map)),
             builds.has_pending_geometry(),
             builds.source_matches(map.id, map.camera)
+        )
+    }
+    pub(crate) fn native_rect_source_for_test(&mut self) {
+        let mut tile = rusterix::Tile::default();
+        tile.id = Uuid::new_v4();
+        tile.textures.push(rusterix::Texture::new(
+            vec![210, 120, 70, 255].repeat(12),
+            4,
+            3,
+        ));
+        tile.isometric = Some(rusterix::isometric::SpriteLayout {
+            anchor: [2, 2],
+            pixels_per_unit: 4.,
+            directions: 1,
+            frames_per_direction: 1,
+            bitmap: true,
+            ..Default::default()
+        });
+        self.server_ctx.curr_tile_source = Some(rusterix::TileSource::SingleTile(tile.id));
+        self.project.tiles.insert(tile.id, tile.clone());
+        RUSTERIX.write().unwrap().assets.tiles.insert(tile.id, tile);
+    }
+    pub(crate) fn native_rect_state_for_test(&self) -> (bool, f32, usize) {
+        let map = self.project.get_map(&self.server_ctx).unwrap();
+        (
+            self.server_ctx.rect_compose_mode,
+            map.properties.get_float_default("iso_brush_yaw", 0.),
+            map.sectors.len(),
         )
     }
     pub(crate) fn native_terrain_radius_for_test(&self) -> f32 {
