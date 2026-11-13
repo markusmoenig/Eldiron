@@ -16,6 +16,7 @@ pub mod world;
 
 use crossbeam_channel::{Receiver, Sender};
 use instant::Instant;
+#[cfg(not(target_arch = "wasm32"))]
 use rayon::prelude::*;
 use toml::Table;
 
@@ -227,14 +228,22 @@ impl Server {
 
     /// Send a system tick to all instances.
     pub fn system_tick(&self) {
-        self.instances.par_iter().for_each(|instance| {
+        #[cfg(not(target_arch = "wasm32"))]
+        let instances = self.instances.par_iter();
+        #[cfg(target_arch = "wasm32")]
+        let instances = self.instances.iter();
+        instances.for_each(|instance| {
             instance.lock().unwrap().system_tick();
         });
     }
 
     /// Send a redraw tick to all instances.
     pub fn redraw_tick(&self) {
-        self.instances.par_iter().for_each(|instance| {
+        #[cfg(not(target_arch = "wasm32"))]
+        let instances = self.instances.par_iter();
+        #[cfg(target_arch = "wasm32")]
+        let instances = self.instances.iter();
+        instances.for_each(|instance| {
             instance.lock().unwrap().redraw_tick();
         });
     }

@@ -1,6 +1,8 @@
 //! Common graphical player application for native windows, foreign layers and
 //! Creator Play. Runtime, CPU screen state and GPU resources have distinct owners.
 mod audio;
+#[cfg(all(feature = "native-window", target_arch = "wasm32"))]
+pub mod browser;
 #[cfg(all(feature = "native-window", not(target_arch = "wasm32")))]
 pub mod desktop;
 pub mod foreign;
@@ -91,6 +93,7 @@ pub struct PlayerApplication {
     visual_elapsed: Duration,
     frames: timing::FrameSchedule,
     frame_count: u64,
+    appearances: rusterix::procedural_avatar::AppearancePreparation,
     modifiers: Modifiers,
     control_capture: Option<ScreenCapture>,
     pending_clipboard: Option<(ScreenTextTarget, u64)>,
@@ -158,6 +161,7 @@ impl PlayerApplication {
             visual_elapsed: Duration::ZERO,
             frames: timing::FrameSchedule::default(),
             frame_count: 0,
+            appearances: Default::default(),
             modifiers: Modifiers::default(),
             control_capture: None,
             pending_clipboard: None,
@@ -479,6 +483,10 @@ impl PlayerApplication {
         self.visual_elapsed = self.visual_elapsed.saturating_add(elapsed);
         self.screen.world_texts.advance(elapsed);
         self.player.advance(elapsed);
+        self.appearances.prepare(
+            self.player.runtime.server.entities.values().flatten(),
+            &self.player.runtime.assets,
+        );
         let isometric=self.player.runtime.view().map.and_then(|map|map.entities.iter().find(|e|e.is_player()))
             .is_some_and(|e|matches!(e.attributes.get("player_camera"),Some(rusterix::Value::PlayerCamera(camera)) if camera.is_isometric_2d()));
         if let Some(action) = self.player.set_isometric_controls(isometric) {

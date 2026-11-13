@@ -26,6 +26,7 @@ pub(super) struct CreatorPlaySession {
     last: Instant,
     visual_key: u64,
     audio: Option<rusterix::audio::output::AudioOutput>,
+    appearances: rusterix::procedural_avatar::AppearancePreparation,
 }
 impl CreatorPlaySession {
     pub fn new(
@@ -47,6 +48,7 @@ impl CreatorPlaySession {
             last: Instant::now(),
             visual_key: 0,
             audio: None,
+            appearances: Default::default(),
         }
     }
     pub fn start_owned(
@@ -78,7 +80,8 @@ impl CreatorPlaySession {
             game.tick_once();
         }
         bridge.client.set_server_time(game.project.time);
-        bridge.prepare_runtime_appearances_from(&game.server, &game.assets);
+        let mut appearances = rusterix::procedural_avatar::AppearancePreparation::default();
+        appearances.prepare(game.server.entities.values().flatten(), &game.assets);
         let requested = game.has_started_player();
         let visual_key = Self::visual_key(&bridge.assets);
         Ok(Self {
@@ -89,6 +92,7 @@ impl CreatorPlaySession {
             last: Instant::now(),
             visual_key,
             audio: Some(Default::default()),
+            appearances,
         })
     }
     pub fn wake_after(&self) -> Option<Duration> {
@@ -291,7 +295,8 @@ impl CreatorPlaySession {
                 let update = g.advance(elapsed);
                 bridge.client.current_map.clone_from(&g.current_map);
                 bridge.client.set_server_time(g.project.time);
-                bridge.prepare_runtime_appearances_from(&g.server, &g.assets);
+                self.appearances
+                    .prepare(g.server.entities.values().flatten(), &g.assets);
                 update
             }
             Storage::Reference(g) => {
@@ -418,7 +423,8 @@ impl CreatorPlaySession {
                 g.tick_once();
                 bridge.client.current_map.clone_from(&g.current_map);
                 bridge.client.set_server_time(g.project.time);
-                bridge.prepare_runtime_appearances_from(&g.server, &g.assets);
+                self.appearances
+                    .prepare(g.server.entities.values().flatten(), &g.assets);
             }
             Storage::Reference(g) => {
                 let update = g.pump.update(

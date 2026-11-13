@@ -10,7 +10,7 @@ pub fn sync_procedural_avatar_assets(
     use rusterix::procedural_avatar::{Appearance, fingerprint};
     use std::sync::Arc;
     use theframework::prelude::Uuid;
-    let trace_start = std::time::Instant::now();
+    let trace_start = web_time::Instant::now();
     let trace = |label| {
         if std::env::var_os("ELDIRON_PROFILE_STARTUP").is_some() {
             eprintln!("Avatar {label}: {:.2?}", trace_start.elapsed());

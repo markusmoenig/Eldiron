@@ -139,7 +139,7 @@ pub fn project_file_format(bytes: &[u8]) -> ProjectFileFormat {
 }
 
 pub fn decode_project(bytes: &[u8]) -> Result<Project, String> {
-    let trace_start = std::time::Instant::now();
+    let trace_start = web_time::Instant::now();
     let trace = |label| {
         if std::env::var_os("ELDIRON_PROFILE_STARTUP").is_some() {
             eprintln!("Project {label}: {:.2?}", trace_start.elapsed());

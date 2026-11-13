@@ -162,11 +162,13 @@ struct PlannedEntity {
 }
 
 #[derive(Default)]
-pub(crate) struct Preparation {
+pub struct Preparation {
     generation: u64,
     current: Arc<AtomicU64>,
     snapshot: Option<Arc<Assets>>,
     jobs: Option<mpsc::SyncSender<Job>>,
+    #[cfg(target_arch = "wasm32")]
+    inline: Option<(mpsc::Receiver<Job>, mpsc::SyncSender<Completed>)>,
     results: Option<Mutex<mpsc::Receiver<Completed>>>,
     pending: FxHashSet<(usize, u64)>,
     failed: FxHashSet<(usize, u64)>,
@@ -188,29 +190,36 @@ impl Preparation {
     fn start(&mut self) {
         let (jobs, input) = mpsc::sync_channel::<Job>(16);
         let (output, results) = mpsc::sync_channel(16);
-        let current = self.current.clone();
-        std::thread::Builder::new()
-            .name("equipment-variants".into())
-            .spawn(move || {
-                while let Ok(job) = input.recv() {
-                    if current.load(Ordering::Acquire) != job.generation {
-                        continue;
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.inline = Some((input, output));
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let current = self.current.clone();
+            std::thread::Builder::new()
+                .name("equipment-variants".into())
+                .spawn(move || {
+                    while let Ok(job) = input.recv() {
+                        if current.load(Ordering::Acquire) != job.generation {
+                            continue;
+                        }
+                        let result = job.asset.evaluate_plan(&job.plan, &job.assets);
+                        if output
+                            .send(Completed {
+                                generation: job.generation,
+                                asset: job.asset,
+                                key: job.plan.key,
+                                result,
+                            })
+                            .is_err()
+                        {
+                            break;
+                        }
                     }
-                    let result = job.asset.evaluate_plan(&job.plan, &job.assets);
-                    if output
-                        .send(Completed {
-                            generation: job.generation,
-                            asset: job.asset,
-                            key: job.plan.key,
-                            result,
-                        })
-                        .is_err()
-                    {
-                        break;
-                    }
-                }
-            })
-            .expect("equipment preparation worker");
+                })
+                .expect("equipment preparation worker");
+        }
         self.jobs = Some(jobs);
         self.results = Some(Mutex::new(results));
     }
@@ -286,6 +295,22 @@ impl Preparation {
         }
         if self.jobs.is_none() {
             self.start();
+        }
+        // Browser builds have no native thread launcher. Run at most one queued
+        // CPU variant per application update, never during drawing. The same
+        // bounded queue and generation cancellation/publication rules apply.
+        #[cfg(target_arch = "wasm32")]
+        if let Some((input, output)) = &self.inline
+            && let Ok(job) = input.try_recv()
+            && self.current.load(Ordering::Acquire) == job.generation
+        {
+            let result = job.asset.evaluate_plan(&job.plan, &job.assets);
+            let _ = output.try_send(Completed {
+                generation: job.generation,
+                asset: job.asset,
+                key: job.plan.key,
+                result,
+            });
         }
         // Publishing happens only here, before scene/HUD drawing starts.
         let completed = self

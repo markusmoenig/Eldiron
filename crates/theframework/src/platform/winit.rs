@@ -113,6 +113,7 @@ impl Host {
     }
     fn fail(&mut self, event_loop: &ActiveEventLoop, error: RenderError) {
         log::error!("GPU host: {error}");
+        self.app.host_failed(&error);
         self.error = Some(error);
         event_loop.exit();
     }

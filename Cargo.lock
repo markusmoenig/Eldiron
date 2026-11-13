@@ -1290,11 +1290,13 @@ dependencies = [
 name = "eldiron-client-wgpu"
 version = "0.96.0"
 dependencies = [
+ "console_error_panic_hook",
  "eldiron-presentation",
  "eldiron-runtime",
  "eldiron-shared",
  "futures",
  "instant",
+ "js-sys",
  "objc2-quartz-core 0.3.2",
  "png 0.18.0",
  "pollster",
@@ -1308,6 +1310,9 @@ dependencies = [
  "toml 0.9.11+spec-1.1.0",
  "uuid",
  "vek",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]
@@ -1439,6 +1444,7 @@ dependencies = [
  "vek",
  "wasm-bindgen",
  "web-sys",
+ "web-time",
  "zip",
 ]
 

@@ -58,3 +58,10 @@ objc2-quartz-core = { version = "0.3.2", default-features = false, features = ["
 
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
 pollster = "0.4"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = ["Window", "Location", "UrlSearchParams", "Response", "Document", "Element", "HtmlElement", "Node", "console"] }
+console_error_panic_hook = "0.1"

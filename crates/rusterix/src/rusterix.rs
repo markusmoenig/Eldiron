@@ -17,8 +17,7 @@ use ClientDrawMode::*;
 
 /// Rusterix can server as a server or client or both for solo games.
 pub struct Rusterix {
-    #[cfg(not(target_arch = "wasm32"))]
-    appearance_preparation: crate::procedural_avatar::preparation::Preparation,
+    appearance_preparation: crate::procedural_avatar::AppearancePreparation,
     pub assets: Assets,
     pub server: Server,
     pub client: Client,
@@ -119,7 +118,6 @@ impl Rusterix {
         // }
 
         Self {
-            #[cfg(not(target_arch = "wasm32"))]
             appearance_preparation: Default::default(),
             assets: Assets::default(),
             server: Server::default(),
@@ -239,10 +237,7 @@ impl Rusterix {
 
     /// Set the assets
     pub fn set_assets(&mut self, assets: Assets) {
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            self.appearance_preparation = Default::default();
-        }
+        self.appearance_preparation = Default::default();
         self.assets = assets;
         self.scene_handler.mark_dynamics_dirty();
         self.load_audio_assets();
@@ -1121,13 +1116,8 @@ impl Rusterix {
 
     /// CPU appearance jobs after an externally owned runtime driver polls Server.
     pub fn prepare_runtime_appearances(&mut self) {
-        #[cfg(not(target_arch = "wasm32"))]
         self.appearance_preparation
             .prepare(self.server.entities.values().flatten(), &self.assets);
-    }
-    pub fn prepare_runtime_appearances_from(&mut self, server: &Server, assets: &Assets) {
-        #[cfg(not(target_arch = "wasm32"))]
-        self.appearance_preparation.prepare(server.entities.values().flatten(), assets);
     }
 
     /// Update the tiles

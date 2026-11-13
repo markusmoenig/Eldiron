@@ -74,6 +74,8 @@ features = [
 ]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+# WASM has no runtime filesystem, including development builds.
+rust-embed = { version = "8", features = ["debug-embed"] }
 cpal = { version = "0.17", features = ["wasm-bindgen"] }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"

@@ -143,8 +143,10 @@ fn straight_sample(texel:vec4<f32>)->vec3<f32> {
     if(texel.a>0.){return texel.rgb/texel.a;}
     return vec3<f32>(0.);
 }
+// UI and scene-output images have one mip level. Explicit base LOD preserves
+// their sampling while remaining valid after per-pixel clipping/early returns.
 fn sampled_image(uv:vec2<f32>)->vec4<f32> {
-    if((params.source&4u)==0u){return normalized_texel(textureSample(image,image_sampler,uv));}
+    if((params.source&4u)==0u){return normalized_texel(textureSampleLevel(image,image_sampler,uv,0.));}
     let p=uv*vec2<f32>(textureDimensions(image))-vec2<f32>(0.5);
     let origin=vec2<i32>(floor(p));
     let fraction=fract(p);
@@ -224,6 +226,8 @@ fn triangle_coverage(p:vec2<f32>)->bool {
 }
 @fragment fn fs(i:Out)->@location(0)vec4<f32>{
     let mode=params.mode&255u;
+    // Evaluate distance-field derivatives before any varying-dependent return.
+    if(mode==4u){return field_color(i.local-params.gradient.xy,params.color0);}
     if(mode==18u){
         let q=i.position.xy-i.origin;
         let point=floor(vec2<f32>(dot(params.inverse.xy,q),dot(params.inverse.zw,q))-params.color1.xy);
@@ -252,8 +256,8 @@ fn triangle_coverage(p:vec2<f32>)->bool {
         if(any(logical<i.color.xy) || any(logical>=i.color.xy+i.color.zw)){return vec4<f32>(0.);}
         return radial_color(logical,i.color);
     }
-    if(mode==8u){return vec4<f32>(linear(textureSample(image,image_sampler,i.uv).rgb),1.);}
-    if(mode==9u){return vec4<f32>(textureSample(image,image_sampler,i.uv).rgb,1.);}
+    if(mode==8u){return vec4<f32>(linear(textureSampleLevel(image,image_sampler,i.uv,0.).rgb),1.);}
+    if(mode==9u){return vec4<f32>(textureSampleLevel(image,image_sampler,i.uv,0.).rgb,1.);}
     var c=params.color0;
     if(mode==15u){
         let bx=params.gradient.xy;let by=params.gradient.zw;let q=i.position.xy-i.origin;
@@ -302,7 +306,6 @@ fn triangle_coverage(p:vec2<f32>)->bool {
         return vec4<f32>(tex.rgb*c.rgb+params.color1.rgb*(1.-tex.a),1.);
     }
     if(mode==6u){return outline(i.uv);}
-    if(mode==4u){return field_color(i.local-params.gradient.xy,c);}
     if(mode==3u){c=vec4<f32>(target_color(i.color.rgb),i.color.a);}
     if(mode==1u){let d=params.gradient.zw-params.gradient.xy;let t=clamp(dot(i.local-params.gradient.xy,d)/max(dot(d,d),0.000001),0.,1.);c=mix(params.color0,params.color1,t);}
     if(mode==2u || mode==5u || mode==7u){

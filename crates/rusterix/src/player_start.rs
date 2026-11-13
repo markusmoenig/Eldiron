@@ -21,12 +21,70 @@ pub struct PreparedPlayerStart {
     pub info: PlayerStartInfo,
 }
 
+/// Immutable startup placement/controls, separate from live region occupants.
+/// Character creation may wait while the simulation publishes actor updates.
+#[derive(Clone)]
+pub struct PlayerStartSource {
+    entity: crate::Entity,
+    template: String,
+}
+impl PlayerStartSource {
+    pub fn from_map(assets: &Assets, map: &Map) -> Result<Self, String> {
+        let templates = player_templates(assets);
+        Self::with_templates(map, &templates)
+    }
+    fn with_templates(map: &Map, templates: &[String]) -> Result<Self, String> {
+        map.entities
+            .iter()
+            .find_map(|entity| {
+                let template = entity.get_attr_string("class_name")?;
+                templates.contains(&template).then(|| Self {
+                    entity: entity.clone(),
+                    template,
+                })
+            })
+            .ok_or_else(|| format!("No player entity template found in region '{}'", map.name))
+    }
+    pub fn prepare(&self, map: &Map, options: PlayerStartOptions<'_>) -> PreparedPlayerStart {
+        let mut entity = self.entity.clone();
+        let template = self.template.clone();
+        if let Some(class) = options.class.map(str::trim).filter(|v| !v.is_empty()) {
+            entity.set_attribute("_start_class", Value::Str(class.into()));
+        }
+        if let Some(name) = options.name.map(str::trim).filter(|v| !v.is_empty()) {
+            entity.set_attribute("_start_name", Value::Str(name.into()));
+        }
+        if options.entrance
+            && let Some(position) = map.named_area_center("entrance")
+        {
+            entity.set_pos_xz(position);
+        }
+        entity.set_attribute("player", Value::Bool(true));
+        let position = entity.get_pos_xz();
+        let info = PlayerStartInfo {
+            template,
+            position: [position.x, position.y],
+            input_bindings: entity
+                .attributes
+                .get_str("_input_bindings")
+                .map(str::to_owned),
+        };
+        PreparedPlayerStart {
+            command: Command::CreateEntity(map.id, entity),
+            info,
+        }
+    }
+}
+
 pub fn prepare_player_start(
     assets: &Assets,
     map: &Map,
     options: PlayerStartOptions<'_>,
 ) -> Result<PreparedPlayerStart, String> {
-    let templates = assets
+    Ok(PlayerStartSource::from_map(assets, map)?.prepare(map, options))
+}
+fn player_templates(assets: &Assets) -> Vec<String> {
+    assets
         .entities
         .iter()
         .filter_map(|(name, (_, data))| {
@@ -36,50 +94,16 @@ pub fn prepare_player_start(
                 .as_bool()?
                 .then_some(name.clone())
         })
-        .collect::<Vec<_>>();
-    prepare_player_start_with_templates(map, &templates, options)
+        .collect::<Vec<_>>()
 }
 
-/// Legacy controllers may already own a validated template catalog. Keep that
-/// metadata input explicit while sharing the same entity/selection preparation.
+/// Reference controllers may already own a validated template catalog.
 pub(crate) fn prepare_player_start_with_templates(
     map: &Map,
     templates: &[String],
     options: PlayerStartOptions<'_>,
 ) -> Result<PreparedPlayerStart, String> {
-    let (mut entity, template) = map
-        .entities
-        .iter()
-        .find_map(|entity| {
-            let name = entity.get_attr_string("class_name")?;
-            templates.contains(&name).then(|| (entity.clone(), name))
-        })
-        .ok_or_else(|| format!("No player entity template found in region '{}'", map.name))?;
-    if let Some(class) = options.class.map(str::trim).filter(|v| !v.is_empty()) {
-        entity.set_attribute("_start_class", Value::Str(class.into()));
-    }
-    if let Some(name) = options.name.map(str::trim).filter(|v| !v.is_empty()) {
-        entity.set_attribute("_start_name", Value::Str(name.into()));
-    }
-    if options.entrance
-        && let Some(position) = map.named_area_center("entrance")
-    {
-        entity.set_pos_xz(position);
-    }
-    entity.set_attribute("player", Value::Bool(true));
-    let position = entity.get_pos_xz();
-    let info = PlayerStartInfo {
-        template,
-        position: [position.x, position.y],
-        input_bindings: entity
-            .attributes
-            .get_str("_input_bindings")
-            .map(str::to_owned),
-    };
-    Ok(PreparedPlayerStart {
-        command: Command::CreateEntity(map.id, entity),
-        info,
-    })
+    Ok(PlayerStartSource::with_templates(map, templates)?.prepare(map, options))
 }
 
 #[cfg(test)]
@@ -131,5 +155,23 @@ mod tests {
         let Command::CreateEntity(_, actor) = defaults.command;
         assert!(actor.attributes.get("_start_class").is_none());
         assert!(actor.attributes.get("_start_name").is_none());
+        let source = PlayerStartSource::from_map(&assets, &map).unwrap();
+        map.entities.clear();
+        assert!(prepare_player_start(&assets, &map, PlayerStartOptions::default()).is_err());
+        let late = source.prepare(
+            &map,
+            PlayerStartOptions {
+                name: Some("Late starter"),
+                ..Default::default()
+            },
+        );
+        let Command::CreateEntity(id, actor) = late.command;
+        assert_eq!(id, map.id);
+        assert_eq!(
+            actor.attributes.get_str("_start_name"),
+            Some("Late starter")
+        );
+        assert_eq!(late.info.position, [12., 6.]);
+        assert_eq!(late.info.input_bindings.as_deref(), Some("Custom bindings"));
     }
 }

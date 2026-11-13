@@ -13,8 +13,8 @@ use theframework::prelude::{ThePalette, Uuid};
 pub mod effects;
 #[cfg(feature = "graphics")]
 mod meshes;
-#[cfg(not(target_arch = "wasm32"))]
-pub(crate) mod preparation;
+mod preparation;
+pub use preparation::Preparation as AppearancePreparation;
 mod weapon;
 pub mod wearable;
 #[cfg(any(feature = "graphics", test))]

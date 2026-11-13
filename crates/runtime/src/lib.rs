@@ -61,6 +61,7 @@ pub struct GameSession {
     pump: SessionPump,
     started: bool,
     local_player_started: bool,
+    player_start_sources: rustc_hash::FxHashMap<Uuid, rusterix::player_start::PlayerStartSource>,
 }
 /// Explicit mutable CPU host borrow. Presenters receive RuntimeView or
 /// RegionInspection instead, never this simulation/collection capability.
@@ -105,6 +106,7 @@ impl GameSession {
             pump: SessionPump::new(EventInterests::default()),
             started: false,
             local_player_started: false,
+            player_start_sources: Default::default(),
         }
     }
     pub fn start(&mut self, options: SessionOptions) -> Result<(), String> {
@@ -137,6 +139,16 @@ impl GameSession {
             &mut self.project,
             options.debug,
         )?;
+        self.player_start_sources = self
+            .project
+            .regions
+            .iter()
+            .filter_map(|region| {
+                rusterix::player_start::PlayerStartSource::from_map(&self.assets, &region.map)
+                    .ok()
+                    .map(|source| (region.map.id, source))
+            })
+            .collect();
         self.current_map = start_map;
         self.pump.restart_collection(options.events);
         self.clock = SessionClock::new(Duration::from_millis(tick));
@@ -187,7 +199,11 @@ impl GameSession {
             .find(|r| r.map.name == self.current_map)
             .map(|r| &r.map)
             .ok_or_else(|| format!("Start region '{}' not found", self.current_map))?;
-        let prepared = rusterix::player_start::prepare_player_start(&self.assets, map, options)?;
+        let prepared = if let Some(source) = self.player_start_sources.get(&map.id) {
+            source.prepare(map, options)
+        } else {
+            rusterix::player_start::prepare_player_start(&self.assets, map, options)?
+        };
         self.server.process_client_commands(vec![prepared.command]);
         self.local_player_started = true;
         Ok(Some(prepared.info))
@@ -261,6 +277,7 @@ impl GameSession {
             self.started = false;
             self.local_player_started = false;
         }
+        self.player_start_sources.clear();
         self.pump.clear_events();
         self.clock.reset_elapsed();
     }

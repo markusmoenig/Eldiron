@@ -89,6 +89,9 @@ pub struct WindowConfiguration {
 /// The native/browser/foreign-layer hosts all execute the same application contract.
 /// There is deliberately no callback receiving destination CPU pixels.
 pub trait GpuApplication {
+    /// A fatal host/surface error may occur before application initialization.
+    /// Platform frontends can report it without taking ownership of GPU state.
+    fn host_failed(&mut self, _error: &renderkit::RenderError) {}
     fn title(&self) -> String {
         "Eldiron".into()
     }

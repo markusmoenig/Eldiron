@@ -19,6 +19,7 @@ name = "mz_iso_project"
 required-features = ["graphics"]
 
 [dependencies]
+web-time = "1.1.0"
 denrim-materials = { path = "../materialz", features = ["integration"] }
 theframework.workspace = true
 eldiron-ruleset = { path = "../ruleset", version = "0.96.0" }

@@ -6937,3 +6937,248 @@ Native 2D paste projection checkpoint verified:
 - Native 3D clipboard, orthographic bake/speech/visibility/custom-context
   adapters, global authoring/source ownership, browser/Apple and physical/
   performance acceptance still remain. No milestone or overall completion.
+
+Browser common-player bootstrap in progress (after339e9493):
+- Canonical classic/WGPU browser binaries now delegate to one browser launcher
+  around the shared PlayerApplication and Winit WebGPU host. Async fetch uses
+  ?project=URL or the compatible ./game.eldiron default, the same archive/JSON
+  decoder and migration policy; no synchronous XMLHttpRequest/Canvas2D display.
+- Added full-page responsive canvas styling, loading/error status and successful
+  surface-presentation acknowledgements exposed as DOM attributes for host
+  validation. Shared GPU host has a fatal-error callback so async surface
+  bootstrap failures reach its frontend, including failures before init.
+- Canonical classic browser dependency no longer enables Pixels; renderer
+  boundaries now also inspect both wasm graphical launcher graphs independently.
+- Appearance preparation was native-only behind compile gates. Exposed the CPU
+  service as an explicit presentation owner: common PlayerApplication and native
+  CreatorPlaySession own their preparation lifetime; owned Creator no longer
+  lends that job lifetime to the global facade. Reference facade keeps its
+  adapter. Native jobs retain the cancellable worker; wasm consumes at most one
+  queued variant per application update with the same bounded queue/generation
+  publication rules. This is cooperative update work, not a Web Worker claim.
+  Browser region ticks explicitly use sequential CPU iteration. Runtime remains
+  UI/GPU independent; no project schema or renderer device ownership changed.
+- First wasm check exposed only a generic inspect_err lifetime issue, corrected
+  with closures. First linked build then needed a qualified RenderError name in
+  the new host callback; corrected. Initial full wasm binary build passed20.16s:
+  /private/tmp/eldiron-browser-player-bootstrap-final-build.log. Final owned-job
+  build and actual browser validation are pending.
+- Existing installed wasm-bindgen CLI0.2.126 mismatches locked bindings0.2.114.
+  Built a temporary exact0.2.114 packager from cached cli-support (14.48s), with
+  automatically approved cached-registry unpacking. No dependency version was
+  upgraded. Temporary HTML/project copies are served only on127.0.0.1:8898 for
+  a fresh headless Chrome profile; the user's browser/session is untouched.
+  This does not bypass the locked desktop or establish physical window/IME
+  acceptance. All M0–M9 completion gates stay open.
+
+Browser execution diagnostic, still in progress:
+- Actual isolated Chrome reports navigator.gpu available. Initial HTTP fixture
+  used a snake-case module name before packaging finished; corrected it to the
+  generated hyphenated filename and sequenced after completed packaging.
+- First real game load then reproduced a WASM runtime panic in decode_project:
+  unconditional std::time::Instant startup instrumentation is unsupported on
+  wasm32-unknown-unknown. Replaced both shared project/appearance startup timers
+  with web_time::Instant; no loader/serde semantics changed. Added frontend panic
+  status so a failed startup does not leave a permanent loading indicator.
+- Final owned-job wasm binary build passed16.70s, then clock-corrected build
+  passed9.23s. Exact0.2.114 binding generation completed. Raw debug wasm270MiB,
+  packaged module103,028,262bytes; these are debug sizes, no release-size claim.
+  Logs: /private/tmp/eldiron-browser-player-{owned-jobs,clock}-build.log and
+  /private/tmp/eldiron-browser-clock-package.log.
+- Existing native appearance preparation tests passed2,10.92s:
+  /private/tmp/eldiron-browser-player-cpu-appearance-check.log. Native/common/
+  Creator/staticlib/wasm and actual browser integration still running. All13
+  independently resolved renderer boundaries passed (including both browser
+  launchers): /private/tmp/eldiron-browser-boundaries-check.log.
+
+Browser asset/bootstrap correction:
+- Clock-corrected real Chrome run reached a WebGPU canvas/surface, then failed
+  visibly with "missing engine 2D program". RustEmbed's development filesystem
+  mode cannot work on WASM. Both framework/engine wasm dependencies now enable
+  debug-embed; release embedding remains automatic. This fixes normal debug
+  run-wasm workflows as well as release. No legacy Pixels fallback was added.
+- WASM debug build with embedding passed45.36s:
+  /private/tmp/eldiron-browser-player-embedded-build.log. Initial optimized wasm
+  binary build passed1m22s:
+  /private/tmp/eldiron-browser-player-release-build.log. Final diagnostic metadata
+  builds/packaging and actual release browser runs pending.
+- Native common-player CPU tests **passed8,47.60s**, seven GPU cases deliberately
+  ignored in that CPU invocation. Native launchers and Creator native/reference/
+  staticlib checks passed. Logs: /private/tmp/eldiron-browser-player-{cpu-player,
+  native-launchers,native-creator,reference-creator,staticlib-creator}-check.log.
+- The former Creator appearance helper/global job adapter has now been removed
+  from owned Play; the CPU job owner is in CreatorPlaySession and the common
+  PlayerApplication. Runtime/GameSession/terminal do not gain visual preparation
+  jobs or GPU dependencies. Device reconstruction retains application CPU jobs.
+
+Browser validation correction (do not classify the first release run as passed):
+- The initial optimized run returned three surface submission/present acks and
+  zero counted color readback, but no completed pixel capture. Inspecting Chrome
+  GPU diagnostics exposed a rejected ui-paint-shader, so those counts alone are
+  NOT successful browser rendering evidence. WGPU WebGPU errors arrive async.
+- Chrome/Tint rejected implicit textureSample after varying-dependent fragment
+  returns (native Naga/Metal compilation had accepted it). UI/scene-output images
+  have one mip level: changed their sampler to explicit base LOD, preserving
+  filtering/alpha behavior. Moved SDF derivative evaluation before any varying
+  return. No diagnostic was disabled and no CPU fallback added.
+- Browser GpuContext now records its first uncaptured WebGPU validation error
+  and returns it on host poll. This propagates into the frontend error callback
+  instead of silently reporting ongoing presentation of invalid command buffers.
+  Native wgpu retains its existing validation/panic behavior.
+- Final browser probe now waits for a stable acknowledged run, captures pixels,
+  and observes Canvas2D context requests, color copyTextureToBuffer and uncaptured
+  device errors through the real browser APIs. Browser/Native shader integration
+  and recovery checks are pending. No M8 or visual gate has passed yet.
+
+Shader integration continuation:
+- All12 existing native Metal paint cases passed0.98s after explicit-LOD and
+  derivative-order changes: /private/tmp/eldiron-browser-shader-native-metal.log
+  (6.35s build). This covers alpha/filtering/surface formats/fractional-density
+  source sampling and retained glyph/editor paint without new fixture suites.
+- Final optimized bundle with shader/error-monitor correction built41.71s,
+  packaged54,070,144bytes. Native player/Creator owned-job integration is running.
+- First enhanced browser probe stalled with its inspector/debugger client still
+  attached. A read-only process sample showed a nested main-thread message wait,
+  not a completed pixel capture. Restarting only this task's isolated browser
+  profile for a clean probe; it is not valid browser rendering evidence yet.
+
+First verified browser visual checkpoint:
+- Fresh isolated Chrome without a debugger attachment rendered the actual
+  Hideout2D character-creation screen. Stable probe **passed**,62 acknowledged
+  presentations/tick10, one WebGPU canvas, readback0, Canvas2D requests0, color
+  copyTextureToBuffer0 and uncaptured GPU errors[]:
+  /private/tmp/eldiron-browser-hideout-clean-run.log.
+- Completed browser screenshot visually inspected:
+  /private/tmp/eldiron-browser-Hideout2D.png. It shows the actual authored name
+  field, class controls, formatted text and Start Game button through the shared
+  Swash/paint path, not the former loading/error page. This supersedes the
+  earlier invalid-shader counter-only run. No physical Mac/IME claim.
+- Existing assembled native player runtime/GPU reconstruction test passed1,
+  27.22s with the new application-owned preparation service and shared shader:
+  /private/tmp/eldiron-browser-owned-jobs-player-metal.log. Creator integration
+  is still running. Browser game start, text input, DPR and device recovery are
+  now being checked in the same live browser session before further cutover.
+
+Late game-start ownership regression found by real browser workflow:
+- Browser name-field input accepted accented committed key text and painted it
+  correctly. This is keyboard/text evidence, NOT IME composition acceptance.
+  The first synthetic Meta+A sequence was not a valid physical shortcut on the
+  web host, so the next probe uses ordinary End/Backspace editing; no controller
+  shortcut behavior is being changed to fit that probe.
+- Clicking Hideout2D Start Game after waiting on its creation screen returned
+  "No player entity template found in region 'Harbor'". Inspection confirmed
+  the shipped project has a valid authored Player. The shared session's live
+  region publication had replaced its runtime entities with NPC occupants,
+  removing the unregistered player placement used by deferred startup.
+- Added immutable CPU PlayerStartSource (one selected actor/template/controls,
+  no map clone/GPU/serde data). GameSession captures it at successful startup,
+  uses it for later registration against the current live map/entrance, and
+  clears it at Stop. Local-player duplicate-registration policy is unchanged.
+  Reference preparation still shares the same selection/command implementation.
+- Extended existing CPU source factory test and existing real-starter runtime
+  test to cover startup after multiple live-map ticks without an existing player.
+  CPU checks and new browser release bundle are pending. No project fixture was
+  edited to hide the regression.
+- Existing full assembled Creator Metal integration completed successfully,
+  passed1,102.12s before this final shared source-cache fix:
+  /private/tmp/eldiron-browser-owned-jobs-creator-metal.log. Together with the
+  player27.22s and paint12 cases this verifies owned CPU appearance jobs and
+  shader portability changes on native Metal. The new start-source fix still
+  needs its own focused CPU + real-browser workflow evidence.
+
+Late-start source-cache focused verification:
+- Existing CPU player-start factory test passed1,0.00s:
+  /private/tmp/eldiron-player-start-source-cpu.log. A cached source still prepares
+  the chosen name/controls/authored position after live occupants replace its
+  map entities; uncached lookup correctly fails in that state.
+- Initial extended 3D runtime test assumed its region publishes NPCs by itself;
+  it has none, so its original template remained in the presentation projection.
+  Kept the same shipped 3D fixture and original gates, supplied a controlled NPC
+  publication through the actual CPU pump to reproduce Hideout2D's observed
+  condition, then retained the deferred-start and exactly-once checks. Final
+  seven-test runtime invocation pending. Superseded test failure log:
+  /private/tmp/eldiron-runtime-deferred-start-cpu.log.
+- The stalled original headless profile/debugger processes were cleaned up by
+  their exact task-owned profile marker. The clean browser and user's browser
+  remain separate. No physical desktop security state was changed.
+
+Deferred-start source verified on CPU, browser continuation pending:
+- All7 existing runtime library tests passed24.64s with actual pump replacement
+  and deferred PlayerSession registration:
+  /private/tmp/eldiron-runtime-deferred-start-final-cpu.log.
+- Rebuilt debug/release browser bundle with the source cache; final release
+  package54,100,005bytes. Pipeline log:
+  /private/tmp/eldiron-browser-deferred-start-package-pipeline.log.
+- Fresh clean-profile Hideout2D reload passed70 stable presentations/tick9,
+  readback0/Canvas2D0/colorCopies0/GPU errors[]:
+  /private/tmp/eldiron-browser-hideout-deferred-start-run.log. Actual delayed
+  Start Game and following browser lifecycle checks are now running against it.
+
+Real browser deferred start/world checkpoint:
+- Delayed character creation now succeeds in the same runtime. Browser Start
+  Game produced the actual Harbor/game HUD at presentation1155/tick165 with
+  readback0, Canvas2D0, colorCopies0 and GPU errors[]. Screenshot visually
+  inspected: /private/tmp/eldiron-browser-hideout-world.png (map, actors, HUD,
+  inventory and authored world text). Updated name field was also captured.
+- CSS resize840x520 passed with unchanged runtime/session, no readback/errors:
+  /private/tmp/eldiron-browser-hideout-deferred-lifecycle.log. That invocation
+  then timed out at the first fractional-DPR assertion, so it is NOT a fully
+  passed lifecycle checkpoint.
+- Same-session diagnostic shows Chrome CDP deviceScaleFactor1.25 changes
+  window.devicePixelRatio to1.25 while its device-pixel ResizeObserver/canvas
+  remains840x520 rather than1050x650. Winit prefers that device-pixel box. This
+  discrepancy is measured in /private/tmp/eldiron-browser-dpr-inspect.log;
+  do not change production canvas sizing merely to force the emulation probe
+  to pass. Investigate physical-DPR browser validation separately; actual monitor
+  transitions remain a physical-host acceptance gate. Device recovery and 3D
+  browser workflows remain independent next work.
+
+DPR validation note:
+- Consulted the primary Resize Observer draft's device-pixel box contract:
+  https://drafts.csswg.org/resize-observer/#resize-observer-interface
+  It describes device-pixel-content-box and implementation-specific pixel
+  snapping, rather than requiring an app-side CSS-size multiplication. The
+  measured25% discrepancy is larger than rounding; CDP-only metrics are not
+  enough to establish actual monitor-density behavior. Retain this as an open
+  browser/physical-DPR check, not a passed gate or a production sizing change.
+  Protocol reference: https://chromedevtools.github.io/devtools-protocol/tot/Emulation/
+- Delayed game start/world rendering and CSS resize are independently verified;
+  a bounded actual-device destroy/recreation probe is running on the existing
+  game session, without the unresolved fractional emulation step blocking it.
+
+
+Actual browser device recovery and 125% startup density:
+- Destroyed the real JS WebGPU device while Harbor was running. Shared host
+  reconstructed GPU generation1→2; session0f8cb3e7-a549-459d-9b86-e6d59cd5037a
+  remained identical, tick967→968 and presentations6743→6747. Zero renderkit
+  readback, Canvas2D requests and color copies; uncaptured GPU errors[]. Probe
+  passed: /private/tmp/eldiron-browser-hideout-device-recovery.log. Captured
+  actual world/HUD/text after recovery and visually inspected it.
+- Confirmed the final name edit screenshot shows Éowyn once, after ordinary
+  End/Backspace/committed-key editing. This does not establish OS IME parity.
+- A second isolated Chrome launched with --force-device-scale-factor=1.25
+  reports real DPR1.25, CSS596x294 and canvas745x367, respecting the device-pixel
+  box and browser snapping. Rendered creation UI visually inspected; presents682,
+  tick102, readback0/Canvas2D0/colorCopies0/errors[]. Logs:
+  /private/tmp/eldiron-browser-density-clean-run.log and
+  /private/tmp/eldiron-browser-125-percent-metrics.log. Thus actual browser125%
+  startup works; CDP-only metrics discrepancy remains separate, and physical
+  monitor transitions/other densities are still open.
+- Representative verified pixel captures are now durable in
+  concepts/native-wgpu-evidence/browser-{name-input,harbor-world,device-recovery,
+  125-percent}.png. No invalid/stale 3D capture was copied. The fresh3D run has
+  acknowledged frames but its first bounded capture timed out; longer bounded
+  capture is still in progress, so3D visual/performance acceptance remains open.
+
+
+Browser/common-player checkpoint final compilation:
+- Final source-cache/owned-job/shader tree passed native graphical launchers,
+  Creator native-host, reference and staticlib, canonical classic wasm launcher,
+  and all13 independently resolved dependency boundaries. Logs:
+  /private/tmp/eldiron-browser-final-{launchers,creator-native,creator-reference,
+  creator-staticlib,canonical-wasm,boundaries}.log. Final native Creator22.58s.
+- Combined with focused CPU runtime7/source-factory1, appearance2/player8 and
+  assembled native Metal player1/Creator1/paint12 evidence above, this is a
+  reviewable implementation checkpoint. No project serialization or authored
+  fixture was modified. Browser3D performance/visual capture, full density/input/
+  audio/lifecycle, native physical-host gates and M0–M9 retirement remain open.

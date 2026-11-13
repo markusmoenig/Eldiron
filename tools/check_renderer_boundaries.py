@@ -14,15 +14,17 @@ GPU = {"wgpu", "wgpu-core", "wgpu-hal", "renderkit", "winit", "pixels", "softbuf
 TEXT_UI = {"parley", "swash", "zeno"}
 
 
-def tree(package, features=None):
+def tree(package, features=None, target=None):
     args = ["cargo", "tree", "--offline", "-p", package, "--edges", "normal,features", "--prefix", "none"]
+    if target is not None:
+        args.extend(["--target", target])
     if features is not None:
         args.extend(["--no-default-features", "--features", features])
     return subprocess.check_output(args, cwd=ROOT, text=True)
 
 
-def check(package, forbidden, features=None, no_widget_ui=False, forbidden_features=()):
-    output = tree(package, features)
+def check(package, forbidden, features=None, no_widget_ui=False, forbidden_features=(), target=None):
+    output = tree(package, features, target)
     packages = set(re.findall(r"^([A-Za-z0-9_-]+) v[0-9]", output, re.MULTILINE))
     failures = sorted(packages & forbidden)
     if no_widget_ui and 'theframework feature "ui"' in output:
@@ -30,7 +32,7 @@ def check(package, forbidden, features=None, no_widget_ui=False, forbidden_featu
     failures.extend(feature for feature in forbidden_features if feature in output)
     if failures:
         raise RuntimeError(f"{package}: unexpected dependencies: {', '.join(failures)}")
-    print(f"{package}{' [' + features + ']' if features else ''}: boundary passed")
+    print(f"{package}{' [' + features + ']' if features else ''}{' (' + target + ')' if target else ''}: boundary passed")
 
 
 def main():
@@ -45,6 +47,8 @@ def main():
     check("eldiron-client-wgpu", {"pixels", "softbuffer"}, forbidden_features=('scenevm feature "windowing"',))
     check("eldiron-client-wgpu", {"winit", "pixels", "softbuffer"}, features="native-player")
     check("eldiron-creator", {"pixels", "softbuffer"}, features="native-host", forbidden_features=('scenevm feature "windowing"',))
+    for package in ("eldiron-client", "eldiron-client-wgpu"):
+        check(package, {"pixels", "softbuffer"}, forbidden_features=('scenevm feature "windowing"',), target="wasm32-unknown-unknown")
 
 
 if __name__ == "__main__":

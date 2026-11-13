@@ -78,6 +78,8 @@ log4rs = { version = "1.3.0", features = [
 ], default-features = false, optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+# WASM has no runtime filesystem, including development builds.
+rust-embed = { version = "8", features = ["debug-embed"] }
 console_error_panic_hook = "0.1"
 console_log = "1.0.0"
 js-sys = "0.3"

@@ -527,6 +527,31 @@ fn real_starter_defers_menu_registration_and_starts_once_with_shared_runtime() {
     state.settings.play_screen = "Play".into();
     assert!(state.auto_start(false).unwrap().player.is_none());
     assert!(!state.runtime.has_started_player());
+    // A real menu can remain open through many updates. Live region occupants
+    // replace the render projection, while startup placement remains available.
+    for _ in 0..4 {
+        state.runtime.tick_once();
+        state.advance(Duration::ZERO);
+    }
+    // This 3D fixture has no NPC publication to replace its initial entity
+    // projection. Supply one through the real CPU pump, as Hideout2D does while
+    // its creation menu remains open, so the authored template cannot mask it.
+    let map_id = state.runtime.view().map.unwrap().id;
+    let region = state.runtime.server.region_id_map[&map_id];
+    let mut npc = rusterix::Entity::default();
+    npc.id = 1_000_000;
+    state.runtime.server.entities.insert(region, vec![npc]);
+    state.runtime.poll();
+    assert!(
+        state
+            .runtime
+            .view()
+            .map
+            .unwrap()
+            .entities
+            .iter()
+            .all(|entity| !entity.is_player())
+    );
     let mut bindings = FxHashMap::default();
     bindings.insert("start.name".into(), "Clæria 東京".into());
     let transition = state.game_command("start", &mut bindings).unwrap();

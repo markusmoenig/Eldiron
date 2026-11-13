@@ -29,6 +29,8 @@ pub struct GpuContext {
     generation: u64,
     lost: Arc<AtomicBool>,
     counters: Arc<Counters>,
+    #[cfg(target_arch = "wasm32")]
+    validation_error: Arc<std::sync::Mutex<Option<String>>>,
 }
 impl GpuContext {
     pub async fn request(
@@ -52,6 +54,22 @@ impl GpuContext {
             })
             .await
             .map_err(|e| RenderError(format!("request device: {e}")))?;
+        // Browser validation is asynchronous: successful queue submission alone
+        // cannot establish that a shader/pipeline was accepted. Preserve the
+        // first uncaptured error for the next host poll. Native wgpu retains its
+        // default synchronous validation/panic behavior.
+        #[cfg(target_arch = "wasm32")]
+        let validation_error = {
+            let error = Arc::new(std::sync::Mutex::new(None));
+            let capture = error.clone();
+            device.on_uncaptured_error(Arc::new(move |error: wgpu::Error| {
+                capture
+                    .lock()
+                    .unwrap()
+                    .get_or_insert_with(|| error.to_string());
+            }));
+            error
+        };
         let lost = Arc::new(AtomicBool::new(false));
         let flag = lost.clone();
         device.set_device_lost_callback(move |_, _| {
@@ -65,6 +83,8 @@ impl GpuContext {
             queue,
             generation: NEXT_DEVICE.fetch_add(1, Ordering::Relaxed),
             counters: Arc::new(Counters::default()),
+            #[cfg(target_arch = "wasm32")]
+            validation_error,
         }))
     }
     pub async fn headless() -> Result<Arc<Self>> {
@@ -102,6 +122,10 @@ impl GpuContext {
     }
     /// Drive mapping/completion callbacks without waiting for the GPU.
     pub fn poll(&self) -> Result<()> {
+        #[cfg(target_arch = "wasm32")]
+        if let Some(error) = self.validation_error.lock().unwrap().as_ref() {
+            return Err(RenderError(format!("WebGPU validation: {error}")));
+        }
         self.device
             .poll(wgpu::PollType::Poll)
             .map(|_| ())
