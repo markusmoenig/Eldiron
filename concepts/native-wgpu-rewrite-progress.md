@@ -5042,3 +5042,51 @@ accepted-click retry, complete GameSession/renderer/global ownership, authored
 Play screens/HUD/input, resource/performance/release, browser and Apple acceptance
 remain required. Preserve the hidden Collision Probe and unrelated networking
 concept; keep the overall Goal active.
+
+
+### Accepted Prefab door-preview click continuation (2026-11-13)
+
+Closing a displayed door preview on the first authoring down used to consume
+that down without authoring. Native input now retains the already accepted
+physical sequence while the closed geometry rebuilds, then dispatches it only
+after an acknowledged fresh scene with matching source/camera/view binding.
+
+- Pending input retains document/runtime/tool/context/map/projection/size/DPI,
+  source stamp and camera identity. A bounded queue (128 samples) preserves an
+  early drag/release; changing ownership, source, camera or modifiers before
+  replay, explicit cancellation/focus loss, modal unbinding or GPU replacement
+  revokes it. Queue overflow drops the whole pending sequence.
+- Replay uses the same existing scene freshness rule and regular ToolList/dock
+  dispatch. A rejected/consumed replay down cannot invent later drag/up events.
+  A started authoring draft keeps its usual scoped release/rollback ownership.
+  No scene color readback or root framebuffer path was added.
+- This specifically covers an **accepted click which closes the Prefab preview**.
+  Unacknowledged or stale arbitrary fresh clicks remain rejected; this is not a
+  relaxation of input/presentation guards or proof of the full tool/input matrix.
+
+The existing assembled native Creator check passed **1**, **79.83 s** (22.03 s
+build), `/private/tmp/eldiron-native-prefab-door-retry-root-final.log`. It uses the
+real Geometry tool/part selector/Configure Door/Preview Door controls, verifies
+that preview geometry actually changes, queues a background down+up, observes
+restored closed geometry with authoring still deferred, then verifies selection
+clears only after the closed scene is presented and the gesture releases. A
+second waiting sequence is cancelled on focus loss and does not author later.
+The same run retains the corrected normal Paint picker, actual asset-owned Paint
+stroke, native Play, Stop/restart and document restoration checks.
+
+The first proof build failed Rust's nested mutable-closure borrow check; it now
+uses the existing settle helper for presentation. No production guard was
+weakened. Final focused native compile passed **9.03 s**,
+`/private/tmp/eldiron-native-retry-check-final.log`, after narrowly formatting the
+new snippets and adding conservative modifier-change cancellation. The assembled
+run used the unchanged/default modifiers; the full modifier/trajectory matrix
+remains unverified. `git diff --check` passed. No new test suite or repeated broad
+platform matrix was added; the CPU runtime tests were not rerun for this native
+input change.
+
+Next useful work: Creator authored game-screen/GameInput cutover to the common
+presentation owner and complete GameSession storage ownership; continue normal
+Geometry/Tiles/Palette and other authoring contexts, source/save/reopen and full
+input/resource/performance/release/platform acceptance. All M0–M9 gates remain
+in progress and the overall Goal stays active. Existing physical host and
+simulator blockers remain unchanged.

@@ -1457,6 +1457,150 @@ mod tests {
             before.readback_bytes,
             "Prefab rendering and effect queries perform no color readback"
         );
+        // The first down on a presented door preview closes it, then must
+        // resume against the acknowledged closed scene, including an early up.
+        app.session.context.ui.send(TheEvent::Custom(
+            TheId::named("Set Tool"),
+            TheValue::Text("tool.geometry".into()),
+        ));
+        app.update(&mut host, Duration::from_millis(16));
+        app.update(&mut host, Duration::from_millis(16));
+        let part = app.application.editor.project_for_native_test().block_props[&prefab].parts[0].id;
+        app.session.context.ui.send(TheEvent::NewListItemSelected(
+            TheId::named_with_id("Prefab Branch", part),
+            TheId::named("Prefab Graph Branches"),
+        ));
+        app.update(&mut host, Duration::from_millis(16));
+        app.session.context.ui.send(TheEvent::StateChanged(
+            TheId::named("Prefab Editor Configure Door"),
+            TheWidgetState::Clicked,
+        ));
+        app.update(&mut host, Duration::from_millis(16));
+        assert!(
+            !app.application.editor.project_for_native_test().block_props[&prefab]
+                .components
+                .is_empty()
+        );
+        let closed = serde_json::to_value(
+            &app.application
+                .editor
+                .project_for_native_test()
+                .prefab_editor_map
+                .as_ref()
+                .unwrap()
+                .geometry_objects,
+        )
+        .unwrap();
+        app.session.context.ui.send(TheEvent::StateChanged(
+            TheId::named("Prefab Editor Preview Door"),
+            TheWidgetState::Clicked,
+        ));
+        settle_prefab(&mut app, &mut host, &mut replacement);
+        assert_ne!(
+            serde_json::to_value(
+                &app.application
+                    .editor
+                    .project_for_native_test()
+                    .prefab_editor_map
+                    .as_ref()
+                    .unwrap()
+                    .geometry_objects
+            )
+            .unwrap(),
+            closed
+        );
+        let dim = *app.session.ui.get_render_view("PrefabView").unwrap().dim();
+        let blank = Vec2::new(dim.width - 40, dim.height - 40);
+        app.session.context.ui.set_focus(&prefab_view);
+        app.session
+            .context
+            .ui
+            .send(TheEvent::RenderViewClicked(prefab_view.clone(), blank));
+        app.session
+            .context
+            .ui
+            .send(TheEvent::RenderViewUp(prefab_view.clone(), blank));
+        app.update(&mut host, Duration::from_millis(16));
+        assert_eq!(
+            app.application.editor.native_retry_state_for_test(),
+            (true, false)
+        );
+        assert_eq!(
+            serde_json::to_value(
+                &app.application
+                    .editor
+                    .project_for_native_test()
+                    .prefab_editor_map
+                    .as_ref()
+                    .unwrap()
+                    .geometry_objects
+            )
+            .unwrap(),
+            closed
+        );
+        assert!(
+            !app.application
+                .editor
+                .project_for_native_test()
+                .prefab_editor_map
+                .as_ref()
+                .unwrap()
+                .selected_geometry_objects
+                .is_empty()
+        );
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while app.application.editor.native_retry_state_for_test() != (false, false) {
+            settle_prefab(&mut app, &mut host, &mut replacement);
+            assert!(
+                Instant::now() < deadline,
+                "accepted door click did not resume and release"
+            );
+        }
+        assert!(
+            app.application
+                .editor
+                .project_for_native_test()
+                .prefab_editor_map
+                .as_ref()
+                .unwrap()
+                .selected_geometry_objects
+                .is_empty(),
+            "the accepted background click clears selection after the closed scene is presented"
+        );
+        // Focus loss cancels the waiting physical sequence without inventing
+        // another authoring click when the replacement finally becomes ready.
+        app.session.context.ui.send(TheEvent::StateChanged(
+            TheId::named("Prefab Editor Preview Door"),
+            TheWidgetState::Clicked,
+        ));
+        settle_prefab(&mut app, &mut host, &mut replacement);
+        app.session
+            .context
+            .ui
+            .send(TheEvent::RenderViewClicked(prefab_view.clone(), blank));
+        app.session
+            .context
+            .ui
+            .send(TheEvent::RenderViewUp(prefab_view.clone(), blank));
+        app.update(&mut host, Duration::from_millis(16));
+        assert!(app.application.editor.native_retry_state_for_test().0);
+        app.input(&InputEvent::Focus(false), &mut host);
+        assert_eq!(
+            app.application.editor.native_retry_state_for_test(),
+            (false, false)
+        );
+        settle_prefab(&mut app, &mut host, &mut replacement);
+        assert!(
+            !app.application
+                .editor
+                .project_for_native_test()
+                .prefab_editor_map
+                .as_ref()
+                .unwrap()
+                .selected_geometry_objects
+                .is_empty()
+        );
+        app.input(&InputEvent::Focus(true), &mut host);
         app.session.context.ui.send(TheEvent::Custom(
             TheId::named("Set Tool"),
             TheValue::Text("tool.iso_paint".into()),

@@ -330,11 +330,22 @@ pub(crate) struct NativeWorld {
     presented: Option<Arc<NativeWorldFrame>>,
     overlay_input: ToolOverlayInputState,
     world_capture: Option<WorldGesture>,
+    retry_click: Option<RetryClick>,
     cube: ViewCubeFrames,
     cube_capture: Option<CubeCapture>,
     events: std::collections::VecDeque<ScopedToolOverlayEvent>,
     published: Option<(TheId, Arc<PaintList>)>,
     gpu: Option<WorldGpu>,
+}
+/// An already accepted down which changed preview geometry before authoring.
+/// Keep its physical continuation bounded until the replacement is presented.
+struct RetryClick {
+    binding: Binding,
+    stamp: SourceStamp,
+    camera: Option<CameraStamp>,
+    modifiers: (bool, bool, bool, bool),
+    events: std::collections::VecDeque<TheEvent>,
+    started: bool,
 }
 struct WorldGesture {
     binding: Binding,
@@ -357,6 +368,7 @@ impl Default for NativeWorld {
             presented: None,
             overlay_input: Default::default(),
             world_capture: None,
+            retry_click: None,
             cube: Default::default(),
             cube_capture: None,
             events: Default::default(),
@@ -366,6 +378,35 @@ impl Default for NativeWorld {
     }
 }
 impl NativeWorld {
+    fn frame_is_fresh(
+        &self,
+        frame: &NativeWorldFrame,
+        map: &Map,
+        camera: &Option<CameraStamp>,
+    ) -> bool {
+        frame.ready
+            && frame.camera == *camera
+            && frame.stamp == SourceStamp::new(map)
+            && if let Some(targets) = &frame.isometric {
+                self.gpu
+                    .as_ref()
+                    .and_then(|gpu| gpu.scenes.isometric_targets(frame.output))
+                    .is_some_and(|current| Arc::ptr_eq(targets, &current))
+            } else {
+                let builds = SCENEMANAGER.read().unwrap();
+                !builds.has_pending_geometry()
+                    && builds.source_matches(map.id, frame.binding.camera)
+                    && Arc::ptr_eq(
+                        &frame.source,
+                        &RUSTERIX
+                            .read()
+                            .unwrap()
+                            .scene_handler
+                            .build_index
+                            .snapshot(),
+                    )
+            }
+    }
     fn bind(&mut self, next: Option<Binding>, ui: &mut TheUI) {
         if self.binding == next {
             return;
@@ -379,6 +420,10 @@ impl NativeWorld {
                     owner.binding = next.clone();
                     owner
                 })
+        });
+        let retry = self.retry_click.take().filter(|retry| {
+            next.as_ref()
+                .is_some_and(|next| retry.binding.capture_compatible(next))
         });
         let had_cube_capture = self.cube_capture.is_some();
         let cube_capture = self.cube_capture.take().and_then(|mut owner| {
@@ -395,6 +440,7 @@ impl NativeWorld {
         self.invalidate(ui);
         self.binding = next;
         self.world_capture = capture;
+        self.retry_click = retry;
         self.cube_capture = cube_capture;
         if self.binding.is_some() {
             let mut tools = TOOLLIST.write().unwrap();
@@ -425,6 +471,7 @@ impl NativeWorld {
         self.presented = None;
         self.overlay_input.invalidate();
         self.world_capture = None;
+        self.retry_click = None;
         self.cube.invalidate();
         if self.cube_capture.take().is_some() {
             EDITCAMERA.write().unwrap().reset_mouse_tracking();
@@ -590,6 +637,7 @@ impl Editor {
         self.native_viewport.world.bind(next, ui);
     }
     pub(crate) fn cancel_native_world_gesture(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+        self.native_viewport.world.retry_click = None;
         let Some(gesture) = self.native_viewport.world.world_capture.take() else {
             return;
         };
@@ -895,6 +943,7 @@ impl Editor {
                 world.presented = None;
                 world.overlay_input.invalidate();
                 world.world_capture = None;
+                world.retry_click = None;
                 world.cube.invalidate();
                 world.cube_capture = None;
                 world.events.clear();
@@ -1371,6 +1420,9 @@ impl Editor {
         ui: &mut TheUI,
         ctx: &mut TheContext,
     ) -> Option<TheEvent> {
+        if let Some(event) = self.take_native_retry_click(ui, ctx) {
+            return Some(event);
+        }
         while let Some(event) = self.native_viewport.world.events.pop_front() {
             TOOLLIST
                 .write()
@@ -1397,6 +1449,52 @@ impl Editor {
             }
         }
         None
+    }
+    fn take_native_retry_click(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+    ) -> Option<TheEvent> {
+        self.native_viewport.world.retry_click.as_ref()?;
+        let next = self.native_world_binding(ui, ctx);
+        self.bind_native_world(next.clone(), ui, ctx);
+        let binding = next?;
+        let camera = self
+            .native_world_camera()
+            .map(|camera| CameraStamp::new(camera.as_ref(), binding.size));
+        let map = self.project.get_map(&self.server_ctx)?;
+        let world = &mut self.native_viewport.world;
+        let mut retry = world.retry_click.take()?;
+        if !retry.binding.capture_compatible(&binding) || retry.camera != camera {
+            return None;
+        }
+        if !retry.started {
+            if retry.stamp != SourceStamp::new(map)
+                || retry.modifiers != (ui.shift, ui.ctrl, ui.alt, ui.logo)
+            {
+                return None;
+            }
+            if !world.presented.as_ref().is_some_and(|frame| {
+                frame.binding == binding && world.frame_is_fresh(frame, map, &camera)
+            }) {
+                world.retry_click = Some(retry);
+                ctx.ui.redraw_all = true;
+                return None;
+            }
+            retry.started = true;
+        } else if !world
+            .world_capture
+            .as_ref()
+            .is_some_and(|gesture| gesture.binding.capture_compatible(&binding))
+        {
+            // A consumed/rejected replay down cannot invent a later drag/up.
+            return None;
+        }
+        let event = retry.events.pop_front();
+        if !retry.events.is_empty() {
+            world.retry_click = Some(retry);
+        }
+        event
     }
     pub(crate) fn handle_native_world_input(
         &mut self,
@@ -1467,6 +1565,34 @@ impl Editor {
         let current_camera = self
             .native_world_camera()
             .map(|camera| CameraStamp::new(camera.as_ref(), binding.size));
+        if self
+            .native_viewport
+            .world
+            .retry_click
+            .as_ref()
+            .is_some_and(|retry| !retry.started)
+        {
+            match input {
+                MapEvent::MapDragged(_) | MapEvent::MapUp(_) => {
+                    let world = &mut self.native_viewport.world;
+                    let retry = world.retry_click.as_mut().unwrap();
+                    if retry.events.len() < 128
+                        && retry.modifiers == (ui.shift, ui.ctrl, ui.alt, ui.logo)
+                    {
+                        retry.events.push_back(event.clone());
+                    } else {
+                        world.retry_click = None;
+                    }
+                    return true;
+                }
+                MapEvent::MapHover(_) => return true,
+                MapEvent::MapEscape => {
+                    self.native_viewport.world.retry_click = None;
+                    return true;
+                }
+                _ => self.native_viewport.world.retry_click = None,
+            }
+        }
         if matches!(input, MapEvent::MapEscape)
             && self.native_viewport.world.world_capture.is_some()
         {
@@ -1498,7 +1624,17 @@ impl Editor {
             )
         {
             let next = self.native_world_binding(ui, ctx);
-            self.bind_native_world(next, ui, ctx);
+            self.bind_native_world(next.clone(), ui, ctx);
+            if let (Some(binding), Some(map)) = (next, self.project.get_map(&self.server_ctx)) {
+                self.native_viewport.world.retry_click = Some(RetryClick {
+                    binding,
+                    stamp: SourceStamp::new(map),
+                    camera: current_camera,
+                    modifiers: (ui.shift, ui.ctrl, ui.alt, ui.logo),
+                    events: std::collections::VecDeque::from([event.clone()]),
+                    started: false,
+                });
+            }
             ctx.ui.redraw_all = true;
             return true;
         }
@@ -1722,31 +1858,9 @@ impl Editor {
             }
             return false;
         }
-        let fresh = frame.as_ref().is_some_and(|frame| {
-            frame.ready
-                && frame.camera == current_camera
-                && frame.stamp == SourceStamp::new(map)
-                && if let Some(targets) = &frame.isometric {
-                    world
-                        .gpu
-                        .as_ref()
-                        .and_then(|gpu| gpu.scenes.isometric_targets(frame.output))
-                        .is_some_and(|current| Arc::ptr_eq(targets, &current))
-                } else {
-                    let builds = SCENEMANAGER.read().unwrap();
-                    !builds.has_pending_geometry()
-                        && builds.source_matches(map.id, binding.camera)
-                        && Arc::ptr_eq(
-                            &frame.source,
-                            &RUSTERIX
-                                .read()
-                                .unwrap()
-                                .scene_handler
-                                .build_index
-                                .snapshot(),
-                        )
-                }
-        });
+        let fresh = frame
+            .as_ref()
+            .is_some_and(|frame| world.frame_is_fresh(frame, map, &current_camera));
         if !fresh || matches!(input, MapEvent::MapDragged(_) | MapEvent::MapUp(_)) {
             ctx.ui.redraw_all = true;
             return true;
@@ -1848,6 +1962,12 @@ impl Editor {
 
 #[cfg(test)]
 impl Editor {
+    pub(crate) fn native_retry_state_for_test(&self) -> (bool, bool) {
+        (
+            self.native_viewport.world.retry_click.is_some(),
+            self.native_viewport.world.world_capture.is_some(),
+        )
+    }
     pub(crate) fn native_world_debug_for_test(&self) -> String {
         let map = self.project.get_map(&self.server_ctx).unwrap();
         let frame = self.native_viewport.world.presented.as_ref();
