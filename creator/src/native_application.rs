@@ -3075,14 +3075,14 @@ mod tests {
         renderer: &mut PaintRenderer,
         output: &Arc<GpuImage>,
     ) {
-        for (kind, name) in [(0, "screen")] {
+        for (kind, name) in [(0, "screen"), (1, "surface")] {
             let fixture = app.application.editor.begin_native_custom_for_test(
                 kind,
                 &mut app.session.ui,
                 &mut app.session.context,
             );
             let mut previous_pixels = None;
-            for phase in 0..3 {
+            for phase in 0..if kind == 1 { 4 } else { 3 } {
                 let mut phase_pending = true;
                 let before = gpu.transfers().readback_bytes;
                 let deadline = Instant::now() + Duration::from_secs(10);
@@ -3179,7 +3179,7 @@ mod tests {
                 if let Some(previous) = previous_pixels {
                     assert!(
                         pixels.pixels() != previous,
-                        "custom animation/canvas changes must invalidate their GPU output without a map edit"
+                        "custom visual inputs must invalidate their GPU output without a map edit"
                     );
                 }
                 previous_pixels = Some(pixels.pixels().to_vec());

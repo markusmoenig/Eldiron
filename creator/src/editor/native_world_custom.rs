@@ -6,39 +6,40 @@ use vek::Mat3;
 
 #[derive(Clone, PartialEq)]
 pub(super) struct Description {
-    clip: [u32; 4],
+    clip: Option<[u32; 4]>,
 }
 impl Description {
     pub(super) fn current(map: &Map, server: &ServerContext) -> Option<Self> {
-        if server.editor_view_mode != EditorViewMode::D2
-            || map.camera != MapCamera::TwoD
-            || !matches!(
-                server.get_map_context(),
-                MapContext::Screen | MapContext::Character | MapContext::Item
-            )
-        {
+        if server.editor_view_mode != EditorViewMode::D2 || map.camera != MapCamera::TwoD {
             return None;
         }
-        let clip = if server.get_map_context() == MapContext::Screen {
-            let grid = server.config.grid_size.max(1) as f32;
-            let width = server.config.viewport.x as f32 / grid;
-            let height = server.config.viewport.y as f32 / grid;
-            [-width * 0.5, -height * 0.5, width, height]
-        } else {
-            [-5., -5., 10., 10.]
+        let clip = match server.get_map_context() {
+            MapContext::Screen => {
+                let grid = server.config.grid_size.max(1) as f32;
+                let width = server.config.viewport.x as f32 / grid;
+                let height = server.config.viewport.y as f32 / grid;
+                Some([-width * 0.5, -height * 0.5, width, height])
+            }
+            MapContext::Character | MapContext::Item => Some([-5., -5., 10., 10.]),
+            MapContext::Region
+                if scope::uses_region(server) && server.editing_surface.is_some() =>
+            {
+                None
+            }
+            _ => return None,
         };
         Some(Self {
-            clip: clip.map(f32::to_bits),
+            clip: clip.map(|clip| clip.map(f32::to_bits)),
         })
     }
-    pub(super) fn clip(&self) -> rusterix::Rect {
-        let [x, y, width, height] = self.clip.map(f32::from_bits);
-        rusterix::Rect {
+    pub(super) fn clip(&self) -> Option<rusterix::Rect> {
+        let [x, y, width, height] = self.clip?.map(f32::from_bits);
+        Some(rusterix::Rect {
             x,
             y,
             width,
             height,
-        }
+        })
     }
 }
 
@@ -166,7 +167,7 @@ mod tests {
         );
         map.vertices[0].x -= 0.25;
         assert!(Description::current(&map, &server).unwrap() == initial);
-        let screen_clip = initial.clip();
+        let screen_clip = initial.clip().unwrap();
         assert_eq!(
             screen_clip.width,
             server.config.viewport.x as f32 / server.config.grid_size.max(1) as f32
@@ -181,6 +182,13 @@ mod tests {
         server.editor_view_mode = EditorViewMode::D2;
         server.pc = ProjectContext::Region(Uuid::new_v4());
         assert!(Description::current(&map, &server).is_none());
+        server.editing_surface = Some(rusterix::Surface::new(0));
+        assert!(
+            Description::current(&map, &server)
+                .unwrap()
+                .clip()
+                .is_none()
+        );
     }
 }
 
@@ -199,6 +207,10 @@ pub(crate) struct Fixture {
     clipboard: Map,
     animation: usize,
     editor_canvas: bool,
+    editing: Option<rusterix::Surface>,
+    active: Option<rusterix::Surface>,
+    detail_mode: GeometryEditMode,
+    parent: Option<(Uuid, Vec<u8>)>,
 }
 
 #[cfg(test)]
@@ -223,6 +235,10 @@ impl Editor {
             clipboard: self.server_ctx.clipboard.clone(),
             animation: self.server_ctx.reference.read().client.animation_frame,
             editor_canvas: self.server_ctx.reference.read().client.use_editor_canvas,
+            editing: self.server_ctx.editing_surface.clone(),
+            active: self.server_ctx.active_detail_surface.clone(),
+            detail_mode: self.server_ctx.geometry_edit_mode,
+            parent: None,
         };
         let mut pixels = Vec::new();
         for i in 0..16 {
@@ -267,21 +283,31 @@ impl Editor {
                 ProjectContext::Screen(id)
             }
             1 => {
-                let mut character = shared::character::Character::new();
-                character.map = map;
-                let id = character.id;
-                self.documents.project.characters.insert(id, character);
-                self.server_ctx.curr_character = ContentContext::CharacterTemplate(id);
-                ProjectContext::Character(id)
+                let region = self
+                    .documents
+                    .project
+                    .get_region_ctx_mut(&self.server_ctx)
+                    .unwrap();
+                let host = crate::project_templates::rectangle(&mut region.map, 3., 3., 3., 2.);
+                let mut surface = rusterix::Surface::new(host);
+                surface.calculate_geometry(&region.map);
+                surface.world_vertices = region
+                    .map
+                    .find_sector(host)
+                    .unwrap()
+                    .vertices_world(&region.map)
+                    .unwrap();
+                assert_eq!(surface.world_vertices.len(), 4);
+                surface.profile = Some(map.id);
+                region.map.profiles.insert(map.id, map);
+                region.map.surfaces.insert(surface.id, surface.clone());
+                self.server_ctx.editing_surface = Some(surface);
+                self.server_ctx.active_detail_surface = None;
+                self.server_ctx.geometry_edit_mode = GeometryEditMode::Geometry;
+                fixture.parent = Some((region.map.id, serde_json::to_vec(&region.map).unwrap()));
+                ProjectContext::Region(region.id)
             }
-            _ => {
-                let mut item = shared::item::Item::new();
-                item.map = map;
-                let id = item.id;
-                self.documents.project.items.insert(id, item);
-                self.server_ctx.curr_item = ContentContext::ItemTemplate(id);
-                ProjectContext::Item(id)
-            }
+            _ => unreachable!("custom fixture kind"),
         };
         self.server_ctx.editor_view_mode = EditorViewMode::D2;
         self.server_ctx.config.viewport = Vec2::new(320, 240);
@@ -310,6 +336,24 @@ impl Editor {
             .filter(|frame| frame.ready && frame.binding.custom.is_some())?;
         let map = scope::map(&self.documents.project, &self.server_ctx).unwrap();
         assert_eq!(serde_json::to_vec(map).unwrap(), fixture.authored);
+        if let Some((id, authored)) = &fixture.parent {
+            let parent = &self
+                .documents
+                .project
+                .get_region_ctx(&self.server_ctx)
+                .unwrap()
+                .map;
+            assert_eq!(parent.id, *id);
+            assert_eq!(
+                &serde_json::to_vec(parent).unwrap(),
+                authored,
+                "profile preparation must preserve its parent"
+            );
+            assert_ne!(
+                frame.binding.map, parent.id,
+                "2D profile displays its child map"
+            );
+        }
         assert!(
             world.source.as_ref().unwrap().source.is_none(),
             "custom view cannot need a hidden scene builder"
@@ -365,14 +409,19 @@ impl Editor {
             .set_map_hover_info(self.server_ctx.hover, self.server_ctx.hover_cursor);
         reference.client.builder_d2.draw_grid = self.server_ctx.show_editor_grid;
         let map = scope::map(&self.documents.project, &self.server_ctx).unwrap();
-        reference.client.builder_d2.set_clip_rect(Some(
-            Description::current(map, &self.server_ctx).unwrap().clip(),
-        ));
+        reference
+            .client
+            .builder_d2
+            .set_clip_rect(Description::current(map, &self.server_ctx).unwrap().clip());
         reference.build_custom_scene_d2(
             Vec2::new(size.0 as f32, size.1 as f32),
             map,
             &self.build_values,
-            &None,
+            if scope::uses_region(&self.server_ctx) {
+                &self.server_ctx.editing_surface
+            } else {
+                &None
+            },
             true,
         );
         let mut pixels = vec![0; size.0 as usize * size.1 as usize * 4];
@@ -385,6 +434,11 @@ impl Editor {
         bridge.client.animation_frame = usize::from(phase != 0);
         if phase == 2 {
             bridge.client.use_editor_canvas = !bridge.client.use_editor_canvas;
+        }
+        if phase == 3 {
+            let surface = self.server_ctx.editing_surface.as_mut().unwrap();
+            let shift = surface.edit_uv.right * 0.25;
+            surface.world_vertices[0] += shift;
         }
     }
 
@@ -405,6 +459,9 @@ impl Editor {
         self.server_ctx.geo_hit = None;
         self.server_ctx.curr_character = fixture.character;
         self.server_ctx.curr_item = fixture.item;
+        self.server_ctx.editing_surface = fixture.editing;
+        self.server_ctx.active_detail_surface = fixture.active;
+        self.server_ctx.geometry_edit_mode = fixture.detail_mode;
         self.server_ctx.config.viewport = fixture.viewport;
         self.server_ctx.config.grid_size = fixture.grid;
         self.server_ctx.editor_view_mode = fixture.mode;

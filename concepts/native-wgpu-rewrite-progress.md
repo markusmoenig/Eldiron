@@ -10253,3 +10253,83 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   Some setter outside tests; preserve that dormant UX while adopting its
   existing child-map/base/outline/paste compatibility adapter, then continue
   orthographic persisted/progressive bakes and canonical Creator retirement.
+
+## 2026-11-14 — Legacy2D surface-profile adapter (active)
+
+- Actor/context/atlas batch committed d762c386; concurrent networking concept
+  untouched. Final available native/browser evidence retained above.
+- Reuse custom GPU base+SceneVM guides for existing editing_surface child maps.
+  Description now distinguishes Screen clip from the unbounded profile canvas;
+  Surface outline uses the owner's existing plane/footprint, and the2D child
+  remains separate from its parent region. No production activation setter or
+  new UI workflow added. Current production assignment audit finds only tests
+  set editing_surface=Some, so preserve that dormant compatibility state.
+- The scene preparation key now includes existing DetailScope plane/footprint
+  hashes. A changed outline can invalidate guide pixels even when child-map
+  content/revision stays identical. Capture identity already used that scope.
+- Extended existing custom assembled fixture to a controlled textured child
+  profile/parent footprint,3 animation/canvas phases, exact explicit-reference
+  RGB comparison, no parent/child mutation by prepare, native clipboard/undo/
+  cancellation and restored application state. Compile1 failed only on wrong
+  GeometryEditMode variant name; corrected Object→Geometry. Compile2 PASS;
+  final CPU/full assembled verification pending. No surface adapter acceptance
+  claimed before those results. Sprite-isometric custom context/bakes remain.
+
+- Caller-audit correction: searching only literal '= Some' was insufficient.
+  Linedef's3D selection/hover assigns editing_surface from a helper or cloned
+  hover Option (tools/linedef.rs). Normal camera switches clear it, but Screen
+  selection forces2D through context state, so retained/indirect transitions must
+  not be declared unreachable from that literal search. No new UI activation is
+  added; the adapter preserves existing surface state, including those routes.
+- Added context/map/presented-source identities to the existing opt-in browser
+  view diagnostics. This remains test inspection only and prevents accepting
+  tree-coordinate labels as proof of the actual selected producer.
+- Surface compile2 PASS27.36s; both Screen and surface phases0/1/2 report exact
+  maxRGBdelta0. Full clipboard/parent/lifecycle assertions still collecting.
+
+- Final custom contract CPU PASS1/.01s. Full assembled surface run PASS1/181.67s:
+  Screen and surface phases0/1/2 all exactRGB0, no parent/child mutation during
+  preparation, no hidden custom chunk worker, actual custom paste/undo/redo/
+  cancel and surrounding actor/atlas/document/Play/device workflow pass. Source
+  DPI deltas remain<=1. Captured surface profile output retained for inspection.
+- Shared browser release PASS42.14s/package98,325,965B, including new opt-in
+  context/presented-source metadata. Reference/staticlib builds and browser
+  bootstrap collecting. No direct browser2D surface activation/pixel comparison
+  claimed; the existing activation routes and physical-platform gates remain
+  distinct from this native adapter's tested compatibility.
+
+- Visual QA refinement: initial Surface::calculate_geometry establishes its
+  plane/basis but does not populate nonserialized world_vertices. The first
+  exactRGB profile capture therefore verifies the child base/guides without a
+  footprint. Fixture now explicitly supplies its valid4-point parent footprint,
+  then changes one cached corner without editing parent/child serialized data.
+  Added a fourth profile phase to require changed output and exact legacy RGB;
+  this directly exercises DetailScope-driven guide-cache invalidation. No
+  production geometry/activation change. Compile3/final footprint assembly
+  pending; first profile capture is superseded for footprint acceptance.
+- Reference compile PASS; staticlib archive PASS20.51s. Shared current browser
+  bootstrap/device recovery PASS doc820094a0-3390-47c5-ad62-ea4f841972a7, actual
+  2400x1287/CSS1600x858,2devices/gen2, root/readback/asset/color copies/Canvas2D0,
+  errors[]. Opt-in source fields correctly report same acknowledged Region/map,
+  readytrue,customfalse before/after recovery. These are shared baseline/metadata
+  checks, not direct browser surface-profile activation evidence.
+
+- Footprint build3 PASS23.71s. New surface phases0/1/2/3 all exactRGB0; phase3
+  requires visibly changed output from one nonserialized footprint corner while
+  both authored maps remain byte-identical. Inspected final footprint capture
+  native-custom-surface-profile.png6830B
+  SHA9a72b771046847bda3746bd1eedf295bdb82cff7de84fb5cb860b1d808fc8095.
+  Initial no-footprint capture not promoted. Full final assembly still collecting.
+
+- Final footprint assembled run PASS1/170.70s. Four profile phases (including
+  nonserialized corner change) exactRGB0, actual child paste/undo/redo/cancel,
+  no normal CPU display/readback and unchanged prepare-time parent/child bytes.
+  Available native adapter contract verified. Last reference/staticlib/browser
+  production builds remain applicable; subsequent edits were fixture-only.
+- Remaining custom persisted camera values still have explicit adapters:
+  Description currently accepts only MapCamera::TwoD; Screen TwoDIso and stored
+  3D camera values in its forced2D editor require caller-scoped adoption. Do not
+  declare every custom/main viewport retired yet. Orthographic persisted and
+  progressive bake producer/ownership, canonical default launcher, data/cache
+  boundaries, release measurements and physical/cross-platform gates remain.
+  Next work proceeds autonomously through these remaining producers.

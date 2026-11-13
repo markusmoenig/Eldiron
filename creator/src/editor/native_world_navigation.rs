@@ -244,6 +244,16 @@ impl Editor {
             "navigation": self.native_viewport.world.relative_navigation.is_some(), "moving": camera.move_action.is_some(), "fly": self.server_ctx.editor_fly_nav_active,
             "fly_mouse": self.server_ctx.editor_fly_nav_mouse_down,
             "world": self.native_world_owns_viewport(),
+            "source": {
+                "context": format!("{:?}", self.server_ctx.pc),
+                "map": self.native_world_map_id(),
+                "presented": self.native_viewport.world.presented.as_ref().map(|frame| serde_json::json!({
+                    "context": format!("{:?}", frame.binding.context),
+                    "map": frame.binding.map,
+                    "ready": frame.ready,
+                    "custom": frame.binding.custom.is_some(),
+                })),
+            },
             "paste": {
                 "active": self.server_ctx.paste_clipboard.is_some(),
                 "authored_vertices": scope::map(&self.documents.project, &self.server_ctx).map(|map| map.vertices.len()),

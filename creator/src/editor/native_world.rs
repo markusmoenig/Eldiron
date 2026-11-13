@@ -190,6 +190,7 @@ impl PartialEq for GameInputFrame {
 }
 #[derive(PartialEq)]
 struct SceneInputKey {
+    detail: scope::DetailScope,
     custom_content: Option<u64>,
     paste: Option<paste::Stamp>,
     terrain_paint: Option<u64>,
@@ -795,14 +796,17 @@ impl Editor {
             || self.server_ctx.text_game_mode
             || self.server_ctx.world_mode
             || self.server_ctx.profile_view.is_some()
-            || (self.server_ctx.editing_surface.is_some()
-                && self.server_ctx.editor_view_mode == EditorViewMode::D2)
         {
             return false;
         }
         let Some(map) = scope::map(&self.documents.project, &self.server_ctx) else {
             return false;
         };
+        if self.server_ctx.editing_surface.is_some()
+            && self.server_ctx.editor_view_mode == EditorViewMode::D2
+            && custom::Description::current(map, &self.server_ctx).is_none() {
+            return false;
+        }
         if !(scope::uses_region(&self.server_ctx) || self.server_ctx.pc.is_prefab()
             || custom::Description::current(map, &self.server_ctx).is_some()) { return false; }
         if self.server_ctx.editor_view_mode != EditorViewMode::D2 {
@@ -1132,6 +1136,7 @@ impl Editor {
             gpu.scene_key = None;
         }
         let key = SceneInputKey {
+            detail: binding.detail.clone(),
             custom_content: binding.custom.as_ref().map(|_| custom::content(map)),
             paste: binding.paste.clone(),
             camera: camera_stamp.clone(),
@@ -1324,7 +1329,7 @@ impl Editor {
                     scene.settings.backend_2d = if binding.custom.is_some() {
                         rusterix::render_settings::RendererBackend::Compute
                     } else { rusterix::render_settings::RendererBackend::Raster };
-                    gpu.guides.set_clip_rect(binding.custom.as_ref().map(|custom| custom.clip()));
+                    gpu.guides.set_clip_rect(binding.custom.as_ref().and_then(|custom| custom.clip()));
                     gpu.guides.set_properties(&self.build_values);
                     gpu.guides
                         .set_map_tool_type(self.server_ctx.curr_map_tool_type);
@@ -1341,7 +1346,9 @@ impl Editor {
                         assets,
                         &mut gpu.guide_scene,
                         Vec2::new(binding.size.0 as f32, binding.size.1 as f32),
-                        &None,
+                        if binding.custom.is_some() && scope::uses_region(&self.server_ctx) {
+                            &self.server_ctx.editing_surface
+                        } else { &None },
                         scene,
                         binding.custom.is_some(),
                     );
