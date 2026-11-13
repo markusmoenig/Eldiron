@@ -463,6 +463,7 @@ impl PaintRenderer {
                 | (u32::from(manual) << 2)
                 | (u32::from(repeat_x) << 3)
                 | (u32::from(repeat_y) << 4)
+                | (u32::from(image.descriptor.alpha_mode == AlphaMode::Opaque) << 6)
         });
         let filter = match effect {
             Some(ImageEffect::Filter(f)) => Some(f),

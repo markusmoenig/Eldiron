@@ -11,6 +11,8 @@ use std::hash::{Hash, Hasher};
 pub mod native;
 #[cfg(feature = "native-render")]
 pub(crate) mod native_geometry;
+#[cfg(feature = "native-render")]
+pub(crate) mod native_scene;
 
 pub static MINIMAPBUFFER: LazyLock<RwLock<TheRGBABuffer>> =
     LazyLock::new(|| RwLock::new(TheRGBABuffer::default()));
@@ -784,51 +786,18 @@ pub fn draw_minimap(
             buffer.fill(background);
             draw_geometry_minimap(map, buffer, bbox);
         } else if use_scenevm_region {
-            // Minimap readability: render with stable daytime lighting.
-            let hour = 12.0;
             let anim_counter = rusterix.client.animation_frame;
-            let scenevm_mode_2d = rusterix.scene_handler.settings.scenevm_mode_2d();
             let scene_handler = &mut rusterix.scene_handler;
-            let layer_count = scene_handler.vm.vm_layer_count();
-            let mut layer_enabled_before = Vec::with_capacity(layer_count);
-            for i in 0..layer_count {
-                layer_enabled_before.push(scene_handler.vm.is_layer_enabled(i).unwrap_or(true));
-            }
-            // Minimap should show base scene only, never editor/game overlays.
-            for i in 1..layer_count {
-                scene_handler.vm.set_layer_enabled(i, false);
-            }
-            if matches!(scenevm_mode_2d, scenevm::RenderMode::Compute2D) {
-                scene_handler.vm.execute(scenevm::Atom::SetGP0(Vec4::new(
-                    map_copy.grid_size,
-                    map_copy.subdivisions,
-                    map_copy.offset.x,
-                    -map_copy.offset.y,
-                )));
-            }
-            scene_handler
-                .vm
-                .execute(scenevm::Atom::SetRenderMode(scenevm_mode_2d));
-            scene_handler.settings.apply_hour(hour);
-            scene_handler.settings.apply_2d(&mut scene_handler.vm);
-            // Minimap 2D background should stay black regardless of project sky settings.
-            scene_handler
-                .vm
-                .execute(scenevm::Atom::SetGP0(Vec4::zero()));
-            scene_handler
-                .vm
-                .execute(scenevm::Atom::SetTransform2D(transform));
-            scene_handler
-                .vm
-                .execute(scenevm::Atom::SetAnimationCounter(anim_counter));
-            scene_handler
-                .vm
-                .execute(scenevm::Atom::SetBackground(Vec4::zero()));
-            scene_handler
-                .vm
-                .render_frame(buffer.pixels_mut(), width as u32, height as u32);
-            for (i, enabled) in layer_enabled_before.into_iter().enumerate() {
-                scene_handler.vm.set_layer_enabled(i, enabled);
+            let enabled = (0..scene_handler.vm.vm_layer_count())
+                .map(|layer| scene_handler.vm.is_layer_enabled(layer).unwrap_or(true))
+                .collect::<Vec<_>>();
+            rusterix::editor_view::MinimapView2D {
+                size: (width as u32, height as u32), bounds: bbox,
+                animation_frame: anim_counter,
+            }.prepare(scene_handler);
+            scene_handler.vm.render_frame(buffer.pixels_mut(), width as u32, height as u32);
+            for (layer, enabled) in enabled.into_iter().enumerate() {
+                scene_handler.vm.set_layer_enabled(layer, enabled);
             }
         } else {
             let mut builder = rusterix::D2PreviewBuilder::new();

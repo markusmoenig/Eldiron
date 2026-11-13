@@ -7,6 +7,21 @@ use rusterix::{Assets, editor_view::EditorViewFrame};
 use std::sync::Arc;
 
 impl SceneViews {
+    /// Overview consumers never borrow the main viewport's VM/camera or target.
+    pub fn prepare_minimap(
+        &mut self,
+        id: ViewId,
+        frame: &rusterix::editor_view::MinimapView2D,
+        images: &mut ImageRegistry,
+    ) -> Result<()> {
+        self.resize(id, frame.size, images)?;
+        if frame.size.0 == 0 || frame.size.1 == 0 {
+            return Ok(());
+        }
+        self.select_game_mode(id, false, images)?;
+        frame.prepare(self.scene_mut(id)?);
+        Ok(())
+    }
     /// Install source atlas/shaders and independent authoring-guide layers.
     /// Documents, build jobs and source revisions remain with the application.
     pub fn configure_editor(&mut self, id: ViewId, assets: &Assets) -> Result<()> {

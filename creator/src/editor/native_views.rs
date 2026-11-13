@@ -15,6 +15,7 @@ use world::NativeWorldFrame;
 
 pub(crate) struct NativeViewTokens {
     minimap: Option<crate::minimap::native_geometry::Token>,
+    scene_minimap: Option<crate::minimap::native_scene::Token>,
     display: Option<NativeDisplayFrame>,
     play: Option<NativePlayFrame>,
     world: Option<std::sync::Arc<NativeWorldFrame>>,
@@ -30,6 +31,7 @@ impl NativeViewTokens {
     ) -> Self {
         Self {
             minimap: None,
+            scene_minimap: None,
             display: None,
             play: None,
             world: None,
@@ -52,6 +54,10 @@ impl NativeViewTokens {
     }
     pub(crate) fn retain_painted(&mut self, list: &theframework::paint::PaintList) {
         let receipts = list.receipts().collect::<std::collections::HashSet<_>>();
+        self.scene_minimap = self
+            .scene_minimap
+            .take()
+            .filter(|token| receipts.contains(&token.receipt()));
         self.minimap = self
             .minimap
             .take()
@@ -160,6 +166,35 @@ impl Editor {
             ui,
             ctx,
         );
+        let scene_minimap = {
+            // Temporary CPU publication bridge, shared with the world viewport.
+            // The minimap's renderer/device/camera/targets are entirely owned.
+            use std::hash::{Hash, Hasher};
+            let bridge = RUSTERIX.read().unwrap();
+            let mut asset_key = std::collections::hash_map::DefaultHasher::new();
+            bridge.assets.tiles_revision.hash(&mut asset_key);
+            bridge.assets.block_props_revision.hash(&mut asset_key);
+            bridge.assets.config.hash(&mut asset_key);
+            serde_json::to_vec(&bridge.assets.palette)
+                .map_err(|e| e.to_string())?
+                .hash(&mut asset_key);
+            self.documents.project.procedural_materials.revision().hash(&mut asset_key);
+            self.documents.project.procedural_appearances.revision().hash(&mut asset_key);
+            self.procedural_appearance_revision.hash(&mut asset_key);
+            let map = self.documents.project.get_map(&self.server_ctx);
+            map.and_then(|map| bridge.assets.terrain_paint.get(&map.id))
+                .map(|paint| paint.key)
+                .hash(&mut asset_key);
+            let ready = map.is_some_and(|map| {
+                let builds = SCENEMANAGER.read().unwrap();
+                !builds.has_pending_geometry() && builds.source_matches(map.id, map.camera)
+            });
+            self.sidebar.minimap_scene.prepare(
+                &self.documents.project, &self.server_ctx, ui, ctx,
+                &bridge.assets, asset_key.finish(), bridge.scene_handler.build_index.snapshot(),
+                ready, bridge.client.animation_frame, images.registry,
+            )?
+        };
         if self.native_empty_viewport()
             && let Some(view) = crate::utils::map_editor_render_view(ui, &self.server_ctx)
         {
@@ -170,10 +205,12 @@ impl Editor {
         tokens.world = world;
         tokens.play = play;
         tokens.minimap = minimap;
+        tokens.scene_minimap = scene_minimap;
         Ok(Some(tokens))
     }
     pub(crate) fn native_views_waiting(&self) -> bool {
-        self.geometry_editor.gpu_preview_waiting()
+        self.sidebar.minimap_scene.waiting()
+            || self.geometry_editor.gpu_preview_waiting()
             || self.appearance_workspace.gpu_preview_waiting()
             || self.procedural_material.gpu_preview_waiting()
             || self.native_world_waiting()
@@ -186,6 +223,7 @@ impl Editor {
     ) {
         self.presented_native_play_viewport(tokens.play, ui, ctx);
         self.sidebar.minimap_geometry.presented(tokens.minimap);
+        self.sidebar.minimap_scene.presented(tokens.scene_minimap);
         self.presented_native_display_viewport(tokens.display, ui, ctx);
         self.presented_native_world_viewport(tokens.world, ui, ctx);
         if let Some(token) = tokens.geometry {
@@ -201,6 +239,7 @@ impl Editor {
     }
     pub(crate) fn invalidate_native_views(&mut self, ui: &mut TheUI) {
         self.sidebar.minimap_geometry.invalidate(ui);
+        self.sidebar.minimap_scene.device_reset(ui);
         self.native_viewport.play.invalidate(ui);
         self.invalidate_native_display_viewport(ui);
         self.native_viewport.world.device_reset(ui);

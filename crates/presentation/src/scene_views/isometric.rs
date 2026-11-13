@@ -6,6 +6,52 @@ use crate::{
 };
 use rusterix::{client::widget::game::GameWidget, isometric::lighting::Lighting};
 impl SceneViews {
+    /// A fitted, static isometric overview. The caller supplies the projection;
+    /// this path has no player dynamics, particles or simulation clock.
+    pub fn prepare_isometric_overview(
+        &mut self,
+        id: ViewId,
+        size: (u32, u32),
+        map: &rusterix::Map,
+        assets: &rusterix::Assets,
+        projection: rusterix::isometric::Projection,
+        revision: u64,
+        images: &mut ImageRegistry,
+    ) -> Result<()> {
+        self.resize(id, size, images)?;
+        if size.0 == 0 || size.1 == 0 {
+            return Ok(());
+        }
+        self.select_game_mode(id, true, images)?;
+        let view = self
+            .views
+            .get_mut(&id)
+            .ok_or_else(|| RenderError("unknown scene view".into()))?;
+        if view.isometric_renderer.is_none() {
+            view.isometric_renderer = Some(IsometricSceneRenderer::new(self.context.clone())?);
+        }
+        let lighting = Lighting::new(&Default::default(), std::iter::empty(), 0);
+        let frame = view.isometric_renderer.as_mut().unwrap().prepare_unlit(
+            size,
+            &IsometricSceneInput {
+                map,
+                assets,
+                avatars: &Default::default(),
+                seconds: 0.,
+                projection,
+                lighting: &lighting,
+                particles: &[],
+                source_version: IsometricSourceVersion {
+                    namespace: id.0,
+                    content: ContentRevision(revision),
+                    tiles: assets.tiles_revision,
+                },
+            },
+        )?;
+        view.isometric_frame = Some(frame);
+        view.dirty = true;
+        Ok(())
+    }
     /// The caller attaches this exact completed source receipt to the host's
     /// presentation acknowledgement; a newer prepare cannot rewrite it.
     pub fn isometric_targets(

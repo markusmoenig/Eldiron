@@ -4922,7 +4922,7 @@ impl Editor {
         #[cfg(feature = "native-render")]
         self.cancel_native_world_gesture(ui, ctx);
         #[cfg(feature = "native-render")]
-        self.sidebar.minimap_geometry.deactivate(ui);
+        { self.sidebar.minimap_geometry.deactivate(ui); self.sidebar.minimap_scene.deactivate(ui); }
         self.procedural_material.reset(ui, ctx);
         self.geometry_editor
             .finish_drag(&mut self.documents.project, ctx, false);

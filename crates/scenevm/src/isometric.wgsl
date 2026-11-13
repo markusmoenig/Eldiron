@@ -195,6 +195,8 @@ fn visibility(point:vec3<f32>,normal:vec3<f32>,direction:vec3<f32>,distance:f32,
 fn main(@builtin(global_invocation_id) id:vec3<u32>) {
     if id.x>=u.counts.x||id.y>=u.counts.y{return;}
     let index=id.y*u.counts.x+id.x;let rgba=unpack4x8unorm(albedo[index]);let surface=surfaces[index];
+    // Explicit unlit asset/overview policy; retain the same GPU source coverage.
+    if u.shadow.w<0.0 {textureStore(output,vec2<i32>(id.xy),rgba);return;}
     let has_surface=surface.y!=0x7f800000u;
     let pixel=vec2<f32>(id.xy)+0.5;let height=select(0.0,bitcast<f32>(surface.y&0xffffff00u),has_surface);let point=world_at(pixel,height);
     var rgb=pow(rgba.rgb,vec3<f32>(2.2));

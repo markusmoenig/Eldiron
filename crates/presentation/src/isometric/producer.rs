@@ -81,6 +81,17 @@ pub struct IsometricSceneRenderer {
     paints: IsometricPaintSources,
 }
 impl IsometricSceneRenderer {
+    /// Asset overviews preserve authored source colors, without live lighting,
+    /// emission or shadows. Coverage, contacts and terrain still run on the GPU.
+    pub fn prepare_unlit(
+        &mut self,
+        size: (u32, u32),
+        input: &IsometricSceneInput<'_>,
+    ) -> Result<IsometricPreparedFrame> {
+        let mut frame = self.prepare(size, input)?;
+        frame.lighting.uniforms.shadow[3] = -1.;
+        Ok(frame)
+    }
     pub fn new(context: Arc<GpuContext>) -> Result<Self> {
         Ok(Self {
             output: IsometricRenderer::new(context.clone())?,

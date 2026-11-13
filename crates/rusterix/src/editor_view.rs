@@ -8,6 +8,42 @@ use crate::{Client, Map, Pixel, SceneHandler};
 use scenevm::Camera3D;
 use vek::{Mat3, Vec2, Vec4};
 
+/// Base-scene overview with independent X/Y fitting and stable daytime lighting.
+/// Shared by the explicit raster reference and the application-owned GPU view.
+pub struct MinimapView2D {
+    pub size: (u32, u32),
+    pub bounds: Vec4<f32>,
+    pub animation_frame: usize,
+}
+impl MinimapView2D {
+    pub fn prepare(&self, scene: &mut SceneHandler) {
+        let size = Vec2::new(self.size.0 as f32, self.size.1 as f32);
+        let scale = size / Vec2::new(self.bounds.z, self.bounds.w);
+        let center = Vec2::new(
+            self.bounds.x + self.bounds.z * 0.5,
+            self.bounds.y + self.bounds.w * 0.5,
+        );
+        let transform = Mat3::<f32>::translation_2d(size * 0.5 - center * scale)
+            * Mat3::new(scale.x, 0., 0., 0., scale.y, 0., 0., 0., 1.);
+        scene.vm.set_active_vm(0);
+        scene.vm.set_layer_enabled(0, true);
+        for layer in 1..scene.vm.vm_layer_count() {
+            scene.vm.set_layer_enabled(layer, false);
+        }
+        scene.vm.execute(scenevm::Atom::SetRenderMode(
+            scene.settings.scenevm_mode_2d(),
+        ));
+        scene.settings.apply_hour(12.);
+        scene.settings.apply_2d(&mut scene.vm);
+        scene.vm.execute(scenevm::Atom::SetGP0(Vec4::zero()));
+        scene.vm.execute(scenevm::Atom::SetTransform2D(transform));
+        scene
+            .vm
+            .execute(scenevm::Atom::SetAnimationCounter(self.animation_frame));
+        scene.vm.execute(scenevm::Atom::SetBackground(Vec4::zero()));
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct EditorView2D {
     pub size: (u32, u32),

@@ -2776,6 +2776,7 @@ mod tests {
         context: &mut TheContext,
     ) {
         use theframework::paint::{DisplayCompositing, PaintOp};
+        crate::minimap::native_scene::check_for_test(gpu, renderer);
         // Check populated picker assets through the actual GPU compositor in
         // this same assembled checkpoint, including crop/alpha/drag semantics.
         for (label, source, reference) in crate::docks::tiles::native_reference_cases_for_test()

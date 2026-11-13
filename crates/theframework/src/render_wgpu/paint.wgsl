@@ -125,6 +125,7 @@ fn target_image(texel:vec4<f32>)->vec4<f32> {
 // contributing texel before bilinear interpolation to preserve alpha edges.
 fn normalized_texel(texel:vec4<f32>)->vec4<f32> {
     var c=texel;
+    if((params.source&64u)!=0u){c.a=1.;}
     if((params.source&1u)!=0u){c=vec4<f32>(linear(c.rgb),c.a);}
     if((params.source&2u)==0u){c=vec4<f32>(c.rgb*c.a,c.a);}
     return c;

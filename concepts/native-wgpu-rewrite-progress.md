@@ -6202,3 +6202,97 @@ completion does not satisfy the remaining minimap cases or M0–M9 acceptance.
 Runtime/authoring project separation, canonical GPU entrypoint retirement, and
 the outstanding physical/platform/performance gates remain open. Preserve the
 untracked concurrent `concepts/networking-mmo-concept.md` unchanged.
+
+## 2026-11-13 — Region minimap scene-output migration (implementation active)
+
+Resumed from clean tracked HEAD `61b54821`. Untracked concurrent networking
+concept remains untouched. The full M0–M9 persistent Goal is active.
+
+Connected ordinary region and sprite-isometric minimaps to a Sidebar-owned
+SceneOverview using the host registry/device and independent SceneViews targets.
+The owner accepts CPU source snapshots/assets through an explicit Editor bridge;
+it never borrows or renders the global VM. Ordinary overviews share a CPU
+MinimapView2D description with the reference adapter (anisotropic bbox fit,
+stable noon, no guide layers). Isometric overviews use a fitted static source,
+no runtime occupants, and an explicit unlit GPU lighting policy.
+
+Navigation uses immutable presented source-map/terrain and bbox receipts, scoped
+by document incarnation, region/map, source content, widget/rect, mode and DPI.
+Pending source builds consume clicks; marker-only movement retains acknowledged
+navigation and reuses the scene image. Identity-safe invalidation and target/
+asset/device/domain reconstruction are being checked in the existing assembled
+Creator checkpoint. No project schema has changed.
+
+First compile identified an ambiguous generic Mat3 constructor; explicit f32
+fixed it. Native host compile then passed24.32s (six existing Creator warnings):
+`/private/tmp/eldiron-native-scene-minimap-shared-check.log`.
+Initial assembled build passed51.61s before the final opaque-image/resource fixes:
+`/private/tmp/eldiron-native-scene-minimap-build.log`.
+Builds use the established shared target and MACOSX_DEPLOYMENT_TARGET=26.1.
+
+Review found that copied-framebuffer minimaps require opaque sampling of stored
+RGB, including zero-alpha background pixels. An alias of the same GPU texture
+with AlphaMode::Opaque preserves this policy without a copy/upload/readback.
+The painter previously honored Opaque only when uploading CPU sources; its raw
+GPU image sampling now also honors that existing metadata. Focused oracle cases
+are added to the existing assembled checkpoint, not a new standalone suite.
+GPU evidence is pending; no gate is marked complete.
+
+Remaining adapters still include action/palette, screen/profile/custom contexts,
+character rig previews and the broader M0–M9 ownership/platform/performance work.
+
+Region minimap follow-up evidence:
+- Initial focused Metal run failed0.70s at eligibility: Region::new supplies a
+  starter geometry box, so the fixture unintentionally selected GeometryOverview.
+  The ordinary-region fixture now explicitly starts with Map::new.
+  `/private/tmp/eldiron-native-scene-minimap-focused-metal.log`.
+- Corrected fixture build passed33.87s; GPU source comparisons passed, but the
+  isometric image composed at125% DPI had a silhouette mismatch (max146).
+  `/private/tmp/eldiron-native-scene-minimap-{fixture-build,corrected-metal}.log`.
+  Reused the existing SpriteImage operation with its logical-pixel inverse basis
+  instead of normalized texture UV interpolation; no tolerance was widened.
+- Integrated build passed26.27s. Focused actual Metal run **passed1,6.59s**:
+  `/private/tmp/eldiron-native-scene-minimap-{integrated-build,integrated-metal}.log`.
+  Raster, compute and static isometric raw sources each matched exactly (max0).
+  Marker/source composition passed budget1 at100/125/150/175/200% DPI.
+  Real Sidebar publication/navigation, no CPU target/display storage, no implicit
+  color readback, static reuse, camera-only reuse, reused-revision replacement,
+  late acknowledgement/document/DPI rejection and reconstruction passed together.
+- Reference compile passed20.76s:
+  `/private/tmp/eldiron-scene-minimap-reference-check.log`.
+- Dependency boundary audit passed all11 independently resolved consumers:
+  `/private/tmp/eldiron-scene-minimap-boundaries.log`.
+- Full assembled Creator Metal checkpoint and final native-production check are
+  currently running. Resource review additionally found that Sidebar project
+  reload must retain its deactivated scene owner until prepare can unregister
+  its GPU outputs, rather than dropping an owner while its registry stays alive.
+  That cleanup adjustment needs the final build/checkpoint below.
+- Further action-preview inventory: `uses_minimap_preview` and
+  `minimap_preview_segments` have **zero action overrides**, only trait defaults.
+  The action minimap code is currently an inactive reference extension, not an
+  active display producer. Palette and rigging previews remain active adapters.
+
+Region minimap checkpoint verified:
+- Full assembled actual Metal Creator checkpoint **passed1,94.10s**:
+  `/private/tmp/eldiron-native-scene-minimap-root-metal.log`.
+  This includes the prior complete source/board/ghost/particle/geometry DPI matrix.
+- Native production compile passed23.99s (six existing Creator warnings):
+  `/private/tmp/eldiron-native-scene-minimap-production-check.log`.
+- Final populated-source/lifetime build passed43.49s and focused actual Metal run
+  **passed1,3.52s**:
+  `/private/tmp/eldiron-native-scene-minimap-{lifetime-build,lifetime-metal}.log`.
+  The fixture now uses a real project-owned colored tile, asserts visible geometry
+  in every mode (not just equality of possibly empty outputs), and checks that
+  real Sidebar reload retires the registered GPU alias. All three source cases
+  remain exact0; DPI composition remains within1. The full assembled run predates
+  this narrow cleanup adjustment, which is covered by the focused lifetime run.
+- `git diff --check` passed. No project format, standalone test-suite count,
+  physical host/IME result or loaded-project performance claim was added.
+
+Next coherent work: palette minimap GPU evaluation plus acknowledged color input,
+character-rig source publication, then non-region map/profile/screen minimap
+adapters. Action preview hooks currently have zero concrete implementations.
+Keep explicit reference/capture consumers and serialized data compatibility;
+retire active display callers without claiming that the full M5/M7 gate is done.
+The remaining Creator ownership/Play separation, browser/Apple wrapper parity,
+physical/platform/performance acceptance and full M0–M9 Goal remain active.

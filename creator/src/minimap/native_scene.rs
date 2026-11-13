@@ -1,0 +1,520 @@
+//! Region overview ownership. CPU snapshots enter here; only GPU handles leave.
+//! Navigation uses an immutable, actually presented map/projection, never MINIMAPBOX.
+use super::*;
+use eldiron_presentation::{SceneViews, ViewId, ViewImage};
+use rusterix::scene_build_index::SceneBuildSnapshot;
+use std::sync::Arc;
+use theframework::{
+    paint::{FrameReceipt, PaintList, PaintOp, Rect, new_receipt_owner},
+    theui::{
+        paint::{UiPaintResult, WidgetPainter, rgba},
+        thewidget::therenderview::RenderViewPaintSource,
+    },
+};
+
+#[derive(Clone, PartialEq)]
+struct Binding {
+    document: Uuid,
+    region: Uuid,
+    map: Uuid,
+    source: u64,
+    mode: EditorViewMode,
+    view: TheId,
+    rect: [i32; 4],
+    density: u32,
+}
+struct Frame {
+    binding: Binding,
+    map: Arc<Map>,
+    bbox: Vec4<f32>,
+    output: ViewImage,
+    image: renderkit::ImageHandle,
+    markers: PaintList,
+    marker_key: [u32; 4],
+    receipt: FrameReceipt,
+}
+impl RenderViewPaintSource for Frame {
+    fn paint(&self, p: &mut WidgetPainter<'_>, viewport: [f32; 2]) -> UiPaintResult {
+        if viewport != [self.binding.rect[2] as f32, self.binding.rect[3] as f32] {
+            return Ok(());
+        }
+        p.list.ops.push(PaintOp::SpriteImage {
+            image: self.image,
+            origin: [0.; 2],
+            scale: [1.; 2],
+            tint: [1.; 4],
+        });
+        p.list.ops.extend(self.markers.ops.iter().cloned());
+        p.list.ops.push(PaintOp::PixelRects {
+            rects: vec![Rect::new(0., 0., 50., 16.)].into(),
+            color: rgba([36, 36, 36, 255]),
+        });
+        p.label(
+            Rect::new(4., 0., 46., 16.),
+            "Region",
+            11.,
+            [215, 215, 215, 255],
+            TheHorizontalAlign::Left,
+            TheVerticalAlign::Center,
+        );
+        p.list.ops.push(PaintOp::Receipt(self.receipt));
+        Ok(())
+    }
+}
+struct Pending;
+impl RenderViewPaintSource for Pending {
+    fn paint(&self, p: &mut WidgetPainter<'_>, viewport: [f32; 2]) -> UiPaintResult {
+        p.list.ops.push(PaintOp::PixelRects {
+            rects: vec![Rect::new(0., 0., viewport[0], viewport[1])].into(),
+            color: rgba([42, 42, 42, 255]),
+        });
+        Ok(())
+    }
+}
+#[derive(Clone)]
+pub(crate) struct Token(Arc<Frame>);
+impl Token {
+    pub(crate) fn receipt(&self) -> FrameReceipt {
+        self.0.receipt
+    }
+}
+struct Gpu {
+    registry: u64,
+    scenes: SceneViews,
+    view: ViewId,
+    binding: Option<Binding>,
+    assets: u64,
+    source: Option<Arc<SceneBuildSnapshot>>,
+    animation: usize,
+    version: u32,
+    opaque: Option<(renderkit::ImageHandle, renderkit::ImageHandle)>,
+}
+impl Gpu {
+    fn new(images: &renderkit::ImageRegistry) -> Result<Self, String> {
+        let mut scenes = SceneViews::new(images, scenevm::SharedAtlas::new(1024, 1024));
+        let view = ViewId::new();
+        scenes.create(view, (0, 0)).map_err(|e| e.to_string())?;
+        Ok(Self {
+            registry: images.owner_id(),
+            scenes,
+            view,
+            binding: None,
+            assets: 0,
+            source: None,
+            animation: 0,
+            version: 0,
+            opaque: None,
+        })
+    }
+}
+pub(crate) struct SceneOverview {
+    owner: u64,
+    serial: u64,
+    enabled: bool,
+    current: Option<Arc<Frame>>,
+    presented: Option<Arc<Frame>>,
+    gpu: Option<Gpu>,
+    waiting: bool,
+}
+impl Default for SceneOverview {
+    fn default() -> Self {
+        Self {
+            owner: new_receipt_owner(),
+            serial: 0,
+            enabled: false,
+            current: None,
+            presented: None,
+            gpu: None,
+            waiting: false,
+        }
+    }
+}
+fn region<'a>(project: &'a Project, server: &ServerContext) -> Option<&'a Region> {
+    if !matches!(server.pc, ProjectContext::Region(id) if id == server.curr_region)
+        || server.editing_surface.is_some()
+        || palette_minimap_active(server)
+    {
+        return None;
+    }
+    let region = project.get_region(&server.curr_region)?;
+    if active_action_minimap_preview(&region.map, server).is_some()
+        || (region.map.camera != MapCamera::TwoDIso
+            && server.editor_view_mode != EditorViewMode::D2
+            && !region.map.geometry_objects.is_empty())
+    {
+        return None;
+    }
+    Some(region)
+}
+fn source_map(map: &Map) -> (Map, u64) {
+    let mut map = map.clone();
+    // Camera movement only changes the marker, not the fitted scene or terrain
+    // used for navigation. Runtime occupants never appear in a static overview.
+    map.offset = Vec2::zero();
+    map.grid_size = 1.;
+    map.changed = 0;
+    map.entities.clear();
+    map.items.clear();
+    map.selected_linedefs.clear();
+    map.selected_sectors.clear();
+    let mut hash = DefaultHasher::new();
+    serde_json::to_vec(&map)
+        .expect("serializable minimap source")
+        .hash(&mut hash);
+    (map, hash.finish())
+}
+impl SceneOverview {
+    fn binding(
+        project: &Project,
+        server: &ServerContext,
+        ui: &mut TheUI,
+        ctx: &TheContext,
+    ) -> Option<(Binding, Map)> {
+        let region = region(project, server)?;
+        let view = ui.get_render_view("MiniMap")?;
+        let dim = *view.dim();
+        if dim.width <= 0 || dim.height <= 0 {
+            return None;
+        }
+        let (map, source) = source_map(&region.map);
+        Some((
+            Binding {
+                document: server.document_instance,
+                region: region.id,
+                map: map.id,
+                source,
+                mode: server.editor_view_mode,
+                view: view.id().clone(),
+                rect: [dim.x, dim.y, dim.width, dim.height],
+                density: ctx.scale_factor.to_bits(),
+            },
+            map,
+        ))
+    }
+    pub(crate) fn publish(
+        &mut self,
+        project: &Project,
+        server: &ServerContext,
+        ui: &mut TheUI,
+        ctx: &TheContext,
+    ) -> bool {
+        if Self::binding(project, server, ui, ctx).is_none() {
+            return false;
+        }
+        if !self.enabled {
+            self.invalidate(ui);
+            ui.get_render_view("MiniMap")
+                .unwrap()
+                .set_paint_source(Some(Arc::new(Pending)));
+        }
+        self.enabled = true;
+        true
+    }
+    /// CPU source bridge supplied by Editor. This owner never accesses a global
+    /// VM, creates a device, ticks simulation or requests a color readback.
+    pub(crate) fn prepare(
+        &mut self,
+        project: &Project,
+        server: &ServerContext,
+        ui: &mut TheUI,
+        ctx: &TheContext,
+        assets: &rusterix::Assets,
+        asset_revision: u64,
+        source: Arc<SceneBuildSnapshot>,
+        ready: bool,
+        animation: usize,
+        images: &mut renderkit::ImageRegistry,
+    ) -> Result<Option<Token>, String> {
+        self.waiting = false;
+        if !self.enabled {
+            if let Some(gpu) = self.gpu.as_mut()
+                && gpu.registry == images.owner_id()
+            {
+                if let Some((_, image)) = gpu.opaque.take() {
+                    images.remove(image);
+                }
+                gpu.scenes.clear(images).map_err(|e| e.to_string())?;
+            }
+            self.gpu = None;
+            return Ok(None);
+        }
+        let Some((binding, mut map)) = Self::binding(project, server, ui, ctx) else {
+            self.invalidate(ui);
+            return Ok(None);
+        };
+        let iso = map.camera == MapCamera::TwoDIso;
+        if !iso && !ready {
+            self.waiting = true;
+            self.invalidate(ui);
+            ui.get_render_view("MiniMap")
+                .unwrap()
+                .set_paint_source(Some(Arc::new(Pending)));
+            return Ok(None);
+        }
+        if self
+            .gpu
+            .as_ref()
+            .is_none_or(|gpu| gpu.registry != images.owner_id())
+        {
+            self.invalidate(ui);
+            self.gpu = Some(Gpu::new(images)?);
+        }
+        let gpu = self.gpu.as_mut().unwrap();
+        let scope_changed = gpu
+            .binding
+            .as_ref()
+            .is_none_or(|old| old.document != binding.document || old.map != binding.map);
+        let bbox = if iso {
+            isometric_minimap_bbox(
+                &map,
+                assets,
+                Vec2::new(binding.rect[2] as f32, binding.rect[3] as f32),
+            )
+        } else {
+            minimap_bbox_for_map(&map).ok_or("minimap bounds unavailable")?
+        };
+        if scope_changed
+            || gpu.assets != asset_revision
+            || gpu.binding.as_ref() != Some(&binding)
+            || (!iso
+                && (gpu.animation != animation
+                    || gpu
+                        .source
+                        .as_ref()
+                        .is_none_or(|old| !Arc::ptr_eq(old, &source))))
+        {
+            if scope_changed || gpu.assets != asset_revision {
+                if let Some((_, image)) = gpu.opaque.take() {
+                    images.remove(image);
+                }
+                gpu.scenes
+                    .remove(gpu.view, images)
+                    .map_err(|e| e.to_string())?;
+                gpu.scenes
+                    .create(gpu.view, (0, 0))
+                    .map_err(|e| e.to_string())?;
+                gpu.scenes
+                    .configure_editor(gpu.view, assets)
+                    .map_err(|e| e.to_string())?;
+            }
+            gpu.version = gpu
+                .version
+                .checked_add(1)
+                .ok_or("minimap source generation exhausted")?;
+            // Source caches must distinguish replacement/undo even when authored
+            // IDs and serialized revision numbers have been reused.
+            map.changed = gpu.version;
+            let size = (binding.rect[2] as u32, binding.rect[3] as u32);
+            if iso {
+                gpu.scenes
+                    .prepare_isometric_overview(
+                        gpu.view,
+                        size,
+                        &map,
+                        assets,
+                        isometric_minimap_projection(Vec2::new(size.0 as f32, size.1 as f32), bbox),
+                        gpu.version as u64,
+                        images,
+                    )
+                    .map_err(|e| e.to_string())?;
+            } else {
+                gpu.scenes
+                    .apply_editor_source(gpu.view, source.clone())
+                    .map_err(|e| e.to_string())?;
+                gpu.scenes
+                    .prepare_minimap(
+                        gpu.view,
+                        &rusterix::editor_view::MinimapView2D {
+                            size,
+                            bounds: bbox,
+                            animation_frame: animation,
+                        },
+                        images,
+                    )
+                    .map_err(|e| e.to_string())?;
+            }
+            gpu.scenes
+                .render(gpu.view, gpu.version as u64, images)
+                .map_err(|e| e.to_string())?;
+            gpu.binding = Some(binding.clone());
+            gpu.assets = asset_revision;
+            gpu.source = Some(source);
+            gpu.animation = animation;
+        }
+        let output = gpu
+            .scenes
+            .output(gpu.view)
+            .ok_or("minimap output unavailable")?;
+        // The reference copied RGB into the opaque application framebuffer.
+        // Alias the same texture with explicit opaque metadata: no copy, upload,
+        // CPU composition or extra target is needed to preserve stored RGB.
+        let image = if let Some((source, image)) = gpu.opaque
+            && source == output.image
+        {
+            image
+        } else {
+            if let Some((_, image)) = gpu.opaque.take() {
+                images.remove(image);
+            }
+            let source = images.get(output.image).ok_or("minimap image missing")?;
+            let image = Arc::new(
+                renderkit::GpuImage::from_texture(
+                    images.context(),
+                    source.texture.clone(),
+                    renderkit::ImageDescriptor {
+                        alpha_mode: renderkit::AlphaMode::Opaque,
+                        ..source.descriptor
+                    },
+                )
+                .map_err(|e| e.to_string())?,
+            );
+            let image = images.insert(image).map_err(|e| e.to_string())?;
+            gpu.opaque = Some((output.image, image));
+            image
+        };
+        let region = project.get_region(&binding.region).unwrap();
+        let size = Vec2::new(binding.rect[2] as f32, binding.rect[3] as f32);
+        let center = if server.editor_view_mode == EditorViewMode::D2 {
+            editor_view_center(&region.map)
+        } else {
+            Vec2::new(region.editing_position_3d.x, region.editing_position_3d.z)
+        };
+        let marker_key = [
+            center.x.to_bits(),
+            center.y.to_bits(),
+            region.editing_look_at_3d.x.to_bits(),
+            region.editing_look_at_3d.z.to_bits(),
+        ];
+        let mut markers = PaintList::default();
+        for (world, color) in [
+            (Some(center), [255, 0, 0, 255]),
+            (
+                (server.editor_view_mode == EditorViewMode::FirstP).then_some(Vec2::new(
+                    region.editing_look_at_3d.x,
+                    region.editing_look_at_3d.z,
+                )),
+                [255, 255, 0, 255],
+            ),
+        ] {
+            if let Some(world) = world {
+                let p = minimap_world_to_pixel_on_map(world, size, bbox, &map);
+                let (x, y) = (p.x as i32 as f32 - 4., p.y as i32 as f32 - 4.);
+                markers.ops.push(PaintOp::PixelRects {
+                    rects: vec![
+                        Rect::new(x, y, 8., 1.),
+                        Rect::new(x, y + 7., 8., 1.),
+                        Rect::new(x, y, 1., 8.),
+                        Rect::new(x + 7., y, 1., 8.),
+                    ]
+                    .into(),
+                    color: rgba(color),
+                });
+            }
+        }
+        // Keep immutable frames/receipts stable when both image and marker are unchanged.
+        if let Some(frame) = &self.current
+            && frame.binding == binding
+            && frame.output == output
+            && frame.bbox == bbox
+            && frame.marker_key == marker_key
+        {
+            return Ok(Some(Token(frame.clone())));
+        }
+        let presented = self
+            .presented
+            .clone()
+            .filter(|frame| frame.binding == binding && frame.bbox == bbox);
+        self.invalidate(ui);
+        self.presented = presented;
+        self.serial = self
+            .serial
+            .checked_add(1)
+            .ok_or("minimap receipt exhausted")?;
+        let frame = Arc::new(Frame {
+            binding,
+            map: Arc::new(map),
+            bbox,
+            output,
+            image,
+            markers,
+            marker_key,
+            receipt: FrameReceipt {
+                owner: self.owner,
+                serial: self.serial,
+            },
+        });
+        ui.get_render_view("MiniMap")
+            .unwrap()
+            .set_paint_source(Some(frame.clone()));
+        self.current = Some(frame.clone());
+        Ok(Some(Token(frame)))
+    }
+    pub(crate) fn presented(&mut self, token: Option<Token>) {
+        self.presented = token
+            .filter(|token| {
+                self.current.as_ref().is_some_and(|frame| {
+                    token.receipt().owner == self.owner
+                        && frame.binding == token.0.binding
+                        && frame.bbox == token.0.bbox
+                })
+            })
+            .map(|token| token.0);
+    }
+    pub(crate) fn invalidate(&mut self, ui: &mut TheUI) {
+        self.presented = None;
+        if let Some(frame) = self.current.take() {
+            let expected: Arc<dyn RenderViewPaintSource> = frame.clone();
+            if let Some(view) = ui.get_render_view(&frame.binding.view.name)
+                && view.id() == &frame.binding.view
+            {
+                view.clear_paint_source(&expected);
+            }
+        }
+    }
+    pub(crate) fn deactivate(&mut self, ui: &mut TheUI) {
+        self.invalidate(ui);
+        self.enabled = false;
+        self.waiting = false;
+    }
+    pub(crate) fn device_reset(&mut self, ui: &mut TheUI) {
+        self.invalidate(ui);
+        if let Some(gpu) = &mut self.gpu {
+            gpu.binding = None;
+        }
+    }
+    pub(crate) fn waiting(&self) -> bool {
+        self.waiting
+    }
+    /// Return the world position from the displayed source map, including its
+    /// terrain elevation; a stale/pending native click is consumed without edits.
+    pub(crate) fn navigate(
+        &self,
+        id: &TheId,
+        at: Vec2<i32>,
+        project: &Project,
+        server: &ServerContext,
+        ui: &mut TheUI,
+        ctx: &TheContext,
+    ) -> Result<Option<Vec2<f32>>, ()> {
+        if region(project, server).is_none() {
+            return Ok(None);
+        }
+        let (binding, _) = Self::binding(project, server, ui, ctx).ok_or(())?;
+        let frame = self.presented.as_ref().ok_or(())?;
+        if frame.binding != binding || frame.binding.view != *id {
+            return Err(());
+        }
+        Ok(Some(minimap_pixel_to_world_on_map(
+            Vec2::new(at.x as f32, at.y as f32),
+            Vec2::new(binding.rect[2] as f32, binding.rect[3] as f32),
+            frame.bbox,
+            &frame.map,
+        )))
+    }
+}
+
+#[cfg(test)]
+#[path = "native_scene_checkpoint.rs"]
+mod checkpoint;
+#[cfg(test)]
+pub(crate) use checkpoint::check as check_for_test;
