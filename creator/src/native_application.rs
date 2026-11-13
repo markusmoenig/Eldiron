@@ -210,6 +210,7 @@ impl UiApplication for NativeCreatorApplication {
         redraw |= self.editor.update_ui(&mut ui.ui, &mut ui.context);
         redraw |= self.editor.update(&mut ui.context);
         self.editor.publish_native_world_paint_sources();
+        redraw |= self.editor.advance_native_minimap_source();
         self.editor.sync_native_game_input(&mut ui.ui, &ui.context);
         if let Err(error) = self.editor.sync_native_play(&mut ui.ui, &mut ui.context, elapsed) {
             ui.context.ui.send(TheEvent::SetStatusText(TheId::empty(), error));

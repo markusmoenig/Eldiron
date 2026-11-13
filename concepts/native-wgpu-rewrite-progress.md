@@ -25,7 +25,7 @@ Started: 2026-11-11 (Asia/Bangkok). Overall Goal: active; full M0–M9 scope rem
 - M2: in progress. Paint/Swash/Parley pipeline and native/foreign hosts work; batching, resource lifetime budgets and full text/input parity remain.
 - M3: in progress. Every active built-in TheWidget implementation now has a command paint path, including procedural controls and the legacy node canvas. Complex Creator integration, full widget catalog parity and legacy adapter retirement remain.
 - M4: in progress. CPU schema/identity extraction, shared `GameSession`, CPU startup preparation, message/party/world-target policies and terminal adoption are implemented and tested. Per-session routing, local players, world values, runtime IDs and region context ownership now pass controlled overlapping-session and parallel assembled-player regressions. Graphical clients adopt GameSession; Creator shares its clock/output pump and runtime-owned PlayerInput. Text Play state is now Editor-owned and uses explicit CPU runtime borrows. Canonical Creator Play now owns a separate runtime Project projection; startup/warmup, entities/generated geometry and time no longer mutate authored Documents. Full Creator server/assets storage ownership and remaining bitmap/value data extraction remain; this evidence does not establish full simultaneous Creator Play workflows.
-- M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Immutable ordinary editor-view preparation, exact reference/native view outputs and retained CPU chunk publication are now available through SceneViews. Common HUD, paint/props panels, profile displays and ViewCube now have retained command frames, guarded input and actual GPU composition/reconstruction evidence. Six standard tools additionally emit ordered typed overlay aggregates with exact presented-frame and detail-profile source guards. Full-viewport profile editing is now connected to the actual native Creator root with document/widget binding, presentation-gated input and inline commit/cancel; ordinary stopped top-down, sprite-isometric and 3D region rendering and the six standard tool overlays now use the same native application owner and real tool dispatch. Orbit/orthographic/first-person views include depth-aware guides, retained ViewCube and explicit tool query snapshots; surface paint uses the view-owned GPU scene. The Terrain tool now also uses retained native controls and GPU brush guides with real sculpt/cancel integration. Rect now also uses presentation-gated composition/rotation controls, shared source sprite previews blitted on the GPU, terrain-conforming perimeters, and view-owned 3D queries; actual isometric placement and fractional-DPI sprite sampling pass in the assembled checkpoint. Isometric terrain Paint now also uses retained native controls, batched GPU brush feedback, update-phase editable source publication and the existing authoring/undo dispatch. Native 3D Paint now also consumes dedicated scene-owned paint-coordinate queries and explicit authoring surface captures, with camera-scoped drafts and GPU composition; full Paint workflow/platform parity remains unverified. The isolated Prefab viewport now also uses native top-down/isometric/3D outputs, live effects with hierarchy-aware owned drags, and actual 3D Paint authoring on its asset-owned layer. Paint now shares the normal tile picker; its settings live only in the viewport overlay. The canonical Creator Play toolbar now owns the same CPU clock/output pump as GameSession, and its live authoring viewport keeps its own native SceneView. The authored Game-tool viewport now also uses the common GameScreenController/SceneViews/Swash presentation; authoring GameInput now also shares runtime controls while retaining the native scene in supported contexts. Region geometry, ordinary scene and sprite-isometric minimaps now have owned GPU outputs and presentation-scoped navigation; palette and rig previews also have retained native sources and acknowledged palette input. Authored screen minimaps now also use a GPU-only ordered 2D overview producer with compatible source sampling and acknowledged screen-scoped navigation. Remaining non-region minimaps/contexts/tools retain explicit migration adapters. Application/global/document/Play ownership, main world/tool/HUD integration, remaining producers, full visual/workflow/performance acceptance and canonical retirement remain.
+- M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Immutable ordinary editor-view preparation, exact reference/native view outputs and retained CPU chunk publication are now available through SceneViews. Common HUD, paint/props panels, profile displays and ViewCube now have retained command frames, guarded input and actual GPU composition/reconstruction evidence. Six standard tools additionally emit ordered typed overlay aggregates with exact presented-frame and detail-profile source guards. Full-viewport profile editing is now connected to the actual native Creator root with document/widget binding, presentation-gated input and inline commit/cancel; ordinary stopped top-down, sprite-isometric and 3D region rendering and the six standard tool overlays now use the same native application owner and real tool dispatch. Orbit/orthographic/first-person views include depth-aware guides, retained ViewCube and explicit tool query snapshots; surface paint uses the view-owned GPU scene. The Terrain tool now also uses retained native controls and GPU brush guides with real sculpt/cancel integration. Rect now also uses presentation-gated composition/rotation controls, shared source sprite previews blitted on the GPU, terrain-conforming perimeters, and view-owned 3D queries; actual isometric placement and fractional-DPI sprite sampling pass in the assembled checkpoint. Isometric terrain Paint now also uses retained native controls, batched GPU brush feedback, update-phase editable source publication and the existing authoring/undo dispatch. Native 3D Paint now also consumes dedicated scene-owned paint-coordinate queries and explicit authoring surface captures, with camera-scoped drafts and GPU composition; full Paint workflow/platform parity remains unverified. The isolated Prefab viewport now also uses native top-down/isometric/3D outputs, live effects with hierarchy-aware owned drags, and actual 3D Paint authoring on its asset-owned layer. Paint now shares the normal tile picker; its settings live only in the viewport overlay. The canonical Creator Play toolbar now owns the same CPU clock/output pump as GameSession, and its live authoring viewport keeps its own native SceneView. The authored Game-tool viewport now also uses the common GameScreenController/SceneViews/Swash presentation; authoring GameInput now also shares runtime controls while retaining the native scene in supported contexts. Region geometry, ordinary scene and sprite-isometric minimaps now have owned GPU outputs and presentation-scoped navigation; palette and rig previews also have retained native sources and acknowledged palette input. Authored screen minimaps now also use a GPU-only ordered 2D overview producer with compatible source sampling and acknowledged screen-scoped navigation. Parent-region minimaps during Prefab/profile/detail editing also have independent native source production and presented-parent navigation without modifying the isolated editor map. Remaining uncommon contexts/tools retain explicit migration adapters. Application/global/document/Play ownership, main world/tool/HUD integration, remaining producers, full visual/workflow/performance acceptance and canonical retirement remain.
 - M6: in progress. Independent GPU game views, common player/input/camera components, authored screen paint, private world descriptions, view-owned speech, acknowledged-frame world pointer gestures, relative first-person mouse look, default/world-intent cursors, world/UI item drag previews and acknowledged authored inventory/equipment pointer/keyboard gestures are implemented. Application-owned audio is integrated into the common player with cancellable CPU preparation jobs. The native container HUD now includes acknowledged paint/input, real server transfers, scrolling, GPU recovery and navigation lifetime. Floating inventory/equipment, action catalogue/spellbook and preferences now use typed native HUD owners, retained text/source resources and acknowledged input. Acknowledged UI-origin tooltips now use retained text and host deadlines. UI-origin Drop cursors and acknowledged drag/assignment highlighting now have GPU and authoritative transfer evidence. Native isometric source production, shared CPU source publication, game-view outputs and acknowledged input receipts now have GPU/CPU and shipped-source device-reconstruction evidence. Browser worker hosting, remaining game-mode/HUD policy parity, performance acceptance remain. Canonical native desktop launchers now share the common application/host; see launcher verification below.
 - M7/M8/M9: Retirement and platform/full acceptance pending. Canonical desktop clients share one common player; the Xcode client now uses it through the retained ABI over a Rust-created CAMetalLayer surface. Native/ARM64 simulator app bundles link, and real Swift/static-library and registered-scene layer checks pass. Browser bootstrap, native text/platform parity, Creator wrapper and complete physical/release acceptance remain; this is not complete application/platform parity.
 
@@ -6632,3 +6632,81 @@ Next ownership work after this checkpoint:
 3. Canonical retirement, application/global ownership, complete physical/browser/
    Apple/platform and loaded-project release performance evidence remain open.
    Full M0-M9 objective is still active, not complete.
+
+Parent-region minimap context batch (2026-11-13, aftere0f01e47):
+- Rechecked checkout: only unrelated networking concept untracked, preserved.
+- Generic minimaps intentionally select curr_region for every Region map
+  context, including Prefab/profile/detail editors. Existing native producers
+  rejected those contexts, and legacy Sidebar navigation modified get_map_mut's
+  isolated map despite displaying a parent region. Native routing now navigates
+  the acknowledged displayed parent map/camera, preserving isolated map data.
+- Scene/geometry overview bindings include actual project context, edited map
+  and surface identity. Parent geometry diagrams and isometric views reuse the
+  retained native producers. Non-isometric parents whose main editor targets
+  another map now own a separate CPU SceneManager/SceneBuildIndex. It imports
+  explicit assets, advances at most8 chunks per application update and only
+  publishes immutable completed geometry to its existing injected SceneViews.
+  It does not borrow/tick the main chunk worker, a VM, simulation or GPU device.
+- Source identity uses normalized authored content plus document/map/assets.
+  Clear selections/transient guides before deriving static source. Runtime
+  entities/items remain excluded. Normalized/reused source revisions can alias
+  the terrain thread-local caches; added explicit map-scoped CPU terrain/sample
+  invalidation at the producer boundary before a chunk batch. Unrelated map
+  entries and authored revisions remain unchanged. Extended the existing terrain
+  camera/sampler test to exercise replacement with the same authored revision.
+- Empty/deleted parent context clears native MiniMap instead of allocating a
+  display bitmap. The historical action-minimap hooks still have no overrides;
+  unsupported/noncanonical contexts retain the existing explicit adapter.
+- Extended existing source/diagram checkpoint: six scene parent cases across
+  Prefab/profile/detail and top-down/isometric; six geometry diagram cases;
+  supplied unrelated/not-ready main source, actual Sidebar parent navigation,
+  unchanged isolated maps, acknowledgement/stale-context guards, source
+  replacement with reused authored revision, static reuse and output retirement.
+  No new standalone test suite or project schema changes.
+- First production native check passed9.87s (existing six warnings):
+  /private/tmp/eldiron-native-parent-overview-check.log. First test build exposed
+  a test-only use of ServerContext::clone (unsupported); changed the test to
+  temporarily switch/restore its context. Intermediate source/final/integration
+  builds passed; final cache-aware assembled build pending:
+  /private/tmp/eldiron-native-parent-overview-cache-build.log. Actual Metal,
+  final production/reference checks and complete platform/performance gates
+  remain pending. M0-M9 still active.
+
+Parent overview integration verified:
+- Final cache-aware assembled build passed35.74s:
+  /private/tmp/eldiron-native-parent-overview-cache-build.log.
+- Focused actual Metal source/diagram checkpoint **passed1,8.69s**:
+  /private/tmp/eldiron-native-parent-overview-focused-metal.log.
+  All six parent scene cases and six diagram cases pass, with unrelated source
+  injection, not-ready main worker, acknowledged parent navigation, intact
+  Prefab/profile/detail maps, stale context rejection, reused authored revision
+  replacement, static transfer reuse and retired images/CPU source state.
+- Existing CPU terrain camera/sampler test **passed1,0.01s** in a graphics-free
+  Rusterix build, including same-revision source replacement and unrelated-map
+  cache preservation: /private/tmp/eldiron-native-parent-terrain-cache-test.log.
+- Final native production check passed19.24s (six existing warnings); reference
+  Creator check passed18.25s (48 existing warnings):
+  /private/tmp/eldiron-native-parent-overview-{native,reference}-final-check.log.
+- All11 dependency checks passed:
+  /private/tmp/eldiron-native-parent-overview-boundaries-final-check.log.
+- Full assembled actual Metal Creator checkpoint **passed1,99.73s**:
+  /private/tmp/eldiron-native-parent-overview-root-metal.log. Existing ordinary
+  minimap source comparisons stay exact0; source/diagram/marker fractional DPI
+  comparisons stay within1. Previous scene, tool, geometry, Play ownership,
+  authored save/undo, screen overview, palette/rig and source integration pass.
+- git diff --check passed. Only this rewrite is staged; unrelated networking
+  concept remains untracked and untouched. No schema, physical-host, browser,
+  Apple or loaded-project release-performance completion claim is added.
+
+Resume after this verified parent-context batch:
+1. Finish Creator's CPU GameSession/server/assets/audio ownership and remove
+   remaining facade/global presentation adapters while preserving the verified
+   authored/runtime projection split. Application-owned data, commands and
+   outputs must not return to Documents as transient Play data.
+2. Audit remaining canonical tool/context bitmap/readback adapters and retire
+   their callers after conversion. Parent Prefab/profile/detail minimaps are now
+   converted; do not re-audit them as unimplemented or duplicate their worker.
+   Noncanonical Screen camera/context behavior and empty/deleted contexts need
+   classification during complete Creator retirement.
+3. Full M0-M9 workflow/platform/physical-host and measured release performance
+   gates remain open. The complete objective stays active.

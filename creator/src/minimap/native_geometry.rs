@@ -14,6 +14,9 @@ use theframework::{
 struct Binding {
     document: Uuid,
     region: Uuid,
+    context: ProjectContext,
+    editing_surface: Option<Uuid>,
+    editing_map: Option<Uuid>,
     map: Uuid,
     revision: u32,
     geometry: u64,
@@ -27,6 +30,9 @@ impl Binding {
     fn navigation_compatible(&self, next: &Self) -> bool {
         self.document == next.document
             && self.region == next.region
+            && self.context == next.context
+            && self.editing_surface == next.editing_surface
+            && self.editing_map == next.editing_map
             && self.map == next.map
             && self.geometry == next.geometry
             && self.mode == next.mode
@@ -125,8 +131,7 @@ impl MinimapDiagramPainter for Commands {
     }
 }
 fn region<'a>(project: &'a Project, server: &ServerContext) -> Option<&'a Region> {
-    if !matches!(server.pc, ProjectContext::Region(id) if id == server.curr_region)
-        || server.editing_surface.is_some()
+    if server.get_map_context() != MapContext::Region
         || server.editor_view_mode == EditorViewMode::D2
         || palette_minimap_active(server)
     {
@@ -206,6 +211,9 @@ impl GeometryOverview {
             Binding {
                 document: server.document_instance,
                 region: region.id,
+                context: server.pc,
+                editing_surface: server.editing_surface.as_ref().map(|s| s.id),
+                editing_map: project.get_map(server).map(|map| map.id),
                 map: region.map.id,
                 revision: region.map.changed,
                 geometry,
@@ -432,138 +440,190 @@ pub(crate) fn reference_cases() -> Vec<(&'static str, Arc<dyn RenderViewPaintSou
     author.editing_look_at_3d = Vec3::new(1.25, 0., 2.25);
     let region_id = author.id;
     project.regions.push(author);
-    let mut server = ServerContext::new();
-    server.pc = ProjectContext::Region(region_id);
-    server.curr_region = region_id;
-    server.editor_view_mode = EditorViewMode::FirstP;
+    let base = project;
     let mut cases = Vec::new();
-    for size in [Vec2::new(96, 96), Vec2::new(143, 83)] {
-        let mut ctx = TheContext::new(size.x as usize, size.y as usize, 1.);
-        ctx.ui.command_paint = true;
-        let mut ui = TheUI::new();
-        let mut view = TheRenderView::new(TheId::named("MiniMap"));
-        let view_id = view.id().clone();
-        view.set_dim(TheDim::new(13, 29, size.x, size.y), &mut ctx);
-        view.render_buffer_mut().resize(size.x, size.y);
-        ui.canvas.set_widget(view);
-        let mut sidebar = Sidebar::new();
-        let update = TheEvent::Custom(TheId::named("Soft Update Minimap"), TheValue::Empty);
-        assert!(sidebar.handle_event(&update, &mut ui, &mut ctx, &mut project, &mut server));
-        assert!(
-            !ui.get_render_view("MiniMap")
-                .unwrap()
-                .has_cpu_display_storage()
-        );
-        ui.get_render_view("MiniMap")
-            .unwrap()
-            .set_needs_redraw(false);
-        assert!(
-            !sidebar.handle_event(&update, &mut ui, &mut ctx, &mut project, &mut server),
-            "unchanged geometry overview cannot schedule another presentation"
-        );
-        let mut overview = GeometryOverview::default();
-        assert!(overview.publish(&project, &server, &mut ui, &ctx));
-        assert!(
-            !ui.get_render_view("MiniMap")
-                .unwrap()
-                .has_cpu_display_storage()
-        );
-        assert!(
-            overview
-                .navigation_bbox(&view_id, &project, &server, &mut ui, &ctx)
-                .is_err()
-        );
-        let token = overview.prepare(&project, &server, &mut ui, &ctx).unwrap();
-        let source = overview.current.as_ref().unwrap().clone();
-        // Successful presentation is the only point at which navigation begins.
-        overview.presented(Some(token.clone()));
-        assert_eq!(
-            overview.navigation_bbox(&view_id, &project, &server, &mut ui, &ctx),
-            Ok(Some(source.bbox))
-        );
-        let mut other_document = ServerContext::new();
-        other_document.pc = server.pc;
-        other_document.curr_region = server.curr_region;
-        other_document.editor_view_mode = server.editor_view_mode;
-        assert!(
-            overview
-                .navigation_bbox(&view_id, &project, &other_document, &mut ui, &ctx)
-                .is_err()
-        );
-        let mut reference = TheRGBABuffer::new(TheDim::sized(size.x, size.y));
-        reference.fill([42, 42, 42, 255]);
-        let author = &project.regions[0];
-        draw_geometry_minimap(&author.map, &mut reference, source.bbox);
-        let old_bbox = *MINIMAPBOX.read().unwrap();
-        *MINIMAPBOX.write().unwrap() = source.bbox;
-        draw_camera_marker(&author.map, Some(author), &mut reference, &server);
-        *MINIMAPBOX.write().unwrap() = old_bbox;
-        cases.push((
-            "geometry minimap",
-            Arc::new(Body(source)) as Arc<dyn RenderViewPaintSource>,
-            reference,
-        ));
-        project.regions[0].editing_position_3d.x += 0.25;
-        overview.prepare(&project, &server, &mut ui, &ctx).unwrap();
-        assert!(
-            overview
-                .navigation_bbox(&view_id, &project, &server, &mut ui, &ctx)
-                .is_ok(),
-            "camera marker updates cannot interrupt an acknowledged minimap drag"
-        );
-        let revision = project.regions[0].map.changed;
-        project.regions[0].map.geometry_objects[0].vertices[0].x += 0.125;
-        assert_eq!(project.regions[0].map.changed, revision);
-        assert!(
-            overview
-                .navigation_bbox(&view_id, &project, &server, &mut ui, &ctx)
-                .is_err(),
-            "source replacement cannot reuse a serialized map revision"
-        );
-        let changed = overview.prepare(&project, &server, &mut ui, &ctx).unwrap();
-        overview.presented(Some(token.clone()));
-        assert!(
-            overview
-                .navigation_bbox(&view_id, &project, &server, &mut ui, &ctx)
-                .is_err()
-        );
-        overview.presented(Some(changed));
-        assert!(
-            overview
-                .navigation_bbox(&view_id, &project, &server, &mut ui, &ctx)
-                .is_ok()
-        );
-        ctx.scale_factor = 1.5;
-        assert!(
-            overview
-                .navigation_bbox(&view_id, &project, &server, &mut ui, &ctx)
-                .is_err()
-        );
-        let next = overview.prepare(&project, &server, &mut ui, &ctx).unwrap();
-        overview.presented(Some(token)); // Late acknowledgement cannot replace the new scope.
-        assert!(
-            overview
-                .navigation_bbox(&view_id, &project, &server, &mut ui, &ctx)
-                .is_err()
-        );
-        overview.presented(Some(next));
-        assert!(
-            overview
-                .navigation_bbox(&view_id, &project, &server, &mut ui, &ctx)
-                .is_ok()
-        );
-        // Identity-checked revocation cannot erase a different paint producer.
-        let replacement: Arc<dyn RenderViewPaintSource> =
-            Arc::new(Body(overview.current.as_ref().unwrap().clone()));
-        ui.get_render_view("MiniMap")
-            .unwrap()
-            .set_paint_source(Some(replacement.clone()));
-        overview.invalidate(&mut ui);
-        assert!(
+    for context in 0..3 {
+        let mut project = base.clone();
+        let mut isolated = Map::new();
+        isolated.offset = Vec2::new(29., 37.);
+        isolated.add_vertex_at(100., 200.);
+        let mut surface = rusterix::Surface::new(0);
+        surface.profile = Some(isolated.id);
+        project.regions[0]
+            .map
+            .profiles
+            .insert(isolated.id, isolated.clone());
+        project.regions[0]
+            .map
+            .surfaces
+            .insert(surface.id, surface.clone());
+        project.prefab_editor_map = Some(isolated.clone());
+        let mut server = ServerContext::new();
+        server.pc = ProjectContext::Region(region_id);
+        server.curr_region = region_id;
+        server.editor_view_mode = EditorViewMode::FirstP;
+        if context == 1 {
+            server.pc = ProjectContext::Prefab(Uuid::new_v4());
+        }
+        if context == 2 {
+            server.geometry_edit_mode = GeometryEditMode::Detail;
+            server.active_detail_surface = Some(surface);
+        }
+        let untouched = serde_json::to_value(&isolated).unwrap();
+        for size in [Vec2::new(96, 96), Vec2::new(143, 83)] {
+            let mut ctx = TheContext::new(size.x as usize, size.y as usize, 1.);
+            ctx.ui.command_paint = true;
+            let mut ui = TheUI::new();
+            let mut view = TheRenderView::new(TheId::named("MiniMap"));
+            let view_id = view.id().clone();
+            view.set_dim(TheDim::new(13, 29, size.x, size.y), &mut ctx);
+            view.render_buffer_mut().resize(size.x, size.y);
+            ui.canvas.set_widget(view);
+            let mut sidebar = Sidebar::new();
+            let update = TheEvent::Custom(TheId::named("Soft Update Minimap"), TheValue::Empty);
+            assert!(sidebar.handle_event(&update, &mut ui, &mut ctx, &mut project, &mut server));
+            assert!(
+                !ui.get_render_view("MiniMap")
+                    .unwrap()
+                    .has_cpu_display_storage()
+            );
             ui.get_render_view("MiniMap")
                 .unwrap()
-                .clear_paint_source(&replacement)
-        );
+                .set_needs_redraw(false);
+            assert!(
+                !sidebar.handle_event(&update, &mut ui, &mut ctx, &mut project, &mut server),
+                "unchanged geometry overview cannot schedule another presentation"
+            );
+            let mut overview = GeometryOverview::default();
+            assert!(overview.publish(&project, &server, &mut ui, &ctx));
+            assert!(
+                !ui.get_render_view("MiniMap")
+                    .unwrap()
+                    .has_cpu_display_storage()
+            );
+            assert!(
+                overview
+                    .navigation_bbox(&view_id, &project, &server, &mut ui, &ctx)
+                    .is_err()
+            );
+            let token = overview.prepare(&project, &server, &mut ui, &ctx).unwrap();
+            let source = overview.current.as_ref().unwrap().clone();
+            // Successful presentation is the only point at which navigation begins.
+            overview.presented(Some(token.clone()));
+            assert_eq!(
+                overview.navigation_bbox(&view_id, &project, &server, &mut ui, &ctx),
+                Ok(Some(source.bbox))
+            );
+            let mut other_document = ServerContext::new();
+            other_document.pc = server.pc;
+            other_document.curr_region = server.curr_region;
+            other_document.editor_view_mode = server.editor_view_mode;
+            assert!(
+                overview
+                    .navigation_bbox(&view_id, &project, &other_document, &mut ui, &ctx)
+                    .is_err()
+            );
+            let mut reference = TheRGBABuffer::new(TheDim::sized(size.x, size.y));
+            reference.fill([42, 42, 42, 255]);
+            let author = &project.regions[0];
+            draw_geometry_minimap(&author.map, &mut reference, source.bbox);
+            let old_bbox = *MINIMAPBOX.read().unwrap();
+            *MINIMAPBOX.write().unwrap() = source.bbox;
+            draw_camera_marker(&author.map, Some(author), &mut reference, &server);
+            *MINIMAPBOX.write().unwrap() = old_bbox;
+            cases.push((
+                "geometry minimap",
+                Arc::new(Body(source)) as Arc<dyn RenderViewPaintSource>,
+                reference,
+            ));
+            project.regions[0].editing_position_3d.x += 0.25;
+            overview.prepare(&project, &server, &mut ui, &ctx).unwrap();
+            assert!(
+                overview
+                    .navigation_bbox(&view_id, &project, &server, &mut ui, &ctx)
+                    .is_ok(),
+                "camera marker updates cannot interrupt an acknowledged minimap drag"
+            );
+            let revision = project.regions[0].map.changed;
+            project.regions[0].map.geometry_objects[0].vertices[0].x += 0.125;
+            assert_eq!(project.regions[0].map.changed, revision);
+            assert!(
+                overview
+                    .navigation_bbox(&view_id, &project, &server, &mut ui, &ctx)
+                    .is_err(),
+                "source replacement cannot reuse a serialized map revision"
+            );
+            let changed = overview.prepare(&project, &server, &mut ui, &ctx).unwrap();
+            overview.presented(Some(token.clone()));
+            assert!(
+                overview
+                    .navigation_bbox(&view_id, &project, &server, &mut ui, &ctx)
+                    .is_err()
+            );
+            overview.presented(Some(changed));
+            assert!(
+                overview
+                    .navigation_bbox(&view_id, &project, &server, &mut ui, &ctx)
+                    .is_ok()
+            );
+            ctx.scale_factor = 1.5;
+            assert!(
+                overview
+                    .navigation_bbox(&view_id, &project, &server, &mut ui, &ctx)
+                    .is_err()
+            );
+            let next = overview.prepare(&project, &server, &mut ui, &ctx).unwrap();
+            overview.presented(Some(token)); // Late acknowledgement cannot replace the new scope.
+            assert!(
+                overview
+                    .navigation_bbox(&view_id, &project, &server, &mut ui, &ctx)
+                    .is_err()
+            );
+            overview.presented(Some(next));
+            assert!(
+                overview
+                    .navigation_bbox(&view_id, &project, &server, &mut ui, &ctx)
+                    .is_ok()
+            );
+            if context != 0 {
+                // The real Sidebar consumes the presented parent bounds, while the
+                // isolated Prefab/detail map retains its own view and authored data.
+                sidebar.minimap_geometry = overview;
+                let point = Vec2::new(70, 50);
+                let expected = minimap_pixel_to_world_on_map(
+                    Vec2::new(point.x as f32, point.y as f32),
+                    Vec2::new(size.x as f32, size.y as f32),
+                    sidebar.minimap_geometry.current.as_ref().unwrap().bbox,
+                    &project.regions[0].map,
+                );
+                sidebar.handle_event(
+                    &TheEvent::RenderViewClicked(view_id.clone(), point),
+                    &mut ui,
+                    &mut ctx,
+                    &mut project,
+                    &mut server,
+                );
+                let pos = project.regions[0].editing_position_3d;
+                assert!((Vec2::new(pos.x, pos.z) - expected).magnitude() < 0.0001);
+                assert_eq!(
+                    serde_json::to_value(project.get_map(&server).unwrap()).unwrap(),
+                    untouched
+                );
+                overview = std::mem::take(&mut sidebar.minimap_geometry);
+            }
+            // Identity-checked revocation cannot erase a different paint producer.
+            let replacement: Arc<dyn RenderViewPaintSource> =
+                Arc::new(Body(overview.current.as_ref().unwrap().clone()));
+            ui.get_render_view("MiniMap")
+                .unwrap()
+                .set_paint_source(Some(replacement.clone()));
+            overview.invalidate(&mut ui);
+            assert!(
+                ui.get_render_view("MiniMap")
+                    .unwrap()
+                    .clear_paint_source(&replacement)
+            );
+        }
     }
     cases
 }

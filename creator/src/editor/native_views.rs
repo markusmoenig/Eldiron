@@ -92,6 +92,29 @@ impl NativeViewTokens {
     }
 }
 impl Editor {
+    fn native_minimap_asset_key(&self, assets: &rusterix::Assets) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut key = std::collections::hash_map::DefaultHasher::new();
+        assets.tiles_revision.hash(&mut key);
+        assets.block_props_revision.hash(&mut key);
+        assets.config.hash(&mut key);
+        serde_json::to_vec(&assets.palette).expect("serializable palette").hash(&mut key);
+        self.documents.project.procedural_materials.revision().hash(&mut key);
+        self.documents.project.procedural_appearances.revision().hash(&mut key);
+        self.procedural_appearance_revision.hash(&mut key);
+        crate::minimap::native_scene::overview_map(&self.documents.project, &self.server_ctx)
+            .and_then(|(map, _)| assets.terrain_paint.get(&map.id))
+            .map(|paint| paint.key).hash(&mut key);
+        key.finish()
+    }
+    pub(crate) fn advance_native_minimap_source(&mut self) -> bool {
+        let bridge = RUSTERIX.read().unwrap();
+        let assets = self.native_minimap_asset_key(&bridge.assets);
+        self.sidebar.minimap_scene.advance_source(
+            &self.documents.project, &self.server_ctx, &bridge.assets, assets,
+        )
+    }
+
     /// An unselected/deleted map has no image producer. Keep the native view
     /// empty instead of opting into a viewport-sized CPU bitmap every tick.
     pub(crate) fn native_empty_viewport(&self) -> bool {
@@ -171,31 +194,20 @@ impl Editor {
         );
         let palette_minimap = self.sidebar.minimap_palette.prepare(&self.documents.project, &self.server_ctx, ui, ctx);
         let scene_minimap = {
-            // Temporary CPU publication bridge, shared with the world viewport.
-            // The minimap's renderer/device/camera/targets are entirely owned.
-            use std::hash::{Hash, Hasher};
+            // Borrow matching main-world CPU geometry, or the overview's own
+            // completed parent source when editing an isolated map. GPU view,
+            // camera and targets always belong to the overview.
             let bridge = RUSTERIX.read().unwrap();
-            let mut asset_key = std::collections::hash_map::DefaultHasher::new();
-            bridge.assets.tiles_revision.hash(&mut asset_key);
-            bridge.assets.block_props_revision.hash(&mut asset_key);
-            bridge.assets.config.hash(&mut asset_key);
-            serde_json::to_vec(&bridge.assets.palette)
-                .map_err(|e| e.to_string())?
-                .hash(&mut asset_key);
-            self.documents.project.procedural_materials.revision().hash(&mut asset_key);
-            self.documents.project.procedural_appearances.revision().hash(&mut asset_key);
-            self.procedural_appearance_revision.hash(&mut asset_key);
-            let map = self.documents.project.get_map(&self.server_ctx);
-            map.and_then(|map| bridge.assets.terrain_paint.get(&map.id))
-                .map(|paint| paint.key)
-                .hash(&mut asset_key);
+            let asset_key = self.native_minimap_asset_key(&bridge.assets);
+            let map = crate::minimap::native_scene::overview_map(&self.documents.project, &self.server_ctx)
+                .map(|(map, _)| map);
             let ready = map.is_some_and(|map| {
                 let builds = SCENEMANAGER.read().unwrap();
                 !builds.has_pending_geometry() && builds.source_matches(map.id, map.camera)
             });
             self.sidebar.minimap_scene.prepare(
                 &self.documents.project, &self.server_ctx, ui, ctx,
-                &bridge.assets, asset_key.finish(), bridge.scene_handler.build_index.snapshot(),
+                &bridge.assets, asset_key, bridge.scene_handler.build_index.snapshot(),
                 ready, bridge.client.animation_frame, images.registry,
             )?
         };

@@ -13,10 +13,22 @@ pub struct TerrainSurface {
     sampler: Arc<TerrainSampler>,
     excluded: Vec<(BBox, Vec<[Vec2<f32>; 3]>)>,
 }
+type Cached = (uuid::Uuid, u32, bool, Option<Arc<TerrainSurface>>);
+thread_local! {static CACHE:std::cell::RefCell<Option<Cached>>=const {std::cell::RefCell::new(None)};}
 impl TerrainSurface {
+    /// An immutable derived source can reuse authored IDs/revisions after undo
+    /// or document replacement. Its CPU producer invalidates that map's local
+    /// entry before rebuilding chunks; unrelated map entries are left alone.
+    pub fn invalidate_cached(map: uuid::Uuid) {
+        TerrainGenerator::invalidate_sample_cache(map);
+        CACHE.with(|cache| {
+            let mut cache = cache.borrow_mut();
+            if cache.as_ref().is_some_and(|entry| entry.0 == map) {
+                *cache = None;
+            }
+        });
+    }
     pub fn cached(map: &Map) -> Option<Arc<Self>> {
-        type Cached = (uuid::Uuid, u32, bool, Option<Arc<TerrainSurface>>);
-        thread_local! {static CACHE:std::cell::RefCell<Option<Cached>>=const {std::cell::RefCell::new(None)};}
         CACHE.with(|cache| {
             let mut cache = cache.borrow_mut();
             let enabled = map.properties.get_bool_default("terrain_enabled", false);
@@ -318,6 +330,24 @@ pub(crate) mod tests {
                 );
             });
         }
+        let before = TerrainSurface::cached(&map).unwrap();
+        assert!(
+            (TerrainGenerator::sample_height_at(&map, Vec2::new(0.5, 0.5), &config) - 1.2).abs()
+                < 0.0001
+        );
+        TerrainSurface::invalidate_cached(uuid::Uuid::new_v4());
+        assert!(Arc::ptr_eq(&before, &TerrainSurface::cached(&map).unwrap()));
+        // Derived publications/undo can reuse the serialized revision. Explicit
+        // source invalidation must replace terrain, not reuse the prior hill.
+        map.vertices[2].z = 2.4;
+        TerrainSurface::invalidate_cached(map.id);
+        let after = TerrainSurface::cached(&map).unwrap();
+        assert!(!Arc::ptr_eq(&before, &after));
+        assert!((after.height_at(Vec2::new(0.5, 0.5)).unwrap() - 2.4).abs() < 0.0001);
+        assert!(
+            (TerrainGenerator::sample_height_at(&map, Vec2::new(0.5, 0.5), &config) - 2.4).abs()
+                < 0.0001
+        );
     }
     #[test]
     fn shared_smooth_hill_walks_both_ways_and_iso_picking_roundtrips() {

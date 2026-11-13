@@ -107,8 +107,18 @@ impl TerrainSampler {
 pub struct TerrainGenerator {
     config: TerrainConfig,
 }
+type SampleCache = (Uuid, u32, TerrainConfig, std::sync::Arc<TerrainSampler>);
+thread_local! { static SAMPLE_CACHE: std::cell::RefCell<Option<SampleCache>> = const { std::cell::RefCell::new(None) }; }
 
 impl TerrainGenerator {
+    pub(crate) fn invalidate_sample_cache(map: Uuid) {
+        SAMPLE_CACHE.with(|cache| {
+            let mut cache = cache.borrow_mut();
+            if cache.as_ref().is_some_and(|entry| entry.0 == map) {
+                *cache = None;
+            }
+        });
+    }
     pub fn new(config: TerrainConfig) -> Self {
         Self { config }
     }
@@ -119,9 +129,7 @@ impl TerrainGenerator {
     pub fn sample_height_at(map: &Map, point: Vec2<f32>, config: &TerrainConfig) -> f32 {
         // Object placement and navigation query this frequently. Compile controls
         // once per map revision instead of cloning/scanning the world per query.
-        type Cache = (Uuid, u32, TerrainConfig, std::sync::Arc<TerrainSampler>);
-        thread_local! { static CACHE: std::cell::RefCell<Option<Cache>> = const { std::cell::RefCell::new(None) }; }
-        let sampler = CACHE.with(|cache| {
+        let sampler = SAMPLE_CACHE.with(|cache| {
             let mut cache = cache.borrow_mut();
             if cache
                 .as_ref()

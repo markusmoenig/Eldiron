@@ -433,7 +433,265 @@ pub(crate) fn check(gpu: &Arc<GpuContext>, renderer: &mut PaintRenderer) {
         );
         reference_scene.clear(&mut images).unwrap();
     }
+    check_parent_sources(gpu, renderer, &project, &assets, source);
     check_screens(gpu, renderer);
+}
+
+fn check_parent_sources(
+    gpu: &Arc<GpuContext>,
+    renderer: &mut PaintRenderer,
+    template: &Project,
+    assets: &rusterix::Assets,
+    unrelated: Arc<SceneBuildSnapshot>,
+) {
+    use crate::sidebar::Sidebar;
+    for iso in [false, true] {
+        for context in 0..3 {
+            let mut project = template.clone();
+            project.regions[0].map.camera = if iso {
+                MapCamera::TwoDIso
+            } else {
+                MapCamera::TwoD
+            };
+            let parent = project.regions[0].id;
+            let mut isolated = Map::new();
+            isolated.add_vertex_at(200., 300.);
+            isolated.offset = Vec2::new(17., 21.);
+            let mut surface = rusterix::Surface::new(0);
+            surface.profile = Some(isolated.id);
+            project.regions[0]
+                .map
+                .profiles
+                .insert(isolated.id, isolated.clone());
+            project.regions[0]
+                .map
+                .surfaces
+                .insert(surface.id, surface.clone());
+            project.prefab_editor_map = Some(isolated.clone());
+            let mut server = ServerContext::new();
+            server.curr_region = parent;
+            server.pc = ProjectContext::Region(parent);
+            match context {
+                0 => {
+                    server.pc = ProjectContext::Prefab(Uuid::new_v4());
+                    server.editor_view_mode = EditorViewMode::D2;
+                }
+                1 => {
+                    server.editing_surface = Some(surface.clone());
+                    server.editor_view_mode = EditorViewMode::D2;
+                }
+                _ => {
+                    server.active_detail_surface = Some(surface.clone());
+                    server.geometry_edit_mode = GeometryEditMode::Detail;
+                    server.editor_view_mode = EditorViewMode::Orbit;
+                }
+            }
+            assert_eq!(project.get_map(&server).unwrap().id, isolated.id);
+            let untouched = serde_json::to_value(project.get_map(&server).unwrap()).unwrap();
+            let mut ctx = TheContext::new(143, 83, 1.);
+            ctx.ui.command_paint = true;
+            let mut ui = TheUI::new();
+            let mut view = TheRenderView::new(TheId::named("MiniMap"));
+            let view_id = view.id().clone();
+            view.set_dim(TheDim::new(13, 29, 143, 83), &mut ctx);
+            view.render_buffer_mut().resize(143, 83);
+            ui.canvas.set_widget(view);
+            let mut sidebar = Sidebar::new();
+            let update = TheEvent::Custom(TheId::named("Soft Update Minimap"), TheValue::Empty);
+            sidebar.handle_event(&update, &mut ui, &mut ctx, &mut project, &mut server);
+            let mut owner = std::mem::take(&mut sidebar.minimap_scene);
+            let before = gpu.transfers();
+            let prepare =
+                |owner: &mut SceneOverview, ui: &mut TheUI, images: &mut ImageRegistry| {
+                    owner
+                        .prepare(
+                            &project,
+                            &server,
+                            ui,
+                            &ctx,
+                            assets,
+                            77,
+                            unrelated.clone(),
+                            false,
+                            0,
+                            images,
+                        )
+                        .unwrap()
+                };
+            let mut images = ImageRegistry::new(gpu.clone());
+            if !iso {
+                assert!(prepare(&mut owner, &mut ui, &mut images).is_none());
+                for _ in 0..64 {
+                    owner.advance_source(&project, &server, assets, 77);
+                    if owner.source.as_ref().unwrap().ready() {
+                        break;
+                    }
+                }
+                assert!(owner.source.as_ref().unwrap().ready());
+            }
+            let token = prepare(&mut owner, &mut ui, &mut images).unwrap();
+            let frame = owner.current.as_ref().unwrap().clone();
+            assert_eq!(frame.binding.map, project.regions[0].map.id);
+            assert_ne!(frame.binding.map, isolated.id);
+            assert!(
+                !ui.get_render_view("MiniMap")
+                    .unwrap()
+                    .has_cpu_display_storage()
+            );
+            assert_eq!(before.readback_bytes, gpu.transfers().readback_bytes);
+            assert!(
+                owner
+                    .navigate(
+                        &view_id,
+                        Vec2::new(90, 50),
+                        &project,
+                        &server,
+                        &mut ui,
+                        &ctx
+                    )
+                    .is_err()
+            );
+            let stable = gpu.transfers();
+            let same = prepare(&mut owner, &mut ui, &mut images).unwrap();
+            assert_eq!(same.receipt(), token.receipt());
+            assert_eq!(stable, gpu.transfers());
+            // Deliberately supplied foreign geometry and a not-ready main worker
+            // cannot enter this parent output. Its green sector is authored here.
+            let pixels = capture(
+                gpu,
+                owner
+                    .gpu
+                    .as_ref()
+                    .unwrap()
+                    .scenes
+                    .capture(frame.output.view)
+                    .unwrap()
+                    .ticket,
+            );
+            assert!(
+                pixels
+                    .chunks_exact(4)
+                    .any(|p| p[1] > 100 && p[1] > p[0] && p[1] > p[2]),
+                "parent source missing iso={iso} context={context}"
+            );
+            let mut paint = PaintList::default();
+            paint.ops.push(PaintOp::SpriteImage {
+                image: frame.image,
+                origin: [0.; 2],
+                scale: [1.; 2],
+                tint: [1.; 4],
+            });
+            paint.ops.push(PaintOp::Receipt(frame.receipt));
+            let target =
+                renderkit::GpuImage::new(gpu, renderkit::ImageDescriptor::rgba(143, 83)).unwrap();
+            renderer
+                .render(
+                    &paint,
+                    &images,
+                    &target.view,
+                    target.descriptor.format,
+                    (143, 83),
+                    1.,
+                    [0.; 4],
+                )
+                .unwrap();
+            owner.presented(Some(token));
+            let at = Vec2::new(90, 50);
+            let expected = owner
+                .navigate(&view_id, at, &project, &server, &mut ui, &ctx)
+                .unwrap()
+                .unwrap();
+            let old_context = server.pc;
+            server.pc = ProjectContext::Prefab(Uuid::new_v4());
+            assert!(
+                owner
+                    .navigate(&view_id, at, &project, &server, &mut ui, &ctx)
+                    .is_err()
+            );
+            server.pc = old_context;
+            sidebar.minimap_scene = owner;
+            sidebar.handle_event(
+                &TheEvent::RenderViewClicked(view_id.clone(), at),
+                &mut ui,
+                &mut ctx,
+                &mut project,
+                &mut server,
+            );
+            let actual = if server.editor_view_mode == EditorViewMode::D2 {
+                editor_view_center(&project.regions[0].map)
+            } else {
+                let p = project.regions[0].editing_position_3d;
+                Vec2::new(p.x, p.z)
+            };
+            assert!(
+                (actual - expected).magnitude() < 0.0001,
+                "parent navigation iso={iso} context={context}"
+            );
+            assert_eq!(
+                serde_json::to_value(project.get_map(&server).unwrap()).unwrap(),
+                untouched,
+                "parent navigation must not modify the isolated map"
+            );
+            if !iso && context == 0 {
+                let mut owner = std::mem::take(&mut sidebar.minimap_scene);
+                let old_source = owner.source.as_ref().unwrap().snapshot();
+                let revision = project.regions[0].map.changed;
+                project.regions[0].map.vertices[0].x -= 0.5;
+                assert_eq!(project.regions[0].map.changed, revision);
+                assert!(
+                    owner
+                        .navigate(&view_id, at, &project, &server, &mut ui, &ctx)
+                        .is_err()
+                );
+                for _ in 0..64 {
+                    owner.advance_source(&project, &server, assets, 77);
+                    if owner.source.as_ref().unwrap().ready() {
+                        break;
+                    }
+                }
+                assert!(!Arc::ptr_eq(
+                    &old_source,
+                    &owner.source.as_ref().unwrap().snapshot()
+                ));
+                let next = owner
+                    .prepare(
+                        &project,
+                        &server,
+                        &mut ui,
+                        &ctx,
+                        assets,
+                        77,
+                        unrelated.clone(),
+                        false,
+                        0,
+                        &mut images,
+                    )
+                    .unwrap()
+                    .unwrap();
+                assert_ne!(next.receipt(), frame.receipt);
+                sidebar.minimap_scene = owner;
+            }
+            let image = frame.image;
+            sidebar.minimap_scene.deactivate(&mut ui);
+            assert!(sidebar.minimap_scene.source.is_none());
+            sidebar
+                .minimap_scene
+                .prepare(
+                    &project,
+                    &server,
+                    &mut ui,
+                    &ctx,
+                    assets,
+                    77,
+                    unrelated.clone(),
+                    false,
+                    0,
+                    &mut images,
+                )
+                .unwrap();
+            assert!(images.get(image).is_none());
+        }
+    }
 }
 
 fn check_screens(gpu: &Arc<GpuContext>, renderer: &mut PaintRenderer) {

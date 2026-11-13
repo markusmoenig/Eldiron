@@ -12,11 +12,16 @@ use theframework::{
     },
 };
 
+#[path = "native_scene_source.rs"]
+mod sources;
+
 #[derive(Clone, PartialEq)]
 struct Binding {
     document: Uuid,
     region: Uuid,
     context: ProjectContext,
+    editing_surface: Option<Uuid>,
+    editing_map: Option<Uuid>,
     map: Uuid,
     source: u64,
     mode: EditorViewMode,
@@ -121,6 +126,7 @@ pub(crate) struct SceneOverview {
     presented: Option<Arc<Frame>>,
     gpu: Option<Gpu>,
     waiting: bool,
+    source: Option<sources::Source>,
 }
 impl Default for SceneOverview {
     fn default() -> Self {
@@ -132,14 +138,12 @@ impl Default for SceneOverview {
             presented: None,
             gpu: None,
             waiting: false,
+            source: None,
         }
     }
 }
 fn region<'a>(project: &'a Project, server: &ServerContext) -> Option<&'a Region> {
-    if !matches!(server.pc, ProjectContext::Region(id) if id == server.curr_region)
-        || server.editing_surface.is_some()
-        || palette_minimap_active(server)
-    {
+    if server.get_map_context() != MapContext::Region || palette_minimap_active(server) {
         return None;
     }
     let region = project.get_region(&server.curr_region)?;
@@ -152,7 +156,7 @@ fn region<'a>(project: &'a Project, server: &ServerContext) -> Option<&'a Region
     }
     Some(region)
 }
-fn overview_map<'a>(
+pub(crate) fn overview_map<'a>(
     project: &'a Project,
     server: &ServerContext,
 ) -> Option<(&'a Map, Option<Uuid>)> {
@@ -169,6 +173,14 @@ fn overview_map<'a>(
     }
     region(project, server).map(|region| (&region.map, Some(region.id)))
 }
+fn separate_source(project: &Project, server: &ServerContext, map: &Map) -> bool {
+    !server.pc.is_screen()
+        && (!matches!(server.pc, ProjectContext::Region(id) if id == server.curr_region)
+            || server.editing_surface.is_some()
+            || project
+                .get_map(server)
+                .is_none_or(|editing| editing.id != map.id))
+}
 fn source_map(map: &Map) -> (Map, u64) {
     let mut map = map.clone();
     // Camera movement only changes the marker, not the fitted scene or terrain
@@ -178,8 +190,9 @@ fn source_map(map: &Map) -> (Map, u64) {
     map.changed = 0;
     map.entities.clear();
     map.items.clear();
-    map.selected_linedefs.clear();
-    map.selected_sectors.clear();
+    map.clear_selection();
+    map.clear_temp();
+    map.curr_mouse_pos = None;
     let mut hash = DefaultHasher::new();
     serde_json::to_vec(&map)
         .expect("serializable minimap source")
@@ -187,6 +200,33 @@ fn source_map(map: &Map) -> (Map, u64) {
     (map, hash.finish())
 }
 impl SceneOverview {
+    pub(crate) fn advance_source(
+        &mut self,
+        project: &Project,
+        server: &ServerContext,
+        assets: &rusterix::Assets,
+        asset_revision: u64,
+    ) -> bool {
+        let Some((map, _)) = overview_map(project, server).filter(|(map, _)| {
+            self.enabled
+                && map.camera != MapCamera::TwoDIso
+                && separate_source(project, server, map)
+        }) else {
+            self.source = None;
+            return false;
+        };
+        let (map, source) = source_map(map);
+        let key = sources::SourceKey {
+            document: server.document_instance,
+            map: map.id,
+            source,
+            assets: asset_revision,
+        };
+        if self.source.as_ref().is_none_or(|old| old.key != key) {
+            self.source = Some(sources::Source::new(key, map, assets));
+        }
+        self.source.as_mut().unwrap().advance()
+    }
     fn binding(
         project: &Project,
         server: &ServerContext,
@@ -205,6 +245,8 @@ impl SceneOverview {
                 document: server.document_instance,
                 region: region.unwrap_or_default(),
                 context: server.pc,
+                editing_surface: server.editing_surface.as_ref().map(|s| s.id),
+                editing_map: project.get_map(server).map(|map| map.id),
                 map: map.id,
                 source,
                 mode: server.editor_view_mode,
@@ -272,6 +314,22 @@ impl SceneOverview {
         let iso = map.camera == MapCamera::TwoDIso;
         let screen = binding.context.is_screen();
         let raster_overview = screen && !iso;
+        let owned_source = !iso && separate_source(project, server, &map);
+        let (source, ready) = if owned_source {
+            let key = sources::SourceKey {
+                document: binding.document,
+                map: binding.map,
+                source: binding.source,
+                assets: asset_revision,
+            };
+            if let Some(source) = self.source.as_ref().filter(|source| source.key == key) {
+                (source.snapshot(), source.ready())
+            } else {
+                (source, false)
+            }
+        } else {
+            (source, ready)
+        };
         if !iso && !screen && !ready {
             self.waiting = true;
             self.invalidate(ui);
@@ -289,10 +347,11 @@ impl SceneOverview {
             self.gpu = Some(Gpu::new(images)?);
         }
         let gpu = self.gpu.as_mut().unwrap();
-        let scope_changed = gpu
-            .binding
-            .as_ref()
-            .is_none_or(|old| old.document != binding.document || old.map != binding.map);
+        let scope_changed = gpu.binding.as_ref().is_none_or(|old| {
+            old.document != binding.document
+                || old.map != binding.map
+                || old.context != binding.context
+        });
         let bbox = if iso {
             isometric_minimap_bbox(
                 &map,
@@ -578,6 +637,7 @@ impl SceneOverview {
         self.invalidate(ui);
         self.enabled = false;
         self.waiting = false;
+        self.source = None;
     }
     pub(crate) fn device_reset(&mut self, ui: &mut TheUI) {
         self.invalidate(ui);

@@ -276,7 +276,10 @@ impl Sidebar {
                 return ui.get_render_view("MiniMap").unwrap().needs_redraw();
             }
             self.minimap_scene.deactivate(ui);
-            if server_ctx.pc.is_screen() && project.get_map(server_ctx).is_none() {
+            let missing_overview = if server_ctx.get_map_context() == MapContext::Region {
+                project.get_region(&server_ctx.curr_region).is_none()
+            } else { project.get_map(server_ctx).is_none() };
+            if missing_overview {
                 let view = ui.get_render_view("MiniMap").unwrap();
                 view.set_image_handle(None);
                 return view.needs_redraw();
@@ -1025,11 +1028,23 @@ impl Sidebar {
                                 Err(()) => return redraw,
                             }
                         } else { None };
+                        // A native overview can display a parent region while
+                        // the active editor targets a Prefab or profile. Navigate
+                        // the displayed map, never that unrelated editing map.
+                        #[cfg(feature = "native-render")]
+                        let native_parent = ctx.ui.command_paint
+                            && (native_bbox.is_some() || native_position.is_some())
+                            && server_ctx.get_map_context() == MapContext::Region;
+                        #[cfg(not(feature = "native-render"))]
+                        let native_parent = false;
                         let mut update_pos_3d: Option<Vec3<f32>> = None;
                         let mut update_look_at_3d: Option<Vec3<f32>> = None;
                         let mut handled_minimap_input = false;
 
-                        if let Some(map) = project.get_map_mut(server_ctx)
+                        let navigation_map = if native_parent {
+                            project.get_region_mut(&server_ctx.curr_region).map(|region| &mut region.map)
+                        } else { project.get_map_mut(server_ctx) };
+                        if let Some(map) = navigation_map
                             && let Some(bbox) = minimap_bbox_for_map(map)
                         {
                             let fallback_position = || {
@@ -1060,7 +1075,7 @@ impl Sidebar {
                             } else if ui.shift
                                 && server_ctx.editor_view_mode == EditorViewMode::FirstP
                                 && server_ctx.get_map_context() == MapContext::Region
-                                && server_ctx.editing_surface.is_none()
+                                && (native_parent || server_ctx.editing_surface.is_none())
                             {
                                 let current_y = project
                                     .get_region(&server_ctx.curr_region)
@@ -1068,7 +1083,7 @@ impl Sidebar {
                                     .unwrap_or(0.0);
                                 update_look_at_3d = Some(Vec3::new(grid_x, current_y, grid_y));
                             } else if server_ctx.get_map_context() == MapContext::Region
-                                && server_ctx.editing_surface.is_none()
+                                && (native_parent || server_ctx.editing_surface.is_none())
                             {
                                 let current_y = project
                                     .get_region(&server_ctx.curr_region)
