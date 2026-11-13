@@ -49,7 +49,12 @@ impl TheWidget for TheTraybarButton {
             (TrayButtonNormal, TraybarButtonNormalBorder)
         };
         let radius = p.theme.metric(ControlCornerRadius);
-        p.list.rect(r, radius, p.color(border));
+        let border = if self.is_disabled {
+            *p.theme.color_disabled(border)
+        } else {
+            *p.theme.color(border)
+        };
+        p.list.rect(r, radius, crate::theui::paint::rgba(border));
         let inner = Rect::new(
             r.x + 1.,
             r.y + 1.,

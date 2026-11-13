@@ -207,8 +207,15 @@ impl TheWidget for TheTreeItem {
         }
         let height = if self.sub_text.is_empty() { 15. } else { 32. };
         let y = r.y + (r.height - height).max(0.) * 0.5;
+        let label_rect = if self.icon.is_none() && self.sub_text.is_empty() {
+            // Match the reference row's complete inner height and +1px inset,
+            // rather than centering a second, shorter 15px text rectangle.
+            Rect::new(text_x, r.y + 1., text_width, (r.height - 2.).max(0.))
+        } else {
+            Rect::new(text_x, y, text_width, 15.)
+        };
         p.label(
-            Rect::new(text_x, y, text_width, 15.),
+            label_rect,
             &self.text,
             13.,
             *p.theme.color(ListItemText),

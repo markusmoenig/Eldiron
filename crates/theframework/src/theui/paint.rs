@@ -343,18 +343,18 @@ impl WidgetPainter<'_> {
         horizontal: TheHorizontalAlign,
         vertical: TheVerticalAlign,
     ) {
-        let layout = self.text.layout(value, "Roboto", size, None);
+        let layout = self.text.label_layout(value.trim_end(), "Roboto", size);
         let x = rect.x
             + match horizontal {
                 TheHorizontalAlign::Left => 0.,
-                TheHorizontalAlign::Center => (rect.width - layout.width()) * 0.5,
-                TheHorizontalAlign::Right => rect.width - layout.width(),
+                TheHorizontalAlign::Center => ((rect.width - layout.width) * 0.5).floor(),
+                TheHorizontalAlign::Right => (rect.width - layout.width).floor(),
             };
         let y = rect.y
             + match vertical {
                 TheVerticalAlign::Top => 0.,
-                TheVerticalAlign::Center => (rect.height - layout.height()) * 0.5,
-                TheVerticalAlign::Bottom => rect.height - layout.height(),
+                TheVerticalAlign::Center => ((rect.height - layout.height) * 0.5).floor(),
+                TheVerticalAlign::Bottom => (rect.height - layout.height).floor(),
             };
         self.list.ops.push(PaintOp::PushClip(rect));
         for run in layout.runs {

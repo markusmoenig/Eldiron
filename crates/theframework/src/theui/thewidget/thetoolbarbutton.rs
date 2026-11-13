@@ -24,26 +24,31 @@ impl TheWidget for TheToolbarButton {
         use crate::paint::Rect;
         use crate::theui::paint::bounds;
         let r = bounds(&self.dim);
-        if self.state == TheWidgetState::Clicked {
-            p.fill(r, ToolbarButtonClicked);
+        // Match the reference's complete flat chrome in every state.
+        let (fill, border) = if self.state == TheWidgetState::Clicked {
+            (ToolbarButtonClicked, ToolbarButtonClickedBorder)
         } else if self.id.equals(&p.ui.hover) {
-            p.fill(r, ToolbarButtonHover);
-            p.outline(r, *p.theme.color(ToolbarButtonHoverBorder), 1.);
-        }
+            (ToolbarButtonHoverBorder, ToolbarButtonHoverBorder)
+        } else {
+            (ToolbarButtonNormal, ToolbarButtonNormalBorder)
+        };
+        p.fill(r, border);
+        let inner = r.inset(1.);
+        p.fill(inner, fill);
         if let Some(icon) = p.ui.icon(&self.icon_name) {
             let (w, h) = (icon.dim().width as f32, icon.dim().height as f32);
             p.icon(
                 &self.icon_name,
                 Rect::new(
-                    r.x + (r.width - w) * 0.5 + self.icon_offset.x as f32,
-                    r.y + (r.height - h) * 0.5 + self.icon_offset.y as f32,
+                    inner.x + ((inner.width - w) * 0.5).floor() + self.icon_offset.x as f32,
+                    inner.y + ((inner.height - h) * 0.5).floor() + self.icon_offset.y as f32,
                     w,
                     h,
                 ),
             )?;
         }
         p.label(
-            r,
+            inner,
             &self.text,
             self.text_size,
             *p.theme.color(SectionbarNormalTextColor),

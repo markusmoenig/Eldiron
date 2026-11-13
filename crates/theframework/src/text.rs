@@ -44,6 +44,13 @@ pub struct TextLine {
     pub baseline: f32,
     pub advance: f32,
 }
+/// Paint-only labels retain the reference UI's integral advance and baseline
+/// policy. Editing/layout snapshots keep their original shaped caret geometry.
+pub(crate) struct LabelLayout {
+    pub runs: Vec<Arc<GlyphRun>>,
+    pub width: f32,
+    pub height: f32,
+}
 pub struct TextLayout {
     pub runs: Vec<Arc<GlyphRun>>,
     line_runs: Vec<std::ops::Range<usize>>,
@@ -400,6 +407,73 @@ impl TextSystem {
     ) -> TextLayout {
         self.layout_styled(text, family, size, width, &[])
     }
+    pub(crate) fn label_layout(&mut self, text: &str, family: &str, size: f32) -> LabelLayout {
+        let shaped = self.layout(text, family, size, None);
+        let mut label = LabelLayout {
+            runs: Vec::new(),
+            width: 0.,
+            height: 0.,
+        };
+        for (index, line) in shaped.layout.lines().enumerate() {
+            let runs = shaped.runs_for_lines(index..index + 1);
+            let mut ascent = 0.0f32;
+            let mut height = 0.0f32;
+            for run in runs {
+                if let Some(font) =
+                    FontRef::from_index(&run.font.data, run.font.identity.1 as usize)
+                {
+                    let metrics = font.metrics(&run.variations).scale(run.size);
+                    ascent = ascent.max(metrics.ascent.ceil());
+                    height =
+                        height.max((metrics.ascent + metrics.descent + metrics.leading).ceil());
+                }
+            }
+            if height == 0. {
+                height = (line.metrics().block_max_coord - line.metrics().block_min_coord).ceil();
+            }
+            let baseline = label.height + ascent;
+            let mut shift = 0.;
+            let items = line.items().filter_map(|item| {
+                if let PositionedLayoutItem::GlyphRun(run) = item {
+                    Some(run)
+                } else {
+                    None
+                }
+            });
+            for (positioned, run) in items.zip(runs) {
+                let clusters = positioned
+                    .positioned_glyphs_with_clusters()
+                    .map(|(_, range)| range)
+                    .collect::<Vec<_>>();
+                let mut glyphs = run.glyphs.to_vec();
+                let mut start = 0;
+                while start < glyphs.len() {
+                    let mut end = start + 1;
+                    while end < glyphs.len() && clusters[end] == clusters[start] {
+                        end += 1;
+                    }
+                    let advance = glyphs[start..end].iter().map(|g| g.advance).sum::<f32>();
+                    for glyph in &mut glyphs[start..end] {
+                        glyph.position[0] += shift;
+                        glyph.position[1] += baseline - line.metrics().baseline;
+                    }
+                    // Round whole shaped clusters together so combining marks
+                    // and required ligatures retain their relative placement.
+                    shift += advance.ceil() - advance;
+                    start = end;
+                }
+                label.runs.push(Arc::new(GlyphRun {
+                    font: run.font.clone(),
+                    size: run.size,
+                    variations: run.variations.clone(),
+                    glyphs: Arc::from(glyphs),
+                }));
+            }
+            label.width = label.width.max(line.metrics().advance + shift);
+            label.height += height;
+        }
+        label
+    }
     pub fn layout_styled(
         &mut self,
         text: &str,
@@ -607,7 +681,9 @@ impl GlyphCache {
             .scale
             .builder(font)
             .size(size as f32 / 64.)
-            .hint(true)
+            // The reference UI rasterizes unhinted outlines. Keep the same
+            // glyph extents; grid fitting changes small label height/weight.
+            .hint(false)
             .normalized_coords(run.variations.iter().copied())
             .build();
         let image = Render::new(&[

@@ -4849,3 +4849,49 @@ The previous native Prefab D2 adapter and full-configuration-on-every-catalog-
 change notes are superseded by this entry. All full-workflow, visual/text/DPI,
 resource/performance/release and desktop/browser/Apple acceptance gates remain
 open. No milestone or overall completion is claimed.
+
+### Button/text appearance correction from user review (2026-11-13)
+
+The user identified that native buttons differed from the CPU version and their
+text sat too high. Compared the actual native/CPU startup captures and measured
+the registered Roboto font through both paths. At 13 px the original native
+label box was 15.23 px high with baseline 12, versus the CPU's 16 px line and
+baseline 13. Native fractional advances also made ordinary labels considerably
+narrower ("New 2D Project": 89.97 px shaped advance versus roughly 100 px CPU
+measurement). Evidence: `/private/tmp/eldiron-ui-label-metrics.log`.
+
+- Added a paint-only label layout using the existing Parley shaping and Swash
+  font metrics. It uses integral line metrics/baselines and rounded cluster
+  advances for the reference UI's spacing, keeping all glyphs in a combining or
+  ligature cluster together. Widget measurement and label paint share this
+  policy. Editable TextLayout/caret/selection geometry is unchanged.
+- Swash now rasterizes unhinted outlines, matching the CPU painter's outline
+  policy. The previous grid fitting changed small glyph extents/weight. Direct
+  CPU/Swash extent comparisons are recorded in
+  `/private/tmp/eldiron-ui-glyph-metrics.log`. Glyph images still come from Swash,
+  remain cached in GPU atlases, and are blitted by the GPU; no Fontdue text
+  painting or widget framebuffer is introduced into native presentation.
+- Labels use the reference's integral alignment within their content box. Plain
+  tree rows now align using their full inner row instead of a second 15 px box.
+  Native toolbar buttons now include the missing normal/clicked borders and
+  fills, the CPU hover treatment and matching inner content bounds. Tray buttons
+  now resolve their disabled border through the disabled theme color.
+
+Verification: the existing assembled Creator GPU check passed **1**, 36.93 s
+(23.82 s test build), `/private/tmp/eldiron-native-button-prefab-paint-root.log`.
+It includes the unchanged-frame glyph-cache/upload assertions and the preceding
+application integrations; no separate per-control fixture suite was added.
+Reference Creator compilation passed, 20.05 s,
+`/private/tmp/eldiron-native-button-prefab-paint-reference.log`.
+`git diff --check` passed.
+
+Stable corrected capture:
+`/private/tmp/eldiron-native-creator-startup-buttons.png`. Compared with
+`/private/tmp/eldiron-reference-creator-startup.png`, the high-contrast ink bounds
+of the New 2D and New 3D Project labels now match at 100% scale, including both
+vertical extents. Measurement: `/private/tmp/eldiron-ui-button-ink-bounds.log`.
+This selected comparison is not a claim of pixel-identical anti-aliasing or full
+widget/text/IME/fallback/DPI parity. The Regions sample still differs by one row
+at that threshold; complete row/layout and fractional-DPI comparison remains in
+the acceptance matrix. Physical-window validation remains unavailable on the
+locked Mac. No M0–M9 or overall completion is claimed.

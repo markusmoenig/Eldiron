@@ -101,11 +101,8 @@ impl TheContext {
                 TheFontPreference::Default => "Roboto",
                 TheFontPreference::Code => "Source Code Pro",
             };
-            let layout = self.text.layout(value, family, settings.size, None);
-            return (
-                layout.width().ceil() as usize,
-                layout.height().ceil() as usize,
-            );
+            let layout = self.text.label_layout(value, family, settings.size);
+            return (layout.width.ceil() as usize, layout.height.ceil() as usize);
         }
         self.draw.get_text_size(value, settings)
     }
