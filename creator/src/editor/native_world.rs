@@ -893,7 +893,7 @@ impl Editor {
             geometry_config: self.native_world_geometry_config(),
             guide_properties: self.build_values.clone(),
             density: ctx.scale_factor.to_bits(),
-            style: HudStyle::current(),
+            style: HudStyle::current(&self.server_ctx),
             slots,
             assets: self.native_world_asset_key(assets),
         })

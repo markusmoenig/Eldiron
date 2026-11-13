@@ -38,6 +38,7 @@ impl<T: Default> CreatorController<T> {
 
 #[cfg(test)]
 mod tests {
+    use theframework::prelude::TheTheme;
     use crate::{
         creator_context::CreatorContext, dockmanager::DockManagerState,
         editor_display::EditorDisplay,
@@ -45,7 +46,7 @@ mod tests {
 
     #[test]
     fn controller_parameters_and_selection_belong_to_one_application() {
-        let first = CreatorContext::new();
+        let mut first = CreatorContext::new();
         let second = CreatorContext::new();
         for owner in [&first, &second] {
             assert!(!owner.actions.initialized());
@@ -123,6 +124,15 @@ mod tests {
             assert!(!owner.jobs.scene_initialized());
             assert!(!owner.history.read().has_unsaved());
         }
+        let untouched_theme = second.hud_colors;
+        first.hud_colors =
+            crate::hud::HudColors::from_theme(&theframework::prelude::TheBlackBlueTheme::new());
+        let retained = crate::hud::HudStyle::current(&first);
+        first.hud_colors =
+            crate::hud::HudColors::from_theme(&theframework::prelude::TheLightTheme::new());
+        assert!(retained.colors != crate::hud::colors(&first));
+        assert!(crate::hud::colors(&second) == untouched_theme);
+        assert!(crate::hud::HudStyle::current(&second).colors == untouched_theme);
         drop(first);
         assert!(!second.tools.read().current_game_tool_is("tool.rect"));
         assert_ne!(second.docks.read().dock, "Palette");

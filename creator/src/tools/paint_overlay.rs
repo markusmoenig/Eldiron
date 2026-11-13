@@ -442,13 +442,13 @@ impl PaintOverlay {
             revision: 0,
         }
     }
-    pub fn draw(&mut self, buffer: &mut TheRGBABuffer, ctx: &mut TheContext) {
+    pub(crate) fn draw(&mut self, buffer: &mut TheRGBABuffer, ctx: &mut TheContext, colors: crate::hud::HudColors) {
         let size = (
             buffer.dim().width.max(0) as usize,
             buffer.dim().height.max(0) as usize,
         );
         let scope = self.reference_scope();
-        let frame = self.prepare_frame(scope, size, crate::hud::colors());
+        let frame = self.prepare_frame(scope, size, colors);
         frame.commands.draw_reference(buffer, ctx);
         self.last_size = size;
         if self

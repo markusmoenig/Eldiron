@@ -308,7 +308,7 @@ impl PropsOverlay {
             buffer.dim().height.max(0) as usize,
         );
         let scope = self.reference_scope(server);
-        let frame = self.prepare_frame(scope, size, crate::hud::colors(), server);
+        let frame = self.prepare_frame(scope, size, crate::hud::colors(server), server);
         frame.commands.draw_reference(buffer, ctx);
         self.last_size = size;
         if self

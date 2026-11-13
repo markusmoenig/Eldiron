@@ -98,6 +98,60 @@ fn paint_widget(
 }
 
 #[test]
+fn replacing_a_named_icon_retires_its_painted_identity_without_reuploading_idle_icons() {
+    let mut ctx = TheContext::new(40, 40, 1.);
+    let mut images = RecordingImages::default();
+    let mut button = TheToolbarButton::new(TheId::named("Theme icon"));
+    button.set_icon_name("theme-icon".into());
+    button.set_dim(TheDim::sized(32, 32), &mut ctx);
+    ctx.ui
+        .add_icon("theme-icon".into(), TheRGBABuffer::from(vec![255; 4], 1, 1));
+    let original = paint_widget(&mut button, &mut ctx, &mut images);
+    let original_handles = original.image_handles().collect::<Vec<_>>();
+    assert_eq!(original_handles.len(), 1);
+    let idle = paint_widget(&mut button, &mut ctx, &mut images);
+    assert_eq!(idle.image_handles().collect::<Vec<_>>(), original_handles);
+    assert_eq!(images.uploads, 1);
+    ctx.ui.add_icon(
+        "theme-icon".into(),
+        TheRGBABuffer::from(vec![30, 30, 30, 255], 1, 1),
+    );
+    let replacement = paint_widget(&mut button, &mut ctx, &mut images);
+    assert_ne!(
+        replacement.image_handles().collect::<Vec<_>>(),
+        original_handles,
+        "a same-size named replacement cannot reuse the old themed texture"
+    );
+    assert_eq!(images.uploads, 2);
+    ctx.ui.redraw_all = false;
+    ctx.ui.add_icon(
+        "theme-icon".into(),
+        TheRGBABuffer::from(vec![30, 30, 30, 255], 1, 1),
+    );
+    assert!(
+        !ctx.ui.redraw_all,
+        "identical source publication keeps idle UI idle"
+    );
+    let repeated = paint_widget(&mut button, &mut ctx, &mut images);
+    assert_eq!(
+        repeated.image_handles().collect::<Vec<_>>(),
+        replacement.image_handles().collect::<Vec<_>>()
+    );
+    assert_eq!(images.uploads, 2);
+    let mut other = TheContext::new(40, 40, 1.);
+    other.ui.add_icon(
+        "theme-icon".into(),
+        TheRGBABuffer::from(vec![70, 80, 90, 255], 1, 1),
+    );
+    let other_paint = paint_widget(&mut button, &mut other, &mut images);
+    assert_ne!(
+        other_paint.image_handles().collect::<Vec<_>>(),
+        original_handles,
+        "independent UI contexts cannot collide in a shared resource sink"
+    );
+}
+
+#[test]
 fn icon_collections_keep_content_uploads_separate_from_selection_and_scroll() {
     let mut ctx = TheContext::new(320, 180, 1.);
     let mut resources = RecordingImages::default();

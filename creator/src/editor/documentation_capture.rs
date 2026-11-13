@@ -21,7 +21,7 @@ impl Capture {
             .set_dim(TheDim::sized(WIDTH as i32, HEIGHT as i32), &mut ctx);
         let mut editor = Editor::new();
         editor.init_ui(&mut ui, &mut ctx);
-        CreatorTheme::Brown.apply(&mut ui, &mut ctx, &editor.server_ctx.reference, &editor.server_ctx.tools);
+        CreatorTheme::Brown.apply(&mut ui, &mut ctx, &mut editor.server_ctx);
         std::fs::create_dir_all(&destination).unwrap();
         Self {
             editor,

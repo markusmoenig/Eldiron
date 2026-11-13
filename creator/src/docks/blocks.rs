@@ -1226,7 +1226,7 @@ mod tests {
         let mut ui = TheUI::new();
         let mut ctx = TheContext::new(1440, 960, 1.);
         ui.set_theme(Box::new(TheBrownTheme::new()), &mut ctx);
-        crate::hud::set_theme(&TheBrownTheme::new());
+        server.hud_colors = crate::hud::HudColors::from_theme(&TheBrownTheme::new());
         ui.init(&mut ctx);
         let map_canvas =
             crate::mapeditor::MapEditor::new().init_ui(&mut ui, &mut ctx, &mut project);

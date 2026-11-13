@@ -864,7 +864,7 @@ mod tests {
         );
         let (mut ui, mut ctx) = super::super::tests::workspace_ui(1660, 960);
         ui.set_theme(Box::new(TheBrownTheme::new()), &mut ctx);
-        crate::hud::set_theme(&TheBrownTheme::new());
+        server.hud_colors = crate::hud::HudColors::from_theme(&TheBrownTheme::new());
         ui.init(&mut ctx);
         ui.get_stack_layout("Game Output Stack")
             .unwrap()

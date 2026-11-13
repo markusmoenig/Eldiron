@@ -142,8 +142,7 @@ impl CreatorTheme {
         self,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        reference: &CreatorReference,
-        creator_tools: &CreatorTools,
+        server: &mut ServerContext,
     ) {
         let mut profile = crate::misc::FrameProfile::new();
         let theme: Box<dyn TheTheme> = match self {
@@ -153,7 +152,7 @@ impl CreatorTheme {
         };
         ui.set_theme(theme, ctx);
         profile.lap("theme_widgets");
-        reference.write().client.editor_canvas_colors = Some([
+        server.reference.write().client.editor_canvas_colors = Some([
             *ui.style.theme().color(EditorCanvasBackground),
             *ui.style.theme().color(EditorGrid),
             *ui.style.theme().color(EditorSubGrid),
@@ -163,10 +162,10 @@ impl CreatorTheme {
         if let Some(menu) = ui.get_menu("Menu") {
             menu.replace_context_menu(self.view_menu());
         }
-        creator_tools.write()
+        server.tools.write()
             .set_overlay_theme(ui.style.theme().as_ref());
         profile.lap("theme_tools");
-        crate::hud::set_theme(ui.style.theme().as_ref());
+        server.hud_colors = crate::hud::HudColors::from_theme(ui.style.theme().as_ref());
         crate::procedural_material::register_preview_icons(ctx, ui.style.theme().as_ref());
         let icon_color = *ui.style.theme().color(SectionbarNormalTextColor);
         register_themed_bitmap_icons(ctx, icon_color);
@@ -8063,7 +8062,7 @@ impl TheTrait for Editor {
 
     fn init_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
         let mut init_profile = crate::misc::FrameProfile::new();
-        CreatorTheme::load().apply(ui, ctx, &self.server_ctx.reference, &self.server_ctx.tools);
+        CreatorTheme::load().apply(ui, ctx, &mut self.server_ctx);
         self.server_ctx.reference.write().client.messages_font = ctx.ui.font.clone();
         init_profile.lap("init_theme_gpu");
 
@@ -10774,7 +10773,7 @@ impl TheTrait for Editor {
                             "Theme Light" => CreatorTheme::Light,
                             _ => CreatorTheme::Brown,
                         };
-                        theme.apply(ui, ctx, &self.server_ctx.reference, &self.server_ctx.tools);
+                        theme.apply(ui, ctx, &mut self.server_ctx);
                         theme.save();
                         redraw = true;
                     } else if id.name == "Dock Edit Maximize" && state == TheWidgetState::Clicked {

@@ -2,9 +2,8 @@ use crate::prelude::*;
 use rusterix::GeometryObject;
 use std::sync::Mutex;
 
-static LAST_GEOMETRY_BOX_SIZE: Mutex<Option<Vec3<f32>>> = Mutex::new(None);
-
 pub struct CreateGeometryBox {
+    last_size: Mutex<Option<Vec3<f32>>>,
     id: TheId,
     nodeui: TheNodeUI,
 }
@@ -15,12 +14,12 @@ pub struct CreateGeometryUnitBox {
 }
 
 impl CreateGeometryBox {
-    fn last_size() -> Option<Vec3<f32>> {
-        LAST_GEOMETRY_BOX_SIZE.lock().ok().and_then(|size| *size)
+    fn last_size(&self) -> Option<Vec3<f32>> {
+        self.last_size.lock().ok().and_then(|size| *size)
     }
 
-    fn remember_size(size: Vec3<f32>) {
-        if let Ok(mut last_size) = LAST_GEOMETRY_BOX_SIZE.lock() {
+    fn remember_size(&self, size: Vec3<f32>) {
+        if let Ok(mut last_size) = self.last_size.lock() {
             *last_size = Some(size);
         }
     }
@@ -204,8 +203,8 @@ impl CreateGeometryBox {
         size
     }
 
-    fn size_for_params(map: &Map, step: f32) -> Vec3<f32> {
-        let default_size = Self::last_size().unwrap_or(Vec3::broadcast(step));
+    fn size_for_params(&self, map: &Map, step: f32) -> Vec3<f32> {
+        let default_size = self.last_size().unwrap_or(Vec3::broadcast(step));
         let edge_anchor = !map.selected_geometry_vertices.is_empty();
         let anchor = if edge_anchor {
             Self::selected_edge_face_anchor(map)
@@ -497,6 +496,7 @@ impl Action for CreateGeometryBox {
 
         Self {
             id: TheId::named(&fl!("action_create_geometry_box")),
+            last_size: Mutex::new(None),
             nodeui,
         }
     }
@@ -520,7 +520,7 @@ impl Action for CreateGeometryBox {
 
     fn load_params(&mut self, map: &Map) {
         let step = shared::context::ServerContext::edit_grid_step(map.subdivisions);
-        let size = Self::size_for_params(map, step);
+        let size = self.size_for_params(map, step);
         self.nodeui.set_f32_value("actionGeometryWidth", size.x);
         self.nodeui.set_f32_value("actionGeometryHeight", size.y);
         self.nodeui.set_f32_value("actionGeometryDepth", size.z);
@@ -568,7 +568,7 @@ impl Action for CreateGeometryBox {
         };
         let object = GeometryObject::box_from_bounds("Box", min, max);
         let id = object.id;
-        Self::remember_size(size);
+        self.remember_size(size);
 
         map.geometry_objects.push(object);
         map.clear_selection();
@@ -609,6 +609,46 @@ impl Action for CreateGeometryBox {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn remembered_box_dimensions_stay_with_the_action_instance() {
+        let mut first = CreateGeometryBox::new();
+        let mut second = CreateGeometryBox::new();
+        let mut map = Map::default();
+        let mut server = ServerContext::default();
+        let mut ui = TheUI::new();
+        let mut ctx = TheContext::new(64, 64, 1.);
+        first.nodeui.set_f32_value("actionGeometryWidth", 2.);
+        first.nodeui.set_f32_value("actionGeometryHeight", 3.);
+        first.nodeui.set_f32_value("actionGeometryDepth", 4.);
+        assert!(
+            first
+                .apply(&mut map, &mut ui, &mut ctx, &mut server)
+                .is_some()
+        );
+        map.clear_selection();
+        first.load_params(&map);
+        second.load_params(&map);
+        assert_eq!(
+            first.params().get_f32_value("actionGeometryWidth"),
+            Some(2.)
+        );
+        assert_eq!(
+            first.params().get_f32_value("actionGeometryHeight"),
+            Some(3.)
+        );
+        let step = shared::context::ServerContext::edit_grid_step(map.subdivisions);
+        assert_eq!(
+            second.params().get_f32_value("actionGeometryWidth"),
+            Some(step)
+        );
+        assert_eq!(
+            second.params().get_f32_value("actionGeometryHeight"),
+            Some(step)
+        );
+        assert!(!server.reference.initialized());
+        assert!(!server.jobs.scene_initialized());
+    }
 
     #[test]
     fn unit_box_stays_centered_and_flush_on_selected_surface() {

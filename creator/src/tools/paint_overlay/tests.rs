@@ -1,4 +1,6 @@
 use super::*;
+use crate::hud::HudColors;
+fn colors() -> HudColors { HudColors::from_theme(&TheBlackBlueTheme::new()) }
 fn fixture(kind: usize) -> PaintOverlay {
     let mut spec = Spec::new(if kind == 5 { "brick" } else { "moss" }, kind == 1);
     spec.scale = 1.3;
@@ -40,7 +42,6 @@ fn fixture(kind: usize) -> PaintOverlay {
     }
 }
 fn setup(size: (i32, i32)) -> (TheContext, TheRGBABuffer) {
-    crate::hud::set_theme(&TheBlackBlueTheme::new());
     let ctx = TheContext::new(size.0 as usize, size.1 as usize, 1.);
     let mut buffer = TheRGBABuffer::new(TheDim::sized(size.0, size.1));
     for p in buffer.pixels_mut().chunks_exact_mut(4) {
@@ -55,7 +56,7 @@ fn reference_paint_panel_preserves_independent_pre_extraction_fixtures() {
     for width in [360, 640] {
         for kind in 0..6 {
             let (mut ctx, mut buffer) = setup((width, 360));
-            fixture(kind).draw(&mut buffer, &mut ctx);
+            fixture(kind).draw(&mut buffer, &mut ctx, colors());
             let decoder = png::Decoder::new(std::io::BufReader::new(
                 std::fs::File::open(dir.join(format!("paint-{kind}-{width}.png"))).unwrap(),
             ));
@@ -103,7 +104,7 @@ fn paint_panel_preparation_stages_frozen_actions_and_revokes_stale_or_hidden_inp
     let size = (640, 360);
     let scope = scope();
     let point = Vec2::new(30, 78);
-    let frame = overlay.prepare_frame(scope, size, crate::hud::colors());
+    let frame = overlay.prepare_frame(scope, size, colors());
     assert!(matches!(
         overlay.hit_test(scope, size, point),
         PanelHit::Unavailable
@@ -117,7 +118,7 @@ fn paint_panel_preparation_stages_frozen_actions_and_revokes_stale_or_hidden_inp
         overlay.hit_test(scope, size, Vec2::new(0, 0)),
         PanelHit::Outside
     ));
-    let equivalent = overlay.prepare_frame(scope, size, crate::hud::colors());
+    let equivalent = overlay.prepare_frame(scope, size, colors());
     assert!(
         matches!(overlay.hit_test(scope, size, point), PanelHit::Inside(_)),
         "preparing identical input leaves acknowledged controls valid"
@@ -130,7 +131,7 @@ fn paint_panel_preparation_stages_frozen_actions_and_revokes_stale_or_hidden_inp
         PanelHit::Unavailable
     ));
     assert!(!acknowledge(&mut overlay, &equivalent, scope, size));
-    let changed = overlay.prepare_frame(scope, size, crate::hud::colors());
+    let changed = overlay.prepare_frame(scope, size, colors());
     assert!(acknowledge(&mut overlay, &changed, scope, size));
     for other in [
         PanelScope {
@@ -155,7 +156,7 @@ fn paint_panel_preparation_stages_frozen_actions_and_revokes_stale_or_hidden_inp
         overlay.hit_test(scope, (641, 360), point),
         PanelHit::Unavailable
     ));
-    let tiny = overlay.prepare_frame(scope, (300, 360), crate::hud::colors());
+    let tiny = overlay.prepare_frame(scope, (300, 360), colors());
     assert!(tiny.commands.is_empty());
     assert!(matches!(
         overlay.hit_test(scope, size, point),
@@ -163,13 +164,13 @@ fn paint_panel_preparation_stages_frozen_actions_and_revokes_stale_or_hidden_inp
     ));
     assert!(!acknowledge(&mut overlay, &changed, scope, size));
     assert!(!acknowledge(&mut overlay, &tiny, scope, (300, 360)));
-    let resumed = overlay.prepare_frame(scope, size, crate::hud::colors());
+    let resumed = overlay.prepare_frame(scope, size, colors());
     overlay.invalidate_frame();
     assert!(!acknowledge(&mut overlay, &resumed, scope, size));
-    let resumed = overlay.prepare_frame(scope, size, crate::hud::colors());
+    let resumed = overlay.prepare_frame(scope, size, colors());
     assert!(acknowledge(&mut overlay, &resumed, scope, size));
     overlay.controls = None;
-    let hidden = overlay.prepare_frame(scope, size, crate::hud::colors());
+    let hidden = overlay.prepare_frame(scope, size, colors());
     assert!(hidden.commands.is_empty());
     assert!(matches!(
         overlay.hit_test(scope, size, point),
@@ -185,7 +186,7 @@ fn reference_paint_panel_actions_and_pointer_capture_never_retarget_stale_contro
     let mut ui = TheUI::new();
     let server = ServerContext::default();
     let mut overlay = fixture(0);
-    overlay.draw(&mut buffer, &mut ctx);
+    overlay.draw(&mut buffer, &mut ctx, colors());
     assert!(overlay.map_event(
         &MapEvent::MapClicked(Vec2::new(30, 78)),
         &mut ui,
@@ -231,7 +232,7 @@ fn reference_paint_panel_actions_and_pointer_capture_never_retarget_stale_contro
         &server
     ));
     overlay.controls = None;
-    overlay.draw(&mut buffer, &mut ctx);
+    overlay.draw(&mut buffer, &mut ctx, colors());
     assert!(!overlay.bounds.is_valid());
 }
 #[test]
@@ -247,7 +248,7 @@ fn native_paint_panel_composes_all_reference_modes_and_reconstructs_without_disp
             let size = (width, 360);
             let mut overlay = fixture(kind);
             let (ctx, _) = setup((width as i32, 360));
-            let frame = overlay.prepare_frame(scope, size, crate::hud::colors());
+            let frame = overlay.prepare_frame(scope, size, colors());
             let uploads = gpu.gpu.transfers().uploaded_bytes;
             let mut list = frame.paint(&mut gpu.text, &mut gpu.images, 1.).unwrap();
             list.ops.insert(
@@ -287,7 +288,7 @@ fn native_paint_panel_composes_all_reference_modes_and_reconstructs_without_disp
     let mut baseline = None;
     for density in [1., 1.25, 1.5, 2.] {
         overlay.invalidate_frame();
-        let frame = overlay.prepare_frame(scope, size, crate::hud::colors());
+        let frame = overlay.prepare_frame(scope, size, colors());
         let mut list = frame
             .paint(&mut gpu.text, &mut gpu.images, density)
             .unwrap();
@@ -301,11 +302,11 @@ fn native_paint_panel_composes_all_reference_modes_and_reconstructs_without_disp
             baseline = Some(pixels);
         }
     }
-    let old = overlay.prepare_frame(scope, size, crate::hud::colors());
+    let old = overlay.prepare_frame(scope, size, colors());
     overlay.invalidate_frame();
     let mut replacement = GpuPanel::new();
     assert!(!overlay.presented_paint(&old, &[old.receipt()], scope, size));
-    let frame = overlay.prepare_frame(scope, size, crate::hud::colors());
+    let frame = overlay.prepare_frame(scope, size, colors());
     let mut list = frame
         .paint(&mut replacement.text, &mut replacement.images, 1.)
         .unwrap();
@@ -331,7 +332,7 @@ fn paint_panel_native_routing_keeps_actions_and_distinguishes_unavailable_from_o
     let mut overlay = fixture(0);
     let scope = scope();
     let size = (640, 360);
-    let frame = overlay.prepare_frame(scope, size, crate::hud::colors());
+    let frame = overlay.prepare_frame(scope, size, colors());
     let click = MapEvent::MapClicked(Vec2::new(30, 78));
     assert_eq!(
         overlay.route_map_event(scope, size, &click, &mut ui, &mut ctx, &server),
@@ -373,7 +374,7 @@ fn paint_panel_native_routing_keeps_actions_and_distinguishes_unavailable_from_o
         PanelEvent::Unavailable
     );
     assert!(rx.try_recv().is_err());
-    let frame = overlay.prepare_frame(scope, size, crate::hud::colors());
+    let frame = overlay.prepare_frame(scope, size, colors());
     assert!(acknowledge(&mut overlay, &frame, scope, size));
     assert_eq!(
         overlay.route_map_event(
@@ -392,7 +393,7 @@ fn reference_paint_panel_clips_its_original_bounds_at_small_viewports() {
     for size in [(340, 260), (360, 260), (360, 275), (360, 299)] {
         let (mut ctx, mut buffer) = setup(size);
         let mut overlay = fixture(5);
-        overlay.draw(&mut buffer, &mut ctx);
+        overlay.draw(&mut buffer, &mut ctx, colors());
         assert_eq!(buffer.pixels().len(), size.0 as usize * size.1 as usize * 4);
         assert!(matches!(
             overlay.hit_test(

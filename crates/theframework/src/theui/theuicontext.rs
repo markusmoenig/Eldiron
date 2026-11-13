@@ -45,6 +45,8 @@ pub struct TheUIContext {
     pub input_modifiers: crate::platform::Modifiers,
     pub font: Option<Font>,
     icons: FxHashMap<String, TheRGBABuffer>,
+    icon_owner: Uuid,
+    icon_versions: FxHashMap<String, u64>,
 
     pub focus: Option<TheId>,
     pub keyboard_focus: Option<TheId>,
@@ -149,6 +151,8 @@ impl TheUIContext {
 
             font,
             icons,
+            icon_owner: Uuid::new_v4(),
+            icon_versions: FxHashMap::default(),
 
             disabled_ids: FxHashSet::default(),
             state_events_sender: None,
@@ -188,7 +192,24 @@ impl TheUIContext {
 
     /// Adds an icon to the library.
     pub fn add_icon(&mut self, name: String, icon: TheRGBABuffer) {
+        if self.icons.get(&name) == Some(&icon) {
+            return;
+        }
+        let version = self.icon_versions.entry(name.clone()).or_default();
+        *version = version.checked_add(1).expect("icon source version exhausted");
         self.icons.insert(name, icon);
+        self.redraw_all = true;
+    }
+
+    /// Source identity belongs to this UI context and survives repeated paints.
+    /// Replacement versions keep old retained commands valid in the GPU cache.
+    #[cfg(feature = "text")]
+    pub(crate) fn icon_resource_key(&self, name: &str) -> String {
+        format!(
+            "icon:{}:{name}:{}",
+            self.icon_owner,
+            self.icon_versions.get(name).copied().unwrap_or(0)
+        )
     }
 
     /// Returns an icon of the given name from the embedded style icons

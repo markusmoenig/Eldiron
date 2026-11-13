@@ -101,7 +101,7 @@ impl WidgetPainter<'_> {
             if source.pixel_width() == 0 || source.pixel_height() == 0 {
                 return Ok(());
             }
-            let image = self.images.image(&format!("icon:{name}"), source, false)?;
+            let image = self.images.image(&self.ui.icon_resource_key(name), source, false)?;
             self.list.image(image, rect, Sampling::Linear);
         }
         Ok(())

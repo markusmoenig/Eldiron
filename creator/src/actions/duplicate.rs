@@ -4,12 +4,11 @@ use std::sync::Mutex;
 
 pub const DUPLICATE_ACTION_ID: &str = "1468f85f-ef66-49f9-8c3f-54fbde6e3d9c";
 
-static LAST_GEOMETRY_DUPLICATE_OFFSET: Mutex<Option<Vec3<f32>>> = Mutex::new(None);
-
 pub struct Duplicate {
     id: TheId,
     nodeui: TheNodeUI,
     duplicated_geometry_pairs: Mutex<Vec<(Uuid, Uuid)>>,
+    last_geometry_offset: Mutex<Option<Vec3<f32>>>,
 }
 
 impl Duplicate {
@@ -50,15 +49,15 @@ impl Duplicate {
         }
     }
 
-    fn last_geometry_offset() -> Option<Vec3<f32>> {
-        LAST_GEOMETRY_DUPLICATE_OFFSET
+    fn last_geometry_offset(&self) -> Option<Vec3<f32>> {
+        self.last_geometry_offset
             .try_lock()
             .ok()
             .and_then(|offset| *offset)
     }
 
-    fn remember_geometry_offset(offset: Vec3<f32>) {
-        if let Ok(mut last_offset) = LAST_GEOMETRY_DUPLICATE_OFFSET.try_lock() {
+    fn remember_geometry_offset(&self, offset: Vec3<f32>) {
+        if let Ok(mut last_offset) = self.last_geometry_offset.try_lock() {
             *last_offset = Some(offset);
         }
     }
@@ -130,6 +129,7 @@ impl Action for Duplicate {
             ),
             nodeui,
             duplicated_geometry_pairs: Mutex::new(Vec::new()),
+            last_geometry_offset: Mutex::new(None),
         }
     }
 
@@ -159,7 +159,7 @@ impl Action for Duplicate {
     fn load_params(&mut self, map: &Map) {
         let step = shared::context::ServerContext::edit_grid_step(map.subdivisions);
         if Self::geometry_only_selection(map) {
-            if let Some(offset) = Self::last_geometry_offset() {
+            if let Some(offset) = self.last_geometry_offset() {
                 self.nodeui.set_f32_value("actionDuplicateX", offset.x);
                 self.nodeui.set_f32_value("actionDuplicateY", offset.y);
                 self.nodeui.set_f32_value("actionDuplicateZ", offset.z);
@@ -426,7 +426,7 @@ impl Action for Duplicate {
         }
 
         if duplicate_geometry && !new_geometry_objects.is_empty() {
-            Self::remember_geometry_offset(Vec3::new(offset_x, offset_y, offset_z));
+            self.remember_geometry_offset(Vec3::new(offset_x, offset_y, offset_z));
             self.remember_duplicated_geometry_pairs(duplicated_geometry_pairs);
         }
 
@@ -590,6 +590,34 @@ mod tests {
                 .iter()
                 .any(|object| object.id == new_map.selected_geometry_objects[0])
         );
+    }
+
+    #[test]
+    fn remembered_duplicate_offset_stays_with_the_action_instance() {
+        let mut first = Duplicate::new();
+        let mut second = Duplicate::new();
+        let mut map = Map::default();
+        let object = rusterix::GeometryObject::box_("Box", Vec3::zero(), Vec3::new(2., 1., 1.));
+        map.selected_geometry_objects.push(object.id);
+        map.geometry_objects.push(object);
+        let mut server = ServerContext::default();
+        let mut ui = TheUI::new();
+        let mut ctx = TheContext::new(64, 64, 1.);
+        first.nodeui.set_f32_value("actionDuplicateX", 5.);
+        first.nodeui.set_f32_value("actionDuplicateY", 3.);
+        assert!(
+            first
+                .apply(&mut map, &mut ui, &mut ctx, &mut server)
+                .is_some()
+        );
+        first.load_params(&map);
+        second.load_params(&map);
+        assert_eq!(first.params().get_f32_value("actionDuplicateX"), Some(5.));
+        assert_eq!(first.params().get_f32_value("actionDuplicateY"), Some(3.));
+        assert_eq!(second.params().get_f32_value("actionDuplicateX"), Some(2.));
+        assert_eq!(second.params().get_f32_value("actionDuplicateY"), Some(0.));
+        assert!(!server.reference.initialized());
+        assert!(!server.jobs.scene_initialized());
     }
 
     #[test]

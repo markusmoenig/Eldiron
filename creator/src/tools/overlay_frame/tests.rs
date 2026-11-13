@@ -135,7 +135,7 @@ fn prepare(
             height: icon.pixel_height(),
             pixels: icon.pixels(),
         });
-    let style = crate::hud::HudStyle::current();
+    let style = crate::hud::HudStyle::current(&server);
     tool.prepare_overlay(ToolOverlayInputs {
         target,
         hud: crate::hud::HudInputs {
@@ -301,7 +301,7 @@ fn aggregate_document_widget_tool_source_layout_and_profile_changes_never_rebind
     assert!(!frame.input_current(tool.as_mut(), binding, &map, &server));
     // Zero/hidden preparation actively revokes pending and presented geometry.
     let frame = prepare(tool.as_mut(), binding, &map, &server, &ctx, &assets);
-    let style = crate::hud::HudStyle::current();
+    let style = crate::hud::HudStyle::current(&server);
     assert!(
         tool.prepare_overlay(ToolOverlayInputs {
             target: ToolOverlayTarget {
@@ -1011,7 +1011,7 @@ mod routing {
                             material_slots: Some(&slots),
                             light: None,
                         },
-                        style: &crate::hud::HudStyle::current(),
+                        style: &crate::hud::HudStyle::current(&server),
                     })
                     .unwrap(),
                 );

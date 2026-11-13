@@ -1537,7 +1537,7 @@ impl Tool for IsoPaintTool {
         _assets: &rusterix::Assets,
     ) {
         if server.editor_view_mode != EditorViewMode::D2 || map.camera != MapCamera::TwoDIso {
-            self.overlay.draw(buffer,ctx);
+            self.overlay.draw(buffer,ctx, crate::hud::colors(server));
             return;
         }
         let projection = rusterix::isometric::Projection::editor(
@@ -1581,7 +1581,7 @@ impl Tool for IsoPaintTool {
                 }
             }
         }
-        self.overlay.draw(buffer,ctx);
+        self.overlay.draw(buffer,ctx, crate::hud::colors(server));
     }
 
     fn map_event(

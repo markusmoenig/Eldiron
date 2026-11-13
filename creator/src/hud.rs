@@ -18,37 +18,40 @@ pub(crate) struct HudColors {
     pub(crate) selected: RGBA,
 }
 
-static HUD_COLORS: LazyLock<RwLock<HudColors>> = LazyLock::new(|| {
-    RwLock::new(HudColors {
-        background: [48, 48, 50, 235],
-        panel: [34, 34, 36, 240],
-        text: [168, 168, 172, 255],
-        selected_text: [240, 240, 242, 255],
-        accent: [210, 176, 92, 255],
-        border: [76, 78, 84, 255],
-        hover: [54, 54, 58, 255],
-        selected: [68, 68, 72, 255],
-    })
-});
-
-pub(crate) fn set_theme(theme: &dyn TheTheme) {
-    let mut colors = HUD_COLORS.write().unwrap();
-    *colors = HudColors {
-        background: *theme.color(DefaultWidgetBackground),
-        panel: *theme.color(DefaultWidgetDarkBackground),
-        text: *theme.color(MaterialMuted),
-        selected_text: *theme.color(SectionbarNormalTextColor),
-        accent: *theme.color(SelectedTextEditBorder1),
-        border: *theme.color(DefaultWidgetBorder),
-        hover: *theme.color(ToolbarButtonHover),
-        selected: *theme.color(DefaultSelection),
-    };
-    colors.background[3] = 235;
-    colors.panel[3] = 240;
+impl Default for HudColors {
+    fn default() -> Self {
+        Self {
+            background: [48, 48, 50, 235],
+            panel: [34, 34, 36, 240],
+            text: [168, 168, 172, 255],
+            selected_text: [240, 240, 242, 255],
+            accent: [210, 176, 92, 255],
+            border: [76, 78, 84, 255],
+            hover: [54, 54, 58, 255],
+            selected: [68, 68, 72, 255],
+        }
+    }
+}
+impl HudColors {
+    pub(crate) fn from_theme(theme: &dyn TheTheme) -> Self {
+        let mut colors = Self {
+            background: *theme.color(DefaultWidgetBackground),
+            panel: *theme.color(DefaultWidgetDarkBackground),
+            text: *theme.color(MaterialMuted),
+            selected_text: *theme.color(SectionbarNormalTextColor),
+            accent: *theme.color(SelectedTextEditBorder1),
+            border: *theme.color(DefaultWidgetBorder),
+            hover: *theme.color(ToolbarButtonHover),
+            selected: *theme.color(DefaultSelection),
+        };
+        colors.background[3] = 235;
+        colors.panel[3] = 240;
+        colors
+    }
 }
 
-pub(crate) fn colors() -> HudColors {
-    *HUD_COLORS.read().unwrap()
+pub(crate) fn colors(server: &ServerContext) -> HudColors {
+    server.hud_colors
 }
 
 #[derive(Clone, PartialEq)]
@@ -57,9 +60,9 @@ pub(crate) struct HudStyle {
     pub(crate) geometry_labels: [String; 2],
 }
 impl HudStyle {
-    pub(crate) fn current() -> Self {
+    pub(crate) fn current(server: &ServerContext) -> Self {
         Self {
-            colors: colors(),
+            colors: colors(server),
             geometry_labels: [fl!("hud_geometry_op_move"), fl!("hud_geometry_op_size")],
         }
     }
@@ -152,7 +155,7 @@ impl Hud {
             buffer.dim().width.max(0) as usize,
             buffer.dim().height.max(0) as usize,
         );
-        Self::prepare_guidance(size, help.as_deref(), colors()).draw_reference(buffer, ctx);
+        Self::prepare_guidance(size, help.as_deref(), colors(server_ctx)).draw_reference(buffer, ctx);
     }
     /// Informational footer, sharing the tool overlay command stream and text
     /// service. It has no hit regions or independent renderer ownership.
@@ -501,7 +504,7 @@ impl Hud {
             tool: self.frame_owner,
             revision: map.changed as u64,
         };
-        let style = HudStyle::current();
+        let style = HudStyle::current(server_ctx);
         let frame =
             self.prepare_reference_frame(scope, size, map, ctx, server_ctx, id, assets, &style);
         frame.commands.draw_reference(buffer, ctx);

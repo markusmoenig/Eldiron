@@ -26,7 +26,7 @@ Started: 2026-11-11 (Asia/Bangkok). Overall Goal: active; full M0–M9 scope rem
 - M3: in progress. Every active built-in TheWidget implementation now has a command paint path, including procedural controls and the legacy node canvas. Complex Creator integration, full widget catalog parity and legacy adapter retirement remain.
 - M4: in progress. CPU schema/identity extraction, shared `GameSession`, CPU startup preparation, message/party/world-target policies and terminal adoption are implemented and tested. Per-session routing, local players, world values, runtime IDs and region context ownership now pass controlled overlapping-session and parallel assembled-player regressions. Graphical clients adopt GameSession; Creator shares its clock/output pump and runtime-owned PlayerInput. Text Play state is now Editor-owned and uses explicit CPU runtime borrows. Canonical Creator Play now owns a separate runtime Project projection; startup/warmup, entities/generated geometry and time no longer mutate authored Documents. The Console also consumes explicit addressed CPU inspections and rejects stale runtime actor links/history without reading the global server or authored entity fallbacks. Native Creator now owns its GameSession server/assets/current-map/clock/audio lifetime and advances from host elapsed time independently of rendering. Reference storage/start-menu/source bridges and remaining bitmap/value data extraction remain; this evidence does not establish full simultaneous Creator Play workflows.
 - M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Immutable ordinary editor-view preparation, exact reference/native view outputs and retained CPU chunk publication are now available through SceneViews. Common HUD, paint/props panels, profile displays and ViewCube now have retained command frames, guarded input and actual GPU composition/reconstruction evidence. Six standard tools additionally emit ordered typed overlay aggregates with exact presented-frame and detail-profile source guards. Full-viewport profile editing is now connected to the actual native Creator root with document/widget binding, presentation-gated input and inline commit/cancel; ordinary stopped top-down, sprite-isometric and 3D region rendering and the six standard tool overlays now use the same native application owner and real tool dispatch. Orbit/orthographic/first-person views include depth-aware guides, retained ViewCube and explicit tool query snapshots; surface paint uses the view-owned GPU scene. The Terrain tool now also uses retained native controls and GPU brush guides with real sculpt/cancel integration. Rect now also uses presentation-gated composition/rotation controls, shared source sprite previews blitted on the GPU, terrain-conforming perimeters, and view-owned 3D queries; actual isometric placement and fractional-DPI sprite sampling pass in the assembled checkpoint. Isometric terrain Paint now also uses retained native controls, batched GPU brush feedback, update-phase editable source publication and the existing authoring/undo dispatch. Native 3D Paint now also consumes dedicated scene-owned paint-coordinate queries and explicit authoring surface captures, with camera-scoped drafts and GPU composition; full Paint workflow/platform parity remains unverified. The isolated Prefab viewport now also uses native top-down/isometric/3D outputs, live effects with hierarchy-aware owned drags, and actual 3D Paint authoring on its asset-owned layer. Paint now shares the normal tile picker; its settings live only in the viewport overlay. The canonical Creator Play toolbar now owns the same CPU clock/output pump as GameSession, and its live authoring viewport keeps its own native SceneView. The authored Game-tool viewport now also uses the common GameScreenController/SceneViews/Swash presentation; authoring GameInput now also shares runtime controls while retaining the native scene in supported contexts. Region geometry, ordinary scene and sprite-isometric minimaps now have owned GPU outputs and presentation-scoped navigation; palette and rig previews also have retained native sources and acknowledged palette input. Authored screen minimaps now also use a GPU-only ordered 2D overview producer with compatible source sampling and acknowledged screen-scoped navigation. Parent-region minimaps during Prefab/profile/detail editing also have independent native source production and presented-parent navigation without modifying the isolated editor map. Main native authoring static geometry/readiness/billboards now use an application-owned bounded CPU source, retained across GPU reconstruction and isolated from clipboard projections. Remaining uncommon contexts/tools retain explicit migration adapters. Application/global/document/Play ownership, main world/tool/HUD integration, remaining producers, full visual/workflow/performance acceptance and canonical retirement remain.
-- M5 ownership checkpoint (2026-11-14): CreatorContext now owns camera, configuration/table/sidebar mode, undo history, cooperative scene jobs and reference engine/assets/minimap/palette snapshots. Action/tool/dock controllers are now application-owned in the pending verified batch. Canonical scene/context injection keeps the compatibility GPU cold on startup; native 2D visibility and owned authoring speech use paint commands. Other application globals, custom/bake/clipboard view adapters and resource/performance acceptance remain open.
+- M5 ownership checkpoint (2026-11-14): CreatorContext now owns camera, configuration/table/sidebar mode, undo history, cooperative scene jobs and reference engine/assets/minimap/palette snapshots. Action/tool/dock controllers are application-owned (3ca4e97d); HUD themes and remembered geometry parameters are also per application, with final verification recorded below. Canonical scene/context injection keeps the compatibility GPU cold on startup; native 2D visibility and owned authoring speech use paint commands. Other application globals, custom/bake/clipboard view adapters and resource/performance acceptance remain open.
 - M6: in progress. Independent GPU game views, common player/input/camera components, authored screen paint, private world descriptions, view-owned speech, acknowledged-frame world pointer gestures, relative first-person mouse look, default/world-intent cursors, world/UI item drag previews and acknowledged authored inventory/equipment pointer/keyboard gestures are implemented. Application-owned audio is integrated into the common player with cancellable CPU preparation jobs. The native container HUD now includes acknowledged paint/input, real server transfers, scrolling, GPU recovery and navigation lifetime. Floating inventory/equipment, action catalogue/spellbook and preferences now use typed native HUD owners, retained text/source resources and acknowledged input. Acknowledged UI-origin tooltips now use retained text and host deadlines. UI-origin Drop cursors and acknowledged drag/assignment highlighting now have GPU and authoritative transfer evidence. Native isometric source production, shared CPU source publication, game-view outputs and acknowledged input receipts now have GPU/CPU and shipped-source device-reconstruction evidence. Persistent region 3D paint now also crosses the CPU asset boundary into independent per-view GPU uploads; actual painted browser rendering/device recovery and native integration pass. Browser worker hosting, uncommon Prefab/stamp/live paint publication, remaining game-mode/HUD policy parity and performance acceptance remain. Canonical native desktop launchers now share the common application/host; see launcher verification below.
 - M7/M8/M9: Retirement and full platform acceptance remain pending. Canonical desktop clients share the common player; the Xcode client and versioned Creator host use Rust-created CAMetalLayer surfaces with retained compatibility exports. Addressed document load/save, owned CPU transfers and application lifetime checks have compiled/linked/runtime evidence. Browser player and Creator now use the shared WebGPU host, with actual source loading, Swash/fallback/IME, scene/pixel/material rendering, explicit asset bakes, OPFS save, addressed cancellation and idle device recovery evidence below. Physical native/monitor/clipboard/mobile workflows, remaining ownership/adapter retirement, resource budgets and measured release performance remain open. Compile checks and detached-layer tests do not establish complete platform parity.
 
@@ -9639,3 +9639,131 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   other operating systems, full feature retirement/resource/performance gates
   remain open. No overall completion claim. Only comments/import whitespace and
   an unused test parameter name changed after binaries were built; behavior same.
+
+
+## 2026-11-14 — Remaining authoring parameter and theme ownership (active)
+
+- Moving remembered geometry box size and duplicate offset from process globals
+  into their actual action instances (already per application); apply/load retain
+  remembered values within that application. Added actual Apply→load tests proving
+  a second action keeps its inferred defaults and no reference/jobs initialization.
+- HUD_COLORS global retired in favor of CPU HudColors in CreatorContext. Theme
+  application configures the same explicit context; retained native HudStyle and
+  reference guidance/HUD/Props read that owner. Narrow reference Paint draw receives
+  colors explicitly. Pixel fixtures now declare their own BlackBlue/Brown theme
+  instead of depending on test order. Existing isolation fixture also checks one
+  owner's theme changes leave the other and retained prior style unchanged.
+- First canonical native compile found3 trivial qualification/variable-name
+  errors; repaired. Canonical/test checks pending, no new pass claimed. Concurrent
+  networking concept preserved; prior verified controller batch is3ca4e97d.
+
+- Canonical native test executable PASS22.97s (second attempt: test-only missing
+  TheTheme trait import corrected). Focused CPU/source regression PASS45 total:
+  remembered geometry parameters2/.41s, controller+theme isolation1/.20s,
+  Paint panels5+1ignored/1.89s, Props4+1ignored/1.13s, typed tool overlays17+
+  1ignored/8.85s, HUD16+4ignored/2.33s. Original independent pixel fixtures pass.
+  Reference library PASS8.91s. Full native assembly started; staticlib/browser
+  current batch builds running. Prior625-case ordinary suite remains baseline;
+  do not repeat unchanged unrelated cases solely for these theme/parameter edits.
+
+- Full assembled native authoring-state workflow PASS1/142.28s, source DPI
+  maxdelta1; current Swift host runtime PASS. Staticlib PASS18.80s, browser release
+  PASS39.29s/package98,318,394B. Narrow Paint.draw visibility corrected pub(crate)
+  after build to match HudColors; added-test formatting only, no behavior change.
+- Browser initial theme probe is NOT accepted: state/frame/archive checks passed,
+  but visual QA showed Brown/menu-open throughout. Four archives are byte-identical
+  (1,447,314B SHA ea7b072561f6addce5a794e13250d91501136ab9516774e1fe5b0608c33cedb2),
+  supporting source stability only, NOT theme switching. Keep misleading captures
+  under /tmp only. Do not publish them as theme evidence.
+- Diagnosed actual native input bug: TheUI.touch_down opens menu and captures its
+  bar; touch_up early-returned for open menu without releasing capture. Native
+  dispatch then treats later PointerMoved as dragging, and touch_dragged ignores
+  open menus, so popup never receives Hover/selection. Old direct host hover hid
+  this. Added real TheMenu + dispatch_input popup selection test at1.5density;
+  RED confirmed missing Light selection0pass/1fail/.41s (ui-paint-only CPU build).
+- Fix releases original pointer capture on primary up while a context menu is
+  open, preserving popup lifetime. Focused GREEN and recompiled Creator browser
+  actual Brown/Light/Black/recovery verification pending. This necessary M3 input
+  fix is included with theme ownership; do not repeat45 unrelated unchanged tests
+  unless its focused checks/assembly reveal further failures.
+
+- Menu capture focused GREEN PASS2/.41s after4.36s test rebuild (real Light,
+  Black, Brown item selections plus existing suspended native clipboard guard).
+  Broader framework UI-only regressions PASS55/0failed/2.68s, including popup/
+  native editor/focus/capture behavior; no GPU feature needed. Creator canonical
+  native test executable rebuilt PASS42.59s after shared framework change.
+- Browser with repaired capture is rebuilding. Earlier full assembled142.28s and
+  Swift acceptance precede this scoped menu-up fix; distinguish that baseline
+  from current menu routing regression evidence. No browser theme pass yet.
+
+- Post-menu-fix full native assembled PASS1/133.89s; reference library PASS20.95s,
+  staticlib PASS38.51s. Browser corrected menu workflow now actually renders Light
+  and Black, retains Light after loss, restores Brown. Doc168b3f22-6ef7-4e2d-8b17-
+  3ccc7a8474ef,31presentations/devices3/gen3, normal counters0/errors[]. Four fresh
+  complete archives equal1,447,295B SHA
+  dcb2806ce69130607d16b7e0c6616cb3de4997da7a0878367b3f9286edbaf88e.
+- Visual QA caught a second actual defect: Black toolbar/compact icons retain the
+  dark Light tint. CPU icon registration is correct (existing tests pass), but
+  WidgetPainter.icon always supplies name-only key and changed=false to retained
+  GPU cache. Same-size named replacements reuse obsolete textures. Corrected menu
+  captures demonstrate theme colors/source stability, but icon contrast is not
+  accepted yet; retain captures under /tmp only until fixed.
+- Added real ToolbarButton command-paint source replacement/idle upload test.
+  RED confirmed old handle reused after replacement0pass/1fail/.30s. Fix now gives
+  registered icons a UI-context owner and monotonic per-name source version;
+  paint keys include both. Identical add_icon publishes nothing and preserves
+  idle state; replacements request redraw. Old handles remain valid under existing
+  bounded cache/LRU/retained-command policy. No image-byte hashing during paint,
+  no serde fields changed. Test also checks independent context identities.
+  GREEN and visible browser icon recovery verification pending.
+
+- Icon source-version GREEN PASS6/.52s command UI tests (no renderer/window):
+  actual same-size ToolbarButton replacement changes its handle; old retained
+  list identity survives; repeated/identical publication uploads nothing and
+  leaves idle redraw false; different UI contexts cannot collide. Existing source
+  collection/image ordering/font replacement tests also pass. Existing GPU source
+  cache remains bounded64MiB/512images with retained-list pinning/LRU; no cache
+  policy change. Canonical native, browser, reference/staticlib builds queued as
+  one batch. Do not accept final theme/icon evidence until actual output inspected.
+- Read-only WASM budget observation before icon fix:98,318,435B package contains
+  code31,295,465B, data57,991,613B and custom name8,908,090B; no wasm-opt/wasm-tools
+  installed. This is artifact inventory, not startup/profile attribution or a
+  performance pass. Browser idle/startup CPU attribution and release budgets remain
+  open; do not speculate that the un-symbolized sample proved a lock.
+
+- After icon source identity fix canonical native test build PASS41.41s; actual
+  browser release PASS1m17s/package98,313,940B. Current native assembly, reference/
+  staticlib rebuilds and final visible browser theme/icon recovery are running.
+  No earlier failed theme/contrast captures promoted to durable evidence. Keep
+  already-passing45 focused authoring/overlay cases as baseline, rather than
+  rerunning unrelated cases after each shared-source fix.
+
+- Final icon-aware native assembled PASS1/138.34s; five source DPI comparisons
+  maxdelta1. Reference library PASS19.71s and staticlib PASS37.70s. Current Swift
+  host linked/running; final runtime result pending. No unchanged45-case rerun.
+- Final actual150% browser theme+icons acceptance PASS: Brown→Light, actual
+  device.destroy reconstructs Light, then Black→Brown. Doc7c2bf5ce-0f0d-489a-b969-
+  dfb76bcc703c;29presentations, devices3/gen3; root/readback/assetreadback/color
+  copies/Canvas2D all0, errors[]. Independently decoded4 fresh archives: all whole
+  project JSON AND bytes equal1,447,293B SHA256
+  0b38cea8627fe8ece1e545242da053795a383f07732e7daae2c4476c64e590f8.
+- Inspected final Light-after-loss and Black output: named/compact icons have
+  correct contrast. Independent Black Play-glyph crop has238 bright pixels after
+  fix versus0 in rejected stale-cache capture. Durable verified evidence:
+  browser-creator-owned-theme-black-150.png and
+  browser-creator-owned-theme-light-recovered-150.png. Earlier theme-open/menu/
+  low-contrast captures remain /tmp only and do not support acceptance claims.
+- Remaining sampled mutable Creator services are Scepter preview context/active
+  gate and preparation gate. Next: application-own those workers/caches and inject
+  canonical host GPU into explicit preview requests, retaining project/job revision
+  guards and CPU-only startup. CPU thread-local material-derived caches also need
+  ownership/key audit. Other viewport adapters, M0 release/CPU attribution, M2
+  budgets and unavailable physical/cross-platform gates remain open. Goal ACTIVE.
+
+- Final Swift icon-aware archive/host runtime PASS actual CAMetalLayer/handle/
+  document/controlled PNG transactions; link succeeded with existing duplicate
+  System/large-unwind debug archive warnings. No OS clipboard/physical-window
+  claim. Final diff check clean. Only new-test/macro layout formatting changed
+  after binaries were built; production behavior unchanged. Authoring ownership,
+  popup capture and source icon invalidation batch available acceptance verified;
+  full M0–M9 objective remains ACTIVE with previously recorded open gates.

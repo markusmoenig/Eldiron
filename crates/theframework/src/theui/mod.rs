@@ -1422,7 +1422,10 @@ impl TheUI {
 
         ctx.ui.send(TheEvent::MouseUp(coord));
 
-        if let Some(context) = &mut self.context_menu {
+        if self.context_menu.is_some() {
+            // Opening a menu can leave its bar as the original pointer owner.
+            // Release still ends that capture so later motion hovers the popup.
+            self.mouse_capture_id = None;
             return redraw;
         }
 

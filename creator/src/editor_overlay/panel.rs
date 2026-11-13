@@ -310,7 +310,7 @@ mod tests {
         scope: PanelScope,
         source: u32,
     ) -> PanelFrame<u32, usize> {
-        let mut builder = PanelBuilder::new((20, 20), crate::hud::colors());
+        let mut builder = PanelBuilder::new((20, 20), crate::hud::HudColors::default());
         builder.bounds = TheDim::rect(0, 0, 30, 30);
         builder.commands.rect(&(0, 0, 30, 30), &[40, 50, 60, 255]);
         builder.buttons.push((TheDim::rect(0, 0, 30, 30), 3));

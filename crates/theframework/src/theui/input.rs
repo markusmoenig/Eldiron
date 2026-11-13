@@ -389,6 +389,65 @@ impl TheUI {
 mod native_owner_tests {
     use super::*;
     #[test]
+    fn released_menu_bar_capture_allows_popup_hover_and_selection() {
+        let mut ctx = TheContext::new(500, 240, 1.5);
+        ctx.ui.command_paint = true;
+        let mut ui = TheUI::new();
+        ui.init(&mut ctx);
+        let events = ui.add_state_listener("menu selection".into());
+        let mut popup = TheContextMenu::named("View".into());
+        for name in ["Brown", "Black", "Light"] {
+            popup.add(TheContextMenuItem::new(name.into(), TheId::named(name)));
+        }
+        let mut bar = TheMenu::new(TheId::named("Menu"));
+        bar.add_context_menu(popup);
+        ui.canvas.set_widget(bar);
+        ui.prepare_paint_layout(&mut ctx);
+        for (index, name) in [(2, "Light"), (1, "Black"), (0, "Brown")] {
+            for pressed in [true, false] {
+                ui.dispatch_input(
+                    &InputEvent::PointerButton {
+                        button: PointerButton::Primary,
+                        pressed,
+                        position: [20., 10.],
+                    },
+                    &mut ctx,
+                );
+            }
+            let menu = ui.context_menu.as_ref().expect("menu opens on first click");
+            let position = [
+                (menu.dim.x + 20) as f32,
+                (menu.dim.y + 7 + index * menu.item_height + 10) as f32,
+            ];
+            ui.dispatch_input(&InputEvent::PointerMoved { position }, &mut ctx);
+            for pressed in [true, false] {
+                ui.dispatch_input(
+                    &InputEvent::PointerButton {
+                        button: PointerButton::Primary,
+                        pressed,
+                        position,
+                    },
+                    &mut ctx,
+                );
+            }
+            ui.process_events(&mut ctx);
+            let selected = events
+                .try_iter()
+                .filter_map(|event| match event {
+                    TheEvent::StateChanged(id, TheWidgetState::Clicked) => Some(id.name),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(
+                selected,
+                [name],
+                "a released menu bar must not swallow popup hover"
+            );
+            assert!(ui.context_menu.is_none());
+        }
+    }
+
+    #[test]
     fn nonselectable_native_display_still_owns_commands_and_prevents_legacy_clipboard_access() {
         let mut ctx = TheContext::new(300, 100, 1.);
         let mut ui = TheUI::new();

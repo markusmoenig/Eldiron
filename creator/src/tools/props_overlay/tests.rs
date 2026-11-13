@@ -1,6 +1,8 @@
 use super::*;
+use crate::hud::HudColors;
 fn fixture(kind: usize) -> (PropsOverlay, ServerContext) {
     let mut server = ServerContext::default();
+    server.hud_colors = HudColors::from_theme(&TheBlackBlueTheme::new());
     server.editor_view_mode = EditorViewMode::Orbit;
     server.curr_block_asset_id = Some(if kind == 0 {
         crate::blocks::block_assets()[0].id
@@ -34,7 +36,6 @@ fn fixture(kind: usize) -> (PropsOverlay, ServerContext) {
     (overlay, server)
 }
 fn setup(size: (i32, i32)) -> (TheContext, TheRGBABuffer) {
-    crate::hud::set_theme(&TheBlackBlueTheme::new());
     let ctx = TheContext::new(size.0 as usize, size.1 as usize, 1.);
     let mut buffer = TheRGBABuffer::new(TheDim::sized(size.0, size.1));
     for p in buffer.pixels_mut().chunks_exact_mut(4) {
@@ -99,7 +100,7 @@ fn props_panel_preparation_stages_actions_and_requires_current_document_asset_an
     let scope = scope();
     let point = Vec2::new(30, 70);
     // CPU-only preparation borrows configuration, not a UI context or renderer.
-    let frame = overlay.prepare_frame(scope, size, crate::hud::colors(), &server);
+    let frame = overlay.prepare_frame(scope, size, crate::hud::colors(&server), &server);
     assert!(matches!(
         overlay.hit_test(scope, size, point, &server),
         PanelHit::Unavailable
@@ -108,14 +109,14 @@ fn props_panel_preparation_stages_actions_and_requires_current_document_asset_an
     assert!(
         matches!(overlay.hit_test(scope, size, point, &server), PanelHit::Inside(Some((_, Action::Event(TheEvent::IndexChanged(id,0))))) if id.name == "Blocks Dock Operation")
     );
-    let old = overlay.prepare_frame(scope, size, crate::hud::colors(), &server);
+    let old = overlay.prepare_frame(scope, size, crate::hud::colors(&server), &server);
     server.curr_block_asset_id = Some(Uuid::new_v4());
     assert!(matches!(
         overlay.hit_test(scope, size, point, &server),
         PanelHit::Unavailable
     ));
     assert!(!acknowledge(&mut overlay, &old, scope, size, &server));
-    let selected = overlay.prepare_frame(scope, size, crate::hud::colors(), &server);
+    let selected = overlay.prepare_frame(scope, size, crate::hud::colors(&server), &server);
     assert!(acknowledge(&mut overlay, &selected, scope, size, &server));
     server.block_rotation_quarters += 1;
     assert!(matches!(
@@ -128,7 +129,7 @@ fn props_panel_preparation_stages_actions_and_requires_current_document_asset_an
         overlay.hit_test(scope, size, point, &server),
         PanelHit::Unavailable
     ));
-    let changed = overlay.prepare_frame(scope, size, crate::hud::colors(), &server);
+    let changed = overlay.prepare_frame(scope, size, crate::hud::colors(&server), &server);
     assert!(acknowledge(&mut overlay, &changed, scope, size, &server));
     for other in [
         PanelScope {
@@ -153,7 +154,7 @@ fn props_panel_preparation_stages_actions_and_requires_current_document_asset_an
         overlay.hit_test(scope, (360, 360), point, &server),
         PanelHit::Unavailable
     ));
-    let tiny = overlay.prepare_frame(scope, (300, 360), crate::hud::colors(), &server);
+    let tiny = overlay.prepare_frame(scope, (300, 360), crate::hud::colors(&server), &server);
     assert!(tiny.commands.is_empty());
     assert!(!acknowledge(&mut overlay, &changed, scope, size, &server));
     assert!(!acknowledge(
@@ -164,17 +165,17 @@ fn props_panel_preparation_stages_actions_and_requires_current_document_asset_an
         &server
     ));
     server.editor_view_mode = EditorViewMode::D2;
-    let hidden = overlay.prepare_frame(scope, size, crate::hud::colors(), &server);
+    let hidden = overlay.prepare_frame(scope, size, crate::hud::colors(&server), &server);
     assert!(hidden.commands.is_empty());
     assert!(matches!(
         overlay.hit_test(scope, size, point, &server),
         PanelHit::Unavailable
     ));
     server.editor_view_mode = EditorViewMode::Orbit;
-    let resumed = overlay.prepare_frame(scope, size, crate::hud::colors(), &server);
+    let resumed = overlay.prepare_frame(scope, size, crate::hud::colors(&server), &server);
     overlay.invalidate_frame();
     assert!(!acknowledge(&mut overlay, &resumed, scope, size, &server));
-    let resumed = overlay.prepare_frame(scope, size, crate::hud::colors(), &server);
+    let resumed = overlay.prepare_frame(scope, size, crate::hud::colors(&server), &server);
     assert!(acknowledge(&mut overlay, &resumed, scope, size, &server));
 }
 #[test]
@@ -244,7 +245,7 @@ fn native_props_panel_composes_builtins_prefabs_and_recipes_without_display_bitm
             let size = (width, 360);
             let (mut overlay, server) = fixture(kind);
             let (ctx, _) = setup((width as i32, 360));
-            let frame = overlay.prepare_frame(scope, size, crate::hud::colors(), &server);
+            let frame = overlay.prepare_frame(scope, size, crate::hud::colors(&server), &server);
             let uploads = gpu.gpu.transfers().uploaded_bytes;
             let mut list = frame.paint(&mut gpu.text, &mut gpu.images, 1.).unwrap();
             list.ops.insert(
@@ -282,7 +283,7 @@ fn native_props_panel_composes_builtins_prefabs_and_recipes_without_display_bitm
     let (mut overlay, server) = fixture(3);
     let size = (640, 360);
     for density in [1.25, 1.5, 2.] {
-        let frame = overlay.prepare_frame(scope, size, crate::hud::colors(), &server);
+        let frame = overlay.prepare_frame(scope, size, crate::hud::colors(&server), &server);
         let mut list = frame
             .paint(&mut gpu.text, &mut gpu.images, density)
             .unwrap();
@@ -301,7 +302,7 @@ fn native_props_panel_composes_builtins_prefabs_and_recipes_without_display_bitm
         overlay.invalidate_frame();
     }
     let mut replacement = GpuPanel::new();
-    let frame = overlay.prepare_frame(scope, size, crate::hud::colors(), &server);
+    let frame = overlay.prepare_frame(scope, size, crate::hud::colors(&server), &server);
     let mut list = frame
         .paint(&mut replacement.text, &mut replacement.images, 1.)
         .unwrap();
@@ -328,7 +329,7 @@ fn props_panel_native_routing_preserves_events_and_blocks_unpresented_or_changed
     ctx.ui.state_events_sender = Some(tx);
     let scope = scope();
     let size = (640, 360);
-    let frame = overlay.prepare_frame(scope, size, crate::hud::colors(), &server);
+    let frame = overlay.prepare_frame(scope, size, crate::hud::colors(&server), &server);
     let click = MapEvent::MapClicked(Vec2::new(30, 70));
     assert_eq!(
         overlay.route_map_event(scope, size, &click, &mut ui, &mut ctx, &server),
