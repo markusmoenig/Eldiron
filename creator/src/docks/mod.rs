@@ -200,6 +200,7 @@ pub trait Dock: Send + Sync {
     /// Draw custom minimap content when this dock is active.
     /// Returns true if the dock drew custom content (minimap should not draw default content).
     /// Returns false to let the default minimap drawing proceed.
+    #[cfg(any(not(feature = "native-ui"), test))]
     fn draw_minimap(
         &self,
         buffer: &mut TheRGBABuffer,

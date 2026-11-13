@@ -889,6 +889,21 @@ impl Dock for DataDock {
         redraw
     }
 
+    #[cfg(feature = "native-ui")]
+    fn native_minimap_source(
+        &self,
+        size: Vec2<i32>,
+        project: &Project,
+        server_ctx: &ServerContext,
+        sources: &mut crate::minimap::native::Sources,
+    ) -> Option<
+        std::sync::Arc<dyn theframework::theui::thewidget::therenderview::RenderViewPaintSource>,
+    > {
+        let source = Self::rig_preview_texture(project, server_ctx)?;
+        Some(sources.rig(size, source.as_ref()))
+    }
+
+    #[cfg(any(not(feature = "native-ui"), test))]
     fn draw_minimap(
         &self,
         buffer: &mut TheRGBABuffer,
@@ -896,67 +911,11 @@ impl Dock for DataDock {
         ctx: &mut TheContext,
         server_ctx: &ServerContext,
     ) -> bool {
-        let ProjectContext::CharacterPreviewRigging(character_id) = server_ctx.pc else {
-            return false;
-        };
-        let Some(character) = project.characters.get(&character_id) else {
-            return false;
-        };
-
-        let mut entity = rusterix::Entity::default();
-        apply_entity_data(&mut entity, &character.data);
-
-        let preview = Self::parse_preview_rigging(&character.preview_rigging);
-        if preview.debug {
-            eprintln!(
-                "[RIGPREVIEW] active char={} anim='{}' perspective={:?} play={} speed={} slots={} overrides={} attrs={}",
-                character_id,
-                preview.animation.as_deref().unwrap_or("<first>"),
-                preview.perspective,
-                preview.play,
-                preview.speed,
-                preview.slots.len(),
-                preview.slot_overrides.len(),
-                preview.attrs.len()
-            );
-        }
-        Self::populate_preview_equipment(&preview, project, &mut entity);
-
-        let Some(avatar) = Self::find_preview_avatar(&entity, project) else {
-            buffer.fill(BLACK);
-            return true;
-        };
-
-        let frame_index = Self::preview_frame_index(avatar, &preview, server_ctx.animation_counter);
-        let mut assets = rusterix::Assets::new();
-        assets.palette = project.palette.clone();
-        assets.tiles = project.tiles.clone();
-
-        let out = AvatarRuntimeBuilder::build_preview_for_entity(
-            &entity,
-            avatar,
-            &assets,
-            preview.animation.as_deref(),
-            preview.perspective,
-            frame_index,
-            rusterix::AvatarShadingOptions::default(),
-        );
-
+        let Some(source) = Self::rig_preview_texture(project, server_ctx) else { return false; };
         buffer.fill(BLACK);
-        let Some(out) = out else {
-            if preview.debug {
-                eprintln!(
-                    "[RIGPREVIEW] build failed anim='{}' perspective={:?} frame={}",
-                    preview.animation.as_deref().unwrap_or("<first>"),
-                    preview.perspective,
-                    frame_index
-                );
-            }
-            return true;
-        };
-
-        let src_w = out.size as usize;
-        let src_h = out.size as usize;
+        let Some(source) = source else { return true; };
+        let src_w = source.width;
+        let src_h = source.height;
         if src_w == 0 || src_h == 0 {
             return true;
         }
@@ -976,7 +935,7 @@ impl Dock for DataDock {
             buffer.pixels_mut(),
             &dst_rect,
             stride,
-            &out.rgba,
+            &source.data,
             &(src_w, src_h),
         );
 
@@ -1076,6 +1035,76 @@ impl Dock for DataDock {
 }
 
 impl DataDock {
+    /// Native avatar resolution is editable source data, independent of the
+    /// minimap viewport. Both presenters consume this same resolved rig/frame.
+    fn rig_preview_texture(
+        project: &Project,
+        server_ctx: &ServerContext,
+    ) -> Option<Option<rusterix::Texture>> {
+        let ProjectContext::CharacterPreviewRigging(character_id) = server_ctx.pc else {
+            return None;
+        };
+        let Some(character) = project.characters.get(&character_id) else {
+            return None;
+        };
+
+        let mut entity = rusterix::Entity::default();
+        apply_entity_data(&mut entity, &character.data);
+
+        let preview = Self::parse_preview_rigging(&character.preview_rigging);
+        if preview.debug {
+            eprintln!(
+                "[RIGPREVIEW] active char={} anim='{}' perspective={:?} play={} speed={} slots={} overrides={} attrs={}",
+                character_id,
+                preview.animation.as_deref().unwrap_or("<first>"),
+                preview.perspective,
+                preview.play,
+                preview.speed,
+                preview.slots.len(),
+                preview.slot_overrides.len(),
+                preview.attrs.len()
+            );
+        }
+        Self::populate_preview_equipment(&preview, project, &mut entity);
+
+        let Some(avatar) = Self::find_preview_avatar(&entity, project) else {
+            return Some(None);
+        };
+
+        let frame_index = Self::preview_frame_index(avatar, &preview, server_ctx.animation_counter);
+        let mut assets = rusterix::Assets::new();
+        assets.palette = project.palette.clone();
+        assets.tiles = project.tiles.clone();
+
+        let out = AvatarRuntimeBuilder::build_preview_for_entity(
+            &entity,
+            avatar,
+            &assets,
+            preview.animation.as_deref(),
+            preview.perspective,
+            frame_index,
+            rusterix::AvatarShadingOptions::default(),
+        );
+
+        let Some(out) = out else {
+            if preview.debug {
+                eprintln!(
+                    "[RIGPREVIEW] build failed anim='{}' perspective={:?} frame={}",
+                    preview.animation.as_deref().unwrap_or("<first>"),
+                    preview.perspective,
+                    frame_index
+                );
+            }
+            return Some(None);
+        };
+
+        Some(Some(rusterix::Texture::new(
+            out.rgba,
+            out.size as usize,
+            out.size as usize,
+        )))
+    }
+
     fn sync_material_resolution(&self, ui: &mut TheUI, ctx: &mut TheContext, project: &Project) {
         for (item, key) in [
             ("Game Sprite Resolution", "sprite_pixels_2d"),

@@ -26,6 +26,7 @@ struct Preview {
     image: Option<Arc<Image>>,
     radials: Option<Arc<theframework::paint::PixelRadialLayer>>,
     error: Option<String>,
+    floor_center: bool,
 }
 impl RenderViewPaintSource for Preview {
     fn paint(&self, painter: &mut WidgetPainter<'_>, viewport: [f32; 2]) -> UiPaintResult {
@@ -52,8 +53,16 @@ impl RenderViewPaintSource for Preview {
             painter.list.ops.push(PaintOp::SpriteImage {
                 image,
                 origin: [
-                    ((viewport[0] - extent[0]) * 0.5).round(),
-                    ((viewport[1] - extent[1]) * 0.5).round(),
+                    if self.floor_center {
+                        ((viewport[0] - extent[0].round()).max(0.) * 0.5).floor()
+                    } else {
+                        ((viewport[0] - extent[0]) * 0.5).round()
+                    },
+                    if self.floor_center {
+                        ((viewport[1] - extent[1].round()).max(0.) * 0.5).floor()
+                    } else {
+                        ((viewport[1] - extent[1]) * 0.5).round()
+                    },
                 ],
                 scale: [extent[0].round() / width, extent[1].round() / height],
                 tint: [1.; 4],
@@ -110,6 +119,7 @@ impl Sources {
             image: None,
             radials: Some(frame.native_layer(opaque)),
             error: None,
+            floor_center: false,
         });
         self.active = Some((size, key, source.clone()));
         source
@@ -122,9 +132,25 @@ impl Sources {
         size: Vec2<i32>,
         texture: Option<&rusterix::Texture>,
     ) -> Arc<dyn RenderViewPaintSource> {
+        self.sprite_with_center(size, texture, false)
+    }
+    pub fn rig(
+        &mut self,
+        size: Vec2<i32>,
+        texture: Option<&rusterix::Texture>,
+    ) -> Arc<dyn RenderViewPaintSource> {
+        self.sprite_with_center(size, texture, true)
+    }
+    fn sprite_with_center(
+        &mut self,
+        size: Vec2<i32>,
+        texture: Option<&rusterix::Texture>,
+        floor_center: bool,
+    ) -> Arc<dyn RenderViewPaintSource> {
         let size = size.map(|n| n.max(0));
         let key = texture.map(|texture| {
             let mut hash = std::collections::hash_map::DefaultHasher::new();
+            floor_center.hash(&mut hash);
             texture.width.hash(&mut hash);
             texture.height.hash(&mut hash);
             texture.data.hash(&mut hash);
@@ -192,6 +218,7 @@ impl Sources {
             image,
             radials: None,
             error,
+            floor_center,
         });
         self.active = Some((size, key, source.clone()));
         source
@@ -207,7 +234,10 @@ pub(crate) fn reference_cases() -> Vec<(&'static str, Arc<dyn RenderViewPaintSou
     crate::docks::rules_editor::RulesEditor::check_native_particle_preview_for_test();
     use crate::{
         dockmanager::DockManagerState,
-        docks::{tilemap::TilemapDock, tiles::TilesDock, tiles_editor::TilesEditorDock},
+        docks::{
+            data::DataDock, data_editor::DataEditorDock, tilemap::TilemapDock, tiles::TilesDock,
+            tiles_editor::TilesEditorDock,
+        },
         editor::DOCKMANAGER,
         sidebar::Sidebar,
     };
@@ -241,6 +271,36 @@ pub(crate) fn reference_cases() -> Vec<(&'static str, Arc<dyn RenderViewPaintSou
     server.curr_region = region.id;
     region.map.camera = MapCamera::TwoDIso;
     project.regions.push(region);
+    let mut character = shared::character::Character::new();
+    character.preview_rigging = "play=true\nspeed=1.0".into();
+    let rig_id = character.id;
+    project.characters.insert(rig_id, character);
+    let mut avatar = rusterix::Avatar::default();
+    avatar.animations.push(rusterix::avatar::AvatarAnimation {
+        perspectives: vec![rusterix::avatar::AvatarPerspective {
+            frames: (0..2)
+                .map(|frame| {
+                    let mut rgba = Vec::new();
+                    for y in 0..24 {
+                        for x in 0..24 {
+                            rgba.extend([
+                                80 + frame * 30,
+                                110,
+                                160,
+                                if x > 4 && y > 3 { 192 } else { 0 },
+                            ]);
+                        }
+                    }
+                    rusterix::avatar::AvatarAnimationFrame::new(rusterix::Texture::new(
+                        rgba, 24, 24,
+                    ))
+                })
+                .collect(),
+            ..Default::default()
+        }],
+        ..Default::default()
+    });
+    project.avatars.insert(avatar.id, avatar);
     let mut sources = Sources::default();
     let mut cases = Vec::new();
     for frame in 0..2 {
@@ -261,7 +321,22 @@ pub(crate) fn reference_cases() -> Vec<(&'static str, Arc<dyn RenderViewPaintSou
                 Vec2::new(127, 91),
                 Box::new(TilesDock::native_minimap_fixture(id)) as Box<dyn Dock>,
             ),
+            (
+                "minimap rig",
+                Vec2::new(143, 84),
+                Box::new(DataDock::new()) as Box<dyn Dock>,
+            ),
+            (
+                "minimap rig editor",
+                Vec2::new(84, 143),
+                Box::new(DataEditorDock::new()) as Box<dyn Dock>,
+            ),
         ] {
+            server.pc = if label.starts_with("minimap rig") {
+                ProjectContext::CharacterPreviewRigging(rig_id)
+            } else {
+                ProjectContext::Region(server.curr_region)
+            };
             let source = dock
                 .native_minimap_source(size, &project, &server, &mut sources)
                 .unwrap();
@@ -335,11 +410,14 @@ pub(crate) fn reference_cases() -> Vec<(&'static str, Arc<dyn RenderViewPaintSou
             drop(restore);
             cases.push((label, source, reference));
         }
+        let (source, reference) =
+            DataEditorDock::native_editor_preview_reference_case(&project, &server);
+        cases.push(("rig editor preview", source, reference));
     }
     assert_eq!(
         sources.images.len(),
-        2,
-        "all animation views reuse the original frame images"
+        4,
+        "asset and rig hosts reuse their original animation frame images"
     );
     // Same persisted texture identity, edited pixels: old published sources
     // remain immutable while the editor's next frame uses the new revision.
@@ -392,6 +470,7 @@ pub(crate) fn reference_cases() -> Vec<(&'static str, Arc<dyn RenderViewPaintSou
             image: None,
             radials: Some(frame.native_layer(true)),
             error: None,
+            floor_center: false,
         });
         cases.push(("minimap particles", source, reference));
         struct SourceImage(Arc<theframework::paint::PixelRadialLayer>);
@@ -438,5 +517,7 @@ pub(crate) fn reference_cases() -> Vec<(&'static str, Arc<dyn RenderViewPaintSou
     }
     #[cfg(feature = "native-render")]
     cases.extend(crate::minimap::native_geometry::reference_cases());
+    #[cfg(feature = "native-render")]
+    cases.extend(crate::minimap::native_palette::reference_cases());
     cases
 }

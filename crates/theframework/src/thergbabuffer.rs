@@ -1514,63 +1514,10 @@ impl TheRGBABuffer {
 
     /// Draw an hsl hue waveform used by color pickers.
     pub fn render_hsl_hue_waveform(&mut self) {
-        let width = self.dim.width;
-        let height = self.dim.height;
-
-        for x in 0..width {
-            let fx = x as f32 / width as f32;
-
-            let hue = fx; // smooth rainbow cycle
-            let saturation = 1.0; // vivid color
-            let lightness = 0.5; // neutral brightness
-
-            let (r, g, b) = hsl_to_rgb(hue % 1.0, lightness, saturation);
-
-            for y in 0..height {
-                let fy = y as f32 / height as f32;
-
-                let final_rgb = if fy < 0.5 {
-                    // Blend to white at top
-                    let t = 1.0 - fy * 2.0;
-                    [lerp(r, 1.0, t), lerp(g, 1.0, t), lerp(b, 1.0, t)]
-                } else {
-                    // Blend to black at bottom
-                    let t = (fy - 0.5) * 2.0;
-                    [lerp(r, 0.0, t), lerp(g, 0.0, t), lerp(b, 0.0, t)]
-                };
-
-                self.set_pixel(
-                    x,
-                    y,
-                    &[
-                        (final_rgb[0] * 255.0) as u8,
-                        (final_rgb[1] * 255.0) as u8,
-                        (final_rgb[2] * 255.0) as u8,
-                        255,
-                    ],
-                );
-            }
-        }
-
-        fn lerp(a: f32, b: f32, t: f32) -> f32 {
-            a * (1.0 - t) + b * t
-        }
-
-        fn hsl_to_rgb(h: f32, l: f32, s: f32) -> (f32, f32, f32) {
-            let c = (1.0 - (2.0 * l - 1.0).abs()) * s;
-            let h_ = h * 6.0;
-            let x = c * (1.0 - (h_ % 2.0 - 1.0).abs());
-            let (r1, g1, b1) = match h_ as u32 {
-                0 => (c, x, 0.0),
-                1 => (x, c, 0.0),
-                2 => (0.0, c, x),
-                3 => (0.0, x, c),
-                4 => (x, 0.0, c),
-                _ => (c, 0.0, x),
-            };
-            let m = l - c / 2.0;
-            (r1 + m, g1 + m, b1 + m)
-        }
+        let (width, height) = (self.dim.width, self.dim.height);
+        for y in 0..height { for x in 0..width {
+            self.set_pixel(x, y, &hsl_hue_waveform_color(width,height,x,y).unwrap());
+        }}
     }
 
     /// Finds the X position in the buffer that best matches the given RGB color.
@@ -1861,4 +1808,26 @@ mod render_copy_tests {
             }
         }
     }
+}
+
+/// Pure palette-plane sample. Color input and explicit CPU exports can evaluate
+/// a logical pixel without allocating a destination image or reading the GPU.
+pub fn hsl_hue_waveform_color(width: i32, height: i32, x: i32, y: i32) -> Option<[u8;4]> {
+    if width <= 0 || height <= 0 || x < 0 || y < 0 || x >= width || y >= height { return None; }
+    let hue = x as f32 / width as f32;
+    let h = (hue % 1.0) * 6.0;
+    let v = 1.0 - (h % 2.0 - 1.0).abs();
+    let base = match h as u32 {
+        0 => [1.,v,0.], 1 => [v,1.,0.], 2 => [0.,1.,v],
+        3 => [0.,v,1.], 4 => [v,0.,1.], _ => [1.,0.,v],
+    };
+    let fy = y as f32 / height as f32;
+    let rgb = if fy < 0.5 {
+        let t = 1.0 - fy * 2.0;
+        base.map(|c|c*(1.0-t)+t)
+    } else {
+        let t = (fy-0.5)*2.0;
+        base.map(|c|c*(1.0-t))
+    };
+    Some([(rgb[0]*255.0) as u8,(rgb[1]*255.0) as u8,(rgb[2]*255.0) as u8,255])
 }

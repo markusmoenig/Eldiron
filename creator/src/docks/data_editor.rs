@@ -1,10 +1,18 @@
 use crate::docks::data::DataDock;
 use crate::prelude::*;
 
+#[cfg(feature = "native-ui")]
+type PreviewSource =
+    std::sync::Arc<dyn theframework::theui::thewidget::therenderview::RenderViewPaintSource>;
+
 const AVATAR_PREVIEW_PLAY_BUTTON: &str = "Avatar Preview Play";
 
 pub struct DataEditorDock {
     inner: DataDock,
+    #[cfg(feature = "native-ui")]
+    preview_sources: crate::minimap::native::Sources,
+    #[cfg(feature = "native-ui")]
+    preview_frame: Option<(Option<PreviewSource>, PreviewSource)>,
 }
 
 impl Dock for DataEditorDock {
@@ -14,6 +22,10 @@ impl Dock for DataEditorDock {
     {
         Self {
             inner: DataDock::new(),
+            #[cfg(feature = "native-ui")]
+            preview_sources: Default::default(),
+            #[cfg(feature = "native-ui")]
+            preview_frame: None,
         }
     }
 
@@ -21,14 +33,25 @@ impl Dock for DataEditorDock {
         let mut center = TheCanvas::new();
 
         let mut preview_canvas = TheCanvas::new();
-        let mut preview_layout = TheRGBALayout::new(TheId::named("Data Editor RGBA Layout"));
-        if let Some(rgba_view) = preview_layout.rgba_view_mut().as_rgba_view() {
-            rgba_view.set_mode(TheRGBAViewMode::TilePicker);
-            rgba_view.set_background([24, 24, 24, 255]);
-            rgba_view.set_grid(None);
-            rgba_view.set_supports_external_zoom(false);
+        #[cfg(feature = "native-ui")]
+        {
+            let mut preview = TheRenderView::new(TheId::named("Data Editor RGBA Layout View"));
+            // Match the old RGBA layout's expanding bounds; RenderView itself
+            // defaults to a small 20-pixel limiter intended for toolbar views.
+            *preview.limiter_mut() = TheSizeLimiter::new();
+            preview_canvas.set_widget(preview);
         }
-        preview_canvas.set_layout(preview_layout);
+        #[cfg(not(feature = "native-ui"))]
+        {
+            let mut preview_layout = TheRGBALayout::new(TheId::named("Data Editor RGBA Layout"));
+            if let Some(rgba_view) = preview_layout.rgba_view_mut().as_rgba_view() {
+                rgba_view.set_mode(TheRGBAViewMode::TilePicker);
+                rgba_view.set_background([24, 24, 24, 255]);
+                rgba_view.set_grid(None);
+                rgba_view.set_supports_external_zoom(false);
+            }
+            preview_canvas.set_layout(preview_layout);
+        }
 
         let mut toolbar_canvas = TheCanvas::default();
         toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
@@ -104,6 +127,11 @@ impl Dock for DataEditorDock {
 
     fn reset_for_project_switch(&mut self) {
         self.inner.reset_for_project_switch();
+        #[cfg(feature = "native-ui")]
+        {
+            self.preview_sources = Default::default();
+            self.preview_frame = None;
+        }
     }
 
     fn set_undo_state_to_ui(&self, ctx: &mut TheContext) {
@@ -177,6 +205,21 @@ impl Dock for DataEditorDock {
         self.update_preview(ui, ctx, project, server_ctx);
     }
 
+    #[cfg(feature = "native-ui")]
+    fn native_minimap_source(
+        &self,
+        size: Vec2<i32>,
+        project: &Project,
+        server_ctx: &ServerContext,
+        sources: &mut crate::minimap::native::Sources,
+    ) -> Option<
+        std::sync::Arc<dyn theframework::theui::thewidget::therenderview::RenderViewPaintSource>,
+    > {
+        self.inner
+            .native_minimap_source(size, project, server_ctx, sources)
+    }
+
+    #[cfg(any(not(feature = "native-ui"), test))]
     fn draw_minimap(
         &self,
         buffer: &mut TheRGBABuffer,
@@ -285,27 +328,149 @@ impl DataEditorDock {
     }
 
     fn update_preview(
-        &self,
+        &mut self,
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
         server_ctx: &ServerContext,
     ) {
-        let Some(layout) = ui.get_rgba_layout("Data Editor RGBA Layout") else {
+        #[cfg(feature = "native-ui")]
+        {
+            let Some(view) = ui.get_render_view("Data Editor RGBA Layout View") else {
+                return;
+            };
+            let dim = *view.dim();
+            let size = Vec2::new((dim.width - 16).max(1), (dim.height - 16).max(1));
+            let source = self.inner.native_minimap_source(
+                size,
+                project,
+                server_ctx,
+                &mut self.preview_sources,
+            );
+            let same = self
+                .preview_frame
+                .as_ref()
+                .is_some_and(|(old, _)| match (old, &source) {
+                    (None, None) => true,
+                    (Some(a), Some(b)) => std::sync::Arc::ptr_eq(a, b),
+                    _ => false,
+                });
+            if !same {
+                let frame = std::sync::Arc::new(RigPreview {
+                    source: source.clone(),
+                });
+                self.preview_frame = Some((source, frame));
+                ctx.ui.redraw_all = true;
+            }
+            view.set_paint_source(Some(self.preview_frame.as_ref().unwrap().1.clone()));
             return;
-        };
-        let Some(view) = layout.rgba_view_mut().as_rgba_view() else {
-            return;
-        };
-        let dim = *view.dim();
-        let mut buffer = TheRGBABuffer::new(TheDim::sized(
-            (dim.width - 16).max(1),
-            (dim.height - 16).max(1),
+        }
+        #[cfg(not(feature = "native-ui"))]
+        {
+            let Some(layout) = ui.get_rgba_layout("Data Editor RGBA Layout") else {
+                return;
+            };
+            let Some(view) = layout.rgba_view_mut().as_rgba_view() else {
+                return;
+            };
+            let dim = *view.dim();
+            let mut buffer = TheRGBABuffer::new(TheDim::sized(
+                (dim.width - 16).max(1),
+                (dim.height - 16).max(1),
+            ));
+            buffer.fill([18, 18, 18, 255]);
+            let _ = self
+                .inner
+                .draw_minimap(&mut buffer, project, ctx, server_ctx);
+            view.set_buffer(buffer);
+        }
+    }
+}
+
+#[cfg(feature = "native-ui")]
+struct RigPreview {
+    source: Option<PreviewSource>,
+}
+#[cfg(feature = "native-ui")]
+impl theframework::theui::thewidget::therenderview::RenderViewPaintSource for RigPreview {
+    fn paint(
+        &self,
+        p: &mut theframework::theui::paint::WidgetPainter<'_>,
+        size: [f32; 2],
+    ) -> theframework::theui::paint::UiPaintResult {
+        use theframework::paint::{PaintOp, Rect, Transform};
+        p.list.ops.push(PaintOp::PixelRects {
+            rects: vec![Rect::new(0., 0., size[0], size[1])].into(),
+            color: [24. / 255., 24. / 255., 24. / 255., 1.],
+        });
+        let inner = [(size[0] - 16.).max(1.), (size[1] - 16.).max(1.)];
+        p.list
+            .ops
+            .push(PaintOp::PushTransform(Transform::translate(8., 8.)));
+        p.list.ops.push(PaintOp::PixelRects {
+            rects: vec![Rect::new(0., 0., inner[0], inner[1])].into(),
+            color: [18. / 255., 18. / 255., 18. / 255., 1.],
+        });
+        if let Some(source) = &self.source {
+            source.paint(p, inner)?;
+        }
+        p.list.ops.push(PaintOp::PopTransform);
+        Ok(())
+    }
+}
+
+#[cfg(all(test, feature = "native-ui"))]
+impl DataEditorDock {
+    pub(crate) fn native_editor_preview_reference_case(
+        project: &Project,
+        server: &ServerContext,
+    ) -> (
+        std::sync::Arc<dyn theframework::theui::thewidget::therenderview::RenderViewPaintSource>,
+        TheRGBABuffer,
+    ) {
+        let size = Vec2::new(143, 84);
+        let mut ctx = TheContext::new(size.x as usize, size.y as usize, 1.);
+        ctx.ui.command_paint = true;
+        let mut ui = TheUI::new();
+        let mut view = TheRenderView::new(TheId::named("Data Editor RGBA Layout View"));
+        view.set_dim(TheDim::sized(size.x, size.y), &mut ctx);
+        view.render_buffer_mut().resize(size.x, size.y);
+        ui.canvas.set_widget(view);
+        let mut dock = Self::new();
+        let mut canvas = dock.setup(&mut ctx);
+        canvas.set_dim(TheDim::sized(640, 480), &mut ctx);
+        let preview = canvas
+            .get_widget(Some(&"Data Editor RGBA Layout View".into()), None)
+            .unwrap();
+        assert_eq!(preview.dim().width, 640);
+        assert!(
+            preview.dim().height > 200,
+            "the native rig preview keeps the former expanding layout"
+        );
+        dock.update_preview(&mut ui, &mut ctx, project, server);
+        let frame = dock.preview_frame.as_ref().unwrap().1.clone();
+        dock.update_preview(&mut ui, &mut ctx, project, server);
+        assert!(std::sync::Arc::ptr_eq(
+            &frame,
+            &dock.preview_frame.as_ref().unwrap().1
         ));
-        buffer.fill([18, 18, 18, 255]);
-        let _ = self
-            .inner
-            .draw_minimap(&mut buffer, project, ctx, server_ctx);
-        view.set_buffer(buffer);
+        assert!(
+            !ui.get_render_view("Data Editor RGBA Layout View")
+                .unwrap()
+                .has_cpu_display_storage()
+        );
+        let mut reference = TheRGBABuffer::new(TheDim::sized(size.x, size.y));
+        reference.fill([24, 24, 24, 255]);
+        let mut inner = TheRGBABuffer::new(TheDim::sized(size.x - 16, size.y - 16));
+        inner.fill([18, 18, 18, 255]);
+        dock.inner
+            .draw_minimap(&mut inner, project, &mut ctx, server);
+        reference.copy_into(8, 8, &inner);
+        // RGBAView copied stored RGB into the application's opaque display.
+        // The blend helper's stored alpha is not the final surface alpha.
+        for pixel in reference.pixels_mut().chunks_exact_mut(4) {
+            pixel[3] = 255;
+        }
+        (frame, reference)
     }
 }

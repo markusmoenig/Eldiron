@@ -42,6 +42,8 @@ pub struct Sidebar {
     pub(crate) minimap_geometry: crate::minimap::native_geometry::GeometryOverview,
     #[cfg(feature = "native-render")]
     pub(crate) minimap_scene: crate::minimap::native_scene::SceneOverview,
+    #[cfg(feature = "native-render")]
+    pub(crate) minimap_palette: crate::minimap::native_palette::PaletteOverview,
 
     pub startup: bool,
 }
@@ -170,6 +172,7 @@ impl Sidebar {
         #[cfg(feature = "native-render")]
         {
             self.minimap_geometry = Default::default();
+            self.minimap_palette = Default::default();
             // Preserve the GPU owner until prepare can retire its registrations
             // through the host registry. load_from_project deactivates it first.
         }
@@ -213,6 +216,8 @@ impl Sidebar {
             minimap_geometry: Default::default(),
             #[cfg(feature = "native-render")]
             minimap_scene: Default::default(),
+            #[cfg(feature = "native-render")]
+            minimap_palette: Default::default(),
 
             startup: true,
         }
@@ -247,7 +252,7 @@ impl Sidebar {
                 });
             if let Some(source) = source {
                 #[cfg(feature = "native-render")]
-                { self.minimap_geometry.deactivate(ui); self.minimap_scene.deactivate(ui); }
+                { self.minimap_geometry.deactivate(ui); self.minimap_scene.deactivate(ui); self.minimap_palette.deactivate(ui); }
                 let view = ui.get_render_view("MiniMap").unwrap();
                 view.set_paint_source(Some(source));
                 return view.needs_redraw();
@@ -256,6 +261,12 @@ impl Sidebar {
         }
         #[cfg(feature = "native-render")]
         if ctx.ui.command_paint {
+            if self.minimap_palette.publish(project, server_ctx, ui, ctx) {
+                self.minimap_geometry.deactivate(ui);
+                self.minimap_scene.deactivate(ui);
+                return ui.get_render_view("MiniMap").unwrap().needs_redraw();
+            }
+            self.minimap_palette.deactivate(ui);
             if self.minimap_geometry.publish(project, server_ctx, ui, ctx) {
                 self.minimap_scene.deactivate(ui);
                 return ui.get_render_view("MiniMap").unwrap().needs_redraw();
@@ -271,11 +282,14 @@ impl Sidebar {
         // render_buffer_mut revokes a previously published native source.
         let buffer = view.render_buffer_mut();
         buffer.resize(dim.width, dim.height);
+        #[cfg(any(not(feature = "native-ui"), test))]
         let handled = DOCKMANAGER
             .read()
             .unwrap()
             .get_active_dock()
             .is_some_and(|dock| dock.draw_minimap(buffer, project, ctx, server_ctx));
+        #[cfg(all(feature = "native-ui", not(test)))]
+        let handled = false;
         if !handled {
             draw_minimap(project, buffer, server_ctx, hard);
             draw_minimap_context_label(buffer, ctx, server_ctx);
@@ -934,8 +948,18 @@ impl Sidebar {
                         let palette_minimap_active = server_ctx.palette_tool_active
                             && DOCKMANAGER.read().unwrap().dock == "Palette";
                         if palette_minimap_active {
-                            let buffer = render_view.render_buffer_mut();
-                            if let Some(col) = buffer.get_pixel(coord.x, coord.y) {
+                            #[cfg(feature = "native-render")]
+                            let color = if ctx.ui.command_paint {
+                                match self.minimap_palette.color(id, *coord, project, server_ctx, ui, ctx) {
+                                    Ok(color) => color,
+                                    Err(()) => return redraw,
+                                }
+                            } else {
+                                ui.get_render_view("MiniMap").unwrap().render_buffer_mut().get_pixel(coord.x, coord.y)
+                            };
+                            #[cfg(not(feature = "native-render"))]
+                            let color = render_view.render_buffer_mut().get_pixel(coord.x, coord.y);
+                            if let Some(col) = color {
                                 let color = TheColor::from(col);
                                 let index = project.palette.current_index as usize;
                                 project.ensure_palette_materials_len();
@@ -3816,7 +3840,7 @@ impl Sidebar {
         project: &mut Project,
     ) {
         #[cfg(feature = "native-render")]
-        { self.minimap_geometry.deactivate(ui); self.minimap_scene.deactivate(ui); }
+        { self.minimap_geometry.deactivate(ui); self.minimap_scene.deactivate(ui); self.minimap_palette.deactivate(ui); }
         self.reset_for_project_switch();
 
         _ = RUSTERIX

@@ -16,6 +16,7 @@ use world::NativeWorldFrame;
 pub(crate) struct NativeViewTokens {
     minimap: Option<crate::minimap::native_geometry::Token>,
     scene_minimap: Option<crate::minimap::native_scene::Token>,
+    palette_minimap: Option<crate::minimap::native_palette::Token>,
     display: Option<NativeDisplayFrame>,
     play: Option<NativePlayFrame>,
     world: Option<std::sync::Arc<NativeWorldFrame>>,
@@ -32,6 +33,7 @@ impl NativeViewTokens {
         Self {
             minimap: None,
             scene_minimap: None,
+            palette_minimap: None,
             display: None,
             play: None,
             world: None,
@@ -54,6 +56,7 @@ impl NativeViewTokens {
     }
     pub(crate) fn retain_painted(&mut self, list: &theframework::paint::PaintList) {
         let receipts = list.receipts().collect::<std::collections::HashSet<_>>();
+        self.palette_minimap = self.palette_minimap.take().filter(|token| receipts.contains(&token.receipt()));
         self.scene_minimap = self
             .scene_minimap
             .take()
@@ -166,6 +169,7 @@ impl Editor {
             ui,
             ctx,
         );
+        let palette_minimap = self.sidebar.minimap_palette.prepare(&self.documents.project, &self.server_ctx, ui, ctx);
         let scene_minimap = {
             // Temporary CPU publication bridge, shared with the world viewport.
             // The minimap's renderer/device/camera/targets are entirely owned.
@@ -206,6 +210,7 @@ impl Editor {
         tokens.play = play;
         tokens.minimap = minimap;
         tokens.scene_minimap = scene_minimap;
+        tokens.palette_minimap = palette_minimap;
         Ok(Some(tokens))
     }
     pub(crate) fn native_views_waiting(&self) -> bool {
@@ -224,6 +229,7 @@ impl Editor {
         self.presented_native_play_viewport(tokens.play, ui, ctx);
         self.sidebar.minimap_geometry.presented(tokens.minimap);
         self.sidebar.minimap_scene.presented(tokens.scene_minimap);
+        self.sidebar.minimap_palette.presented(tokens.palette_minimap);
         self.presented_native_display_viewport(tokens.display, ui, ctx);
         self.presented_native_world_viewport(tokens.world, ui, ctx);
         if let Some(token) = tokens.geometry {
@@ -240,6 +246,7 @@ impl Editor {
     pub(crate) fn invalidate_native_views(&mut self, ui: &mut TheUI) {
         self.sidebar.minimap_geometry.invalidate(ui);
         self.sidebar.minimap_scene.device_reset(ui);
+        self.sidebar.minimap_palette.invalidate(ui);
         self.native_viewport.play.invalidate(ui);
         self.invalidate_native_display_viewport(ui);
         self.native_viewport.world.device_reset(ui);

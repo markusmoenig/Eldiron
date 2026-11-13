@@ -271,6 +271,11 @@ pub enum DisplayCompositing {
 }
 #[derive(Clone, Debug)]
 pub enum PaintOp {
+    /// Byte-quantized hue across X, white/pure/black lightness down Y. Logical
+    /// pixel sampling preserves authored palette coordinates at fractional DPI.
+    HueLightness {
+        rect: Rect,
+    },
     /// Root-only metadata, valid only as the first operation.
     DisplayCompositing(DisplayCompositing),
     Receipt(FrameReceipt),
@@ -472,6 +477,18 @@ impl PaintList {
         let mut scopes = Vec::new();
         for (index, op) in self.ops.iter().enumerate() {
             match op {
+                PaintOp::HueLightness { rect } => {
+                    if [rect.x, rect.y, rect.width, rect.height]
+                        .iter()
+                        .any(|v| !v.is_finite())
+                        || rect.width < 1.
+                        || rect.height < 1.
+                        || rect.width > 65536.
+                        || rect.height > 65536.
+                    {
+                        return Err("invalid hue/lightness plane");
+                    }
+                }
                 PaintOp::PixelRadialLayer { rect, layer } => {
                     let color_valid = |color: Color| {
                         color

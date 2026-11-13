@@ -2905,6 +2905,7 @@ mod tests {
                 .unwrap();
             let pixels = capture.try_finish(gpu).unwrap().unwrap();
             let mut delta = 0;
+            let mut differences = Vec::new();
             for y in 0..size.1 {
                 for x in 0..size.0 {
                     let sx = ((x as f32 + 0.5) / density).floor() as i32;
@@ -2917,12 +2918,16 @@ mod tests {
                         &[0, 0, 0, 255]
                     };
                     let offset = (x as usize + y as usize * size.0 as usize) * 4;
+                    if differences.len() < 8 && pixels.pixels()[offset..offset+4].iter().zip(expected.iter()).any(|(a,b)|a.abs_diff(*b)>tolerance) {
+                        differences.push(serde_json::json!({"at":[x,y],"source":[sx,sy],"actual":&pixels.pixels()[offset..offset+4],"expected":expected}));
+                    }
                     for channel in 0..4 {
                         delta = delta
                             .max(pixels.pixels()[offset + channel].abs_diff(expected[channel]));
                     }
                 }
             }
+            if delta > tolerance { eprintln!("Source DPI mismatch: {}",serde_json::json!({"size":size,"density":density,"differences":differences})); }
             assert!(
                 delta <= tolerance,
                 "source DPI={density}: max reference delta={delta}"

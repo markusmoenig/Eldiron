@@ -98,7 +98,7 @@ struct Out{@builtin(position)position:vec4<f32>,@location(0)local:vec2<f32>,@loc
         output_local=local*(vec2<f32>(1.)+2.*pad)-pad;
         position+=bx*(pixel.x+output_local.x-local.x)+by*(pixel.y+output_local.y-local.y);
     }
-    if((params.mode&255u)==15u || (params.mode&255u)==16u || (params.mode&255u)==17u){
+    if((params.mode&255u)==15u || (params.mode&255u)==16u || (params.mode&255u)==17u || (params.mode&255u)==18u){
         let bx=params.gradient.xy;let by=params.gradient.zw;
         origin=p-bx*local.x-by*local.y;
         let determinant=abs(bx.x*by.y-bx.y*by.x);
@@ -224,6 +224,28 @@ fn triangle_coverage(p:vec2<f32>)->bool {
 }
 @fragment fn fs(i:Out)->@location(0)vec4<f32>{
     let mode=params.mode&255u;
+    if(mode==18u){
+        let q=i.position.xy-i.origin;
+        let point=floor(vec2<f32>(dot(params.inverse.xy,q),dot(params.inverse.zw,q))-params.color1.xy);
+        let size=params.color1.zw;
+        if(any(point<vec2<f32>(0.)) || any(point>=size)){return vec4<f32>(0.);}
+        let hue=point.x/size.x*6.;let band=u32(hue);
+        let rem=hue-floor(hue*0.5)*2.;let x=1.-abs(rem-1.);
+        var base=vec3<f32>(1.,0.,x);
+        switch band {
+            case 0u: {base=vec3<f32>(1.,x,0.);}
+            case 1u: {base=vec3<f32>(x,1.,0.);}
+            case 2u: {base=vec3<f32>(0.,1.,x);}
+            case 3u: {base=vec3<f32>(0.,x,1.);}
+            case 4u: {base=vec3<f32>(x,0.,1.);}
+            default: {}
+        }
+        let fy=point.y/size.y;
+        var rgb=base*(1.-(fy-0.5)*2.);
+        if(fy<0.5){let t=1.-fy*2.;rgb=base*(1.-t)+vec3<f32>(t);}
+        rgb=floor(clamp(rgb,vec3<f32>(0.),vec3<f32>(1.))*255.)/255.;
+        return vec4<f32>(target_color(rgb),1.);
+    }
     if(mode==16u){
         let bx=params.gradient.xy;let by=params.gradient.zw;let q=i.position.xy-i.origin;
         let logical=vec2<f32>(dot(params.inverse.xy,q),dot(params.inverse.zw,q));

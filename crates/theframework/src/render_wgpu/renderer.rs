@@ -70,12 +70,14 @@ struct Draw {
 }
 #[derive(Clone, Copy)]
 enum Field<'a> {
+    HueLightness(Rect, [f32; 4]),
     Distance(&'a DistanceField, Point),
     Radial(&'a PixelRadialLayer, Rect, [f32; 4]),
 }
 impl Field<'_> {
     fn count(self) -> u32 {
         match self {
+            Self::HueLightness(..) => 0,
             Self::Distance(field, _) => field.primitives.len() as u32,
             Self::Radial(layer, ..) => {
                 layer.radials.len() as u32 + 1 + (layer.size[1] as u32).div_ceil(20)
@@ -84,6 +86,7 @@ impl Field<'_> {
     }
     fn origin(self) -> [f32; 4] {
         match self {
+            Self::HueLightness(rect, _) => [rect.x, rect.y, 0., 0.],
             Self::Distance(_, p) => [p[0], p[1], 0., 0.],
             Self::Radial(_, _, basis) => basis,
         }
@@ -512,6 +515,8 @@ impl PaintRenderer {
                 6
             } else if threshold.is_some() {
                 7
+            } else if matches!(field, Some(Field::HueLightness(..))) {
+                18
             } else if matches!(field, Some(Field::Radial(..))) {
                 16
             } else if field.is_some() {
@@ -573,6 +578,10 @@ impl PaintRenderer {
             ),
             inverse: [0.; 4],
         };
+        if let Some(Field::HueLightness(rect, basis)) = field {
+            params.color1 = [rect.x, rect.y, rect.width, rect.height];
+            params.gradient = basis;
+        }
         if let Some(Field::Radial(layer, rect, _)) = field {
             // The radial shader explicitly quantizes/composites encoded bytes,
             // then converts its final opaque color at the declared boundary.
@@ -615,7 +624,7 @@ impl PaintRenderer {
                 | ImageEffect::LogicalPixelLine { basis, .. },
             ) => Some(basis),
             _ => match field {
-                Some(Field::Radial(_, _, basis)) => Some(basis),
+                Some(Field::Radial(_, _, basis) | Field::HueLightness(_, basis)) => Some(basis),
                 _ => None,
             },
         };
@@ -642,6 +651,7 @@ impl PaintRenderer {
         let texture = image.map_or(&*self.white, |(image, _)| image);
         let sampler = &self.samplers[&image.map(|(_, s)| s).unwrap_or(Sampling::Linear)];
         let mut field_data = field.map(|field| match field {
+            Field::HueLightness(..) => Vec::new(),
             Field::Distance(field, _) => distance_data(field, self.legacy_display),
             Field::Radial(layer, ..) => radial_data(layer),
         });
@@ -890,6 +900,28 @@ impl PaintRenderer {
             let transform = *transforms.last().unwrap();
             let level = clips.len() as u32;
             match &ops[i] {
+                PaintOp::HueLightness { rect } => {
+                    let [a, b, c, d, _, _] = transform.0;
+                    let basis = [a * density, b * density, c * density, d * density];
+                    if transform.inverse().is_some() {
+                        let (mut v, ix) = mesh::quad(*rect, Rect::default(), transform, density);
+                        for vertex in &mut v {
+                            vertex.color = [rect.x, rect.y, rect.width, rect.height];
+                        }
+                        let mut geometry = self.geometry(&v, &ix);
+                        geometry.colored = false;
+                        draws.push(self.draw_with_effects(
+                            geometry,
+                            &Brush::Solid([1.; 4]),
+                            None,
+                            size,
+                            level,
+                            0,
+                            Some(Field::HueLightness(*rect, basis)),
+                            None,
+                        ));
+                    }
+                }
                 PaintOp::DistanceField { rect, field } => {
                     if rect.width > 0. && rect.height > 0. {
                         let (v, ix) = mesh::quad(*rect, Rect::default(), transform, density);

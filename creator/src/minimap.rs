@@ -13,6 +13,8 @@ pub mod native;
 pub(crate) mod native_geometry;
 #[cfg(feature = "native-render")]
 pub(crate) mod native_scene;
+#[cfg(feature = "native-render")]
+pub(crate) mod native_palette;
 
 pub static MINIMAPBUFFER: LazyLock<RwLock<TheRGBABuffer>> =
     LazyLock::new(|| RwLock::new(TheRGBABuffer::default()));

@@ -4244,6 +4244,7 @@ impl Dock for PrefabsEditorDock {
         }
     }
 
+    #[cfg(any(not(feature = "native-ui"), test))]
     fn draw_minimap(
         &self,
         buffer: &mut TheRGBABuffer,

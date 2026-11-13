@@ -25,7 +25,7 @@ Started: 2026-11-11 (Asia/Bangkok). Overall Goal: active; full M0–M9 scope rem
 - M2: in progress. Paint/Swash/Parley pipeline and native/foreign hosts work; batching, resource lifetime budgets and full text/input parity remain.
 - M3: in progress. Every active built-in TheWidget implementation now has a command paint path, including procedural controls and the legacy node canvas. Complex Creator integration, full widget catalog parity and legacy adapter retirement remain.
 - M4: in progress. CPU schema/identity extraction, shared `GameSession`, CPU startup preparation, message/party/world-target policies and terminal adoption are implemented and tested. Per-session routing, local players, world values, runtime IDs and region context ownership now pass controlled overlapping-session and parallel assembled-player regressions. Graphical clients adopt GameSession; Creator shares its clock/output pump and runtime-owned PlayerInput. Text Play state is now Editor-owned and uses explicit CPU runtime borrows. Full Creator storage ownership and remaining bitmap/value data extraction remain; this evidence does not establish full simultaneous Creator Play workflows.
-- M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Immutable ordinary editor-view preparation, exact reference/native view outputs and retained CPU chunk publication are now available through SceneViews. Common HUD, paint/props panels, profile displays and ViewCube now have retained command frames, guarded input and actual GPU composition/reconstruction evidence. Six standard tools additionally emit ordered typed overlay aggregates with exact presented-frame and detail-profile source guards. Full-viewport profile editing is now connected to the actual native Creator root with document/widget binding, presentation-gated input and inline commit/cancel; ordinary stopped top-down, sprite-isometric and 3D region rendering and the six standard tool overlays now use the same native application owner and real tool dispatch. Orbit/orthographic/first-person views include depth-aware guides, retained ViewCube and explicit tool query snapshots; surface paint uses the view-owned GPU scene. The Terrain tool now also uses retained native controls and GPU brush guides with real sculpt/cancel integration. Rect now also uses presentation-gated composition/rotation controls, shared source sprite previews blitted on the GPU, terrain-conforming perimeters, and view-owned 3D queries; actual isometric placement and fractional-DPI sprite sampling pass in the assembled checkpoint. Isometric terrain Paint now also uses retained native controls, batched GPU brush feedback, update-phase editable source publication and the existing authoring/undo dispatch. Native 3D Paint now also consumes dedicated scene-owned paint-coordinate queries and explicit authoring surface captures, with camera-scoped drafts and GPU composition; full Paint workflow/platform parity remains unverified. The isolated Prefab viewport now also uses native top-down/isometric/3D outputs, live effects with hierarchy-aware owned drags, and actual 3D Paint authoring on its asset-owned layer. Paint now shares the normal tile picker; its settings live only in the viewport overlay. The canonical Creator Play toolbar now owns the same CPU clock/output pump as GameSession, and its live authoring viewport keeps its own native SceneView. The authored Game-tool viewport now also uses the common GameScreenController/SceneViews/Swash presentation; authoring GameInput now also shares runtime controls while retaining the native scene in supported contexts. Remaining contexts/tools retain explicit migration adapters. Application/global/document/Play ownership, main world/tool/HUD integration, remaining producers, full visual/workflow/performance acceptance and canonical retirement remain.
+- M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Immutable ordinary editor-view preparation, exact reference/native view outputs and retained CPU chunk publication are now available through SceneViews. Common HUD, paint/props panels, profile displays and ViewCube now have retained command frames, guarded input and actual GPU composition/reconstruction evidence. Six standard tools additionally emit ordered typed overlay aggregates with exact presented-frame and detail-profile source guards. Full-viewport profile editing is now connected to the actual native Creator root with document/widget binding, presentation-gated input and inline commit/cancel; ordinary stopped top-down, sprite-isometric and 3D region rendering and the six standard tool overlays now use the same native application owner and real tool dispatch. Orbit/orthographic/first-person views include depth-aware guides, retained ViewCube and explicit tool query snapshots; surface paint uses the view-owned GPU scene. The Terrain tool now also uses retained native controls and GPU brush guides with real sculpt/cancel integration. Rect now also uses presentation-gated composition/rotation controls, shared source sprite previews blitted on the GPU, terrain-conforming perimeters, and view-owned 3D queries; actual isometric placement and fractional-DPI sprite sampling pass in the assembled checkpoint. Isometric terrain Paint now also uses retained native controls, batched GPU brush feedback, update-phase editable source publication and the existing authoring/undo dispatch. Native 3D Paint now also consumes dedicated scene-owned paint-coordinate queries and explicit authoring surface captures, with camera-scoped drafts and GPU composition; full Paint workflow/platform parity remains unverified. The isolated Prefab viewport now also uses native top-down/isometric/3D outputs, live effects with hierarchy-aware owned drags, and actual 3D Paint authoring on its asset-owned layer. Paint now shares the normal tile picker; its settings live only in the viewport overlay. The canonical Creator Play toolbar now owns the same CPU clock/output pump as GameSession, and its live authoring viewport keeps its own native SceneView. The authored Game-tool viewport now also uses the common GameScreenController/SceneViews/Swash presentation; authoring GameInput now also shares runtime controls while retaining the native scene in supported contexts. Region geometry, ordinary scene and sprite-isometric minimaps now have owned GPU outputs and presentation-scoped navigation; palette and rig previews also have retained native sources and acknowledged palette input. Remaining non-region minimaps/contexts/tools retain explicit migration adapters. Application/global/document/Play ownership, main world/tool/HUD integration, remaining producers, full visual/workflow/performance acceptance and canonical retirement remain.
 - M6: in progress. Independent GPU game views, common player/input/camera components, authored screen paint, private world descriptions, view-owned speech, acknowledged-frame world pointer gestures, relative first-person mouse look, default/world-intent cursors, world/UI item drag previews and acknowledged authored inventory/equipment pointer/keyboard gestures are implemented. Application-owned audio is integrated into the common player with cancellable CPU preparation jobs. The native container HUD now includes acknowledged paint/input, real server transfers, scrolling, GPU recovery and navigation lifetime. Floating inventory/equipment, action catalogue/spellbook and preferences now use typed native HUD owners, retained text/source resources and acknowledged input. Acknowledged UI-origin tooltips now use retained text and host deadlines. UI-origin Drop cursors and acknowledged drag/assignment highlighting now have GPU and authoritative transfer evidence. Native isometric source production, shared CPU source publication, game-view outputs and acknowledged input receipts now have GPU/CPU and shipped-source device-reconstruction evidence. Browser worker hosting, remaining game-mode/HUD policy parity, performance acceptance remain. Canonical native desktop launchers now share the common application/host; see launcher verification below.
 - M7/M8/M9: Retirement and platform/full acceptance pending. Canonical desktop clients share one common player; the Xcode client now uses it through the retained ABI over a Rust-created CAMetalLayer surface. Native/ARM64 simulator app bundles link, and real Swift/static-library and registered-scene layer checks pass. Browser bootstrap, native text/platform parity, Creator wrapper and complete physical/release acceptance remain; this is not complete application/platform parity.
 
@@ -6296,3 +6296,119 @@ Keep explicit reference/capture consumers and serialized data compatibility;
 retire active display callers without claiming that the full M5/M7 gate is done.
 The remaining Creator ownership/Play separation, browser/Apple wrapper parity,
 physical/platform/performance acceptance and full M0–M9 Goal remain active.
+
+## 2026-11-13 — Palette and rig minimap adapters (implementation active)
+
+Region overview checkpoint committed locally as `3083f519`; concurrent networking
+concept remains untracked and unchanged. Continuing without a milestone stop.
+
+Character rigging now resolves its CPU avatar source independently of the
+viewport and publishes that native-resolution source through Sources/Swash GPU
+paint in both DataDock and DataEditorDock. CPU viewport fitting/composition is
+restricted to the explicit reference build. Preserved the original integer
+centering policy for odd extents; source caches remain bounded. Rig/equipment/
+animation policy is shared with the reference helper, not redefined.
+
+Palette minimaps now have a retained PaletteOverview, a GPU HueLightness paint
+operation, and analytical color input scoped to an actually presented document,
+palette index, widget rectangle and DPI. Color/marker changes retain the stable
+acknowledged plane during drags; index/document/layout changes revoke it. The
+existing grouped palette authoring/undo route is retained. The pure CPU color
+sampler also supplies explicit waveform exports without allocating a display
+bitmap. Palette paint evaluates the gradient in the fragment shader, without
+source-color image upload or readback.
+
+Initial native production check passed24.48s (six existing Creator warnings):
+`/private/tmp/eldiron-native-palette-rig-check.log`.
+The existing assembled source matrix now includes two animated rig frames in
+both dock hosts plus populated palette/marker cases and stale-input checks.
+Build/GPU verification is pending:
+`/private/tmp/eldiron-native-palette-rig-build.log`.
+No M0–M9 completion claim or new standalone suite was added.
+
+Palette/rig follow-up:
+- Integrated test build passed47.59s; reference compile passed22.92s:
+  `/private/tmp/eldiron-native-palette-rig-integrated-build.log`,
+  `/private/tmp/eldiron-palette-rig-reference-check.log`.
+- First Metal run passed both animated rig frames in both hosts (source max1,
+  fractional-DPI matrix within1), and palette input/scope/100% source checks
+  (palette max0). It then failed at125% palette edge coverage (max64):
+  `/private/tmp/eldiron-native-palette-rig-focused-metal.log`,6.95s.
+  The rounded physical target can extend past the fractional logical edge.
+  HueLightness now uses the established expanded logical-pixel support and
+  inverse-basis center coverage used by SpriteImage/PixelRects, including the
+  translated viewport origin. No tolerance change; coverage build pending:
+  `/private/tmp/eldiron-native-palette-rig-coverage-build.log`.
+- All six concrete custom dock minimap implementations now have native sources.
+  Gated the old Dock::draw_minimap trait contract and its Prefab wrapper/Sidebar
+  display dispatch out of native production; reference/test builds retain them.
+  Generic non-region map minimaps still have an explicit raster adapter.
+
+Palette clipping/retirement follow-up:
+- Expanded-support build passed48.12s. Its GPU run passed the blue and white
+  palette planes at every DPI but found the black marker extending beyond the
+  source's bottom edge at150% (max255). The marker rectangles now intersect the
+  logical source bounds before painting, matching the former buffer's clipping.
+  No tolerance was widened. Existing source-DPI diagnostics now print a few
+  actual/expected coordinates on failure.
+- Clipped build passed25.49s; focused actual Metal matrix **passed1,4.70s**:
+  `/private/tmp/eldiron-native-palette-rig-{clipped-build,clipped-metal}.log`.
+  Both rig hosts/frames remain within1; all palette cases pass0–1 at all five DPI
+  scales, including clipped black/white selection markers and guarded input.
+- Native production compile then found one additional display caller hidden by
+  cfg(test): DataEditorDock::update_preview used DataDock::draw_minimap to create
+  a second viewport-sized bitmap for the maximized rig editor. This is an actual
+  remaining producer, not a reason to restore the retired Dock contract.
+  `/private/tmp/eldiron-native-palette-rig-production-check.log`.
+  Converted that host to a retained RenderView/source frame with its original
+  inset/background, playback and resize events. Unchanged source frames retain
+  identity; project reload clears its bounded source cache. Its CPU version is
+  reference-only. Added this real update/publication path to the same source
+  matrix. Production check/build pending:
+  `/private/tmp/eldiron-native-palette-rig-editor-check.log`.
+
+Palette/rig combined checkpoint results:
+- Native production now excludes Dock::draw_minimap and all six dock bitmap
+  implementations/wrappers; compile passed10.35s (six existing Creator warnings):
+  `/private/tmp/eldiron-native-palette-rig-final-production-check.log`.
+- Final reference compile passed9.39s:
+  `/private/tmp/eldiron-palette-rig-final-reference-check.log`.
+- First maximized-preview oracle reported alpha207 vs display alpha255 while RGB
+  remained within1. Corrected the oracle to model RGBAView's copied framebuffer
+  RGB and opaque display, as all other source oracles already do. No production
+  color/alpha policy or tolerance was changed for this correction.
+- Final combined build passed25.42s. Full assembled actual Metal Creator
+  checkpoint **passed1,94.80s**:
+  `/private/tmp/eldiron-native-palette-rig-{final-build,root-metal}.log`.
+  Both rig hosts/animation frames, maximized rig preview, palette/marker colors,
+  and100/125/150/175/200% DPI matrix all pass budget1. Previous source/board/
+  ghost/particle/geometry cases remain passing at their recorded budgets.
+  The real palette and maximized-preview update/publication paths verify no
+  display bitmap allocation and static frame reuse. Input scopes reject stale
+  document/index/DPI acknowledgements; ordinary/iso minimap lifetime cases pass.
+- Final layout review found RenderView's default20x20 limiter would shrink the
+  maximized rig preview. Restored the former RGBA layout's expanding limiter and
+  added a640x480 setup/layout assertion to the same checkpoint. This narrow
+  layout adjustment is being verified by the focused source route below rather
+  than repeating the unchanged full workflow matrix.
+  `/private/tmp/eldiron-native-palette-rig-layout-build.log`.
+
+Next: finish non-region map/profile/screen/Prefab minimap adapters (including
+repeat/clamp, alpha, occlusion and authored layers), then Creator runtime versus
+saved authoring ownership and canonical launcher/platform retirement. The generic
+map raster adapter remains explicit; the inactive action hooks have zero concrete
+callers. Full M0–M9 acceptance, physical host/IME/platform checks and loaded-project
+release performance measurements remain open. No overall completion is declared.
+
+Final palette/rig checkpoint verified:
+- Layout-adjusted build passed23.28s; focused actual Metal run **passed1,5.95s**:
+  `/private/tmp/eldiron-native-palette-rig-{layout-build,layout-metal}.log`.
+  The real640x480 setup preserves the former expanding rig-preview dimensions,
+  and all source/marker/DPI/scope/lifetime cases still pass. Full assembled94.80s
+  evidence above remains the integration checkpoint; no unchanged broad suite
+  was rerun for the limiter-only adjustment.
+- `git diff --check` passed. Networking concept remains untouched. No saved schema
+  change, new standalone suite, physical-host result or release performance claim.
+- Complete this local checkpoint, then resume the next-work list above. Overall
+  M0–M9 Goal stays active; these are verified producer retirements, not completion
+  of all Creator ownership, platform, workflow or performance acceptance gates.
