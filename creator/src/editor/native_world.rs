@@ -34,6 +34,8 @@ struct Binding {
     size: (usize, usize),
     map: Uuid,
     mode: EditorViewMode,
+    camera: MapCamera,
+    guide_properties: ValueContainer,
     density: u32,
     assets: AssetKey,
     slots: Option<Vec<(String, Option<rusterix::PixelSource>)>>,
@@ -72,6 +74,7 @@ struct SourceStamp {
     subdivisions: u32,
     offset: [u32; 2],
     camera: MapCamera,
+    iso_height: u32,
 }
 impl SourceStamp {
     fn new(map: &Map) -> Self {
@@ -82,6 +85,10 @@ impl SourceStamp {
             subdivisions: map.subdivisions.to_bits(),
             offset: [map.offset.x.to_bits(), map.offset.y.to_bits()],
             camera: map.camera,
+            iso_height: map
+                .properties
+                .get_float_default("iso_edit_height", 0.)
+                .to_bits(),
         }
     }
 }
@@ -126,6 +133,7 @@ struct SceneInputKey {
     sectors: Vec<u32>,
     entity: Option<Uuid>,
     rectangle: Option<(Vec2<f32>, Vec2<f32>)>,
+    polygon: Vec<u32>,
     line: (Option<Vec2<f32>>, Option<Vec2<f32>>),
     grid: bool,
     hour: u32,
@@ -200,8 +208,9 @@ impl WorldGpu {
             None => None,
         };
         let input = crate::tools::ToolViewInput {
-            camera: pick.camera,
-            ray: pick.ray?,
+            camera: Some(pick.camera),
+            ray: Some(pick.ray?),
+            isometric_item: None,
             base: pick.base.map(|(geo, at, depth, _)| (geo, at, depth)),
             dynamic: pick.dynamic,
             paint_geo: pick.paint_geo,
@@ -256,6 +265,7 @@ pub(super) struct NativeWorldFrame {
     camera: Option<CameraStamp>,
     output: ViewImage,
     cube: Option<CubeFrame>,
+    isometric: Option<Arc<eldiron_presentation::isometric::IsometricWorldTargets>>,
     overlay: Arc<ToolOverlayFrame>,
     pub(super) receipts: Vec<FrameReceipt>,
     pub(super) receipt: FrameReceipt,
@@ -435,6 +445,29 @@ fn snap_cube(face: crate::viewcube::ViewCubeFace, ctx: &mut TheContext) {
     ));
     ctx.ui.redraw_all = true;
 }
+fn isometric_input(
+    world: &NativeWorld,
+    frame: &NativeWorldFrame,
+    at: Vec2<i32>,
+) -> Option<crate::tools::ToolViewInput> {
+    let targets = frame.isometric.as_ref()?;
+    let current = world.gpu.as_ref()?.scenes.isometric_targets(frame.output)?;
+    if !Arc::ptr_eq(targets, &current) {
+        return None;
+    }
+    Some(crate::tools::ToolViewInput {
+        camera: None,
+        ray: None,
+        isometric_item: Some(targets.editor_item([
+            at.x as f32 / frame.binding.size.0 as f32,
+            at.y as f32 / frame.binding.size.1 as f32,
+        ])),
+        base: None,
+        dynamic: None,
+        paint_geo: None,
+        rectangle: None,
+    })
+}
 impl Editor {
     pub(crate) fn invalidate_native_world_viewport(&mut self, ui: &mut TheUI) {
         self.native_viewport.world.invalidate(ui);
@@ -457,7 +490,7 @@ impl Editor {
             return false;
         };
         if self.server_ctx.editor_view_mode == EditorViewMode::D2 {
-            if map.camera != MapCamera::TwoD {
+            if !matches!(map.camera, MapCamera::TwoD | MapCamera::TwoDIso) {
                 return false;
             }
         } else {
@@ -516,6 +549,8 @@ impl Editor {
             size: (dim.width as usize, dim.height as usize),
             map: map.id,
             mode: self.server_ctx.editor_view_mode,
+            camera: map.camera,
+            guide_properties: self.build_values.clone(),
             density: ctx.scale_factor.to_bits(),
             style: HudStyle::current(),
             slots,
@@ -611,6 +646,12 @@ impl Editor {
             // Reopened/copied documents may reuse map IDs and local revisions.
             // Neither atlas residency nor builder caches can cross that lifetime.
             gpu.document = Some(binding.document);
+            gpu.scenes
+                .remove(gpu.view, images.registry)
+                .map_err(|e| e.to_string())?;
+            gpu.scenes
+                .create(gpu.view, (0, 0))
+                .map_err(|e| e.to_string())?;
             gpu.configured = None;
             gpu.scene_key = None;
             gpu.scene_source = None;
@@ -621,7 +662,11 @@ impl Editor {
         // CPU-only bridge inputs: no legacy VM is borrowed, swapped or rendered.
         let bridge = RUSTERIX.read().unwrap();
         let source = bridge.scene_handler.build_index.snapshot();
-        let ready = {
+        let ready = if binding.mode == EditorViewMode::D2 && map.camera == MapCamera::TwoDIso {
+            // Iso source geometry is produced directly from this map. Creator
+            // intentionally does not tick the unrelated legacy chunk builder.
+            true
+        } else {
             let builds = SCENEMANAGER.read().unwrap();
             !builds.has_pending_geometry() && builds.source_matches(map.id, map.camera)
         };
@@ -644,6 +689,7 @@ impl Editor {
             sectors: map.selected_sectors.clone(),
             entity: map.selected_entity_item,
             rectangle: map.curr_rectangle,
+            polygon: map.possible_polygon.clone(),
             line: (map.curr_grid_pos, map.curr_mouse_pos),
             grid: self.server_ctx.show_editor_grid,
             hour: bridge.client.server_time.to_f32().to_bits(),
@@ -671,117 +717,141 @@ impl Editor {
             if source_changed {
                 scene.billboards = bridge.scene_handler.billboards.clone();
             }
-            let description = if let Some(camera) = camera.as_ref() {
-                let camera_frame = camera
-                    .as_scenevm_camera_for_surface(binding.size.0 as f32, binding.size.1 as f32);
-                scene.set_entity_item_selection_visible(
-                    TOOLLIST.read().unwrap().current_game_tool_is("tool.entity"),
-                );
-                scene.build_dynamics_3d(
-                    map,
-                    camera.as_ref(),
-                    bridge.client.animation_frame,
-                    &bridge.assets,
-                    &Default::default(),
-                );
-                TOOLLIST.write().unwrap().prepare_geometry_overlay_3d(
-                    &self.project,
-                    &self.server_ctx,
-                    &bridge.assets,
-                    camera.as_ref(),
-                    scene,
-                );
-                let region = self
-                    .project
-                    .get_region_ctx(&self.server_ctx)
-                    .ok_or("native 3D region removed")?;
-                let mut paint = region.iso_paint.clone();
-                crate::block_props::merge_prefab_paint_for_map(
-                    &mut paint,
-                    map,
-                    &bridge.assets.block_props,
-                    &self.project.block_prop_paint,
-                );
-                paint.selection_visible =
-                    self.server_ctx.curr_map_tool_type == MapToolType::IsoPaint;
-                let has_paint = (paint.visible
-                    && (!paint.surface_commit_strokes.is_empty()
-                        || !paint.chunks.is_empty()
-                        || !paint.baked_chunks.is_empty()))
-                    || (paint.selection_visible && paint.active_selection().is_some());
-                scene.vm.set_active_vm(0);
-                if has_paint {
-                    scene.vm.execute(scenevm::Atom::SetCamera3D {
-                        camera: camera_frame,
-                    });
-                    IsoPaintRenderer::upload_overlay_cached(
-                        &mut gpu.paint,
-                        region.id,
-                        0,
-                        &mut paint,
-                        &mut scene.vm,
-                        camera_frame,
-                        camera
-                            .view_matrix_for_surface(binding.size.0 as f32, binding.size.1 as f32),
-                        camera.projection_matrix(binding.size.0 as f32, binding.size.1 as f32),
-                        binding.size.0 as u32,
-                        binding.size.1 as u32,
-                        Some(camera.scale()),
-                    );
-                } else {
-                    scene.vm.execute(scenevm::Atom::ClearRaster3DPaintOverlay);
-                    scene.vm.execute(scenevm::Atom::ClearPaintBillboards);
-                    gpu.paint = Default::default();
-                }
-                rusterix::editor_view::EditorViewFrame::D3(rusterix::editor_view::EditorView3D {
-                    size: (binding.size.0 as u32, binding.size.1 as u32),
-                    grid_size: map.grid_size,
-                    offset: map.offset,
-                    hour: bridge.client.server_time.to_f32(),
-                    animation_frame: bridge.client.animation_frame,
-                    camera: camera_frame,
-                    overlay_camera: camera_frame,
-                    canvas_colors: bridge.client.editor_canvas_colors,
-                    neutral_background: true,
-                    static_geometry: true,
-                    transparent_background: false,
-                })
+            let isometric = map.camera == MapCamera::TwoDIso && binding.mode == EditorViewMode::D2;
+            if isometric {
+                gpu.scenes
+                    .prepare_isometric_editor(
+                        gpu.view,
+                        (binding.size.0 as u32, binding.size.1 as u32),
+                        &eldiron_presentation::GameSceneInput {
+                            map,
+                            assets: &bridge.assets,
+                            time: bridge.client.server_time,
+                            animation_frame: bridge.client.animation_frame,
+                            render_state: &key.runtime,
+                        },
+                        images.registry,
+                    )
+                    .map_err(|e| e.to_string())?;
             } else {
-                let mut description = bridge
-                    .client
-                    .editor_view_2d(map, (binding.size.0 as u32, binding.size.1 as u32));
-                if let rusterix::editor_view::EditorViewFrame::D2(frame) = &mut description {
-                    frame.draw_grid = self.server_ctx.show_editor_grid;
-                    frame.canvas_colors = bridge.client.editor_canvas_colors;
-                }
-                scene.settings.backend_2d = rusterix::render_settings::RendererBackend::Raster;
-                gpu.guides.set_properties(&self.build_values);
-                gpu.guides
-                    .set_map_tool_type(self.server_ctx.curr_map_tool_type);
-                gpu.guides
-                    .set_map_hover_info(self.server_ctx.hover, self.server_ctx.hover_cursor);
-                gpu.guides.draw_grid = self.server_ctx.show_editor_grid;
-                gpu.guides.show_entity_markers = true;
-                gpu.guides.build_entities_items(
-                    map,
-                    &bridge.assets,
-                    &mut gpu.guide_scene,
-                    Vec2::new(binding.size.0 as f32, binding.size.1 as f32),
-                    &None,
-                    scene,
-                    false,
-                );
-                scene.build_dynamics_2d(
-                    map,
-                    bridge.client.animation_frame,
-                    &bridge.assets,
-                    &Default::default(),
-                );
-                description
-            };
-            gpu.scenes
-                .prepare_editor(gpu.view, &description, images.registry)
-                .map_err(|e| e.to_string())?;
+                let description = if let Some(camera) = camera.as_ref() {
+                    let camera_frame = camera.as_scenevm_camera_for_surface(
+                        binding.size.0 as f32,
+                        binding.size.1 as f32,
+                    );
+                    scene.set_entity_item_selection_visible(
+                        TOOLLIST.read().unwrap().current_game_tool_is("tool.entity"),
+                    );
+                    scene.build_dynamics_3d(
+                        map,
+                        camera.as_ref(),
+                        bridge.client.animation_frame,
+                        &bridge.assets,
+                        &Default::default(),
+                    );
+                    TOOLLIST.write().unwrap().prepare_geometry_overlay_3d(
+                        &self.project,
+                        &self.server_ctx,
+                        &bridge.assets,
+                        camera.as_ref(),
+                        scene,
+                    );
+                    let region = self
+                        .project
+                        .get_region_ctx(&self.server_ctx)
+                        .ok_or("native 3D region removed")?;
+                    let mut paint = region.iso_paint.clone();
+                    crate::block_props::merge_prefab_paint_for_map(
+                        &mut paint,
+                        map,
+                        &bridge.assets.block_props,
+                        &self.project.block_prop_paint,
+                    );
+                    paint.selection_visible =
+                        self.server_ctx.curr_map_tool_type == MapToolType::IsoPaint;
+                    let has_paint = (paint.visible
+                        && (!paint.surface_commit_strokes.is_empty()
+                            || !paint.chunks.is_empty()
+                            || !paint.baked_chunks.is_empty()))
+                        || (paint.selection_visible && paint.active_selection().is_some());
+                    scene.vm.set_active_vm(0);
+                    if has_paint {
+                        scene.vm.execute(scenevm::Atom::SetCamera3D {
+                            camera: camera_frame,
+                        });
+                        IsoPaintRenderer::upload_overlay_cached(
+                            &mut gpu.paint,
+                            region.id,
+                            0,
+                            &mut paint,
+                            &mut scene.vm,
+                            camera_frame,
+                            camera.view_matrix_for_surface(
+                                binding.size.0 as f32,
+                                binding.size.1 as f32,
+                            ),
+                            camera.projection_matrix(binding.size.0 as f32, binding.size.1 as f32),
+                            binding.size.0 as u32,
+                            binding.size.1 as u32,
+                            Some(camera.scale()),
+                        );
+                    } else {
+                        scene.vm.execute(scenevm::Atom::ClearRaster3DPaintOverlay);
+                        scene.vm.execute(scenevm::Atom::ClearPaintBillboards);
+                        gpu.paint = Default::default();
+                    }
+                    rusterix::editor_view::EditorViewFrame::D3(
+                        rusterix::editor_view::EditorView3D {
+                            size: (binding.size.0 as u32, binding.size.1 as u32),
+                            grid_size: map.grid_size,
+                            offset: map.offset,
+                            hour: bridge.client.server_time.to_f32(),
+                            animation_frame: bridge.client.animation_frame,
+                            camera: camera_frame,
+                            overlay_camera: camera_frame,
+                            canvas_colors: bridge.client.editor_canvas_colors,
+                            neutral_background: true,
+                            static_geometry: true,
+                            transparent_background: false,
+                        },
+                    )
+                } else {
+                    let mut description = bridge
+                        .client
+                        .editor_view_2d(map, (binding.size.0 as u32, binding.size.1 as u32));
+                    if let rusterix::editor_view::EditorViewFrame::D2(frame) = &mut description {
+                        frame.draw_grid = self.server_ctx.show_editor_grid;
+                        frame.canvas_colors = bridge.client.editor_canvas_colors;
+                    }
+                    scene.settings.backend_2d = rusterix::render_settings::RendererBackend::Raster;
+                    gpu.guides.set_properties(&self.build_values);
+                    gpu.guides
+                        .set_map_tool_type(self.server_ctx.curr_map_tool_type);
+                    gpu.guides
+                        .set_map_hover_info(self.server_ctx.hover, self.server_ctx.hover_cursor);
+                    gpu.guides.draw_grid = self.server_ctx.show_editor_grid;
+                    gpu.guides.show_entity_markers = true;
+                    gpu.guides.build_entities_items(
+                        map,
+                        &bridge.assets,
+                        &mut gpu.guide_scene,
+                        Vec2::new(binding.size.0 as f32, binding.size.1 as f32),
+                        &None,
+                        scene,
+                        false,
+                    );
+                    scene.build_dynamics_2d(
+                        map,
+                        bridge.client.animation_frame,
+                        &bridge.assets,
+                        &Default::default(),
+                    );
+                    description
+                };
+                gpu.scenes
+                    .prepare_editor(gpu.view, &description, images.registry)
+                    .map_err(|e| e.to_string())?;
+            }
             gpu.scenes
                 .render(gpu.view, map.changed as u64, images.registry)
                 .map_err(|e| e.to_string())?;
@@ -792,6 +862,7 @@ impl Editor {
             .scenes
             .output(gpu.view)
             .ok_or("native world has no visible output")?;
+        let isometric = gpu.scenes.isometric_targets(output);
         let material_slots = binding.slots.as_ref().map(|slots| {
             slots
                 .iter()
@@ -834,6 +905,29 @@ impl Editor {
             Rect::new(0., 0., binding.size.0 as f32, binding.size.1 as f32),
             Sampling::Nearest,
         );
+        if isometric.is_some() {
+            gpu.guides.set_properties(&self.build_values);
+            gpu.guides
+                .set_map_tool_type(self.server_ctx.curr_map_tool_type);
+            gpu.guides
+                .set_map_hover_info(self.server_ctx.hover, self.server_ctx.hover_cursor);
+            gpu.guides.draw_grid = self.server_ctx.show_editor_grid;
+            let size = Vec2::new(binding.size.0 as f32, binding.size.1 as f32);
+            rusterix::isometric::editor::guide_segments(
+                map,
+                size,
+                rusterix::isometric::Projection::editor(map, size)
+                    .at_height(map.properties.get_float_default("iso_edit_height", 0.)),
+                gpu.guides.isometric_guides(),
+                |a, b, color| {
+                    list.ops.push(PaintOp::SampledLine {
+                        from: [a.x, a.y],
+                        to: [b.x, b.y],
+                        color: color.map(|v| v as f32 / 255.),
+                    })
+                },
+            );
+        }
         let mut resources = gpu.icons.frame(&mut gpu.images, images.registry);
         list.ops.extend(
             overlay
@@ -893,6 +987,7 @@ impl Editor {
             camera: camera_stamp,
             output,
             cube,
+            isometric,
             overlay,
             receipts,
             receipt,
@@ -1199,6 +1294,25 @@ impl Editor {
                 }
             }
         }
+        if continuation
+            && world.world_capture.as_ref() == Some(&binding)
+            && binding.camera == MapCamera::TwoDIso
+        {
+            if let Some(at) = pointer {
+                let Some(query) = frame
+                    .as_ref()
+                    .and_then(|frame| isometric_input(world, frame, at))
+                else {
+                    ctx.ui.redraw_all = true;
+                    return true;
+                };
+                TOOLLIST
+                    .write()
+                    .unwrap()
+                    .get_current_tool()
+                    .set_view_input(Some(query));
+            }
+        }
         if continuation && world.world_capture.as_ref() == Some(&binding) {
             if matches!(input, MapEvent::MapUp(_) | MapEvent::MapEscape) {
                 world.world_capture = None;
@@ -1209,19 +1323,26 @@ impl Editor {
             frame.ready
                 && frame.camera == current_camera
                 && frame.stamp == SourceStamp::new(map)
-                && {
+                && if let Some(targets) = &frame.isometric {
+                    world
+                        .gpu
+                        .as_ref()
+                        .and_then(|gpu| gpu.scenes.isometric_targets(frame.output))
+                        .is_some_and(|current| Arc::ptr_eq(targets, &current))
+                } else {
                     let builds = SCENEMANAGER.read().unwrap();
-                    !builds.has_pending_geometry() && builds.source_matches(map.id, map.camera)
+                    !builds.has_pending_geometry()
+                        && builds.source_matches(map.id, map.camera)
+                        && Arc::ptr_eq(
+                            &frame.source,
+                            &RUSTERIX
+                                .read()
+                                .unwrap()
+                                .scene_handler
+                                .build_index
+                                .snapshot(),
+                        )
                 }
-                && Arc::ptr_eq(
-                    &frame.source,
-                    &RUSTERIX
-                        .read()
-                        .unwrap()
-                        .scene_handler
-                        .build_index
-                        .snapshot(),
-                )
         });
         if !fresh || matches!(input, MapEvent::MapDragged(_) | MapEvent::MapUp(_)) {
             ctx.ui.redraw_all = true;
@@ -1254,6 +1375,22 @@ impl Editor {
                 world.world_capture = Some(binding);
             }
             return false;
+        }
+        if binding.camera == MapCamera::TwoDIso {
+            if let Some(at) = pointer {
+                let Some(query) = frame
+                    .as_ref()
+                    .and_then(|frame| isometric_input(world, frame, at))
+                else {
+                    ctx.ui.redraw_all = true;
+                    return true;
+                };
+                TOOLLIST
+                    .write()
+                    .unwrap()
+                    .get_current_tool()
+                    .set_view_input(Some(query));
+            }
         }
         if let MapEvent::MapClicked(at) = input {
             // Hover may have been discarded while source geometry was pending.

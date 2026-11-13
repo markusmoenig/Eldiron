@@ -15,6 +15,7 @@ use std::sync::Arc;
 use theframework_core::Uuid;
 struct ItemTarget {
     id: u32,
+    creator: Uuid,
     position: Vec3<f32>,
     origin: [i32; 2],
     extent: [i32; 2],
@@ -50,7 +51,7 @@ impl IsometricWorldTargets {
             .unwrap_or(Vec2::zero());
         let mut items = Vec::new();
         for sprite in sprites {
-            let Some(SpriteOwner::Item { id, .. }) = sprite.owner else {
+            let Some(SpriteOwner::Item { id, creator_id, .. }) = sprite.owner else {
                 continue;
             };
             let Some(image) = sprite.image() else {
@@ -64,6 +65,7 @@ impl IsometricWorldTargets {
             let (width, height) = source.size();
             items.push(ItemTarget {
                 id,
+                creator: creator_id,
                 position: Vec3::new(sprite.pos.x, sprite.height, sprite.pos.y),
                 origin: at.into_array().map(|v| v.round() as i32),
                 extent: [width, height].map(|v| (v as f32 * scale).round() as i32),
@@ -90,11 +92,8 @@ impl IsometricWorldTargets {
             items,
         }))
     }
-    pub fn hit(&self, uv: [f32; 2], prefer_item: bool) -> Option<WorldHit> {
-        if uv
-            .into_iter()
-            .any(|v| !v.is_finite() || !(0. ..1.).contains(&v))
-        {
+    fn item_at(&self, uv: [f32; 2]) -> Option<&ItemTarget> {
+        if uv.iter().any(|v| !v.is_finite() || !(0. ..1.).contains(v)) {
             return None;
         }
         let pixel = Vec2::new(uv[0] * self.size.0 as f32, uv[1] * self.size.1 as f32);
@@ -119,16 +118,33 @@ impl IsometricWorldTargets {
             let y = ((local[1] as f32 / item.scale) as u32).min(item.height - 1);
             let alpha = (item.alpha[(y * item.width + x) as usize] as f32 * item.opacity).round();
             if alpha > 32. {
-                return Some(WorldHit {
-                    region: self.region,
-                    item: Some(item.id),
-                    world: Some(item.position),
-                    distance: self
-                        .leader
-                        .distance(Vec2::new(item.position.x, item.position.z)),
-                    ..Default::default()
-                });
+                return Some(item);
             }
+        }
+        None
+    }
+    /// Exact source-alpha item selection for the displayed authoring frame.
+    pub fn editor_item(&self, uv: [f32; 2]) -> Option<Uuid> {
+        self.item_at(uv).map(|item| item.creator)
+    }
+    pub fn hit(&self, uv: [f32; 2], prefer_item: bool) -> Option<WorldHit> {
+        if uv
+            .into_iter()
+            .any(|v| !v.is_finite() || !(0. ..1.).contains(&v))
+        {
+            return None;
+        }
+        let pixel = Vec2::new(uv[0] * self.size.0 as f32, uv[1] * self.size.1 as f32);
+        if let Some(item) = self.item_at(uv) {
+            return Some(WorldHit {
+                region: self.region,
+                item: Some(item.id),
+                world: Some(item.position),
+                distance: self
+                    .leader
+                    .distance(Vec2::new(item.position.x, item.position.z)),
+                ..Default::default()
+            });
         }
         let world = self.elevation.pick(self.projection, pixel);
         self.cells

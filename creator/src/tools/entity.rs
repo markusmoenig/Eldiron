@@ -1134,6 +1134,14 @@ impl EntityTool {
         coord: Vec2<i32>,
     ) -> Option<Hit> {
         if map.camera == rusterix::MapCamera::TwoDIso {
+            if let Some(selected) = self.view_input.as_ref().and_then(|view| view.isometric_item) {
+                let item = map.items.iter().find(|item| Some(item.creator_id) == selected)?;
+                return Some(Hit {
+                    target: DragTarget::Item(item.creator_id),
+                    name: item.attributes.get_str_default("name", "Item".into()),
+                    pos: item.get_pos_xz(),
+                });
+            }
             let dim = *ui.get_render_view("PolyView")?.dim();
             let projection = rusterix::isometric::Projection::editor(
                 map,

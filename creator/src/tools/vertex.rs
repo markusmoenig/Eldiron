@@ -575,7 +575,7 @@ impl Tool for VertexTool {
                         ];
 
                         let ray = if let Some(view) = &self.view_input {
-                            view.ray()
+                            view.ray()?
                         } else {
                             let rusterix = RUSTERIX.read().unwrap();
                             rusterix.client.camera_d3.create_ray(
@@ -614,7 +614,7 @@ impl Tool for VertexTool {
                             ];
 
                             let ray = if let Some(view) = &self.view_input {
-                                view.ray()
+                                view.ray()?
                             } else {
                                 let rusterix = RUSTERIX.read().unwrap();
                                 rusterix.client.camera_d3.create_ray(
@@ -731,7 +731,7 @@ impl Tool for VertexTool {
                                     coord.y as f32 / dim.height as f32,
                                 ];
                                 let ray = if let Some(view) = &self.view_input {
-                                    view.ray()
+                                    view.ray()?
                                 } else {
                                     let rusterix = RUSTERIX.read().unwrap();
                                     rusterix.client.camera_d3.create_ray(
@@ -816,7 +816,7 @@ impl Tool for VertexTool {
 
                                 // Get the camera ray for current mouse position
                                 let ray = if let Some(view) = &self.view_input {
-                                    view.ray()
+                                    view.ray()?
                                 } else {
                                     let rusterix = RUSTERIX.read().unwrap();
                                     rusterix.client.camera_d3.create_ray(

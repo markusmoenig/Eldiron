@@ -40,10 +40,27 @@ fn field_color(point: vec2<f32>, background: vec4<f32>) -> vec4<f32> {
     let edge=mix(border,fill,select(1.,inner,shape.properties.y>0.))*coverage;
     return edge+base*(1.-edge.a);
 }
-struct Out{@builtin(position)position:vec4<f32>,@location(0)local:vec2<f32>,@location(1)uv:vec2<f32>,@location(2)color:vec4<f32>};
-@vertex fn vs(@location(0)p:vec2<f32>,@location(1)local:vec2<f32>,@location(2)uv:vec2<f32>,@location(3)color:vec4<f32>)->Out{
-    var o:Out;o.position=vec4<f32>(p.x/params.viewport.x*2.-1.,1.-p.y/params.viewport.y*2.,0.,1.);o.local=local;o.uv=uv;o.color=color;return o;
+struct Out{@builtin(position)position:vec4<f32>,@location(0)local:vec2<f32>,@location(1)uv:vec2<f32>,@location(2)color:vec4<f32>,@location(3)@interpolate(flat)origin:vec2<f32>,@location(4)@interpolate(flat)pixel:vec2<f32>};
+@vertex fn vs(@location(0)p:vec2<f32>,@location(1)local:vec2<f32>,@location(2)uv:vec2<f32>,@location(3)color:vec4<f32>,@builtin(instance_index)instance:u32)->Out{
+    var position=p;var output_local=local;var origin=vec2<f32>(0.);var sample_pixel=vec2<f32>(0.);
+    if((params.mode&255u)==14u){
+        let a=params.color1.xy;let delta=params.color1.zw-a;
+        let count=min(ceil(max(abs(delta.x),abs(delta.y))),8192.);
+        let q=a+delta*(f32(instance)/count);
+        // WGSL round uses ties-to-even; the reference uses ties-away-from-zero.
+        let pixel=sign(q)*floor(abs(q)+vec2<f32>(0.5));
+        let bx=params.gradient.xy;let by=params.gradient.zw;
+        origin=p-bx*local.x-by*local.y;sample_pixel=pixel;
+        let determinant=abs(bx.x*by.y-bx.y*by.x);
+        // Expand support by a physical pixel. Coverage below evaluates the
+        // logical pixel at the physical center, independently of MSAA.
+        let pad=vec2<f32>(abs(by.y)+abs(by.x),abs(bx.y)+abs(bx.x))/determinant;
+        output_local=local*(vec2<f32>(1.)+2.*pad)-pad;
+        position+=bx*(pixel.x+output_local.x-local.x)+by*(pixel.y+output_local.y-local.y);
+    }
+    var o:Out;o.position=vec4<f32>(position.x/params.viewport.x*2.-1.,1.-position.y/params.viewport.y*2.,0.,1.);o.local=output_local;o.uv=uv;o.color=color;o.origin=origin;o.pixel=sample_pixel;return o;
 }
+
 fn linear(c:vec3<f32>)->vec3<f32>{return select(c/12.92,pow((c+vec3<f32>(0.055))/1.055,vec3<f32>(2.4)),c>vec3<f32>(0.04045));}
 fn srgb(c:vec3<f32>)->vec3<f32>{let v=max(c,vec3<f32>(0.));return select(v*12.92,1.055*pow(v,vec3<f32>(1./2.4))-vec3<f32>(0.055),v>vec3<f32>(0.0031308));}
 fn target_color(color:vec3<f32>)->vec3<f32> {
@@ -162,6 +179,14 @@ fn triangle_coverage(p:vec2<f32>)->bool {
     if(mode==8u){return vec4<f32>(linear(textureSample(image,image_sampler,i.uv).rgb),1.);}
     if(mode==9u){return vec4<f32>(textureSample(image,image_sampler,i.uv).rgb,1.);}
     var c=params.color0;
+    if(mode==14u){
+        // Invert the draw basis at the physical center. Interpolated local
+        // coordinates can drift across exact texel boundaries at fractional DPI.
+        let bx=params.gradient.xy;let by=params.gradient.zw;let q=i.position.xy-i.origin;
+        let logical=vec2<f32>(q.x*by.y-q.y*by.x,bx.x*q.y-bx.y*q.x)/(bx.x*by.y-bx.y*by.x);
+        let alpha=select(0.,c.a,all(floor(logical)==i.pixel));
+        return vec4<f32>(c.rgb*alpha,alpha);
+    }
     if(mode==13u){
         let alpha=select(0.,c.a,triangle_coverage(floor(i.position.xy)+vec2<f32>(0.5)));
         return vec4<f32>(c.rgb*alpha,alpha);

@@ -506,20 +506,40 @@ mod tests {
         ));
         // Extend this existing assembled check through the real camera toolbar.
         // This is one integration checkpoint, with no separate fixture matrix.
-        for camera_index in [2, 3, 4] {
+        for camera_index in [2, 3, 4, 1, 0] {
             app.session.context.ui.send(TheEvent::IndexChanged(
                 TheId::named("Editor View Switch"),
                 camera_index,
             ));
-            for _ in 0..64 {
+            let deadline = Instant::now() + Duration::from_secs(5);
+            loop {
                 app.update(&mut host, Duration::from_millis(16));
-                if !crate::editor::SCENEMANAGER
-                    .read()
-                    .unwrap()
-                    .has_pending_geometry()
-                {
+                let expected = match camera_index {
+                    0 => rusterix::MapCamera::TwoD,
+                    1 => rusterix::MapCamera::TwoDIso,
+                    4 => rusterix::MapCamera::ThreeDFirstPerson,
+                    _ => rusterix::MapCamera::ThreeDIso,
+                };
+                let ready = camera_index == 1 || {
+                    let builds = crate::editor::SCENEMANAGER.read().unwrap();
+                    !builds.has_pending_geometry()
+                        && builds.source_matches(
+                            app.application.editor.project_for_native_test().regions[0]
+                                .map
+                                .id,
+                            expected,
+                        )
+                };
+                if ready {
                     break;
                 }
+                assert!(
+                    Instant::now() < deadline,
+                    "camera {camera_index} source never became ready"
+                );
+                // Editor work is scheduled from elapsed host time, not the
+                // synthetic Duration argument. Yield while that real job runs.
+                std::thread::sleep(Duration::from_millis(2));
             }
             let world = app.frame(&mut host, &mut replacement).unwrap();
             assert!(
@@ -622,9 +642,107 @@ mod tests {
                     &mut app.session.ui,
                     &mut app.session.context
                 ),
-                "an acknowledged native 3D query reaches the existing tool dispatcher"
+                "an acknowledged native camera {camera_index} query reaches the existing tool dispatcher"
             );
-            assert!(app.application.editor.native_world_has_ray_for_test());
+            if matches!(camera_index, 2 | 3 | 4) {
+                assert!(app.application.editor.native_world_has_ray_for_test());
+            }
+            if camera_index == 1 {
+                assert!(
+                    world
+                        .ops
+                        .iter()
+                        .any(|op| matches!(op, theframework::paint::PaintOp::SampledLine { .. })),
+                    "iso guides are real GPU commands in the root"
+                );
+                let vertices = app.application.editor.native_world_vertices_for_test();
+                app.session.ui.shift = true;
+                let at = Vec2::new(dim.width / 2 + 80, dim.height / 2 + 40);
+                app.session
+                    .context
+                    .ui
+                    .send(TheEvent::RenderViewClicked(world_view.clone(), at));
+                app.update(&mut host, Duration::from_millis(16));
+                assert_eq!(
+                    app.application.editor.native_world_vertices_for_test(),
+                    vertices + 1,
+                    "the native isometric pick reaches the actual Vertex tool once"
+                );
+                app.session.ui.shift = false;
+                app.session
+                    .context
+                    .ui
+                    .send(TheEvent::RenderViewUp(world_view.clone(), at));
+            }
+        }
+        // Check the new sampler within this assembled checkpoint. The reference
+        // uses the existing independent CPU DDA, including duplicate blending.
+        use theframework::paint::{DisplayCompositing, PaintOp};
+        let mut reference = TheRGBABuffer::new(TheDim::sized(8, 8));
+        for pixel in reference.pixels_mut().chunks_exact_mut(4) {
+            pixel[3] = 255;
+        }
+        let mut guide = PaintList::default();
+        guide.ops.push(PaintOp::DisplayCompositing(
+            DisplayCompositing::LegacyOpaque,
+        ));
+        for (a, b, color) in [
+            ([1.1, 1.1], [1.3, 1.3], [255, 255, 255, 128]),
+            ([7.6, 1.2], [-1.2, 7.6], [80, 170, 220, 150]),
+        ] {
+            rusterix::isometric::line(
+                &mut reference,
+                Vec2::new(a[0], a[1]),
+                Vec2::new(b[0], b[1]),
+                color,
+            );
+            guide.ops.push(PaintOp::SampledLine {
+                from: a,
+                to: b,
+                color: color.map(|v| v as f32 / 255.),
+            });
+        }
+        for density in [1., 1.5, 2.] {
+            let extent = (8. * density) as u32;
+            let pixels = GpuImage::new(&gpu, ImageDescriptor::rgba(extent, extent)).unwrap();
+            renderer
+                .render(
+                    &guide,
+                    &replacement,
+                    &pixels.view,
+                    pixels.descriptor.format,
+                    (extent, extent),
+                    density,
+                    [0., 0., 0., 1.],
+                )
+                .unwrap();
+            let mut capture = ReadbackTicket::capture(&gpu, pixels).unwrap();
+            gpu.device
+                .poll(wgpu::PollType::Wait {
+                    submission_index: None,
+                    timeout: Some(Duration::from_secs(30)),
+                })
+                .unwrap();
+            let pixels = capture.try_finish(&gpu).unwrap().unwrap();
+            for y in 0..extent {
+                for x in 0..extent {
+                    let expected = (((y as f32 + 0.5) / density) as usize * 8
+                        + ((x as f32 + 0.5) / density) as usize)
+                        * 4;
+                    let actual = (y as usize * extent as usize + x as usize) * 4;
+                    for channel in 0..4 {
+                        assert!(
+                            (pixels.pixels()[actual + channel] as i16
+                                - reference.pixels()[expected + channel] as i16)
+                                .abs()
+                                <= 1,
+                            "DDA/nearest logical pixel mismatch at density={density}, ({x},{y}), channel={channel}: got={} expected={}",
+                            pixels.pixels()[actual + channel],
+                            reference.pixels()[expected + channel]
+                        );
+                    }
+                }
+            }
         }
     }
 }

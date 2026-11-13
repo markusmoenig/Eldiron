@@ -2863,7 +2863,10 @@ impl ToolList {
                     RUSTERIX.write().unwrap().client.scene.d2_static.clear();
                     RUSTERIX.write().unwrap().client.scene.d2_dynamic.clear();
 
-                    if old != new {
+                    // Both 2D projections have distinct authoring sources.
+                    // Returning from sprite-isometric must replace its dormant
+                    // builder map before ordinary top-down picking resumes.
+                    if old != new || projection_center.is_some() {
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Switch SceneManager Camera"),
                             TheValue::Empty,

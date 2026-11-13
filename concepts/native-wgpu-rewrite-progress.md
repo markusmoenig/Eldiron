@@ -25,7 +25,7 @@ Started: 2026-11-11 (Asia/Bangkok). Overall Goal: active; full M0–M9 scope rem
 - M2: in progress. Paint/Swash/Parley pipeline and native/foreign hosts work; batching, resource lifetime budgets and full text/input parity remain.
 - M3: in progress. Every active built-in TheWidget implementation now has a command paint path, including procedural controls and the legacy node canvas. Complex Creator integration, full widget catalog parity and legacy adapter retirement remain.
 - M4: in progress. CPU schema/identity extraction, shared `GameSession`, CPU startup preparation, message/party/world-target policies and terminal adoption are implemented and tested. Per-session routing, local players, world values, runtime IDs and region context ownership now pass controlled overlapping-session and parallel assembled-player regressions. Graphical/Creator adoption and remaining bitmap/value data extraction remain; this evidence does not establish full simultaneous Creator Play workflows.
-- M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Immutable ordinary editor-view preparation, exact reference/native view outputs and retained CPU chunk publication are now available through SceneViews. Common HUD, paint/props panels, profile displays and ViewCube now have retained command frames, guarded input and actual GPU composition/reconstruction evidence. Six standard tools additionally emit ordered typed overlay aggregates with exact presented-frame and detail-profile source guards. Full-viewport profile editing is now connected to the actual native Creator root with document/widget binding, presentation-gated input and inline commit/cancel; ordinary stopped top-down and 3D region rendering and the six standard tool overlays now use the same native application owner and real tool dispatch. Orbit/orthographic/first-person views include depth-aware guides, retained ViewCube and explicit tool query snapshots; surface paint uses the view-owned GPU scene. Other world modes and Play remain on their explicit migration adapters. Application/global/document/Play ownership, main world/tool/HUD integration, remaining producers, full visual/workflow/performance acceptance and canonical retirement remain.
+- M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Immutable ordinary editor-view preparation, exact reference/native view outputs and retained CPU chunk publication are now available through SceneViews. Common HUD, paint/props panels, profile displays and ViewCube now have retained command frames, guarded input and actual GPU composition/reconstruction evidence. Six standard tools additionally emit ordered typed overlay aggregates with exact presented-frame and detail-profile source guards. Full-viewport profile editing is now connected to the actual native Creator root with document/widget binding, presentation-gated input and inline commit/cancel; ordinary stopped top-down, sprite-isometric and 3D region rendering and the six standard tool overlays now use the same native application owner and real tool dispatch. Orbit/orthographic/first-person views include depth-aware guides, retained ViewCube and explicit tool query snapshots; surface paint uses the view-owned GPU scene. Other world modes and Play remain on their explicit migration adapters. Application/global/document/Play ownership, main world/tool/HUD integration, remaining producers, full visual/workflow/performance acceptance and canonical retirement remain.
 - M6: in progress. Independent GPU game views, common player/input/camera components, authored screen paint, private world descriptions, view-owned speech, acknowledged-frame world pointer gestures, relative first-person mouse look, default/world-intent cursors, world/UI item drag previews and acknowledged authored inventory/equipment pointer/keyboard gestures are implemented. Application-owned audio is integrated into the common player with cancellable CPU preparation jobs. The native container HUD now includes acknowledged paint/input, real server transfers, scrolling, GPU recovery and navigation lifetime. Floating inventory/equipment, action catalogue/spellbook and preferences now use typed native HUD owners, retained text/source resources and acknowledged input. Acknowledged UI-origin tooltips now use retained text and host deadlines. UI-origin Drop cursors and acknowledged drag/assignment highlighting now have GPU and authoritative transfer evidence. Native isometric source production, shared CPU source publication, game-view outputs and acknowledged input receipts now have GPU/CPU and shipped-source device-reconstruction evidence. Browser worker hosting, remaining game-mode/HUD policy parity, performance acceptance remain. Canonical native desktop launchers now share the common application/host; see launcher verification below.
 - M7/M8/M9: Retirement and platform/full acceptance pending. Canonical desktop clients share one common player; the Xcode client now uses it through the retained ABI over a Rust-created CAMetalLayer surface. Native/ARM64 simulator app bundles link, and real Swift/static-library and registered-scene layer checks pass. Browser bootstrap, native text/platform parity, Creator wrapper and complete physical/release acceptance remain; this is not complete application/platform parity.
 
@@ -4365,3 +4365,80 @@ full density parity remains open. Then connect the source-scoped iso picking and
 actual root/tool handoff, extending the existing assembled integration checkpoint
 when that whole mode is ready. All prior acceptance gaps and the full M0–M9 Goal
 remain active.
+
+
+### Main Creator sprite-isometric viewport integration (2026-11-13)
+
+Connected the previous source extraction to the actual native Creator application,
+continuing the user-requested emphasis on integration and checkpoint validation.
+No new standalone test suite or broad platform matrix was added.
+
+- `SceneViews::prepare_isometric_editor` shares the injected source-scene producer
+  used by game views, while retaining the editor's logical projection and its own
+  output/picking lifetime. Native Creator's existing world owner now adopts
+  sprite-isometric region views for the six standard tools. No completed viewport
+  image is copied/read back to the CPU.
+- Ordered terrain/grid/topology/selection/cursor segments paint through the new
+  `PaintOp::SampledLine`. Each capped-DDA sample is a GPU instance of a logical
+  pixel square. Original floating endpoints, inclusive sample order, half-away
+  rounding and repeated alpha samples are retained; this is not a substitution
+  of the existing symmetric-Bresenham device-pixel primitive.
+- The sampler keeps the existing 64-byte common uniform. Pixel-square support is
+  expanded for MSAA and exact coverage is evaluated in the fragment shader from
+  the inverse draw basis. This fixes an observed 150% interpolation-boundary
+  error. Logical pixels use the same nearest texel-center sampling as the scene
+  image; construction guides also retain the original `iso_edit_height` offset.
+- Native isometric input uses the exact completed isometric source receipt and
+  displayed output, plus document/widget/tool/projection/map/asset/guide binding
+  checks. Creator intentionally does not tick the legacy chunk builder in this
+  mode, so its unrelated pending queue cannot authorize or permanently block
+  native isometric picks. Ordinary top-down/3D source checks remain in place.
+- Retained isometric targets expose source-alpha item picking by authored UUID.
+  Entity/Object tools consume that immutable result instead of producing sprites
+  or querying the old renderer during input. Optional 3D camera/ray query fields
+  remain unavailable in this 2D mode rather than supplying a fabricated camera.
+- Fixed a real return-transition bug in the existing toolbar: switching between
+  top-down and sprite-isometric now notifies SceneManager to replace the dormant
+  builder's projection. Previously only 2D/3D family switches did so, leaving
+  ordinary top-down source readiness mismatched after returning from isometric.
+- World source caches/SceneViews are reconstructed on document-session changes,
+  preventing copied/reopened map IDs and local source revisions from reusing an
+  older document's isometric renderer resources. Full multi-document runtime
+  transition coverage remains outstanding.
+
+Verification:
+
+- Native integration compilation passed, 19.17 s:
+  `/private/tmp/eldiron-native-iso-integration-check.log`.
+- The existing assembled
+  `native_creator_application_paints_the_root_ui_without_a_root_framebuffer`
+  GPU check passed **1**, 18.51 s:
+  `/private/tmp/eldiron-native-iso-root-verified.log`. It retains previous
+  root/reconstruction/Swash/profile/top-down/3D checks, traverses the real Orbit,
+  orthographic, first-person, sprite-isometric and return-to-top-down toolbar
+  commands, confirms native output/no CPU target storage/no implicit readback,
+  and performs an actual isometric Vertex edit exactly once.
+- A small probe inside that same assembled check compares GPU guide pixels with
+  the existing independent CPU DDA at 100%, 150%, and 200%, including repeated
+  samples/translucent overlap and source clipping (<=1 byte/channel rounding
+  tolerance). This proves those sampler cases, not whole-Creator DPI parity.
+- Failed integrated runs are preserved in
+  `/private/tmp/eldiron-native-iso-root{,-debug,-final,-transition}.log`.
+  They exposed the unrelated-builder wait, return projection mismatch and 150%
+  shader coverage drift described above; the verified run supersedes them.
+- Final reference and native compilation both passed: reference 18.59 s,
+  `/private/tmp/eldiron-native-iso-reference-check.log`; native 22.12 s,
+  `/private/tmp/eldiron-native-iso-final-check.log`. These include only focused
+  source formatting after the passing integration run.
+
+Remaining acceptance/adapters: all prior M0–M9 gates stay open. In particular,
+remaining tool producers/controllers (Rect, Terrain, Paint, Effects, collision
+probe and others), Prefab/custom contexts, runtime/Play common-session adoption,
+orthographic bake output, visibility/speech policies, unavailable authoring-click
+resolution/retry, complete capture/cancel/modal/multi-document workflows, full
+painted/source-item/DPI visuals, physical presentation, resources/performance,
+platform wrappers and global/reference renderer retirement are not declared
+complete. Current source/session/global CPU bridges still exist. The next useful
+work is to adopt the remaining real tools, then converge Play/runtime ownership;
+continue using focused compile checks and the existing assembled checkpoint for
+coherent integration changes rather than adding per-change fixture suites.

@@ -507,7 +507,7 @@ impl Tool for SectorTool {
                         ];
 
                         let ray = if let Some(view) = &self.view_input {
-                            view.ray()
+                            view.ray()?
                         } else {
                             let rusterix = RUSTERIX.read().unwrap();
                             rusterix.client.camera_d3.create_ray(
@@ -570,7 +570,7 @@ impl Tool for SectorTool {
                             ];
 
                             let ray = if let Some(view) = &self.view_input {
-                                view.ray()
+                                view.ray()?
                             } else {
                                 let rusterix = RUSTERIX.read().unwrap();
                                 rusterix.client.camera_d3.create_ray(
@@ -783,7 +783,7 @@ impl Tool for SectorTool {
                             ];
 
                             let ray = if let Some(view) = &self.view_input {
-                                view.ray()
+                                view.ray()?
                             } else {
                                 let rusterix = RUSTERIX.read().unwrap();
                                 rusterix.client.camera_d3.create_ray(
@@ -881,7 +881,7 @@ impl Tool for SectorTool {
                             ];
 
                             let ray = if let Some(view) = &self.view_input {
-                                view.ray()
+                                view.ray()?
                             } else {
                                 let rusterix = RUSTERIX.read().unwrap();
                                 rusterix.client.camera_d3.create_ray(

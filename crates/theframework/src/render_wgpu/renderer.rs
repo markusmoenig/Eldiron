@@ -31,6 +31,11 @@ struct Geometry {
 enum ImageEffect {
     PixelTriangle([Point; 3]),
     PixelLine([i32; 4]),
+    SampledLine {
+        endpoints: [f32; 4],
+        basis: [f32; 4],
+        samples: u32,
+    },
     GlyphBackdrop(Color),
     PixelNearest(Point),
     Group,
@@ -52,6 +57,7 @@ struct Draw {
     bind: wgpu::BindGroup,
     stencil: u32,
     phase: u8,
+    instances: u32,
 }
 struct Pipelines {
     draw: wgpu::RenderPipeline,
@@ -419,6 +425,8 @@ impl PaintRenderer {
             viewport: [size.0 as f32, size.1 as f32],
             mode: (if let Some(ImageEffect::Present(srgb)) = effect {
                 if srgb { 8 } else { 9 }
+            } else if matches!(effect, Some(ImageEffect::SampledLine { .. })) {
+                14
             } else if matches!(effect, Some(ImageEffect::PixelTriangle(_))) {
                 13
             } else if matches!(effect, Some(ImageEffect::PixelLine(_))) {
@@ -501,6 +509,10 @@ impl PaintRenderer {
             params.color1 = points.map(|p| ((p as u32) >> 16) as f32);
             params.gradient = points.map(|p| ((p as u32) & 65535) as f32);
         }
+        if let Some(ImageEffect::SampledLine { endpoints, basis, .. }) = effect {
+            params.color1 = endpoints;
+            params.gradient = basis;
+        }
         let uniform = self
             .context
             .device
@@ -554,6 +566,10 @@ impl PaintRenderer {
             bind,
             stencil,
             phase,
+            instances: match effect {
+                Some(ImageEffect::SampledLine { samples, .. }) => samples,
+                _ => 1,
+            },
         }
     }
     /// Execute paint in order. Explicit capture is available separately through renderkit.
@@ -719,7 +735,7 @@ impl PaintRenderer {
             pass.set_bind_group(0, &draw.bind, &[]);
             pass.set_vertex_buffer(0, draw.geometry.vertices.slice(..));
             pass.set_index_buffer(draw.geometry.indices.slice(..), wgpu::IndexFormat::Uint32);
-            pass.draw_indexed(0..draw.geometry.count, 0, 0..1);
+            pass.draw_indexed(0..draw.geometry.count, 0, 0..draw.instances);
         }
         self.context.queue.submit([encoder.finish()]);
         self.stats.draw_calls += 1;
@@ -979,6 +995,31 @@ impl PaintRenderer {
                             0,
                             None,
                             Some(ImageEffect::PixelLine([a[0], a[1], b[0], b[1]])),
+                        ));
+                    }
+                }
+                PaintOp::SampledLine { from, to, color } => {
+                    let delta = [to[0] - from[0], to[1] - from[1]];
+                    let transformed = [transform.point(*from), transform.point(*to)];
+                    if delta.iter().chain(transformed.iter().flatten())
+                        .any(|v| !v.is_finite() || !(v * density).is_finite())
+                    {
+                        return Err(RenderError("nonfinite sampled line transform".into()));
+                    }
+                    let steps = delta[0].abs().max(delta[1].abs()).ceil().min(8192.) as u32;
+                    if steps > 0 && transform.inverse().is_some() {
+                        let (vertices, indices) = mesh::quad(
+                            Rect::new(0., 0., 1., 1.), Rect::default(), transform, density,
+                        );
+                        let [a, b, c, d, _, _] = transform.0;
+                        draws.push(self.draw_with_effects(
+                            self.geometry(&vertices, &indices), &Brush::Solid(*color),
+                            None, size, level, 0, None,
+                            Some(ImageEffect::SampledLine {
+                                endpoints: [from[0], from[1], to[0], to[1]],
+                                basis: [a * density, b * density, c * density, d * density],
+                                samples: steps + 1,
+                            }),
                         ));
                     }
                 }
@@ -1268,7 +1309,7 @@ impl PaintRenderer {
                 pass.set_bind_group(0, &draw.bind, &[]);
                 pass.set_vertex_buffer(0, draw.geometry.vertices.slice(..));
                 pass.set_index_buffer(draw.geometry.indices.slice(..), wgpu::IndexFormat::Uint32);
-                pass.draw_indexed(0..draw.geometry.count, 0, 0..1);
+                pass.draw_indexed(0..draw.geometry.count, 0, 0..draw.instances);
                 self.stats.draw_calls += 1;
             }
         }

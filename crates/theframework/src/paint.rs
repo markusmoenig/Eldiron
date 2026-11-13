@@ -327,6 +327,16 @@ pub enum PaintOp {
         to: Point,
         color: Color,
     },
+    /// Legacy capped DDA in logical pixels: ceil(max(abs(delta))) steps,
+    /// capped at 8192, inclusive endpoints rounded away from zero at halves.
+    /// Repeated samples retain their ordered alpha blending. Logical pixel
+    /// squares follow the paint transform/density with nearest texel-center
+    /// coverage, matching the viewport scene blit's sampling.
+    SampledLine {
+        from: Point,
+        to: Point,
+        color: Color,
+    },
     /// Full source image, using top-left aligned nearest sampling in destination
     /// physical pixels. Matches explicit CPU left-edge image resizing without
     /// allocating a resized source image or relying on half-texel UV biases.
@@ -522,7 +532,7 @@ impl PaintList {
                         return Err("nonfinite pixel triangle");
                     }
                 }
-                PaintOp::PixelLine { from, to, color } => {
+                PaintOp::PixelLine { from, to, color } | PaintOp::SampledLine { from, to, color } => {
                     if from
                         .iter()
                         .chain(to.iter())

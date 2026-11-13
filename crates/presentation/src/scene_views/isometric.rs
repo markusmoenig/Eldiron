@@ -61,10 +61,6 @@ impl SceneViews {
         widget: &GameWidget,
         input: &GameSceneInput<'_>,
     ) -> Result<()> {
-        let view = self
-            .views
-            .get_mut(&id)
-            .ok_or_else(|| RenderError("unknown scene view".into()))?;
         let mut projection = widget
             .isometric_projection
             .ok_or_else(|| RenderError("isometric camera was not prepared".into()))?;
@@ -73,6 +69,39 @@ impl SceneViews {
         let reduction = widget.upscale.max(1.);
         projection.origin /= reduction;
         projection.unit /= reduction;
+        self.prepare_isometric_scene(id, projection, input)
+    }
+    /// Sprite-isometric authoring uses its logical construction-plane projection
+    /// and the same injected source producer as player views.
+    pub fn prepare_isometric_editor(
+        &mut self,
+        id: ViewId,
+        size: (u32, u32),
+        input: &GameSceneInput<'_>,
+        images: &mut ImageRegistry,
+    ) -> Result<()> {
+        self.resize(id, size, images)?;
+        if size.0 == 0 || size.1 == 0 {
+            return Ok(());
+        }
+        self.select_game_mode(id, true, images)?;
+        self.scene_mut(id)?.runtime_render_state = input.render_state.clone();
+        let projection = rusterix::isometric::Projection::editor(
+            input.map,
+            scenevm::prelude::Vec2::new(size.0 as f32, size.1 as f32),
+        );
+        self.prepare_isometric_scene(id, projection, input)
+    }
+    fn prepare_isometric_scene(
+        &mut self,
+        id: ViewId,
+        projection: rusterix::isometric::Projection,
+        input: &GameSceneInput<'_>,
+    ) -> Result<()> {
+        let view = self
+            .views
+            .get_mut(&id)
+            .ok_or_else(|| RenderError("unknown scene view".into()))?;
         let scene = &mut view.scene;
         scene.apply_runtime_render_state_settings();
         scene.settings.apply_hour(input.time.to_f32());

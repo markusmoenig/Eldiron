@@ -3397,7 +3397,7 @@ impl Tool for GeometryTool {
                             Vec2::new(start.x.max(current.x), start.y.max(current.y));
 
                         let camera = if let Some(view) = &self.view_input {
-                            view.camera
+                            view.camera?
                         } else {
                             let mut rusterix = RUSTERIX.write().unwrap();
                             let previous_vm = rusterix.scene_handler.vm.active_vm_index();
