@@ -74,7 +74,101 @@ struct NativeCreatorHostCheck {
         precondition(document.withCString { reply(eldiron_creator_document_prepare_save_v1(host, $0))["ok"] as? Bool } == false)
         precondition((state(host)["readback_bytes"] as! NSNumber).uint64Value == 0)
     }
+    static func checkImageClipboard(_ host: UInt64) {
+        // A disposable copy of the shipped source gives the board one known
+        // searchable bitmap. No system clipboard or native responder is used.
+        var root = URL(fileURLWithPath: #filePath)
+        for _ in 0..<4 { root.deleteLastPathComponent() }
+        let fixture = try! Data(contentsOf: root.appendingPathComponent("test_projects/3DStarter.eldiron"))
+        var project = try! JSONSerialization.jsonObject(with: fixture) as! [String: Any]
+        var tiles = project["tiles"] as! [String: Any]
+        let tileID = "a41cf692-e03b-4579-a8e9-3d77972d1858"
+        var tile = tiles[tileID] as! [String: Any]
+        tile["alias"] = "Clipboard source"
+        tiles[tileID] = tile
+        project["tiles"] = tiles
+        let bytes = try! JSONSerialization.data(withJSONObject: project)
+        let document = value(eldiron_creator_document_info_v1(host))["document"] as! String
+        _ = document.withCString { expected in bytes.withUnsafeBytes { data in
+            value(eldiron_creator_document_load_v1(host, expected, data.bindMemory(to: UInt8.self).baseAddress, UInt(data.count), nil, false))
+        } }
+        precondition(eldiron_creator_resize_v1(host, 2000, 1073, 1.25))
+        pump(host, 0.3)
+        func click(_ x: Float, _ y: Float) {
+            _ = eldiron_creator_hover_v1(host, x, y)
+            _ = eldiron_creator_touch_down_v1(host, x, y)
+            _ = eldiron_creator_touch_up_v1(host, x, y)
+            pump(host, 0.1)
+        }
+        click(120, 640)
+        let source = reply(eldiron_creator_text_snapshot_v1(host))
+        let text = Data("Clipboard source".utf8)
+        precondition(text.withUnsafeBytes { data in
+            eldiron_creator_text_edit_v1(host, (source["target"] as! NSNumber).uint64Value,
+                (source["revision"] as! NSNumber).uint64Value, 1, 0,
+                (source["text"] as! String).utf16.count,
+                data.bindMemory(to: UInt8.self).baseAddress, UInt(data.count), -1, -1)
+        } == 1)
+        _ = eldiron_creator_key_v1(host, 0x100, true, false, nil)
+        _ = eldiron_creator_key_v1(host, 0x100, false, false, nil)
+        pump(host, 0.2)
+        click(142, 706)
+        _ = eldiron_creator_modifiers_v1(host, false, false, false, true)
+        "[".withCString { text in
+            _ = eldiron_creator_key_v1(host, 0, true, false, text)
+            _ = eldiron_creator_key_v1(host, 0, false, false, text)
+        }
+        pump(host, 0.2)
+        _ = eldiron_creator_modifiers_v1(host, false, false, false, false)
+        click(25, 310)
+        click(390, 166) // Focus the RGBA view outside the editable source.
+        precondition(eldiron_creator_edit_command_v1(host, 1))
+        func imageRequest(_ kind: String) -> [String: Any] {
+            // Input can precede the next scheduled application update. Drain
+            // after pumping it; a single immediate render may be idle.
+            let deadline = Date().addingTimeInterval(10)
+            var commands: [[String: Any]] = []
+            repeat {
+                _ = eldiron_creator_render_v1(host)
+                if let requests = eldiron_creator_requests_v1(host) {
+                    commands += try! JSONSerialization.jsonObject(with: Data(String(cString: requests).utf8)) as! [[String: Any]]
+                    rust_free_string(requests)
+                }
+                if let command = commands.first(where: { $0["kind"] as? String == kind }) { return command }
+                RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+            } while Date() < deadline
+            fatalError("Missing \(kind): \(commands); \(state(host))")
+        }
+        let command = imageRequest("image_write")
+        let request = (command["request"] as! NSNumber).uint64Value
+        let length = (command["length"] as! NSNumber).intValue
+        precondition(length > 0 && eldiron_creator_clipboard_image_copy_v1(host, request, nil, 0) == length)
+        var sentinel: UInt8 = 73
+        precondition(eldiron_creator_clipboard_image_copy_v1(host, request, &sentinel, 1) == length && sentinel == 73)
+        precondition(eldiron_creator_clipboard_image_copy_v1(host, request + 1, nil, 0) == 0)
+        var png = Data(count: length)
+        precondition(png.withUnsafeMutableBytes { data in
+            eldiron_creator_clipboard_image_copy_v1(host, request, data.bindMemory(to: UInt8.self).baseAddress, UInt(data.count))
+        } == length)
+        guard let image = NSBitmapImageRep(data: png) else { fatalError("Invalid clipboard PNG") }
+        precondition(image.pixelsWide == 16 && image.pixelsHigh == 16)
+        precondition(eldiron_creator_clipboard_image_complete_v1(host, request, true, false, nil, 0))
+        precondition(eldiron_creator_clipboard_image_copy_v1(host, request, nil, 0) == 0)
+        precondition(!eldiron_creator_clipboard_image_complete_v1(host, request, true, true, nil, 0))
+        precondition(eldiron_creator_edit_command_v1(host, 2))
+        let read = (imageRequest("image_read")["request"] as! NSNumber).uint64Value
+        precondition(!eldiron_creator_clipboard_image_complete_v1(host, read, false, true, nil, 1))
+        precondition(png.withUnsafeBytes { data in
+            let pointer = data.bindMemory(to: UInt8.self).baseAddress
+            precondition(!eldiron_creator_clipboard_image_complete_v1(host, read, false, true, pointer, 64 * 1024 * 1024 + 1))
+            return eldiron_creator_clipboard_image_complete_v1(host, read, false, true, pointer, UInt(data.count))
+        })
+
+        precondition((state(host)["root_cpu_bytes"] as! NSNumber).uint64Value == 0)
+        precondition((state(host)["readback_bytes"] as! NSNumber).uint64Value == 0)
+    }
     static func main() {
+        setbuf(stdout, nil)
         _ = NSApplication.shared
         precondition(eldiron_creator_abi_version() == 1)
         precondition(eldiron_creator_create_v1(1, nil, 1200, 800, 1) == 0)
@@ -114,6 +208,7 @@ struct NativeCreatorHostCheck {
         precondition((state(host)["readback_bytes"] as! NSNumber).uint64Value == 0)
         // Keep both backing layers alive through surface destruction.
         checkDocuments(host)
+        checkImageClipboard(host)
         precondition(eldiron_creator_destroy_v1(host))
         precondition(!eldiron_creator_destroy_v1(host))
         precondition(eldiron_creator_render_v1(host) == -1)
@@ -123,11 +218,13 @@ struct NativeCreatorHostCheck {
         precondition(next > host)
         precondition(!eldiron_creator_resize_v1(host, 1, 1, 1))
         precondition(!eldiron_creator_clipboard_complete_v1(host, 1, false, true, nil))
+        precondition(eldiron_creator_clipboard_image_copy_v1(host, 1, nil, 0) == 0)
+        precondition(!eldiron_creator_clipboard_image_complete_v1(host, 1, false, true, nil, 0))
         precondition(eldiron_creator_document_info_v1(host) == nil)
         precondition(eldiron_creator_document_copy_save_v1(host, 1, nil, 0) == 0)
         pump(next, 0.1)
         precondition(eldiron_creator_destroy_v1(next))
         withExtendedLifetime((layer, replacement)) {}
-        print("Native Creator CAMetalLayer/handle/document transactions passed")
+        print("Native Creator CAMetalLayer/handle/document/PNG transactions passed")
     }
 }

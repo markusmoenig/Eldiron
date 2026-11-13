@@ -23,6 +23,16 @@ pub struct TheRGBALayout {
 
 impl TheLayout for TheRGBALayout {
     #[cfg(feature = "text")]
+    fn visit_visible_widgets(&mut self, visitor: &mut dyn FnMut(&mut dyn TheWidget)) {
+        visitor(self.rgba_view.as_mut());
+        if self.vertical_scrollbar_visible {
+            visitor(self.vertical_scrollbar.as_mut());
+        }
+        if self.horizontal_scrollbar_visible {
+            visitor(self.horizontal_scrollbar.as_mut());
+        }
+    }
+    #[cfg(feature = "text")]
     fn prepare_paint(&mut self, ctx: &mut TheContext, _theme: &dyn TheTheme) {
         self.set_dim(self.dim, ctx);
         let offset = Vec2::new(

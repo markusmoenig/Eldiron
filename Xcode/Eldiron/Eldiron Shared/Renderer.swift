@@ -158,6 +158,44 @@ final class Renderer: NSObject, MTKViewDelegate {
                 let success = true
                 #endif
                 if let id { eldiron_creator_clipboard_complete_v1(handle, id, true, success, nil) }
+            case "image_read":
+                guard let id else { continue }
+                #if os(macOS)
+                let png = NSPasteboard.general.data(forType: .png) ?? NSImage(pasteboard: .general)?.tiffRepresentation.flatMap { NSBitmapImageRep(data: $0)?.representation(using: .png, properties: [:]) }
+                #else
+                let png = UIPasteboard.general.image?.pngData()
+                #endif
+                if let png, png.count <= 64 * 1024 * 1024 {
+                    _ = png.withUnsafeBytes { buffer in
+                        eldiron_creator_clipboard_image_complete_v1(handle, id, false, true, buffer.bindMemory(to: UInt8.self).baseAddress, UInt(png.count))
+                    }
+                } else {
+                    _ = eldiron_creator_clipboard_image_complete_v1(handle, id, false, false, nil, 0)
+                }
+            case "image_write":
+                guard let id else { continue }
+                let count = eldiron_creator_clipboard_image_copy_v1(handle, id, nil, 0)
+                guard count > 0, count <= 64 * 1024 * 1024 else {
+                    _ = eldiron_creator_clipboard_image_complete_v1(handle, id, true, false, nil, 0)
+                    continue
+                }
+                var png = Data(count: Int(count))
+                let copied = png.withUnsafeMutableBytes { buffer in
+                    eldiron_creator_clipboard_image_copy_v1(handle, id, buffer.bindMemory(to: UInt8.self).baseAddress, count)
+                }
+                var success = false
+                if copied == count {
+                    #if os(macOS)
+                    NSPasteboard.general.clearContents()
+                    success = NSPasteboard.general.setData(png, forType: .png)
+                    #else
+                    if let image = UIImage(data: png) {
+                        UIPasteboard.general.image = image
+                        success = true
+                    }
+                    #endif
+                }
+                _ = eldiron_creator_clipboard_image_complete_v1(handle, id, true, success, nil, 0)
             default: break
             }
         }

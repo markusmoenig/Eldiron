@@ -123,6 +123,21 @@ impl Editor {
             && !self.native_display_owns_viewport()
             && self.documents.project.get_map(&self.server_ctx).is_none()
     }
+    /// An asset/code dock replaces the world canvas. Its hidden scene widget
+    /// cannot opt into legacy rendering merely because it has no active GPU
+    /// world producer. Retire derived display storage while that canvas is hidden.
+    pub(crate) fn native_hidden_viewport(&self, ui: &mut TheUI, name: &str) -> bool {
+        if !self.native_viewport.enabled { return false; }
+        let Some(id) = ui.get_render_view(name).map(|view|view.id().uuid) else { return true; };
+        let mut visible = false;
+        ui.canvas.visit_visible_widgets(&mut |widget| {
+            if widget.id().uuid == id && widget.dim().is_valid() { visible = true; }
+        });
+        if !visible && let Some(view) = ui.get_render_view(name) {
+            view.set_image_handle(None);
+        }
+        !visible
+    }
 
     pub(crate) fn native_scene_tick_redraw(&self, running: bool, tick: bool) -> bool {
         running
@@ -269,6 +284,22 @@ impl Editor {
 }
 #[cfg(test)]
 impl Editor {
+    pub(crate) fn native_pixel_dock_for_test(&mut self, ui: &mut TheUI, ctx: &mut TheContext, open: bool) {
+        if open {
+            self.server_ctx.game_mode = false;
+            self.server_ctx.game_input_mode = false;
+            self.server_ctx.text_game_mode = false;
+            let region = self.documents.project.regions.first().unwrap().id;
+            self.server_ctx.pc = ProjectContext::Region(region);
+            self.server_ctx.curr_region = region;
+            self.server_ctx.editing_surface = None;
+            self.server_ctx.profile_view = None;
+            assert!(self.documents.project.get_map(&self.server_ctx).is_some());
+            DOCKMANAGER.write().unwrap().set_editor_dock("Tiles".into(), ui, ctx, &self.documents.project, &mut self.server_ctx);
+        } else {
+            DOCKMANAGER.write().unwrap().minimize(ui, ctx, &self.documents.project, &mut self.server_ctx);
+        }
+    }
     pub(crate) fn native_camera_mode_for_test(&mut self, mode: EditorViewMode) -> EditorViewMode {
         std::mem::replace(&mut self.server_ctx.editor_view_mode, mode)
     }

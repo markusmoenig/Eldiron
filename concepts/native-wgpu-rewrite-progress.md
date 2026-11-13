@@ -27,7 +27,7 @@ Started: 2026-11-11 (Asia/Bangkok). Overall Goal: active; full M0–M9 scope rem
 - M4: in progress. CPU schema/identity extraction, shared `GameSession`, CPU startup preparation, message/party/world-target policies and terminal adoption are implemented and tested. Per-session routing, local players, world values, runtime IDs and region context ownership now pass controlled overlapping-session and parallel assembled-player regressions. Graphical clients adopt GameSession; Creator shares its clock/output pump and runtime-owned PlayerInput. Text Play state is now Editor-owned and uses explicit CPU runtime borrows. Canonical Creator Play now owns a separate runtime Project projection; startup/warmup, entities/generated geometry and time no longer mutate authored Documents. The Console also consumes explicit addressed CPU inspections and rejects stale runtime actor links/history without reading the global server or authored entity fallbacks. Native Creator now owns its GameSession server/assets/current-map/clock/audio lifetime and advances from host elapsed time independently of rendering. Reference storage/start-menu/source bridges and remaining bitmap/value data extraction remain; this evidence does not establish full simultaneous Creator Play workflows.
 - M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Immutable ordinary editor-view preparation, exact reference/native view outputs and retained CPU chunk publication are now available through SceneViews. Common HUD, paint/props panels, profile displays and ViewCube now have retained command frames, guarded input and actual GPU composition/reconstruction evidence. Six standard tools additionally emit ordered typed overlay aggregates with exact presented-frame and detail-profile source guards. Full-viewport profile editing is now connected to the actual native Creator root with document/widget binding, presentation-gated input and inline commit/cancel; ordinary stopped top-down, sprite-isometric and 3D region rendering and the six standard tool overlays now use the same native application owner and real tool dispatch. Orbit/orthographic/first-person views include depth-aware guides, retained ViewCube and explicit tool query snapshots; surface paint uses the view-owned GPU scene. The Terrain tool now also uses retained native controls and GPU brush guides with real sculpt/cancel integration. Rect now also uses presentation-gated composition/rotation controls, shared source sprite previews blitted on the GPU, terrain-conforming perimeters, and view-owned 3D queries; actual isometric placement and fractional-DPI sprite sampling pass in the assembled checkpoint. Isometric terrain Paint now also uses retained native controls, batched GPU brush feedback, update-phase editable source publication and the existing authoring/undo dispatch. Native 3D Paint now also consumes dedicated scene-owned paint-coordinate queries and explicit authoring surface captures, with camera-scoped drafts and GPU composition; full Paint workflow/platform parity remains unverified. The isolated Prefab viewport now also uses native top-down/isometric/3D outputs, live effects with hierarchy-aware owned drags, and actual 3D Paint authoring on its asset-owned layer. Paint now shares the normal tile picker; its settings live only in the viewport overlay. The canonical Creator Play toolbar now owns the same CPU clock/output pump as GameSession, and its live authoring viewport keeps its own native SceneView. The authored Game-tool viewport now also uses the common GameScreenController/SceneViews/Swash presentation; authoring GameInput now also shares runtime controls while retaining the native scene in supported contexts. Region geometry, ordinary scene and sprite-isometric minimaps now have owned GPU outputs and presentation-scoped navigation; palette and rig previews also have retained native sources and acknowledged palette input. Authored screen minimaps now also use a GPU-only ordered 2D overview producer with compatible source sampling and acknowledged screen-scoped navigation. Parent-region minimaps during Prefab/profile/detail editing also have independent native source production and presented-parent navigation without modifying the isolated editor map. Main native authoring static geometry/readiness/billboards now use an application-owned bounded CPU source, retained across GPU reconstruction and isolated from clipboard projections. Remaining uncommon contexts/tools retain explicit migration adapters. Application/global/document/Play ownership, main world/tool/HUD integration, remaining producers, full visual/workflow/performance acceptance and canonical retirement remain.
 - M6: in progress. Independent GPU game views, common player/input/camera components, authored screen paint, private world descriptions, view-owned speech, acknowledged-frame world pointer gestures, relative first-person mouse look, default/world-intent cursors, world/UI item drag previews and acknowledged authored inventory/equipment pointer/keyboard gestures are implemented. Application-owned audio is integrated into the common player with cancellable CPU preparation jobs. The native container HUD now includes acknowledged paint/input, real server transfers, scrolling, GPU recovery and navigation lifetime. Floating inventory/equipment, action catalogue/spellbook and preferences now use typed native HUD owners, retained text/source resources and acknowledged input. Acknowledged UI-origin tooltips now use retained text and host deadlines. UI-origin Drop cursors and acknowledged drag/assignment highlighting now have GPU and authoritative transfer evidence. Native isometric source production, shared CPU source publication, game-view outputs and acknowledged input receipts now have GPU/CPU and shipped-source device-reconstruction evidence. Persistent region 3D paint now also crosses the CPU asset boundary into independent per-view GPU uploads; actual painted browser rendering/device recovery and native integration pass. Browser worker hosting, uncommon Prefab/stamp/live paint publication, remaining game-mode/HUD policy parity and performance acceptance remain. Canonical native desktop launchers now share the common application/host; see launcher verification below.
-- M7/M8/M9: Retirement and platform/full acceptance pending. Canonical desktop clients share one common player; the Xcode client now uses it through the retained ABI over a Rust-created CAMetalLayer surface. Native/ARM64 simulator app bundles link, and real Swift/static-library and registered-scene layer checks pass. Browser player bootstrap, text/IME, supplied CJK/Cyrillic fonts and 3D/persistent-paint outputs now pass actual rendering and device-recovery cases through the shared path. Browser Creator, full text/image/platform/performance parity and the versioned/document Creator wrapper remain; this is not complete application/platform parity.
+- M7/M8/M9: Retirement and full platform acceptance remain pending. Canonical desktop clients share the common player; the Xcode client and versioned Creator host use Rust-created CAMetalLayer surfaces with retained compatibility exports. Addressed document load/save, owned CPU transfers and application lifetime checks have compiled/linked/runtime evidence. Browser player and Creator now use the shared WebGPU host, with actual source loading, Swash/fallback/IME, scene/pixel/material rendering, explicit asset bakes, OPFS save, addressed cancellation and idle device recovery evidence below. Physical native/monitor/clipboard/mobile workflows, remaining ownership/adapter retirement, resource budgets and measured release performance remain open. Compile checks and detached-layer tests do not establish complete platform parity.
 
 ## Native window validation correction (2026-11-12)
 
@@ -8335,3 +8335,264 @@ M5/M8 final bounded asset-bake checkpoint evidence:
   sender/result changes (material-asset-reference-final.log); final staged diff
   passes whitespace checks. This closes the checks for this implementation batch,
   while the full M0–M9 objective and recorded acceptance gaps remain active.
+
+
+M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
+- Last completed asset-bake checkpoint is9964c9dc; browser baseline8304e9a6.
+ Unrelated networking-mmo-concept.md remains untracked/untouched.
+- New framework platform/image_clipboard.rs transports shared CPU ImageAsset,
+ bounded PNG codec (64MiB/8192dimension, straight sRGB). New neutral image requests
+ and addressed InputEvent completion are separate from existing text clipboard.
+ UiSession drains a bounded application request queue; Winit owns native arboard
+ or asynchronous browser ClipboardItem/Blob PNG read/write, with no Canvas2D,
+ GPU capture or document access. No dependency version change; web-sys Blob flags.
+- TilesEditorDock new tiles_editor_clipboard.rs stages source/selection/focus/
+ monotonic request/history revision. Cut mutates only on Written(true) while all
+ source guards still agree; failures/wrong IDs/changed selection/source/focus/
+ history/closed document preserve pixels. Paste completion stages ordinary CPU
+ asset preview, then existing apply/undo commits it. Project/dock activation
+ clears pending owners. NativeApp routes results through document authoring
+ owner. Reference CPU arboard path retained, but Cut now checks set_image success
+ before deleting (old code ignored failure). No serialized project changes.
+- Apple Creator owned host wrapper now retains one immutable request-addressed
+ PNG for size query/copy (undersized output untouched) and version1 image-result
+ callbacks. Stale host/request IDs rejected; Swift macOS/iOS NSPasteboard/
+ UIPasteboard service owns its image. Existing text/document/legacy ABIs retained.
+ Client foreign host explicitly declines image operations (no authoring image
+ consumer), delivering failure; caught/fixed map-variable shadowing compile error.
+- Native framework check passed1.24s; Creator native21.15s; browser20.18s;
+ Creator staticlib39.46s; client native-player final check0.44s. Logs under
+ /private/tmp/eldiron-image-clipboard-*. These are compile evidence only.
+- Swift first typecheck mistakenly selected Swift6; pre-existing NativeTextClient
+ actor-isolation warnings become errors at6. Project config SWIFT_VERSION=5.0;
+ configured Swift5 macOS/iOS checks running/logged swift-configured-{macos,ios}.
+ No unrelated shared text source changed. Staticlib actual build/native-link libs
+ passed36.09s (staticlib-link-deps.log). Need linked detached-layer/lifetime check.
+- Extended EXISTING assembled minimap source workflow (same two alpha-rich tile
+ frames) with failed/wrong/source-changed/revision-roundtrip/document-reset Cut,
+ exact alpha PNG roundtrip, confirmed Cut/Undo and staged Paste/Apply/Undo.
+ Initial assembled Metal FAILED at98.25s because RGBALayout's default visible
+ traversal visits its empty `widgets` vector, skipping separately owned RGBA view.
+ Production scope would likewise reject valid pixel clipboard focus. Added
+ visit_visible_widgets override matching its actual paint children and scrollbars.
+ Final build visible-build.{log,json} running. Do not claim contracts passed yet.
+- Next run existing ELDIRON_NATIVE_TILE_BOARD_ONLY=1 focused path using final
+ built executable, fix any remaining errors, then assembled integration. Finish
+ configured Swift checks, link/run Xcode/Tests/NativeCreatorHostCheck against new
+ staticlib, reference feature compile, actual task browser ClipboardItem PNG
+ adapter/pixel-authoring failure/stale/document workflow and feature boundaries.
+ Avoid touching user's system clipboard for tests: use controlled responses in
+ task-owned browser if isolation cannot be established; physical permissions and
+ OS clipboard acceptance then remain unverified, not passed. Browser currently
+ 9251/profile eldiron-creator-asset-bake-9251; server8898. Current served Creator
+ bundle is ASSET-BAKE checkpoint only, not new clipboard code (package still needed).
+- Full Goal stays ACTIVE. Renderer globals, CPU adapter retirement, other worker
+ contexts, resource/performance baselines and physical platform matrix remain open.
+
+- Image clipboard focused fix verified: existing ELDIRON_NATIVE_TILE_BOARD_ONLY=1
+  assembled Metal path passed1/8.46s after RGBA visible traversal override. All
+  new failed/wrong/source/revision/document Cut, confirmed Cut/Undo, PNG alpha
+  and Paste/Apply/Undo assertions pass using existing tile source, no OS clipboard.
+  /private/tmp/eldiron-image-clipboard-visible-focused-metal.log; build41.05s.
+  Full assembled rerun assembled-final-metal.log now running (prior98.25s failure
+  remains recorded above). No acceptance from that rerun until inspected.
+- Configured Swift5 macOS and iOS adapter checks both pass; log files
+  swift-configured-{macos,ios}.log. Swift6-only pre-existing text isolation issue
+  remains distinct; no text source was edited to suppress it.
+- Real Creator staticlib build/native link dependencies passed36.09s; linked
+  Xcode/Eldiron/Tests/NativeCreatorHostCheck.swift successfully and actual Metal
+  detached-layer run passed: Native Creator CAMetalLayer/handle/document
+  transactions passed; both Scepter listener binds succeed across recreate.
+  /private/tmp/eldiron-image-clipboard-swift-host-{link,runtime}.log. No physical
+  OS clipboard or input-method test was performed. New PNG FFI compiles and old
+  host/document/lifecycle behavior works; actual PNG FFI copy/write path still
+  needs exercise when a pixel controller supplies an image operation.
+- New browser optimized packaging pipeline image-clipboard-browser-package.log
+  running; same server8898 and task Chrome9251 remain available. Need clean page
+  with new package then real pixel editor input + controlled ClipboardItem/Blob
+  success/failure/late-document callbacks without changing user's OS clipboard.
+
+- Full assembled native Creator after scope fix passed1/139.93s
+ (image-clipboard-assembled-final-metal.log). Reference desktop compile passed
+ 18.73s (image-clipboard-reference-check.log). Browser clipboard package built
+ 97,950,786B, booted doc52e6e2fe-ec13-4657-820d-d411cf4bdb7c gen1→2,3→4 frames,
+ root/readback/Canvas2D/colorCopies0, errors[]. Controlled navigator clipboard
+ uses REAL browser ClipboardItem/Blob objects but no actual OS clipboard calls;
+ physical clipboard permission/OS behavior remains unverified.
+- Browser QA then FAILED GPU architecture gate opening pixel editor. Temporary
+ shipped3DStarter variant changes ONLY alias of existing bitmap tile
+ a41cf692-e03b-4579-a8e9-3d77972d1858 to `Clipboard source`;16x16 source hash
+ 8be1113635d3eac21e1401c713ad7178e3843a52261ec95733989a860063528f.
+ Path /private/tmp/eldiron-browser-player/creator/Clipboard3D.eldiron (original
+ repo fixture untouched), source analysis image-clipboard-source.json.
+ Script filtered that alias but clicked the FIRST EMPTY sparse board slot;
+ matching tile is SECOND slot at CSS142,706. Ctrl+[ did correctly open empty
+ pixel editor (Tile size0/frames0). Need correct actual selection on retry.
+- Crucially, while pixel editor replaces the visible map canvas, Editor.update_ui
+ still falls through legacy scene rendering: native_world_owns_viewport is false
+ for editor tools but valid project map makes native_empty_viewport false. The
+ hidden PolyView renders and downloads1169x771 RGBA8 every update. Actual JS
+ samples: encoder scenevm-Texture-dl-encoder, texture scenevm-Texture, rgba8unorm;
+ readback totals in shared renderkit context falsely remain0 because this is the
+ legacy renderer's domain. image-clipboard-copy-diagnostic.log; colorCopies2456
+ at diagnostic and5330 by closing editor. This is real hidden color readback,
+ not integer picking. Cannot claim browser pixel-editor GPU acceptance passed.
+ Closed only the task editor with Ctrl+] to stop it while fixing.
+- Added native_hidden_viewport(ui,name): traverse actual visible canvas widgets,
+ retire hidden derived scene display storage, suppress legacy world drawing only
+ when that scene widget is hidden. Visible unmigrated contexts remain explicit
+ remaining migration work; this does NOT blanket-hide unsupported views.
+ Added regression in existing native document workflow: valid region map +
+ visible pixel dock, update twice, hidden PolyView must have NO CPU storage.
+ New native build image-clipboard-hidden-world-build.{log,json} and browser
+ package image-clipboard-hidden-world-package.log are running. Need inspect,
+ rerun assembled check (failed new concern justifies it) and actual browser pixel
+ source with corrected sparse-board selection + clipboard flows. Do not reuse
+ current browser GPU context for loss tests: old failed path may have created a
+ legacy device and overwritten probe.__eldironDevice. Use clean page after fix.
+
+- Hidden scene fix actual verification: new valid-map/pixel-editor native
+ regression passes in full assembled Metal1/125.86s (hidden-world-metal.log).
+ Browser new package97,961,954B boots with one device per generation, no legacy
+ device; doc120ca865-3947-4c13-890b-265a83b19358 gen1→2, colorCopies0. Corrected
+ actual sparse-board selection CSS142,706 opens real16x16 tile, new doc
+ 698b8cd4-da87-44b9-b0a4-6f255c635b0b,18 frames/gen2, devices2 exactly,
+ all GPU color copies/readback/Canvas2D/rootCPU0, errors[]. Screenshot inspected
+ (selected-pixel-look.log); actual pixel grid and source texture visible.
+ Source selection stores an initial tile-board position, making doc dirty before
+ clipboard; save baseline before asserting clipboard-specific dirty state.
+- Clipboard Save/Undo review found existing TileEditorDock.mark_saved set
+ undo.index=-1, discarding undo availability after successful save. Added separate
+ Option<saved_index> checkpoint in TileEditorUndo (ephemeral, not serialized),
+ preserving cursor/history through save; branch replacement invalidates lost
+ saved checkpoint; retention shifts/retires it appropriately. Existing assembled
+ source helper now checks confirmed Cut→Save→Undo source/dirty correctness,
+ different branch at same cursor, retained and evicted saved checkpoints.
+ Final focused test saved-history-focused-metal.log running after build22.58s.
+ No extra fixture suite or platform clipboard access added.
+- Saved-history browser package97,926,321B built37.56s, includes Undo model and
+ hidden-world fix; current browser still runs preceding package. One subsequent
+ small source-guard change retires an older pending image intent at the start of
+ ANY new image command, even if new request cannot be admitted. Native final
+ build includes it; final browser repackage after checks still needed.
+ Browser bootstrap now disables target cache and counts actual device requests.
+ Next fresh page, initial Clipboard3D variant, filter/select second board cell,
+ Ctrl+[ actual pixel editor. Use real OPFS save baseline, selection tool CSS25,310,
+ pixel source origin approxCSS410,95 and47.2CSS/pixel. Select pixels1,1→2,1 by
+ dragging around480,166→527,166; real ClipItem PNG should be2x1. Controlled
+ navigator.__imageClipboard.mode fail/success/hold verifies callbacks with real
+ Blob/ClipboardItem; do NOT use OS clipboard. Full image RGBA source hash kept
+ in /private/tmp/eldiron-image-clipboard-source.json. Save/Undo source payloads
+ can be inspected via real OPFS archives; loader/file services already verified.
+
+
+### Image clipboard browser/source integration (2026-11-13)
+
+- Saved-history focused Metal check passed1/8.12s. Full assembled native Creator
+  passed1/126.97s after all pixel history/source guards (final-assembled-metal.log).
+  An initial invocation accidentally set ELDIRON_NATIVE_TILE_BOARD_ONLY=0; that
+  switch checks presence, so it was focused-only. The126.97s result is the rerun
+  with the variable absent. Do not count the focused invocation as assembled.
+- Final browser package97,926,478B compiled35.33s. Actual disposable Chrome9251
+  booted docbd7182ea-2263-4720-81d1-df7e2e94dbad and idle recovery gen1→2,
+  devices2 exactly; root/color-readback/Canvas2D/normal color copies0, errors[].
+  Correct pixel editor source16x16 selected through real pointer/key input.
+- Real PNG/ClipboardItem/Blob transport with controlled navigator.clipboard API:
+  failed Cut writes a2x1 PNG but leaves source and dirty state unchanged; success
+  clears exactly pixels(1,1),(2,1) to transparent, source hash6eb78740225da58248a8198791edfacdf11461f07c7a77ca60d94e79284ed333.
+  Confirmed OPFS Save→Undo restores original hash
+  8be1113635d3eac21e1401c713ad7178e3843a52261ec95733989a860063528f.
+  Decoded selection PNG exactly[(131,131,131,255),(113,98,125,255)].
+- Paste preview preserves original saved pixels. Apply honors current selection,
+  changing only(8,8) to(113,98,125,255), hash
+  a456bfe02cf033816375cf1ab4ca31b3ff0b1b89a5383306012a15bfa9401670.
+  Save→Undo restores original hash again. Initial Paste probe failed because
+  Escape globally minimizes the pixel dock; reopening then an incorrect sidebar
+  focus click also rejected intent as designed. With actual RGBA view focus it
+  reaches image read. An old selection outside the preview correctly prevents
+  application; replacing selection at8,8 permits it. No clipboard source fix
+  was required for these probe corrections. Logs browser-flow.log (partial),
+  browser-paste-focused.log (preview), browser-apply-paste.log (pass), all prefixed
+  /private/tmp/eldiron-image-clipboard-. Saved archives were parsed from their
+  project.json and exact RGBA compared, rather than ZIP timestamp comparison.
+- Held actual clipboard write Promise across document replacement; release did
+  not dirty/cut new doc64fdd075-d1d7-4a43-9c22-7296a2252e60 or inactive original.
+  Return to source tab then actual Save proves both source hashes unchanged.
+  browser-stale.log;71 completed presentations, gen2/devices2, root/readback/
+  colorCopies/Canvas2D0/errors[]. This controlled API is NOT physical clipboard
+  permissions/OS interoperability acceptance; those remain unverified.
+- All14 isolated dependency checks passed (final-boundaries.log); reference
+  Creator compile8.84s and final staticlib/native-link-deps build36.88s passed.
+  Expanded EXISTING Swift NativeCreatorHostCheck to drive real pixel Copy and
+  inspect actual owned PNG query/copy/undersize/stale/failed-ack retirement.
+  First Swift link was sandbox-denied at default clang cache; rerunning with
+  explicit module cache under /private/tmp. New PNG runtime result still pending.
+- Full M0–M9 Goal remains ACTIVE; no milestone declared complete by this batch.
+
+- Browser pixel editor additionally recovered gen2→3 while visible, retaining
+  document/dirty/source and exactly one device per generation; still no normal
+  color copies, Canvas2D/rootCPU/readback or GPU errors. Actual GPU screenshot
+  inspected and saved as native-wgpu-evidence/browser-creator-pixel-recovered.png.
+  /private/tmp/eldiron-image-clipboard-pixel-recovery.log. iOS simulator Rust
+  staticlib feature check passed25.22s (final-ios-rust.log).
+- New foreign PNG runtime probe failed to reach image_write, even after waiting
+  for scheduled updates. Added focused_widget to existing foreign-host diagnostic
+  JSON; real captured state proves PolyView, not the pixel editor, owns focus.
+  The filter text responder is valid. Cause: synthetic bracket shortcut releases
+  modifiers before Editor's deferred Sidebar KeyDown handling tests ui.ctrl/logo.
+  Both Ctrl and Command variants were tried, so the initial modifier interpretation
+  alone was insufficient. Current probe pumps once while modifier is held to open
+  the actual editor; pending result. This reveals a real fast-key/deferred modifier
+  lifetime gap to repair in the next input batch, not clipboard acceptance proof.
+  Existing immediate accelerator Copy/Cut dispatch does not depend on that late
+  Sidebar modifier read. Full Goal remains active; do not discard failed evidence.
+
+- Holding Command until the scheduled update proves bracket shortcut reaches
+  the actual pixel view (focused_widget now Tile Editor Dock RGBA Layout View),
+  confirming the deferred modifier bug. PNG Copy still failed after10s: real M9
+  menu bug found. rust_edit_command synthesized Command key pairs, but native
+  hosts without an in-canvas menubar accelerator registration do not route those
+  keys into global authoring Copy/Cut/Paste. Native text responders can consume
+  the same keys, masking the authoring gap. Replaced synthesis with the existing
+  named Editor StateChanged action route, which already selects focused native
+  editor vs document/dock undo/clipboard semantics. Build/Swift PNG recheck pending.
+
+- Final real Swift/staticlib PNG integration PASSED after direct menu action
+  dispatch. Owned16x16 PNG query/copy/decode, undersized untouched sentinel,
+  stale request/host rejection, failed/duplicate write completion, real decoded
+  PNG read callback and null/over64MiB input guards all pass alongside prior
+  surface/handle/document/recreation checks. Both Scepter binds pass after
+  destroy/recreate. final-swift-host-runtime.log ends Native Creator
+  CAMetalLayer/handle/document/PNG transactions passed. Final staticlib16.73s,
+  Swift link0. Diagnostic-only verbose print statements subsequently removed
+  from the check; its functional assertions are unchanged.
+- Final source review found browser image tasks could otherwise accumulate if
+  platform clipboard promises never settle, despite per-image/per-frame limits.
+  Added per-host two-flight admission and RAII slot retirement. Saturation routes
+  addressed failure and drops the rejected payload, preserving Cut source. This
+  is a concrete bounded queue policy, not complete peak-memory acceptance.
+  Browser optimized package and actual held-promise saturation/release test are
+  running; prior live page does NOT yet contain the new cap.
+- Next coherent input batch: capture modifier state with deferred key events so
+  Command/Ctrl release before a host update cannot erase Sidebar/tool shortcuts.
+  Also verify foreign named non-text keys (Enter/Escape/navigation), whose ABI
+  currently supplies physical identity with LogicalKey::Other. Preserve existing
+  text-responder physical commands and reference behavior; fix from actual FFI
+  evidence. Then continue renderer/global/adapter retirement and remaining gates.
+
+- Two-flight browser clipboard cap verified in actual new package97,933,239B,
+  release1m13s: boot/recovery doc0a14bd74-6c49-4cdf-84b8-960a4963dba2 gen1→2
+  normal transfer/root/Canvas2D0/errors[]. Two real ClipboardItem PNG write
+  Promises held; third Cut rejected without entering navigator.write (writes2)
+  and leaves source clean. Releasing both retires slots; next Cut succeeds
+  (writes3), clears exactly pixels1,1/2,1; Save→Undo returns exact original hash.
+  All four real OPFS archives parsed/compared. bounded-rejected-cut and
+  bounded-undo match8be1113635d3eac21e1401c713ad7178e3843a52261ec95733989a860063528f;
+  admitted Cut matches prior6eb78740225da58248a8198791edfacdf11461f07c7a77ca60d94e79284ed333.
+  /private/tmp/eldiron-image-clipboard-{bounded-bootstrap,browser-bounded}.log;
+ 32 completed presentations, devices2/gen2, readback/root/colorCopies/Canvas2D0.
+- Clipboard integration is ready for a local checkpoint. Next implement the
+  proven deferred-key modifier lifetime fix and foreign named-key adaptation,
+  then resume remaining M0–M9 implementation. No physical clipboard, locked
+  native window, real monitor, Windows/Linux/mobile or release-budget gate is
+  reclassified as passed. Unrelated networking concept remains untouched.

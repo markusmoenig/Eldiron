@@ -187,6 +187,7 @@ impl<A: UiApplication> UiApplicationAdapter<A> {
             .ui
             .synchronize_editor_scope(&mut self.session.context);
         host.requests.append(&mut self.session.requests);
+        host.requests.extend(self.session.context.ui.image_clipboard.drain(..).map(HostRequest::ClipboardImage));
         host.cursor = self.session.context.cursor_icon();
         host.cursor_visible = self.session.context.cursor_visible();
         for request in self.session.context.ui.editor_clipboard.drain(..) {

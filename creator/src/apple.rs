@@ -8,18 +8,26 @@ use std::{
 };
 use theframework::platform::*;
 
+mod image_clipboard;
 mod owner;
 mod v1;
 
 type CreatorHost = ForeignApplicationHost<UiApplicationAdapter<NativeCreatorApplication>>;
+struct HostedCreator {
+    app: CreatorHost,
+    clipboard_png: Option<(u64, Vec<u8>)>,
+}
 unsafe extern "C" {
     fn pthread_main_np() -> i32;
 }
 thread_local! {
-    static APP: RefCell<owner::Owner<CreatorHost>> = const { RefCell::new(owner::Owner::new()) };
+    static APP: RefCell<owner::Owner<HostedCreator>> = const { RefCell::new(owner::Owner::new()) };
 }
 
 fn with_app<T: Default>(f: impl FnOnce(&mut CreatorHost) -> T) -> T {
+    with_hosted(|host| f(&mut host.app))
+}
+fn with_hosted<T: Default>(f: impl FnOnce(&mut HostedCreator) -> T) -> T {
     if unsafe { pthread_main_np() } == 0 {
         return T::default();
     }
@@ -30,6 +38,22 @@ fn with_app<T: Default>(f: impl FnOnce(&mut CreatorHost) -> T) -> T {
         eprintln!("[EldironCreator] Panic in native callback");
         T::default()
     })
+}
+fn with_hosted_handle<T>(handle: u64, f: impl FnOnce(&mut HostedCreator) -> T) -> Option<T> {
+    if handle == 0 || unsafe { pthread_main_np() } == 0 {
+        return None;
+    }
+    catch_unwind(AssertUnwindSafe(|| {
+        APP.with(|app| {
+            let mut app = app.try_borrow_mut().ok()?;
+            if app.id() != handle {
+                return None;
+            }
+            app.as_mut().map(f)
+        })
+    }))
+    .ok()
+    .flatten()
 }
 
 unsafe fn presenter(
@@ -69,7 +93,13 @@ pub unsafe extern "C" fn rust_init(
                 )
             });
             match result {
-                Ok(host) => app.borrow_mut().install(host).is_some(),
+                Ok(host) => app
+                    .borrow_mut()
+                    .install(HostedCreator {
+                        app: host,
+                        clipboard_png: None,
+                    })
+                    .is_some(),
                 Err(e) => {
                     eprintln!("[EldironCreator] {e}");
                     false
@@ -290,38 +320,19 @@ pub extern "C" fn rust_get_creator_theme() -> u32 {
 /// Native Edit menu commands use the same controller/clipboard route as keys.
 #[unsafe(no_mangle)]
 pub extern "C" fn rust_edit_command(code: u32) {
-    let (letter, shift) = match code {
-        0 => (b'x', false),
-        1 => (b'c', false),
-        2 => (b'v', false),
-        3 => (b'z', false),
-        4 => (b'z', true),
+    // Native menus must enter the same document/widget action route directly.
+    // Synthesizing transient Command modifiers loses deferred authoring actions
+    // when this host has no in-canvas menubar accelerator registration.
+    command(match code {
+        0 => "Cut",
+        1 => "Copy",
+        2 => "Paste",
+        3 => "Undo",
+        4 => "Redo",
         _ => return,
-    };
-    with_app(|app| {
-        let ui = &app.application.session.ui;
-        let old = Modifiers {
-            shift: ui.shift,
-            control: ui.ctrl,
-            alt: ui.alt,
-            super_key: ui.logo,
-        };
-        app.input(&InputEvent::Modifiers(Modifiers {
-            super_key: true,
-            shift,
-            ..Default::default()
-        }));
-        for pressed in [true, false] {
-            app.input(&InputEvent::Key {
-                physical: PhysicalKey::Letter(letter),
-                logical: LogicalKey::Character((letter as char).to_string()),
-                pressed,
-                repeat: false,
-            });
-        }
-        app.input(&InputEvent::Modifiers(old));
     });
 }
+
 #[unsafe(no_mangle)]
 pub extern "C" fn rust_undo() {
     rust_edit_command(3);
@@ -333,7 +344,8 @@ pub extern "C" fn rust_redo() {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rust_take_requests() -> *mut c_char {
-    with_app(|app| {
+    with_hosted(|host| {
+        let app = &mut host.app;
         let mut requests: Vec<_> = std::mem::take(&mut app.host.requests)
             .into_iter()
             .map(|r| match r {
@@ -345,6 +357,21 @@ pub extern "C" fn rust_take_requests() -> *mut c_char {
                 }
                 HostRequest::ClipboardWrite { text, request } => {
                     serde_json::json!({"kind":"write","text":text,"request":request})
+                }
+                HostRequest::ClipboardImage(ImageClipboardRequest::Read { request }) => {
+                    serde_json::json!({"kind":"image_read","request":request})
+                }
+                HostRequest::ClipboardImage(ImageClipboardRequest::Write { request, image }) => {
+                    host.clipboard_png = Some((
+                        request,
+                        theframework::platform::image_clipboard::encode_png(&image)
+                            .unwrap_or_default(),
+                    ));
+                    let length = host
+                        .clipboard_png
+                        .as_ref()
+                        .map_or(0, |(_, bytes)| bytes.len());
+                    serde_json::json!({"kind":"image_write","request":request,"length":length})
                 }
             })
             .collect();
@@ -360,6 +387,7 @@ pub extern "C" fn rust_take_requests() -> *mut c_char {
             .into_raw()
     })
 }
+
 #[unsafe(no_mangle)]
 pub extern "C" fn rust_host_state() -> *mut c_char {
     with_app(|app| {
@@ -388,6 +416,7 @@ pub extern "C" fn rust_host_state() -> *mut c_char {
             "root_cpu_bytes": app.application.session.ui.canvas.buffer.pixels().len(),
             "readback_bytes": app.presenter.context().transfers().readback_bytes,
             "text_input": input,
+            "focused_widget": app.application.session.context.ui.focus.as_ref().map(|id| id.name.as_str()),
         });
         CString::new(state.to_string()).unwrap().into_raw()
     })

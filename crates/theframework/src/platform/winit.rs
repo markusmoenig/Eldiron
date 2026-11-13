@@ -17,17 +17,23 @@ use web_time::{Duration, Instant};
 
 #[cfg(target_arch = "wasm32")]
 mod web_text;
+#[path = "winit_image_clipboard.rs"]
+mod image_clipboard;
 
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
 type ClipboardState = Option<arboard::Clipboard>;
 #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
 #[derive(Default)]
-struct ClipboardState;
+struct ClipboardState {
+    #[cfg(target_arch = "wasm32")]
+    image_in_flight: std::rc::Rc<std::cell::Cell<usize>>,
+}
 
 enum HostEvent {
     GpuFault(u64),
     Ready(u64, Result<GpuPresenter<'static>>),
     Clipboard(u64, ClipboardResult),
+    ClipboardImage(u64, ImageClipboardResult),
     #[cfg(target_arch = "wasm32")]
     BrowserInput(InputEvent),
     #[cfg(target_arch = "wasm32")]
@@ -387,6 +393,9 @@ impl ApplicationHandler<HostEvent> for Host {
             HostEvent::Clipboard(request, result) => {
                 self.route(InputEvent::Clipboard { request, result });
             }
+            HostEvent::ClipboardImage(request, result) => {
+                self.route(InputEvent::ClipboardImage { request, result });
+            }
             HostEvent::Ready(epoch, result) => {
                 if epoch != self.epoch {
                     return;
@@ -665,6 +674,9 @@ impl ApplicationHandler<HostEvent> for Host {
                 }
                 HostRequest::ClipboardWrite { text, request } => {
                     write_clipboard(&mut self.clipboard, text, request, self.proxy.clone());
+                }
+                HostRequest::ClipboardImage(operation) => {
+                    image_clipboard::run(operation, &mut self.clipboard, self.proxy.clone());
                 }
                 HostRequest::Title(title) => {
                     if let Some(w) = &self.window {

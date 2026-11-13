@@ -377,6 +377,7 @@ impl TheUI {
             | InputEvent::FileDropped(_)
             | InputEvent::Clipboard { .. }
             | InputEvent::TextFor { .. }
+            | InputEvent::ClipboardImage { .. }
             | InputEvent::CompositionFor { .. }
             | InputEvent::NativeText { .. } => {}
         }

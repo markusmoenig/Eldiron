@@ -668,12 +668,9 @@ pub unsafe extern "C" fn unified_app_runner_take_requests(
         clear_output(out, len);
     }
     call(ptr, |r| {
-        let requests = r
-            .core
-            .host
-            .requests
-            .iter()
-            .map(|r| match r {
+        let requests = std::mem::take(&mut r.core.host.requests)
+            .into_iter()
+            .map(|command| match command {
                 HostRequest::Exit => serde_json::json!({"kind":"exit"}),
                 HostRequest::Fail(message) => serde_json::json!({"kind":"error","message":message}),
                 HostRequest::Title(title) => serde_json::json!({"kind":"title","title":title}),
@@ -682,6 +679,14 @@ pub unsafe extern "C" fn unified_app_runner_take_requests(
                 }
                 HostRequest::ClipboardWrite { text, request } => {
                     serde_json::json!({"kind":"clipboard_write","text":text,"request":request})
+                }
+                HostRequest::ClipboardImage(operation) => {
+                    let (request,result)=match operation {
+                        ImageClipboardRequest::Read { request } => (request,ImageClipboardResult::Image(None)),
+                        ImageClipboardRequest::Write { request,.. } => (request,ImageClipboardResult::Written(false)),
+                    };
+                    r.core.input(&InputEvent::ClipboardImage { request,result });
+                    serde_json::json!({"kind":"clipboard_image_unavailable","request":request})
                 }
             })
             .collect::<Vec<_>>();
@@ -692,7 +697,6 @@ pub unsafe extern "C" fn unified_app_runner_take_requests(
                 len,
             )
         }?;
-        r.core.host.requests.clear();
         Ok(result)
     })
 }

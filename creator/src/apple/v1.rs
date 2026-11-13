@@ -8,20 +8,7 @@ fn valid(handle: u64) -> bool {
         && APP.with(|app| app.try_borrow().ok().is_some_and(|app| app.id() == handle))
 }
 fn with_host<T>(handle: u64, f: impl FnOnce(&mut CreatorHost) -> T) -> Option<T> {
-    if handle == 0 || unsafe { pthread_main_np() } == 0 {
-        return None;
-    }
-    catch_unwind(AssertUnwindSafe(|| {
-        APP.with(|app| {
-            let mut app = app.try_borrow_mut().ok()?;
-            if app.id() != handle {
-                return None;
-            }
-            app.as_mut().map(f)
-        })
-    }))
-    .ok()
-    .flatten()
+    with_hosted_handle(handle, |host| f(&mut host.app))
 }
 fn json(
     handle: u64,
@@ -70,7 +57,7 @@ pub unsafe extern "C" fn eldiron_creator_create_v1(
         let mut app = app.borrow_mut();
         #[cfg(not(target_os = "tvos"))]
         if let Some(host) = app.as_mut() {
-            host.application.application.host_enable_document_io();
+            host.app.application.application.host_enable_document_io();
         }
         app.id()
     })

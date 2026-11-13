@@ -178,6 +178,10 @@ pub enum InputEvent {
         request: u64,
         result: ClipboardResult,
     },
+    ClipboardImage {
+        request: u64,
+        result: super::ImageClipboardResult,
+    },
 }
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct InputResponse {

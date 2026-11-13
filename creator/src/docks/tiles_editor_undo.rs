@@ -140,6 +140,7 @@ impl TileEditorUndoAtom {
 pub struct TileEditorUndo {
     pub stack: Vec<TileEditorUndoAtom>,
     pub index: isize,
+    saved_index: Option<isize>,
 }
 
 impl Default for TileEditorUndo {
@@ -153,6 +154,7 @@ impl TileEditorUndo {
         Self {
             stack: vec![],
             index: -1,
+            saved_index: Some(-1),
         }
     }
 
@@ -163,6 +165,7 @@ impl TileEditorUndo {
     pub fn clear(&mut self) {
         self.stack = vec![];
         self.index = -1;
+        self.saved_index = Some(-1);
     }
 
     pub fn has_undo(&self) -> bool {
@@ -174,11 +177,18 @@ impl TileEditorUndo {
     }
 
     pub fn has_changes(&self) -> bool {
-        // Has changes if the index is not at the beginning (i.e., not fully undone)
-        self.index >= 0
+        self.saved_index != Some(self.index)
+    }
+
+    pub fn mark_saved(&mut self) {
+        self.saved_index = Some(self.index);
     }
 
     pub fn add(&mut self, atom: TileEditorUndoAtom) {
+        // A new branch cannot become clean by reusing the old branch's cursor.
+        if self.saved_index.is_some_and(|saved| saved > self.index) {
+            self.saved_index = None;
+        }
         // Remove any redo history
         let to_remove = self.stack.len() as isize - self.index - 1;
         for _i in 0..to_remove {
@@ -207,6 +217,10 @@ impl TileEditorUndo {
             let excess = self.stack.len() - limit;
             self.stack.drain(0..excess);
             self.index -= excess as isize;
+            self.saved_index = self
+                .saved_index
+                .and_then(|saved| saved.checked_sub(excess as isize))
+                .filter(|saved| *saved >= -1);
             if self.index < -1 {
                 self.index = -1;
             }

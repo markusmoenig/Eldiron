@@ -110,6 +110,9 @@ impl UiApplication for NativeCreatorApplication {
     }
 
     fn raw_input(&mut self, event: &InputEvent, ui: &mut UiSession) -> Option<InputResponse> {
+        if let InputEvent::ClipboardImage { request, result } = event {
+            return Some(self.editor.native_image_clipboard(*request, result, ui));
+        }
         if matches!(event, InputEvent::PointerButton { pressed: true, .. } | InputEvent::Key { pressed: true, .. }) { self.editor.native_runtime_audio_gesture(); }
         ui.ui.prepare_paint_layout(&mut ui.context);
         self.editor.track_native_world_navigation(event, ui);
@@ -2878,6 +2881,11 @@ mod tests {
         host: &mut HostContext,
         gpu: &Arc<GpuContext>,
     ) {
+        app.application.editor.native_pixel_dock_for_test(&mut app.session.ui, &mut app.session.context, true);
+        for _ in 0..2 { app.update(host, Duration::from_millis(16)); }
+        assert!(!app.session.ui.get_render_view("PolyView").unwrap().has_cpu_display_storage(), "a visible pixel editor must not allocate/read back its hidden world view");
+        app.application.editor.native_pixel_dock_for_test(&mut app.session.ui, &mut app.session.context, false);
+        for _ in 0..2 { app.update(host, Duration::from_millis(16)); }
         let before = gpu.transfers().readback_bytes;
         let mode = app.application.editor.native_camera_mode_for_test(crate::prelude::EditorViewMode::Iso);
         let idle_source = serde_json::to_value(app.application.editor.project_for_native_test()).unwrap();

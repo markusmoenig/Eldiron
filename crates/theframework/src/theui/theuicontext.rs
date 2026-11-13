@@ -36,6 +36,7 @@ pub struct TheUIContext {
     pub file_requests: std::collections::VecDeque<FileRequest>,
     /// Selects the framebuffer-free layout/paint path.
     pub command_paint: bool,
+    pub image_clipboard: std::collections::VecDeque<crate::platform::ImageClipboardRequest>,
     #[cfg(feature = "text")]
     pub input_transforms: FxHashMap<Uuid, crate::paint::Transform>,
     #[cfg(feature = "text")]
@@ -132,6 +133,7 @@ impl TheUIContext {
 
         Self {
             command_paint: false,
+            image_clipboard: std::collections::VecDeque::new(),
             #[cfg(feature = "text")]
             input_transforms: FxHashMap::default(),
             #[cfg(feature = "text")]

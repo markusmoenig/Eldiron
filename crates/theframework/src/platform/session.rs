@@ -11,6 +11,7 @@ pub enum HostRequest {
     Title(String),
     ClipboardRead { request: u64 },
     ClipboardWrite { text: String, request: Option<u64> },
+    ClipboardImage(super::ImageClipboardRequest),
 }
 /// Host metrics and requested platform state survive surface/device replacement.
 /// Logical positions use floating-point precision; density is applied once by

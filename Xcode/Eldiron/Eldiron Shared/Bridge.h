@@ -37,6 +37,9 @@ char *eldiron_creator_text_query_v1(uint64_t host, uint64_t target, uint64_t rev
 int32_t eldiron_creator_text_edit_v1(uint64_t host, uint64_t target, uint64_t revision, uint32_t kind, intptr_t start, intptr_t end, const uint8_t *data, uintptr_t length, intptr_t cursor_start, intptr_t cursor_end);
 bool eldiron_creator_key_v1(uint64_t host, uint32_t code, bool pressed, bool repeated, const char *logical);
 bool eldiron_creator_clipboard_complete_v1(uint64_t host, uint64_t request, bool write, bool success, const char *text);
+// Query/copy an owned PNG. Undersized output is untouched; stale requests return 0.
+uintptr_t eldiron_creator_clipboard_image_copy_v1(uint64_t host, uint64_t request, uint8_t *out, uintptr_t capacity);
+bool eldiron_creator_clipboard_image_complete_v1(uint64_t host, uint64_t request, bool write, bool success, const uint8_t *png, uintptr_t length);
 bool eldiron_creator_edit_command_v1(uint64_t host, uint32_t command);
 bool eldiron_creator_has_changes_v1(uint64_t host);
 // Commands 0..17: New, Open, Close, Save, Save As, Play, Pause, Stop,

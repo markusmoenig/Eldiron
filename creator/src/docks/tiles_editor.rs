@@ -1,6 +1,8 @@
 use crate::docks::tiles_editor_undo::*;
 use crate::editor::TOOLLIST;
 use crate::prelude::*;
+#[path = "tiles_editor_clipboard.rs"]
+mod clipboard;
 
 pub struct TilesEditorDock {
     zoom: f32,
@@ -21,6 +23,8 @@ pub struct TilesEditorDock {
     anim_preview: bool,
     paste_preview_texture: Option<rusterix::Texture>,
     paste_preview_pos: Option<Vec2<i32>>,
+    pending_clipboard: Option<clipboard::Pending>,
+    clipboard_revision: u64,
 }
 
 impl Dock for TilesEditorDock {
@@ -42,6 +46,8 @@ impl Dock for TilesEditorDock {
             anim_preview: false,
             paste_preview_texture: None,
             paste_preview_pos: None,
+            pending_clipboard: None,
+            clipboard_revision: 0,
         }
     }
 
@@ -281,6 +287,10 @@ impl Dock for TilesEditorDock {
         server_ctx: &mut ServerContext,
     ) -> bool {
         let mut redraw = false;
+
+        if let Some(redraw) = self.image_clipboard_event(event, ui, ctx, project, server_ctx) {
+            return redraw;
+        }
 
         match event {
             TheEvent::WidgetResized(id, _) if id.name == "Tile Editor Dock RGBA Layout View" => {
@@ -697,7 +707,8 @@ impl Dock for TilesEditorDock {
                         return redraw;
                     }
 
-                    // Copy selected pixels first.
+                    // The reference host also preserves source on clipboard failure.
+                    let mut copied = false;
                     if let Some(texture) = project.get_editing_texture(&server_ctx.editing_ctx) {
                         if let Ok(mut clipboard) = arboard::Clipboard::new() {
                             let min_x = selection.iter().map(|(x, _)| *x).min().unwrap_or(0);
@@ -729,15 +740,17 @@ impl Dock for TilesEditorDock {
                                 height: out_h,
                                 bytes: std::borrow::Cow::Owned(out),
                             };
-                            let _ = clipboard.set_image(img);
-                            ctx.ui.send(TheEvent::SetStatusText(
-                                TheId::empty(),
-                                fl!("status_tile_editor_cut_selection"),
-                            ));
+                            copied = clipboard.set_image(img).is_ok();
+                            if copied {
+                                ctx.ui.send(TheEvent::SetStatusText(
+                                    TheId::empty(),
+                                    fl!("status_tile_editor_cut_selection"),
+                                ));
+                            }
                         }
                     }
 
-                    if self.clear_current_selection(project, ui, ctx, server_ctx) {
+                    if copied && self.clear_current_selection(project, ui, ctx, server_ctx) {
                         redraw = true;
                     }
                 }
@@ -847,11 +860,13 @@ impl Dock for TilesEditorDock {
 
     fn mark_saved(&mut self) {
         for undo in self.tile_undos.values_mut() {
-            undo.index = -1;
+            undo.mark_saved();
         }
     }
 
     fn reset_for_project_switch(&mut self) {
+        self.pending_clipboard = None;
+        self.clipboard_revision = self.clipboard_revision.wrapping_add(1);
         self.tile_undos.clear();
         self.current_tile_id = None;
         self.current_undo_key = None;
@@ -867,6 +882,7 @@ impl Dock for TilesEditorDock {
         project: &mut Project,
         _server_ctx: &mut ServerContext,
     ) {
+        self.clipboard_revision = self.clipboard_revision.wrapping_add(1);
         if let Some(key) = self.current_undo_key {
             if let Some(undo) = self.tile_undos.get_mut(&key) {
                 undo.undo(project, ui, ctx);
@@ -882,6 +898,7 @@ impl Dock for TilesEditorDock {
         project: &mut Project,
         _server_ctx: &mut ServerContext,
     ) {
+        self.clipboard_revision = self.clipboard_revision.wrapping_add(1);
         if let Some(key) = self.current_undo_key {
             if let Some(undo) = self.tile_undos.get_mut(&key) {
                 undo.redo(project, ui, ctx);
@@ -1337,6 +1354,7 @@ impl TilesEditorDock {
 
     /// Add an undo atom to the appropriate undo stack (keyed by context)
     pub fn add_undo(&mut self, atom: TileEditorUndoAtom, ctx: &mut TheContext) {
+        self.clipboard_revision = self.clipboard_revision.wrapping_add(1);
         let key = match &atom {
             TileEditorUndoAtom::TileEdit(tile_id, _, _) => Some(*tile_id),
             TileEditorUndoAtom::ItemIconFramesEdit(item_id, _, _, _) => Some(*item_id),
@@ -1739,6 +1757,7 @@ impl TilesEditorDock {
         project: &Project,
         server_ctx: &mut ServerContext,
     ) {
+        self.pending_clipboard = None;
         let tile = match server_ctx.editing_ctx {
             PixelEditingContext::Tile(id, _) => Some(id),
             PixelEditingContext::None => server_ctx.curr_tile_id,

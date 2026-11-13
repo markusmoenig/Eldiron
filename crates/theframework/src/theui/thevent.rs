@@ -90,6 +90,7 @@ pub enum TheEvent {
     GraphClipboardIntent(TheId, std::sync::Arc<crate::thegraph::GraphClipboardIntent>),
     #[cfg(feature = "text")]
     GraphClipboardResult(TheId, u64, u64, crate::platform::ClipboardResult),
+    ImageClipboardResult(u64, crate::platform::ImageClipboardResult),
     RenderViewClicked(TheId, Vec2<i32>),
     RenderViewDragged(TheId, Vec2<i32>),
     RenderViewHoverChanged(TheId, Vec2<i32>),

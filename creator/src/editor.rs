@@ -9366,6 +9366,7 @@ impl TheTrait for Editor {
                     || self.native_world_owns_viewport()
                     || self.native_play_owns_viewport()
                     || self.native_empty_viewport()
+                    || self.native_hidden_viewport(ui, render_view_name)
                     // Text Play uses the native TextView in the visible stack.
                     // Its hidden PolyView must not render/read back a world.
                     || (self.native_viewport.enabled
@@ -13178,3 +13179,6 @@ impl EldironEditor for Editor {
 #[cfg(feature = "native-render")]
 #[path = "editor/native_views.rs"]
 pub(crate) mod native_views;
+#[cfg(feature = "native-render")]
+#[path = "editor/native_image_clipboard.rs"]
+mod native_image_clipboard;

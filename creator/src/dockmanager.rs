@@ -262,6 +262,12 @@ impl DockManager {
         server_ctx: &mut ServerContext,
     ) -> bool {
         let mut redraw = false;
+        if matches!(event, TheEvent::ImageClipboardResult(..)) {
+            for dock in self.docks.values_mut().chain(self.editor_docks.values_mut()) {
+                redraw |= dock.handle_event(event, ui, ctx, project, server_ctx);
+            }
+            return redraw;
+        }
         #[cfg(feature = "native-ui")]
         if matches!(
             event,

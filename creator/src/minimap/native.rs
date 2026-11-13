@@ -267,6 +267,8 @@ pub(crate) fn reference_cases() -> Vec<(&'static str, Arc<dyn RenderViewPaintSou
     project.tiles.insert(id, tile.clone());
     let mut server = ServerContext::new();
     server.editing_ctx = PixelEditingContext::Tile(id, 0);
+    #[cfg(feature = "native-render")]
+    TilesEditorDock::check_native_image_clipboard_for_test(&project, server.editing_ctx);
     let mut region = Region::new();
     server.curr_region = region.id;
     region.map.camera = MapCamera::TwoDIso;
