@@ -10,6 +10,7 @@ mod editor;
 mod isometric;
 mod picking;
 mod surface_paint;
+mod surface_output;
 pub use picking::{EditorPaintCapture, EditorPaintPick, EditorPick, EditorSurfacePick, ViewPick, ViewPickHit};
 
 /// Stable application/controller identity, independent of window/device lifetime.

@@ -231,3 +231,298 @@ fn tiles_compose_with_reference_pan_resize_alpha_sun_depth_and_retained_sources(
     assert!(error.to_string().contains("paging is required"));
     assert_eq!(context.transfers().uploaded_bytes, uploaded);
 }
+
+fn solid_gpu(context: &GpuContext, size: (u32, u32), bytes: [u8; 4]) -> Arc<GpuImage> {
+    let image = GpuImage::new(
+        context,
+        ImageDescriptor {
+            width: size.0,
+            height: size.1,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            color_space: ColorSpace::Srgb,
+            alpha_mode: AlphaMode::Premultiplied,
+        },
+    )
+    .unwrap();
+    let c = bytes.map(|v| f64::from(v) / 255.);
+    let mut encoder = context.device.create_command_encoder(&Default::default());
+    {
+        let _pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("GPU-only overlay fixture"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &image.view,
+                resolve_target: None,
+                depth_slice: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color {
+                        r: c[0],
+                        g: c[1],
+                        b: c[2],
+                        a: c[3],
+                    }),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+            multiview_mask: None,
+        });
+    }
+    context.queue.submit(Some(encoder.finish()));
+    image
+}
+
+#[test]
+#[ignore = "requires native GPU; real dynamic surface/depth composition and stale-output guards"]
+fn dynamic_surfaces_occlude_actors_preserve_guides_and_clear_without_readback_storage() {
+    use crate::{SceneViews, ViewId};
+    use renderkit::ImageRegistry;
+    use scenevm::{
+        Atom, Chunk, DynamicObject, GeoId, Poly3D, RenderMode, SharedAtlas,
+        dynamic::DynamicMeshVertex, prelude::Vec2, surface_output::SurfaceSelection,
+    };
+    let context = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let size = (64, 64);
+    let mut images = ImageRegistry::new(context.clone());
+    let mut scenes = SceneViews::new(&images, SharedAtlas::new(256, 256));
+    let view = ViewId::new();
+    scenes.create(view, size).unwrap();
+    scenes
+        .configure_editor(view, &rusterix::Assets::default())
+        .unwrap();
+    let camera = Camera3D::builder()
+        .with_kind(scenevm::CameraKind::OrthoIso)
+        .with_pos(Vec3::new(0., 0., 4.))
+        .with_basis(Vec3::new(0., 0., -1.), Vec3::unit_y())
+        .with_ortho_half_h(1.);
+    {
+        let scene = scenes.scene_mut(view).unwrap();
+        scene.vm.execute(Atom::SetRenderMode(RenderMode::Raster3D));
+        scene.vm.execute(Atom::SetCamera3D { camera });
+        let mut chunk = Chunk::new(Vec2::zero(), 8);
+        // Static geometry is closer than the actor, but Dynamic surface policy
+        // must still report the actor's own depth rather than the static cube.
+        chunk.add_3d(Poly3D::cube(
+            GeoId::Sector(1),
+            scene.white,
+            Vec3::new(0., 0., 2.),
+            1.,
+        ));
+        scene.vm.execute(Atom::AddChunk {
+            id: Uuid::new_v4(),
+            chunk,
+        });
+        let vertices =
+            [(-0.8, -0.8), (0.8, -0.8), (0.8, 0.8), (-0.8, 0.8)].map(|(x, y)| DynamicMeshVertex {
+                position: Vec3::new(x, y, 0.),
+                uv: Vec2::zero(),
+                normal: Vec3::unit_z(),
+            });
+        scene.vm.execute(Atom::AddDynamic {
+            object: DynamicObject::mesh(
+                GeoId::Item(7),
+                scene.white,
+                vertices.to_vec(),
+                vec![0, 1, 2, 0, 2, 3],
+            ),
+        });
+    }
+    let displayed = scenes.render(view, 1, &mut images).unwrap().unwrap();
+    let surface = scenes
+        .render_surface_output(displayed, SurfaceSelection::Dynamic)
+        .unwrap()
+        .unwrap();
+    assert_eq!(surface.revision(), displayed.revision);
+    assert!(
+        !scenes
+            .scene(view)
+            .unwrap()
+            .vm
+            .has_surface_readback_storage()
+    );
+    assert!(!scenes.has_cpu_target_storage(view).unwrap());
+    assert_eq!(scenes.scene(view).unwrap().vm.render_target_cpu_bytes(), 0);
+    let bake_image = solid_gpu(&context, size, [20, 40, 60, 128]);
+    let overlay_image = solid_gpu(&context, size, [100, 20, 10, 128]);
+    let depth = context.device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("GPU depth fixture"),
+        size: u64::from(size.0 * size.1 * 4),
+        usage: wgpu::BufferUsages::STORAGE,
+        mapped_at_creation: false,
+    });
+    let module = context.device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: None, source: wgpu::ShaderSource::Wgsl("@group(0) @binding(0) var<storage,read_write> depth:array<f32>; @compute @workgroup_size(64) fn main(@builtin(global_invocation_id) id:vec3<u32>) {if id.x<4096u {depth[id.x]=select(3.,5.,id.x%64u>=32u);}}".into()),
+    });
+    let pipeline = context
+        .device
+        .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: None,
+            layout: None,
+            module: &module,
+            entry_point: Some("main"),
+            compilation_options: Default::default(),
+            cache: None,
+        });
+    let bind = context
+        .device
+        .create_bind_group(&wgpu::BindGroupDescriptor {
+            label: None,
+            layout: &pipeline.get_bind_group_layout(0),
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: depth.as_entire_binding(),
+            }],
+        });
+    let mut encoder = context.device.create_command_encoder(&Default::default());
+    {
+        let mut pass = encoder.begin_compute_pass(&Default::default());
+        pass.set_pipeline(&pipeline);
+        pass.set_bind_group(0, &bind, &[]);
+        pass.dispatch_workgroups(64, 1, 1);
+    }
+    context.queue.submit(Some(encoder.finish()));
+    let mut bake = OrthographicBakeOutput {
+        image: bake_image,
+        depth,
+        source_revision: Uuid::new_v4(),
+        size,
+        depth_enabled: true,
+    };
+    let mut compositor = OrthographicBakeOverlay::new(context.clone()).unwrap();
+    let composed = compositor
+        .render(&bake, &overlay_image, &surface, [40, 50, 60, 255])
+        .unwrap();
+    assert_eq!(context.transfers().readback_bytes, 0);
+    assert_eq!(context.transfers().capture_requests, 0);
+    let capture = |image: Arc<GpuImage>| {
+        let mut capture = ReadbackTicket::capture(&context, image).unwrap();
+        finish(&context);
+        capture
+            .try_finish(&context)
+            .unwrap()
+            .unwrap()
+            .pixels()
+            .to_vec()
+    };
+    let pixels = capture(composed);
+    let at = |pixels: &[u8], x, y| {
+        pixels[(y * size.0 as usize + x) * 4..(y * size.0 as usize + x) * 4 + 4].to_vec()
+    };
+    assert_eq!(
+        at(&pixels, 16, 32),
+        [40, 65, 90, 255],
+        "baked depth hides the actor"
+    );
+    assert_eq!(
+        at(&pixels, 48, 32),
+        [120, 52, 55, 255],
+        "actor in front of baked depth"
+    );
+    assert_eq!(
+        at(&pixels, 1, 1),
+        [120, 52, 55, 255],
+        "guides without dynamic geometry remain visible"
+    );
+    bake.depth_enabled = false;
+    let no_depth = capture(
+        compositor
+            .render(&bake, &overlay_image, &surface, [40, 50, 60, 255])
+            .unwrap(),
+    );
+    assert_eq!(
+        at(&no_depth, 16, 32),
+        [120, 52, 55, 255],
+        "legacy bake has no depth occlusion"
+    );
+    bake.depth_enabled = true;
+    // The explicit compatibility capture still decodes the same surface IDs,
+    // camera-linear depth and UVs after the GPU producer was factored out.
+    let reference = scenes
+        .scene_mut(view)
+        .unwrap()
+        .vm
+        .paint_surface_buffer_gpu_dynamic_only(size.0, size.1)
+        .unwrap();
+    let center = &reference.pixels[(32 * size.0 + 32) as usize];
+    assert!(center.valid);
+    assert_eq!(center.geo_id, GeoId::Item(7));
+    assert!((center.depth - 4.).abs() < 0.00001);
+    assert_eq!(center.uv, [0., 0.]);
+    assert!(
+        scenes
+            .scene(view)
+            .unwrap()
+            .vm
+            .has_surface_readback_storage()
+    );
+    scenes
+        .scene_mut(view)
+        .unwrap()
+        .vm
+        .execute(Atom::ClearDynamics);
+    assert!(
+        scenes
+            .render_surface_output(displayed, SurfaceSelection::Dynamic)
+            .unwrap()
+            .is_none()
+    );
+    let newer = scenes.render(view, 2, &mut images).unwrap().unwrap();
+    assert_ne!(newer.revision, displayed.revision);
+    let empty = scenes
+        .render_surface_output(newer, SurfaceSelection::Dynamic)
+        .unwrap()
+        .unwrap();
+    let cleared = capture(
+        compositor
+            .render(&bake, &overlay_image, &empty, [40, 50, 60, 255])
+            .unwrap(),
+    );
+    assert_eq!(
+        at(&cleared, 16, 32),
+        [120, 52, 55, 255],
+        "empty query must clear the old dynamic footprint"
+    );
+    assert!(
+        scenes
+            .scene(view)
+            .unwrap()
+            .vm
+            .has_surface_readback_storage(),
+        "only the explicit compatibility capture requested this optional storage"
+    );
+    let static_surface = scenes
+        .render_surface_output(newer, SurfaceSelection::Static)
+        .unwrap()
+        .unwrap();
+    assert!(
+        compositor
+            .render(&bake, &overlay_image, &static_surface, [40, 50, 60, 255])
+            .is_err()
+    );
+    scenes.resize(view, (80, 48), &mut images).unwrap();
+    assert!(
+        scenes
+            .render_surface_output(newer, SurfaceSelection::Dynamic)
+            .unwrap()
+            .is_none()
+    );
+    let resized = scenes.render(view, 3, &mut images).unwrap().unwrap();
+    let resized_surface = scenes
+        .render_surface_output(resized, SurfaceSelection::Dynamic)
+        .unwrap()
+        .unwrap();
+    assert_eq!(resized_surface.size(), (80, 48));
+    assert!(
+        compositor
+            .render(&bake, &overlay_image, &resized_surface, [40, 50, 60, 255])
+            .is_err()
+    );
+    assert!(
+        !scenes
+            .scene(view)
+            .unwrap()
+            .vm
+            .has_surface_readback_storage()
+    );
+}

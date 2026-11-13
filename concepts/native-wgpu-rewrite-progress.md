@@ -10470,3 +10470,44 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   a full surface on the CPU; then wire bake lifecycle into the owned viewport.
   Large visible-set paging, eager decoded-cache budget and fast persisted-source
   identity remain explicit limitations before full bake acceptance.
+
+## 2026-11-14 — GPU surface/depth overlay (active)
+
+- Bake source/producer component committed89eb6ae2; no native launcher/adoption
+  acceptance implied. Concurrent networking concept still untouched.
+- Factored SceneVM's existing surface render pass into a shared GPU-only module.
+  GPU world/UV/face/valid textures can be sampled directly; readback staging is
+  allocated only in the explicit CPU adapter, and discarded on target resize.
+  Empty geometry now clears the GPU surface instead of retaining an old actor.
+  CPU metadata/depth decoding continues through the same captured channels.
+- New immutable surface output carries camera, selection, device generation and
+  revision. SceneViews admits queries only for its acknowledged, clean output;
+  stale/mutated/isometric/zero-size sources are rejected, active layer restored.
+- Added injected bake depth compositor: dynamic-only surface query occludes live
+  actors against rebased baked depth, while guide-only pixels remain visible;
+  premultiplied byte blending and background resolve stay on the GPU. Outputs
+  retain GPU color/depth only; no map, poll or CPU viewport is part of this API.
+- SceneVM check PASS9.60s; presentation check PASS12.24s. Assembled component
+  test build PASS23.53s; GPU semantic/retention/empty/stale/resize oracle collecting.
+  Creator persisted/progressive bake adapter remains intact pending adoption.
+
+- GPU component matrix PASS2/1.52s: original tile color0/0/1/depth oracle and
+  actual static-cube/dynamic-mesh surface overlay with actor occlusion, front
+  actor visibility, guide-only pixels, exact premultiplied/background bytes,
+  legacy depth-disabled policy, stale output rejection, empty-dynamic clearing
+  and target resize pass. Normal path before explicit captures has0readback and
+  no root/layer CPU target or surface staging storage.
+- Extended same fixture to execute the legacy dynamic CPU surface capture:
+  actual Item(7), depth4 within1e-5 and UV[0,0] preserved. Optional readback
+  storage appears only after that explicit call, remains until resize, then is
+  absent on the new GPU-only target. Final buildPASS4.73s/oraclePASS2/1.56s.
+- Chrome overlay compute and surface RGBA32Float render-pipeline validation
+  PASS (messages[], errornull), current app normal counters0/errors[]. First
+  surface probe failed in Node before contacting Chrome because its source
+  extraction expected a public const; corrected marker and actual probe PASS.
+  These are backend shader/pipeline checks, not browser pixel/workflow proof.
+  Final wasm presentation check PASS12.22s. No serde/dependency/host ABI change.
+- Surface/depth component ready for checkpoint. Next adoption must also move
+  bake commands/controller ownership out of the compatibility render facade,
+  scope work to a document/map, classify progressive asset captures separately,
+  and preserve request/toggle/clear/save behavior before removing its adapter.

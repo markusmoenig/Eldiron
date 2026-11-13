@@ -12,6 +12,7 @@ mod entity_pixels;
 mod irradiance;
 mod raster3d;
 mod raster_mesh;
+mod surface_gpu;
 
 use crate::{
     Camera3D, CameraKind, Chunk, Light, LightType, Poly2D, Poly3D, Texture,
@@ -13092,7 +13093,6 @@ impl VM {
             && g.paint_surface_world_tex.is_some()
             && g.paint_surface_meta_tex.is_some()
             && g.paint_surface_depth_tex.is_some()
-            && g.paint_surface_readback.is_some()
         {
             return;
         }
@@ -13108,7 +13108,9 @@ impl VM {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Rgba32Float,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                | wgpu::TextureUsages::COPY_SRC
+                | wgpu::TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         };
         let world = device.create_texture(&color_desc("vm-paint-surface-world"));
@@ -13127,11 +13129,6 @@ impl VM {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             view_formats: &[],
         });
-        let bytes_per_row = fb_w.saturating_mul(16);
-        let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
-        let padded = ((bytes_per_row + align - 1) / align) * align;
-        let plane_size = padded as u64 * fb_h as u64;
-        let readback_size = plane_size * 2;
         g.paint_surface_world_view =
             Some(world.create_view(&wgpu::TextureViewDescriptor::default()));
         g.paint_surface_normal_view = None;
@@ -13142,13 +13139,9 @@ impl VM {
         g.paint_surface_normal_tex = None;
         g.paint_surface_meta_tex = Some(meta);
         g.paint_surface_depth_tex = Some(depth);
-        g.paint_surface_readback = Some(device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("vm-paint-surface-readback"),
-            size: readback_size,
-            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        }));
-        g.paint_surface_readback_size = readback_size;
+        // Capture storage is allocated only by an explicit CPU query.
+        g.paint_surface_readback = None;
+        g.paint_surface_readback_size = 0;
         g.paint_surface_tex_size = (fb_w, fb_h);
     }
 
@@ -13253,10 +13246,9 @@ impl VM {
         if fb_w == 0 || fb_h == 0 {
             return Some(PaintSurfaceBuffer::new(fb_w, fb_h));
         }
-        self.ensure_paint_surface_pipeline(device).ok()?;
-        self.ensure_paint_surface_targets(device, fb_w, fb_h);
-
-        let vertices = self.paint_surface_vertices(include_dynamic, dynamic_only);
+        self.encode_surface_gpu(
+            device, queue, fb_w, fb_h, include_dynamic, dynamic_only,
+        )?;
         let geo_ids = if include_dynamic {
             self.cached_tri_geo_ids.as_slice()
         } else {
@@ -13295,56 +13287,11 @@ impl VM {
                 })
                 .collect()
         };
+        let c = self.camera3d;
         let g = self.gpu.as_mut()?;
-        if vertices.is_empty() {
+        if g.paint_surface_vertex_count == 0 {
             return Some(PaintSurfaceBuffer::new(fb_w, fb_h));
         }
-
-        let vertex_bytes = std::mem::size_of_val(vertices.as_slice()) as u64;
-        if g.paint_surface_vbuf.is_none() || g.paint_surface_vbuf_capacity < vertex_bytes {
-            g.paint_surface_vbuf = Some(device.create_buffer_init(
-                &wgpu::util::BufferInitDescriptor {
-                    label: Some("vm-paint-surface-verts"),
-                    contents: bytemuck::cast_slice(&vertices),
-                    usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-                },
-            ));
-            g.paint_surface_vbuf_capacity = vertex_bytes;
-        } else if let Some(buffer) = g.paint_surface_vbuf.as_ref() {
-            queue.write_buffer(buffer, 0, bytemuck::cast_slice(&vertices));
-        }
-        g.paint_surface_vertex_count = vertices.len() as u32;
-
-        let c = self.camera3d;
-        let u = PaintSurfaceUniforms {
-            cam_pos: [c.pos.x, c.pos.y, c.pos.z, 0.0],
-            cam_fwd: [c.forward.x, c.forward.y, c.forward.z, 0.0],
-            cam_right: [c.right.x, c.right.y, c.right.z, 0.0],
-            cam_up: [c.up.x, c.up.y, c.up.z, 0.0],
-            fb_size: [fb_w as f32, fb_h as f32],
-            cam_vfov_deg: c.vfov_deg,
-            cam_ortho_half_h: c.ortho_half_h,
-            cam_near: c.near,
-            cam_far: c.far,
-            cam_kind: match c.kind {
-                CameraKind::OrthoIso => 0,
-                CameraKind::OrbitPersp => 1,
-                CameraKind::FirstPersonPersp => 2,
-            },
-            _pad: [0, 0, 0, 0, 0],
-        };
-        queue.write_buffer(g.u_paint_surface_buf.as_ref()?, 0, bytemuck::bytes_of(&u));
-        if g.u_paint_surface_bg.is_none() {
-            g.u_paint_surface_bg = Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("vm-paint-surface-bg"),
-                layout: g.u_paint_surface_bgl.as_ref()?,
-                entries: &[wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: g.u_paint_surface_buf.as_ref()?.as_entire_binding(),
-                }],
-            }));
-        }
-
         let bytes_per_row = fb_w.saturating_mul(16);
         let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
         let padded = ((bytes_per_row + align - 1) / align) * align;
@@ -13352,47 +13299,6 @@ impl VM {
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("vm-paint-surface-encoder"),
         });
-        {
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("vm-paint-surface-pass"),
-                color_attachments: &[
-                    Some(wgpu::RenderPassColorAttachment {
-                        view: g.paint_surface_world_view.as_ref()?,
-                        resolve_target: None,
-                        ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                            store: wgpu::StoreOp::Store,
-                        },
-                        depth_slice: None,
-                    }),
-                    Some(wgpu::RenderPassColorAttachment {
-                        view: g.paint_surface_meta_view.as_ref()?,
-                        resolve_target: None,
-                        ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                            store: wgpu::StoreOp::Store,
-                        },
-                        depth_slice: None,
-                    }),
-                ],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: g.paint_surface_depth_view.as_ref()?,
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(1.0),
-                        store: wgpu::StoreOp::Store,
-                    }),
-                    stencil_ops: None,
-                }),
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
-            pass.set_pipeline(g.raster3d_paint_surface_pipeline.as_ref()?);
-            pass.set_bind_group(0, g.u_paint_surface_bg.as_ref()?, &[]);
-            pass.set_vertex_buffer(0, g.paint_surface_vbuf.as_ref()?.slice(..));
-            pass.draw(0..g.paint_surface_vertex_count, 0..1);
-        }
-
         let copy_layout = |offset| wgpu::TexelCopyBufferLayout {
             offset,
             bytes_per_row: Some(padded),
@@ -13403,6 +13309,16 @@ impl VM {
             height: fb_h,
             depth_or_array_layers: 1,
         };
+        let needed = plane_size * 2;
+        if g.paint_surface_readback.is_none() || g.paint_surface_readback_size != needed {
+            g.paint_surface_readback = Some(device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("vm-paint-surface-explicit-readback"),
+                size: needed,
+                usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            }));
+            g.paint_surface_readback_size = needed;
+        }
         let readback = g.paint_surface_readback.as_ref()?;
         for (texture, offset) in [
             (g.paint_surface_world_tex.as_ref()?, 0),

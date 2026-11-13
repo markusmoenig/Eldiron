@@ -13,6 +13,8 @@ use theframework_core::Uuid;
 use wgpu::util::DeviceExt;
 
 const SOURCE_BUDGET: u64 = 64 * 1024 * 1024;
+mod overlay;
+pub use overlay::OrthographicBakeOverlay;
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct Params {
@@ -45,11 +47,28 @@ struct Tile {
 /// It is GPU-only and intended for a subsequent depth-aware overlay pass.
 #[derive(Clone)]
 pub struct OrthographicBakeOutput {
-    pub image: Arc<GpuImage>,
-    pub depth: wgpu::Buffer,
-    pub source_revision: Uuid,
-    pub size: (u32, u32),
-    pub depth_enabled: bool,
+    image: Arc<GpuImage>,
+    depth: wgpu::Buffer,
+    source_revision: Uuid,
+    size: (u32, u32),
+    depth_enabled: bool,
+}
+impl OrthographicBakeOutput {
+    pub fn image(&self) -> &Arc<GpuImage> {
+        &self.image
+    }
+    pub fn depth(&self) -> &wgpu::Buffer {
+        &self.depth
+    }
+    pub fn source_revision(&self) -> Uuid {
+        self.source_revision
+    }
+    pub fn size(&self) -> (u32, u32) {
+        self.size
+    }
+    pub fn depth_enabled(&self) -> bool {
+        self.depth_enabled
+    }
 }
 pub struct OrthographicBakeRenderer {
     context: Arc<GpuContext>,
