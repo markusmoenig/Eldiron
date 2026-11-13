@@ -384,6 +384,8 @@ pub static DOCKMANAGER: LazyLock<RwLock<DockManager>> =
 
 #[path = "editor/play_session.rs"]
 mod play_session;
+mod document_io;
+pub(crate) use document_io::{DocumentInfo, SaveInfo, SaveResult};
 use play_session::CreatorPlaySession;
 
 use crate::documents::Documents;
@@ -505,6 +507,8 @@ pub struct Editor {
 
     update_tracker: UpdateTracker,
     event_receiver: Option<Receiver<TheEvent>>,
+    #[cfg(not(target_arch = "wasm32"))]
+    scepter_service: Option<ScepterService>,
     #[cfg(not(target_arch = "wasm32"))]
     scepter_receiver: Option<Receiver<ScepterEvent>>,
     #[cfg(not(target_arch = "wasm32"))]
@@ -5299,14 +5303,30 @@ impl Editor {
 
     fn open_project_as_session(
         &mut self,
-        mut project: Project,
+        project: Project,
         project_path: Option<PathBuf>,
         ui: &mut TheUI,
         ctx: &mut TheContext,
         update_server_icons: &mut bool,
         redraw: &mut bool,
     ) -> bool {
-        if project_path.is_none()
+        let starters = project_path.is_none();
+        let replace = self.replace_next_project_load_in_active_tab;
+        self.install_project_session(project, project_path, starters, replace, ui, ctx, update_server_icons, redraw)
+    }
+
+    fn install_project_session(
+        &mut self,
+        mut project: Project,
+        project_path: Option<PathBuf>,
+        install_starters: bool,
+        replace: bool,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        update_server_icons: &mut bool,
+        redraw: &mut bool,
+    ) -> bool {
+        if install_starters
             && let Err(error) = crate::procedural_material::starters::install(&mut project)
         {
             ctx.ui.send(TheEvent::SetStatusText(
@@ -5319,7 +5339,7 @@ impl Editor {
         if !self.deactivate_project_for_switch(ui, ctx, false) {
             return false;
         }
-        self.documents.install(project, project_path, self.replace_next_project_load_in_active_tab);
+        self.documents.install(project, project_path, replace);
         self.replace_next_project_load_in_active_tab = false;
         self.sync_editor_from_active_session();
         self.activate_loaded_project(ui, ctx, update_server_icons, redraw);
@@ -7945,6 +7965,8 @@ impl TheTrait for Editor {
             update_tracker: UpdateTracker::new(),
             event_receiver: None,
             #[cfg(not(target_arch = "wasm32"))]
+            scepter_service: None,
+            #[cfg(not(target_arch = "wasm32"))]
             scepter_receiver: None,
             #[cfg(not(target_arch = "wasm32"))]
             scepter_sender: None,
@@ -7998,6 +8020,7 @@ impl TheTrait for Editor {
             self.scepter_sender = service.sender();
             self.scepter_receiver = Some(receiver);
             println!("{}", service.status_line());
+            self.scepter_service = Some(service);
         }
 
         #[cfg(all(
@@ -10762,15 +10785,7 @@ impl TheTrait for Editor {
                             match Self::save_project_to_path(&p, &self.documents.project) {
                                 Ok(()) => {
                                     self.documents.project_path = Some(p);
-                                    UNDOMANAGER.write().unwrap().mark_saved();
-                                    DOCKMANAGER.write().unwrap().mark_saved();
-                                    if self.documents.active_session < self.documents.sessions.len() {
-                                        self.documents.sessions[self.documents.active_session].dirty = false;
-                                        self.documents.sessions[self.documents.active_session].detached_dock_dirty =
-                                            false;
-                                    }
-                                    self.sync_active_session_from_editor();
-                                    self.rebuild_project_tabs(ui);
+                                    self.mark_current_document_saved(ui);
                                     ctx.ui.send(TheEvent::SetStatusText(
                                         TheId::empty(),
                                         "Project saved successfully.".to_string(),
@@ -11052,6 +11067,10 @@ impl TheTrait for Editor {
                             ctx.ui.clear_hover();
                             redraw = true;
                         }
+                    } else if self.queue_host_document_request(&id.name) {
+                        ctx.ui.set_widget_state(id.name.clone(), TheWidgetState::None);
+                        ctx.ui.clear_hover();
+                        redraw = true;
                     } else if id.name == "Open" {
                         ctx.ui.open_file_requester(
                             TheId::named_with_id(id.name.as_str(), Uuid::new_v4()),
@@ -11115,15 +11134,7 @@ impl TheTrait for Editor {
                             match Self::save_project_to_path(&path, &self.documents.project) {
                                 Ok(()) => {
                                     self.documents.project_path = Some(path.clone());
-                                    UNDOMANAGER.write().unwrap().mark_saved();
-                                    DOCKMANAGER.write().unwrap().mark_saved();
-                                    if self.documents.active_session < self.documents.sessions.len() {
-                                        self.documents.sessions[self.documents.active_session].dirty = false;
-                                        self.documents.sessions[self.documents.active_session].detached_dock_dirty =
-                                            false;
-                                    }
-                                    self.sync_active_session_from_editor();
-                                    self.rebuild_project_tabs(ui);
+                                    self.mark_current_document_saved(ui);
                                     ctx.ui.send(TheEvent::SetStatusText(
                                         TheId::empty(),
                                         "Project saved successfully.".to_string(),

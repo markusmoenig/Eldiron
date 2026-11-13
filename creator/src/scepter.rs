@@ -3,7 +3,7 @@ use serde_json::json;
 use std::io::Write;
 use std::sync::{
     Arc,
-    atomic::{AtomicUsize, Ordering},
+    atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 pub mod jobs;
 mod transport;
@@ -48,11 +48,13 @@ impl Default for ScepterRegionRequest {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ScepterService {
     address: String,
     started: bool,
     tx: Option<Sender<ScepterEvent>>,
+    stop: Arc<AtomicBool>,
+    worker: Option<thread::JoinHandle<()>>,
 }
 
 impl ScepterService {
@@ -63,35 +65,29 @@ impl ScepterService {
     pub fn start() -> (Self, Receiver<ScepterEvent>) {
         let (tx, rx) = channel();
         let address = format!("{SCEPTER_HOST}:{SCEPTER_PORT}");
-        let service = Self {
+        let mut service = Self {
             address: address.clone(),
-            started: true,
-            tx: Some(tx.clone()),
+            started: false,
+            tx: None,
+            stop: Arc::new(AtomicBool::new(false)),
+            worker: None,
         };
-
-        match TcpListener::bind(&address) {
-            Ok(listener) => {
-                if let Err(err) = listener.set_nonblocking(true) {
-                    let _ = tx.send(ScepterEvent::ServiceError(format!(
-                        "could not set {address} nonblocking: {err}"
-                    )));
-                }
-                thread::spawn(move || run_listener(listener, tx));
-            }
+        let listener = match TcpListener::bind(&address).and_then(|listener| {
+            listener.set_nonblocking(true)?;
+            Ok(listener)
+        }) {
+            Ok(listener) => listener,
             Err(err) => {
                 let _ = tx.send(ScepterEvent::ServiceError(format!(
-                    "could not bind local Scepter API at {address}: {err}"
+                    "could not start local Scepter API at {address}: {err}"
                 )));
-                return (
-                    Self {
-                        address,
-                        started: false,
-                        tx: None,
-                    },
-                    rx,
-                );
+                return (service, rx);
             }
-        }
+        };
+        service.started = true;
+        service.tx = Some(tx.clone());
+        let stop = service.stop.clone();
+        service.worker = Some(thread::spawn(move || run_listener(listener, tx, stop)));
 
         (service, rx)
     }
@@ -108,10 +104,20 @@ impl ScepterService {
     }
 }
 
-fn run_listener(listener: TcpListener, tx: Sender<ScepterEvent>) {
+impl Drop for ScepterService {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::Release);
+        // The accept loop is nonblocking and never waits for editor callbacks.
+        // Join before a replacement host binds the same service address.
+        if let Some(worker) = self.worker.take() {
+            let _ = worker.join();
+        }
+    }
+}
+fn run_listener(listener: TcpListener, tx: Sender<ScepterEvent>, stop: Arc<AtomicBool>) {
     let registry = Arc::new(jobs::Registry::default());
     let active = Arc::new(AtomicUsize::new(0));
-    loop {
+    while !stop.load(Ordering::Acquire) {
         match listener.accept() {
             Ok((mut stream, _)) => {
                 if active.fetch_add(1, Ordering::AcqRel) >= 16 {

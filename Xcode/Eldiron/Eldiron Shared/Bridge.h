@@ -17,6 +17,62 @@
 
 #define GAME_TICK_IN_MS 250
 
+// Version 1: main-thread, single active Creator until workspace globals retire.
+// Handles are monotonic per thread and never recycled. Zero means failure.
+// Destroy the Rust host before releasing its retained CAMetalLayer.
+// Stale handles fail; every asynchronous completion must capture its original handle.
+uint32_t eldiron_creator_abi_version(void);
+uint64_t eldiron_creator_create_v1(uint32_t version, void *layer, uint32_t width, uint32_t height, float density);
+bool eldiron_creator_destroy_v1(uint64_t host);
+int32_t eldiron_creator_render_v1(uint64_t host);
+bool eldiron_creator_replace_layer_v1(uint64_t host, void *layer);
+bool eldiron_creator_resize_v1(uint64_t host, uint32_t width, uint32_t height, float density);
+bool eldiron_creator_suspend_v1(uint64_t host);
+bool eldiron_creator_resume_v1(uint64_t host);
+bool eldiron_creator_focus_v1(uint64_t host, bool focused);
+char *eldiron_creator_state_v1(uint64_t host);
+char *eldiron_creator_requests_v1(uint64_t host);
+char *eldiron_creator_text_snapshot_v1(uint64_t host);
+char *eldiron_creator_text_query_v1(uint64_t host, uint64_t target, uint64_t revision, uint32_t kind, intptr_t start, intptr_t end, float x, float y);
+int32_t eldiron_creator_text_edit_v1(uint64_t host, uint64_t target, uint64_t revision, uint32_t kind, intptr_t start, intptr_t end, const uint8_t *data, uintptr_t length, intptr_t cursor_start, intptr_t cursor_end);
+bool eldiron_creator_key_v1(uint64_t host, uint32_t code, bool pressed, bool repeated, const char *logical);
+bool eldiron_creator_clipboard_complete_v1(uint64_t host, uint64_t request, bool write, bool success, const char *text);
+bool eldiron_creator_edit_command_v1(uint64_t host, uint32_t command);
+bool eldiron_creator_has_changes_v1(uint64_t host);
+// Commands 0..17: New, Open, Close, Save, Save As, Play, Pause, Stop,
+// Settings, Rules, Locales, Audio FX, Authoring, Project, Actions, Log, Console, Help.
+bool eldiron_creator_command_v1(uint64_t host, uint32_t command);
+bool eldiron_creator_set_theme_v1(uint64_t host, uint32_t theme);
+uint32_t eldiron_creator_get_theme_v1(uint64_t host);
+bool eldiron_creator_drop_file_v1(uint64_t host, const char *path);
+bool eldiron_creator_hover_v1(uint64_t host, float x, float y);
+bool eldiron_creator_touch_down_v1(uint64_t host, float x, float y);
+bool eldiron_creator_touch_up_v1(uint64_t host, float x, float y);
+bool eldiron_creator_touch_dragged_v1(uint64_t host, float x, float y);
+bool eldiron_creator_right_touch_down_v1(uint64_t host, float x, float y);
+bool eldiron_creator_right_touch_up_v1(uint64_t host, float x, float y);
+bool eldiron_creator_right_touch_dragged_v1(uint64_t host, float x, float y);
+bool eldiron_creator_mouse_motion_v1(uint64_t host, float x, float y);
+bool eldiron_creator_mouse_leave_v1(uint64_t host);
+bool eldiron_creator_scroll_v1(uint64_t host, float x, float y);
+bool eldiron_creator_precise_scroll_v1(uint64_t host, float x, float y);
+bool eldiron_creator_pinch_v1(uint64_t host, float delta);
+bool eldiron_creator_modifiers_v1(uint64_t host, bool shift, bool control, bool alt, bool super_key);
+// Owned UTF-8 JSON strings: free with rust_free_string. Null = invalid host.
+// Document responses: {"ok":true,"value":...} or {"ok":false,"error":"..."}.
+// expected is the active document UUID returned by document_info, captured before I/O.
+// Load validates/decode before mutation. replace_clean rejects a dirty active tab.
+char *eldiron_creator_document_info_v1(uint64_t host);
+char *eldiron_creator_document_load_v1(uint64_t host, const char *expected, const uint8_t *data, uintptr_t length, const char *origin, bool replace_clean);
+// Prepare returns {ticket,document,length}; only one immutable snapshot can be pending.
+char *eldiron_creator_document_prepare_save_v1(uint64_t host, const char *expected);
+// Null destination/capacity 0 queries length. Undersized buffers are untouched and
+// return required length. Copy owns no caller memory after return. Zero = stale ticket.
+uintptr_t eldiron_creator_document_copy_save_v1(uint64_t host, uint64_t ticket, uint8_t *destination, uintptr_t capacity);
+// Complete exactly once, including cancel/failure. Saved != clean if edits overlapped.
+char *eldiron_creator_document_finish_save_v1(uint64_t host, uint64_t ticket, bool success, const char *origin);
+
+// Legacy compatibility exports; new wrappers use the handle-scoped API above.
 // Main-thread calls. Retain CAMetalLayer until rust_shutdown/replacement returns.
 // Dimensions are physical pixels; pointer coordinates are logical points.
 // Swift never acquires or presents this layer's drawables.

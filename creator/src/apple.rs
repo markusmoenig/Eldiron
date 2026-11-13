@@ -8,12 +8,15 @@ use std::{
 };
 use theframework::platform::*;
 
+mod owner;
+mod v1;
+
 type CreatorHost = ForeignApplicationHost<UiApplicationAdapter<NativeCreatorApplication>>;
 unsafe extern "C" {
     fn pthread_main_np() -> i32;
 }
 thread_local! {
-    static APP: RefCell<Option<CreatorHost>> = const { RefCell::new(None) };
+    static APP: RefCell<owner::Owner<CreatorHost>> = const { RefCell::new(owner::Owner::new()) };
 }
 
 fn with_app<T: Default>(f: impl FnOnce(&mut CreatorHost) -> T) -> T {
@@ -66,10 +69,7 @@ pub unsafe extern "C" fn rust_init(
                 )
             });
             match result {
-                Ok(host) => {
-                    *app.borrow_mut() = Some(host);
-                    true
-                }
+                Ok(host) => app.borrow_mut().install(host).is_some(),
                 Err(e) => {
                     eprintln!("[EldironCreator] {e}");
                     false
@@ -334,7 +334,7 @@ pub extern "C" fn rust_redo() {
 #[unsafe(no_mangle)]
 pub extern "C" fn rust_take_requests() -> *mut c_char {
     with_app(|app| {
-        let requests: Vec<_> = std::mem::take(&mut app.host.requests)
+        let mut requests: Vec<_> = std::mem::take(&mut app.host.requests)
             .into_iter()
             .map(|r| match r {
                 HostRequest::Exit => serde_json::json!({"kind":"exit"}),
@@ -348,6 +348,13 @@ pub extern "C" fn rust_take_requests() -> *mut c_char {
                 }
             })
             .collect();
+        requests.extend(
+            app.application
+                .application
+                .host_document_requests()
+                .into_iter()
+                .map(|(kind, document)| serde_json::json!({"kind":kind,"document":document})),
+        );
         CString::new(serde_json::to_string(&requests).unwrap())
             .unwrap()
             .into_raw()

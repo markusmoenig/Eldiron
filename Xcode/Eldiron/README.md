@@ -21,17 +21,43 @@ directory, defaulting to the matching target's release directory. Override it
 when using a shared Cargo target directory or a debug library. These commands
 describe the verified SDK configuration; older OS versions remain unverified.
 
-`Bridge.h` documents the main-thread ABI. Resize dimensions are physical pixels;
-input is in logical points. Keep the layer alive until `rust_shutdown` or a
-successful `rust_replace_layer` returns. Swift never reads `currentDrawable`.
+`Bridge.h` documents the main-thread v1 ABI. The Swift `Renderer` retains the
+nonzero handle from `eldiron_creator_create_v1(1, ...)`, supplies it on every call,
+and destroys it before releasing its layer. Invalid/obsolete handles fail, and
+handles are never recycled. Until the remaining editor globals retire, creating
+a second active Creator is explicitly rejected; separate document tabs are
+supported in that host. Legacy unversioned exports retain their behavior for
+existing callers.
+
+Resize dimensions are physical pixels; input is in logical points. Keep the
+layer alive until `eldiron_creator_destroy_v1` or a successful
+`eldiron_creator_replace_layer_v1` returns. Swift never reads `currentDrawable`.
 Display callbacks honor the application's update cadence and only present dirty
 frames. Suspend/resume and device/layer replacement retain the CPU application.
-Clipboard completions carry the original request ID; Edit menu commands use the
-same controller route as keyboard shortcuts.
+Clipboard completions carry the original host and request ID; Edit menu commands
+use the same controller route as keyboard shortcuts.
+
+Versioned hosts receive addressed Open/Save/Save As requests from toolbar and
+keyboard commands. The host reads/writes bytes; Rust handles project decoding,
+migrations, activation, undo and dirty state. The byte API captures the active
+document UUID before asynchronous reads, and uses one immutable save snapshot
+identified by a monotonic ticket. Query/copy save bytes into host-owned memory,
+then finish that ticket exactly once for success, failure or cancellation. Rust
+marks only its source tab clean, and only when canonical authored source still
+matches the saved snapshot. ZIP metadata does not participate in that comparison.
+No borrowed Rust document pointer survives a call. Free returned JSON strings
+with `rust_free_string`; Bridge.h describes response envelopes and buffer rules.
+
+macOS uses asynchronous panels and background atomic file writes. iOS uses the
+system document picker, retaining an export file until success or cancellation.
+Callbacks capture their original host/document/ticket; a tab switch or host
+recreation cannot redirect a delayed load/save. Native Scepter listener lifetime
+also belongs to the Creator instance and ends during teardown.
 
 `Tests/NativeCreatorHostCheck.swift` links to the actual static library and checks
-presentations, zero root bitmap/readback, resize/density, suspend/resume and layer
-replacement on retained detached layers. Obtain native link arguments with
+presentations, zero root bitmap/readback, resize/density, suspend/resume, layer
+replacement, file-request routing, save/reopen/copy limits, handle recreation and
+stale completions on retained detached layers. Obtain native link arguments with
 `cargo rustc -p eldiron-creator --lib --no-default-features --features staticlib --
 --print native-static-libs`; pass those arguments, `-leldiron_creator`, the library
 search directory and `-import-objc-header 'Xcode/Eldiron/Eldiron Shared/Bridge.h'`

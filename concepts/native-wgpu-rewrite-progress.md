@@ -7808,3 +7808,122 @@ M2/M8 font source checkpoint verified:
   but still exposes a single thread-local APP and command-driven file dialogs.
   Preserve its symbols/Swift callers and coordinate with M5's remaining globals;
   do not claim isolated simultaneous Creator hosts while those globals remain.
+
+
+M9 Creator document/handle continuation (in progress aftere657b4cd):
+- Existing Apple facade already owns ForeignApplicationHost/shared WGPU output,
+  but uses an unversioned single APP and command-driven filesystem dialogs.
+  Implementing addressed byte-based document I/O first, then versioned handles/
+  wrapper routing. Single-active-Creator restriction remains until M5 globals
+  retire; do not claim simultaneous isolated foreign Creator applications.
+- Added document-owned immutable save transfers: one pending snapshot, monotonic
+  ticket/document identity, bounded ownership, stale completion rejection, and
+  cancellation on document replacement/close. Host copies bytes; no borrowed
+  document-memory pointer crosses asynchronous I/O. Save completion can address
+  an inactive tab, and marks clean only if current encoded content exactly equals
+  the written snapshot. Canceled writes do not mark saved.
+- New Editor/native-application document facade uses existing decode/migrations,
+  authoring commits, tab activation/cancellation and shared saved-state helper.
+  Split template-install policy from pathname presence: loading untitled host
+  bytes must not inject starter materials merely because no file path exists.
+  Existing file/template UI callers preserve their prior policy.
+- First compile caught a private child-method visibility issue for the shared
+  saved-state helper; narrowed it to pub(super). Rechecking. No document tests,
+  versioned C ABI, wrapper conversion or M9 gate are verified for this batch yet.
+
+
+M9 versioned Creator/byte-document batch (continuation, not a completion gate):
+- Added v1 ABI/version negotiation and monotonic host handles around the common
+  ForeignApplicationHost. All Swift Creator input, lifecycle, text, clipboard,
+  menu and theme calls now carry their owning Renderer handle. A destroyed host
+  cannot receive a stale callback after recreation. A second active Creator is
+  explicitly rejected pending M5 global retirement; this is not multiwindow
+  ownership. Legacy exports remain compatible; only create_v1 opts into native
+  document host requests.
+- The host consumes Open/Save/Save As requests from toolbar/key/controller paths
+  as well as macOS menus. Requests carry the active ephemeral document identity.
+  Swift macOS panels capture it before yielding, read/write bytes off the main
+  thread, and reject completions for another host or active tab. iOS now has
+  UIDocumentPicker open/export/cancel routing, retaining immutable export bytes
+  and retiring temporary files on completion/teardown. Both wrappers compile;
+  actual physical panels/mobile execution are not yet verified.
+- Document loads decode with existing migrations before replacement, retire
+  native output bindings only on success, and distinguish untitled loaded bytes
+  from templates so starter assets are not silently injected. Clean replacement
+  commits buffered authoring edits before rechecking the dirty guard. Invalid
+  data/UUID/stale-host/stale-document/canceled save cannot replace/clean a tab.
+- Save tickets own immutable encoded bytes, copied into caller-owned memory.
+  Size queries and undersized-buffer behavior are documented in Bridge.h. A
+  pending save is bounded to one snapshot and is canceled on its document close
+  or replacement. Successful completion can address an inactive source tab.
+- First assembled native check exposed document_info using the all-tabs dirty
+  flag: corrected it to the active tab. Full existing assembled Creator Metal
+  integration then passed1 test/121.34s, including byte decode/failure, busy/
+  canceled/wrong/duplicate tickets, actual write/re-read, unchanged save, tab
+  switch/old completion and zero additional GPU readback. Log:
+  /private/tmp/eldiron-native-document-io-final-metal.log.
+- Actual Swift/static-library check found a distinct archive comparison bug:
+  ZIP FileOptions uses current timestamps when its time feature is active, so
+  identical documents can encode different container bytes across seconds. Save
+  completion now compares canonical serialized *authored source*, retaining full
+  bytes without a collision-prone hash; it excludes ZIP metadata and projections
+  refreshed on the encoder's clone. Archive encoding/schema is unchanged. This
+  replaces the earlier in-progress claim of comparing exact encoded archives.
+  It also avoids a second archive compression at completion, but snapshot memory
+  (archive + canonical source + host copy) still needs M0/M2 budget measurement.
+- Final source-fence Metal check, real Swift v1/handle/document integration,
+  complete wrapper checks and static-library/Xcode builds are in progress. No M9
+  or other milestone gate is marked complete. Full physical IME/panel/mobile/
+  Windows/Linux, browser Creator, resource/performance and remaining modular
+  ownership/legacy retirement gates remain open.
+
+
+M9 Creator host/document checkpoint (verified local batch):
+- Canonical-source save fence and changed-during-write behavior passed the
+  existing assembled Creator Metal integration:1 pass/128.06s, no root bitmap
+  or additional GPU readback. Log:
+  /private/tmp/eldiron-native-document-source-fence-metal.log.
+- Real Swift/static-library v1 integration passed on retained CAMetalLayers.
+  It verifies version mismatch/null-layer/duplicate-init rejection; actual
+  presentations, zero root bitmap/readback; density/suspend/zero-size/layer
+  replacement; toolbar file-request routing; invalid byte-load preservation;
+  save length query, untouched undersized copy, wrong/duplicate ticket rejection,
+  actual atomic write/re-read/reopen, fresh document IDs and stale callbacks;
+  destroy/recreate with increasing handles and old-handle rejection. Log:
+  /private/tmp/eldiron-native-document-swift-source-fence-host.log.
+- Host recreation revealed Scepter's detached listener never stopped: Editor
+  discarded its service immediately after startup and the accept loop ran
+  forever. Editor now retains the service; its Drop signals and joins the
+  nonblocking accept worker before host replacement. Existing HTTP/event/job
+  semantics and port are unchanged. Repeated real Swift integration now passes
+  with two successful listener binds and no unavailable/address-in-use error:
+  /private/tmp/eldiron-native-document-swift-lifetime-host.log. Accepted HTTP
+  request threads retain only their old channel/registry; they cannot address a
+  new Creator document. Full Scepter pending-job/capture lifecycle remains in
+  the broader acceptance matrix.
+- Final staticlib build passed20.77s (lifetime-build.log); reference Creator
+  check passed9.32s (reference-final-check.log); ARM64 iOS simulator Rust check
+  passed29.08s (ios-rust-check.log). Prefix for these logs is
+  /private/tmp/eldiron-native-document-. Final macOS/iOS wrapper typechecks pass;
+  final iOS picker log is ios-picker-final-check.log. Main-queue lifecycle
+  callbacks now explicitly enter MainActor and capture their original handle.
+  The shared client's pre-existing NSTextInputClient Swift6 conformance warning
+  remains; it is not counted as verified Swift6/platform input support.
+- Full unsigned arm64 macOS Xcode application build with the real debug static
+  library succeeded: /private/tmp/eldiron-native-document-xcode-build.log.
+  This proves linking/packaging, not physical file panels or editing. Mac is
+  still locked; no physical/IME/mobile/window acceptance is inferred.
+- Bridge.h and Xcode/Eldiron/README.md document handles, single-active-host
+  restriction, callback ownership, JSON allocator contract, save memory/copy
+  rules and platform file routing. Existing unversioned initialization keeps
+  legacy filesystem dialogs; only v1 selects host byte transfers. No serialized
+  project format, networking concept or user work was changed by this batch.
+- Full M0–M9 objective remains active. Next independent work: browser Creator
+  bootstrap/platform dependencies and job policy, alongside remaining ownership,
+  uncommon source/HUD modes, budgets and unavailable platform acceptance.
+  First browser Creator check was blocked by sandboxed Cargo cache extraction;
+  approved offline retry unpacked cached packages and reached a concrete source
+  incompatibility: unconditional open5.3.3 emits "open is not supported on this
+  platform". Log: /private/tmp/eldiron-browser-creator-dependencies-check.log.
+  Continue fixing target boundaries; this is an implementation gap, not a
+  platform-access blocker.

@@ -69,7 +69,7 @@ class GameViewController: NSViewController, NSWindowDelegate {
     }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
-        if !rust_has_changes() {
+        if renderer?.hasUnsavedChanges != true {
             return true
         }
 
@@ -88,42 +88,42 @@ class GameViewController: NSViewController, NSWindowDelegate {
     }
 
     @IBAction func undo_menu(_ sender: NSMenuItem) {
-        rust_undo()
-        renderer.needsUpdate()
+        renderer?.editCommand(3)
+        renderer?.needsUpdate()
     }
 
     @IBAction func open_menu(_ sender: NSMenuItem) {
-        rust_open()
-        renderer.needsUpdate()
+        renderer?.openDocument()
+        renderer?.needsUpdate()
     }
 
     @IBAction func save_menu(_ sender: NSMenuItem) {
-        rust_save()
-        renderer.needsUpdate()
+        renderer?.saveDocument()
+        renderer?.needsUpdate()
     }
 
     @IBAction func save_as_menu(_ sender: NSMenuItem) {
-        rust_save_as()
-        renderer.needsUpdate()
+        renderer?.saveDocument(as: true)
+        renderer?.needsUpdate()
     }
 
     @IBAction func redo_menu(_ sender: NSMenuItem) {
-        rust_redo()
-        renderer.needsUpdate()
+        renderer?.editCommand(4)
+        renderer?.needsUpdate()
     }
 
     @IBAction func cut_menu(_ sender: NSMenuItem) {
-        rust_edit_command(0)
-        renderer.needsUpdate()
+        renderer?.editCommand(0)
+        renderer?.needsUpdate()
     }
 
     @IBAction func copy_menu(_ sender: NSMenuItem) {
-        rust_edit_command(1)
-        renderer.needsUpdate()
+        renderer?.editCommand(1)
+        renderer?.needsUpdate()
     }
 
     @IBAction func paste_menu(_ sender: NSMenuItem) {
-        rust_edit_command(2)
-        renderer.needsUpdate()
+        renderer?.editCommand(2)
+        renderer?.needsUpdate()
     }
 }

@@ -120,24 +120,24 @@ public class RMTKView       : MTKView
     }
 
     override public func keyDown(with event: NSEvent) {
-        _ = rust_key_modifier_changed(event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command))
+        _ = eldiron_creator_modifiers_v1(renderer?.handle ?? 0, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command))
         let client = nativeClient, context = nativeContext
         client?.beginKey()
         defer { client?.endKey() }
         if client?.hasMarkedText() == true { _ = context?.handleEvent(event); renderer.needsUpdate(); return }
-        let consumed = (event.charactersIgnoringModifiers ?? "").withCString { rust_physical_key(physical(event.keyCode), true, event.isARepeat, $0) }
+        let consumed = (event.charactersIgnoringModifiers ?? "").withCString { eldiron_creator_key_v1(renderer?.handle ?? 0, physical(event.keyCode), true, event.isARepeat, $0) }
         if !consumed && client === nativeClient { _ = context?.handleEvent(event) }
         renderer.needsUpdate()
     }
     override public func keyUp(with event: NSEvent) {
-        _ = (event.charactersIgnoringModifiers ?? "").withCString { rust_physical_key(physical(event.keyCode), false, false, $0) }
+        _ = (event.charactersIgnoringModifiers ?? "").withCString { eldiron_creator_key_v1(renderer?.handle ?? 0, physical(event.keyCode), false, false, $0) }
         renderer.needsUpdate()
     }
     override public func doCommand(by selector: Selector) {
         let codes: [String: UInt32] = ["insertNewline:":0x100,"cancelOperation:":0x101,"deleteBackward:":0x102,"insertTab:":0x103,"deleteForward:":0x105,"moveLeft:":0x106,"moveRight:":0x107,"moveUp:":0x108,"moveDown:":0x109]
         if let code = codes[NSStringFromSelector(selector)] {
-            _ = rust_physical_key(code, true, false, nil)
-            _ = rust_physical_key(code, false, false, nil)
+            _ = eldiron_creator_key_v1(renderer?.handle ?? 0, code, true, false, nil)
+            _ = eldiron_creator_key_v1(renderer?.handle ?? 0, code, false, false, nil)
         }
         renderer.needsUpdate()
     }
@@ -145,58 +145,58 @@ public class RMTKView       : MTKView
     override public func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
         setMousePos(event)
-        _ = rust_touch_down(mousePos.x, mousePos.y)
+        _ = eldiron_creator_touch_down_v1(renderer?.handle ?? 0, mousePos.x, mousePos.y)
         renderer.needsUpdate()
     }
 
     override public func mouseDragged(with event: NSEvent) {
         setMousePos(event)
-        _ = rust_touch_dragged(mousePos.x, mousePos.y)
-        _ = rust_mouse_motion(Float(event.deltaX), Float(event.deltaY))
+        _ = eldiron_creator_touch_dragged_v1(renderer?.handle ?? 0, mousePos.x, mousePos.y)
+        _ = eldiron_creator_mouse_motion_v1(renderer?.handle ?? 0, Float(event.deltaX), Float(event.deltaY))
         renderer.needsUpdate()
     }
 
     override public func mouseMoved(with event: NSEvent) {
         setMousePos(event)
-        _ = rust_hover(mousePos.x, mousePos.y)
-        _ = rust_mouse_motion(Float(event.deltaX), Float(event.deltaY))
+        _ = eldiron_creator_hover_v1(renderer?.handle ?? 0, mousePos.x, mousePos.y)
+        _ = eldiron_creator_mouse_motion_v1(renderer?.handle ?? 0, Float(event.deltaX), Float(event.deltaY))
         renderer.needsUpdate()
     }
 
     override public func mouseExited(with event: NSEvent) {
-        _ = rust_mouse_leave()
+        _ = eldiron_creator_mouse_leave_v1(renderer?.handle ?? 0)
         renderer.needsUpdate()
     }
 
     override public func mouseUp(with event: NSEvent) {
         setMousePos(event)
-        _ = rust_touch_up(mousePos.x, mousePos.y)
+        _ = eldiron_creator_touch_up_v1(renderer?.handle ?? 0, mousePos.x, mousePos.y)
         renderer.needsUpdate()
     }
 
     override public func rightMouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
         setMousePos(event)
-        _ = rust_right_touch_down(mousePos.x, mousePos.y)
+        _ = eldiron_creator_right_touch_down_v1(renderer?.handle ?? 0, mousePos.x, mousePos.y)
         setRightMouseCapture(true)
         renderer.needsUpdate()
     }
 
     override public func rightMouseDragged(with event: NSEvent) {
-        if rust_mouse_motion(Float(event.deltaX), Float(event.deltaY)) {
+        if eldiron_creator_mouse_motion_v1(renderer?.handle ?? 0, Float(event.deltaX), Float(event.deltaY)) {
             renderer.needsUpdate()
             return
         }
 
         setMousePos(event)
-        _ = rust_right_touch_dragged(mousePos.x, mousePos.y)
+        _ = eldiron_creator_right_touch_dragged_v1(renderer?.handle ?? 0, mousePos.x, mousePos.y)
         renderer.needsUpdate()
     }
 
     override public func rightMouseUp(with event: NSEvent) {
         setRightMouseCapture(false)
         setMousePos(event)
-        _ = rust_right_touch_up(mousePos.x, mousePos.y)
+        _ = eldiron_creator_right_touch_up_v1(renderer?.handle ?? 0, mousePos.x, mousePos.y)
         renderer.needsUpdate()
     }
 
@@ -223,22 +223,22 @@ public class RMTKView       : MTKView
             commandIsDown = false
         }
 
-        if rust_key_modifier_changed(shiftIsDown, controlIsDown, altIsDown, commandIsDown) {
+        if eldiron_creator_modifiers_v1(renderer?.handle ?? 0, shiftIsDown, controlIsDown, altIsDown, commandIsDown) {
             renderer.needsUpdate()
         }
     }
 
     override public func scrollWheel(with event: NSEvent) {
         if event.hasPreciseScrollingDeltas {
-            _ = rust_touch_precise_scroll(Float(event.scrollingDeltaX), Float(event.scrollingDeltaY))
+            _ = eldiron_creator_precise_scroll_v1(renderer?.handle ?? 0, Float(event.scrollingDeltaX), Float(event.scrollingDeltaY))
         } else {
-            _ = rust_touch_wheel(Float(event.scrollingDeltaX), Float(event.scrollingDeltaY))
+            _ = eldiron_creator_scroll_v1(renderer?.handle ?? 0, Float(event.scrollingDeltaX), Float(event.scrollingDeltaY))
         }
         renderer.needsUpdate()
     }
 
     override public func magnify(with event: NSEvent) {
-        _ = rust_pinch(Float(event.magnification))
+        _ = eldiron_creator_pinch_v1(renderer?.handle ?? 0, Float(event.magnification))
         renderer.needsUpdate()
     }
     #elseif os(iOS)
@@ -291,8 +291,8 @@ public class RMTKView       : MTKView
         for press in presses {
             guard let key = press.key else { continue }
             let flags = key.modifierFlags
-            _ = rust_key_modifier_changed(flags.contains(.shift), flags.contains(.control), flags.contains(.alternate), flags.contains(.command))
-            consumed = key.charactersIgnoringModifiers.withCString { rust_physical_key(physical(key.keyCode.rawValue), pressed, false, $0) } || consumed
+            _ = eldiron_creator_modifiers_v1(renderer?.handle ?? 0, flags.contains(.shift), flags.contains(.control), flags.contains(.alternate), flags.contains(.command))
+            consumed = key.charactersIgnoringModifiers.withCString { eldiron_creator_key_v1(renderer?.handle ?? 0, physical(key.keyCode.rawValue), pressed, false, $0) } || consumed
         }
         renderer.needsUpdate()
         return consumed
@@ -321,7 +321,7 @@ public class RMTKView       : MTKView
     var lastPinch : Float = 1
 
     @objc func handlePinchGesture(_ recognizer: UIPinchGestureRecognizer) {
-        _ = rust_pinch(Float(recognizer.scale - 1))
+        _ = eldiron_creator_pinch_v1(renderer?.handle ?? 0, Float(recognizer.scale - 1))
         recognizer.scale = 1
         renderer.needsUpdate()
     }
@@ -357,7 +357,7 @@ public class RMTKView       : MTKView
         if let touch = touches.first {
             let point = touch.location(in: self)
             setMousePos(Float(point.x), Float(point.y))
-            _ = rust_touch_down(mousePos.x, mousePos.y)
+            _ = eldiron_creator_touch_down_v1(renderer?.handle ?? 0, mousePos.x, mousePos.y)
             renderer.needsUpdate()
         }
     }
@@ -366,7 +366,7 @@ public class RMTKView       : MTKView
         if let touch = touches.first {
             let point = touch.location(in: self)
             setMousePos(Float(point.x), Float(point.y))
-            _ = rust_touch_dragged(mousePos.x, mousePos.y)
+            _ = eldiron_creator_touch_dragged_v1(renderer?.handle ?? 0, mousePos.x, mousePos.y)
             renderer.needsUpdate()
         }
     }
@@ -376,7 +376,7 @@ public class RMTKView       : MTKView
         if let touch = touches.first {
             let point = touch.location(in: self)
             setMousePos(Float(point.x), Float(point.y))
-            _ = rust_touch_up(mousePos.x, mousePos.y)
+            _ = eldiron_creator_touch_up_v1(renderer?.handle ?? 0, mousePos.x, mousePos.y)
             renderer.needsUpdate()
         }
     }

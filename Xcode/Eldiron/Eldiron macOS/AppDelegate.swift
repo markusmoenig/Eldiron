@@ -8,6 +8,7 @@
 import Cocoa
 
 @main
+@MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
     static var bypassUnsavedPromptOnce: Bool = false
 
@@ -124,7 +125,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu.autoenablesItems = false
         root.submenu = menu
         mainMenu.addItem(root)
-        updateThemeMenu(menu, selected: Int(rust_get_creator_theme()))
+        updateThemeMenu(menu, selected: Int(creatorRenderer?.theme ?? 0))
     }
 
     private func updateThemeMenu(_ menu: NSMenu, selected: Int) {
@@ -132,7 +133,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func selectCreatorTheme(_ sender: NSMenuItem) {
-        rust_set_creator_theme(UInt32(sender.tag))
+        creatorRenderer?.setTheme(UInt32(sender.tag))
         if let menu = sender.menu { updateThemeMenu(menu, selected: sender.tag) }
     }
 
@@ -225,76 +226,81 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         mainMenu.setSubmenu(gameMenu, for: gameRoot)
     }
 
+    private var creatorRenderer: Renderer? {
+        (NSApp.keyWindow?.contentViewController as? GameViewController)?.renderer
+            ?? NSApp.windows.compactMap { ($0.contentViewController as? GameViewController)?.renderer }.first
+    }
+
     @objc private func openMenu() {
-        rust_open()
+        creatorRenderer?.openDocument()
     }
 
     @objc private func newMenu() {
-        rust_new()
+        creatorRenderer?.command(0)
     }
 
     @objc private func saveMenu() {
-        rust_save()
+        creatorRenderer?.saveDocument()
     }
 
     @objc private func closeMenu() {
-        rust_close()
+        creatorRenderer?.command(2)
     }
 
     @objc private func saveAsMenu() {
-        rust_save_as()
+        creatorRenderer?.saveDocument(as: true)
     }
 
     @objc private func playMenu() {
-        rust_play()
+        creatorRenderer?.command(5)
     }
 
     @objc private func pauseMenu() {
-        rust_pause()
+        creatorRenderer?.command(6)
     }
 
     @objc private func stopMenu() {
-        rust_stop()
+        creatorRenderer?.command(7)
     }
 
     @objc private func showSettingsMenu() {
-        rust_show_settings()
+        creatorRenderer?.command(8)
     }
 
     @objc private func showRulesMenu() {
-        rust_show_rules()
+        creatorRenderer?.command(9)
     }
 
     @objc private func showLocalesMenu() {
-        rust_show_locales()
+        creatorRenderer?.command(10)
     }
 
     @objc private func showAudioFxMenu() {
-        rust_show_audio_fx()
+        creatorRenderer?.command(11)
     }
 
     @objc private func showAuthoringMenu() {
-        rust_show_authoring()
+        creatorRenderer?.command(12)
     }
 
     @objc private func showProjectSidebarMenu() {
-        rust_show_project_sidebar()
+        creatorRenderer?.command(13)
     }
 
     @objc private func showActionsSidebarMenu() {
-        rust_show_actions_sidebar()
+        creatorRenderer?.command(14)
     }
 
     @objc private func showDebugLogMenu() {
-        rust_show_debug_log()
+        creatorRenderer?.command(15)
     }
 
     @objc private func showConsoleMenu() {
-        rust_show_console()
+        creatorRenderer?.command(16)
     }
 
     @objc private func showHelpSidebarMenu() {
-        rust_show_help_sidebar()
+        creatorRenderer?.command(17)
     }
 
     @objc private func openDocs() {
@@ -345,7 +351,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func confirmCloseIfNeeded() -> Bool {
-        if !rust_has_changes() {
+        if creatorRenderer?.hasUnsavedChanges != true {
             return true
         }
 

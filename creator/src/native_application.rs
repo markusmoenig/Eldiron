@@ -6,6 +6,9 @@ use renderkit::{RenderError, Result};
 use std::time::{Duration, Instant};
 use theframework::{paint::PaintList, platform::*, prelude::*, render_wgpu::UiFrameImages};
 
+#[path = "native_documents.rs"]
+mod documents;
+
 pub struct NativeCreatorApplication {
     editor: Editor,
     args: Vec<String>,
@@ -2869,6 +2872,55 @@ mod tests {
             }
         }
         check_asset_sources(&gpu, &mut renderer, &mut app.session.context);
+        check_host_documents(&mut app, &mut host, &gpu);
+    }
+    fn check_host_documents(
+        app: &mut UiApplicationAdapter<NativeCreatorApplication>,
+        host: &mut HostContext,
+        gpu: &Arc<GpuContext>,
+    ) {
+        let before = gpu.transfers().readback_bytes;
+        let original = app.application.host_document_info().unwrap();
+        let source = serde_json::to_vec(app.application.editor.project_for_native_test()).unwrap();
+        assert!(app.application.host_load_document(&mut app.session, original.document, b"invalid project", None, false).is_err());
+        assert_eq!(app.application.host_document_info().unwrap().document, original.document);
+        assert!(source == serde_json::to_vec(app.application.editor.project_for_native_test()).unwrap(), "failed byte loads must preserve the authoring document");
+        let save = app.application.host_prepare_document_save(&mut app.session, original.document).unwrap();
+        assert!(app.application.host_prepare_document_save(&mut app.session, original.document).is_err(), "only one host write may own a snapshot");
+        let bytes = app.application.host_document_save_bytes(save.ticket).unwrap().to_vec();
+        assert_eq!(bytes.len(), save.length);
+        let decoded = shared::project_io::decode_project(&bytes).unwrap();
+        assert_eq!(decoded.regions.len(), app.application.editor.project_for_native_test().regions.len());
+        assert!(app.application.host_complete_document_save(&mut app.session, save.ticket + 1, true, None).is_err());
+        assert_eq!(app.application.host_document_save_bytes(save.ticket).unwrap(), bytes.as_slice());
+        let canceled = app.application.host_complete_document_save(&mut app.session, save.ticket, false, None).unwrap();
+        assert!(!canceled.saved);
+        assert!(app.application.host_document_save_bytes(save.ticket).is_none());
+        assert!(app.application.host_complete_document_save(&mut app.session, save.ticket, true, None).is_err());
+
+        let save = app.application.host_prepare_document_save(&mut app.session, original.document).unwrap();
+        let bytes = app.application.host_document_save_bytes(save.ticket).unwrap().to_vec();
+        let path = std::path::PathBuf::from("/private/tmp/eldiron-native-host-document.eldiron");
+        std::fs::write(&path, &bytes).unwrap();
+        let completed = app.application.host_complete_document_save(&mut app.session, save.ticket, true, Some(path.clone())).unwrap();
+        assert!(completed.saved && completed.clean, "unchanged successful snapshot must mark its document saved");
+        assert!(!app.application.host_document_info().unwrap().dirty);
+        assert_eq!(std::fs::read(&path).unwrap(), bytes);
+
+        // A native save may finish after tab activation. Its source remains owned
+        // by the old document, and completion cannot clean the new active tab.
+        let save = app.application.host_prepare_document_save(&mut app.session, original.document).unwrap();
+        let loaded = app.application.host_load_document(&mut app.session, original.document, &bytes, Some(path.clone()), false).unwrap();
+        assert_ne!(loaded.document, original.document, "loaded files require fresh callback identities even with identical map IDs");
+        assert!(app.application.host_prepare_document_save(&mut app.session, original.document).is_err());
+        let completed = app.application.host_complete_document_save(&mut app.session, save.ticket, true, Some(path)).unwrap();
+        assert_eq!(completed.document, original.document);
+        assert!(completed.saved && completed.clean);
+        assert_eq!(app.application.host_document_info().unwrap().document, loaded.document);
+        assert!(app.application.host_load_document(&mut app.session, original.document, &bytes, None, false).is_err(), "stale open completion must not replace another active document");
+        app.application.editor.check_host_save_conflict_for_test(&mut app.session.ui, &mut app.session.context);
+        app.update(host, Duration::from_millis(16));
+        assert_eq!(gpu.transfers().readback_bytes, before, "document transfers use CPU source bytes, never scene color capture");
     }
     fn check_native_paste(
         app: &mut UiApplicationAdapter<NativeCreatorApplication>,
