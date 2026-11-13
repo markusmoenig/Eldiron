@@ -5869,3 +5869,48 @@ Populated comparison follow-up:
   channel delta1. `/private/tmp/eldiron-native-tile-board-final-metal.log`.
 - `git diff --check` passed. This verifies the tile-board integration, not the
   remaining minimap producers or the full M0–M9 acceptance matrix.
+
+## 2026-11-13 — GPU minimap asset previews (verified checkpoint)
+
+Sidebar now publishes immutable source-image paint for the pixel editor's
+Tile/ItemIcon/AvatarFrame selection, tilemap animation preview, hovered tile
+(including isometric frames), and the embedded Prefab picker. Aspect fitting,
+nearest sampling and alpha composition run through GPU sprite blits. Native
+production excludes the pixel-editor/tilemap CPU preview implementations and the
+hovered ordinary-image scaling branch. The remaining world/procedural minimap
+adapters are explicit and are not counted as converted.
+
+A Sidebar-owned source cache reuses animation frames, limits retained images to
+32MiB/128 entries, and resets on document switch. Published immutable sources
+retain their own frame data across source edits/cache eviction. Unchanged preview
+publication reuses the same Arc and does not invalidate an already-painted view.
+The existing host image registry still owns GPU budgets and recovery.
+
+Evidence so far:
+- First native production check passed41.15s (included new visibility/unused
+  warnings subsequently corrected):
+  `/private/tmp/eldiron-native-minimap-sprites-check.log`.
+- Existing Creator checkpoint build passed29.37s, then49.67s after adding source
+  edit/static-invalidation cases:
+  `eldiron-native-minimap-sprites-build.log` and
+  `eldiron-native-minimap-sprites-final-build.log` under `/private/tmp`.
+- Focused actual Metal source comparisons passed1,1.65s. Both animation frames
+  for pixel editor, tilemap and iso hover matched the CPU presentation oracle
+  within max channel delta1. Sidebar's real Custom event route also asserts
+  release of an already allocated CPU display bitmap. This was a focused run,
+  not an assembled-workflow pass:
+  `/private/tmp/eldiron-native-minimap-sprites-focused-metal.log`.
+- Reference Creator compile passed9.86s:
+  `/private/tmp/eldiron-minimap-sprites-reference-check.log`.
+- Final assembled Metal checkpoint (diagnostic env explicitly unset) **passed1,
+  97.97s**, including edited source pixels and unchanged-preview invalidation.
+  All nine source comparisons report max channel delta1:
+  `/private/tmp/eldiron-native-minimap-sprites-root-metal.log`.
+- Final native production check passed16.03s, with no new warnings:
+  `/private/tmp/eldiron-native-minimap-sprites-final-check.log`.
+- `git diff --check` passed. No additional test suite was added, and protected
+  large files were formatted only within the changed functions.
+
+Open: world minimap SceneVM readback, isometric CPU minimap producer, procedural
+particle preview display and fixed-time particle board thumbnail source bake.
+Full M0–M9 remains active. Concurrent networking concept is untouched.

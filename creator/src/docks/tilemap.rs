@@ -331,6 +331,21 @@ impl Dock for TilemapDock {
     }
 
     /// Draw the tile preview
+    #[cfg(feature = "native-ui")]
+    fn native_minimap_source(
+        &self,
+        size: Vec2<i32>,
+        _project: &Project,
+        server_ctx: &ServerContext,
+        sources: &mut crate::minimap::native::Sources,
+    ) -> Option<
+        std::sync::Arc<dyn theframework::theui::thewidget::therenderview::RenderViewPaintSource>,
+    > {
+        self.preview_texture(server_ctx)
+            .map(|texture| sources.sprite(size, Some(texture)))
+    }
+
+    #[cfg(any(not(feature = "native-ui"), test))]
     fn draw_minimap(
         &self,
         buffer: &mut TheRGBABuffer,
@@ -338,17 +353,12 @@ impl Dock for TilemapDock {
         ctx: &mut TheContext,
         server_ctx: &ServerContext,
     ) -> bool {
-        if let Some(tile) = &self.preview_tile
-            && !tile.textures.is_empty()
-        {
+        if let Some(texture) = self.preview_texture(server_ctx) {
             buffer.fill(BLACK);
-            let index = tile.frame_index(server_ctx.animation_counter);
-
             let stride: usize = buffer.stride();
-
-            let src_pixels = &tile.textures[index].data;
-            let src_w = tile.textures[index].width as f32;
-            let src_h = tile.textures[index].height as f32;
+            let src_pixels = &texture.data;
+            let src_w = texture.width as f32;
+            let src_h = texture.height as f32;
 
             let dim = buffer.dim();
             let dst_w = dim.width as f32;
@@ -392,6 +402,22 @@ impl Dock for TilemapDock {
 }
 
 impl TilemapDock {
+    #[cfg(test)]
+    pub(crate) fn native_minimap_fixture(tile: rusterix::Tile) -> Self {
+        let mut dock = Self::new();
+        dock.preview_tile = Some(tile);
+        dock
+    }
+
+    fn preview_texture(&self, server_ctx: &ServerContext) -> Option<&rusterix::Texture> {
+        let tile = self.preview_tile.as_ref()?;
+        if tile.textures.is_empty() {
+            return None;
+        }
+        tile.textures
+            .get(tile.frame_index(server_ctx.animation_counter))
+    }
+
     fn sync_used(&self, project: &Project, ui: &mut TheUI) {
         if let Some(source) = project.get_tilemap(self.curr_tilemap_id) {
             let g = source.grid_dimensions();

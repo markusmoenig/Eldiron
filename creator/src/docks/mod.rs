@@ -182,6 +182,21 @@ pub trait Dock: Send + Sync {
         None
     }
 
+    /// Publish immutable source-asset paint for a migrated minimap preview.
+    /// None leaves unmigrated procedural/world previews to their explicit adapter.
+    #[cfg(feature = "native-ui")]
+    fn native_minimap_source(
+        &self,
+        size: Vec2<i32>,
+        project: &Project,
+        server_ctx: &ServerContext,
+        sources: &mut crate::minimap::native::Sources,
+    ) -> Option<
+        std::sync::Arc<dyn theframework::theui::thewidget::therenderview::RenderViewPaintSource>,
+    > {
+        None
+    }
+
     /// Draw custom minimap content when this dock is active.
     /// Returns true if the dock drew custom content (minimap should not draw default content).
     /// Returns false to let the default minimap drawing proceed.

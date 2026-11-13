@@ -344,7 +344,7 @@ mod tests {
         if std::env::var_os("ELDIRON_NATIVE_TILE_BOARD_ONLY").is_some() {
             let mut renderer = PaintRenderer::new(gpu.clone()).unwrap();
             let mut context = TheContext::new(230, 140, 1.);
-            check_tile_board_sources(&gpu, &mut renderer, &mut context);
+            check_asset_sources(&gpu, &mut renderer, &mut context);
             return;
         }
         let mut registry = ImageRegistry::new(gpu.clone());
@@ -2768,9 +2768,9 @@ mod tests {
                 }
             }
         }
-        check_tile_board_sources(&gpu, &mut renderer, &mut app.session.context);
+        check_asset_sources(&gpu, &mut renderer, &mut app.session.context);
     }
-    fn check_tile_board_sources(
+    fn check_asset_sources(
         gpu: &std::sync::Arc<GpuContext>,
         renderer: &mut PaintRenderer,
         context: &mut TheContext,
@@ -2778,7 +2778,10 @@ mod tests {
         use theframework::paint::{DisplayCompositing, PaintOp};
         // Check populated picker assets through the actual GPU compositor in
         // this same assembled checkpoint, including crop/alpha/drag semantics.
-        for (label, source, reference) in crate::docks::tiles::native_reference_cases_for_test() {
+        for (label, source, reference) in crate::docks::tiles::native_reference_cases_for_test()
+            .into_iter()
+            .chain(crate::minimap::native::reference_cases())
+        {
             let size = (reference.dim().width as u32, reference.dim().height as u32);
             let mut images = theframework::render_wgpu::UiImages::new(gpu.clone());
             let mut paint = PaintList::default();
@@ -2824,9 +2827,9 @@ mod tests {
                 .unwrap_or(0);
             assert!(
                 delta <= 1,
-                "{label} tile board differs from the CPU reference: max channel delta={delta}"
+                "{label} source preview differs from the CPU reference: max channel delta={delta}"
             );
-            eprintln!("Native tile board {label}: max reference delta={delta}");
+            eprintln!("Native asset {label}: max reference delta={delta}");
             images.clear();
         }
     }

@@ -1205,6 +1205,27 @@ impl Dock for TilesDock {
         redraw
     }
 
+    #[cfg(feature = "native-ui")]
+    fn native_minimap_source(
+        &self,
+        size: Vec2<i32>,
+        project: &Project,
+        server_ctx: &ServerContext,
+        sources: &mut crate::minimap::native::Sources,
+    ) -> Option<
+        std::sync::Arc<dyn theframework::theui::thewidget::therenderview::RenderViewPaintSource>,
+    > {
+        let TileSource::SingleTile(id) = self.tile_hover_source?;
+        if project
+            .tiles
+            .get(&id)
+            .is_some_and(|tile| tile.particle_emitter.is_some())
+        {
+            return None; // Animated procedural display remains an explicit adapter.
+        }
+        Some(sources.sprite(size, self.preview_texture(project, server_ctx, id)))
+    }
+
     fn draw_minimap(
         &self,
         buffer: &mut TheRGBABuffer,
@@ -1228,6 +1249,13 @@ impl Dock for TilesDock {
 }
 
 impl TilesDock {
+    #[cfg(test)]
+    pub(crate) fn native_minimap_fixture(id: Uuid) -> Self {
+        let mut dock = Self::new();
+        dock.tile_hover_source = Some(TileSource::SingleTile(id));
+        dock
+    }
+
     pub(crate) fn new_prefab() -> Self {
         let mut dock = <Self as Dock>::new();
         dock.widget_prefix = PREFAB_TILES_PREFIX;
@@ -2224,15 +2252,48 @@ impl TilesDock {
         );
     }
 
+    fn preview_texture<'a>(
+        &self,
+        project: &'a Project,
+        server_ctx: &ServerContext,
+        tile_id: Uuid,
+    ) -> Option<&'a rusterix::Texture> {
+        let tile = project.tiles.get(&tile_id)?;
+        if tile.textures.is_empty() {
+            return None;
+        }
+        let index = tile.frame_index(if tile.paint.is_some() {
+            0
+        } else {
+            server_ctx.animation_counter
+        });
+        let regular = tile.textures.get(index)?;
+        if project
+            .get_map(server_ctx)
+            .is_some_and(|map| map.camera == MapCamera::TwoDIso)
+            && !project.procedural_materials.contains_key(&tile_id)
+        {
+            Some(
+                tile.isometric
+                    .as_ref()
+                    .and_then(|sprite| sprite.frames.get(index % sprite.frames.len().max(1)))
+                    .unwrap_or(regular),
+            )
+        } else {
+            Some(regular)
+        }
+    }
+
     fn draw_source_preview(
         &self,
         buffer: &mut TheRGBABuffer,
         project: &Project,
-        ctx: &mut TheContext,
-        server_ctx: &ServerContext,
+        _ctx: &mut TheContext,
+        _server_ctx: &ServerContext,
         source: TileSource,
     ) {
         buffer.fill(BLACK);
+        #[cfg(any(not(feature = "native-ui"), test))]
         let stride = buffer.stride();
         let particle_time = self.particle_preview_time();
 
@@ -2248,20 +2309,11 @@ impl TilesDock {
                                 particle_time,
                             );
                         buffer.pixels_mut().copy_from_slice(preview.pixels());
-                    } else if !tile.textures.is_empty() {
-                        let index = tile.frame_index(if tile.paint.is_some() {0} else {server_ctx.animation_counter});
-                        let tex = if project
-                            .get_map(server_ctx)
-                            .is_some_and(|m| m.camera == rusterix::MapCamera::TwoDIso)
-                            && !project.procedural_materials.contains_key(&tile_id)
-                        {
-                            tile.isometric
-                                .as_ref()
-                                .and_then(|s| s.frames.get(index % s.frames.len().max(1)))
-                                .unwrap_or(&tile.textures[index])
-                        } else {
-                            &tile.textures[index]
-                        };
+                    }
+                    #[cfg(any(not(feature = "native-ui"), test))]
+                    if tile.particle_emitter.is_none()
+                        && let Some(tex) = self.preview_texture(project, _server_ctx, tile_id)
+                    {
                         let src_w = tex.width as f32;
                         let src_h = tex.height as f32;
                         let dst_w = buffer.dim().width as f32;
@@ -2271,7 +2323,7 @@ impl TilesDock {
                         let draw_h = src_h * scale;
                         let offset_x = ((dst_w - draw_w) * 0.5).round() as usize;
                         let offset_y = ((dst_h - draw_h) * 0.5).round() as usize;
-                        ctx.draw.blend_scale_chunk(
+                        _ctx.draw.blend_scale_chunk(
                             buffer.pixels_mut(),
                             &(
                                 offset_x,

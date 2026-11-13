@@ -4226,6 +4226,24 @@ impl Dock for PrefabsEditorDock {
         }
     }
 
+    #[cfg(feature = "native-ui")]
+    fn native_minimap_source(
+        &self,
+        size: Vec2<i32>,
+        project: &Project,
+        server_ctx: &ServerContext,
+        sources: &mut crate::minimap::native::Sources,
+    ) -> Option<
+        std::sync::Arc<dyn theframework::theui::thewidget::therenderview::RenderViewPaintSource>,
+    > {
+        if self.mode == PrefabEditorMode::Tiles {
+            self.tiles_dock
+                .native_minimap_source(size, project, server_ctx, sources)
+        } else {
+            None
+        }
+    }
+
     fn draw_minimap(
         &self,
         buffer: &mut TheRGBABuffer,

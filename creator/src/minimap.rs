@@ -7,6 +7,9 @@ use vek::Vec2;
 use crate::editor::{ACTIONLIST, DOCKMANAGER, PALETTE, RUSTERIX};
 use std::hash::{Hash, Hasher};
 
+#[cfg(feature = "native-ui")]
+pub mod native;
+
 pub static MINIMAPBUFFER: LazyLock<RwLock<TheRGBABuffer>> =
     LazyLock::new(|| RwLock::new(TheRGBABuffer::default()));
 

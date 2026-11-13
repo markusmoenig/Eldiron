@@ -916,6 +916,21 @@ impl Dock for TilesEditorDock {
         ])
     }
 
+    #[cfg(feature = "native-ui")]
+    fn native_minimap_source(
+        &self,
+        size: Vec2<i32>,
+        project: &Project,
+        server_ctx: &ServerContext,
+        sources: &mut crate::minimap::native::Sources,
+    ) -> Option<
+        std::sync::Arc<dyn theframework::theui::thewidget::therenderview::RenderViewPaintSource>,
+    > {
+        self.preview_texture(project, server_ctx)
+            .map(|texture| sources.sprite(size, Some(texture)))
+    }
+
+    #[cfg(any(not(feature = "native-ui"), test))]
     fn draw_minimap(
         &self,
         buffer: &mut TheRGBABuffer,
@@ -925,20 +940,7 @@ impl Dock for TilesEditorDock {
     ) -> bool {
         buffer.fill(BLACK);
 
-        // Determine which frame to display
-        let display_ctx = if self.anim_preview {
-            let frame_count = server_ctx.editing_ctx.get_frame_count(project);
-            if frame_count > 0 {
-                let frame = server_ctx.animation_counter % frame_count;
-                server_ctx.editing_ctx.with_frame(frame)
-            } else {
-                server_ctx.editing_ctx
-            }
-        } else {
-            server_ctx.editing_ctx
-        };
-
-        if let Some(texture) = project.get_editing_texture(&display_ctx) {
+        if let Some(texture) = self.preview_texture(project, server_ctx) {
             let stride: usize = buffer.stride();
 
             let src_pixels = &texture.data;
@@ -982,6 +984,29 @@ impl Dock for TilesEditorDock {
 }
 
 impl TilesEditorDock {
+    #[cfg(test)]
+    pub(crate) fn native_minimap_fixture() -> Self {
+        let mut dock = Self::new();
+        dock.anim_preview = true;
+        dock
+    }
+
+    fn preview_texture<'a>(
+        &self,
+        project: &'a Project,
+        server_ctx: &ServerContext,
+    ) -> Option<&'a rusterix::Texture> {
+        let frame_count = server_ctx.editing_ctx.get_frame_count(project);
+        let display_ctx = if self.anim_preview && frame_count > 0 {
+            server_ctx
+                .editing_ctx
+                .with_frame(server_ctx.animation_counter % frame_count)
+        } else {
+            server_ctx.editing_ctx
+        };
+        project.get_editing_texture(&display_ctx)
+    }
+
     fn apply_avatar_anchor_at(
         &mut self,
         coord: Vec2<i32>,

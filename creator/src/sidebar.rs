@@ -36,6 +36,9 @@ pub struct Sidebar {
     curr_tile_collection_uuid: Option<Uuid>,
     pending_palette_drag_undo: Option<(ThePalette, Vec<shared::project::PaletteMaterial>)>,
 
+    #[cfg(feature = "native-ui")]
+    minimap_sources: crate::minimap::native::Sources,
+
     pub startup: bool,
 }
 
@@ -156,6 +159,10 @@ impl Sidebar {
     }
 
     pub fn reset_for_project_switch(&mut self) {
+        #[cfg(feature = "native-ui")]
+        {
+            self.minimap_sources = Default::default();
+        }
         self.curr_tilemap_uuid = None;
         self.curr_tile_collection_uuid = None;
         self.pending_palette_drag_undo = None;
@@ -190,8 +197,60 @@ impl Sidebar {
             curr_tile_collection_uuid: None,
             pending_palette_drag_undo: None,
 
+            #[cfg(feature = "native-ui")]
+            minimap_sources: Default::default(),
+
             startup: true,
         }
+    }
+
+    fn update_minimap_view(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &Project,
+        server_ctx: &ServerContext,
+        hard: bool,
+    ) -> bool {
+        let Some(view) = ui.get_render_view("MiniMap") else {
+            return false;
+        };
+        let dim = *view.dim();
+        #[cfg(feature = "native-ui")]
+        if cfg!(not(test)) || ctx.ui.command_paint {
+            let source = DOCKMANAGER
+                .read()
+                .unwrap()
+                .get_active_dock()
+                .and_then(|dock| {
+                    dock.native_minimap_source(
+                        Vec2::new(dim.width, dim.height),
+                        project,
+                        server_ctx,
+                        &mut self.minimap_sources,
+                    )
+                });
+            if let Some(source) = source {
+                view.set_paint_source(Some(source));
+                return view.needs_redraw();
+            }
+            self.minimap_sources.clear_active();
+        }
+        // Explicit adapter for the remaining world/procedural minimaps.
+        // render_buffer_mut revokes a previously published native source.
+        let buffer = view.render_buffer_mut();
+        buffer.resize(dim.width, dim.height);
+        let handled = DOCKMANAGER
+            .read()
+            .unwrap()
+            .get_active_dock()
+            .is_some_and(|dock| dock.draw_minimap(buffer, project, ctx, server_ctx));
+        if !handled {
+            draw_minimap(project, buffer, server_ctx, hard);
+            draw_minimap_context_label(buffer, ctx, server_ctx);
+        }
+        view.set_needs_redraw(true);
+        true
     }
 
     pub fn init_ui(
@@ -1193,51 +1252,10 @@ impl Sidebar {
                     if let Some(widget) = ui.get_widget("Graph Id Text") {
                         widget.set_value(TheValue::Text("(--)".into()));
                     }
-                } else if id.name == "Update Minimap" {
-                    // Rerenders the minimap
-                    if let Some(render_view) = ui.get_render_view("MiniMap") {
-                        let dim = *render_view.dim();
-                        let buffer = render_view.render_buffer_mut();
-                        buffer.resize(dim.width, dim.height);
-
-                        let mut dock_handled_drawing = false;
-                        if let Some(dock) = DOCKMANAGER.read().unwrap().get_active_dock() {
-                            // Test if dock is drawing minimap
-                            if dock.draw_minimap(buffer, project, ctx, server_ctx) {
-                                dock_handled_drawing = true;
-                            }
-                        }
-
-                        if !dock_handled_drawing {
-                            draw_minimap(project, buffer, server_ctx, true);
-                            draw_minimap_context_label(buffer, ctx, server_ctx);
-                        }
-                        render_view.set_needs_redraw(true);
-                        redraw = true;
-                    }
-                } else if id.name == "Soft Update Minimap" {
-                    // Uses the currently rendered minimap and only updates the
-                    // camera markers
-                    if let Some(render_view) = ui.get_render_view("MiniMap") {
-                        let dim = *render_view.dim();
-                        let buffer = render_view.render_buffer_mut();
-                        buffer.resize(dim.width, dim.height);
-
-                        let mut dock_handled_drawing = false;
-                        if let Some(dock) = DOCKMANAGER.read().unwrap().get_active_dock() {
-                            // Test if dock is drawing minimap
-                            if dock.draw_minimap(buffer, project, ctx, server_ctx) {
-                                dock_handled_drawing = true;
-                            }
-                        }
-
-                        if !dock_handled_drawing {
-                            draw_minimap(project, buffer, server_ctx, false);
-                            draw_minimap_context_label(buffer, ctx, server_ctx);
-                        }
-                        render_view.set_needs_redraw(true);
-                        redraw = true;
-                    }
+                } else if id.name == "Update Minimap" || id.name == "Soft Update Minimap" {
+                    redraw |= self.update_minimap_view(
+                        ui, ctx, project, server_ctx, id.name == "Update Minimap",
+                    );
                 } else if id.name == "Update Tiles" {
                     self.update_tiles(ui, ctx, project);
                 } else if id.name == "Show Node Settings" {
