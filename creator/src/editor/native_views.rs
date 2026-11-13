@@ -83,7 +83,7 @@ impl Editor {
         self.native_viewport.enabled
             && !self.server_ctx.game_mode
             && !self.native_display_owns_viewport()
-            && self.project.get_map(&self.server_ctx).is_none()
+            && self.documents.project.get_map(&self.server_ctx).is_none()
     }
 
     pub(crate) fn native_scene_tick_redraw(&self, running: bool, tick: bool) -> bool {
@@ -114,7 +114,7 @@ impl Editor {
         // Layout is current here; source/pose requests remain CPU preparation.
         if self.geometry_editor.wants_realtime() {
             self.geometry_editor
-                .update(&self.project, ui, ctx, &self.server_ctx);
+                .update(&self.documents.project, ui, ctx, &self.server_ctx);
         }
         let geometry = match self
             .geometry_editor
@@ -130,7 +130,7 @@ impl Editor {
         // current layout, so physical output and view bounds use one frame.
         if self.appearance_workspace.visible(ui) {
             self.appearance_workspace.update(
-                &self.project,
+                &self.documents.project,
                 ui,
                 ctx,
                 self.procedural_appearance_revision,
@@ -197,14 +197,14 @@ impl Editor {
 #[cfg(test)]
 impl Editor {
     pub(crate) fn project_for_native_test(&self) -> &Project {
-        &self.project
+        &self.documents.project
     }
     pub(crate) fn begin_native_profile_for_test(
         &mut self,
         ui: &mut TheUI,
         ctx: &mut TheContext,
     ) -> TheId {
-        let region = &self.project.regions[0];
+        let region = &self.documents.project.regions[0];
         self.server_ctx.pc = ProjectContext::Region(region.id);
         self.server_ctx.curr_region = region.id;
         self.server_ctx.editor_view_mode = EditorViewMode::Orbit;
@@ -231,10 +231,10 @@ impl Editor {
             .clone()
     }
     pub(crate) fn native_profile_grid_for_test(&self) -> f32 {
-        self.project.get_map(&self.server_ctx).unwrap().subdivisions
+        self.documents.project.get_map(&self.server_ctx).unwrap().subdivisions
     }
     pub(crate) fn native_profile_geometry_count_for_test(&self) -> usize {
-        self.project
+        self.documents.project
             .get_map(&self.server_ctx)
             .unwrap()
             .geometry_objects
@@ -276,7 +276,7 @@ impl Editor {
         ctx: &mut TheContext,
     ) -> (TheId, Uuid) {
         // Reuse the geometry actually authored earlier in this assembled run.
-        let geometry = self.project.regions[0].map.geometry_objects.clone();
+        let geometry = self.documents.project.regions[0].map.geometry_objects.clone();
         assert!(!geometry.is_empty());
         let mut min = Vec3::broadcast(f32::INFINITY);
         let mut max = Vec3::broadcast(f32::NEG_INFINITY);
@@ -321,23 +321,23 @@ impl Editor {
         let id = asset.id;
         self.server_ctx.curr_block_asset_id = Some(id);
         self.server_ctx.curr_block_asset_name = Some(asset.name.clone());
-        self.project.block_props.insert(id, asset);
-        crate::block_props::sync_existing_prefab_presentations(&self.project);
+        self.documents.project.block_props.insert(id, asset);
+        crate::block_props::sync_existing_prefab_presentations(&self.documents.project);
         let mut docks = DOCKMANAGER.write().unwrap();
         docks.set_dock(
             "Prefabs".into(),
             ui,
             ctx,
-            &self.project,
+            &self.documents.project,
             &mut self.server_ctx,
         );
-        docks.edit_maximize(ui, ctx, &mut self.project, &mut self.server_ctx);
+        docks.edit_maximize(ui, ctx, &mut self.documents.project, &mut self.server_ctx);
         let view = ui.get_render_view("PrefabView").unwrap().id().clone();
         ctx.ui.set_focus(&view);
         (view, id)
     }
     pub(crate) fn native_prefab_effect_for_test(&self, id: Uuid) -> ([f32; 3], String) {
-        let asset = &self.project.block_props[&id];
+        let asset = &self.documents.project.block_props[&id];
         let effect = &asset.particle_effects[0];
         let attachment = asset
             .find_part(effect.part_id)
@@ -349,8 +349,8 @@ impl Editor {
         (attachment.position, asset.name.clone())
     }
     pub(crate) fn rename_native_prefab_for_test(&mut self, id: Uuid, name: &str) {
-        self.project.block_props.get_mut(&id).unwrap().name = name.into();
-        crate::block_props::sync_existing_prefab_presentations(&self.project);
+        self.documents.project.block_props.get_mut(&id).unwrap().name = name.into();
+        crate::block_props::sync_existing_prefab_presentations(&self.documents.project);
     }
     pub(crate) fn begin_native_play_for_test(
         &mut self,
@@ -392,7 +392,7 @@ impl Editor {
             TheId::named("Set Tool"),
             TheValue::Text("tool.geometry".into()),
         ));
-        self.active_session
+        self.documents.active_session
     }
     pub(crate) fn native_text_output_for_test(&self, text: &str) -> bool {
         self.text_game.contains_output(text)
@@ -412,7 +412,7 @@ impl Editor {
         ))
     }
     pub(crate) fn queue_native_play_message_for_test(&mut self) {
-        let id = self.project.regions[0].map.id;
+        let id = self.documents.project.regions[0].map.id;
         let mut runtime = RUSTERIX.write().unwrap();
         let region = *runtime
             .server
@@ -431,10 +431,10 @@ impl Editor {
         &self,
         index: usize,
     ) -> &Vec<shared::region::Region> {
-        &self.sessions[index].project.regions
+        &self.documents.sessions[index].project.regions
     }
     pub(crate) fn native_world_vertices_for_test(&self) -> usize {
-        self.project
+        self.documents.project
             .get_map(&self.server_ctx)
             .unwrap()
             .vertices

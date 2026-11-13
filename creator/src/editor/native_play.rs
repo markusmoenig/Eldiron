@@ -427,9 +427,7 @@ impl Editor {
             && self.server_ctx.game_mode
             && !self.server_ctx.text_game_mode
             && self.play_session.as_ref().is_some_and(|play| {
-                self.sessions
-                    .get(self.active_session)
-                    .is_some_and(|doc| doc.id == play.document)
+                self.documents.active_id() == Some(play.document)
             })
             && RUSTERIX.read().unwrap().server.state != ServerState::Off
     }
@@ -459,9 +457,7 @@ impl Editor {
         let blocked = ui.dialog.is_some() || ui.popover.is_some() || ui.context_menu.is_some();
         let mut bridge = RUSTERIX.write().unwrap();
         let Some(play) = self.play_session.as_mut().filter(|s| {
-            self.sessions
-                .get(self.active_session)
-                .is_some_and(|d| d.id == s.document)
+            self.documents.active_id() == Some(s.document)
         }) else {
             self.native_viewport.play.unbind(ui);
             self.native_viewport.play.screen = None;
@@ -495,7 +491,7 @@ impl Editor {
         }
         owner.input_blocked = blocked;
         let world = play.pump.view(
-            &self.project,
+            &self.documents.project,
             &bridge.server,
             &bridge.assets,
             &bridge.client.current_map,
@@ -549,7 +545,7 @@ impl Editor {
         };
         let bridge = RUSTERIX.read().unwrap();
         let world = play.pump.view(
-            &self.project,
+            &self.documents.project,
             &bridge.server,
             &bridge.assets,
             &bridge.client.current_map,
@@ -591,7 +587,7 @@ impl Editor {
         };
         let bridge = RUSTERIX.read().unwrap();
         let world = play.pump.view(
-            &self.project,
+            &self.documents.project,
             &bridge.server,
             &bridge.assets,
             &bridge.client.current_map,
@@ -984,7 +980,7 @@ impl Editor {
         let play = self.play_session.as_mut()?;
         let mut runtime = PlayRuntime {
             play,
-            project: &self.project,
+            project: &self.documents.project,
             bridge: &mut bridge,
         };
         let result = self
@@ -1048,7 +1044,7 @@ impl Editor {
         let mut bridge = RUSTERIX.write().unwrap();
         let mut runtime = PlayRuntime {
             play,
-            project: &self.project,
+            project: &self.documents.project,
             bridge: &mut bridge,
         };
         let owner = &mut self.native_viewport.play;

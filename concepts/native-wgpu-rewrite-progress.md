@@ -5759,3 +5759,44 @@ No whole Creator/root or CPU runtime suite was repeated for this input-only
 follow-up. Native Creator Winit behavior has not been changed by these Apple
 adapter changes; the shared physical wire mapping preserves the player's
 previous values exactly.
+
+## 2026-11-13 — Creator document owner integrated
+
+Moved the active working Project, file path, tab sessions, per-document history
+snapshots and ephemeral document identities from Editor fields into the
+application-owned `creator::documents::Documents`. The module imports only
+Project, UndoManager and plain CPU path/ID types; no UI, renderer, surface,
+runtime clock or process-global service access lives there.
+
+Documents now owns fresh-tab installation/replacement, last-tab close fallback,
+snapshot/restore and active-ID lookup. Editor commits/deactivates authoring
+controllers before switching, and lends its transitional workspace history and
+dock-dirty state explicitly. Native world/profile/GameInput/Play bindings obtain
+their document IDs from the owner, preserving revocation when a new document
+reuses persisted IDs. Scepter, authoring, capture helpers and existing integrated
+test paths use the same owner. Project serialization/data types are unchanged.
+
+This is a real storage/transition extraction, not completion of M5/M7: active
+workspace undo, ToolList, SceneManager, camera and Rusterix still have documented
+global adapters. The Play facade and whole-map restoration still need separation
+from the author's working Project. Do not claim independent multiwindow/runtime
+ownership or safety of edits interleaved with runtime map projection yet.
+
+Verification:
+- Native Creator check passed24.60s:
+  `/private/tmp/eldiron-native-documents-owner-check.log`.
+- Existing assembled Creator test compiled41.19s after the storage extraction,
+  then22.07s after tab CRUD moved into the owner. Logs:
+  `eldiron-native-documents-root-build.log` and
+  `eldiron-native-documents-final-root-build.log` under `/private/tmp`.
+- Ran that existing assembled Metal Creator checkpoint once: **passed1,87.07s**,
+  `/private/tmp/eldiron-native-documents-root-metal.log`. Includes tab/scope,
+  source-preservation, world/tools/Paint, Play/text/input and recovery coverage.
+  No new document-only test suite was added.
+- Reference Creator compile passed19.62s:
+  `/private/tmp/eldiron-documents-reference-check.log`.
+- `git diff --check` passed. No whole-file formatter was applied to editor.rs or
+  the other protected large files. The concurrent networking concept is untouched.
+
+Full M0–M9 Goal remains active; continue remaining module/runtime/bitmap and
+platform acceptance work without routine milestone approval.

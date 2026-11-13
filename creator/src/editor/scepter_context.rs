@@ -58,15 +58,15 @@ impl Editor {
             let tools = TOOLLIST.read().unwrap();
             json!({"command":tools.current_game_tool_command_id(),"editor_mode":tools.editor_mode,"editor_index":tools.curr_editor_tool})
         };
-        let map = self.project.get_map(&self.server_ctx);
+        let map = self.documents.project.get_map(&self.server_ctx);
         let region = self
-            .project
+            .documents.project
             .regions
             .iter()
             .find(|r| r.id == self.server_ctx.curr_region);
         json!({"session":self.scepter_session(),"region":region.map(|r|json!({"id":r.id,"name":r.name,"map":r.map.id})),
             "project_context":format!("{:?}",self.server_ctx.pc),"map_context":format!("{:?}",self.server_ctx.get_map_context()),
-            "view":match self.server_ctx.editor_view_mode{EditorViewMode::D2=>if self.project.get_map(&self.server_ctx).is_some_and(|m|m.camera==rusterix::MapCamera::TwoDIso){"2d_iso"}else{"2d"},EditorViewMode::Iso=>"iso",EditorViewMode::Orbit=>"orbit",EditorViewMode::FirstP=>"firstp"},
+            "view":match self.server_ctx.editor_view_mode{EditorViewMode::D2=>if self.documents.project.get_map(&self.server_ctx).is_some_and(|m|m.camera==rusterix::MapCamera::TwoDIso){"2d_iso"}else{"2d"},EditorViewMode::Iso=>"iso",EditorViewMode::Orbit=>"orbit",EditorViewMode::FirstP=>"firstp"},
             "tool":tool,
             "selected_tile":self.server_ctx.curr_tile_id,"viewport":viewport,"camera_parameters":camera_parameters,
             "camera":region.map(|r|json!({"position":r.editing_position_3d.into_array(),"center":r.editing_look_at_3d.into_array(),"offset":r.map.offset.into_array(),"grid_size":r.map.grid_size})),
@@ -90,22 +90,22 @@ impl Editor {
         let view = self.scepter_view(ui);
         let mut hasher = DefaultHasher::new();
         UNDOMANAGER.read().unwrap().revision().hash(&mut hasher);
-        self.project
+        self.documents.project
             .procedural_materials
             .revision()
             .hash(&mut hasher);
-        self.project
+        self.documents.project
             .procedural_appearances
             .revision()
             .hash(&mut hasher);
-        for r in &self.project.regions {
+        for r in &self.documents.project.regions {
             r.id.hash(&mut hasher);
             r.map.changed.hash(&mut hasher);
             r.characters.len().hash(&mut hasher);
             r.items.len().hash(&mut hasher);
         }
-        self.project.config.hash(&mut hasher);
-        serde_json::to_string(&self.project.palette.colors)
+        self.documents.project.config.hash(&mut hasher);
+        serde_json::to_string(&self.documents.project.palette.colors)
             .unwrap()
             .hash(&mut hasher);
         let stamp = hasher.finish();
@@ -116,7 +116,7 @@ impl Editor {
         };
         let session = self.scepter_session();
         if revision != self.scepter_tracking.revision {
-            self.scepter_tracking.push(&session,"content",&revision,json!({"regions":self.project.regions.iter().map(|r|json!({"id":r.id,"map":r.map.id,"changed":r.map.changed})).collect::<Vec<_>>()}));
+            self.scepter_tracking.push(&session,"content",&revision,json!({"regions":self.documents.project.regions.iter().map(|r|json!({"id":r.id,"map":r.map.id,"changed":r.map.changed})).collect::<Vec<_>>()}));
         }
         if view != self.scepter_tracking.view {
             let kind = if view["session"] != self.scepter_tracking.view["session"] {
@@ -179,7 +179,7 @@ impl Editor {
         json!({"stream":t.stream,"events":events,"next":next,"latest":t.sequence,"has_more":next<t.sequence,"reset_required":reset,"context":context["context"]})
     }
     fn scepter_activate_region(&mut self, i: usize, ui: &mut TheUI, ctx: &mut TheContext) {
-        let id = self.project.regions[i].id;
+        let id = self.documents.project.regions[i].id;
         if self.server_ctx.curr_region != id
             || self.server_ctx.get_map_context() != MapContext::Region
         {
@@ -188,19 +188,19 @@ impl Editor {
             crate::undo::project_helper::set_project_context(
                 ctx,
                 ui,
-                &self.project,
+                &self.documents.project,
                 &mut self.server_ctx,
                 ProjectContext::Region(id),
             );
-            let _ = crate::utils::update_region_settings(&mut self.project, &mut self.server_ctx);
-            crate::utils::editor_scene_full_rebuild(&self.project, &self.server_ctx);
+            let _ = crate::utils::update_region_settings(&mut self.documents.project, &mut self.server_ctx);
+            crate::utils::editor_scene_full_rebuild(&self.documents.project, &self.server_ctx);
         }
     }
     fn scepter_context_region(&self, region: Option<&RegionRef>) -> Result<usize, String> {
         if let Some(r) = region {
-            region_index(&self.project, r)
+            region_index(&self.documents.project, r)
         } else {
-            self.project
+            self.documents.project
                 .regions
                 .iter()
                 .position(|r| r.id == self.server_ctx.curr_region)
@@ -214,11 +214,11 @@ impl Editor {
         ctx: &mut TheContext,
     ) -> Result<Json, String> {
         let i = self.scepter_context_region(c.region.as_ref())?;
-        super::scepter_map::validate_targets(&self.project, i, &c.targets)?;
+        super::scepter_map::validate_targets(&self.documents.project, i, &c.targets)?;
         if c.targets.characters.len() + c.targets.items.len() > 1 {
             return Err("Select one entity at a time".into());
         }
-        let map = &self.project.regions[i].map;
+        let map = &self.documents.project.regions[i].map;
         if c.vertices.iter().any(|id| map.find_vertex(*id).is_none())
             || c.linedefs.iter().any(|id| map.find_linedef(*id).is_none())
         {
@@ -255,7 +255,7 @@ impl Editor {
             })
             .collect::<Result<Vec<_>, _>>()?;
         self.scepter_activate_region(i, ui, ctx);
-        let map = &mut self.project.regions[i].map;
+        let map = &mut self.documents.project.regions[i].map;
         map.clear_selection();
         map.selected_vertices = c.vertices;
         map.selected_linedefs = c.linedefs;
@@ -280,20 +280,20 @@ impl Editor {
             .or(c.targets.items.first())
             .map(|s| parse_id(s))
             .transpose()?;
-        let pc = if let Some(entity) = self.project.regions[i].map.selected_entity_item {
-            if self.project.regions[i].characters.contains_key(&entity) {
-                ProjectContext::RegionCharacterInstance(self.project.regions[i].id, entity)
+        let pc = if let Some(entity) = self.documents.project.regions[i].map.selected_entity_item {
+            if self.documents.project.regions[i].characters.contains_key(&entity) {
+                ProjectContext::RegionCharacterInstance(self.documents.project.regions[i].id, entity)
             } else {
-                ProjectContext::RegionItemInstance(self.project.regions[i].id, entity)
+                ProjectContext::RegionItemInstance(self.documents.project.regions[i].id, entity)
             }
         } else {
-            ProjectContext::Region(self.project.regions[i].id)
+            ProjectContext::Region(self.documents.project.regions[i].id)
         };
         if self.server_ctx.pc != pc {
             crate::undo::project_helper::set_project_context(
                 ctx,
                 ui,
-                &self.project,
+                &self.documents.project,
                 &mut self.server_ctx,
                 pc,
             );
@@ -305,7 +305,7 @@ impl Editor {
         TOOLLIST
             .write()
             .unwrap()
-            .update_geometry_overlay_3d(&mut self.project, &mut self.server_ctx);
+            .update_geometry_overlay_3d(&mut self.documents.project, &mut self.server_ctx);
         Ok(self.scepter_context(ui))
     }
     pub(super) fn scepter_focus(
@@ -332,7 +332,7 @@ impl Editor {
         }
         let camera = if c.view.as_deref() == Some("2d_iso")
             || (c.view.is_none()
-                && self.project.regions[i].map.camera == rusterix::MapCamera::TwoDIso)
+                && self.documents.project.regions[i].map.camera == rusterix::MapCamera::TwoDIso)
         {
             rusterix::MapCamera::TwoDIso
         } else {
@@ -346,10 +346,10 @@ impl Editor {
             &TheEvent::IndexChanged(TheId::named("Editor View Switch"), view_index as usize),
             ui,
             ctx,
-            &mut self.project,
+            &mut self.documents.project,
             &mut self.server_ctx,
         );
-        let region = &mut self.project.regions[i];
+        let region = &mut self.documents.project.regions[i];
         region.editing_look_at_3d = center;
         region.editing_position_3d = if view == EditorViewMode::FirstP {
             pos.unwrap_or(center - Vec3::new(0., 0., 4.))
@@ -422,13 +422,13 @@ impl Editor {
             return Ok(c);
         }
         use rusterix::D3Camera;
-        let i = region_index(&self.project, &c.region)?;
-        if self.project.regions[i].id != self.server_ctx.curr_region
+        let i = region_index(&self.documents.project, &c.region)?;
+        if self.documents.project.regions[i].id != self.server_ctx.curr_region
             || self.server_ctx.get_map_context() != MapContext::Region
         {
             return Err("editor_view requires the current map region".into());
         }
-        let r = &self.project.regions[i];
+        let r = &self.documents.project.regions[i];
         let cameras = EDITCAMERA.read().unwrap();
         let d = ui
             .get_widget("PolyView")
@@ -492,8 +492,8 @@ impl Editor {
         Ok(c)
     }
     pub(super) fn scepter_entity_templates(&self) -> Json {
-        json!({"characters":self.project.characters.values().map(|c|json!({"id":c.id,"name":c.name,"data":c.data,"authoring":c.authoring})).collect::<Vec<_>>(),
-            "items":self.project.items.values().map(|c|json!({"id":c.id,"name":c.name,"data":c.data,"authoring":c.authoring})).collect::<Vec<_>>()})
+        json!({"characters":self.documents.project.characters.values().map(|c|json!({"id":c.id,"name":c.name,"data":c.data,"authoring":c.authoring})).collect::<Vec<_>>(),
+            "items":self.documents.project.items.values().map(|c|json!({"id":c.id,"name":c.name,"data":c.data,"authoring":c.authoring})).collect::<Vec<_>>()})
     }
 }
 
@@ -503,14 +503,14 @@ mod tests {
     #[test]
     fn scepter_feed_reports_selection_and_content_and_detects_expired_cursors() {
         let mut editor = Editor::new();
-        editor.project = Project::default();
-        editor.server_ctx.curr_region = editor.project.regions[0].id;
+        editor.documents.project = Project::default();
+        editor.server_ctx.curr_region = editor.documents.project.regions[0].id;
         editor.server_ctx.pc = ProjectContext::Region(editor.server_ctx.curr_region);
         let mut ui = TheUI::new();
         let start = editor.scepter_context(&mut ui);
         let cursor = start["context"]["cursor_sequence"].as_u64().unwrap();
         let stream = start["context"]["stream"].as_str().unwrap().to_string();
-        editor.project.regions[0].map.selected_vertices = vec![42];
+        editor.documents.project.regions[0].map.selected_vertices = vec![42];
         let changes = editor.scepter_changes(
             ChangeQuery {
                 after: cursor,
@@ -528,7 +528,7 @@ mod tests {
         );
         assert_eq!(changes["reset_required"], false);
         let cursor = changes["next"].as_u64().unwrap();
-        editor.project.regions[0].map.changed += 1;
+        editor.documents.project.regions[0].map.changed += 1;
         let changes = editor.scepter_changes(
             ChangeQuery {
                 after: cursor,
@@ -545,7 +545,7 @@ mod tests {
                 .any(|e| e["kind"] == "content")
         );
         for n in 0..270 {
-            editor.project.regions[0].map.selected_vertices = vec![n];
+            editor.documents.project.regions[0].map.selected_vertices = vec![n];
             editor.scepter_observe(true, &mut ui);
         }
         let changes = editor.scepter_changes(
@@ -575,8 +575,8 @@ mod focus_tests {
     #[test]
     fn scepter_focus_survives_normal_view_switching_and_preview_uses_fractional_zoom() {
         let mut editor = Editor::new();
-        editor.project = Project::default();
-        editor.server_ctx.curr_region = editor.project.regions[0].id;
+        editor.documents.project = Project::default();
+        editor.server_ctx.curr_region = editor.documents.project.regions[0].id;
         editor.server_ctx.pc = ProjectContext::Region(editor.server_ctx.curr_region);
         let mut ui = TheUI::new();
         let mut ctx = TheContext::new(768, 512, 1.);

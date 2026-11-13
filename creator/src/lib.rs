@@ -11,6 +11,7 @@ pub mod block_props;
 pub mod blocks;
 pub mod configeditor;
 pub mod dockmanager;
+mod documents;
 pub mod docks;
 pub mod editcamera;
 pub mod editor;

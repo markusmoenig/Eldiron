@@ -386,17 +386,7 @@ pub static DOCKMANAGER: LazyLock<RwLock<DockManager>> =
 mod play_session;
 use play_session::CreatorPlaySession;
 
-#[derive(Clone)]
-struct ProjectSession {
-    id: Uuid,
-    project: Project,
-    project_path: Option<PathBuf>,
-    undo: UndoManager,
-    dirty: bool,
-    /// Dock-local undo stacks are global UI objects and are cleared when a tab
-    /// is detached. Keep their unsaved status with the owning session.
-    detached_dock_dirty: bool,
-}
+use crate::documents::Documents;
 
 #[allow(dead_code)]
 #[derive(Clone)]
@@ -493,10 +483,7 @@ struct CreatorWindowState {
 }
 
 pub struct Editor {
-    project: Project,
-    project_path: Option<PathBuf>,
-    sessions: Vec<ProjectSession>,
-    active_session: usize,
+    documents: Documents,
     replace_next_project_load_in_active_tab: bool,
     last_active_dirty: bool,
 
@@ -589,7 +576,7 @@ impl Editor {
         ctx: &mut TheContext,
     ) -> Result<usize, String> {
         self.sidebar
-            .execute_action_script(source, ui, ctx, &mut self.project, &mut self.server_ctx)
+            .execute_action_script(source, ui, ctx, &mut self.documents.project, &mut self.server_ctx)
     }
 
     fn coalesce_polyview_hover_events(events: &mut Vec<TheEvent>) {
@@ -4822,7 +4809,7 @@ impl Editor {
     }
 
     fn persist_active_region_view_state(&mut self) {
-        if let Some(region) = self.project.get_region_mut(&self.server_ctx.curr_region) {
+        if let Some(region) = self.documents.project.get_region_mut(&self.server_ctx.curr_region) {
             match self.server_ctx.editor_view_mode {
                 EditorViewMode::Iso => {
                     region.editing_position_iso_3d = Some(region.editing_position_3d);
@@ -4871,33 +4858,25 @@ impl Editor {
     }
 
     fn sync_active_session_from_editor(&mut self) {
-        if self.active_session >= self.sessions.len() {
+        if self.documents.active_id().is_none() {
             return;
         }
         self.persist_active_region_view_state();
         let dock_dirty = DOCKMANAGER.read().unwrap().has_dock_changes();
-        self.sessions[self.active_session].project = self.project.clone();
-        self.sessions[self.active_session].project_path = self.project_path.clone();
-        self.sessions[self.active_session].undo = UNDOMANAGER.read().unwrap().clone();
-        self.sessions[self.active_session].detached_dock_dirty |= dock_dirty;
-        self.sessions[self.active_session].dirty = UNDOMANAGER.read().unwrap().has_unsaved()
-            || self.sessions[self.active_session].detached_dock_dirty;
+        let undo = UNDOMANAGER.read().unwrap().clone();
+        self.documents.store_active(undo, dock_dirty);
     }
 
     fn sync_editor_from_active_session(&mut self) {
-        if self.active_session >= self.sessions.len() {
-            return;
+        if let Some(undo) = self.documents.restore_active() {
+            *UNDOMANAGER.write().unwrap() = undo;
         }
-        let session = self.sessions[self.active_session].clone();
-        self.project = session.project;
-        self.project_path = session.project_path;
-        *UNDOMANAGER.write().unwrap() = session.undo;
     }
 
     fn snapshot_authored_maps_for_play(&mut self) {
         if self.play_map_snapshots.is_none() {
             self.play_map_snapshots = Some(
-                self.project
+                self.documents.project
                     .regions
                     .iter()
                     .map(|region| (region.id, region.map.clone()))
@@ -4912,7 +4891,7 @@ impl Editor {
         };
         let snapshots: FxHashMap<Uuid, Map> = snapshots.into_iter().collect();
         let mut restored = false;
-        for region in &mut self.project.regions {
+        for region in &mut self.documents.project.regions {
             if let Some(map) = snapshots.get(&region.id) {
                 region.map = map.clone();
                 restored = true;
@@ -4925,7 +4904,7 @@ impl Editor {
         DOCKMANAGER
             .write()
             .unwrap()
-            .commit_pending_edits(ctx, &mut self.project)
+            .commit_pending_edits(ctx, &mut self.documents.project)
     }
     fn deactivate_project_for_switch(
         &mut self,
@@ -4944,7 +4923,7 @@ impl Editor {
         self.cancel_native_world_gesture(ui, ctx);
         self.procedural_material.reset(ui, ctx);
         self.geometry_editor
-            .finish_drag(&mut self.project, ctx, false);
+            .finish_drag(&mut self.documents.project, ctx, false);
         self.geometry_editor.reset(ui, ctx);
         self.appearance_workspace.reset(ui, ctx);
         self.palette_switch.reset();
@@ -4953,13 +4932,13 @@ impl Editor {
         DOCKMANAGER
             .write()
             .unwrap()
-            .minimize(ui, ctx, &self.project, &mut self.server_ctx);
+            .minimize(ui, ctx, &self.documents.project, &mut self.server_ctx);
         {
             let mut tools = TOOLLIST.write().unwrap();
             if tools.editor_mode {
                 tools.set_game_tools(ui, ctx);
             }
-            tools.deactivte_tool(ui, ctx, &mut self.project, &mut self.server_ctx);
+            tools.deactivte_tool(ui, ctx, &mut self.documents.project, &mut self.server_ctx);
             tools.reset_for_project_switch(ctx);
         }
         *SIDEBARMODE.write().unwrap() = SidebarMode::Region;
@@ -5011,7 +4990,7 @@ impl Editor {
             && let Some(tabbar) = widget.as_tabbar()
         {
             tabbar.clear();
-            for (index, session) in self.sessions.iter().enumerate() {
+            for (index, session) in self.documents.sessions.iter().enumerate() {
                 tabbar.add_tab(Self::project_tab_title_for(
                     &session.project,
                     &session.project_path,
@@ -5019,7 +4998,7 @@ impl Editor {
                     session.dirty,
                 ));
             }
-            tabbar.set_selection_index(self.active_session);
+            tabbar.set_selection_index(self.documents.active_session);
         }
     }
 
@@ -5313,29 +5292,8 @@ impl Editor {
         if !self.deactivate_project_for_switch(ui, ctx, false) {
             return false;
         }
-        let new_index = if self.replace_next_project_load_in_active_tab {
-            self.sessions[self.active_session] = ProjectSession {
-                id: Uuid::new_v4(),
-                project,
-                project_path,
-                undo: UndoManager::default(),
-                dirty: false,
-                detached_dock_dirty: false,
-            };
-            self.replace_next_project_load_in_active_tab = false;
-            self.active_session
-        } else {
-            self.sessions.push(ProjectSession {
-                id: Uuid::new_v4(),
-                project,
-                project_path,
-                undo: UndoManager::default(),
-                dirty: false,
-                detached_dock_dirty: false,
-            });
-            self.sessions.len() - 1
-        };
-        self.active_session = new_index;
+        self.documents.install(project, project_path, self.replace_next_project_load_in_active_tab);
+        self.replace_next_project_load_in_active_tab = false;
         self.sync_editor_from_active_session();
         self.activate_loaded_project(ui, ctx, update_server_icons, redraw);
         self.rebuild_project_tabs(ui);
@@ -5344,13 +5302,13 @@ impl Editor {
 
     /// Cheap on unchanged recipes; dependency contents are hashed only after edits.
     fn current_procedural_appearance_revision(&mut self) -> u64 {
-        let revision = self.project.procedural_appearances.revision();
+        let revision = self.documents.project.procedural_appearances.revision();
         if self.procedural_geometry_revision.map(|(r, _)| r) != Some(revision) {
             self.procedural_geometry_revision = Some((
                 revision,
                 rusterix::procedural_avatar::fingerprint(
                     &self
-                        .project
+                        .documents.project
                         .procedural_appearances
                         .iter()
                         .collect::<Vec<_>>(),
@@ -5358,9 +5316,9 @@ impl Editor {
             ));
         }
         let geometry_key = self.procedural_geometry_revision.unwrap().1;
-        let selection = shared::rulesets::selected_ruleset_config(&self.project.config);
+        let selection = shared::rulesets::selected_ruleset_config(&self.documents.project.config);
         let wearable_revision = rusterix::procedural_avatar::fingerprint(&(
-            self.project
+            self.documents.project
                 .items
                 .iter()
                 .map(|(id, item)| (id, &item.data))
@@ -5370,27 +5328,27 @@ impl Editor {
         if wearable_revision != self.procedural_wearable_revision {
             self.procedural_wearable_revision = wearable_revision;
             self.procedural_wearable_materials = self
-                .project
+                .documents.project
                 .items
                 .values()
                 .flat_map(|item| {
-                    shared::ruleset_materials::worn_material_sources(&self.project, &item.data)
+                    shared::ruleset_materials::worn_material_sources(&self.documents.project, &item.data)
                 })
                 .filter_map(|source| Uuid::parse_str(&source).ok())
                 .collect();
         }
         let material_revision = (
-            self.project.procedural_materials.revision(),
+            self.documents.project.procedural_materials.revision(),
             wearable_revision,
         );
         if self.procedural_material_revision.map(|(a, b, _)| (a, b)) != Some(material_revision) {
             let key = rusterix::procedural_avatar::fingerprint(
                 &self
-                    .project
+                    .documents.project
                     .procedural_materials
                     .iter()
                     .filter(|(id, _)| {
-                        shared::ruleset_materials::is_library_tile(&self.project.config, id)
+                        shared::ruleset_materials::is_library_tile(&self.documents.project.config, id)
                             || self.procedural_wearable_materials.contains(id)
                     })
                     .collect::<Vec<_>>(),
@@ -5399,7 +5357,7 @@ impl Editor {
                 Some((material_revision.0, material_revision.1, key));
         }
         rusterix::procedural_avatar::fingerprint(&(
-            self.project
+            self.documents.project
                 .characters
                 .iter()
                 .map(|(id, c)| (id, &c.data))
@@ -5407,7 +5365,7 @@ impl Editor {
             geometry_key,
             wearable_revision,
             self.procedural_material_revision.map(|(_, _, key)| key),
-            serde_json::to_string(&self.project.palette.colors).unwrap_or_default(),
+            serde_json::to_string(&self.documents.project.palette.colors).unwrap_or_default(),
             (&selection.id, &selection.version, &selection.source),
         ))
     }
@@ -5423,21 +5381,21 @@ impl Editor {
         self.sidebar.startup = true;
 
         if let Some(widget) = ui.get_widget("Server Time Slider") {
-            widget.set_value(TheValue::Time(self.project.time));
+            widget.set_value(TheValue::Time(self.documents.project.time));
         }
 
         {
             let mut rusterix = RUSTERIX.write().unwrap();
-            rusterix.assets.config = self.project.config.clone();
-            sync_editor_visual_assets(&mut rusterix, &self.project);
+            rusterix.assets.config = self.documents.project.config.clone();
+            sync_editor_visual_assets(&mut rusterix, &self.documents.project);
             rusterix
                 .scene_handler
-                .sync_base_render_settings(&self.project.config);
-            rusterix.client.set_server_time(self.project.time);
+                .sync_base_render_settings(&self.documents.project.config);
+            rusterix.client.set_server_time(self.documents.project.time);
             if rusterix.server.state == rusterix::ServerState::Running
-                && let Some(map) = self.project.get_map(&self.server_ctx)
+                && let Some(map) = self.documents.project.get_map(&self.server_ctx)
             {
-                rusterix.server.set_time(&map.id, self.project.time);
+                rusterix.server.set_time(&map.id, self.documents.project.time);
             }
         }
 
@@ -5447,11 +5405,11 @@ impl Editor {
         self.server_ctx.clear();
         self.server_ctx.text_game_mode = TOOLLIST.read().unwrap().text_game_mode;
         self.text_game.reset();
-        if let Some(first) = self.project.regions.first() {
+        if let Some(first) = self.documents.project.regions.first() {
             self.server_ctx.curr_region = first.id;
         }
         let restored_view_index = self
-            .project
+            .documents.project
             .get_region(&self.server_ctx.curr_region)
             .map(|region| match region.map.camera {
                 MapCamera::TwoD => 0,
@@ -5468,11 +5426,11 @@ impl Editor {
             _ => "camera.editing",
         };
 
-        crate::blocks::upgrade_all_bundled_prefabs(&mut self.project);
+        crate::blocks::upgrade_all_bundled_prefabs(&mut self.documents.project);
 
         self.sidebar
-            .load_from_project(ui, ctx, &mut self.server_ctx, &mut self.project);
-        self.mapeditor.load_from_project(ui, ctx, &self.project);
+            .load_from_project(ui, ctx, &mut self.server_ctx, &mut self.documents.project);
+        self.mapeditor.load_from_project(ui, ctx, &self.documents.project);
         if let Some(widget) = ui.get_widget("Editor View Switch")
             && let Some(group) = widget.as_group_button()
         {
@@ -5482,49 +5440,49 @@ impl Editor {
             let mut actions = ACTIONLIST.write().unwrap();
             if let Some(action) = actions.get_action_by_command_id_mut(restored_camera_command_id) {
                 self.server_ctx.curr_action_id = Some(action.id().uuid);
-                if let Some(map) = self.project.get_map_mut(&self.server_ctx) {
+                if let Some(map) = self.documents.project.get_map_mut(&self.server_ctx) {
                     action.load_params(map);
                     let _ = action.apply(map, ui, ctx, &mut self.server_ctx);
                 }
-                action.load_params_project(&self.project, &mut self.server_ctx);
-                action.apply_project(&mut self.project, ui, ctx, &mut self.server_ctx);
+                action.load_params_project(&self.documents.project, &mut self.server_ctx);
+                action.apply_project(&mut self.documents.project, ui, ctx, &mut self.server_ctx);
             }
         }
         *update_server_icons = true;
         *redraw = true;
 
-        *PALETTE.write().unwrap() = self.project.palette.clone();
+        *PALETTE.write().unwrap() = self.documents.project.palette.clone();
         {
             let mut rusterix = RUSTERIX.write().unwrap();
-            rusterix.assets.palette = self.project.palette.clone();
+            rusterix.assets.palette = self.documents.project.palette.clone();
             rusterix.assets.palette_materials = self
-                .project
+                .documents.project
                 .palette_materials
                 .iter()
                 .map(|m| m.rmoe_values())
                 .collect();
             rusterix.assets.palette_material_ids =
-                crate::undo::project_helper::palette_material_ids(&self.project);
-            rusterix.set_tiles(self.project.tiles.clone(), true);
+                crate::undo::project_helper::palette_material_ids(&self.documents.project);
+            rusterix.set_tiles(self.documents.project.tiles.clone(), true);
         }
         SCENEMANAGER.write().unwrap().set_palette(
-            self.project.palette.clone(),
-            self.project
+            self.documents.project.palette.clone(),
+            self.documents.project
                 .palette_materials
                 .iter()
                 .map(|m| m.rmoe_values())
                 .collect(),
-            crate::undo::project_helper::palette_material_ids(&self.project),
+            crate::undo::project_helper::palette_material_ids(&self.documents.project),
         );
 
         // Project activation is a hard scene boundary. Rebuild even when two
         // tabs were cloned from the same project and therefore reuse map UUIDs.
-        crate::utils::editor_scene_full_rebuild(&self.project, &self.server_ctx);
+        crate::utils::editor_scene_full_rebuild(&self.documents.project, &self.server_ctx);
         if self.server_ctx.editor_view_mode != EditorViewMode::D2 {
             TOOLLIST
                 .write()
                 .unwrap()
-                .update_geometry_overlay_3d(&mut self.project, &mut self.server_ctx);
+                .update_geometry_overlay_3d(&mut self.documents.project, &mut self.server_ctx);
         }
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Update Minimap"),
@@ -5546,11 +5504,11 @@ impl Editor {
         update_server_icons: &mut bool,
         redraw: &mut bool,
     ) {
-        if index >= self.sessions.len() {
+        if index >= self.documents.sessions.len() {
             self.rebuild_project_tabs(ui);
             return;
         }
-        if !Self::session_switch_required(self.active_session, index) {
+        if !Self::session_switch_required(self.documents.active_session, index) {
             self.rebuild_project_tabs(ui);
             return;
         }
@@ -5559,7 +5517,7 @@ impl Editor {
             self.rebuild_project_tabs(ui);
             return;
         }
-        self.active_session = index;
+        self.documents.active_session = index;
         self.sync_editor_from_active_session();
         self.activate_loaded_project(ui, ctx, update_server_icons, redraw);
         self.rebuild_project_tabs(ui);
@@ -5621,32 +5579,17 @@ impl Editor {
         update_server_icons: &mut bool,
         redraw: &mut bool,
     ) {
-        if self.sessions.is_empty() {
+        if self.documents.sessions.is_empty() {
             return;
         }
 
         self.deactivate_project_for_switch(ui, ctx, true);
-        self.sessions.remove(self.active_session);
-
-        if self.sessions.is_empty() {
-            let project = Self::load_empty_project_template();
-            self.sessions.push(ProjectSession {
-                id: Uuid::new_v4(),
-                project,
-                project_path: None,
-                undo: UndoManager::default(),
-                dirty: false,
-                detached_dock_dirty: false,
-            });
-            self.active_session = 0;
-        } else if self.active_session >= self.sessions.len() {
-            self.active_session = self.sessions.len() - 1;
-        }
+        self.documents.close_active(Self::load_empty_project_template);
 
         self.sync_editor_from_active_session();
         self.activate_loaded_project(ui, ctx, update_server_icons, redraw);
         self.rebuild_project_tabs(ui);
-        if self.sessions.len() == 1 && self.project_path.is_none() {
+        if self.documents.sessions.len() == 1 && self.documents.project_path.is_none() {
             self.replace_next_project_load_in_active_tab = true;
             self.open_project_chooser(ui, ctx);
             ctx.ui.send(TheEvent::SetStatusText(
@@ -5659,8 +5602,8 @@ impl Editor {
 
     fn active_session_has_changes(&self) -> bool {
         let detached_dock_dirty = self
-            .sessions
-            .get(self.active_session)
+            .documents.sessions
+            .get(self.documents.active_session)
             .map(|session| session.detached_dock_dirty)
             .unwrap_or(false);
         UNDOMANAGER.read().unwrap().has_unsaved()
@@ -5671,7 +5614,7 @@ impl Editor {
     #[cfg(not(target_arch = "wasm32"))]
     fn scepter_project_snapshot(&self) -> serde_json::Value {
         let current_region = self
-            .project
+            .documents.project
             .regions
             .iter()
             .find(|region| region.id == self.server_ctx.curr_region)
@@ -5685,7 +5628,7 @@ impl Editor {
             });
 
         let regions = self
-            .project
+            .documents.project
             .regions
             .iter()
             .map(|region| {
@@ -5702,7 +5645,7 @@ impl Editor {
             .collect::<Vec<_>>();
 
         let characters = self
-            .project
+            .documents.project
             .characters
             .values()
             .map(|character| {
@@ -5718,7 +5661,7 @@ impl Editor {
             .collect::<Vec<_>>();
 
         let items = self
-            .project
+            .documents.project
             .items
             .values()
             .map(|item| {
@@ -5735,22 +5678,22 @@ impl Editor {
         serde_json::json!({
             "session": self.scepter_session(),
             "revision": self.scepter_revision(),
-            "name": self.project.name,
-            "path": self.project_path.as_ref().map(|path| path.display().to_string()),
+            "name": self.documents.project.name,
+            "path": self.documents.project_path.as_ref().map(|path| path.display().to_string()),
             "dirty": self.active_session_has_changes(),
-            "active_session": self.active_session,
-            "session_count": self.sessions.len(),
+            "active_session": self.documents.active_session,
+            "session_count": self.documents.sessions.len(),
             "current_region": current_region,
             "regions": regions,
             "characters": characters,
             "items": items,
             "counts": {
-                "regions": self.project.regions.len(),
-                "tiles": self.project.tiles.len(),
-                "characters": self.project.characters.len(),
-                "items": self.project.items.len(),
-                "screens": self.project.screens.len(),
-                "assets": self.project.assets.len(),
+                "regions": self.documents.project.regions.len(),
+                "tiles": self.documents.project.tiles.len(),
+                "characters": self.documents.project.characters.len(),
+                "items": self.documents.project.items.len(),
+                "screens": self.documents.project.screens.len(),
+                "assets": self.documents.project.assets.len(),
             }
         })
     }
@@ -5781,7 +5724,7 @@ impl Editor {
 
         let default_map = Map::default();
         let map = self
-            .project
+            .documents.project
             .get_map(&self.server_ctx)
             .unwrap_or(&default_map);
         let actions = ACTIONLIST.read().unwrap();
@@ -5840,7 +5783,7 @@ impl Editor {
             &request,
             ui,
             ctx,
-            &mut self.project,
+            &mut self.documents.project,
             &mut self.server_ctx,
         ) {
             Ok(()) => serde_json::json!({
@@ -5925,7 +5868,7 @@ impl Editor {
             &command.id,
             ui,
             ctx,
-            &mut self.project,
+            &mut self.documents.project,
             &mut self.server_ctx,
         ) {
             Ok(changed) => serde_json::json!({
@@ -5946,7 +5889,7 @@ impl Editor {
     #[cfg(not(target_arch = "wasm32"))]
     fn scepter_tiles_snapshot(&self) -> serde_json::Value {
         let mut tiles = self
-            .project
+            .documents.project
             .tiles
             .values()
             .map(|tile| {
@@ -5995,14 +5938,14 @@ impl Editor {
             "roles": roles,
             "tiles": tiles,
             "counts": {
-                "tiles": self.project.tiles.len(),
+                "tiles": self.documents.project.tiles.len(),
             }
         })
     }
 
     #[cfg(not(target_arch = "wasm32"))]
     fn scepter_tile_summary(&self, tile_id: &Uuid) -> Option<serde_json::Value> {
-        self.project.tiles.get(tile_id).map(|tile| {
+        self.documents.project.tiles.get(tile_id).map(|tile| {
             let first_frame = tile.textures.first().map(|texture| {
                 serde_json::json!({
                     "width": texture.width,
@@ -6195,18 +6138,18 @@ impl Editor {
         let region = if let Some(id) = &request.id {
             Uuid::from_str(id)
                 .ok()
-                .and_then(|id| self.project.regions.iter().find(|region| region.id == id))
+                .and_then(|id| self.documents.project.regions.iter().find(|region| region.id == id))
         } else if let Some(name) = &request.name {
-            self.project
+            self.documents.project
                 .regions
                 .iter()
                 .find(|region| region.name.eq_ignore_ascii_case(name))
         } else {
-            self.project
+            self.documents.project
                 .regions
                 .iter()
                 .find(|region| region.id == self.server_ctx.curr_region)
-                .or_else(|| self.project.regions.first())
+                .or_else(|| self.documents.project.regions.first())
         };
 
         let Some(region) = region else {
@@ -6372,7 +6315,7 @@ impl Editor {
         let Some(tile_id) = self.scepter_resolved_tile_id(source) else {
             return ' ';
         };
-        let Some(tile) = self.project.tiles.get(&tile_id) else {
+        let Some(tile) = self.documents.project.tiles.get(&tile_id) else {
             return '?';
         };
 
@@ -6446,18 +6389,18 @@ impl Editor {
         let region = if let Some(id) = &request.id {
             Uuid::from_str(id)
                 .ok()
-                .and_then(|id| self.project.regions.iter().find(|region| region.id == id))
+                .and_then(|id| self.documents.project.regions.iter().find(|region| region.id == id))
         } else if let Some(name) = &request.name {
-            self.project
+            self.documents.project
                 .regions
                 .iter()
                 .find(|region| region.name.eq_ignore_ascii_case(name))
         } else {
-            self.project
+            self.documents.project
                 .regions
                 .iter()
                 .find(|region| region.id == self.server_ctx.curr_region)
-                .or_else(|| self.project.regions.first())
+                .or_else(|| self.documents.project.regions.first())
         };
 
         let Some(region) = region else {
@@ -6522,7 +6465,7 @@ impl Editor {
             if let Some(Value::Source(source)) = sector.properties.get("source") {
                 if let Some(tile_id) = self.scepter_resolved_tile_id(source) {
                     *sector_source_counts.entry(tile_id).or_default() += 1;
-                    if let Some(tile) = self.project.tiles.get(&tile_id) {
+                    if let Some(tile) = self.documents.project.tiles.get(&tile_id) {
                         let role = tile.role.to_string().to_string();
                         let entry = role_counts.entry(role).or_default();
                         entry.0 += 1;
@@ -6829,14 +6772,14 @@ impl Editor {
         match region {
             RegionRef::Id { id } => {
                 let id = Uuid::from_str(id).map_err(|err| format!("invalid region id: {err}"))?;
-                self.project
+                self.documents.project
                     .regions
                     .iter()
                     .position(|region| region.id == id)
                     .ok_or_else(|| format!("region id not found: {id}"))
             }
             RegionRef::Name { name } => self
-                .project
+                .documents.project
                 .regions
                 .iter()
                 .position(|region| region.name.eq_ignore_ascii_case(name))
@@ -6857,7 +6800,7 @@ impl Editor {
     fn scepter_resolve_tile_selector(&self, selector: &TileSelector) -> Result<Uuid, String> {
         if let Some(id) = &selector.id {
             let id = Uuid::from_str(id).map_err(|err| format!("invalid tile id: {err}"))?;
-            if self.project.tiles.contains_key(&id) {
+            if self.documents.project.tiles.contains_key(&id) {
                 return Ok(id);
             }
             return Err(format!("tile id not found: {id}"));
@@ -6865,7 +6808,7 @@ impl Editor {
 
         if let Some(alias) = &selector.alias
             && let Some(tile) = self
-                .project
+                .documents.project
                 .tiles
                 .values()
                 .find(|tile| tile.alias.eq_ignore_ascii_case(alias))
@@ -6891,7 +6834,7 @@ impl Editor {
             .map(|tag| Self::scepter_normalize_match_text(tag))
             .collect::<Vec<_>>();
 
-        self.project
+        self.documents.project
             .tiles
             .values()
             .find(|tile| {
@@ -7067,8 +7010,8 @@ impl Editor {
             return serde_json::json!({"ok":false,"error":"Cell outside supported coordinate range"});
         }
         let source = rusterix::PixelSource::TileId(tile_id);
-        let region_id = self.project.regions[region_index].id;
-        let old_map = self.project.regions[region_index].map.clone();
+        let region_id = self.documents.project.regions[region_index].id;
+        let old_map = self.documents.project.regions[region_index].map.clone();
 
         let mut staged_map = old_map.clone();
         let mut created_sector_ids = Vec::new();
@@ -7111,14 +7054,14 @@ impl Editor {
             map.changed = map.changed.saturating_add(created_sector_ids.len() as u32);
         }
 
-        self.project.regions[region_index].map = staged_map;
-        let new_map = self.project.regions[region_index].map.clone();
+        self.documents.project.regions[region_index].map = staged_map;
+        let new_map = self.documents.project.regions[region_index].map.clone();
         let undo_atom = ProjectUndoAtom::MapEdit(
             ProjectContext::Region(region_id),
             Box::new(old_map.clone()),
             Box::new(new_map.clone()),
         );
-        editor_scene_apply_map_edit(&self.project, &self.server_ctx, &old_map, &new_map);
+        editor_scene_apply_map_edit(&self.documents.project, &self.server_ctx, &old_map, &new_map);
         update_region(ctx);
         UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
 
@@ -7218,7 +7161,7 @@ impl Editor {
                     .map(Some);
             }
             return self
-                .project
+                .documents.project
                 .regions
                 .iter()
                 .position(|region| region.id == self.server_ctx.curr_region)
@@ -7289,8 +7232,8 @@ impl Editor {
                 "project",
                 None,
                 "World",
-                &self.project.world_source,
-                &self.project.world_source_debug,
+                &self.documents.project.world_source,
+                &self.documents.project.world_source_debug,
             ),
             ScriptTargetKind::Region => {
                 let region_index = match self.scepter_script_target_region_index(target) {
@@ -7300,7 +7243,7 @@ impl Editor {
                     }
                     Err(error) => return serde_json::json!({ "ok": false, "error": error }),
                 };
-                let region = &self.project.regions[region_index];
+                let region = &self.documents.project.regions[region_index];
                 Self::scepter_script_payload(
                     "region",
                     "project",
@@ -7312,7 +7255,7 @@ impl Editor {
             }
             ScriptTargetKind::Character => {
                 if let Ok(Some(region_index)) = self.scepter_script_target_region_index(target) {
-                    let region = &self.project.regions[region_index];
+                    let region = &self.documents.project.regions[region_index];
                     if let Some(character) = region.characters.values().find(|character| {
                         Self::scepter_target_match(&character.id, &character.name, target)
                             .unwrap_or(false)
@@ -7330,7 +7273,7 @@ impl Editor {
                     return serde_json::json!({ "ok": false, "error": error });
                 }
 
-                if let Some(character) = self.project.characters.values().find(|character| {
+                if let Some(character) = self.documents.project.characters.values().find(|character| {
                     Self::scepter_target_match(&character.id, &character.name, target)
                         .unwrap_or(false)
                 }) {
@@ -7348,7 +7291,7 @@ impl Editor {
             }
             ScriptTargetKind::Item => {
                 if let Ok(Some(region_index)) = self.scepter_script_target_region_index(target) {
-                    let region = &self.project.regions[region_index];
+                    let region = &self.documents.project.regions[region_index];
                     if let Some(item) = region.items.values().find(|item| {
                         Self::scepter_target_match(&item.id, &item.name, target).unwrap_or(false)
                     }) {
@@ -7365,7 +7308,7 @@ impl Editor {
                     return serde_json::json!({ "ok": false, "error": error });
                 }
 
-                if let Some(item) = self.project.items.values().find(|item| {
+                if let Some(item) = self.documents.project.items.values().find(|item| {
                     Self::scepter_target_match(&item.id, &item.name, target).unwrap_or(false)
                 }) {
                     return Self::scepter_script_payload(
@@ -7421,15 +7364,15 @@ impl Editor {
             }
         }
 
-        let old_project = self.project.clone();
+        let old_project = self.documents.project.clone();
         let target = command.target;
         let new_source = command.patch;
         let mut changed = None::<(String, String, String)>;
 
         match target.kind {
             ScriptTargetKind::World => {
-                self.project.world_source = new_source.clone();
-                self.project.world_source_debug = new_source.clone();
+                self.documents.project.world_source = new_source.clone();
+                self.documents.project.world_source_debug = new_source.clone();
                 changed = Some((
                     "world".to_string(),
                     "project".to_string(),
@@ -7444,7 +7387,7 @@ impl Editor {
                     }
                     Err(error) => return serde_json::json!({ "ok": false, "error": error }),
                 };
-                let region = &mut self.project.regions[region_index];
+                let region = &mut self.documents.project.regions[region_index];
                 region.source = new_source.clone();
                 region.source_debug = new_source.clone();
                 changed = Some((
@@ -7455,7 +7398,7 @@ impl Editor {
             }
             ScriptTargetKind::Character => {
                 if let Ok(Some(region_index)) = self.scepter_script_target_region_index(&target) {
-                    let region = &mut self.project.regions[region_index];
+                    let region = &mut self.documents.project.regions[region_index];
                     if let Some(character) = region.characters.values_mut().find(|character| {
                         Self::scepter_target_match(&character.id, &character.name, &target)
                             .unwrap_or(false)
@@ -7474,7 +7417,7 @@ impl Editor {
 
                 if changed.is_none()
                     && let Some(character) =
-                        self.project.characters.values_mut().find(|character| {
+                        self.documents.project.characters.values_mut().find(|character| {
                             Self::scepter_target_match(&character.id, &character.name, &target)
                                 .unwrap_or(false)
                         })
@@ -7490,7 +7433,7 @@ impl Editor {
             }
             ScriptTargetKind::Item => {
                 if let Ok(Some(region_index)) = self.scepter_script_target_region_index(&target) {
-                    let region = &mut self.project.regions[region_index];
+                    let region = &mut self.documents.project.regions[region_index];
                     if let Some(item) = region.items.values_mut().find(|item| {
                         Self::scepter_target_match(&item.id, &item.name, &target).unwrap_or(false)
                     }) {
@@ -7507,7 +7450,7 @@ impl Editor {
                 }
 
                 if changed.is_none()
-                    && let Some(item) = self.project.items.values_mut().find(|item| {
+                    && let Some(item) = self.documents.project.items.values_mut().find(|item| {
                         Self::scepter_target_match(&item.id, &item.name, &target).unwrap_or(false)
                     })
                 {
@@ -7523,11 +7466,11 @@ impl Editor {
         }
 
         let Some((kind, scope, name)) = changed else {
-            self.project = old_project;
+            self.documents.project = old_project;
             return serde_json::json!({ "ok": false, "error": Self::scepter_target_missing_error(&target) });
         };
 
-        let new_project = self.project.clone();
+        let new_project = self.documents.project.clone();
         UNDOMANAGER.write().unwrap().add_undo(
             ProjectUndoAtom::ProjectEdit(
                 format!("Scepter Script Edit: {kind} {name}"),
@@ -7536,7 +7479,7 @@ impl Editor {
             ),
             ctx,
         );
-        shared::rusterix_utils::insert_content_into_maps(&mut self.project);
+        shared::rusterix_utils::insert_content_into_maps(&mut self.documents.project);
         update_region(ctx);
 
         serde_json::json!({
@@ -7621,7 +7564,7 @@ impl Editor {
         match target.kind {
             ScriptTargetKind::Character => {
                 if let Ok(Some(region_index)) = self.scepter_script_target_region_index(target) {
-                    let region = &self.project.regions[region_index];
+                    let region = &self.documents.project.regions[region_index];
                     if let Some(character) = region.characters.values().find(|character| {
                         Self::scepter_target_match(&character.id, &character.name, target)
                             .unwrap_or(false)
@@ -7638,7 +7581,7 @@ impl Editor {
                     return serde_json::json!({ "ok": false, "error": error });
                 }
 
-                if let Some(character) = self.project.characters.values().find(|character| {
+                if let Some(character) = self.documents.project.characters.values().find(|character| {
                     Self::scepter_target_match(&character.id, &character.name, target)
                         .unwrap_or(false)
                 }) {
@@ -7653,7 +7596,7 @@ impl Editor {
             }
             ScriptTargetKind::Item => {
                 if let Ok(Some(region_index)) = self.scepter_script_target_region_index(target) {
-                    let region = &self.project.regions[region_index];
+                    let region = &self.documents.project.regions[region_index];
                     if let Some(item) = region.items.values().find(|item| {
                         Self::scepter_target_match(&item.id, &item.name, target).unwrap_or(false)
                     }) {
@@ -7669,7 +7612,7 @@ impl Editor {
                     return serde_json::json!({ "ok": false, "error": error });
                 }
 
-                if let Some(item) = self.project.items.values().find(|item| {
+                if let Some(item) = self.documents.project.items.values().find(|item| {
                     Self::scepter_target_match(&item.id, &item.name, target).unwrap_or(false)
                 }) {
                     return Self::scepter_attributes_payload(
@@ -7735,7 +7678,7 @@ impl Editor {
         command: AttributesPatch,
         ctx: &mut TheContext,
     ) -> serde_json::Value {
-        let old_project = self.project.clone();
+        let old_project = self.documents.project.clone();
         let target = command.target;
         let values = command.values;
         let remove = command.remove;
@@ -7744,7 +7687,7 @@ impl Editor {
         match target.kind {
             ScriptTargetKind::Character => {
                 if let Ok(Some(region_index)) = self.scepter_script_target_region_index(&target) {
-                    let region = &mut self.project.regions[region_index];
+                    let region = &mut self.documents.project.regions[region_index];
                     if let Some(character) = region.characters.values_mut().find(|character| {
                         Self::scepter_target_match(&character.id, &character.name, &target)
                             .unwrap_or(false)
@@ -7778,7 +7721,7 @@ impl Editor {
 
                 if changed.is_none()
                     && let Some(character) =
-                        self.project.characters.values_mut().find(|character| {
+                        self.documents.project.characters.values_mut().find(|character| {
                             Self::scepter_target_match(&character.id, &character.name, &target)
                                 .unwrap_or(false)
                         })
@@ -7805,7 +7748,7 @@ impl Editor {
             }
             ScriptTargetKind::Item => {
                 if let Ok(Some(region_index)) = self.scepter_script_target_region_index(&target) {
-                    let region = &mut self.project.regions[region_index];
+                    let region = &mut self.documents.project.regions[region_index];
                     if let Some(item) = region.items.values_mut().find(|item| {
                         Self::scepter_target_match(&item.id, &item.name, &target).unwrap_or(false)
                     }) {
@@ -7833,7 +7776,7 @@ impl Editor {
                 }
 
                 if changed.is_none()
-                    && let Some(item) = self.project.items.values_mut().find(|item| {
+                    && let Some(item) = self.documents.project.items.values_mut().find(|item| {
                         Self::scepter_target_match(&item.id, &item.name, &target).unwrap_or(false)
                     })
                 {
@@ -7866,11 +7809,11 @@ impl Editor {
         }
 
         let Some((kind, scope, name, changed_keys, removed_keys)) = changed else {
-            self.project = old_project;
+            self.documents.project = old_project;
             return serde_json::json!({ "ok": false, "error": Self::scepter_target_missing_error(&target) });
         };
 
-        let new_project = self.project.clone();
+        let new_project = self.documents.project.clone();
         UNDOMANAGER.write().unwrap().add_undo(
             ProjectUndoAtom::ProjectEdit(
                 format!("Scepter Attribute Edit: {kind} {name}"),
@@ -7879,7 +7822,7 @@ impl Editor {
             ),
             ctx,
         );
-        shared::rusterix_utils::insert_content_into_maps(&mut self.project);
+        shared::rusterix_utils::insert_content_into_maps(&mut self.documents.project);
         update_region(ctx);
 
         serde_json::json!({
@@ -7951,20 +7894,8 @@ impl TheTrait for Editor {
         ))]
         let self_updater = SelfUpdater::github_creator();
 
-        let initial_session = ProjectSession {
-            id: Uuid::new_v4(),
-            project: project.clone(),
-            project_path: None,
-            undo: UndoManager::default(),
-            dirty: false,
-            detached_dock_dirty: false,
-        };
-
         Self {
-            project,
-            project_path: None,
-            sessions: vec![initial_session],
-            active_session: 0,
+            documents: Documents::new(project),
             replace_next_project_load_in_active_tab: false,
             last_active_dirty: false,
 
@@ -8477,7 +8408,7 @@ impl TheTrait for Editor {
         editor_canvas.limiter_mut().set_min_height(240);
 
         let mut editor_stack = TheStackLayout::new(TheId::named("Editor Stack"));
-        let poly_canvas = self.mapeditor.init_ui(ui, ctx, &mut self.project);
+        let poly_canvas = self.mapeditor.init_ui(ui, ctx, &mut self.documents.project);
         editor_stack.add_canvas(poly_canvas);
 
         // Add Dock Editors
@@ -8511,7 +8442,7 @@ impl TheTrait for Editor {
         EDITCAMERA.write().unwrap().setup_toolbar(
             &mut project_strip_layout,
             ctx,
-            &mut self.project,
+            &mut self.documents.project,
             &mut self.server_ctx,
         );
 
@@ -8674,9 +8605,7 @@ impl TheTrait for Editor {
         let mut redraw = false;
         let mut update_server_icons = false;
         if self.play_session.as_ref().is_some_and(|session| {
-            self.sessions
-                .get(self.active_session)
-                .is_none_or(|document| document.id != session.document)
+            self.documents.active_id() != Some(session.document)
         }) {
             // A delayed runtime update must never project one document into
             // the newly active authoring project, even if serialized IDs match.
@@ -8694,7 +8623,7 @@ impl TheTrait for Editor {
         redraw |= self.palette_switch.update(ctx);
         redraw |= self
             .procedural_material
-            .update(ui, ctx, &mut self.project, &mut self.server_ctx);
+            .update(ui, ctx, &mut self.documents.project, &mut self.server_ctx);
         profile.lap("materials");
         #[cfg(not(target_arch = "wasm32"))]
         self.scepter_observe(false, ui);
@@ -8742,13 +8671,13 @@ impl TheTrait for Editor {
         if let Some((input_id, command)) = self.pending_text_game_command.take() {
             {
                 let mut bridge = RUSTERIX.write().unwrap();
-                CreatorPlaySession::refresh_text_runtime_view(&mut self.project, &mut bridge);
+                CreatorPlaySession::refresh_text_runtime_view(&mut self.documents.project, &mut bridge);
                 let mut runtime =
                     CreatorPlaySession::text_runtime(self.play_session.as_mut(), &mut bridge);
                 self.text_game.handle_input(
                     &input_id,
                     &command,
-                    &self.project,
+                    &self.documents.project,
                     &self.server_ctx,
                     &mut runtime,
                     ui,
@@ -8764,12 +8693,12 @@ impl TheTrait for Editor {
                 RUSTERIX.read().unwrap().server.state == rusterix::ServerState::Running;
             if is_running && self.server_ctx.text_game_mode {
                 if let Some(session) = &mut self.play_session {
-                    session.flush_command(&mut self.project, &mut RUSTERIX.write().unwrap());
+                    session.flush_command(&mut self.documents.project, &mut RUSTERIX.write().unwrap());
                 } else {
-                    warmup_runtime(&mut RUSTERIX.write().unwrap(), &mut self.project, 1);
+                    warmup_runtime(&mut RUSTERIX.write().unwrap(), &mut self.documents.project, 1);
                 }
 
-                if let Some(region) = self.project.get_region_ctx(&self.server_ctx) {
+                if let Some(region) = self.documents.project.get_region_ctx(&self.server_ctx) {
                     let region_id = region.map.id;
                     let (mut messages, mut says, mut choices) = if let Some(session) = &mut self.play_session {
                         let outputs = session.pump.pending_events(&region_id).unwrap();
@@ -8791,7 +8720,7 @@ impl TheTrait for Editor {
                     let mut runtime =
                         CreatorPlaySession::text_runtime(self.play_session.as_mut(), &mut bridge);
                     self.text_game.update(
-                        &self.project,
+                        &self.documents.project,
                         &self.server_ctx,
                         &mut runtime,
                         &mut messages,
@@ -8811,13 +8740,13 @@ impl TheTrait for Editor {
             let mut toollist = TOOLLIST.write().unwrap();
             let id = toollist.get_current_tool().id().uuid;
 
-            toollist.set_tool(id, ui, ctx, &mut self.project, &mut self.server_ctx);
+            toollist.set_tool(id, ui, ctx, &mut self.documents.project, &mut self.server_ctx);
         }
 
         if TOOLLIST.write().unwrap().update_current_tool(
             ui,
             ctx,
-            &mut self.project,
+            &mut self.documents.project,
             &mut self.server_ctx,
         ) {
             redraw = true;
@@ -9106,7 +9035,7 @@ impl TheTrait for Editor {
         }
 
         profile.lap("tick");
-        if redraw_update && !self.project.regions.is_empty() {
+        if redraw_update && !self.documents.project.regions.is_empty() {
             // Native iso draws authored terrain and sprites directly. Building
             // hidden SceneVM 2D/3D chunks here blocks every paint commit.
             // SceneManager updates are immediate; pending chunks remain available
@@ -9115,7 +9044,7 @@ impl TheTrait for Editor {
                 && self.server_ctx.editor_view_mode == EditorViewMode::D2
                 && self.server_ctx.editing_surface.is_none()
                 && self
-                    .project
+                    .documents.project
                     .get_map(&self.server_ctx)
                     .is_some_and(|map| map.camera == MapCamera::TwoDIso);
             if !sprite_iso {
@@ -9158,7 +9087,7 @@ impl TheTrait for Editor {
                 {
                     // Paused sessions still poll control/worker results without
                     // issuing system ticks or accumulating paused-time debt.
-                    session.advance(&mut self.project, rusterix);
+                    session.advance(&mut self.documents.project, rusterix);
                 }
                 if is_running {
                     if self.play_session.is_none() {
@@ -9200,12 +9129,12 @@ impl TheTrait for Editor {
                     let mut refresh_visual_debug = false;
                     let mut region_outputs = FxHashMap::default();
                     if let Some(session) = &mut self.play_session {
-                        for region in &self.project.regions {
+                        for region in &self.documents.project.regions {
                             let outputs = session.pump.take_events(&region.map.id);
                             #[cfg(feature = "native-render")]
                             if region.map.name == active_game_map {
                                 let world = session.pump.view(
-                                    &self.project,
+                                    &self.documents.project,
                                     &rusterix.server,
                                     &rusterix.assets,
                                     &active_game_map,
@@ -9215,7 +9144,7 @@ impl TheTrait for Editor {
                             region_outputs.insert(region.map.id, outputs);
                         }
                     }
-                    for r in &mut self.project.regions {
+                    for r in &mut self.documents.project.regions {
                         if self.play_session.is_none() {
                             rusterix.server.apply_entities_items(&mut r.map);
                         }
@@ -9305,7 +9234,7 @@ impl TheTrait for Editor {
                         DOCKMANAGER.write().unwrap().apply_eldrin_debug_data(
                             ui,
                             ctx,
-                            &self.project,
+                            &self.documents.project,
                             &self.server_ctx,
                             &rusterix.server.eldrin_debug,
                         );
@@ -9315,7 +9244,7 @@ impl TheTrait for Editor {
             DOCKMANAGER.write().unwrap().sync_text_play_dock(
                 ui,
                 ctx,
-                &self.project,
+                &self.documents.project,
                 &mut self.server_ctx,
                 is_running,
             );
@@ -9336,7 +9265,7 @@ impl TheTrait for Editor {
                 let mut runtime =
                     CreatorPlaySession::text_runtime(self.play_session.as_mut(), &mut bridge);
                 self.text_game.update(
-                    &self.project,
+                    &self.documents.project,
                     &self.server_ctx,
                     &mut runtime,
                     &mut messages,
@@ -9378,7 +9307,7 @@ impl TheTrait for Editor {
                 buffer.resize(dim.width, dim.height);
 
                 {
-                    if let Some(region) = self.project.get_region_mut(&self.server_ctx.curr_region)
+                    if let Some(region) = self.documents.project.get_region_mut(&self.server_ctx.curr_region)
                     {
                         shared::iso_paint_terrain::sync(
                             &mut RUSTERIX.write().unwrap().assets,
@@ -9386,11 +9315,11 @@ impl TheTrait for Editor {
                             &mut region.iso_paint,
                         );
                     }
-                    for paint in self.project.block_prop_paint.values_mut() {
+                    for paint in self.documents.project.block_prop_paint.values_mut() {
                         paint.refresh_sources(&RUSTERIX.read().unwrap().assets);
                         paint.ensure_baked_paint_current();
                     }
-                    let prefab_paint_catalog = self.project.block_prop_paint.clone();
+                    let prefab_paint_catalog = self.documents.project.block_prop_paint.clone();
                     // If we are drawing billboard vertices in the geometry overlay, update them.
                     if !running_game_mode && self.server_ctx.editor_view_mode != EditorViewMode::D2
                     {
@@ -9401,7 +9330,7 @@ impl TheTrait for Editor {
                         // owned by VertexTool, so query the actual selected tool.
                         if tools.current_game_tool_command_id() == Some("tool.vertex") {
                             tools.update_geometry_overlay_3d(
-                                &mut self.project,
+                                &mut self.documents.project,
                                 &mut self.server_ctx,
                             );
                         }
@@ -9431,7 +9360,7 @@ impl TheTrait for Editor {
                         } else {
                             choices
                         };
-                        for r in &mut self.project.regions {
+                        for r in &mut self.documents.project.regions {
                             if r.map.name == rusterix.client.current_map {
                                 let region_id = r.id;
                                 r.iso_paint.ensure_baked_paint_current();
@@ -9537,7 +9466,7 @@ impl TheTrait for Editor {
                             };
                             let mut prefab_paint = asset_id
                                 .and_then(|asset_id| {
-                                    self.project.block_prop_paint.get(&asset_id).cloned()
+                                    self.documents.project.block_prop_paint.get(&asset_id).cloned()
                                 })
                                 .unwrap_or_default();
                             prefab_paint.selection_visible =
@@ -9600,7 +9529,7 @@ impl TheTrait for Editor {
                                 rusterix.scene_handler.vm.set_active_vm(active_vm);
                                 self.iso_paint_render_cache = Default::default();
                             }
-                            if let Some(map) = self.project.get_map(&self.server_ctx) {
+                            if let Some(map) = self.documents.project.get_map(&self.server_ctx) {
                                 // The isolated Prefab scene has no running game
                                 // widget to build its dynamic layer. Build it
                                 // here so authored particles and lights are
@@ -9623,7 +9552,7 @@ impl TheTrait for Editor {
                             rusterix
                                 .set_entity_item_selection_visible(entity_item_selection_visible);
                             if let Some(region) =
-                                self.project.get_region_ctx_mut(&mut self.server_ctx)
+                                self.documents.project.get_region_ctx_mut(&mut self.server_ctx)
                             {
                                 let follow_player_firstp = is_running
                                     && self.server_ctx.editor_view_mode == EditorViewMode::FirstP;
@@ -9759,8 +9688,8 @@ impl TheTrait for Editor {
                                 {
                                     region.map.orthographic_bake = persisted;
                                     region.map.changed = region.map.changed.wrapping_add(1);
-                                    if self.active_session < self.sessions.len() {
-                                        self.sessions[self.active_session].dirty = true;
+                                    if self.documents.active_session < self.documents.sessions.len() {
+                                        self.documents.sessions[self.documents.active_session].dirty = true;
                                     }
                                 }
                                 let bake_rendering = rusterix.orthographic_bake.is_rendering();
@@ -9785,7 +9714,7 @@ impl TheTrait for Editor {
                             && self.server_ctx.editing_surface.is_none()
                         {
                             if let Some(region) =
-                                self.project.get_region(&self.server_ctx.curr_region)
+                                self.documents.project.get_region(&self.server_ctx.curr_region)
                             {
                                 rusterix.client.set_clip_rect_d2(None);
                                 rusterix
@@ -9822,7 +9751,7 @@ impl TheTrait for Editor {
                                         &self.server_ctx.editing_surface,
                                         false,
                                     );
-                                } else if let Some(map) = self.project.get_map(&self.server_ctx) {
+                                } else if let Some(map) = self.documents.project.get_map(&self.server_ctx) {
                                     rusterix.apply_entities_items(
                                         Vec2::new(dim.width as f32, dim.height as f32),
                                         map,
@@ -9839,7 +9768,7 @@ impl TheTrait for Editor {
                                 //println!("{} ms", stop_time - start_time);
                             }
 
-                            if let Some(map) = self.project.get_map_mut(&self.server_ctx) {
+                            if let Some(map) = self.documents.project.get_map_mut(&self.server_ctx) {
                                 if self.server_ctx.editor_view_mode == EditorViewMode::D2 {
                                     rusterix.scene_handler.settings.backend_2d =
                                         RendererBackend::Raster;
@@ -9870,7 +9799,7 @@ impl TheTrait for Editor {
                             rusterix
                                 .client
                                 .set_map_tool_type_d2(self.server_ctx.curr_map_tool_type);
-                            if let Some(profile) = self.project.get_map_mut(&self.server_ctx) {
+                            if let Some(profile) = self.documents.project.get_map_mut(&self.server_ctx) {
                                 if rusterix.scene_handler.vm.vm_layer_count() > 1 {
                                     // Profile editor relies on 2D overlay guides.
                                     rusterix.scene_handler.vm.set_layer_enabled(1, true);
@@ -9931,7 +9860,7 @@ impl TheTrait for Editor {
                             rusterix
                                 .client
                                 .set_map_tool_type_d2(self.server_ctx.curr_map_tool_type);
-                            if let Some(map) = self.project.get_map_mut(&self.server_ctx) {
+                            if let Some(map) = self.documents.project.get_map_mut(&self.server_ctx) {
                                 if rusterix.scene_handler.vm.vm_layer_count() > 1 {
                                     // A screen's grid and widget bounds are the editing canvas,
                                     // and editing guides remain available in every 2D context.
@@ -10020,10 +9949,10 @@ impl TheTrait for Editor {
                 if !running_game_mode && self.server_ctx.editor_view_mode != EditorViewMode::D2 {
                     let iso_paint = match self.server_ctx.pc {
                         ProjectContext::Prefab(asset_id) => {
-                            self.project.block_prop_paint.get(&asset_id).cloned()
+                            self.documents.project.block_prop_paint.get(&asset_id).cloned()
                         }
                         _ if self.server_ctx.get_map_context() == MapContext::Region => self
-                            .project
+                            .documents.project
                             .get_region(&self.server_ctx.curr_region)
                             .map(|region| region.iso_paint.clone()),
                         _ => None,
@@ -10045,11 +9974,11 @@ impl TheTrait for Editor {
                         && self.server_ctx.editor_view_mode != EditorViewMode::D2
                         && self.server_ctx.geometry_edit_mode == GeometryEditMode::Detail
                     {
-                        self.project
+                        self.documents.project
                             .get_region_mut(&self.server_ctx.curr_region)
                             .map(|region| &mut region.map)
                     } else {
-                        self.project.get_map_mut(&self.server_ctx)
+                        self.documents.project.get_map_mut(&self.server_ctx)
                     };
                     if let Some(map) = map_for_hud {
                         TOOLLIST.write().unwrap().draw_hud(
@@ -10066,7 +9995,7 @@ impl TheTrait for Editor {
             // if !self.server_ctx.game_mode
             //     && self.server_ctx.curr_map_tool_helper == MapToolHelper::Preview
             // {
-            //     if let Some(region) = self.project.get_region_ctx(&self.server_ctx) {
+            //     if let Some(region) = self.documents.project.get_region_ctx(&self.server_ctx) {
             //         PREVIEWVIEW
             //             .write()
             //             .unwrap()
@@ -10100,7 +10029,7 @@ impl TheTrait for Editor {
             self.synchronize_native_document();
             if self.appearance_workspace.handle_event(
                 &event,
-                &mut self.project,
+                &mut self.documents.project,
                 ui,
                 ctx,
                 &mut self.server_ctx,
@@ -10110,14 +10039,14 @@ impl TheTrait for Editor {
             }
             if self
                 .geometry_editor
-                .handle_event(&event, &mut self.project, ui, ctx)
+                .handle_event(&event, &mut self.documents.project, ui, ctx)
             {
                 redraw = true;
                 continue;
             }
             if self.palette_switch.handle_event(
                 &event,
-                &mut self.project,
+                &mut self.documents.project,
                 ui,
                 ctx,
                 &mut self.server_ctx,
@@ -10129,7 +10058,7 @@ impl TheTrait for Editor {
                 &event,
                 ui,
                 ctx,
-                &mut self.project,
+                &mut self.documents.project,
                 &mut self.server_ctx,
             ) {
                 redraw = true;
@@ -10153,14 +10082,14 @@ impl TheTrait for Editor {
                         &event,
                         ui,
                         ctx,
-                        &mut self.project,
+                        &mut self.documents.project,
                         &mut self.server_ctx,
                     );
                 }
             }
             if self
                 .sidebar
-                .handle_event(&event, ui, ctx, &mut self.project, &mut self.server_ctx)
+                .handle_event(&event, ui, ctx, &mut self.documents.project, &mut self.server_ctx)
             {
                 redraw = true;
             }
@@ -10168,7 +10097,7 @@ impl TheTrait for Editor {
                 &event,
                 ui,
                 ctx,
-                &mut self.project,
+                &mut self.documents.project,
                 &mut self.server_ctx,
             ) {
                 redraw = true;
@@ -10177,14 +10106,14 @@ impl TheTrait for Editor {
                 &event,
                 ui,
                 ctx,
-                &mut self.project,
+                &mut self.documents.project,
                 &mut self.server_ctx,
             ) {
                 redraw = true;
             }
             if self
                 .mapeditor
-                .handle_event(&event, ui, ctx, &mut self.project, &mut self.server_ctx)
+                .handle_event(&event, ui, ctx, &mut self.documents.project, &mut self.server_ctx)
             {
                 redraw = true;
             }
@@ -10262,7 +10191,7 @@ impl TheTrait for Editor {
                         DOCKMANAGER.write().unwrap().minimize(
                             ui,
                             ctx,
-                            &self.project,
+                            &self.documents.project,
                             &mut self.server_ctx,
                         );
                         ctx.ui.relayout = true;
@@ -10283,18 +10212,18 @@ impl TheTrait for Editor {
                                     // Projection changes require different chunks, not
                                     // rematerializing every texture/Prefab in the project.
                                     crate::utils::scenemanager_render_map(
-                                        &self.project,
+                                        &self.documents.project,
                                         &self.server_ctx,
                                     );
                                 } else {
                                     crate::utils::editor_scene_full_rebuild(
-                                        &self.project,
+                                        &self.documents.project,
                                         &self.server_ctx,
                                     );
                                 }
                                 if self.server_ctx.editor_view_mode != EditorViewMode::D2 {
                                     TOOLLIST.write().unwrap().update_geometry_overlay_3d(
-                                        &mut self.project,
+                                        &mut self.documents.project,
                                         &mut self.server_ctx,
                                     );
                                 }
@@ -10304,7 +10233,7 @@ impl TheTrait for Editor {
                         TOOLLIST
                             .write()
                             .unwrap()
-                            .update_geometry_overlay_3d(&mut self.project, &mut self.server_ctx);
+                            .update_geometry_overlay_3d(&mut self.documents.project, &mut self.server_ctx);
                     } else if id.name == "Update Client Properties" {
                         let mut rusterix = RUSTERIX.write().unwrap();
                         self.build_values.set(
@@ -10331,7 +10260,7 @@ impl TheTrait for Editor {
                     if name == "Delete Character Instance ?" {
                         if role == TheDialogButtonRole::Delete {
                             if let Some(region) =
-                                self.project.get_region_mut(&self.server_ctx.curr_region)
+                                self.documents.project.get_region_mut(&self.server_ctx.curr_region)
                             {
                                 let character_id = uuid;
                                 if region.characters.shift_remove(&character_id).is_some() {
@@ -10348,7 +10277,7 @@ impl TheTrait for Editor {
                                         ui.select_first_list_item("Region Content List", ctx);
                                         ctx.ui.relayout = true;
                                     }
-                                    insert_content_into_maps(&mut self.project);
+                                    insert_content_into_maps(&mut self.documents.project);
                                     RUSTERIX.write().unwrap().set_dirty();
                                 }
                             }
@@ -10356,7 +10285,7 @@ impl TheTrait for Editor {
                     } else if name == "Delete Item Instance ?" {
                         if role == TheDialogButtonRole::Delete {
                             if let Some(region) =
-                                self.project.get_region_mut(&self.server_ctx.curr_region)
+                                self.documents.project.get_region_mut(&self.server_ctx.curr_region)
                             {
                                 let item_id = uuid;
                                 if region.items.shift_remove(&item_id).is_some() {
@@ -10372,7 +10301,7 @@ impl TheTrait for Editor {
                                         ui.select_first_list_item("Region Content List", ctx);
                                         ctx.ui.relayout = true;
                                     }
-                                    insert_content_into_maps(&mut self.project);
+                                    insert_content_into_maps(&mut self.documents.project);
                                     RUSTERIX.write().unwrap().set_dirty();
                                 }
                             }
@@ -10440,7 +10369,7 @@ impl TheTrait for Editor {
                         1.0
                     };
 
-                    if let Some(map) = self.project.get_map(&self.server_ctx) {
+                    if let Some(map) = self.documents.project.get_map(&self.server_ctx) {
                         if use_3d_hit && let Some(render_view) = ui.get_render_view("PolyView") {
                             let dim = *render_view.dim();
                             let screen_uv = [
@@ -10650,7 +10579,7 @@ impl TheTrait for Editor {
                         };
 
                         let mut name = "Character".to_string();
-                        if let Some(character) = self.project.characters.get(&drop.id.references) {
+                        if let Some(character) = self.documents.project.characters.get(&drop.id.references) {
                             name.clone_from(&character.name);
                         }
                         instance.name = name.clone();
@@ -10659,7 +10588,7 @@ impl TheTrait for Editor {
                             self.server_ctx.curr_region,
                             instance,
                         );
-                        atom.redo(&mut self.project, ui, ctx, &mut self.server_ctx);
+                        atom.redo(&mut self.documents.project, ui, ctx, &mut self.server_ctx);
                         UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
                     } else if drop.id.name.starts_with("Item") {
                         let mut instance = Item {
@@ -10669,7 +10598,7 @@ impl TheTrait for Editor {
                         };
 
                         let mut name = "Item".to_string();
-                        if let Some(item) = self.project.items.get(&drop.id.references) {
+                        if let Some(item) = self.documents.project.items.get(&drop.id.references) {
                             name.clone_from(&item.name);
                         }
                         instance.name = name;
@@ -10679,9 +10608,9 @@ impl TheTrait for Editor {
                             self.server_ctx.curr_region,
                             instance,
                         );
-                        atom.redo(&mut self.project, ui, ctx, &mut self.server_ctx);
+                        atom.redo(&mut self.documents.project, ui, ctx, &mut self.server_ctx);
                         let placement = if support_surface_sample.is_some() {
-                            self.project
+                            self.documents.project
                                 .get_map_mut(&self.server_ctx)
                                 .map(|map| {
                                     crate::tools::entity::EntityTool::commit_item_surface_placement(
@@ -10705,7 +10634,7 @@ impl TheTrait for Editor {
                                 }
                             }
                             Err(message) => {
-                                atom.undo(&mut self.project, ui, ctx, &mut self.server_ctx);
+                                atom.undo(&mut self.documents.project, ui, ctx, &mut self.server_ctx);
                                 ctx.ui
                                     .send(TheEvent::SetStatusText(TheId::empty(), message));
                             }
@@ -10752,14 +10681,14 @@ impl TheTrait for Editor {
                         for p in paths {
                             let p = Self::ensure_project_extension(p);
                             self.persist_active_region_view_state();
-                            match Self::save_project_to_path(&p, &self.project) {
+                            match Self::save_project_to_path(&p, &self.documents.project) {
                                 Ok(()) => {
-                                    self.project_path = Some(p);
+                                    self.documents.project_path = Some(p);
                                     UNDOMANAGER.write().unwrap().mark_saved();
                                     DOCKMANAGER.write().unwrap().mark_saved();
-                                    if self.active_session < self.sessions.len() {
-                                        self.sessions[self.active_session].dirty = false;
-                                        self.sessions[self.active_session].detached_dock_dirty =
+                                    if self.documents.active_session < self.documents.sessions.len() {
+                                        self.documents.sessions[self.documents.active_session].dirty = false;
+                                        self.documents.sessions[self.documents.active_session].detached_dock_dirty =
                                             false;
                                     }
                                     self.sync_active_session_from_editor();
@@ -10798,7 +10727,7 @@ impl TheTrait for Editor {
                         DOCKMANAGER.write().unwrap().edit_maximize(
                             ui,
                             ctx,
-                            &mut self.project,
+                            &mut self.documents.project,
                             &mut self.server_ctx,
                         );
                         ctx.ui.set_widget_state(
@@ -10812,7 +10741,7 @@ impl TheTrait for Editor {
                         DOCKMANAGER.write().unwrap().minimize(
                             ui,
                             ctx,
-                            &self.project,
+                            &self.documents.project,
                             &mut self.server_ctx,
                         );
                         ctx.ui
@@ -11102,17 +11031,17 @@ impl TheTrait for Editor {
                             ));
                             continue;
                         }
-                        if let Some(path) = self.project_path.clone() {
+                        if let Some(path) = self.documents.project_path.clone() {
                             let path = Self::ensure_project_extension(path);
                             self.persist_active_region_view_state();
-                            match Self::save_project_to_path(&path, &self.project) {
+                            match Self::save_project_to_path(&path, &self.documents.project) {
                                 Ok(()) => {
-                                    self.project_path = Some(path.clone());
+                                    self.documents.project_path = Some(path.clone());
                                     UNDOMANAGER.write().unwrap().mark_saved();
                                     DOCKMANAGER.write().unwrap().mark_saved();
-                                    if self.active_session < self.sessions.len() {
-                                        self.sessions[self.active_session].dirty = false;
-                                        self.sessions[self.active_session].detached_dock_dirty =
+                                    if self.documents.active_session < self.documents.sessions.len() {
+                                        self.documents.sessions[self.documents.active_session].dirty = false;
+                                        self.documents.sessions[self.documents.active_session].detached_dock_dirty =
                                             false;
                                     }
                                     self.sync_active_session_from_editor();
@@ -11197,7 +11126,7 @@ impl TheTrait for Editor {
                                 }
                                 if let Err(error) = start_server(
                                     &mut RUSTERIX.write().unwrap(),
-                                    &mut self.project,
+                                    &mut self.documents.project,
                                     true,
                                 ) {
                                     crate::docks::log::LogDock::set_output(
@@ -11213,7 +11142,7 @@ impl TheTrait for Editor {
                                 }
                                 RUSTERIX.write().unwrap().clear_say_messages();
                                 let mut commands =
-                                    setup_client(&mut RUSTERIX.write().unwrap(), &mut self.project);
+                                    setup_client(&mut RUSTERIX.write().unwrap(), &mut self.documents.project);
                                 if ui
                                     .get_widget("Game Entity Defaults")
                                     .is_some_and(|button| button.state() == TheWidgetState::Clicked)
@@ -11229,10 +11158,10 @@ impl TheTrait for Editor {
                                     .process_client_commands(commands);
                                 warmup_runtime(
                                     &mut RUSTERIX.write().unwrap(),
-                                    &mut self.project,
+                                    &mut self.documents.project,
                                     3,
                                 );
-                                self.play_session = self.sessions.get(self.active_session).map(|document| {
+                                self.play_session = self.documents.sessions.get(self.documents.active_session).map(|document| {
                                     let tick_ms = CONFIGEDITOR.read().unwrap().game_tick_ms.max(1) as u64;
                                     let runtime = RUSTERIX.read().unwrap();
                                     CreatorPlaySession::new(
@@ -11312,7 +11241,7 @@ impl TheTrait for Editor {
 
                         ui.set_widget_value("InfoView", ctx, TheValue::Text("".into()));
                         let restored_authored_maps = self.restore_authored_maps_after_play();
-                        insert_content_into_maps(&mut self.project);
+                        insert_content_into_maps(&mut self.documents.project);
                         self.server_ctx.game_input_mode = false;
                         ctx.set_cursor_visible(true);
                         if restored_authored_maps {
@@ -11321,14 +11250,14 @@ impl TheTrait for Editor {
                             // once; otherwise the heavy generated dungeon stays
                             // in the editor forever after Stop.
                             crate::utils::editor_scene_full_rebuild(
-                                &self.project,
+                                &self.documents.project,
                                 &self.server_ctx,
                             );
                         }
                         if TOOLLIST.write().unwrap().leave_game_tool_after_stop(
                             ui,
                             ctx,
-                            &mut self.project,
+                            &mut self.documents.project,
                             &mut self.server_ctx,
                         ) {
                             redraw = true;
@@ -11338,7 +11267,7 @@ impl TheTrait for Editor {
                         set_project_context(
                             ctx,
                             ui,
-                            &self.project,
+                            &self.documents.project,
                             &mut self.server_ctx,
                             ProjectContext::ProjectSettings,
                         );
@@ -11347,7 +11276,7 @@ impl TheTrait for Editor {
                         set_project_context(
                             ctx,
                             ui,
-                            &self.project,
+                            &self.documents.project,
                             &mut self.server_ctx,
                             ProjectContext::GameRules,
                         );
@@ -11356,7 +11285,7 @@ impl TheTrait for Editor {
                         set_project_context(
                             ctx,
                             ui,
-                            &self.project,
+                            &self.documents.project,
                             &mut self.server_ctx,
                             ProjectContext::GameLocales,
                         );
@@ -11365,7 +11294,7 @@ impl TheTrait for Editor {
                         set_project_context(
                             ctx,
                             ui,
-                            &self.project,
+                            &self.documents.project,
                             &mut self.server_ctx,
                             ProjectContext::GameAudioFx,
                         );
@@ -11374,7 +11303,7 @@ impl TheTrait for Editor {
                         set_project_context(
                             ctx,
                             ui,
-                            &self.project,
+                            &self.documents.project,
                             &mut self.server_ctx,
                             ProjectContext::GameAuthoring,
                         );
@@ -11383,35 +11312,35 @@ impl TheTrait for Editor {
                         redraw |= self.sidebar.show_project_page(
                             ui,
                             ctx,
-                            &self.project,
+                            &self.documents.project,
                             &mut self.server_ctx,
                         );
                     } else if id.name == "Show Actions Sidebar" {
                         redraw |= self.sidebar.show_actions_page(
                             ui,
                             ctx,
-                            &self.project,
+                            &self.documents.project,
                             &mut self.server_ctx,
                         );
                     } else if id.name == "Show Console" {
                         redraw |= self.sidebar.show_console_page(
                             ui,
                             ctx,
-                            &self.project,
+                            &self.documents.project,
                             &mut self.server_ctx,
                         );
                     } else if id.name == "Show Debug Log" {
                         redraw |= self.sidebar.show_debug_page(
                             ui,
                             ctx,
-                            &self.project,
+                            &self.documents.project,
                             &mut self.server_ctx,
                         );
                     } else if id.name == "Show Help Sidebar" {
                         redraw |= self.sidebar.show_help_page(
                             ui,
                             ctx,
-                            &self.project,
+                            &self.documents.project,
                             &mut self.server_ctx,
                         );
                     } else if id.name == "Undo" || id.name == "Redo" {
@@ -11427,14 +11356,14 @@ impl TheTrait for Editor {
                                 DOCKMANAGER.write().unwrap().undo(
                                     ui,
                                     ctx,
-                                    &mut self.project,
+                                    &mut self.documents.project,
                                     &mut self.server_ctx,
                                 );
                             } else {
                                 DOCKMANAGER.write().unwrap().redo(
                                     ui,
                                     ctx,
-                                    &mut self.project,
+                                    &mut self.documents.project,
                                     &mut self.server_ctx,
                                 );
                             }
@@ -11443,9 +11372,9 @@ impl TheTrait for Editor {
                             let mut manager = UNDOMANAGER.write().unwrap();
 
                             if id.name == "Undo" {
-                                manager.undo(&mut self.server_ctx, &mut self.project, ui, ctx);
+                                manager.undo(&mut self.server_ctx, &mut self.documents.project, ui, ctx);
                             } else {
-                                manager.redo(&mut self.server_ctx, &mut self.project, ui, ctx);
+                                manager.redo(&mut self.server_ctx, &mut self.documents.project, ui, ctx);
                             }
                             refresh_action_ui = true;
                         }
@@ -11512,12 +11441,12 @@ impl TheTrait for Editor {
                         }
                     } else if id.name == "Server Time Slider" {
                         if let TheValue::Time(time) = value {
-                            self.project.time = time;
+                            self.documents.project.time = time;
                             let mut rusterix = RUSTERIX.write().unwrap();
                             rusterix.client.set_server_time(time);
 
                             if rusterix.server.state == rusterix::ServerState::Running {
-                                if let Some(map) = self.project.get_map(&self.server_ctx) {
+                                if let Some(map) = self.documents.project.get_map(&self.server_ctx) {
                                     rusterix.server.set_time(&map.id, time);
                                 }
                             }
@@ -11546,29 +11475,29 @@ impl TheTrait for Editor {
         // Otherwise a per-frame refresh briefly restores the previous button state.
         profile.lap("events");
         if sync_geometry_recipes {
-            let (changed, _) = shared::geometry_recipe::synchronize(&mut self.project);
+            let (changed, _) = shared::geometry_recipe::synchronize(&mut self.documents.project);
             if changed {
                 if let ProjectContext::Prefab(id) = self.server_ctx.pc {
-                    let _ = crate::block_props::sync_prefab_editor(&mut self.project, id);
+                    let _ = crate::block_props::sync_prefab_editor(&mut self.documents.project, id);
                 }
-                crate::utils::editor_scene_full_rebuild(&self.project, &self.server_ctx);
+                crate::utils::editor_scene_full_rebuild(&self.documents.project, &self.server_ctx);
                 redraw = true;
             }
         }
         redraw |= self
             .geometry_editor
-            .update(&self.project, ui, ctx, &self.server_ctx);
+            .update(&self.documents.project, ui, ctx, &self.server_ctx);
         profile.lap("geometry");
         let appearance_revision = self.current_procedural_appearance_revision();
         profile.lap("appearance_keys");
         if appearance_revision != self.procedural_appearance_revision {
             self.procedural_appearance_revision = appearance_revision;
             let mut runtime = RUSTERIX.write().unwrap();
-            shared::rusterix_utils::sync_item_icon_assets(&mut runtime, &self.project);
+            shared::rusterix_utils::sync_item_icon_assets(&mut runtime, &self.documents.project);
             profile.lap("appearance_icons");
             shared::rusterix_utils::sync_procedural_avatar_assets(
                 &mut runtime.assets,
-                &self.project,
+                &self.documents.project,
             );
             profile.lap("appearance_models");
             runtime.scene_handler.mark_dynamics_dirty();
@@ -11582,7 +11511,7 @@ impl TheTrait for Editor {
 
         profile.lap("appearances");
         redraw |= self.appearance_workspace.update(
-            &self.project,
+            &self.documents.project,
             ui,
             ctx,
             self.procedural_appearance_revision,
@@ -11693,7 +11622,7 @@ impl TheTrait for Editor {
         if DOCKMANAGER.write().unwrap().poll_background(
             ui,
             ctx,
-            &mut self.project,
+            &mut self.documents.project,
             &mut self.server_ctx,
         ) {
             redraw = true;
@@ -11701,10 +11630,10 @@ impl TheTrait for Editor {
 
         profile.lap("background");
         let active_dirty = self.active_session_has_changes();
-        if self.active_session < self.sessions.len()
-            && self.sessions[self.active_session].dirty != active_dirty
+        if self.documents.active_session < self.documents.sessions.len()
+            && self.documents.sessions[self.documents.active_session].dirty != active_dirty
         {
-            self.sessions[self.active_session].dirty = active_dirty;
+            self.documents.sessions[self.documents.active_session].dirty = active_dirty;
             self.rebuild_project_tabs(ui);
             redraw = true;
         }
@@ -11745,7 +11674,7 @@ impl TheTrait for Editor {
             return false;
         }
 
-        let Some(region) = self.project.get_region_mut(&self.server_ctx.curr_region) else {
+        let Some(region) = self.documents.project.get_region_mut(&self.server_ctx.curr_region) else {
             return false;
         };
 
@@ -11787,8 +11716,8 @@ impl TheTrait for Editor {
             return true;
         }
 
-        for (index, session) in self.sessions.iter().enumerate() {
-            if index != self.active_session && session.dirty {
+        for (index, session) in self.documents.sessions.iter().enumerate() {
+            if index != self.documents.active_session && session.dirty {
                 return true;
             }
         }
@@ -11822,23 +11751,23 @@ mod tests {
     fn appearance_invalidation_follows_content_across_undo_and_unrelated_settings() {
         let mut editor = Editor::new();
         let original = editor.current_procedural_appearance_revision();
-        let project = editor.project.clone();
-        editor.project = project.clone();
+        let project = editor.documents.project.clone();
+        editor.documents.project = project.clone();
         assert_eq!(
             editor.current_procedural_appearance_revision(),
             original,
             "Switching to identical content must reuse runtime appearances"
         );
-        let mut config = editor.project.config.parse::<toml::Table>().unwrap();
+        let mut config = editor.documents.project.config.parse::<toml::Table>().unwrap();
         config.insert("benchmark_unrelated".into(), toml::Value::Integer(7));
-        editor.project.config = toml::to_string_pretty(&config).unwrap();
+        editor.documents.project.config = toml::to_string_pretty(&config).unwrap();
         assert_eq!(
             editor.current_procedural_appearance_revision(),
             original,
             "Presentation settings must not rebuild icons and models"
         );
-        let id = *editor.project.procedural_appearances.keys().next().unwrap();
-        let source = editor.project.procedural_appearances.get_mut(&id).unwrap();
+        let id = *editor.documents.project.procedural_appearances.keys().next().unwrap();
+        let source = editor.documents.project.procedural_appearances.get_mut(&id).unwrap();
         let at = source.find('\n').expect("Pretty JSON geometry");
         source.replace_range(at..at + 1, " ");
         assert_ne!(
@@ -11846,13 +11775,13 @@ mod tests {
             original,
             "Even a same-length geometry edit must invalidate"
         );
-        editor.project = project;
+        editor.documents.project = project;
         assert_eq!(
             editor.current_procedural_appearance_revision(),
             original,
             "Undo must restore the matching cached appearance"
         );
-        editor.project.config = "[ruleset]\nsource='project'\n".into();
+        editor.documents.project.config = "[ruleset]\nsource='project'\n".into();
         assert_ne!(editor.current_procedural_appearance_revision(), original);
     }
 
@@ -12046,7 +11975,7 @@ mod tests {
         );
         if std::env::var_os("ELDIRON_BENCH_VERIFY_MATERIALS").is_some() {
             assert_eq!(
-                serde_json::to_string(&editor.project.palette).unwrap(),
+                serde_json::to_string(&editor.documents.project.palette).unwrap(),
                 saved_palette,
                 "Activation must preserve the saved palette"
             );
@@ -12064,7 +11993,7 @@ mod tests {
                 id,
                 &mut ui,
                 &mut ctx,
-                &mut editor.project,
+                &mut editor.documents.project,
                 &mut editor.server_ctx,
             );
         }
@@ -12084,11 +12013,11 @@ mod tests {
         let verify_materials = std::env::var_os("ELDIRON_BENCH_VERIFY_MATERIALS").is_some();
         let initial_materials = verify_materials.then(|| {
             (
-                editor.project.procedural_materials.clone(),
-                editor.project.procedural_material_cache_keys.clone(),
-                editor.project.tiles.clone(),
-                editor.project.tile_board_tiles.clone(),
-                serde_json::to_string(&editor.project.palette).unwrap(),
+                editor.documents.project.procedural_materials.clone(),
+                editor.documents.project.procedural_material_cache_keys.clone(),
+                editor.documents.project.tiles.clone(),
+                editor.documents.project.tile_board_tiles.clone(),
+                serde_json::to_string(&editor.documents.project.palette).unwrap(),
             )
         });
         let stage = std::time::Instant::now();
@@ -12096,7 +12025,7 @@ mod tests {
             if warmup == 2 && std::env::var("ELDIRON_BENCH_VIEW").is_ok_and(|v| v == "3d") {
                 // Frame authored geometry instead of an unrelated saved camera.
                 // A close view around the player also exercises visible actors.
-                let region = &mut editor.project.regions[0];
+                let region = &mut editor.documents.project.regions[0];
                 let mut lo = Vec3::broadcast(f32::INFINITY);
                 let mut hi = Vec3::broadcast(f32::NEG_INFINITY);
                 for p in region
@@ -12160,7 +12089,7 @@ mod tests {
                     &TheEvent::IndexChanged(TheId::named("Editor View Switch"), target),
                     &mut ui,
                     &mut ctx,
-                    &mut editor.project,
+                    &mut editor.documents.project,
                     &mut editor.server_ctx,
                 );
                 let event_ms = start.elapsed().as_secs_f64() * 1000.;
@@ -12213,7 +12142,7 @@ mod tests {
             .enumerate()
             {
                 let Some(id) = editor
-                    .project
+                    .documents.project
                     .tiles
                     .iter()
                     .find(|(_, tile)| tile.alias == *alias)
@@ -12223,7 +12152,7 @@ mod tests {
                 };
                 editor.server_ctx.curr_tile_id = Some(id);
                 editor.server_ctx.curr_tile_source = Some(rusterix::TileSource::SingleTile(id));
-                let map = &mut editor.project.regions[0].map;
+                let map = &mut editor.documents.project.regions[0].map;
                 let world = Vec2::new(12.5 - i as f32, 17.5);
                 editor.server_ctx.center_map_at_grid_pos(size, world, map);
                 let h = rusterix::chunkbuilder::terrain_surface::TerrainSurface::from_map(map)
@@ -12270,23 +12199,23 @@ mod tests {
         }
         if let Some((materials, keys, tiles, board, palette)) = initial_materials {
             assert_eq!(
-                editor.project.procedural_materials, materials,
+                editor.documents.project.procedural_materials, materials,
                 "Loading must not rewrite materials"
             );
             assert_eq!(
-                editor.project.procedural_material_cache_keys, keys,
+                editor.documents.project.procedural_material_cache_keys, keys,
                 "Loading must not schedule replacement bakes"
             );
             assert_eq!(
-                editor.project.tiles, tiles,
+                editor.documents.project.tiles, tiles,
                 "Saved tile pixels must stay unchanged during loading"
             );
             assert_eq!(
-                editor.project.tile_board_tiles, board,
+                editor.documents.project.tile_board_tiles, board,
                 "Loading must not rearrange the tilepicker"
             );
             assert_eq!(
-                serde_json::to_string(&editor.project.palette).unwrap(),
+                serde_json::to_string(&editor.documents.project.palette).unwrap(),
                 palette,
                 "Loading must not rewrite palette slots"
             );
@@ -12314,7 +12243,7 @@ mod tests {
                     id,
                     &mut ui,
                     &mut ctx,
-                    &mut editor.project,
+                    &mut editor.documents.project,
                     &mut editor.server_ctx,
                 );
             }
@@ -12366,7 +12295,7 @@ mod tests {
                     let commands = runtime.start_with_entity_defaults();
                     assert!(!commands.is_empty(), "The benchmark must create a player");
                     runtime.server.process_client_commands(commands);
-                    warmup_runtime(&mut runtime, &mut editor.project, 3);
+                    warmup_runtime(&mut runtime, &mut editor.documents.project, 3);
                 }
                 assert!(
                     runtime.client.active_game_widget_camera_mode().is_some(),
@@ -12398,7 +12327,7 @@ mod tests {
                         rusterix
                             .server
                             .local_player_teleport("Entrance".into(), destination.clone());
-                        warmup_runtime(&mut rusterix, &mut editor.project, 3);
+                        warmup_runtime(&mut rusterix, &mut editor.documents.project, 3);
                     }
                 }
                 let start = std::time::Instant::now();
@@ -12502,7 +12431,7 @@ mod tests {
                 id,
                 &mut ui,
                 &mut ctx,
-                &mut editor.project,
+                &mut editor.documents.project,
                 &mut editor.server_ctx,
             );
             drop(tools);
@@ -12518,13 +12447,13 @@ mod tests {
                 started.elapsed().as_secs_f64() * 1000.
             );
         }
-        let initial_offset = editor.project.regions[0].map.offset;
-        let initial_position_3d = editor.project.regions[0].editing_position_3d;
-        let initial_look_at_3d = editor.project.regions[0].editing_look_at_3d;
+        let initial_offset = editor.documents.project.regions[0].map.offset;
+        let initial_position_3d = editor.documents.project.regions[0].editing_position_3d;
+        let initial_look_at_3d = editor.documents.project.regions[0].editing_look_at_3d;
         let initial_scale_3d = EDITCAMERA.read().unwrap().iso_camera.scale;
         let is_3d = std::env::var("ELDIRON_BENCH_VIEW").is_ok_and(|v| v == "3d");
         let minimap_cache_key = *crate::minimap::MINIMAPCACHEKEY.read().unwrap();
-        let map_changed = editor.project.regions[0].map.changed;
+        let map_changed = editor.documents.project.regions[0].map.changed;
         let frames = std::env::var("ELDIRON_BENCH_FRAMES")
             .ok()
             .and_then(|v| v.parse::<usize>().ok())
@@ -12543,7 +12472,7 @@ mod tests {
             let mut update = Vec::new();
             let mut composition = Vec::new();
             for i in 0..frames {
-                let region = &mut editor.project.regions[0];
+                let region = &mut editor.documents.project.regions[0];
                 if is_3d {
                     let shift = if mode == "pan" { i as f32 * 0.05 } else { 0. };
                     region.editing_position_3d = initial_position_3d + Vec3::new(shift, 0., 0.);
@@ -12640,8 +12569,8 @@ mod tests {
                         *crate::minimap::MINIMAPCACHEKEY.read().unwrap(),
                         minimap_cache_key
                     );
-                    assert_eq!(editor.project.regions[0].map.changed, map_changed);
-                    assert_ne!(editor.project.regions[0].map.offset, initial_offset);
+                    assert_eq!(editor.documents.project.regions[0].map.changed, map_changed);
+                    assert_ne!(editor.documents.project.regions[0].map.offset, initial_offset);
                     let before_close = std::time::Instant::now();
                     let _ = editor.has_changes();
                     println!(
@@ -13082,14 +13011,14 @@ mod tests {
     #[test]
     fn stopping_play_restores_the_authored_map_after_runtime_replacement() {
         let mut editor = Editor::new();
-        editor.project.regions = vec![Region::new()];
-        editor.project.regions[0].map.name = "Authored".to_string();
+        editor.documents.project.regions = vec![Region::new()];
+        editor.documents.project.regions[0].map.name = "Authored".to_string();
         editor.snapshot_authored_maps_for_play();
 
-        editor.project.regions[0].map.name = "Generated Runtime Dungeon".to_string();
+        editor.documents.project.regions[0].map.name = "Generated Runtime Dungeon".to_string();
 
         assert!(editor.restore_authored_maps_after_play());
-        assert_eq!(editor.project.regions[0].map.name, "Authored");
+        assert_eq!(editor.documents.project.regions[0].map.name, "Authored");
         assert!(editor.play_map_snapshots.is_none());
     }
 }

@@ -666,10 +666,7 @@ impl Editor {
         };
         let owner = gesture.binding;
         if self.play_session.as_ref().map(|session| session.pump.session_id()) != owner.runtime
-            || self
-                .sessions
-                .get(self.active_session)
-                .is_none_or(|session| session.id != owner.document)
+            || self.documents.active_id() != Some(owner.document)
         {
             return;
         }
@@ -678,13 +675,13 @@ impl Editor {
                 owner.context,
                 ui,
                 ctx,
-                &mut self.project,
+                &mut self.documents.project,
                 &mut self.server_ctx,
             );
         }
         if self.server_ctx.pc != owner.context
             || self
-                .project
+                .documents.project
                 .get_map(&self.server_ctx)
                 .is_none_or(|map| map.id != owner.map)
         {
@@ -699,19 +696,19 @@ impl Editor {
         // may already have updated the current view before this barrier runs.
         let mode = self.server_ctx.editor_view_mode;
         let navigation = self
-            .project
+            .documents.project
             .get_map(&self.server_ctx)
             .map(|map| (map.camera, map.offset, map.grid_size, map.subdivisions));
         self.server_ctx.editor_view_mode = owner.mode;
-        if let Some(map) = self.project.get_map_mut(&self.server_ctx) {
+        if let Some(map) = self.documents.project.get_map_mut(&self.server_ctx) {
             map.camera = owner.camera;
         }
-        tools.cancel_native_world_gesture(ui, ctx, &mut self.project, &mut self.server_ctx);
+        tools.cancel_native_world_gesture(ui, ctx, &mut self.documents.project, &mut self.server_ctx);
         tools.get_current_tool().set_view_input(None);
         self.server_ctx.editor_view_mode = mode;
         let mut projection_changed = false;
         if let (Some((camera, offset, grid, subdivisions)), Some(map)) =
-            (navigation, self.project.get_map_mut(&self.server_ctx))
+            (navigation, self.documents.project.get_map_mut(&self.server_ctx))
         {
             projection_changed = map.camera != camera;
             map.camera = camera;
@@ -721,7 +718,7 @@ impl Editor {
         }
         drop(tools);
         if projection_changed {
-            crate::utils::scenemanager_render_map(&self.project, &self.server_ctx);
+            crate::utils::scenemanager_render_map(&self.documents.project, &self.server_ctx);
         }
     }
     pub(crate) fn invalidate_native_world_viewport(&mut self, ui: &mut TheUI) {
@@ -740,7 +737,7 @@ impl Editor {
         {
             return false;
         }
-        let Some(map) = self.project.get_map(&self.server_ctx) else {
+        let Some(map) = self.documents.project.get_map(&self.server_ctx) else {
             return false;
         };
         if self.server_ctx.editor_view_mode == EditorViewMode::D2 {
@@ -788,9 +785,7 @@ impl Editor {
         // Speech/visibility, orthographic bakes and the remaining custom
         // contexts still have explicit migration adapters.
         let owned_play = self.play_session.as_ref().is_some_and(|play| {
-            self.sessions
-                .get(self.active_session)
-                .is_some_and(|document| document.id == play.document)
+            self.documents.active_id() == Some(play.document)
         });
         (bridge.server.state == rusterix::ServerState::Off || owned_play)
             && bridge.client.messages_to_draw.is_empty()
@@ -821,8 +816,8 @@ impl Editor {
         if !self.native_world_owns_viewport() || crate::geometry_editor::is_visible(ui) {
             return None;
         }
-        let map = self.project.get_map(&self.server_ctx)?;
-        let document = self.sessions.get(self.active_session)?.id;
+        let map = self.documents.project.get_map(&self.server_ctx)?;
+        let document = self.documents.active_id()?;
         let tool = TOOLLIST.write().unwrap().get_current_tool().id().uuid;
         let view = crate::utils::map_editor_render_view(ui, &self.server_ctx)?;
         let dim = *view.dim();
@@ -851,8 +846,8 @@ impl Editor {
                 prefabs: bridge.assets.block_props_revision,
                 config: bridge.assets.config.clone(),
                 palette: bridge.assets.palette.clone(),
-                material: self.project.procedural_materials.revision(),
-                appearance: self.project.procedural_appearances.revision(),
+                material: self.documents.project.procedural_materials.revision(),
+                appearance: self.documents.project.procedural_appearances.revision(),
                 geometry: self.procedural_appearance_revision,
             },
         })
@@ -883,7 +878,7 @@ impl Editor {
         {
             return false;
         }
-        let Some(region) = self.project.get_region_ctx_mut(&mut self.server_ctx) else {
+        let Some(region) = self.documents.project.get_region_ctx_mut(&mut self.server_ctx) else {
             return false;
         };
         let mut camera = EDITCAMERA.write().unwrap();
@@ -899,9 +894,9 @@ impl Editor {
             return;
         }
         if let ProjectContext::Prefab(id) = self.server_ctx.pc {
-            if let Some(paint) = self.project.block_prop_paint.get_mut(&id) {
+            if let Some(paint) = self.documents.project.block_prop_paint.get_mut(&id) {
                 if self.server_ctx.editor_view_mode == EditorViewMode::D2
-                    && let Some(map) = self.project.prefab_editor_map.as_ref()
+                    && let Some(map) = self.documents.project.prefab_editor_map.as_ref()
                     && map.camera == MapCamera::TwoDIso
                 {
                     shared::iso_paint_terrain::sync(
@@ -915,7 +910,7 @@ impl Editor {
             }
             return;
         }
-        let Some(region) = self.project.get_region_ctx_mut(&mut self.server_ctx) else {
+        let Some(region) = self.documents.project.get_region_ctx_mut(&mut self.server_ctx) else {
             return;
         };
         if self.server_ctx.editor_view_mode == EditorViewMode::D2
@@ -936,7 +931,7 @@ impl Editor {
                 Box::new(EDITCAMERA.read().unwrap().orbit_camera.clone()) as Box<dyn D3Camera>
             });
         }
-        let region = self.project.get_region_ctx(&self.server_ctx)?;
+        let region = self.documents.project.get_region_ctx(&self.server_ctx)?;
         EDITCAMERA
             .read()
             .unwrap()
@@ -952,7 +947,7 @@ impl Editor {
             .write()
             .unwrap()
             .get_current_tool()
-            .sync_overlay_sources(&self.project, &self.server_ctx);
+            .sync_overlay_sources(&self.documents.project, &self.server_ctx);
         let next = self.native_world_binding(ui, ctx);
         self.bind_native_world(next.clone(), ui, ctx);
         let Some(binding) = next else {
@@ -967,7 +962,7 @@ impl Editor {
             ctx.ui.set_focus(&binding.view);
         }
         let map = self
-            .project
+            .documents.project
             .get_map(&self.server_ctx)
             .ok_or("missing native world map")?;
         let camera = self.native_world_camera();
@@ -1123,7 +1118,7 @@ impl Editor {
                         &Default::default(),
                     );
                     TOOLLIST.write().unwrap().prepare_geometry_overlay_3d(
-                        &self.project,
+                        &self.documents.project,
                         &self.server_ctx,
                         &bridge.assets,
                         camera.as_ref(),
@@ -1134,7 +1129,7 @@ impl Editor {
                             (
                                 id,
                                 2,
-                                self.project
+                                self.documents.project
                                     .block_prop_paint
                                     .get(&id)
                                     .cloned()
@@ -1142,7 +1137,7 @@ impl Editor {
                             )
                         } else {
                             let region = self
-                                .project
+                                .documents.project
                                 .get_region_ctx(&self.server_ctx)
                                 .ok_or("native 3D region removed")?;
                             let mut paint = region.iso_paint.clone();
@@ -1150,7 +1145,7 @@ impl Editor {
                                 &mut paint,
                                 map,
                                 &bridge.assets.block_props,
-                                &self.project.block_prop_paint,
+                                &self.documents.project.block_prop_paint,
                             );
                             (region.id, 0, paint)
                         };
@@ -1390,7 +1385,7 @@ impl Editor {
             .write()
             .unwrap()
             .get_current_tool()
-            .sync_overlay_sources(&self.project, &self.server_ctx);
+            .sync_overlay_sources(&self.documents.project, &self.server_ctx);
         let next = self.native_world_binding(ui, ctx);
         self.bind_native_world(next.clone(), ui, ctx);
         let current_camera = next.as_ref().and_then(|binding| {
@@ -1412,7 +1407,7 @@ impl Editor {
         if next.as_ref() != Some(&frame.binding) || frame.target.revision != world.epoch {
             return;
         }
-        let Some(map) = self.project.get_map(&self.server_ctx) else {
+        let Some(map) = self.documents.project.get_map(&self.server_ctx) else {
             return;
         };
         if SourceStamp::new(map) != frame.stamp || current_camera != frame.camera {
@@ -1469,14 +1464,14 @@ impl Editor {
                 .write()
                 .unwrap()
                 .get_current_tool()
-                .sync_overlay_sources(&self.project, &self.server_ctx);
+                .sync_overlay_sources(&self.documents.project, &self.server_ctx);
             let next = self.native_world_binding(ui, ctx);
             self.bind_native_world(next.clone(), ui, ctx);
             let Some(binding) = next else {
                 continue;
             };
             let target = binding.target(self.native_viewport.world.epoch);
-            let Some(map) = self.project.get_map(&self.server_ctx) else {
+            let Some(map) = self.documents.project.get_map(&self.server_ctx) else {
                 continue;
             };
             let mut tools = TOOLLIST.write().unwrap();
@@ -1503,7 +1498,7 @@ impl Editor {
         let camera = self
             .native_world_camera()
             .map(|camera| CameraStamp::new(camera.as_ref(), binding.size));
-        let map = self.project.get_map(&self.server_ctx)?;
+        let map = self.documents.project.get_map(&self.server_ctx)?;
         let world = &mut self.native_viewport.world;
         let mut retry = world.retry_click.take()?;
         if !retry.binding.capture_compatible(&binding) || retry.camera != camera {
@@ -1574,7 +1569,7 @@ impl Editor {
             .write()
             .unwrap()
             .get_current_tool()
-            .sync_overlay_sources(&self.project, &self.server_ctx);
+            .sync_overlay_sources(&self.documents.project, &self.server_ctx);
         let next = self.native_world_binding(ui, ctx);
         self.bind_native_world(next.clone(), ui, ctx);
         let Some(binding) = next else {
@@ -1663,20 +1658,20 @@ impl Editor {
                         && frame.ready
                         && frame.camera == current_camera
                         && self
-                            .project
+                            .documents.project
                             .get_map(&self.server_ctx)
                             .is_some_and(|map| frame.stamp == SourceStamp::new(map))
                 })
             && DOCKMANAGER.write().unwrap().prepare_native_view_input(
                 ui,
                 ctx,
-                &mut self.project,
+                &mut self.documents.project,
                 &mut self.server_ctx,
             )
         {
             let next = self.native_world_binding(ui, ctx);
             self.bind_native_world(next.clone(), ui, ctx);
-            if let (Some(binding), Some(map)) = (next, self.project.get_map(&self.server_ctx)) {
+            if let (Some(binding), Some(map)) = (next, self.documents.project.get_map(&self.server_ctx)) {
                 self.native_viewport.world.retry_click = Some(RetryClick {
                     binding,
                     stamp: SourceStamp::new(map),
@@ -1772,7 +1767,7 @@ impl Editor {
                 &TheEvent::RenderViewUp(binding.view.clone(), gesture.point),
                 ui,
                 ctx,
-                &mut self.project,
+                &mut self.documents.project,
                 &mut self.server_ctx,
             );
             tools.get_current_tool().set_view_input(None);
@@ -1782,7 +1777,7 @@ impl Editor {
                     &TheEvent::RenderViewUp(binding.view.clone(), gesture.point),
                     ui,
                     ctx,
-                    &mut self.project,
+                    &mut self.documents.project,
                     &mut self.server_ctx,
                 )
             } else {
@@ -1795,7 +1790,7 @@ impl Editor {
         let mut accepted_query = None;
         let frame = world.presented.clone();
         let target = binding.target(world.epoch);
-        let Some(map) = self.project.get_map_mut(&self.server_ctx) else {
+        let Some(map) = self.documents.project.get_map_mut(&self.server_ctx) else {
             return true;
         };
         let mut tools = TOOLLIST.write().unwrap();
@@ -2022,7 +2017,7 @@ impl Editor {
         )
     }
     pub(crate) fn native_world_debug_for_test(&self) -> String {
-        let map = self.project.get_map(&self.server_ctx).unwrap();
+        let map = self.documents.project.get_map(&self.server_ctx).unwrap();
         let frame = self.native_viewport.world.presented.as_ref();
         let builds = SCENEMANAGER.read().unwrap();
         format!(
@@ -2050,14 +2045,14 @@ impl Editor {
             .is_some_and(|frame| {
                 frame.ready
                     && self
-                        .project
+                        .documents.project
                         .get_map(&self.server_ctx)
                         .is_some_and(|map| frame.stamp == SourceStamp::new(map))
             })
     }
     pub(crate) fn native_prefab_projection_for_test(&self) -> Option<Vec2<f32>> {
         let asset = self
-            .project
+            .documents.project
             .block_props
             .get(&self.server_ctx.curr_block_asset_id?)?;
         let effect = asset.particle_effects.first()?;
@@ -2149,10 +2144,10 @@ impl Editor {
     }
     fn native_paint_layer_for_test(&self) -> &shared::iso_paint::IsoPaintLayer {
         if let ProjectContext::Prefab(id) = self.server_ctx.pc {
-            &self.project.block_prop_paint[&id]
+            &self.documents.project.block_prop_paint[&id]
         } else {
             &self
-                .project
+                .documents.project
                 .get_region(&self.server_ctx.curr_region)
                 .unwrap()
                 .iso_paint
@@ -2178,7 +2173,7 @@ impl Editor {
     }
     pub(crate) fn native_paint_state_for_test(&self) -> (f32, usize, Option<u64>) {
         let paint = self.native_paint_layer_for_test();
-        let map = self.project.get_map(&self.server_ctx).unwrap();
+        let map = self.documents.project.get_map(&self.server_ctx).unwrap();
         (
             paint.active_opacity,
             paint
@@ -2196,7 +2191,7 @@ impl Editor {
         )
     }
     pub(crate) fn native_paint_point_for_test(&self, size: (i32, i32)) -> Vec2<i32> {
-        let map = self.project.get_map(&self.server_ctx).unwrap();
+        let map = self.documents.project.get_map(&self.server_ctx).unwrap();
         let bounds = map.sectors.last().unwrap().bounding_box(map);
         let point = (bounds.min + bounds.max) * 0.5;
         assert!(
@@ -2225,11 +2220,11 @@ impl Editor {
             ..Default::default()
         });
         self.server_ctx.curr_tile_source = Some(rusterix::TileSource::SingleTile(tile.id));
-        self.project.tiles.insert(tile.id, tile.clone());
+        self.documents.project.tiles.insert(tile.id, tile.clone());
         RUSTERIX.write().unwrap().assets.tiles.insert(tile.id, tile);
     }
     pub(crate) fn native_rect_state_for_test(&self) -> (bool, f32, usize) {
-        let map = self.project.get_map(&self.server_ctx).unwrap();
+        let map = self.documents.project.get_map(&self.server_ctx).unwrap();
         (
             self.server_ctx.rect_compose_mode,
             map.properties.get_float_default("iso_brush_yaw", 0.),
@@ -2240,7 +2235,7 @@ impl Editor {
         self.server_ctx.terrain_brush_radius
     }
     pub(crate) fn native_terrain_points_for_test(&self) -> Option<rusterix::Value> {
-        self.project
+        self.documents.project
             .get_map(&self.server_ctx)
             .unwrap()
             .properties

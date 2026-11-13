@@ -10,34 +10,34 @@ use std::sync::Arc;
 
 impl Editor {
     pub(super) fn scepter_session(&self) -> String {
-        self.sessions[self.active_session].id.to_string()
+        self.documents.sessions[self.documents.active_session].id.to_string()
     }
     pub(super) fn scepter_revision(&self) -> String {
         let mut h = DefaultHasher::new();
         UNDOMANAGER.read().unwrap().revision().hash(&mut h);
-        self.project.procedural_materials.revision().hash(&mut h);
-        self.project.procedural_appearances.revision().hash(&mut h);
-        self.project.config.hash(&mut h);
-        self.project.world_source.hash(&mut h);
-        self.project.world_source_debug.hash(&mut h);
+        self.documents.project.procedural_materials.revision().hash(&mut h);
+        self.documents.project.procedural_appearances.revision().hash(&mut h);
+        self.documents.project.config.hash(&mut h);
+        self.documents.project.world_source.hash(&mut h);
+        self.documents.project.world_source_debug.hash(&mut h);
         // Bakes, animation time, selection and camera movement are derived/view
         // state. They must not invalidate an assistant's authoring context.
-        serde_json::to_string(&self.project.palette.colors)
+        serde_json::to_string(&self.documents.project.palette.colors)
             .unwrap()
             .hash(&mut h);
-        serde_json::to_string(&self.project.node_graphs)
+        serde_json::to_string(&self.documents.project.node_graphs)
             .unwrap()
             .hash(&mut h);
-        serde_json::to_string(&self.project.material_compositions)
+        serde_json::to_string(&self.documents.project.material_compositions)
             .unwrap()
             .hash(&mut h);
-        serde_json::to_string(&self.project.map_material_bindings)
+        serde_json::to_string(&self.documents.project.map_material_bindings)
             .unwrap()
             .hash(&mut h);
-        serde_json::to_string(&self.project.palette_materials)
+        serde_json::to_string(&self.documents.project.palette_materials)
             .unwrap()
             .hash(&mut h);
-        for tile in self.project.tiles.values() {
+        for tile in self.documents.project.tiles.values() {
             tile.id.hash(&mut h);
             tile.alias.hash(&mut h);
             tile.blocking.hash(&mut h);
@@ -57,7 +57,7 @@ impl Editor {
             ))
             .unwrap()
             .hash(&mut h);
-            if !self.project.procedural_materials.contains_key(&tile.id) {
+            if !self.documents.project.procedural_materials.contains_key(&tile.id) {
                 // Bitmap docks have their own undo stacks. Include authored
                 // pixels while excluding MZ's asynchronously produced caches.
                 for texture in &tile.textures {
@@ -68,18 +68,18 @@ impl Editor {
                 }
             }
         }
-        for r in &self.project.regions {
+        for r in &self.documents.project.regions {
             r.id.hash(&mut h);
             r.map.changed.hash(&mut h);
             r.source.hash(&mut h);
             r.config.hash(&mut h);
         }
-        for c in self.project.characters.values() {
+        for c in self.documents.project.characters.values() {
             c.id.hash(&mut h);
             c.data.hash(&mut h);
             c.source.hash(&mut h);
         }
-        for i in self.project.items.values() {
+        for i in self.documents.project.items.values() {
             i.id.hash(&mut h);
             i.data.hash(&mut h);
             i.source.hash(&mut h);
@@ -120,7 +120,7 @@ impl Editor {
                 }
             };
             // Owned snapshot and assets: no live selection/camera/server changes.
-            let project = self.project.clone();
+            let project = self.documents.project.clone();
             std::thread::spawn(move || {
                 let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                     super::scepter_preview::render(project, index, &command)
@@ -173,35 +173,35 @@ impl Editor {
                     json!({"tiles":value})
                 }
                 Command::MaterialList => json!({
-                    "palette":self.project.palette.colors.iter().enumerate().filter_map(|(i,c)|c.as_ref().map(|c|json!({"index":i,"rgba":c.to_u8_array()}))).collect::<Vec<_>>(),
-                    "materials":self.project.procedural_materials.keys().map(|id|json!({"id":id,"tile":self.scepter_tile_summary(id),"composition":self.project.material_compositions.contains_key(id),"binding":self.project.map_material_bindings.get(id)})).collect::<Vec<_>>(),
+                    "palette":self.documents.project.palette.colors.iter().enumerate().filter_map(|(i,c)|c.as_ref().map(|c|json!({"index":i,"rgba":c.to_u8_array()}))).collect::<Vec<_>>(),
+                    "materials":self.documents.project.procedural_materials.keys().map(|id|json!({"id":id,"tile":self.scepter_tile_summary(id),"composition":self.documents.project.material_compositions.contains_key(id),"binding":self.documents.project.map_material_bindings.get(id)})).collect::<Vec<_>>(),
                     "sources":denrim_materials::integration::source_catalog().into_iter().map(|s|json!({"id":s.id,"name":s.metadata.name,"source":s.source,"accepts_input":s.accepts_input,"requires_input":s.requires_input})).collect::<Vec<_>>(),
                 }),
                 Command::MaterialGet(c) => {
                     let id = parse_id(&c.id)?;
-                    json!({"id":id,"bundle":self.project.procedural_materials.get(&id).ok_or("Material not found")?,"composition":self.project.material_compositions.get(&id),"binding":self.project.map_material_bindings.get(&id)})
+                    json!({"id":id,"bundle":self.documents.project.procedural_materials.get(&id).ok_or("Material not found")?,"composition":self.documents.project.material_compositions.get(&id),"binding":self.documents.project.map_material_bindings.get(&id)})
                 }
                 Command::CompositionGet(c) => {
                     let id = parse_id(&c.id)?;
-                    json!({"id":id,"composition":self.project.material_compositions.get(&id).ok_or("Composition not found")?,"binding":self.project.map_material_bindings.get(&id)})
+                    json!({"id":id,"composition":self.documents.project.material_compositions.get(&id).ok_or("Composition not found")?,"binding":self.documents.project.map_material_bindings.get(&id)})
                 }
                 Command::MaterialValidate(c) => {
-                    let asset = validate_material(&self.project, &c.bundle)?;
+                    let asset = validate_material(&self.documents.project, &c.bundle)?;
                     json!({"valid":true,"bundle":asset.save().map_err(|e|e.to_string())?})
                 }
                 Command::SurfaceList(c) => {
                     let index = if let Some(region) = c.region {
                         self.scepter_resolve_region_index(&region)?
                     } else {
-                        self.project
+                        self.documents.project
                             .regions
                             .iter()
                             .position(|r| r.id == self.server_ctx.curr_region)
                             .ok_or("Select a region")?
                     };
-                    let map = &self.project.regions[index].map;
+                    let map = &self.documents.project.regions[index].map;
                     json!({"map":map.id,"sectors":map.sectors,"linedefs":map.linedefs,"geometry_objects":map.geometry_objects,"lights":map.lights,
-                    "bindings":self.project.map_material_bindings.iter().filter(|(_,b)|b.map==map.id).map(|(id,b)|json!({"material":id,"surface":b.surface})).collect::<Vec<_>>()})
+                    "bindings":self.documents.project.map_material_bindings.iter().filter(|(_,b)|b.map==map.id).map(|(id,b)|json!({"material":id,"surface":b.surface})).collect::<Vec<_>>()})
                 }
                 Command::Transaction(c) => self.scepter_transaction(job.clone(), c, ui, ctx)?,
                 Command::EditorContext => self.scepter_context(ui),
@@ -211,15 +211,15 @@ impl Editor {
                 Command::EntityTemplates => self.scepter_entity_templates(),
                 Command::RegionEntities(c) => {
                     let i = if let Some(r) = c.region {
-                        region_index(&self.project, &r)?
+                        region_index(&self.documents.project, &r)?
                     } else {
-                        self.project
+                        self.documents.project
                             .regions
                             .iter()
                             .position(|r| r.id == self.server_ctx.curr_region)
                             .ok_or("Select a region")?
                     };
-                    json!({"region":self.project.regions[i].id,"characters":self.project.regions[i].characters.values().collect::<Vec<_>>(),"items":self.project.regions[i].items.values().collect::<Vec<_>>()})
+                    json!({"region":self.documents.project.regions[i].id,"characters":self.documents.project.regions[i].characters.values().collect::<Vec<_>>(),"items":self.documents.project.regions[i].items.values().collect::<Vec<_>>()})
                 }
                 Command::RegionCreateSector(c) => self.scepter_transaction(
                     job.clone(),
@@ -295,12 +295,12 @@ impl Editor {
                         if !manager.has_undo() {
                             return Err("Nothing to undo".into());
                         }
-                        manager.undo(&mut self.server_ctx, &mut self.project, ui, ctx);
+                        manager.undo(&mut self.server_ctx, &mut self.documents.project, ui, ctx);
                     } else {
                         if !manager.has_redo() {
                             return Err("Nothing to redo".into());
                         }
-                        manager.redo(&mut self.server_ctx, &mut self.project, ui, ctx);
+                        manager.redo(&mut self.server_ctx, &mut self.documents.project, ui, ctx);
                     }
                     drop(manager);
                     material_refresh(ctx);
@@ -374,7 +374,7 @@ impl Editor {
                     json!({"ok":false,"http_status":409,"error":"Another transaction is preparing; poll its job before editing again"}),
                 );
             };
-            let project = self.project.clone();
+            let project = self.documents.project.clone();
             let session = self.scepter_session();
             let revision = self.scepter_revision();
             let selection = self.scepter_view(ui)["selection"].clone();
@@ -402,7 +402,7 @@ impl Editor {
             });
             return Ok(json!({"_deferred":true}));
         }
-        let (staged, results) = stage(&self.project, &transaction)?;
+        let (staged, results) = stage(&self.documents.project, &transaction)?;
         if transaction.dry_run {
             return Ok(json!({"dry_run":true,"operations":results}));
         }
@@ -415,20 +415,20 @@ impl Editor {
         ui: &mut TheUI,
         ctx: &mut TheContext,
     ) -> Json {
-        let materials_changed = self.project.procedural_materials != staged.procedural_materials
-            || self.project.material_compositions != staged.material_compositions
-            || self.project.tiles.len() != staged.tiles.len();
-        let old = std::mem::replace(&mut self.project, staged);
-        crate::undo::project_helper::refresh_region_tree_diff(ui, &old, &self.project);
+        let materials_changed = self.documents.project.procedural_materials != staged.procedural_materials
+            || self.documents.project.material_compositions != staged.material_compositions
+            || self.documents.project.tiles.len() != staged.tiles.len();
+        let old = std::mem::replace(&mut self.documents.project, staged);
+        crate::undo::project_helper::refresh_region_tree_diff(ui, &old, &self.documents.project);
         let missing_selection = match self.server_ctx.pc {
             ProjectContext::RegionCharacterInstance(region, id) => self
-                .project
+                .documents.project
                 .regions
                 .iter()
                 .find(|r| r.id == region)
                 .is_none_or(|r| !r.characters.contains_key(&id)),
             ProjectContext::RegionItemInstance(region, id) => self
-                .project
+                .documents.project
                 .regions
                 .iter()
                 .find(|r| r.id == region)
@@ -440,7 +440,7 @@ impl Editor {
             crate::undo::project_helper::set_project_context(
                 ctx,
                 ui,
-                &self.project,
+                &self.documents.project,
                 &mut self.server_ctx,
                 ProjectContext::Region(region),
             );
@@ -450,11 +450,11 @@ impl Editor {
             ProjectUndoAtom::ProjectEdit(
                 "Scepter transaction".into(),
                 Box::new(old),
-                Box::new(self.project.clone()),
+                Box::new(self.documents.project.clone()),
             ),
             ctx,
         );
-        crate::utils::editor_scene_full_rebuild(&self.project, &self.server_ctx);
+        crate::utils::editor_scene_full_rebuild(&self.documents.project, &self.server_ctx);
         update_region(ctx);
         if materials_changed {
             material_refresh(ctx);
@@ -1051,7 +1051,7 @@ material "surface" called "Test surface"
     fn scepter_gpu_road_preview_2d_and_3d() {
         let project = road_fixture();
         let mut editor = Editor::new();
-        editor.project = project.clone();
+        editor.documents.project = project.clone();
         *UNDOMANAGER.write().unwrap() = UndoManager::default();
         let mut ui = TheUI::new();
         let mut ctx = TheContext::new(800, 600, 1.);
@@ -1079,7 +1079,7 @@ material "surface" called "Test surface"
         let session = editor.scepter_session();
         let revision = editor.scepter_revision();
         let id = Uuid::new_v4();
-        let bundle = material(&editor.project, id, 37);
+        let bundle = material(&editor.documents.project, id, 37);
         let command = Command::Transaction(Transaction {
             operations: vec![EditOperation::MaterialPut {
                 id: id.to_string(),
@@ -1096,7 +1096,7 @@ material "surface" called "Test surface"
             &mut ctx,
         );
         assert_eq!(result["http_status"], 409);
-        assert!(!editor.project.tiles.contains_key(&id));
+        assert!(!editor.documents.project.tiles.contains_key(&id));
         let result = execute(
             &mut editor,
             command.clone(),
@@ -1106,7 +1106,7 @@ material "surface" called "Test surface"
             &mut ctx,
         );
         assert_eq!(result["undo_steps"], 1);
-        assert!(editor.project.procedural_materials.contains_key(&id));
+        assert!(editor.documents.project.procedural_materials.contains_key(&id));
         let after = editor.scepter_revision();
         assert_ne!(after, revision);
         let result = execute(
@@ -1127,7 +1127,7 @@ material "surface" called "Test surface"
             &mut ctx,
         );
         assert_eq!(result["ok"], true);
-        assert!(!editor.project.procedural_materials.contains_key(&id));
+        assert!(!editor.documents.project.procedural_materials.contains_key(&id));
         assert!(!UNDOMANAGER.read().unwrap().has_undo());
         let revision = editor.scepter_revision();
         let result = execute(
@@ -1139,9 +1139,9 @@ material "surface" called "Test surface"
             &mut ctx,
         );
         assert_eq!(result["ok"], true);
-        assert!(editor.project.procedural_materials.contains_key(&id));
+        assert!(editor.documents.project.procedural_materials.contains_key(&id));
         let revision = editor.scepter_revision();
-        editor.project.tiles.get_mut(&id).unwrap().textures =
+        editor.documents.project.tiles.get_mut(&id).unwrap().textures =
             vec![rusterix::Texture::alloc(32, 32)];
         assert_eq!(
             editor.scepter_revision(),

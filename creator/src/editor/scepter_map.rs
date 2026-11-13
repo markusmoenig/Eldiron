@@ -1385,13 +1385,13 @@ mod acceptance {
                 }),
             ];
             let mut editor = Editor::new();
-            editor.project = project;
-            editor.server_ctx.curr_region = editor.project.regions[0].id;
+            editor.documents.project = project;
+            editor.server_ctx.curr_region = editor.documents.project.regions[0].id;
             editor.server_ctx.pc = ProjectContext::Region(editor.server_ctx.curr_region);
             *UNDOMANAGER.write().unwrap() = UndoManager::default();
             let mut ui = TheUI::new();
             let mut ctx = TheContext::new(1024, 768, 1.);
-            let original = snapshot(&editor.project);
+            let original = snapshot(&editor.documents.project);
             let result = invoke(
                 &mut editor,
                 ScepterCommand::Transaction(Transaction {
@@ -1403,24 +1403,24 @@ mod acceptance {
             );
             assert_eq!(result["ok"], true, "{result}");
             assert_eq!(result["undo_steps"], 1);
-            assert!(editor.project.regions[0].characters.contains_key(&npc));
-            assert!(editor.project.regions[0].items.contains_key(&light));
+            assert!(editor.documents.project.regions[0].characters.contains_key(&npc));
+            assert!(editor.documents.project.regions[0].items.contains_key(&light));
             assert!(
-                editor.project.regions[0]
+                editor.documents.project.regions[0]
                     .map
                     .geometry_objects
                     .iter()
                     .any(|o| o.id == wall)
             );
-            let saved = shared::project_io::encode_project(&editor.project).unwrap();
+            let saved = shared::project_io::encode_project(&editor.documents.project).unwrap();
             let reopened = shared::project_io::decode_project(&saved).unwrap();
             assert!(reopened.regions[0].characters.contains_key(&npc));
             assert!(reopened.material_compositions.contains_key(&mix));
             std::fs::write(output.join(format!("{fixture}-workshop.eldiron")), saved).unwrap();
             for view in ["2d", "iso"] {
-                let request:RegionRenderPreview=serde_json::from_value(json!({"region":{"id":editor.project.regions[0].id},"view":view,"size":[768,640],"bounds":[x as i32-1,z as i32-5,8,11],"camera":{"center":[x+3.,0.,z+1.],"scale":7.,"elevation":55.}})).unwrap();
+                let request:RegionRenderPreview=serde_json::from_value(json!({"region":{"id":editor.documents.project.regions[0].id},"view":view,"size":[768,640],"bounds":[x as i32-1,z as i32-5,8,11],"camera":{"center":[x+3.,0.,z+1.],"scale":7.,"elevation":55.}})).unwrap();
                 let image =
-                    super::super::scepter_preview::render(editor.project.clone(), 0, &request)
+                    super::super::scepter_preview::render(editor.documents.project.clone(), 0, &request)
                         .unwrap();
                 assert_eq!(image["ready"], true);
                 std::fs::write(
@@ -1429,7 +1429,7 @@ mod acceptance {
                 )
                 .unwrap();
             }
-            let region_id = editor.project.regions[0].id;
+            let region_id = editor.documents.project.regions[0].id;
             let room_result = invoke(
                 &mut editor,
                 ScepterCommand::EditorSelect(
@@ -1445,20 +1445,20 @@ mod acceptance {
             // View changes do not add undo steps.
             let undo = invoke(&mut editor, ScepterCommand::ProjectUndo, &mut ui, &mut ctx);
             assert_eq!(undo["ok"], true);
-            assert!(!editor.project.regions[0].characters.contains_key(&npc));
+            assert!(!editor.documents.project.regions[0].characters.contains_key(&npc));
             assert!(!UNDOMANAGER.read().unwrap().has_undo());
             // Selection is view state and can differ after explicit selection; clear it before comparing authoring state.
-            for r in &mut editor.project.regions {
+            for r in &mut editor.documents.project.regions {
                 r.map.clear_selection();
             }
-            let restored = snapshot(&editor.project);
+            let restored = snapshot(&editor.documents.project);
             assert_eq!(
                 restored, original,
                 "Undo must restore the complete authored project"
             );
             let redo = invoke(&mut editor, ScepterCommand::ProjectRedo, &mut ui, &mut ctx);
             assert_eq!(redo["ok"], true);
-            assert!(editor.project.regions[0].characters.contains_key(&npc));
+            assert!(editor.documents.project.regions[0].characters.contains_key(&npc));
             println!(
                 "Scepter {fixture}: room, road, doorway, ruleset NPC/torch, save/reopen, 2D/3D previews, one-step undo/redo passed"
             );

@@ -17,9 +17,7 @@ impl Editor {
             && !self.server_ctx.text_game_mode
             && self.server_ctx.pc.is_region()
             && self.play_session.as_ref().is_some_and(|play| {
-                self.sessions
-                    .get(self.active_session)
-                    .is_some_and(|doc| doc.id == play.document)
+                self.documents.active_id() == Some(play.document)
             })
             && RUSTERIX.read().unwrap().server.state != rusterix::ServerState::Off
             && self.native_world_owns_viewport()

@@ -59,7 +59,7 @@ impl Editor {
             return false;
         }
         let selection_changed = self.scepter_view(ui)["selection"] != edit.selection;
-        preserve_view(&self.project, &mut staged, selection_changed);
+        preserve_view(&self.documents.project, &mut staged, selection_changed);
         let mut result = self.scepter_commit(*staged, results, ui, ctx);
         result["ok"] = json!(true);
         result["session"] = json!(session);
@@ -170,7 +170,7 @@ mod tests {
     #[test]
     fn scepter_preparation_rechecks_revision_and_releases_the_worker() {
         let mut editor = Editor::new();
-        editor.project = Project::default();
+        editor.documents.project = Project::default();
         let mut ui = TheUI::new();
         let mut ctx = TheContext::new(800, 600, 1.);
         let (tx, rx) = std::sync::mpsc::channel();
@@ -179,7 +179,7 @@ mod tests {
         let command = |dry_run| {
             ScepterCommand::Transaction(Transaction {
                 operations: vec![EditOperation::GeometryCreate(GeometryCreate {
-                    region: RegionRef::id(editor.project.regions[0].id.to_string()),
+                    region: RegionRef::id(editor.documents.project.regions[0].id.to_string()),
                     id: id.to_string(),
                     name: "Background box".into(),
                     shape: "box".into(),
@@ -203,7 +203,7 @@ mod tests {
         job.begin();
         editor.scepter_execute(request(&editor, command_a), job.clone(), &mut ui, &mut ctx);
         assert_eq!(job.response(std::time::Duration::ZERO)["http_status"], 202);
-        editor.project.regions[0].map.changed += 1;
+        editor.documents.project.regions[0].map.changed += 1;
         let crate::scepter::ScepterEvent::PreparedEdit(edit) =
             rx.recv_timeout(std::time::Duration::from_secs(20)).unwrap()
         else {
@@ -212,7 +212,7 @@ mod tests {
         assert!(!editor.scepter_finish_staged(edit, &mut ui, &mut ctx));
         assert_eq!(job.response(std::time::Duration::ZERO)["http_status"], 409);
         assert!(
-            !editor.project.regions[0]
+            !editor.documents.project.regions[0]
                 .map
                 .geometry_objects
                 .iter()
@@ -229,7 +229,7 @@ mod tests {
         assert!(!editor.scepter_finish_staged(edit, &mut ui, &mut ctx));
         assert_eq!(job.response(std::time::Duration::ZERO)["dry_run"], true);
         assert!(
-            !editor.project.regions[0]
+            !editor.documents.project.regions[0]
                 .map
                 .geometry_objects
                 .iter()

@@ -46,7 +46,7 @@ impl Capture {
         set_project_context(
             &mut self.ctx,
             &mut self.ui,
-            &mut self.editor.project,
+            &mut self.editor.documents.project,
             &mut self.editor.server_ctx,
             context,
         );
@@ -59,7 +59,7 @@ impl Capture {
                 command,
                 &mut self.ui,
                 &mut self.ctx,
-                &mut self.editor.project,
+                &mut self.editor.documents.project,
                 &mut self.editor.server_ctx,
             )
             .unwrap();
@@ -102,7 +102,7 @@ impl Capture {
         let dim = *self.ui.get_render_view("PolyView").unwrap().dim();
         let map = self
             .editor
-            .project
+            .documents.project
             .get_map_mut(&self.editor.server_ctx)
             .unwrap();
         map.grid_size = zoom;
@@ -111,7 +111,7 @@ impl Capture {
             position,
             map,
         );
-        crate::utils::editor_scene_full_rebuild(&self.editor.project, &self.editor.server_ctx);
+        crate::utils::editor_scene_full_rebuild(&self.editor.documents.project, &self.editor.server_ctx);
     }
 }
 
@@ -131,13 +131,13 @@ fn documentation_screenshots() {
     let mut hideout = Editor::load_project_from_path(&hideout_path).unwrap();
     hideout.regions[0].map.camera = MapCamera::TwoD;
     capture.open(hideout, &hideout_path);
-    let region = capture.editor.project.regions[0].id;
+    let region = capture.editor.documents.project.regions[0].id;
     capture.context(ProjectContext::Region(region));
     capture.tool("tool.rect");
     capture.save("creator-overview");
 
     let tile = Uuid::parse_str("a334a1b7-7ee4-4028-9d84-84a91fe1ee1a").unwrap();
-    assert!(capture.editor.project.tiles.contains_key(&tile));
+    assert!(capture.editor.documents.project.tiles.contains_key(&tile));
     {
         capture.editor.server_ctx.curr_tile_id = Some(tile);
         capture.editor.server_ctx.curr_tile_source = Some(rusterix::TileSource::SingleTile(tile));
@@ -160,30 +160,30 @@ fn documentation_screenshots() {
         capture.editor.sidebar.show_actions_page(
             &mut capture.ui,
             &mut capture.ctx,
-            &mut capture.editor.project,
+            &mut capture.editor.documents.project,
             &mut capture.editor.server_ctx,
         );
         capture.save("tile-metadata");
     }
 
-    if let Some(tilemap) = capture.editor.project.tilemaps.first().map(|t| t.id) {
+    if let Some(tilemap) = capture.editor.documents.project.tilemaps.first().map(|t| t.id) {
         capture.context(ProjectContext::Tilemap(tilemap));
         capture.save("tileset-editor");
     }
     if let Some(character) = capture
         .editor
-        .project
+        .documents.project
         .characters
         .values()
         .find(|c| c.name == "Player")
-        .or_else(|| capture.editor.project.characters.values().next())
+        .or_else(|| capture.editor.documents.project.characters.values().next())
         .map(|c| c.id)
     {
         capture.context(ProjectContext::CharacterData(character));
         DOCKMANAGER.write().unwrap().edit_maximize(
             &mut capture.ui,
             &mut capture.ctx,
-            &mut capture.editor.project,
+            &mut capture.editor.documents.project,
             &mut capture.editor.server_ctx,
         );
         capture.save("character-attributes");
@@ -192,7 +192,7 @@ fn documentation_screenshots() {
         DOCKMANAGER.write().unwrap().minimize(
             &mut capture.ui,
             &mut capture.ctx,
-            &mut capture.editor.project,
+            &mut capture.editor.documents.project,
             &mut capture.editor.server_ctx,
         );
     }
@@ -200,25 +200,25 @@ fn documentation_screenshots() {
     DOCKMANAGER.write().unwrap().edit_maximize(
         &mut capture.ui,
         &mut capture.ctx,
-        &mut capture.editor.project,
+        &mut capture.editor.documents.project,
         &mut capture.editor.server_ctx,
     );
     capture.save("game-settings");
     DOCKMANAGER.write().unwrap().minimize(
         &mut capture.ui,
         &mut capture.ctx,
-        &capture.editor.project,
+        &capture.editor.documents.project,
         &mut capture.editor.server_ctx,
     );
     capture.context(ProjectContext::Region(region));
-    if let Some(garden) = capture.editor.project.regions[0]
+    if let Some(garden) = capture.editor.documents.project.regions[0]
         .map
         .sectors
         .iter()
         .find(|s| s.name == "Garden")
         .map(|s| s.id)
     {
-        capture.editor.project.regions[0].map.selected_sectors = vec![garden];
+        capture.editor.documents.project.regions[0].map.selected_sectors = vec![garden];
     }
     capture.ctx.ui.send(TheEvent::StateChanged(
         TheId::named("Authoring"),
@@ -231,7 +231,7 @@ fn documentation_screenshots() {
     ));
     let screen = capture
         .editor
-        .project
+        .documents.project
         .screens
         .values()
         .find(|s| s.name == "Game")
@@ -241,10 +241,10 @@ fn documentation_screenshots() {
     capture.editor.sidebar.apply_screen(
         &mut capture.ui,
         &mut capture.ctx,
-        capture.editor.project.screens.get(&screen),
+        capture.editor.documents.project.screens.get(&screen),
     );
     capture.tool("tool.sector");
-    if let Some(widget) = capture.editor.project.screens[&screen]
+    if let Some(widget) = capture.editor.documents.project.screens[&screen]
         .map
         .sectors
         .iter()
@@ -276,18 +276,18 @@ fn documentation_screenshots() {
         project,
         &root.join("generated/docs-current/GeometryGuide.eldiron"),
     );
-    let region = capture.editor.project.regions[0].id;
+    let region = capture.editor.documents.project.regions[0].id;
     capture.context(ProjectContext::Region(region));
     capture.tool("tool.linedef");
     capture.center(Vec2::new(3., 2.), 64.);
     capture.save("linedef-tool");
     capture.tool("tool.sector");
-    capture.editor.project.regions[0].map.selected_sectors = vec![sector];
+    capture.editor.documents.project.regions[0].map.selected_sectors = vec![sector];
     capture.save("selected-sector");
-    capture.editor.project.regions[0].map.sectors[0]
+    capture.editor.documents.project.regions[0].map.sectors[0]
         .properties
         .set("source", Value::Source(rusterix::PixelSource::TileId(tile)));
-    crate::utils::editor_scene_full_rebuild(&capture.editor.project, &capture.editor.server_ctx);
+    crate::utils::editor_scene_full_rebuild(&capture.editor.documents.project, &capture.editor.server_ctx);
     capture.save("applied-tile");
 
     capture_3d(&mut capture, &root);
@@ -298,7 +298,7 @@ fn capture_3d(capture: &mut Capture, root: &std::path::Path) {
     let mut stonefall = Editor::load_project_from_path(&stonefall_path).unwrap();
     stonefall.regions[0].map.camera = MapCamera::ThreeDIso;
     capture.open(stonefall, &stonefall_path);
-    let region = capture.editor.project.regions[0].id;
+    let region = capture.editor.documents.project.regions[0].id;
     capture.context(ProjectContext::Region(region));
     capture.tool("tool.geometry");
     // These are ordinary editor preview controls, not changes to the project.
@@ -313,9 +313,9 @@ fn capture_3d(capture: &mut Capture, root: &std::path::Path) {
     TOOLLIST
         .write()
         .unwrap()
-        .update_geometry_overlay_3d(&mut capture.editor.project, &mut capture.editor.server_ctx);
+        .update_geometry_overlay_3d(&mut capture.editor.documents.project, &mut capture.editor.server_ctx);
     {
-        let region = &mut capture.editor.project.regions[0];
+        let region = &mut capture.editor.documents.project.regions[0];
         let mut lo = Vec3::broadcast(f32::INFINITY);
         let mut hi = Vec3::broadcast(f32::NEG_INFINITY);
         for p in region

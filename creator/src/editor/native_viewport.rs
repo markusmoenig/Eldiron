@@ -25,9 +25,9 @@ pub(super) struct NativeDisplayFrame {
 impl Editor {
     pub(crate) fn synchronize_native_document(&self) {
         if self.native_viewport.enabled
-            && let Some(session) = self.sessions.get(self.active_session)
+            && let Some(document) = self.documents.active_id()
         {
-            TOOLLIST.write().unwrap().bind_native_document(session.id);
+            TOOLLIST.write().unwrap().bind_native_document(document);
         }
     }
     pub(crate) fn native_display_owns_viewport(&self) -> bool {
@@ -44,7 +44,7 @@ impl Editor {
     fn resolve_native_display_binding(&mut self, ui: &mut TheUI) -> Option<NativeDisplayBinding> {
         let next = (|| {
             if self.native_display_owns_viewport() && !crate::geometry_editor::is_visible(ui) {
-                let document = self.sessions.get(self.active_session)?.id;
+                let document = self.documents.active_id()?;
                 let owner = TOOLLIST
                     .read()
                     .unwrap()
@@ -107,7 +107,7 @@ impl Editor {
         {
             ctx.ui.set_focus(&binding.view);
         }
-        let Some(map) = self.project.get_map(&self.server_ctx) else {
+        let Some(map) = self.documents.project.get_map(&self.server_ctx) else {
             self.invalidate_native_display_viewport(ui);
             return Ok(None);
         };
@@ -209,7 +209,7 @@ impl Editor {
             event,
             focused,
             ui.logo || ui.ctrl,
-            &mut self.project,
+            &mut self.documents.project,
             &self.server_ctx,
             ctx,
         );
@@ -220,10 +220,7 @@ impl Editor {
                 // Single platform-thread transaction: dispatch before processing
                 // another document event. No generic queued Apply can cross tabs.
                 if Some(id) == self.server_ctx.curr_action_id
-                    && self
-                        .sessions
-                        .get(self.active_session)
-                        .is_some_and(|session| session.id == binding.document)
+                    && self.documents.active_id() == Some(binding.document)
                 {
                     self.sidebar.handle_event(
                         &TheEvent::StateChanged(
@@ -232,7 +229,7 @@ impl Editor {
                         ),
                         ui,
                         ctx,
-                        &mut self.project,
+                        &mut self.documents.project,
                         &mut self.server_ctx,
                     );
                 }
