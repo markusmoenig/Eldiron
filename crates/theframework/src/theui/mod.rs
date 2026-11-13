@@ -368,6 +368,11 @@ impl ThePopover {
     }
 }
 
+struct StateListener {
+    sender: Sender<TheEvent>,
+    captured_input: bool,
+}
+
 pub struct TheUI {
     pub canvas: TheCanvas,
 
@@ -379,7 +384,7 @@ pub struct TheUI {
 
     state_events_receiver: Option<Receiver<TheEvent>>,
 
-    app_state_events: FxHashMap<String, Sender<TheEvent>>,
+    app_state_events: FxHashMap<String, StateListener>,
 
     statusbar_name: Option<String>,
 
@@ -465,8 +470,50 @@ impl TheUI {
     /// Adds a widget state listener of the given name. Returns the Receiver<TheEvent> which the app can user to react to widget state changes. An app can add several listeners.
     pub fn add_state_listener(&mut self, name: String) -> Receiver<TheEvent> {
         let (tx, rx) = mpsc::channel();
-        self.app_state_events.insert(name, tx);
+        self.app_state_events.insert(
+            name,
+            StateListener {
+                sender: tx,
+                captured_input: false,
+            },
+        );
         rx
+    }
+
+    /// Retain key modifiers for a deferred application controller. Existing
+    /// listeners and synchronous widget handlers keep their legacy key events.
+    pub fn add_input_state_listener(&mut self, name: String) -> Receiver<TheEvent> {
+        let (tx, rx) = mpsc::channel();
+        self.app_state_events.insert(
+            name,
+            StateListener {
+                sender: tx,
+                captured_input: true,
+            },
+        );
+        rx
+    }
+
+    fn queue_key_event(&self, event: &TheEvent, ctx: &mut TheContext) {
+        let event = if ctx.ui.command_paint
+            && self
+                .app_state_events
+                .values()
+                .any(|listener| listener.captured_input)
+        {
+            TheEvent::InputKey {
+                event: Box::new(event.clone()),
+                modifiers: crate::platform::Modifiers {
+                    shift: self.shift,
+                    control: self.ctrl,
+                    alt: self.alt,
+                    super_key: self.logo,
+                },
+            }
+        } else {
+            event.clone()
+        };
+        ctx.ui.send(event);
     }
 
     pub fn set_statusbar_name(&mut self, name: String) {
@@ -877,8 +924,12 @@ impl TheUI {
         if let Some(receiver) = self.state_events_receiver.take() {
             while let Ok(event) = receiver.try_recv() {
                 // Resend event to all app listeners
-                for (name, sender) in &self.app_state_events {
-                    sender.send(event.clone()).unwrap();
+                for listener in self.app_state_events.values() {
+                    let outgoing = match &event {
+                        TheEvent::InputKey { event, .. } if !listener.captured_input => event.as_ref(),
+                        _ => &event,
+                    };
+                    listener.sender.send(outgoing.clone()).unwrap();
                 }
 
                 match event {
@@ -1679,7 +1730,7 @@ impl TheUI {
 
                 TheEvent::KeyCodeDown(TheValue::KeyCode(key.unwrap()))
             };
-            ctx.ui.send(event.clone());
+            self.queue_key_event(&event, ctx);
             if !suppress_focused_widget && let Some(id) = &ctx.ui.focus {
                 if let Some(widget) = self.get_widget_abs(Some(&id.name), Some(&id.uuid)) {
                     redraw = widget.on_event(&event, ctx);
@@ -1703,7 +1754,7 @@ impl TheUI {
         } else {
             TheEvent::KeyCodeUp(TheValue::KeyCode(key.unwrap()))
         };
-        ctx.ui.send(event.clone());
+        self.queue_key_event(&event, ctx);
 
         false
     }

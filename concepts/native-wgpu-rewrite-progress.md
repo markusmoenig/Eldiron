@@ -8596,3 +8596,76 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   then resume remaining M0–M9 implementation. No physical clipboard, locked
   native window, real monitor, Windows/Linux/mobile or release-budget gate is
   reclassified as passed. Unrelated networking concept remains untouched.
+
+
+### Deferred native key input integration (active, 2026-11-13)
+
+- Clipboard checkpoint d8969acd contains30 files/1570 insertions and excludes
+  the unrelated networking concept. Full Goal remains active.
+- Implemented an opt-in TheUI input listener retaining each deferred key's
+  original modifier snapshot. Legacy listeners and direct widget callbacks keep
+  their existing key events. Creator adopts the scoped listener and applies that
+  snapshot only while dispatching the queued event, restoring current host/UI
+  modifiers before/after every event, including early continues.
+- Added shared PhysicalKey.named_logical for foreign non-text Enter/Escape/
+  navigation/Space/Tab/Delete identity. Creator prefers named identity to raw
+  text for these keys; client foreign input also carries the shared named key.
+  Text responders retain their physical/IME path, printable layout text still
+  comes from the host. No persisted types or file data changed.
+- Staticlib feature compile passed20.83s. Extended existing external-document-
+  undo framework test: Ctrl+[ queued then Ctrl released before application
+  consumption retains captured control=true, live controls remainfalse, normal
+  listeners still receive legacy key event. Focused test passed1/0.40s (build6.19s),
+  /private/tmp/eldiron-deferred-input-framework-test.log.
+- Existing Swift full PNG check now removes bracket timing workaround, releases
+  Command before application update, and verifies physical-only non-text Escape
+  actually closes the pixel dock. Native staticlib/link/runtime check is being
+  rebuilt; no new acceptance claim yet. Next run it, native assembled integration
+  and browser input feature/actual fast-key validation; then checkpoint and resume
+  remaining source/global/adapter/performance/platform work.
+
+- All18 native editor framework cases passed0.72s. First assembled input run
+  FAILED14.41s at native_application.rs Vertex/HUD outside-hit assertion0 vs1.
+  Diagnosis: existing integration legitimately sets ui.shift directly; new
+  restoration incorrectly copied only ctx.ui.input_modifiers over those flags.
+  Fixed snapshot to retain widget and text modifier state independently and
+  restore both exactly; key producer captures actual TheUI flags used by its
+  dispatch. Rebuild/assembled rerun required. Swift fast-key process is still
+  running against the first variant, so do not generalize it to fixed snapshot.
+
+- Real Swift/staticlib fast-key/PNG integration passed: Command released before
+  update still opens actual pixel dock, image menu write/read contracts pass,
+  physical-only Escape closes it back to PolyView, root/readback0; final log
+  /private/tmp/eldiron-deferred-input-swift-host-runtime.log. This exercised the
+  initial snapshot variant; normal host/widget modifier representations agree
+  there. Independent legacy widget flags are covered by the subsequent fixed
+  native assembled rerun, currently running (fixed-assembled-metal.log).
+- Reference compile initially FAILED E0609 because its UI-only feature has no
+  text input_modifiers field. Producer now captures TheUI's own flags, and the
+  optional text snapshot is gated by Creator native-ui. Reference final compile
+  passed23.52s. Client native-player final compile pending/queued; final browser
+  package rebuild includes the fixed snapshot and source gating. No acceptance
+  from a stale/partially rebuilt bundle. No new dependency versions/features.
+
+- Fixed assembled Metal Creator passed1/141.56s, including the previously failed
+  real Vertex/HUD outside-hit assertion, documents/tools/Play/auxiliary views and
+  fractional-DPI source cases. /private/tmp/eldiron-deferred-input-fixed-assembled-metal.log.
+  Native source build42.88s. Reference final compile23.52s and native-player
+  compile20.03s pass; no dependency/features changed since14-boundary checkpoint.
+- Final browser package97,979,233B built1m19s. Actual boot doc
+  a344a621-9455-4c5d-808d-c6be3b7e52b1 gen1→2 retains source/one device per
+  generation, root/readback/Canvas2D/normal colorCopies0/errors[]. Filter/select
+  known tile WITHOUT opening editor, then dispatch all four Ctrl+[ press/release
+  events in ONE synchronous DOM task. Pixel editor opens; real controlled
+  ClipboardItem/Blob Copy returns full16x16 original source exactly, PNG decoded
+  hash8be1113635d3eac21e1401c713ad7178e3843a52261ec95733989a860063528f.
+  Doc/dirty retained;16→19 completed frames, devices2/gen2 and all normal transfer
+  counters0. /private/tmp/eldiron-deferred-input-browser-{bootstrap,fast-key}.log;
+  source image deferred-input-browser-source.png. This is a controlled browser
+  event batch, not physical keyboard or OS clipboard acceptance.
+- Input batch ready for checkpoint. Next return to M5 explicit application
+  ownership: retire the96 remaining EDITCAMERA references through an owned
+  Creator camera/context boundary, preserving existing map camera serialization,
+  narrow shared-server context APIs, tools/actions and per-document reset policy.
+  Other RUSTERIX/SCENEMANAGER/tool/dock globals and remaining adapters/budgets/
+  full-platform gates remain open. No M0–M9 completion claim.

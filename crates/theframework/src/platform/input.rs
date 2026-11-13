@@ -201,6 +201,25 @@ impl InputEvent {
 }
 
 impl PhysicalKey {
+    /// Layout-independent logical names supplied by a foreign host. Composed
+    /// printable text still comes from that host's keyboard/IME service.
+    pub fn named_logical(self) -> Option<crate::TheKeyCode> {
+        use crate::TheKeyCode as K;
+        Some(match self {
+            Self::Escape => K::Escape,
+            Self::Enter => K::Return,
+            Self::Backspace | Self::Delete => K::Delete,
+            Self::Home => K::Home,
+            Self::End => K::End,
+            Self::Left => K::Left,
+            Self::Right => K::Right,
+            Self::Up => K::Up,
+            Self::Down => K::Down,
+            Self::Space => K::Space,
+            Self::Tab => K::Tab,
+            _ => return None,
+        })
+    }
     /// Stable native-host wire identity, independent of composed text/layout.
     pub fn from_native_code(code: u32) -> Self {
         match code {

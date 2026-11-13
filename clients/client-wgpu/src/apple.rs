@@ -409,16 +409,21 @@ pub unsafe extern "C" fn unified_app_runner_key(
     pressed: i32,
     repeat: i32,
 ) -> i32 {
+    let physical = physical(code);
     event(
         ptr,
         InputEvent::Key {
-            physical: physical(code),
-            logical: LogicalKey::Other,
+            physical,
+            logical: physical
+                .named_logical()
+                .map(LogicalKey::Named)
+                .unwrap_or(LogicalKey::Other),
             pressed: pressed != 0,
             repeat: repeat != 0,
         },
     )
 }
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn unified_app_runner_text(
     ptr: *mut EldironPlayerRunner,

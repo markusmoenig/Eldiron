@@ -662,7 +662,52 @@ fn creator_style_external_undo_receives_the_shortcut_and_installs_its_saved_stat
             .target,
         target
     );
+    // The deferred Creator listener retains input modifiers; traditional
+    // observers still receive the same keys after the host has released Ctrl.
+    let captured = ui.add_input_state_listener("Deferred Creator input".into());
+    ctx.ui.clear_focus();
+    ctx.ui.command_paint = true;
+    send(
+        &mut ui,
+        &mut ctx,
+        InputEvent::Modifiers(Modifiers {
+            control: true,
+            ..Default::default()
+        }),
+    );
+    send(
+        &mut ui,
+        &mut ctx,
+        InputEvent::Key {
+            physical: PhysicalKey::Other(91),
+            logical: LogicalKey::Character("[".into()),
+            pressed: true,
+            repeat: false,
+        },
+    );
+    send(
+        &mut ui,
+        &mut ctx,
+        InputEvent::Modifiers(Modifiers::default()),
+    );
+    ui.process_events(&mut ctx);
+    assert!(!ui.ctrl && !ctx.ui.input_modifiers.control);
+    assert!(captured.try_iter().any(|event| matches!(event,
+        TheEvent::InputKey { event, modifiers } if modifiers.control
+            && matches!(*event, TheEvent::KeyDown(TheValue::Char('['))))));
+    let legacy: Vec<_> = receiver.try_iter().collect();
+    assert!(
+        legacy
+            .iter()
+            .any(|event| matches!(event, TheEvent::KeyDown(TheValue::Char('['))))
+    );
+    assert!(
+        !legacy
+            .iter()
+            .any(|event| matches!(event, TheEvent::InputKey { .. }))
+    );
 }
+
 #[test]
 fn readonly_multiline_widget_copies_visible_source_and_rejects_text_and_paste() {
     let (mut ui, mut ctx, id) = code_fixture("visible 東京\nsecond", false);

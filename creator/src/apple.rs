@@ -527,9 +527,14 @@ pub unsafe extern "C" fn rust_physical_key(
     logical: *const c_char,
 ) -> bool {
     let physical = PhysicalKey::from_native_code(code);
-    let logical = unsafe { string(logical) }
-        .filter(|text| !text.is_empty())
-        .map(LogicalKey::Character)
+    let logical = physical
+        .named_logical()
+        .map(LogicalKey::Named)
+        .or_else(|| {
+            unsafe { string(logical) }
+                .filter(|text| !text.is_empty())
+                .map(LogicalKey::Character)
+        })
         .unwrap_or(LogicalKey::Other);
     event(InputEvent::Key {
         physical,
@@ -538,6 +543,7 @@ pub unsafe extern "C" fn rust_physical_key(
         repeat: repeated,
     })
 }
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn rust_free_string(ptr: *mut c_char) {
     if !ptr.is_null() {

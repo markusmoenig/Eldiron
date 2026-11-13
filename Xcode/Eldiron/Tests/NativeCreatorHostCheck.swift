@@ -118,8 +118,10 @@ struct NativeCreatorHostCheck {
             _ = eldiron_creator_key_v1(host, 0, true, false, text)
             _ = eldiron_creator_key_v1(host, 0, false, false, text)
         }
-        pump(host, 0.2)
+        // Release before the next application update: queued shortcuts must
+        // retain the Command state they had when the key was pressed.
         _ = eldiron_creator_modifiers_v1(host, false, false, false, false)
+        pump(host, 0.2)
         click(25, 310)
         click(390, 166) // Focus the RGBA view outside the editable source.
         precondition(eldiron_creator_edit_command_v1(host, 1))
@@ -164,6 +166,12 @@ struct NativeCreatorHostCheck {
             return eldiron_creator_clipboard_image_complete_v1(host, read, false, true, pointer, UInt(data.count))
         })
 
+        // A foreign non-text Escape must carry its logical named identity.
+        _ = eldiron_creator_key_v1(host, 0x101, true, false, nil)
+        _ = eldiron_creator_key_v1(host, 0x101, false, false, nil)
+        pump(host, 0.2)
+        click(390, 166)
+        precondition(state(host)["focused_widget"] as? String == "PolyView")
         precondition((state(host)["root_cpu_bytes"] as! NSNumber).uint64Value == 0)
         precondition((state(host)["readback_bytes"] as! NSNumber).uint64Value == 0)
     }

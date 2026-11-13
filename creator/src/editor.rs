@@ -393,6 +393,7 @@ pub static DOCKMANAGER: LazyLock<RwLock<DockManager>> =
 #[path = "editor/play_session.rs"]
 mod play_session;
 mod document_io;
+mod deferred_input;
 mod example_sources;
 pub(crate) use document_io::{DocumentInfo, SaveInfo, SaveResult};
 use play_session::CreatorPlaySession;
@@ -8609,7 +8610,7 @@ impl TheTrait for Editor {
         SCENEMANAGER.write().unwrap().startup();
 
         init_profile.lap("init_scene");
-        self.event_receiver = Some(ui.add_state_listener("Main Receiver".into()));
+        self.event_receiver = Some(ui.add_input_state_listener("Main Receiver".into()));
         self.rebuild_project_tabs(ui);
     }
 
@@ -10106,7 +10107,9 @@ impl TheTrait for Editor {
         profile.lap("scene");
         let mut sync_geometry_recipes = !pending_events.is_empty();
         let mut pending_events: std::collections::VecDeque<_> = pending_events.into();
+        let live_input_modifiers = deferred_input::Snapshot::capture(ui, ctx);
         loop {
+            live_input_modifiers.restore(ui, ctx);
             #[cfg(feature = "native-render")]
             let scoped = self.take_native_world_event(ui, ctx);
             #[cfg(not(feature = "native-render"))]
@@ -10115,6 +10118,7 @@ impl TheTrait for Editor {
             let Some(event) = scoped.or_else(|| pending_events.pop_front()) else {
                 break;
             };
+            let event = deferred_input::decode(event, ui, ctx);
             #[cfg(feature = "native-render")]
             self.synchronize_native_document();
             if self.appearance_workspace.handle_event(
@@ -11578,6 +11582,8 @@ impl TheTrait for Editor {
                 _ => {}
             }
         }
+
+        live_input_modifiers.restore(ui, ctx);
 
         // Apply committed input before synchronizing geometry controls or rendering.
         // Otherwise a per-frame refresh briefly restores the previous button state.

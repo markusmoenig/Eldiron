@@ -22,6 +22,12 @@ pub enum TheEvent {
     TextInput(String),
     /// Preedit text is transient and must not mutate the document/undo history.
     TextComposition(String, Option<(usize, usize)>),
+    /// Opt-in application listeners receive the key's original modifiers even
+    /// if a native host defers application updates until after key release.
+    InputKey {
+        event: Box<TheEvent>,
+        modifiers: crate::platform::Modifiers,
+    },
     KeyDown(TheValue),
     KeyUp(TheValue),
     KeyCodeDown(TheValue),
