@@ -4,12 +4,16 @@ use super::*;
 mod viewport;
 #[path = "native_world.rs"]
 mod world;
+#[path = "native_play.rs"]
+mod play;
+use play::NativePlayFrame;
 use viewport::NativeDisplayFrame;
 pub(crate) use viewport::NativeViewport;
 use world::NativeWorldFrame;
 
 pub(crate) struct NativeViewTokens {
     display: Option<NativeDisplayFrame>,
+    play: Option<NativePlayFrame>,
     world: Option<std::sync::Arc<NativeWorldFrame>>,
     pub(crate) geometry: Option<crate::geometry_editor::PreviewToken>,
     pub(crate) appearance: Option<crate::appearance_workspace::PreviewToken>,
@@ -23,11 +27,16 @@ impl NativeViewTokens {
     ) -> Self {
         Self {
             display: None,
+            play: None,
             world: None,
             geometry,
             appearance,
             material,
         }
+    }
+    #[cfg(test)]
+    pub(crate) fn play_for_test(&self) -> bool {
+        self.play.is_some()
     }
     #[cfg(test)]
     pub(crate) fn profile_for_test(&self) -> bool {
@@ -39,6 +48,10 @@ impl NativeViewTokens {
     }
     pub(crate) fn retain_painted(&mut self, list: &theframework::paint::PaintList) {
         let receipts = list.receipts().collect::<std::collections::HashSet<_>>();
+        self.play = self.play.take().filter(|frame| {
+            receipts.contains(&frame.receipt)
+                && frame.receipts.iter().all(|receipt| receipts.contains(receipt))
+        });
         self.world = self.world.take().filter(|frame| {
             receipts.contains(&frame.receipt)
                 && frame
@@ -112,9 +125,11 @@ impl Editor {
         );
         let display = self.prepare_native_display_viewport(ui, ctx, images)?;
         let world = self.prepare_native_world_viewport(ui, ctx, images)?;
+        let play = self.prepare_native_play_viewport(ui, ctx, images.registry)?;
         let mut tokens = NativeViewTokens::previews(geometry, appearance, material);
         tokens.display = display;
         tokens.world = world;
+        tokens.play = play;
         Ok(Some(tokens))
     }
     pub(crate) fn native_views_waiting(&self) -> bool {
@@ -128,6 +143,7 @@ impl Editor {
         ui: &mut TheUI,
         ctx: &mut TheContext,
     ) {
+        self.presented_native_play_viewport(tokens.play, ui, ctx);
         self.presented_native_display_viewport(tokens.display, ui, ctx);
         self.presented_native_world_viewport(tokens.world, ui, ctx);
         if let Some(token) = tokens.geometry {
@@ -142,6 +158,7 @@ impl Editor {
         }
     }
     pub(crate) fn invalidate_native_views(&mut self, ui: &mut TheUI) {
+        self.native_viewport.play.invalidate(ui);
         self.invalidate_native_display_viewport(ui);
         self.native_viewport.world.device_reset(ui);
         self.geometry_editor.invalidate_gpu_preview(ui);
@@ -312,7 +329,31 @@ impl Editor {
         ui: &mut TheUI,
         ctx: &mut TheContext,
     ) -> usize {
-        let project = Self::new_project(crate::project_templates::ProjectDimension::ThreeD);
+        let mut project = Self::new_project(crate::project_templates::ProjectDimension::ThreeD);
+        // An ordinary authored field verifies embedded native text/IME ownership.
+        let settings = eldiron_runtime::PlayerSettings::parse(&project.config).unwrap();
+        let screen = project.screens.values_mut().next().unwrap();
+        let (left, top) = rusterix::utils::align_screen_to_grid(
+            settings.viewport.0 as f32,
+            settings.viewport.1 as f32,
+            settings.grid_size,
+        );
+        let subdivisions = screen.map.subdivisions;
+        screen.map.subdivisions = settings.grid_size * 2.;
+        let id = crate::project_templates::rectangle(
+            &mut screen.map,
+            left + 16. / settings.grid_size,
+            top + 16. / settings.grid_size,
+            200. / settings.grid_size,
+            32. / settings.grid_size,
+        );
+        let widget = screen.map.find_sector_mut(id).unwrap();
+        widget.name = "Native name field".into();
+        widget.properties.set(
+            "data",
+            Value::Str("[ui]\nrole='input'\nbind='start.name'\ndefault='Éowyn'".into()),
+        );
+        screen.map.subdivisions = subdivisions;
         let mut icons = false;
         let mut redraw = false;
         assert!(self.open_project_as_session(project, None, ui, ctx, &mut icons, &mut redraw));

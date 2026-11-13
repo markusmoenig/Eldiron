@@ -78,6 +78,45 @@ impl UiApplication for NativeCreatorApplication {
         }
         Ok(())
     }
+    fn raw_input(&mut self, event: &InputEvent, ui: &mut UiSession) -> Option<InputResponse> {
+        let response = self.editor.native_play_raw_input(event, ui);
+        if response.is_some() && matches!(event, InputEvent::Modifiers(_) | InputEvent::Focus(_)) {
+            ui.input(event);
+        }
+        // Declined application shortcuts still reach Creator's document menu.
+        if response.as_ref().is_some_and(|response| !response.consumed)
+            && (ui.ui.logo || ui.ui.ctrl)
+            && matches!(
+                event,
+                InputEvent::Key {
+                    pressed: true,
+                    repeat: false,
+                    ..
+                }
+            )
+        {
+            return None;
+        }
+        response
+    }
+    fn application_text_input(&mut self, ui: &mut UiSession) -> Option<TextInputState> {
+        self.editor.native_play_text_input(&mut ui.ui, &ui.context)
+    }
+    fn application_text_snapshot(
+        &mut self,
+        ui: &mut UiSession,
+    ) -> Option<theframework::text_edit::NativeTextSnapshot> {
+        self.editor
+            .native_play_text_snapshot(&mut ui.ui, &ui.context)
+    }
+    fn application_text_query(
+        &mut self,
+        ui: &mut UiSession,
+        request: &theframework::text_edit::NativeTextRequest,
+    ) -> Option<theframework::text_edit::NativeTextAnswer> {
+        self.editor
+            .native_play_text_query(&mut ui.ui, &ui.context, request)
+    }
     fn input(&mut self, event: &InputEvent, ui: &mut UiSession) -> InputResponse {
         match event {
             InputEvent::Focus(false) => {
@@ -111,7 +150,7 @@ impl UiApplication for NativeCreatorApplication {
             _ => ui.input(event),
         }
     }
-    fn update(&mut self, ui: &mut UiSession, _: Duration) -> FrameRequest {
+    fn update(&mut self, ui: &mut UiSession, elapsed: Duration) -> FrameRequest {
         if self
             .deadline
             .is_some_and(|deadline| Instant::now() >= deadline)
@@ -129,6 +168,9 @@ impl UiApplication for NativeCreatorApplication {
         redraw |= self.editor.update_ui(&mut ui.ui, &mut ui.context);
         redraw |= self.editor.update(&mut ui.context);
         self.editor.publish_native_world_paint_sources();
+        if let Err(error) = self.editor.sync_native_play(&mut ui.ui, &mut ui.context, elapsed) {
+            ui.context.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
+        }
         redraw |= self.editor.native_views_waiting();
         FrameRequest {
             redraw,
@@ -188,14 +230,16 @@ impl UiApplication for NativeCreatorApplication {
             ui.requests.push(HostRequest::Exit);
         }
     }
-    fn gpu_recreated(&mut self, ui: &mut UiSession, _: &mut UiFrameImages<'_>) -> Result<()> {
+    fn gpu_recreated(&mut self, ui: &mut UiSession, images: &mut UiFrameImages<'_>) -> Result<()> {
         self.pending = None;
+        self.editor.reset_native_play_gpu(images.registry).map_err(RenderError)?;
         self.editor
             .cancel_native_world_gesture(&mut ui.ui, &mut ui.context);
         self.editor.invalidate_native_views(&mut ui.ui);
         Ok(())
     }
     fn suspended(&mut self, ui: &mut UiSession) {
+        self.editor.cancel_native_play_input(&mut ui.ui);
         self.pending = None;
         ui.input(&InputEvent::Focus(false));
         self.editor
@@ -1788,6 +1832,310 @@ mod tests {
         assert_eq!(
             resumed.2, 0,
             "the existing Resume policy clears pending presentation messages"
+        );
+        // The real Game tool must use the same authored-screen controller as
+        // the common player, with independent GPU scenes and text ownership.
+        app.session.context.ui.send(TheEvent::Custom(
+            TheId::named("Set Tool"),
+            TheValue::Text("tool.game".into()),
+        ));
+        app.update(&mut host, Duration::from_millis(16));
+        app.update(&mut host, Duration::from_millis(16));
+        let before = gpu.transfers();
+        let game = app.frame(&mut host, &mut replacement).unwrap();
+        assert!(app.application.pending.as_ref().unwrap().play_for_test());
+        let stats = app.application.editor.native_game_stats_for_test().unwrap();
+        assert_eq!(stats.0, initial.1);
+        assert!(stats.2 > 0);
+        assert!(!stats.3);
+        assert!(
+            !app.session
+                .ui
+                .get_render_view("PolyView")
+                .unwrap()
+                .has_cpu_display_storage()
+        );
+        let field = app.application.editor.native_game_input_for_test().unwrap();
+        let click = InputEvent::PointerButton {
+            button: PointerButton::Primary,
+            pressed: true,
+            position: field,
+        };
+        app.input(&click, &mut host);
+        assert!(
+            host.text_input.is_none(),
+            "unpresented screen cannot focus an authored field"
+        );
+        renderer
+            .render(
+                &game,
+                &replacement,
+                &output.view,
+                output.descriptor.format,
+                (1600, 1000),
+                1.,
+                [0.; 4],
+            )
+            .unwrap();
+        app.presented(&mut host);
+        app.input(&click, &mut host);
+        app.input(
+            &InputEvent::PointerButton {
+                button: PointerButton::Primary,
+                pressed: false,
+                position: field,
+            },
+            &mut host,
+        );
+        let target = host
+            .text_input
+            .expect("authored field publishes its own native input target")
+            .target;
+        let snapshot = app.native_text_snapshot(&mut host).unwrap();
+        assert_eq!(snapshot.target, target);
+        assert_eq!(&*snapshot.text, "Éowyn");
+        app.input(
+            &InputEvent::TextFor {
+                target,
+                text: "東京".into(),
+            },
+            &mut host,
+        );
+        let edited = app.native_text_snapshot(&mut host).unwrap();
+        assert!(edited.text.contains("東京"));
+        assert_eq!(
+            app.application
+                .editor
+                .native_game_stats_for_test()
+                .unwrap()
+                .1,
+            0,
+            "text does not become movement"
+        );
+        let frame = app.frame(&mut host, &mut replacement).unwrap();
+        renderer
+            .render(
+                &frame,
+                &replacement,
+                &output.view,
+                output.descriptor.format,
+                (1600, 1000),
+                1.,
+                [0.; 4],
+            )
+            .unwrap();
+        app.presented(&mut host);
+        assert_eq!(
+            gpu.transfers().readback_bytes,
+            before.readback_bytes,
+            "authored Game screens render without color readback"
+        );
+        // Renderer recreation and hiding/reopening the Game tool retain the
+        // CPU session/text, but require new acknowledged GPU scene outputs.
+        app.gpu_recreated(&mut host, &mut replacement).unwrap();
+        assert!(host.text_input.is_none());
+        let rebuilt = app.frame(&mut host, &mut replacement).unwrap();
+        renderer
+            .render(
+                &rebuilt,
+                &replacement,
+                &output.view,
+                output.descriptor.format,
+                (1600, 1000),
+                1.,
+                [0.; 4],
+            )
+            .unwrap();
+        app.presented(&mut host);
+        assert_eq!(
+            app.application
+                .editor
+                .native_game_stats_for_test()
+                .unwrap()
+                .0,
+            initial.1
+        );
+        assert_eq!(app.native_text_snapshot(&mut host).unwrap().target, target);
+        assert!(
+            app.native_text_snapshot(&mut host)
+                .unwrap()
+                .text
+                .contains("東京")
+        );
+        app.session.context.ui.send(TheEvent::Custom(
+            TheId::named("Set Tool"),
+            TheValue::Text("tool.geometry".into()),
+        ));
+        app.update(&mut host, Duration::from_millis(16));
+        app.update(&mut host, Duration::from_millis(16));
+        let hidden = app.frame(&mut host, &mut replacement).unwrap();
+        assert!(!app.application.pending.as_ref().unwrap().play_for_test());
+        renderer
+            .render(
+                &hidden,
+                &replacement,
+                &output.view,
+                output.descriptor.format,
+                (1600, 1000),
+                1.,
+                [0.; 4],
+            )
+            .unwrap();
+        app.presented(&mut host);
+        app.session.context.ui.send(TheEvent::Custom(
+            TheId::named("Set Tool"),
+            TheValue::Text("tool.game".into()),
+        ));
+        app.update(&mut host, Duration::from_millis(16));
+        app.update(&mut host, Duration::from_millis(16));
+        let restored = app.frame(&mut host, &mut replacement).unwrap();
+        assert!(app.application.pending.as_ref().unwrap().play_for_test());
+        renderer
+            .render(
+                &restored,
+                &replacement,
+                &output.view,
+                output.descriptor.format,
+                (1600, 1000),
+                1.,
+                [0.; 4],
+            )
+            .unwrap();
+        app.presented(&mut host);
+        let stats = app.application.editor.native_game_stats_for_test().unwrap();
+        assert_eq!(stats.0, initial.1);
+        assert!(stats.2 > 0);
+        assert!(!stats.3);
+        let field = app.application.editor.native_game_input_for_test().unwrap();
+        app.input(
+            &InputEvent::PointerButton {
+                button: PointerButton::Primary,
+                pressed: true,
+                position: field,
+            },
+            &mut host,
+        );
+        app.input(
+            &InputEvent::PointerButton {
+                button: PointerButton::Primary,
+                pressed: false,
+                position: field,
+            },
+            &mut host,
+        );
+        assert!(
+            app.native_text_snapshot(&mut host)
+                .unwrap()
+                .text
+                .contains("東京")
+        );
+        assert_eq!(gpu.transfers().readback_bytes, before.readback_bytes);
+        let mut capture = ReadbackTicket::capture(&gpu, output.clone()).unwrap();
+        gpu.device
+            .poll(wgpu::PollType::Wait {
+                submission_index: None,
+                timeout: Some(Duration::from_secs(30)),
+            })
+            .unwrap();
+        let image = capture.try_finish(&gpu).unwrap().unwrap();
+        let mut encoder = png::Encoder::new(
+            std::fs::File::create("/private/tmp/eldiron-native-creator-play.png").unwrap(),
+            1600,
+            1000,
+        );
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        encoder
+            .write_header()
+            .unwrap()
+            .write_image_data(image.pixels())
+            .unwrap();
+        app.input(&InputEvent::Focus(false), &mut host);
+        assert!(host.text_input.is_none());
+        app.input(&InputEvent::Focus(true), &mut host);
+        let frame = app.frame(&mut host, &mut replacement).unwrap();
+        renderer
+            .render(
+                &frame,
+                &replacement,
+                &output.view,
+                output.descriptor.format,
+                (1600, 1000),
+                1.,
+                [0.; 4],
+            )
+            .unwrap();
+        app.presented(&mut host);
+        app.input(
+            &InputEvent::PointerButton {
+                button: PointerButton::Primary,
+                pressed: true,
+                position: [800., 500.],
+            },
+            &mut host,
+        );
+        app.input(
+            &InputEvent::PointerButton {
+                button: PointerButton::Primary,
+                pressed: false,
+                position: [800., 500.],
+            },
+            &mut host,
+        );
+        assert!(host.text_input.is_none());
+        let key = |physical, logical, pressed| InputEvent::Key {
+            physical,
+            logical,
+            pressed,
+            repeat: false,
+        };
+        app.input(
+            &key(
+                PhysicalKey::Letter(b'W'),
+                LogicalKey::Character("w".into()),
+                true,
+            ),
+            &mut host,
+        );
+        app.input(
+            &key(PhysicalKey::Up, LogicalKey::Named(TheKeyCode::Up), true),
+            &mut host,
+        );
+        assert_eq!(
+            app.application
+                .editor
+                .native_game_stats_for_test()
+                .unwrap()
+                .1,
+            2
+        );
+        app.input(
+            &key(
+                PhysicalKey::Letter(b'W'),
+                LogicalKey::Character("w".into()),
+                false,
+            ),
+            &mut host,
+        );
+        assert_eq!(
+            app.application
+                .editor
+                .native_game_stats_for_test()
+                .unwrap()
+                .1,
+            1
+        );
+        app.input(
+            &key(PhysicalKey::Up, LogicalKey::Named(TheKeyCode::Up), false),
+            &mut host,
+        );
+        assert_eq!(
+            app.application
+                .editor
+                .native_game_stats_for_test()
+                .unwrap()
+                .1,
+            0
         );
         app.session.context.ui.send(TheEvent::StateChanged(
             TheId::named("Stop"),

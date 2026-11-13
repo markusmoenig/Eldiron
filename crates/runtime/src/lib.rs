@@ -3,6 +3,10 @@
 mod clock;
 mod events;
 mod pump;
+mod player;
+pub use player::{
+    PlayerControls, PlayerInputStats, PlayerSession, PlayerSettings, PlayerTransition, is_movement_state,
+};
 mod view;
 pub use clock::SessionClock;
 pub use events::{EventInterests, RegionEvents, RegionOutputs};

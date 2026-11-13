@@ -8687,6 +8687,10 @@ impl TheTrait for Editor {
             runtime.clear_say_messages();
             update_server_icons = true;
         }
+        #[cfg(feature = "native-render")]
+        if let Err(error) = self.sync_native_play(ui, ctx, std::time::Duration::ZERO) {
+            ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
+        }
         redraw |= self.palette_switch.update(ctx);
         redraw |= self
             .procedural_material
@@ -9128,6 +9132,13 @@ impl TheTrait for Editor {
             {
                 let mut runtime = RUSTERIX.write().unwrap();
                 let rusterix = &mut *runtime;
+                #[cfg(feature = "native-render")]
+                let native_game = self.native_viewport.enabled
+                    && self.server_ctx.game_mode
+                    && !self.server_ctx.text_game_mode
+                    && self.play_session.is_some();
+                #[cfg(not(feature = "native-render"))]
+                let native_game = false;
                 rusterix.scene_handler.preview_character_setup =
                     rusterix.server.state == rusterix::ServerState::Off;
                 if rusterix.server.state != rusterix::ServerState::Off
@@ -9175,14 +9186,28 @@ impl TheTrait for Editor {
                     }
                     let active_game_map = rusterix.client.current_map.clone();
                     let mut refresh_visual_debug = false;
+                    let mut region_outputs = FxHashMap::default();
+                    if let Some(session) = &mut self.play_session {
+                        for region in &self.project.regions {
+                            let outputs = session.pump.take_events(&region.map.id);
+                            #[cfg(feature = "native-render")]
+                            if region.map.name == active_game_map {
+                                let world = session.pump.view(
+                                    &self.project,
+                                    &rusterix.server,
+                                    &rusterix.assets,
+                                    &active_game_map,
+                                );
+                                self.native_viewport.play.receive(&world, &outputs);
+                            }
+                            region_outputs.insert(region.map.id, outputs);
+                        }
+                    }
                     for r in &mut self.project.regions {
                         if self.play_session.is_none() {
                             rusterix.server.apply_entities_items(&mut r.map);
                         }
-                        let mut outputs = self
-                            .play_session
-                            .as_mut()
-                            .map(|session| session.pump.take_events(&r.map.id));
+                        let mut outputs = region_outputs.remove(&r.map.id);
 
                         let is_active_region = if running_game_mode {
                             r.map.name == active_game_map
@@ -9199,19 +9224,19 @@ impl TheTrait for Editor {
                                 }
                             }
                             let audio = if let Some(outputs) = &mut outputs {
-                                messages = std::mem::take(&mut outputs.messages);
-                                says = std::mem::take(&mut outputs.says);
-                                choices = std::mem::take(&mut outputs.choices);
-                                rusterix.client.receive_world_texts(
-                                    &r.map,
-                                    &rusterix.assets,
-                                    std::mem::take(&mut outputs.world_text),
-                                );
-                                rusterix
-                                    .client
-                                    .process_open_container_requests(std::mem::take(
-                                        &mut outputs.containers,
-                                    ));
+                                if !native_game {
+                                    messages = std::mem::take(&mut outputs.messages);
+                                    says = std::mem::take(&mut outputs.says);
+                                    choices = std::mem::take(&mut outputs.choices);
+                                    rusterix.client.receive_world_texts(
+                                        &r.map,
+                                        &rusterix.assets,
+                                        std::mem::take(&mut outputs.world_text),
+                                    );
+                                    rusterix
+                                        .client
+                                        .process_open_container_requests(std::mem::take(&mut outputs.containers));
+                                }
                                 std::mem::take(&mut outputs.audio)
                             } else {
                                 messages = rusterix.server.get_messages(&r.map.id);
@@ -9316,7 +9341,9 @@ impl TheTrait for Editor {
             };
             #[cfg(feature = "native-render")]
             let native_display =
-                self.native_display_owns_viewport() || self.native_world_owns_viewport();
+                self.native_display_owns_viewport()
+                    || self.native_world_owns_viewport()
+                    || self.native_play_owns_viewport();
             #[cfg(not(feature = "native-render"))]
             let native_display = false;
             if !crate::geometry_editor::is_visible(ui)
@@ -11072,6 +11099,7 @@ impl TheTrait for Editor {
                     else if id.name == "Play" {
                         #[cfg(feature = "native-render")]
                         {
+                            self.cancel_native_play_input(ui);
                             self.cancel_native_world_gesture(ui, ctx);
                             self.invalidate_native_world_viewport(ui);
                         }
@@ -11167,6 +11195,7 @@ impl TheTrait for Editor {
                     } else if id.name == "Pause" {
                         #[cfg(feature = "native-render")]
                         {
+                            self.cancel_native_play_input(ui);
                             self.cancel_native_world_gesture(ui, ctx);
                             self.invalidate_native_world_viewport(ui);
                         }
@@ -11181,6 +11210,7 @@ impl TheTrait for Editor {
                     } else if id.name == "Stop" {
                         #[cfg(feature = "native-render")]
                         {
+                            self.cancel_native_play_input(ui);
                             self.cancel_native_world_gesture(ui, ctx);
                             self.invalidate_native_world_viewport(ui);
                         }

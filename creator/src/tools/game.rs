@@ -119,6 +119,10 @@ impl Tool for GameTool {
         map: &mut Map,
         _server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
+        #[cfg(feature = "native-render")]
+        if ctx.ui.command_paint && _server_ctx.game_mode {
+            return None;
+        }
         match map_event {
             MapClicked(coord) => {
                 let mut rusterix = RUSTERIX.write().unwrap();
@@ -167,6 +171,10 @@ impl Tool for GameTool {
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
+        #[cfg(feature = "native-render")]
+        if ctx.ui.command_paint && server_ctx.game_mode {
+            return false;
+        }
         #[allow(clippy::single_match)]
         match event {
             TheEvent::RenderViewLostHover(id) if id.name == "PolyView" => {

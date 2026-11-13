@@ -230,7 +230,7 @@ fn install_toolbar(
     }
 }
 
-fn rectangle(map: &mut Map, x: f32, y: f32, width: f32, height: f32) -> u32 {
+pub(crate) fn rectangle(map: &mut Map, x: f32, y: f32, width: f32, height: f32) -> u32 {
     let vertices = [
         map.add_vertex_at(x, y),
         map.add_vertex_at(x + width, y),

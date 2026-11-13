@@ -60,41 +60,70 @@ impl RuntimeView<'_> {
             })
     }
 }
-impl GameSession {
+impl crate::SessionPump {
     /// Addressed output consumers borrow the matching region's CPU state.
     /// Off-screen audio/dialog delivery must not resolve entity IDs in whichever
     /// map happens to be visible in the current game screen.
-    pub fn view_region(&self, id: &theframework_core::Uuid) -> Option<RuntimeView<'_>> {
-        let map = &self.project.regions.iter().find(|r| &r.map.id == id)?.map;
+    pub fn view_region<'a>(
+        &self,
+        project: &'a Project,
+        server: &rusterix::Server,
+        assets: &'a Assets,
+        id: &theframework_core::Uuid,
+    ) -> Option<RuntimeView<'a>> {
+        let map = &project.regions.iter().find(|r| &r.map.id == id)?.map;
         Some(RuntimeView {
-            session_id: self.pump.session_id(),
-            project: &self.project,
-            assets: &self.assets,
+            session_id: self.session_id(),
+            project,
+            assets,
             map: Some(map),
-            time: self.server.get_time(id).unwrap_or(self.project.time),
-            state: self.server.state,
-            render_state: self.server.get_render_state(id),
+            time: server.get_time(id).unwrap_or(project.time),
+            state: server.state,
+            render_state: server.get_render_state(id),
         })
     }
-    pub fn view(&self) -> RuntimeView<'_> {
-        let map = self
-            .project
+    pub fn view<'a>(
+        &self,
+        project: &'a Project,
+        server: &rusterix::Server,
+        assets: &'a Assets,
+        current_map: &str,
+    ) -> RuntimeView<'a> {
+        let map = project
             .regions
             .iter()
-            .find(|r| r.map.name == self.current_map)
+            .find(|r| r.map.name == current_map)
             .map(|r| &r.map);
         RuntimeView {
-            session_id: self.pump.session_id(),
-            project: &self.project,
-            assets: &self.assets,
+            session_id: self.session_id(),
+            project,
+            assets,
             map,
-            time: self.project.time,
-            state: self.server.state,
+            time: map
+                .and_then(|map| server.get_time(&map.id))
+                .unwrap_or(project.time),
+            state: server.state,
             render_state: map.map_or_else(
-                || self.server.world_render.clone(),
-                |map| self.server.get_render_state(&map.id),
+                || server.world_render.clone(),
+                |map| server.get_render_state(&map.id),
             ),
         }
+    }
+}
+
+impl GameSession {
+    pub fn view_region(&self, id: &theframework_core::Uuid) -> Option<RuntimeView<'_>> {
+        self.pump
+            .view_region(&self.project, &self.server, &self.assets, id)
+    }
+    pub fn view(&self) -> RuntimeView<'_> {
+        let mut view = self
+            .pump
+            .view(&self.project, &self.server, &self.assets, &self.current_map);
+        // GameSession owns runtime document time; borrowed authoring hosts use
+        // the pump's server-time snapshot without changing authored time.
+        view.time = self.project.time;
+        view
     }
 }
 

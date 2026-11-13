@@ -700,35 +700,7 @@ impl GpuApplication for PlayerApplication {
         );
     }
 }
-fn binding_key(physical: PhysicalKey, logical: &LogicalKey) -> Option<String> {
-    use PhysicalKey::*;
-    Some(match physical {
-        Letter(letter) => (letter.to_ascii_lowercase() as char).to_string(),
-        Digit(digit) => char::from(b'0' + digit.min(9)).to_string(),
-        Function(number) => format!("f{number}"),
-        Escape => "escape".into(),
-        Enter => "enter".into(),
-        Space => "space".into(),
-        Tab => "tab".into(),
-        Backspace => "backspace".into(),
-        Delete => "delete".into(),
-        Left => "left".into(),
-        Right => "right".into(),
-        Up => "up".into(),
-        Down => "down".into(),
-        Home => "home".into(),
-        End => "end".into(),
-        PageUp => "pageup".into(),
-        PageDown => "pagedown".into(),
-        _ => {
-            if let LogicalKey::Character(key) = logical {
-                key.to_ascii_lowercase()
-            } else {
-                return None;
-            }
-        }
-    })
-}
+use eldiron_presentation::player_binding_key as binding_key;
 
 #[cfg(test)]
 pub(crate) mod tests;

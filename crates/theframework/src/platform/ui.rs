@@ -111,6 +111,27 @@ pub trait UiApplication {
     ) -> Result<()> {
         Ok(())
     }
+    /// Embedded application controllers receive neutral input before widget
+    /// wheel conversion; returning None delegates to the normal UI path.
+    fn raw_input(&mut self, _event: &InputEvent, _ui: &mut UiSession) -> Option<InputResponse> {
+        None
+    }
+    fn application_text_input(&mut self, _ui: &mut UiSession) -> Option<TextInputState> {
+        None
+    }
+    fn application_text_snapshot(
+        &mut self,
+        _ui: &mut UiSession,
+    ) -> Option<crate::text_edit::NativeTextSnapshot> {
+        None
+    }
+    fn application_text_query(
+        &mut self,
+        _ui: &mut UiSession,
+        _request: &crate::text_edit::NativeTextRequest,
+    ) -> Option<crate::text_edit::NativeTextAnswer> {
+        None
+    }
     fn input(&mut self, event: &InputEvent, ui: &mut UiSession) -> InputResponse {
         ui.input(event)
     }
@@ -136,6 +157,7 @@ pub struct UiApplicationAdapter<A> {
     images: UiImageCache,
     text_target: Option<(theframework_core::Uuid, TextInputTarget)>,
     native_editor: bool,
+    application_text: bool,
 }
 impl<A: UiApplication> UiApplicationAdapter<A> {
     pub fn new(application: A) -> Self {
@@ -146,6 +168,7 @@ impl<A: UiApplication> UiApplicationAdapter<A> {
             images: UiImageCache::default(),
             text_target: None,
             native_editor: false,
+            application_text: false,
         }
     }
     fn platform_state(&mut self, host: &mut HostContext) {
@@ -216,6 +239,13 @@ impl<A: UiApplication> UiApplicationAdapter<A> {
             self.text_target = Some((id.uuid, target));
             Some(TextInputState { target, area })
         });
+        self.application_text = false;
+        if let Some(input) = self.application.application_text_input(&mut self.session) {
+            self.application_text = true;
+            self.native_editor = true;
+            self.text_target = Some((theframework_core::Uuid::nil(), input.target));
+            host.text_input = Some(input);
+        }
         if host.text_input.is_none() {
             self.text_target = None;
         }
@@ -265,7 +295,11 @@ impl<A: UiApplication> GpuApplication for UiApplicationAdapter<A> {
         &mut self,
         host: &mut HostContext,
     ) -> Option<crate::text_edit::NativeTextSnapshot> {
-        let source = self.session.native_text_snapshot();
+        let source = if self.application_text {
+            self.application.application_text_snapshot(&mut self.session)
+        } else {
+            self.session.native_text_snapshot()
+        };
         self.platform_state(host);
         source
     }
@@ -274,7 +308,11 @@ impl<A: UiApplication> GpuApplication for UiApplicationAdapter<A> {
         host: &mut HostContext,
         request: &crate::text_edit::NativeTextRequest,
     ) -> Option<crate::text_edit::NativeTextAnswer> {
-        let answer = self.session.native_text_query(request);
+        let answer = if self.application_text {
+            self.application.application_text_query(&mut self.session, request)
+        } else {
+            self.session.native_text_query(request)
+        };
         self.platform_state(host);
         answer
     }
@@ -320,6 +358,10 @@ impl<A: UiApplication> GpuApplication for UiApplicationAdapter<A> {
             }
             _ => event,
         };
+        if let Some(response) = self.application.raw_input(event, &mut self.session) {
+            self.platform_state(host);
+            return response;
+        }
         // The legacy widget adapter expects wheel ticks converted to its pixel
         // convention. Neutral application inputs keep unscaled line units.
         let legacy;

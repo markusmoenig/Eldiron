@@ -23,6 +23,7 @@ pub(crate) mod fingerprint;
 pub mod hitinfo;
 #[path = "client/command.rs"]
 pub mod input_binding;
+pub mod input_action;
 pub mod intodata;
 pub mod isometric;
 pub mod item_interaction;

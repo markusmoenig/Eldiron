@@ -1900,6 +1900,17 @@ impl Client {
         );
     }
 
+    /// Plain CPU compatibility snapshots for the Creator session migration.
+    pub fn player_input_snapshot(&self) -> ClientAction {
+        self.client_action.lock().unwrap().clone()
+    }
+    pub fn current_screen_name(&self) -> &str {
+        &self.current_screen
+    }
+    pub fn local_player_requested(&self) -> bool {
+        self.game_started
+    }
+
     /// Editor quick play uses authored entity configuration rather than setup-screen choices.
     /// This is opt-in; normal client startup continues to show the configured start screen.
     pub fn start_with_entity_defaults(

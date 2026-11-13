@@ -11,6 +11,7 @@ use theframework::render_wgpu::UiFrameImages;
 pub(crate) struct NativeViewport {
     pub(crate) enabled: bool,
     pub(super) world: super::world::NativeWorld,
+    pub(crate) play: super::play::NativePlay,
     published: Option<(TheId, Arc<theframework::paint::PaintList>)>,
     binding: Option<NativeDisplayBinding>,
     epoch: u64,

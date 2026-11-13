@@ -412,6 +412,8 @@ pub trait TheRenderViewTrait: TheWidget {
     #[cfg(feature = "text")]
     fn clear_paint_list(&mut self, expected: &std::sync::Arc<crate::paint::PaintList>) -> bool;
     fn set_scroll_behavior(&mut self, scale: f32, aspect_scaled: bool);
+    /// Read-only resource accounting; does not opt into the CPU adapter.
+    fn has_cpu_display_storage(&self) -> bool;
     fn render_buffer_mut(&mut self) -> &mut TheRGBABuffer;
     fn set_auto_focus(&mut self, auto_focus: bool);
     /// Protect host-rendered inline text controls from global shortcuts.
@@ -470,6 +472,9 @@ impl TheRenderViewTrait for TheRenderView {
     }
     fn set_text_input(&mut self, active: bool) {
         self.text_input = active;
+    }
+    fn has_cpu_display_storage(&self) -> bool {
+        !self.render_buffer.pixels().is_empty()
     }
     fn render_buffer_mut(&mut self) -> &mut TheRGBABuffer {
         #[cfg(feature = "text")]
