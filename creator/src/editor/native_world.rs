@@ -26,6 +26,16 @@ struct AssetKey {
     appearance: u64,
     geometry: u64,
 }
+impl AssetKey {
+    fn same_atlas(&self, other: &Self) -> bool {
+        self.tiles == other.tiles
+            && self.config == other.config
+            && self.palette == other.palette
+            && self.material == other.material
+            && self.appearance == other.appearance
+            && self.geometry == other.geometry
+    }
+}
 #[derive(Clone, PartialEq)]
 struct Binding {
     document: Uuid,
@@ -660,12 +670,6 @@ impl Editor {
         let Some(map) = self.project.get_map(&self.server_ctx) else {
             return false;
         };
-        // The existing Prefab canvas opens in orbit. Its 2D controller metrics
-        // still use the reference translation adapter until extracted.
-        if self.server_ctx.pc.is_prefab() && self.server_ctx.editor_view_mode == EditorViewMode::D2
-        {
-            return false;
-        }
         if self.server_ctx.editor_view_mode == EditorViewMode::D2 {
             if !matches!(map.camera, MapCamera::TwoD | MapCamera::TwoDIso) {
                 return false;
@@ -755,6 +759,21 @@ impl Editor {
             },
         })
     }
+    /// Advance only pending particle production at the editor's update cadence.
+    /// Completed VM geometry remains queryable until the next frame is prepared.
+    pub(crate) fn tick_native_world_particles(&mut self) {
+        if !self.native_world_owns_viewport() {
+            return;
+        }
+        let d2 = self.server_ctx.editor_view_mode == EditorViewMode::D2;
+        let fx = self.server_ctx.pc.is_prefab()
+            && self.server_ctx.curr_map_tool_type == MapToolType::Effects;
+        if (d2 || fx)
+            && let Some(gpu) = &mut self.native_viewport.world.gpu
+        {
+            let _ = gpu.scenes.tick_editor_particles(gpu.view, d2);
+        }
+    }
     /// CPU navigation belongs to update, before frame preparation. The renderer
     /// receives an immutable camera snapshot and never advances navigation.
     pub(crate) fn advance_native_world_camera(&mut self, ctx: &mut TheContext) -> bool {
@@ -781,7 +800,18 @@ impl Editor {
         }
         if let ProjectContext::Prefab(id) = self.server_ctx.pc {
             if let Some(paint) = self.project.block_prop_paint.get_mut(&id) {
-                paint.ensure_baked_paint_current();
+                if self.server_ctx.editor_view_mode == EditorViewMode::D2
+                    && let Some(map) = self.project.prefab_editor_map.as_ref()
+                    && map.camera == MapCamera::TwoDIso
+                {
+                    shared::iso_paint_terrain::sync(
+                        &mut RUSTERIX.write().unwrap().assets,
+                        map.id,
+                        paint,
+                    );
+                } else {
+                    paint.ensure_baked_paint_current();
+                }
             }
             return;
         }
@@ -901,9 +931,20 @@ impl Editor {
             !builds.has_pending_geometry() && builds.source_matches(map.id, binding.camera)
         };
         if gpu.configured.as_ref() != Some(&binding.assets) {
-            gpu.scenes
-                .configure_editor(gpu.view, &bridge.assets)
-                .map_err(|e| e.to_string())?;
+            if gpu
+                .configured
+                .as_ref()
+                .is_some_and(|old| old.same_atlas(&binding.assets))
+            {
+                gpu.scenes
+                    .scene_mut(gpu.view)
+                    .map_err(|e| e.to_string())?
+                    .sync_prefab_particle_sprites(&bridge.assets.block_props);
+            } else {
+                gpu.scenes
+                    .configure_editor(gpu.view, &bridge.assets)
+                    .map_err(|e| e.to_string())?;
+            }
             gpu.configured = Some(binding.assets.clone());
             gpu.scene_key = None;
         }
@@ -1808,6 +1849,14 @@ impl Editor {
             builds.has_pending_geometry(),
             builds.source_matches(map.id, map.camera)
         )
+    }
+    pub(crate) fn native_prefab_particles_for_test(&self) -> usize {
+        self.native_viewport
+            .world
+            .gpu
+            .as_ref()
+            .and_then(|gpu| gpu.scenes.scene(gpu.view).ok())
+            .map_or(0, |scene| scene.particle_debug_stats().d3.active_particles)
     }
     pub(crate) fn native_world_ready_for_test(&self) -> bool {
         self.native_viewport

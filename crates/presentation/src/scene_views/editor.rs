@@ -16,6 +16,22 @@ impl SceneViews {
         scene.set_overlay();
         Ok(())
     }
+    /// Tick the owning author's pending particle clock without modifying its
+    /// completed VM output. Input may still query that displayed frame before
+    /// prepare_editor consumes these steps. Call once per authoring update,
+    /// never once per consumer or rendered frame.
+    pub fn tick_editor_particles(&mut self, id: ViewId, two_d: bool) -> Result<()> {
+        let view = self
+            .views
+            .get_mut(&id)
+            .ok_or_else(|| RenderError("unknown scene view".into()))?;
+        if two_d {
+            view.scene.tick_particle_clock_2d();
+        } else {
+            view.scene.tick_particle_clock_3d();
+        }
+        Ok(())
+    }
     /// Publish streamed world geometry to this view without borrowing another
     /// renderer/VM. Unchanged snapshots are O(1); changed publications compare
     /// immutable chunk identities and preserve all independent overlay layers.

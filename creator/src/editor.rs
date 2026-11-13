@@ -9033,6 +9033,9 @@ impl TheTrait for Editor {
                 }
             }
 
+            #[cfg(feature = "native-render")]
+            self.tick_native_world_particles();
+
             self.server_ctx.animation_counter = self.server_ctx.animation_counter.wrapping_add(1);
             // To update animated minimaps (only for docks that need it)
             if DOCKMANAGER

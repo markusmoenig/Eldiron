@@ -4796,3 +4796,56 @@ browser, physical desktop and Apple host acceptance gates remain open. The
 locked-Mac and incompatible simulator runtime are external acceptance blockers,
 not blockers for available implementation. No M0–M9 or overall completion is
 claimed.
+
+### Prefab projection isolation and native particle cadence (2026-11-13)
+
+Extracted Prefab view switching into `creator/src/toollist/prefab_view.rs` before
+the shared region-camera handler. Switching projections updates only the isolated
+temporary map and its own stored 2D center/grid. It does not store/restore region
+anchors, change the region's camera, or consume a region's pending editing anchor.
+It resets the old navigation gesture and rebuilds the correct temporary source.
+The existing Prefab orbit presentation policy across 3D toolbar selections is
+preserved rather than silently introducing different cameras.
+
+Removed the native Prefab D2 exclusion after inspecting the actual controllers:
+Vertex/Linedef/Sector/Geometry already resolve the actual Prefab view through the
+context helper, and Paint resolves its actual viewport size. Both top-down and
+sprite-isometric Prefab output now go through the native owner. Isometric Paint
+source publication addresses the Prefab's own map/layer. Complete 2D authoring
+and save/undo parity remain separate acceptance work; a projection frame is not
+proof of every controller operation.
+
+Connected pending particle production to the private native SceneView from the
+editor's update cadence, including the intentionally live 3D Prefab FX editor.
+The clock API does not invalidate the completed VM used by input before the next
+frame is prepared. Simulation/session ticking remains separate. The historical
+2D builder still samples its own wall clock too; full clock/presentation ownership
+retirement is not claimed. Prefab-only catalog changes now refresh particle
+sprites without rebuilding unrelated shader/base-atlas/guide configuration.
+Selective sprite regeneration/removal and bounded atlas residency remain open.
+
+Verification: existing assembled Creator GPU check passed **1**, 34.13 s (22.60 s
+test build), `/private/tmp/eldiron-native-prefab-modes-root-targets.log`. It keeps
+the preceding integration coverage and additionally verifies actual private-scene
+particle production, top-down -> sprite-isometric -> 3D Prefab handoffs, native
+scene targets without CPU display storage, unchanged serialized region content,
+and zero color readback for these presentation/query paths. The refreshed
+`/private/tmp/eldiron-native-creator-prefab.png` now shows actual emitted particles
+alongside the editor handles and real controls. The reference Creator compile
+passed, 9.37 s, `/private/tmp/eldiron-native-prefab-modes-reference.log`.
+`git diff --check` passed.
+
+Earlier `eldiron-native-prefab-modes-root.log` ended at a flawed diagnostic that
+called the reference `render_buffer_mut` accessor to inspect storage. That call
+explicitly opts into/allocates a CPU image and invalidates the native publication;
+it cannot inspect an untouched native view. The corrected check reuses the
+existing native-target storage diagnostic and does not call the legacy mutable
+accessor. No rendering/source guard or acceptance requirement was relaxed.
+
+Next: complete actual Geometry/Paint/Tiles/Palette/door authoring and source
+ownership (including transformed-part effects coordinates and accepted-click
+retry), then Creator Play/common-session adoption and remaining custom contexts.
+The previous native Prefab D2 adapter and full-configuration-on-every-catalog-
+change notes are superseded by this entry. All full-workflow, visual/text/DPI,
+resource/performance/release and desktop/browser/Apple acceptance gates remain
+open. No milestone or overall completion is claimed.

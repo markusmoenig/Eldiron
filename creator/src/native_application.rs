@@ -1410,6 +1410,28 @@ mod tests {
         );
         app.input(&InputEvent::Focus(true), &mut host);
         settle_prefab(&mut app, &mut host, &mut replacement);
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while app.application.editor.native_prefab_particles_for_test() == 0 {
+            assert!(
+                Instant::now() < deadline,
+                "the owning Prefab scene must advance its particles"
+            );
+            std::thread::sleep(Duration::from_millis(50));
+            settle_prefab(&mut app, &mut host, &mut replacement);
+        }
+        for projection in [0, 1, 2] {
+            app.session.context.ui.send(TheEvent::IndexChanged(
+                TheId::named("Editor View Switch"),
+                projection,
+            ));
+            settle_prefab(&mut app, &mut host, &mut replacement);
+            assert!(
+                !app.application
+                    .editor
+                    .native_world_has_cpu_storage_for_test(),
+                "native Prefab scene targets have no CPU display storage"
+            );
+        }
         assert_eq!(
             serde_json::to_value(&app.application.editor.project_for_native_test().regions)
                 .unwrap(),

@@ -2596,6 +2596,9 @@ impl ToolList {
             }
             return redraw;
         }
+        if self.handle_prefab_view_switch(event, ui, ctx, project, server_ctx) {
+            return true;
+        }
         self.sync_props_availability(ui, ctx, project, server_ctx);
         if !self.editor_mode
             && self.current_game_tool_is("tool.blocks")
@@ -5137,3 +5140,6 @@ mod native_display;
 pub(crate) use native_display::{NativeDisplayBinding, NativeDisplayOutcome};
 
 mod scene_guides;
+
+#[path = "toollist/prefab_view.rs"]
+mod prefab_view;
