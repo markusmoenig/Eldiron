@@ -14,7 +14,7 @@ impl Editor {
     }
     pub(super) fn scepter_revision(&self) -> String {
         let mut h = DefaultHasher::new();
-        UNDOMANAGER.read().unwrap().revision().hash(&mut h);
+        self.server_ctx.history.read().revision().hash(&mut h);
         self.documents.project.procedural_materials.revision().hash(&mut h);
         self.documents.project.procedural_appearances.revision().hash(&mut h);
         self.documents.project.config.hash(&mut h);
@@ -290,7 +290,7 @@ impl Editor {
 
                 Command::ProjectUndo | Command::ProjectRedo => {
                     let undo = matches!(request.command, Command::ProjectUndo);
-                    let mut manager = UNDOMANAGER.write().unwrap();
+                    let mut manager = self.server_ctx.history.write();
                     if undo {
                         if !manager.has_undo() {
                             return Err("Nothing to undo".into());
@@ -446,7 +446,7 @@ impl Editor {
             );
         }
 
-        UNDOMANAGER.write().unwrap().add_undo(
+        self.server_ctx.history.write().add_undo(
             ProjectUndoAtom::ProjectEdit(
                 "Scepter transaction".into(),
                 Box::new(old),
@@ -1052,7 +1052,7 @@ material "surface" called "Test surface"
         let project = road_fixture();
         let mut editor = Editor::new();
         editor.documents.project = project.clone();
-        *UNDOMANAGER.write().unwrap() = UndoManager::default();
+        *editor.server_ctx.history.write() = UndoManager::default();
         let mut ui = TheUI::new();
         let mut ctx = TheContext::new(800, 600, 1.);
         let execute = |editor: &mut Editor,
@@ -1128,7 +1128,7 @@ material "surface" called "Test surface"
         );
         assert_eq!(result["ok"], true);
         assert!(!editor.documents.project.procedural_materials.contains_key(&id));
-        assert!(!UNDOMANAGER.read().unwrap().has_undo());
+        assert!(!editor.server_ctx.history.read().has_undo());
         let revision = editor.scepter_revision();
         let result = execute(
             &mut editor,

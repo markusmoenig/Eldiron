@@ -596,6 +596,7 @@ mod tests {
     #[test]
     #[ignore = "requires native GPU"]
     fn native_geometry_baked_host_selects_authored_idle_frames_and_rebuilds_sources() {
+        let creator_history = CreatorHistory::default();
         let gpu = pollster::block_on(GpuContext::headless()).unwrap();
         let (mut ui, mut ctx) = super::super::viewport_tests::fixture(1100, 800);
         ctx.ui.command_paint = true;
@@ -644,7 +645,7 @@ mod tests {
             &mut project,
             &mut ui,
             &mut ctx,
-        );
+         &creator_history);
         editor.camera = 4;
         editor.iso_output = Some(output);
         ui.prepare_paint_layout(&mut ctx);
@@ -722,6 +723,7 @@ mod tests {
     #[test]
     #[ignore = "requires native GPU"]
     fn native_geometry_contour_paint_shares_reference_layout_and_acknowledged_input() {
+        let creator_history = CreatorHistory::default();
         use theframework::paint::PaintOp;
         let gpu = pollster::block_on(GpuContext::headless()).unwrap();
         let (mut ui, mut ctx) = super::super::viewport_tests::fixture(1100, 800);
@@ -741,7 +743,7 @@ mod tests {
             &mut project,
             &mut ui,
             &mut ctx,
-        );
+         &creator_history);
         editor.camera = 3;
         editor.selected_operation = Some("outline".into());
         ui.prepare_paint_layout(&mut ctx);
@@ -837,7 +839,7 @@ mod tests {
             &mut project,
             &mut ui,
             &mut ctx,
-        );
+         &creator_history);
         assert!(editor.drag.is_none());
         assert!(editor.presented_gpu_preview(token));
         assert!(editor.native_pick_ready(&project));
@@ -868,7 +870,7 @@ mod tests {
             &mut project,
             &mut ui,
             &mut ctx,
-        );
+         &creator_history);
         assert_eq!(editor.drag.as_ref().and_then(|d| d.1), Some(0));
         // GPU receipt invalidation must not refit the CPU drag's frozen plane.
         editor.invalidate_gpu_preview(&mut ui);
@@ -879,7 +881,7 @@ mod tests {
             &mut project,
             &mut ui,
             &mut ctx,
-        );
+         &creator_history);
         assert_ne!(serde_json::to_value(&project).unwrap(), original);
         editor.update(&project, &mut ui, &mut ctx, &ServerContext::default());
         assert_eq!(
@@ -899,7 +901,7 @@ mod tests {
             .unwrap()
             .unwrap();
         assert!(editor.presented_gpu_preview(dragged));
-        editor.finish_drag(&mut project, &mut ctx, true);
+        editor.finish_drag(&mut project, &mut ctx, true, &creator_history);
         assert!(editor.contour_drag_frame.is_none());
         editor.update(&project, &mut ui, &mut ctx, &ServerContext::default());
         let restored = editor
@@ -986,6 +988,7 @@ mod tests {
     #[test]
     #[ignore = "requires native GPU"]
     fn native_geometry_host_keeps_picks_on_presented_frames_and_rebuilds_only_gpu_ownership() {
+        let creator_history = CreatorHistory::default();
         let gpu = pollster::block_on(GpuContext::headless()).unwrap();
         let (mut ui, mut ctx) = super::super::viewport_tests::fixture(1100, 800);
         ctx.ui.command_paint = true;
@@ -1005,7 +1008,7 @@ mod tests {
             &mut project,
             &mut ui,
             &mut ctx,
-        );
+         &creator_history);
         ui.prepare_paint_layout(&mut ctx);
         editor.update(&project, &mut ui, &mut ctx, &ServerContext::default());
         ui.prepare_paint_layout(&mut ctx);

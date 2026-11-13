@@ -1,6 +1,5 @@
 //! Experimental geometry workspace using the existing MZ row widget.
 use crate::{
-    editor::{UNDOMANAGER},
     material_editor::*,
     prelude::*,
 };
@@ -239,6 +238,8 @@ impl GeometryEditor {
         &mut self,
         project: &mut Project,
         ctx: &mut TheContext,
+
+        creator_history: &CreatorHistory,
     ) -> Result<Uuid, String> {
         let Some(Operation::Texture {
             source,
@@ -297,7 +298,7 @@ impl GeometryEditor {
         }
         candidate.ensure_material_tiles();
         *project = candidate;
-        UNDOMANAGER.write().unwrap().add_undo(
+        creator_history.write().add_undo(
             ProjectUndoAtom::TilePickerEdit(Box::new(before), Box::new(project.clone())),
             ctx,
         );
@@ -321,8 +322,14 @@ impl GeometryEditor {
     fn accepts_frame(&self, epoch: u64, revision: u64) -> bool {
         epoch == self.preview_epoch && revision > self.displayed_revision
     }
-    pub fn finish_drag(&mut self, project: &mut Project, ctx: &mut TheContext, cancel: bool) {
-        self.finish_scene_drag(project, ctx, cancel);
+    pub fn finish_drag(
+        &mut self,
+        project: &mut Project,
+        ctx: &mut TheContext,
+        cancel: bool,
+        creator_history: &CreatorHistory,
+    ) {
+        self.finish_scene_drag(project, ctx, cancel, creator_history);
         self.contour_drag_frame = None;
         if let Some((_, Some(_), before)) = self.drag.take() {
             if let Some(id) = self.selected {
@@ -330,7 +337,7 @@ impl GeometryEditor {
                 if cancel {
                     project.procedural_appearances.insert(id, before);
                 } else if after.as_ref() != Some(&before) {
-                    UNDOMANAGER.write().unwrap().add_undo(
+                    creator_history.write().add_undo(
                         ProjectUndoAtom::ProceduralAppearanceEdit(id, Some(before), after),
                         ctx,
                     );
@@ -391,6 +398,8 @@ impl GeometryEditor {
         doc: Document,
         project: &mut Project,
         ctx: &mut TheContext,
+
+        creator_history: &CreatorHistory,
     ) -> Result<(), String> {
         let id = self.selected.ok_or("Select a geometry asset")?;
         let next = self.encode_active(doc, project)?;
@@ -402,7 +411,7 @@ impl GeometryEditor {
         if before.as_ref() != Some(&next) {
             self.local_edit = true;
             project.procedural_appearances.insert(id, next.clone());
-            UNDOMANAGER.write().unwrap().add_undo(
+            creator_history.write().add_undo(
                 ProjectUndoAtom::ProceduralAppearanceEdit(id, before, Some(next)),
                 ctx,
             );
@@ -463,6 +472,7 @@ impl GeometryEditor {
         command: MaterialEditorCommand,
         project: &mut Project,
         ctx: &mut TheContext,
+        creator_history: &CreatorHistory,
     ) -> Result<(), String> {
         // Several commands can arrive before the next UI refresh. Always edit the
         // latest saved source, rather than the cached presentation document.
@@ -512,7 +522,7 @@ impl GeometryEditor {
                         op,
                     },
                 );
-                return self.commit(next, project, ctx);
+                return self.commit(next, project, ctx, creator_history);
             }
         }
         if let MaterialEditorCommand::SetNumber {
@@ -564,11 +574,11 @@ impl GeometryEditor {
                             .ok_or("Choose a material")?;
                         *bundle = None;
                     }
-                    return self.commit(next, project, ctx);
+                    return self.commit(next, project, ctx, creator_history);
                 }
                 _ => {
                     presentation::edit_selected(&mut next, command, &self.inspector)?;
-                    return self.commit(next, project, ctx);
+                    return self.commit(next, project, ctx, creator_history);
                 }
             }
             self.inspector_dirty = true;
@@ -576,7 +586,7 @@ impl GeometryEditor {
             return Ok(());
         }
         presentation::edit_selected(&mut next, command, &self.inspector)?;
-        self.commit(next, project, ctx)
+        self.commit(next, project, ctx, creator_history)
     }
     pub fn handle_event(
         &mut self,
@@ -584,13 +594,15 @@ impl GeometryEditor {
         project: &mut Project,
         ui: &mut TheUI,
         ctx: &mut TheContext,
+
+        creator_history: &CreatorHistory,
     ) -> bool {
-        if self.recipe_browser_event(event, project, ui, ctx)
-            || self.control_publisher_event(event, project, ui, ctx)
+        if self.recipe_browser_event(event, project, ui, ctx, creator_history)
+            || self.control_publisher_event(event, project, ui, ctx, creator_history)
         {
             return true;
         }
-        if self.asset_actions(event, project, ui, ctx) {
+        if self.asset_actions(event, project, ui, ctx, creator_history) {
             return true;
         }
         if let TheEvent::Custom(id, TheValue::Id(tile)) = event {
@@ -598,7 +610,7 @@ impl GeometryEditor {
                 if let Some(shared::isometric::TileRecipe::Geometry(recipe)) =
                     shared::isometric::tile_recipe(project, *tile)
                 {
-                    self.finish_drag(project, ctx, false);
+                    self.finish_drag(project, ctx, false, creator_history);
                     self.selected = Some(recipe);
                     self.iso_output = Some(*tile);
                     // Tile/pixel-editor delegation selects a mesh for placement. Only
@@ -641,7 +653,7 @@ impl GeometryEditor {
                 || id.name == "Open Worn Geometry"
                 || id.name == "Open Geometry Recipe"
             {
-                self.finish_drag(project, ctx, false);
+                self.finish_drag(project, ctx, false, creator_history);
                 self.selected = Some(*asset);
                 self.iso_output = None;
                 self.active = true;
@@ -661,12 +673,12 @@ impl GeometryEditor {
         if matches!(event, TheEvent::IndexChanged(id, _) if id.name == "Ruleset Material")
             || matches!(event,TheEvent::Custom(id,_) if id.name=="Open Procedural Tile")
         {
-            self.finish_drag(project, ctx, false);
+            self.finish_drag(project, ctx, false, creator_history);
             self.active = false;
             Self::mode(ui, ctx, 0);
             return false;
         }
-        match self.scene_event(event, project, ui, ctx) {
+        match self.scene_event(event, project, ui, ctx, creator_history) {
             Ok(true) => return true,
             Err(e) => {
                 Self::status(ctx, e);
@@ -681,7 +693,7 @@ impl GeometryEditor {
                     .and_then(|w| w.as_any().downcast_mut::<MaterialEditorWidget>())
                     .and_then(|w| w.number_command(id, value));
                 if let Some(command) = command {
-                    if let Err(e) = self.apply_command(command, project, ctx) {
+                    if let Err(e) = self.apply_command(command, project, ctx, creator_history) {
                         Self::status(ctx, e);
                         self.key = Some(String::new());
                         self.local_edit = false;
@@ -701,7 +713,7 @@ impl GeometryEditor {
             self.playback.playing = false;
         }
         if matches!(event,TheEvent::GainedFocus(id) if id.name!=PREVIEW) {
-            self.finish_drag(project, ctx, false);
+            self.finish_drag(project, ctx, false, creator_history);
         }
         if let TheEvent::IndexChanged(id, index) = event {
             if id.name == "MZ New Geometry" {
@@ -719,7 +731,7 @@ impl GeometryEditor {
                         project,
                         ui,
                         ctx,
-                    )
+                     creator_history)
                 });
             }
         }
@@ -740,7 +752,7 @@ impl GeometryEditor {
             TheEvent::StateChanged(id, TheWidgetState::Clicked)
                 if id.name == "MZ Edit Texture Material" =>
             {
-                match self.texture_material_for_edit(project, ctx) {
+                match self.texture_material_for_edit(project, ctx, creator_history) {
                     Ok(material) => {
                         self.active = false;
                         Self::mode(ui, ctx, 0);
@@ -762,7 +774,7 @@ impl GeometryEditor {
             TheEvent::StateChanged(id, TheWidgetState::Clicked)
                 if id.name == "MZ Use Ruleset Humanoid" =>
             {
-                self.finish_drag(project, ctx, false);
+                self.finish_drag(project, ctx, false, creator_history);
                 if let Some(source) = self
                     .selected
                     .and_then(|id| project.procedural_appearances.get(&id))
@@ -781,7 +793,7 @@ impl GeometryEditor {
                     if let Ok(source) = doc.save() {
                         let before = project.procedural_appearances.insert(id, source.clone());
                         if before.as_ref() != Some(&source) {
-                            UNDOMANAGER.write().unwrap().add_undo(
+                            creator_history.write().add_undo(
                                 ProjectUndoAtom::ProceduralAppearanceEdit(id, before, Some(source)),
                                 ctx,
                             );
@@ -800,7 +812,7 @@ impl GeometryEditor {
             TheEvent::StateChanged(id, TheWidgetState::Clicked)
                 if id.name == "MZ Close Geometry" =>
             {
-                self.finish_drag(project, ctx, false);
+                self.finish_drag(project, ctx, false, creator_history);
                 self.active = false;
                 self.playback.playing = false;
                 Self::mode(ui, ctx, if self.selected.is_some() { 2 } else { 0 });
@@ -831,13 +843,13 @@ impl GeometryEditor {
             TheEvent::StateChanged(id, TheWidgetState::Clicked)
                 if id.name == "Play" && self.active =>
             {
-                self.finish_drag(project, ctx, false);
+                self.finish_drag(project, ctx, false, creator_history);
                 self.active = false;
                 Self::mode(ui, ctx, 0);
                 return false;
             }
             TheEvent::StateChanged(id, TheWidgetState::Clicked) if id.name == "MZ Edit Group" => {
-                self.finish_drag(project, ctx, false);
+                self.finish_drag(project, ctx, false, creator_history);
                 let source = self
                     .document
                     .as_ref()
@@ -894,7 +906,7 @@ impl GeometryEditor {
                 return true;
             }
             TheEvent::StateChanged(id, TheWidgetState::Clicked) if id.name == "MZ Parent Group" => {
-                self.finish_drag(project, ctx, false);
+                self.finish_drag(project, ctx, false, creator_history);
                 if self.group_path.pop().is_some() {
                     self.key = None;
                     self.inspector = Default::default();
@@ -904,14 +916,14 @@ impl GeometryEditor {
                 return true;
             }
             TheEvent::IndexChanged(id, index) if id.name == MODE => {
-                self.finish_drag(project, ctx, false);
+                self.finish_drag(project, ctx, false, creator_history);
                 self.active = false;
                 Self::mode(ui, ctx, if *index == 1 { 2 } else { 0 });
                 self.preview_key.clear();
                 return true;
             }
             TheEvent::Custom(id, _) if id.name == "Tile Picked" => {
-                self.finish_drag(project, ctx, false);
+                self.finish_drag(project, ctx, false, creator_history);
                 if self.active {
                     self.active = false;
                     Self::mode(ui, ctx, 0);
@@ -927,7 +939,7 @@ impl GeometryEditor {
                 {
                     next.label = label.trim().chars().take(80).collect();
                     if !next.label.is_empty() {
-                        if let Err(e) = self.commit(next, project, ctx) {
+                        if let Err(e) = self.commit(next, project, ctx, creator_history) {
                             Self::status(ctx, e);
                         }
                     }
@@ -939,7 +951,7 @@ impl GeometryEditor {
                     || id.name == "MZ New Human"
                     || id.name == "MZ New Model" =>
             {
-                self.finish_drag(project, ctx, false);
+                self.finish_drag(project, ctx, false, creator_history);
                 self.active = true;
                 Self::mode(ui, ctx, 1);
                 let mut doc = if id.name == "MZ New Model" {
@@ -967,7 +979,7 @@ impl GeometryEditor {
                 doc.id = id_new.to_string();
                 let text = doc.save().unwrap();
                 project.procedural_appearances.insert(id_new, text.clone());
-                UNDOMANAGER.write().unwrap().add_undo(
+                creator_history.write().add_undo(
                     ProjectUndoAtom::ProceduralAppearanceEdit(id_new, None, Some(text)),
                     ctx,
                 );
@@ -992,7 +1004,7 @@ impl GeometryEditor {
             TheEvent::StateChanged(id, TheWidgetState::Clicked)
                 if id.name == "MZ Duplicate Geometry" =>
             {
-                self.finish_drag(project, ctx, false);
+                self.finish_drag(project, ctx, false, creator_history);
                 if let Some(mut doc) = self
                     .selected
                     .and_then(|id| project.procedural_appearances.get(&id))
@@ -1003,7 +1015,7 @@ impl GeometryEditor {
                     doc.label.push_str(" Copy");
                     if let Ok(text) = doc.save() {
                         project.procedural_appearances.insert(id, text.clone());
-                        UNDOMANAGER.write().unwrap().add_undo(
+                        creator_history.write().add_undo(
                             ProjectUndoAtom::ProceduralAppearanceEdit(id, None, Some(text)),
                             ctx,
                         );
@@ -1017,7 +1029,7 @@ impl GeometryEditor {
             TheEvent::StateChanged(id, TheWidgetState::Clicked)
                 if id.name == "MZ Delete Geometry" =>
             {
-                self.finish_drag(project, ctx, false);
+                self.finish_drag(project, ctx, false, creator_history);
                 if let Some(id) = self.selected {
                     let used = project.procedural_appearances.iter().any(|(other, text)| {
                         *other != id
@@ -1062,7 +1074,7 @@ impl GeometryEditor {
                         return true;
                     }
                     if let Some(before) = project.procedural_appearances.shift_remove(&id) {
-                        UNDOMANAGER.write().unwrap().add_undo(
+                        creator_history.write().add_undo(
                             ProjectUndoAtom::ProceduralAppearanceEdit(id, Some(before), None),
                             ctx,
                         );
@@ -1125,7 +1137,7 @@ impl GeometryEditor {
                 for command in commands {
                     match command {
                         MaterialEditorCommand::InspectOperation(operation) => {
-                            self.finish_drag(project, ctx, false);
+                            self.finish_drag(project, ctx, false, creator_history);
                             if self.selected_operation.as_ref() != Some(&operation) {
                                 self.inspector = Default::default();
                                 self.contour_frame = None;
@@ -1159,7 +1171,7 @@ impl GeometryEditor {
                             self.preview_key.clear();
                         }
                         command => {
-                            if let Err(e) = self.apply_command(command, project, ctx) {
+                            if let Err(e) = self.apply_command(command, project, ctx, creator_history) {
                                 Self::status(ctx, e);
                             }
                         }
@@ -1193,7 +1205,7 @@ impl GeometryEditor {
                 if !self.native_pick_ready(project) {
                     return true;
                 }
-                self.finish_drag(project, ctx, false);
+                self.finish_drag(project, ctx, false, creator_history);
                 if let (Some(doc), Some(frame), Some(operation)) = (
                     &self.document,
                     &self.contour_frame,
@@ -1215,7 +1227,7 @@ impl GeometryEditor {
                                 Self::status(ctx, e);
                                 return true;
                             }
-                            if let Err(e) = self.commit(next, project, ctx) {
+                            if let Err(e) = self.commit(next, project, ctx, creator_history) {
                                 Self::status(ctx, e);
                             }
                             return true;
@@ -1260,7 +1272,7 @@ impl GeometryEditor {
                             }
                             points.insert(edge + 1, q);
                         }
-                        if let Err(e) = self.commit(next, project, ctx) {
+                        if let Err(e) = self.commit(next, project, ctx, creator_history) {
                             Self::status(ctx, e);
                         }
                     }
@@ -1310,13 +1322,13 @@ impl GeometryEditor {
                 return true;
             }
             TheEvent::RenderViewUp(id, _) if id.name == PREVIEW => {
-                self.finish_drag(project, ctx, false);
+                self.finish_drag(project, ctx, false, creator_history);
                 return true;
             }
             TheEvent::KeyCodeDown(TheValue::KeyCode(TheKeyCode::Escape))
                 if self.active && self.drag.is_some() =>
             {
-                self.finish_drag(project, ctx, true);
+                self.finish_drag(project, ctx, true, creator_history);
                 self.preview_key.clear();
                 return true;
             }

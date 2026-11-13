@@ -80,7 +80,7 @@ fn publish(
         .ok_or("Select a Paint recipe")?;
     let (before, after) = crate::procedural_material::paint_assets::update_spec(project, id, spec)?;
     if before != after {
-        crate::editor::UNDOMANAGER.write().unwrap().add_undo(
+        server.history.write().add_undo(
             ProjectUndoAtom::ProceduralMaterialEdit(id, before, after),
             ctx,
         );
@@ -419,9 +419,7 @@ fn legacy_event(
                         Box::new(paint.clone()),
                     )
                 };
-                crate::editor::UNDOMANAGER
-                    .write()
-                    .unwrap()
+                server.history.write()
                     .add_undo(atom, ctx);
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Soft Update Minimap"),

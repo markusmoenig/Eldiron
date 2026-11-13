@@ -1225,7 +1225,7 @@ impl ProceduralMaterialEditor {
         project.material_compositions.insert(id, composition);
         project.procedural_materials.insert(id, bundle);
         project.place_tile_at_picker_selection(id, server.curr_tile_board_cell);
-        UNDOMANAGER.write().unwrap().add_undo(
+        server.history.write().add_undo(
             ProjectUndoAtom::TilePickerEdit(Box::new(before), Box::new(project.clone())),
             ctx,
         );
@@ -1578,7 +1578,7 @@ impl ProceduralMaterialEditor {
                 Ok(bundle) => {
                     project.material_compositions.insert(tile, after.clone());
                     project.procedural_materials.insert(tile, bundle);
-                    UNDOMANAGER.write().unwrap().add_undo(
+                    server.history.write().add_undo(
                         ProjectUndoAtom::MaterialCompositionEdit(tile, before, after),
                         ctx,
                     );

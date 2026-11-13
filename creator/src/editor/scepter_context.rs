@@ -89,7 +89,7 @@ impl Editor {
         }
         let view = self.scepter_view(ui);
         let mut hasher = DefaultHasher::new();
-        UNDOMANAGER.read().unwrap().revision().hash(&mut hasher);
+        self.server_ctx.history.read().revision().hash(&mut hasher);
         self.documents.project
             .procedural_materials
             .revision()

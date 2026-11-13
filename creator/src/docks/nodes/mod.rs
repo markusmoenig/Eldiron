@@ -1453,6 +1453,7 @@ impl Dock for NodesDock {
         project: &mut Project,
         _jobs: &CreatorJobs,
         reference: &CreatorReference,
+        _creator_history: &CreatorHistory,
     ) -> Result<bool, String> {
         #[cfg(feature = "native-ui")]
         if self.native_enabled {

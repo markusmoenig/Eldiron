@@ -1412,7 +1412,7 @@ impl Tool for BlockTool {
                             match super::props_recipe::set_control(project, asset, index, value) {
                                 Ok(()) => {
                                     shared::geometry_recipe::synchronize(project);
-                                    crate::editor::UNDOMANAGER.write().unwrap().add_undo(
+                                    server.history.write().add_undo(
                                         ProjectUndoAtom::ProjectEdit(
                                             fl!("props_recipe_controls"),
                                             Box::new(before),

@@ -1,5 +1,5 @@
 //! Create tilesets from images; Import is reserved for saved Eldiron assets.
-use crate::editor::{UNDOMANAGER};
+
 use crate::prelude::*;
 use shared::iso_bitmap::{self, ImportError, Kind, Settings};
 
@@ -487,7 +487,7 @@ impl Creator {
             after.isometric = Some(layout);
             let atom = ProjectUndoAtom::TileEdit(before, after);
             atom.redo(project, ui, ctx, server);
-            UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+            server.history.write().add_undo(atom, ctx);
         } else {
             if settings.collection.is_empty() {
                 return Err(fl!("tileset_error_name"));
@@ -566,7 +566,7 @@ impl Creator {
                     previous_context,
                 );
             }
-            UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+            server.history.write().add_undo(atom, ctx);
             if self.options.add_all {
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Reveal Tile Collection"),

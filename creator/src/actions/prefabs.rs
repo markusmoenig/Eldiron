@@ -1,4 +1,4 @@
-use crate::editor::{UNDOMANAGER};
+
 use crate::prelude::*;
 
 #[derive(Clone, Copy)]
@@ -71,7 +71,7 @@ impl PrefabAction {
             crate::utils::editor_scene_refresh_prefab_assets(&before, project, server_ctx);
         }
 
-        UNDOMANAGER.write().unwrap().add_undo(
+        server_ctx.history.write().add_undo(
             ProjectUndoAtom::ProjectEdit(label, Box::new(before), Box::new(project.clone())),
             ctx,
         );

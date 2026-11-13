@@ -751,10 +751,11 @@ impl GeometryEditor {
         project: &mut Project,
         ui: &mut TheUI,
         ctx: &mut TheContext,
+        creator_history: &CreatorHistory,
     ) -> bool {
         if matches!(event,TheEvent::IndexChanged(id,1) if id.name=="MZ Geometry Actions") {
             layout::set_choice(ui, "MZ Geometry Actions", 0);
-            self.finish_drag(project, ctx, false);
+            self.finish_drag(project, ctx, false, creator_history);
             match Publisher::new(self, project) {
                 Ok(mut p) => {
                     ui.show_dialog(TITLE, p.canvas(), vec![TheDialogButtonRole::Reject], ctx);
@@ -900,7 +901,7 @@ impl GeometryEditor {
                     }
                     let candidate = p.candidate()?;
                     let scope = std::mem::replace(&mut self.group_path, p.edit_path.clone());
-                    let result = self.commit(candidate, project, ctx);
+                    let result = self.commit(candidate, project, ctx, creator_history);
                     self.group_path = scope;
                     result?;
                     if self.group_path == p.edit_path {
@@ -1059,6 +1060,7 @@ mod tests {
     }
     #[test]
     fn visual_control_publisher_saves_one_validated_recipe_edit_and_cancel_is_non_destructive() {
+        let creator_history = CreatorHistory::default();
         let original = super::super::recipe_browser::bundled().remove(1).document;
         let (mut editor, mut project, id) = fixture(original);
         let before = project.procedural_appearances[&id].clone();
@@ -1070,7 +1072,7 @@ mod tests {
             &mut project,
             &mut ui,
             &mut ctx,
-        );
+         &creator_history);
         assert_eq!(ui.dialog_text, TITLE);
         editor.control_publisher_event(
             &TheEvent::ValueChanged(
@@ -1080,13 +1082,13 @@ mod tests {
             &mut project,
             &mut ui,
             &mut ctx,
-        );
+         &creator_history);
         editor.control_publisher_event(
             &TheEvent::ValueChanged(TheId::named("MZ Control Value"), TheValue::Float(2.)),
             &mut project,
             &mut ui,
             &mut ctx,
-        );
+         &creator_history);
         assert_eq!(project.procedural_appearances[&id], before);
         // Invalid values remain in the dialog without altering the project.
         editor.control_publisher_event(
@@ -1094,13 +1096,13 @@ mod tests {
             &mut project,
             &mut ui,
             &mut ctx,
-        );
+         &creator_history);
         editor.control_publisher_event(
             &TheEvent::StateChanged(TheId::named(SAVE), TheWidgetState::Clicked),
             &mut project,
             &mut ui,
             &mut ctx,
-        );
+         &creator_history);
         assert!(ui.dialog.is_some());
         assert_eq!(project.procedural_appearances[&id], before);
         editor.control_publisher_event(
@@ -1108,13 +1110,13 @@ mod tests {
             &mut project,
             &mut ui,
             &mut ctx,
-        );
+         &creator_history);
         editor.control_publisher_event(
             &TheEvent::StateChanged(TheId::named(SAVE), TheWidgetState::Clicked),
             &mut project,
             &mut ui,
             &mut ctx,
-        );
+         &creator_history);
         assert!(ui.dialog.is_none());
         let after = project.procedural_appearances[&id].clone();
         assert_ne!(after, before);
@@ -1137,18 +1139,19 @@ mod tests {
             &mut project,
             &mut ui,
             &mut ctx,
-        );
+         &creator_history);
         editor.control_publisher_event(
             &TheEvent::ValueChanged(TheId::named("MZ Control Value"), TheValue::Float(3.)),
             &mut project,
             &mut ui,
             &mut ctx,
-        );
+         &creator_history);
         ui.clear_dialog();
         assert_eq!(project.procedural_appearances[&id], after);
     }
     #[test]
     fn visual_control_publisher_edits_nested_groups_and_rejects_stale_sources() {
+        let creator_history = CreatorHistory::default();
         let original = super::super::recipe_browser::bundled().remove(1).document;
         let outer = original.rows[0].tiles[0].id.clone();
         let outer_controls = super::super::recipe_browser::controls(&original)
@@ -1162,9 +1165,9 @@ mod tests {
         ui.init(&mut ctx);
         let open = TheEvent::IndexChanged(TheId::named("MZ Geometry Actions"), 1);
         let save = TheEvent::StateChanged(TheId::named(SAVE), TheWidgetState::Clicked);
-        editor.control_publisher_event(&open, &mut project, &mut ui, &mut ctx);
+        editor.control_publisher_event(&open, &mut project, &mut ui, &mut ctx, &creator_history);
         editor.control_publisher.as_mut().unwrap().controls[0].label = "Published width".into();
-        editor.control_publisher_event(&save, &mut project, &mut ui, &mut ctx);
+        editor.control_publisher_event(&save, &mut project, &mut ui, &mut ctx, &creator_history);
         assert!(ui.dialog.is_none());
         let saved = Document::parse(&project.procedural_appearances[&id]).unwrap();
         let updated = super::super::recipe_browser::controls(&saved).unwrap();
@@ -1173,14 +1176,14 @@ mod tests {
         let inner = saved.group_document(&[outer]).unwrap();
         assert!(super::super::recipe_browser::controls(inner).is_none());
         assert!(saved.evaluate().is_ok());
-        editor.control_publisher_event(&open, &mut project, &mut ui, &mut ctx);
+        editor.control_publisher_event(&open, &mut project, &mut ui, &mut ctx, &creator_history);
         let mut external = saved.clone();
         external.label = "Changed elsewhere".into();
         let external_source = external.save().unwrap();
         project
             .procedural_appearances
             .insert(id, external_source.clone());
-        editor.control_publisher_event(&save, &mut project, &mut ui, &mut ctx);
+        editor.control_publisher_event(&save, &mut project, &mut ui, &mut ctx, &creator_history);
         assert!(ui.dialog.is_some());
         assert!(
             editor
@@ -1196,6 +1199,7 @@ mod tests {
     }
     #[test]
     fn visual_parameter_publishing_authors_multiple_inputs_and_persists_recipe_bindings() {
+        let creator_history = CreatorHistory::default();
         let mut original = super::super::recipe_browser::bundled().remove(0).document;
         let Operation::Group { controls, .. } = &mut original.rows[0].tiles[0].op else {
             panic!()
@@ -1212,7 +1216,7 @@ mod tests {
                     project: &mut Project,
                     ui: &mut TheUI,
                     ctx: &mut TheContext| {
-            assert!(editor.control_publisher_event(&e, project, ui, ctx));
+            assert!(editor.control_publisher_event(&e, project, ui, ctx, &creator_history));
         };
         send(
             TheEvent::IndexChanged(TheId::named("MZ Geometry Actions"), 1),
@@ -1317,6 +1321,7 @@ mod tests {
     }
     #[test]
     fn visual_formulas_insert_references_preview_validate_and_save_in_the_recipe() {
+        let creator_history = CreatorHistory::default();
         let original = Document::load(include_str!(
             "../../embedded/meshes/recipes/fence.mzgeometry.json"
         ))
@@ -1331,7 +1336,7 @@ mod tests {
                     project: &mut Project,
                     ui: &mut TheUI,
                     ctx: &mut TheContext| {
-            assert!(editor.control_publisher_event(&e, project, ui, ctx));
+            assert!(editor.control_publisher_event(&e, project, ui, ctx, &creator_history));
         };
         send(
             TheEvent::IndexChanged(TheId::named("MZ Geometry Actions"), 1),

@@ -96,7 +96,7 @@ impl Documents {
 
     /// Workspace controllers commit pending authoring edits before this call.
     /// Passing history explicitly keeps the document owner independent of the
-    /// transitional process-wide undo/dock adapters.
+    /// active application history and dock services.
     pub fn store_active(&mut self, undo: UndoManager, dock_dirty: bool) {
         let Some(session) = self.sessions.get_mut(self.active_session) else {
             return;

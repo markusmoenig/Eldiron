@@ -178,11 +178,14 @@ impl PrefabNodePane {
             }
         }
     }
-    fn apply_native_effect(&mut self, outcome: PrefabSourceApply, ctx: &mut TheContext) -> bool {
+    fn apply_native_effect(
+        &mut self,
+        outcome: PrefabSourceApply,
+        ctx: &mut TheContext,
+        creator_history: &CreatorHistory,
+    ) -> bool {
         if let Some(change) = outcome.change {
-            crate::editor::UNDOMANAGER
-                .write()
-                .unwrap()
+            creator_history.write()
                 .add_undo(ProjectUndoAtom::PrefabGraphEdit(Box::new(change)), ctx);
             ctx.ui.send(TheEvent::Custom(
                 TheId::named(super::super::blocks::BLOCKS_DOCK_SYNC_EVENT),
@@ -215,6 +218,7 @@ impl PrefabNodePane {
         ctx: &mut TheContext,
         jobs: &CreatorJobs,
         reference: &CreatorReference,
+        creator_history: &CreatorHistory,
     ) -> Result<bool, String> {
         let missing: Vec<_> = self
             .native_workspace
@@ -257,7 +261,7 @@ impl PrefabNodePane {
             }
             match self.native_workspace.cpu.apply_commit(project, &commit) {
                 Ok(outcome) => {
-                    changed |= self.apply_native_effect(outcome, ctx);
+                    changed |= self.apply_native_effect(outcome, ctx, creator_history);
                     if !model
                         .lock()
                         .unwrap()
@@ -290,12 +294,13 @@ impl PrefabNodePane {
         ctx: &mut TheContext,
         jobs: &CreatorJobs,
         reference: &CreatorReference,
+        creator_history: &CreatorHistory,
     ) -> Result<bool, String> {
         let keys: Vec<_> = self.native_workspace.views.keys().copied().collect();
         for key in keys {
             self.checkpoint_native_source(key, false);
         }
-        self.collect_native_through(u64::MAX, project, ctx, jobs, reference)
+        self.collect_native_through(u64::MAX, project, ctx, jobs, reference, creator_history)
     }
     pub(super) fn store_native_document(
         &mut self,
@@ -303,6 +308,7 @@ impl PrefabNodePane {
         ctx: &mut TheContext,
         jobs: &CreatorJobs,
         reference: &CreatorReference,
+        creator_history: &CreatorHistory,
     ) -> bool {
         let Some(key) = self
             .active_native_key()
@@ -316,7 +322,7 @@ impl PrefabNodePane {
             .commit_document(project, key, self.doc.clone())
         {
             Ok(outcome) => {
-                if self.apply_native_effect(outcome, ctx) {
+                if self.apply_native_effect(outcome, ctx, creator_history) {
                     crate::block_props::sync_existing_prefab_presentations(project, jobs, reference);
                 }
             }
@@ -417,6 +423,7 @@ impl PrefabNodePane {
         project: &mut Project,
         jobs: &CreatorJobs,
         reference: &CreatorReference,
+        creator_history: &CreatorHistory,
     ) -> Option<bool> {
         match event {
             TheEvent::WidgetResized(id, _)
@@ -428,7 +435,7 @@ impl PrefabNodePane {
             }
             TheEvent::GraphCommitted(id, commit) if id.name == VIEW => {
                 self.native_workspace.cpu.binding_source(commit.binding)?;
-                let _ = self.collect_native_through(commit.sequence, project, ctx, jobs, reference);
+                let _ = self.collect_native_through(commit.sequence, project, ctx, jobs, reference, creator_history);
                 Some(true)
             }
             TheEvent::GraphDrop(id, binding, point, drop) if id.name == VIEW => {
@@ -444,7 +451,7 @@ impl PrefabNodePane {
                     return Some(false);
                 };
                 self.checkpoint_native_source(key, true);
-                let _ = self.collect_native_through(u64::MAX, project, ctx, jobs, reference);
+                let _ = self.collect_native_through(u64::MAX, project, ctx, jobs, reference, creator_history);
                 let Some(source) = self.native_workspace.cpu.source(key) else {
                     return Some(false);
                 };
@@ -459,7 +466,7 @@ impl PrefabNodePane {
                     .native_workspace
                     .cpu
                     .commit_document(project, key, document)
-                    && self.apply_native_effect(outcome, ctx)
+                    && self.apply_native_effect(outcome, ctx, creator_history)
                 {
                     crate::block_props::sync_existing_prefab_presentations(project, jobs, reference);
                 }
@@ -481,6 +488,7 @@ impl PrefabNodePane {
         project: &mut Project,
         jobs: &CreatorJobs,
         reference: &CreatorReference,
+        creator_history: &CreatorHistory,
     ) -> Result<bool, String> {
         if self.native.is_none() {
             return Ok(false);
@@ -496,7 +504,7 @@ impl PrefabNodePane {
         if !domain {
             return Ok(false);
         }
-        let _ = self.commit_native_pending(project, ctx, jobs, reference);
+        let _ = self.commit_native_pending(project, ctx, jobs, reference, creator_history);
         if matches!(event, TheEvent::NewListItemSelected(id, _) if id.name == "Prefab Branch")
             && let Some(error) = &self.store_error
         {
@@ -598,7 +606,7 @@ mod tests {
         reference: CreatorReference,
     }
     impl Fixture {
-        fn new() -> Self {
+        fn new(creator_history: &CreatorHistory) -> Self {
             let mut project = Project::default();
             let mut asset = rusterix::BlockPropAsset::new("Native fixture");
             asset
@@ -639,7 +647,7 @@ mod tests {
                 jobs: CreatorJobs::default(),
                 reference: CreatorReference::default(),
             };
-            f.pump();
+            f.pump(creator_history);
             f.paint();
             assert!(f.ui.get_widget(VIEW).unwrap().as_any().is::<TheGraphView>());
             assert!(f.pane.resources.is_none());
@@ -658,7 +666,7 @@ mod tests {
             self.ui.prepare_paint_layout(&mut self.ctx);
             self.ui.dispatch_input(&event, &mut self.ctx)
         }
-        fn pump(&mut self) {
+        fn pump(&mut self, creator_history: &CreatorHistory) {
             for _ in 0..32 {
                 self.ui.process_events(&mut self.ctx);
                 let events: Vec<_> = self.events.try_iter().collect();
@@ -670,7 +678,7 @@ mod tests {
                         self.undo_signals += 1;
                     }
                     self.pane
-                        .handle(&event, &mut self.ui, &mut self.ctx, &mut self.project, &self.jobs, &self.reference);
+                        .handle(&event, &mut self.ui, &mut self.ctx, &mut self.project, &self.jobs, &self.reference, creator_history);
                 }
             }
             panic!("native prefab events must settle");
@@ -728,27 +736,28 @@ mod tests {
                 .unwrap()
                 .name
         }
-        fn commit(&mut self) -> Result<bool, String> {
+        fn commit(&mut self, creator_history: &CreatorHistory) -> Result<bool, String> {
             self.pane
-                .commit_native_pending(&mut self.project, &mut self.ctx, &self.jobs, &self.reference)
+                .commit_native_pending(&mut self.project, &mut self.ctx, &self.jobs, &self.reference, creator_history)
         }
     }
 
     #[test]
     fn native_prefab_edits_compile_serialize_once_and_do_not_construct_world_renderers() {
+        let creator_history = CreatorHistory::default();
         let isolated = std::env::var_os("ELDIRON_NATIVE_PREFAB_ISOLATED").is_some();
         if isolated {
             // No global reference owner exists; data-only APIs receive no service.
             // No process-global scene preparation service exists.
         }
-        let mut f = Fixture::new();
+        let mut f = Fixture::new(&creator_history);
         let first = f.first;
         let second = f.second;
         f.click("prefab_part", "name");
         f.command(EditorCommand::SelectAll);
         f.send(InputEvent::Text("e\u{301}日本".into()));
         f.send(key(PhysicalKey::Enter));
-        f.pump();
+        f.pump(&creator_history);
         assert_eq!(f.first_name(), "e\u{301}日本");
         assert_eq!(
             f.project.block_props[&f.asset]
@@ -761,8 +770,8 @@ mod tests {
             f.undo_signals, 1,
             "one native transaction enables one project undo entry"
         );
-        assert!(!f.commit().unwrap());
-        f.pump();
+        assert!(!f.commit(&creator_history).unwrap());
+        f.pump(&creator_history);
         assert_eq!(f.undo_signals, 1);
         let bytes = shared::project_io::encode_project(&f.project).unwrap();
         let loaded = shared::project_io::decode_project(&bytes).unwrap();
@@ -789,7 +798,8 @@ mod tests {
 
     #[test]
     fn native_prefab_save_barrier_keeps_ime_and_ignores_an_earlier_queued_commit() {
-        let mut f = Fixture::new();
+        let creator_history = CreatorHistory::default();
+        let mut f = Fixture::new(&creator_history);
         f.click("prefab_part", "name");
         f.command(EditorCommand::SelectAll);
         f.send(InputEvent::Text("First commit".into()));
@@ -805,17 +815,17 @@ mod tests {
             cursor: None,
         });
         assert!(f.pane.has_native_pending());
-        assert!(f.commit().unwrap());
+        assert!(f.commit(&creator_history).unwrap());
         assert_eq!(f.first_name(), "Saved draft");
         assert_eq!(f.state().target, target);
         f.send(key(PhysicalKey::Enter));
         assert!(f.model().lock().unwrap().editor().text_focus().is_some());
-        f.pump();
+        f.pump(&creator_history);
         assert_eq!(f.undo_signals, 2);
         assert_eq!(f.first_name(), "Saved draft");
         f.command(EditorCommand::Undo);
-        assert!(f.commit().unwrap());
-        f.pump();
+        assert!(f.commit(&creator_history).unwrap());
+        f.pump(&creator_history);
         assert_eq!(f.first_name(), "First commit");
         assert_eq!(f.undo_signals, 3);
         assert!(!f.pane.has_native_pending());
@@ -823,7 +833,8 @@ mod tests {
 
     #[test]
     fn native_prefab_branch_and_project_replacement_reject_old_transactions_and_text_callbacks() {
-        let mut f = Fixture::new();
+        let creator_history = CreatorHistory::default();
+        let mut f = Fixture::new(&creator_history);
         f.click("prefab_part", "name");
         f.command(EditorCommand::SelectAll);
         let target = f.state().target;
@@ -839,18 +850,18 @@ mod tests {
             &mut f.ctx,
             &mut f.project,
             &f.jobs,
-         &f.reference);
+         &f.reference, &creator_history);
         assert_eq!(f.pane.part, Some(f.second));
         assert_eq!(f.first_name(), "Saved first");
         assert_ne!(f.model().lock().unwrap().binding(), old.binding);
-        f.pump();
+        f.pump(&creator_history);
         f.pane.handle(
             &TheEvent::GraphCommitted(TheId::named(VIEW), old.clone()),
             &mut f.ui,
             &mut f.ctx,
             &mut f.project,
             &f.jobs,
-         &f.reference);
+         &f.reference, &creator_history);
         assert_eq!(
             f.project.block_props[&f.asset]
                 .find_part(f.second)
@@ -863,7 +874,7 @@ mod tests {
             target,
             text: "stale".into(),
         });
-        f.pump();
+        f.pump(&creator_history);
         assert_eq!(
             f.project.block_props[&f.asset]
                 .find_part(f.second)
@@ -880,7 +891,7 @@ mod tests {
             &mut f.ctx,
             &mut f.project,
             &f.jobs,
-         &f.reference);
+         &f.reference, &creator_history);
         assert_eq!(f.first_name(), "Saved first");
         assert!(f.pane.resources.is_none());
             assert!(!f.reference.initialized());
@@ -889,7 +900,8 @@ mod tests {
     #[test]
     fn native_prefab_validation_preserves_the_draft_until_correction_and_never_updates_compiled_geometry()
      {
-        let mut f = Fixture::new();
+        let creator_history = CreatorHistory::default();
+        let mut f = Fixture::new(&creator_history);
         let pivot = f.project.block_props[&f.asset]
             .find_part(f.first)
             .unwrap()
@@ -898,7 +910,7 @@ mod tests {
         f.command(EditorCommand::SelectAll);
         f.send(InputEvent::Text("not a number".into()));
         let target = f.state().target;
-        assert!(f.commit().is_err());
+        assert!(f.commit(&creator_history).is_err());
         assert_eq!(
             f.project.block_props[&f.asset]
                 .find_part(f.first)
@@ -917,7 +929,7 @@ mod tests {
             &mut f.ctx,
             &mut f.project,
             &f.jobs,
-         &f.reference);
+         &f.reference, &creator_history);
         assert_eq!(
             f.pane.part,
             Some(f.first),
@@ -927,8 +939,8 @@ mod tests {
         f.click("prefab_transform", "pivot_x");
         f.command(EditorCommand::SelectAll);
         f.send(InputEvent::Text("1.25".into()));
-        assert!(f.commit().unwrap());
-        f.pump();
+        assert!(f.commit(&creator_history).unwrap());
+        f.pump(&creator_history);
         assert_eq!(
             f.project.block_props[&f.asset]
                 .find_part(f.first)
@@ -943,9 +955,10 @@ mod tests {
     }
     #[test]
     fn native_prefab_source_switch_keeps_completed_and_unsubmitted_edits_owned_by_their_source() {
+        let creator_history = CreatorHistory::default();
         for other_asset in [false, true] {
             for submitted in [false, true] {
-                let mut f = Fixture::new();
+                let mut f = Fixture::new(&creator_history);
                 f.click("prefab_part", "name");
                 f.command(EditorCommand::SelectAll);
                 f.send(InputEvent::Text("Before switch".into()));
@@ -979,9 +992,9 @@ mod tests {
                 // Keep the previous GraphCommitted wake-up queued until afterward.
                 f.pane
                     .load(&f.project, asset, Some(part), &mut f.ui, &mut f.ctx);
-                f.pump();
-                f.commit().unwrap();
-                f.pump();
+                f.pump(&creator_history);
+                f.commit(&creator_history).unwrap();
+                f.pump(&creator_history);
                 assert_eq!(
                     f.first_name(),
                     "Before switch",
@@ -1002,8 +1015,8 @@ mod tests {
                     text: "stale".into(),
                     cursor: None,
                 });
-                assert!(!f.commit().unwrap());
-                f.pump();
+                assert!(!f.commit(&creator_history).unwrap());
+                f.pump(&creator_history);
                 assert_eq!(f.first_name(), "Before switch");
                 assert_eq!(
                     f.project.block_props[&asset].find_part(part).unwrap().name,
@@ -1020,7 +1033,8 @@ mod tests {
     #[test]
     fn retained_prefab_sources_consume_a_later_notification_in_global_order_and_do_not_replay_old_wakeups()
      {
-        let mut f = Fixture::new();
+        let creator_history = CreatorHistory::default();
+        let mut f = Fixture::new(&creator_history);
         f.click("prefab_part", "name");
         f.command(EditorCommand::SelectAll);
         f.send(InputEvent::Text("A1".into()));
@@ -1052,8 +1066,8 @@ mod tests {
             &mut f.ctx,
             &mut f.project,
             &f.jobs,
-         &f.reference);
-        f.pump();
+         &f.reference, &creator_history);
+        f.pump(&creator_history);
         assert_eq!(f.first_name(), "A2");
         assert_eq!(
             f.project.block_props[&f.asset]
@@ -1063,27 +1077,28 @@ mod tests {
             "B1"
         );
         assert_eq!(f.undo_signals, 3);
-        assert!(!f.commit().unwrap());
-        f.pump();
+        assert!(!f.commit(&creator_history).unwrap());
+        f.pump(&creator_history);
         assert_eq!(f.undo_signals, 3);
         assert!(!f.pane.has_native_pending());
     }
 
     #[test]
     fn retained_invalid_prefab_source_does_not_block_other_source_edits_and_can_be_revisited() {
-        let mut f = Fixture::new();
+        let creator_history = CreatorHistory::default();
+        let mut f = Fixture::new(&creator_history);
         f.click("prefab_transform", "pivot_x");
         f.command(EditorCommand::SelectAll);
         f.send(InputEvent::Text("invalid".into()));
-        assert!(f.commit().is_err());
-        f.pump();
+        assert!(f.commit(&creator_history).is_err());
+        f.pump(&creator_history);
         f.pane
             .load(&f.project, f.asset, Some(f.second), &mut f.ui, &mut f.ctx);
         f.click("prefab_part", "name");
         f.command(EditorCommand::SelectAll);
         f.send(InputEvent::Text("Valid second".into()));
         f.send(key(PhysicalKey::Enter));
-        f.pump();
+        f.pump(&creator_history);
         assert_eq!(
             f.project.block_props[&f.asset]
                 .find_part(f.second)
@@ -1103,14 +1118,14 @@ mod tests {
             &mut f.ctx,
             &mut f.project,
             &f.jobs,
-         &f.reference);
+         &f.reference, &creator_history);
         assert_eq!(f.pane.part, Some(f.first));
         assert!(f.pane.store_error.is_some());
         f.click("prefab_transform", "pivot_x");
         f.command(EditorCommand::SelectAll);
         f.send(InputEvent::Text("1.5".into()));
-        assert!(f.commit().unwrap());
-        f.pump();
+        assert!(f.commit(&creator_history).unwrap());
+        f.pump(&creator_history);
         assert_eq!(
             f.project.block_props[&f.asset]
                 .find_part(f.first)
@@ -1131,7 +1146,8 @@ mod tests {
 
     #[test]
     fn native_prefab_save_leaves_an_unfinished_node_drag_with_the_view_until_release() {
-        let mut f = Fixture::new();
+        let creator_history = CreatorHistory::default();
+        let mut f = Fixture::new(&creator_history);
         let dim = *f.ui.get_widget(VIEW).unwrap().dim();
         let model = f.model();
         let model = model.lock().unwrap();
@@ -1161,7 +1177,7 @@ mod tests {
             .unwrap()
             .position;
         assert!(f.model().lock().unwrap().editor().is_gesturing());
-        assert!(!f.commit().unwrap());
+        assert!(!f.commit(&creator_history).unwrap());
         assert!(f.model().lock().unwrap().editor().is_gesturing());
         assert_eq!(
             f.model()
@@ -1180,7 +1196,7 @@ mod tests {
             pressed: false,
             position: moved,
         });
-        f.pump();
+        f.pump(&creator_history);
         assert!(!f.model().lock().unwrap().editor().is_gesturing());
         let stored = &f.project.prefab_graphs[&f.asset]
             .branches
@@ -1202,7 +1218,8 @@ mod tests {
 
     #[test]
     fn native_prefab_imports_keep_source_ids_without_persisting_until_an_actual_edit() {
-        let mut f = Fixture::new();
+        let creator_history = CreatorHistory::default();
+        let mut f = Fixture::new(&creator_history);
         f.pane.reset_native_project();
         f.project.prefab_graphs.shift_remove(&f.asset);
         f.pane
@@ -1222,7 +1239,7 @@ mod tests {
         f.command(EditorCommand::SelectAll);
         f.send(InputEvent::Text("Imported edit".into()));
         f.send(key(PhysicalKey::Enter));
-        f.pump();
+        f.pump(&creator_history);
         assert_eq!(f.first_name(), "Imported edit");
         assert_eq!(f.model().lock().unwrap().binding(), binding);
         assert_eq!(f.undo_signals, 1);
@@ -1230,7 +1247,8 @@ mod tests {
 
     #[test]
     fn native_prefab_project_reset_revokes_all_retained_source_bindings_and_queued_edits() {
-        let mut f = Fixture::new();
+        let creator_history = CreatorHistory::default();
+        let mut f = Fixture::new(&creator_history);
         f.click("prefab_part", "name");
         f.command(EditorCommand::SelectAll);
         f.send(InputEvent::Text("Old A".into()));
@@ -1252,9 +1270,9 @@ mod tests {
         assert!(second.lock().unwrap().pending_commits().next().is_none());
         f.pane
             .load(&f.project, f.asset, Some(f.first), &mut f.ui, &mut f.ctx);
-        f.pump();
-        assert!(!f.commit().unwrap());
-        f.pump();
+        f.pump(&creator_history);
+        assert!(!f.commit(&creator_history).unwrap());
+        f.pump(&creator_history);
         assert_eq!(f.first_name(), "First");
         assert_eq!(
             f.project.block_props[&f.asset]
@@ -1268,16 +1286,17 @@ mod tests {
 
     #[test]
     fn native_prefab_external_undo_rebinds_the_source_and_clears_the_obsolete_error() {
-        let mut f = Fixture::new();
+        let creator_history = CreatorHistory::default();
+        let mut f = Fixture::new(&creator_history);
         let before = f.project.clone();
         f.click("prefab_part", "name");
         f.command(EditorCommand::SelectAll);
         f.send(InputEvent::Text("Committed rename".into()));
-        assert!(f.commit().unwrap());
+        assert!(f.commit(&creator_history).unwrap());
         f.click("prefab_transform", "pivot_x");
         f.command(EditorCommand::SelectAll);
         f.send(InputEvent::Text("invalid".into()));
-        assert!(f.commit().is_err());
+        assert!(f.commit(&creator_history).is_err());
         let old_target = f.state().target;
         let old_binding = f.model().lock().unwrap().binding();
         f.project = before;
@@ -1290,14 +1309,15 @@ mod tests {
             target: old_target,
             text: "stale".into(),
         });
-        f.pump();
+        f.pump(&creator_history);
         assert_eq!(f.first_name(), "First");
         assert_eq!(f.project.block_props[&f.asset].parts[0].pivot[0], 0.);
     }
 
     #[test]
     fn native_prefab_drop_is_addressed_and_keeps_its_input_camera_coordinates() {
-        let mut f = Fixture::new();
+        let creator_history = CreatorHistory::default();
+        let mut f = Fixture::new(&creator_history);
         let before = f.pane.doc.nodes.len();
         let model = f.model();
         let (binding, expected) = {
@@ -1316,7 +1336,7 @@ mod tests {
             .lock()
             .unwrap()
             .edit(|_, editor| editor.viewport.pan = [999., 777.]);
-        f.pump();
+        f.pump(&creator_history);
         assert_eq!(f.pane.doc.nodes.len(), before + 1);
         assert_eq!(f.pane.doc.nodes.last().unwrap().position, expected);
         assert_eq!(f.undo_signals, 1);
@@ -1331,7 +1351,7 @@ mod tests {
             &mut f.ctx,
             &mut f.project,
             &f.jobs,
-         &f.reference);
+         &f.reference, &creator_history);
         assert_eq!(f.pane.doc.nodes.len(), before + 1);
         assert!(f.pane.resources.is_none());
             assert!(!f.reference.initialized());
@@ -1340,9 +1360,10 @@ mod tests {
     #[test]
     #[ignore = "requires a native GPU"]
     fn native_prefab_pane_paints_on_shared_gpu_without_a_cpu_graph_cache() {
+        let creator_history = CreatorHistory::default();
         use renderkit::*;
         use theframework::render_wgpu::{PaintRenderer, UiImages};
-        let mut f = Fixture::new();
+        let mut f = Fixture::new(&creator_history);
         f.click("prefab_part", "name");
         f.command(EditorCommand::SelectAll);
         let target = f.state().target;
@@ -1422,7 +1443,7 @@ mod tests {
             text: "日本".into(),
         });
         f.send(key(PhysicalKey::Enter));
-        f.pump();
+        f.pump(&creator_history);
         assert_eq!(f.first_name(), "日本");
         assert_eq!(f.undo_signals, 1);
     }

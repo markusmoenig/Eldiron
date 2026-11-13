@@ -134,6 +134,7 @@ pub trait Dock: Send + Sync {
         _project: &mut Project,
         _jobs: &CreatorJobs,
         _reference: &CreatorReference,
+        creator_history: &CreatorHistory,
     ) -> Result<bool, String> {
         Ok(false)
     }

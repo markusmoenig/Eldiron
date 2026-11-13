@@ -431,6 +431,8 @@ impl GeometryEditor {
         project: &mut Project,
         ui: &mut TheUI,
         ctx: &mut TheContext,
+
+        creator_history: &CreatorHistory,
     ) -> Result<Uuid, String> {
         let name = name.trim();
         if name.is_empty() {
@@ -444,7 +446,7 @@ impl GeometryEditor {
             .map_err(|e| e.to_string())?;
         let text = doc.save().map_err(|e| e.to_string())?;
         project.procedural_appearances.insert(id, text.clone());
-        UNDOMANAGER.write().unwrap().add_undo(
+        creator_history.write().add_undo(
             ProjectUndoAtom::ProceduralAppearanceEdit(id, None, Some(text)),
             ctx,
         );
@@ -476,10 +478,11 @@ impl GeometryEditor {
         project: &mut Project,
         ui: &mut TheUI,
         ctx: &mut TheContext,
+        creator_history: &CreatorHistory,
     ) -> bool {
         if matches!(event,TheEvent::StateChanged(id,TheWidgetState::Clicked) if id.name=="MZ New Box")
         {
-            self.finish_drag(project, ctx, false);
+            self.finish_drag(project, ctx, false, creator_history);
             let mut browser = Browser::new(project);
             ui.show_dialog(
                 TITLE,
@@ -565,7 +568,7 @@ impl GeometryEditor {
             }
             TheEvent::StateChanged(id, TheWidgetState::Clicked) if id.name == CREATE => {
                 if let Some(doc) = browser.draft.clone() {
-                    match self.install_browser_recipe(doc, &browser.name, project, ui, ctx) {
+                    match self.install_browser_recipe(doc, &browser.name, project, ui, ctx, creator_history) {
                         Ok(_) => {
                             ui.clear_dialog();
                             ctx.ui.relayout = true;
@@ -646,6 +649,7 @@ mod tests {
 
     #[test]
     fn recipe_browser_creates_an_independent_named_source_and_keeps_draft_changes_local() {
+        let creator_history = CreatorHistory::default();
         let mut project = Project::default();
         let mut editor = GeometryEditor::default();
         let mut ui = TheUI::new();
@@ -654,7 +658,7 @@ mod tests {
         let mut draft = source.clone();
         controls_mut(&mut draft).unwrap()[0].value = 2.5;
         let id = editor
-            .install_browser_recipe(draft, "Long wall", &mut project, &mut ui, &mut ctx)
+            .install_browser_recipe(draft, "Long wall", &mut project, &mut ui, &mut ctx, &creator_history)
             .unwrap();
         let created = Document::load(&project.procedural_appearances[&id]).unwrap();
         assert_eq!(created.label, "Long wall");
@@ -712,6 +716,7 @@ mod tests {
     }
     #[test]
     fn recipe_browser_displays_and_recomputes_derived_values_without_rewriting_formulas() {
+        let creator_history = CreatorHistory::default();
         let mut project = Project::default();
         let mut editor = GeometryEditor::default();
         let mut ui = TheUI::new();
@@ -722,7 +727,7 @@ mod tests {
             &mut project,
             &mut ui,
             &mut ctx,
-        );
+         &creator_history);
         let fence = editor
             .recipe_browser
             .as_ref()
@@ -738,7 +743,7 @@ mod tests {
             &mut project,
             &mut ui,
             &mut ctx,
-        );
+         &creator_history);
         let draft = editor
             .recipe_browser
             .as_ref()
@@ -756,7 +761,7 @@ mod tests {
             &mut project,
             &mut ui,
             &mut ctx,
-        );
+         &creator_history);
         assert!(
             (ui.get_widget_value(&format!("MZ Recipe Control {length}"))
                 .unwrap()
@@ -774,7 +779,7 @@ mod tests {
             &mut project,
             &mut ui,
             &mut ctx,
-        );
+         &creator_history);
         let draft = editor
             .recipe_browser
             .as_ref()
@@ -799,6 +804,7 @@ mod tests {
     #[test]
     #[ignore = "writes native UI review captures under ignored generated/"]
     fn recipe_browser_and_publisher_native_dialog_review() {
+        let creator_history = CreatorHistory::default();
         let (mut ui, mut ctx) = super::super::viewport_tests::fixture(1100, 800);
         ui.init(&mut ctx);
         let rx = ui.add_state_listener("recipe browser review".into());
@@ -811,7 +817,7 @@ mod tests {
             &mut project,
             &mut ui,
             &mut ctx,
-        );
+         &creator_history);
         let corner = editor
             .recipe_browser
             .as_ref()
@@ -827,7 +833,7 @@ mod tests {
             &mut project,
             &mut ui,
             &mut ctx,
-        );
+         &creator_history);
         fn capture(
             editor: &mut GeometryEditor,
             project: &mut Project,
@@ -835,13 +841,14 @@ mod tests {
             ctx: &mut TheContext,
             rx: &std::sync::mpsc::Receiver<TheEvent>,
             path: &str,
+            creator_history: &CreatorHistory,
         ) {
             let mut pixels = vec![0; 1100 * 800 * 4];
             for _ in 0..3 {
                 ui.draw(&mut pixels, ctx);
                 ui.process_events(ctx);
                 while let Ok(e) = rx.try_recv() {
-                    editor.handle_event(&e, project, ui, ctx);
+                    editor.handle_event(&e, project, ui, ctx, creator_history);
                 }
             }
             std::fs::create_dir_all("../generated/mz-recipe-browser").unwrap();
@@ -851,7 +858,7 @@ mod tests {
             )
             .unwrap();
         }
-        capture(&mut editor, &mut project, &mut ui, &mut ctx, &rx, "browser");
+        capture(&mut editor, &mut project, &mut ui, &mut ctx, &rx, "browser", &creator_history);
         let dialog = ui.dialog.as_ref().unwrap().dim;
         for name in [
             "MZ Recipe Category",
@@ -874,7 +881,7 @@ mod tests {
             &mut project,
             &mut ui,
             &mut ctx,
-        );
+         &creator_history);
         assert!(ui.dialog.is_none());
         let id = editor.selected.unwrap();
         assert!(shared::isometric::synchronize(&mut project).is_empty());
@@ -884,7 +891,7 @@ mod tests {
             &mut project,
             &mut ui,
             &mut ctx,
-        );
+         &creator_history);
         capture(
             &mut editor,
             &mut project,
@@ -892,7 +899,7 @@ mod tests {
             &mut ctx,
             &rx,
             "publisher",
-        );
+         &creator_history);
         for name in [
             "MZ Control Label",
             "MZ Control Value",
@@ -910,8 +917,8 @@ mod tests {
             &mut project,
             &mut ui,
             &mut ctx,
-        );
-        capture(&mut editor, &mut project, &mut ui, &mut ctx, &rx, "inputs");
+         &creator_history);
+        capture(&mut editor, &mut project, &mut ui, &mut ctx, &rx, "inputs", &creator_history);
         let d = *ui.get_widget("MZ Parameter Search").unwrap().dim();
         let point = Vec2::new(d.x + d.width / 2, d.y + d.height / 2);
         assert_eq!(
@@ -935,7 +942,7 @@ mod tests {
             &mut project,
             &mut ui,
             &mut ctx,
-        );
+         &creator_history);
         capture(
             &mut editor,
             &mut project,
@@ -943,13 +950,13 @@ mod tests {
             &mut ctx,
             &rx,
             "inputs-filtered",
-        );
+         &creator_history);
         let d = *ui.get_layout("MZ Parameter Choices").unwrap().dim();
         ui.touch_down((d.x + 30) as f32, (d.y + 22) as f32, &mut ctx);
         ui.touch_up((d.x + 30) as f32, (d.y + 22) as f32, &mut ctx);
         ui.process_events(&mut ctx);
         while let Ok(e) = rx.try_recv() {
-            editor.handle_event(&e, &mut project, &mut ui, &mut ctx);
+            editor.handle_event(&e, &mut project, &mut ui, &mut ctx, &creator_history);
         }
         assert!(ui.popover.is_none());
         assert!(ui.dialog.is_some());
@@ -958,13 +965,13 @@ mod tests {
             &mut project,
             &mut ui,
             &mut ctx,
-        );
+         &creator_history);
         editor.handle_event(
             &TheEvent::StateChanged(TheId::named("MZ Control Save"), TheWidgetState::Clicked),
             &mut project,
             &mut ui,
             &mut ctx,
-        );
+         &creator_history);
         assert!(ui.dialog.is_none());
         assert!(shared::isometric::synchronize(&mut project).is_empty());
         assert_ne!(original_tile.isometric, project.tiles[&id].isometric);
@@ -983,14 +990,14 @@ mod tests {
             .position(|c| c.id == "length")
             .unwrap();
         editor
-            .install_browser_recipe(fence, "Derived fence", &mut project, &mut ui, &mut ctx)
+            .install_browser_recipe(fence, "Derived fence", &mut project, &mut ui, &mut ctx, &creator_history)
             .unwrap();
         editor.handle_event(
             &TheEvent::IndexChanged(TheId::named("MZ Geometry Actions"), 1),
             &mut project,
             &mut ui,
             &mut ctx,
-        );
+         &creator_history);
         editor.handle_event(
             &TheEvent::NewListItemSelected(
                 TheId::named(&format!("MZ Published Control {length}")),
@@ -999,7 +1006,7 @@ mod tests {
             &mut project,
             &mut ui,
             &mut ctx,
-        );
+         &creator_history);
         capture(
             &mut editor,
             &mut project,
@@ -1007,7 +1014,7 @@ mod tests {
             &mut ctx,
             &rx,
             "derived-publisher",
-        );
+         &creator_history);
         for name in [
             "MZ Control Expression",
             "MZ Control Insert Reference",
@@ -1024,7 +1031,7 @@ mod tests {
             &mut project,
             &mut ui,
             &mut ctx,
-        );
+         &creator_history);
         capture(
             &mut editor,
             &mut project,
@@ -1032,7 +1039,7 @@ mod tests {
             &mut ctx,
             &rx,
             "references",
-        );
+         &creator_history);
         assert!(ui.get_widget("MZ Reference Choice 0").is_some());
         let search = *ui.get_widget("MZ Parameter Search").unwrap().dim();
         assert_eq!(
@@ -1131,6 +1138,7 @@ mod tests {
     }
     #[test]
     fn integer_repeat_controls_work_from_browser_through_visual_publisher() {
+        let creator_history = CreatorHistory::default();
         let mut project = Project::default();
         let mut editor = GeometryEditor::default();
         let mut ui = TheUI::new();
@@ -1141,7 +1149,7 @@ mod tests {
             &mut project,
             &mut ui,
             &mut ctx,
-        );
+         &creator_history);
         let posts = editor
             .recipe_browser
             .as_ref()
@@ -1157,7 +1165,7 @@ mod tests {
             &mut project,
             &mut ui,
             &mut ctx,
-        );
+         &creator_history);
         editor.handle_event(
             &TheEvent::ValueChanged(
                 TheId::named("MZ Recipe Control 0"),
@@ -1166,13 +1174,13 @@ mod tests {
             &mut project,
             &mut ui,
             &mut ctx,
-        );
+         &creator_history);
         editor.handle_event(
             &TheEvent::StateChanged(TheId::named(CREATE), TheWidgetState::Clicked),
             &mut project,
             &mut ui,
             &mut ctx,
-        );
+         &creator_history);
         let id = editor.selected.unwrap();
         let doc = Document::load(&project.procedural_appearances[&id]).unwrap();
         assert_eq!(doc.evaluate().unwrap().mesh.parts.len(), 8);
@@ -1181,19 +1189,19 @@ mod tests {
             &mut project,
             &mut ui,
             &mut ctx,
-        );
+         &creator_history);
         editor.handle_event(
             &TheEvent::ValueChanged(TheId::named("MZ Control Value"), TheValue::Int(6)),
             &mut project,
             &mut ui,
             &mut ctx,
-        );
+         &creator_history);
         editor.handle_event(
             &TheEvent::StateChanged(TheId::named("MZ Control Save"), TheWidgetState::Clicked),
             &mut project,
             &mut ui,
             &mut ctx,
-        );
+         &creator_history);
         assert!(ui.dialog.is_none());
         let doc = Document::load(&project.procedural_appearances[&id]).unwrap();
         assert_eq!(doc.evaluate().unwrap().mesh.parts.len(), 6);

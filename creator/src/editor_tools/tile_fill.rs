@@ -50,6 +50,7 @@ impl EditorTool for TileFillTool {
         server_ctx: &mut ServerContext,
         _jobs: &CreatorJobs,
         _reference: &CreatorReference,
+        _creator_history: &CreatorHistory,
     ) -> bool {
         if let TheEvent::TileEditorClicked(id, coord) = event
             && id.name == "Tile Editor Dock RGBA Layout View"

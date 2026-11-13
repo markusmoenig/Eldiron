@@ -1,6 +1,8 @@
 //! Creator-owned authoring services. Shared runtime/project helpers receive the
 //! CPU context through explicit borrows; they never own the editor's camera.
+mod history;
 mod jobs;
+pub use history::CreatorHistory;
 mod reference;
 mod reference_minimap;
 pub use jobs::CreatorJobs;
@@ -13,6 +15,7 @@ pub struct CreatorContext {
     pub shared: shared::context::ServerContext,
     pub camera: EditCamera,
     pub config: ConfigEditor,
+    pub history: CreatorHistory,
     pub sidebar_mode: SidebarMode,
     pub jobs: CreatorJobs,
     pub reference: CreatorReference,
@@ -28,6 +31,7 @@ impl CreatorContext {
             shared: shared::context::ServerContext::new(),
             camera: EditCamera::new(),
             config: ConfigEditor::new(),
+            history: CreatorHistory::default(),
             sidebar_mode: SidebarMode::Region,
             jobs: CreatorJobs::default(),
             reference: CreatorReference::default(),

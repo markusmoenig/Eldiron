@@ -1,7 +1,6 @@
 use crate::editor::{
     ACTIONLIST, DOCKMANAGER,
-    TOOLLIST, UNDOMANAGER,
-};
+    TOOLLIST, };
 use crate::minimap::{draw_minimap, draw_minimap_context_label, minimap_bbox_for_map};
 use crate::prelude::*;
 use crate::undo::project_helper::*;
@@ -743,7 +742,7 @@ impl Sidebar {
         runtime: Option<eldiron_runtime::RegionInspection<'_>>,
     ) -> bool {
         if self.tileset_creator.event(event,ui,ctx,project,server_ctx){return true;}
-        if crate::item_appearance::handle_event(event, project, ctx, &server_ctx.reference) {
+        if crate::item_appearance::handle_event(event, project, ctx, &server_ctx.reference, &server_ctx.history) {
             return true;
         }
         let mut redraw = self
@@ -895,7 +894,7 @@ impl Sidebar {
                                 new_count,
                             );
                             atom.redo(project, ui, ctx, server_ctx);
-                            UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                            server_ctx.history.write().add_undo(atom, ctx);
                         }
                     }
                 } else if id.name.starts_with("Avatar Perspective Icons ") {
@@ -1021,7 +1020,7 @@ impl Sidebar {
                                             project.palette.clone(),
                                             project.palette_materials.clone(),
                                         );
-                                        UNDOMANAGER.write().unwrap().add_undo(undo, ctx);
+                                        server_ctx.history.write().add_undo(undo, ctx);
                                     }
                                     crate::undo::project_helper::refresh_palette_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                                 }
@@ -1759,7 +1758,7 @@ impl Sidebar {
                     {
                         let atom = ProjectUndoAtom::RenameRegion(id.uuid, old, name);
                         atom.redo(project, ui, ctx, server_ctx);
-                        UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                        server_ctx.history.write().add_undo(atom, ctx);
                     }
                 } else if id.name.starts_with("Character Item Name Edit") {
                     // Rename a Character
@@ -1773,7 +1772,7 @@ impl Sidebar {
                     {
                         let atom = ProjectUndoAtom::RenameCharacter(id.uuid, old, name);
                         atom.redo(project, ui, ctx, server_ctx);
-                        UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                        server_ctx.history.write().add_undo(atom, ctx);
                     }
                 } else if id.name.starts_with("Item Item Name Edit") {
                     // Rename an item
@@ -1787,7 +1786,7 @@ impl Sidebar {
                     {
                         let atom = ProjectUndoAtom::RenameItem(id.uuid, old, name);
                         atom.redo(project, ui, ctx, server_ctx);
-                        UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                        server_ctx.history.write().add_undo(atom, ctx);
                     }
                 } else if id.name.starts_with("Tilemap Item Name Edit") {
                     // Rename a Tilemap
@@ -1801,7 +1800,7 @@ impl Sidebar {
                     {
                         let atom = ProjectUndoAtom::RenameTilemap(id.uuid, old, name);
                         atom.redo(project, ui, ctx, server_ctx);
-                        UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                        server_ctx.history.write().add_undo(atom, ctx);
                     }
                 } else if id.name.starts_with("Tilemap Item Grid Edit") {
                     // Edit Tilemap Grid Size
@@ -1815,7 +1814,7 @@ impl Sidebar {
                     {
                         let atom = ProjectUndoAtom::EditTilemapGridSize(id.references, old, size);
                         atom.redo(project, ui, ctx, server_ctx);
-                        UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                        server_ctx.history.write().add_undo(atom, ctx);
                     }
                 } else if id.name.starts_with("Screen Item Name Edit") {
                     // Rename a Screen
@@ -1829,7 +1828,7 @@ impl Sidebar {
                     {
                         let atom = ProjectUndoAtom::RenameScreen(id.uuid, old, name);
                         atom.redo(project, ui, ctx, server_ctx);
-                        UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                        server_ctx.history.write().add_undo(atom, ctx);
                     }
                 } else if id.name.starts_with("Asset Item Name Edit") {
                     // Rename an Asset
@@ -1843,7 +1842,7 @@ impl Sidebar {
                     {
                         let atom = ProjectUndoAtom::RenameAsset(id.uuid, old, name);
                         atom.redo(project, ui, ctx, server_ctx);
-                        UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                        server_ctx.history.write().add_undo(atom, ctx);
                     }
                 } else if id.name.starts_with("Avatar Item Name Edit") {
                     // Rename an Avatar
@@ -1857,7 +1856,7 @@ impl Sidebar {
                     {
                         let atom = ProjectUndoAtom::RenameAvatar(id.uuid, old, name);
                         atom.redo(project, ui, ctx, server_ctx);
-                        UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                        server_ctx.history.write().add_undo(atom, ctx);
                     }
                 } else if id.name.starts_with("Avatar Item Resolution Edit") {
                     // Change Avatar Resolution
@@ -1872,7 +1871,7 @@ impl Sidebar {
                                     new_res,
                                 );
                                 atom.redo(project, ui, ctx, server_ctx);
-                                UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                                server_ctx.history.write().add_undo(atom, ctx);
                             }
                         }
                     }
@@ -1892,7 +1891,7 @@ impl Sidebar {
                                     avatar_id, anim_id, old, name,
                                 );
                                 atom.redo(project, ui, ctx, server_ctx);
-                                UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                                server_ctx.history.write().add_undo(atom, ctx);
                             }
                         }
                     }
@@ -1908,7 +1907,7 @@ impl Sidebar {
                                     avatar_id, anim_id, old_count, new_count,
                                 );
                                 atom.redo(project, ui, ctx, server_ctx);
-                                UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                                server_ctx.history.write().add_undo(atom, ctx);
                             }
                         }
                     }
@@ -1929,7 +1928,7 @@ impl Sidebar {
                                     avatar_id, anim_id, old_speed, new_speed,
                                 );
                                 atom.redo(project, ui, ctx, server_ctx);
-                                UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                                server_ctx.history.write().add_undo(atom, ctx);
                             }
                         }
                     }
@@ -1977,7 +1976,7 @@ impl Sidebar {
                                     project.palette.clone(),
                                     project.palette_materials.clone(),
                                 );
-                                UNDOMANAGER.write().unwrap().add_undo(undo, ctx);
+                                server_ctx.history.write().add_undo(undo, ctx);
 
                                 apply_palette(ui, ctx, &mut server_ctx.shared, project, &server_ctx.reference);
                                 ctx.ui.send(TheEvent::Custom(
@@ -2082,7 +2081,7 @@ impl Sidebar {
 
                                 let atom = ProjectUndoAtom::AddAsset(asset);
                                 atom.redo(project, ui, ctx, server_ctx);
-                                UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                                server_ctx.history.write().add_undo(atom, ctx);
                             }
                         }
                     }
@@ -2107,7 +2106,7 @@ impl Sidebar {
 
                                 let atom = ProjectUndoAtom::AddAsset(asset);
                                 atom.redo(project, ui, ctx, server_ctx);
-                                UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                                server_ctx.history.write().add_undo(atom, ctx);
                             }
                         }
                     }
@@ -2177,7 +2176,7 @@ impl Sidebar {
 
                         let atom = ProjectUndoAtom::AddRegion(region);
                         atom.redo(project, ui, ctx, server_ctx);
-                        UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                        server_ctx.history.write().add_undo(atom, ctx);
                     }
                 } else if id.name == "Region Export" {
                     if let Some(region) = project.get_region(&id.uuid) {
@@ -2210,7 +2209,7 @@ impl Sidebar {
 
                         let atom = ProjectUndoAtom::AddCharacter(character);
                         atom.redo(project, ui, ctx, server_ctx);
-                        UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                        server_ctx.history.write().add_undo(atom, ctx);
                     }
                 } else if id.name == "Avatar Import" {
                     for p in paths {
@@ -2225,7 +2224,7 @@ impl Sidebar {
 
                         let atom = ProjectUndoAtom::AddAvatar(avatar);
                         atom.redo(project, ui, ctx, server_ctx);
-                        UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                        server_ctx.history.write().add_undo(atom, ctx);
                     }
                 } else if id.name == "Character Export" {
                     if let Some(character) = project.characters.get(&id.uuid) {
@@ -2310,7 +2309,7 @@ impl Sidebar {
 
                         let atom = ProjectUndoAtom::AddItem(item);
                         atom.redo(project, ui, ctx, server_ctx);
-                        UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                        server_ctx.history.write().add_undo(atom, ctx);
                     }
                 } else if id.name == "Item Export" {
                     if let Some(item) = project.items.get(&id.uuid) {
@@ -2350,7 +2349,7 @@ impl Sidebar {
                         match result {
                             Ok(legacy) => {
                                 let atom=if legacy {ProjectUndoAtom::AddTilemap(after.tilemaps.pop().expect("validated sheet asset"))}else{ProjectUndoAtom::TilePickerEdit(Box::new(before),Box::new(after))};
-                                atom.redo(project,ui,ctx,server_ctx);UNDOMANAGER.write().unwrap().add_undo(atom,ctx);
+                                atom.redo(project,ui,ctx,server_ctx);server_ctx.history.write().add_undo(atom,ctx);
                                 ctx.ui.send(TheEvent::Custom(TheId::named("Update Tiles"),TheValue::Empty));redraw=true;
                             }
                             Err(error)=>ctx.ui.send(TheEvent::SetStatusText(id.clone(),error)),
@@ -2395,7 +2394,7 @@ impl Sidebar {
                                     server_ctx.pc,
                                 );
                                 atom.redo(project, ui, ctx, server_ctx);
-                                UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                                server_ctx.history.write().add_undo(atom, ctx);
                             }
                             Err(error) => ctx.ui.send(TheEvent::SetStatusText(
                                 TheId::empty(),
@@ -2439,7 +2438,7 @@ impl Sidebar {
 
                         let atom = ProjectUndoAtom::AddAsset(asset);
                         atom.redo(project, ui, ctx, server_ctx);
-                        UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                        server_ctx.history.write().add_undo(atom, ctx);
                     }
                 } else if id.name == "Audio Asset Import" {
                     for p in paths {
@@ -2451,7 +2450,7 @@ impl Sidebar {
 
                         let atom = ProjectUndoAtom::AddAsset(asset);
                         atom.redo(project, ui, ctx, server_ctx);
-                        UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                        server_ctx.history.write().add_undo(atom, ctx);
                     }
                 } else if id.name == "Font Asset Export" {
                     if let Some(asset) = project.assets.get(&id.uuid) {
@@ -2538,7 +2537,7 @@ impl Sidebar {
                     // Use undo system to add tilemap
                     let atom = ProjectUndoAtom::AddTilemap(tilemap);
                     atom.redo(project, ui, ctx, server_ctx);
-                    UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                    server_ctx.history.write().add_undo(atom, ctx);
 
                     redraw = true;
                 } else if id.name == "Avatar Atlas Import" {
@@ -2548,7 +2547,7 @@ impl Sidebar {
                             Ok(frame_count) => {
                                 let atom = ProjectUndoAtom::EditAvatar(id.uuid, before, after);
                                 atom.redo(project, ui, ctx, server_ctx);
-                                UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                                server_ctx.history.write().add_undo(atom, ctx);
                                 ctx.ui.send(TheEvent::SetStatusText(
                                     TheId::empty(),
                                     fl!(
@@ -2676,7 +2675,7 @@ impl Sidebar {
                             project.palette.clone(),
                             project.palette_materials.clone(),
                         );
-                        UNDOMANAGER.write().unwrap().add_undo(undo, ctx);
+                        server_ctx.history.write().add_undo(undo, ctx);
 
                         apply_palette(ui, ctx, &mut server_ctx.shared, project, &server_ctx.reference);
 
@@ -2824,7 +2823,7 @@ impl Sidebar {
                         project.palette.clone(),
                         project.palette_materials.clone(),
                     );
-                    UNDOMANAGER.write().unwrap().add_undo(undo, ctx);
+                    server_ctx.history.write().add_undo(undo, ctx);
                 } else if id.name == "Palette Import" {
                     ctx.ui.open_file_requester(
                         TheId::named_with_id(id.name.as_str(), Uuid::new_v4()),
@@ -2885,7 +2884,7 @@ impl Sidebar {
                     }
                     let atom = ProjectUndoAtom::AddRegion(region);
                     atom.redo(project, ui, ctx, server_ctx);
-                    UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                    server_ctx.history.write().add_undo(atom, ctx);
                 } else if id.name == "Import Region" {
                     if let Some(id) = server_ctx.pc.id() {
                         if server_ctx.pc.is_region() {
@@ -2903,7 +2902,7 @@ impl Sidebar {
                     // Add Character
                     let atom = ProjectUndoAtom::AddCharacter(Character::default());
                     atom.redo(project, ui, ctx, server_ctx);
-                    UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                    server_ctx.history.write().add_undo(atom, ctx);
                 } else if id.name == "Import Character" {
                     if let Some(id) = server_ctx.pc.id() {
                         ctx.ui.open_file_requester(
@@ -2946,12 +2945,12 @@ impl Sidebar {
                     // Add Item
                     let atom = ProjectUndoAtom::AddItem(Item::default());
                     atom.redo(project, ui, ctx, server_ctx);
-                    UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                    server_ctx.history.write().add_undo(atom, ctx);
                 } else if id.name == "Add Screen" {
                     // Add Screen
                     let atom = ProjectUndoAtom::AddScreen(Screen::default());
                     atom.redo(project, ui, ctx, server_ctx);
-                    UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                    server_ctx.history.write().add_undo(atom, ctx);
                 } else if id.name == "Add Font Asset" {
                     // Add Font Asset - open font file requester
                     ctx.ui.open_file_requester(
@@ -2983,7 +2982,7 @@ impl Sidebar {
                     // Add Avatar
                     let atom = ProjectUndoAtom::AddAvatar(Avatar::default());
                     atom.redo(project, ui, ctx, server_ctx);
-                    UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                    server_ctx.history.write().add_undo(atom, ctx);
                 } else if id.name == "Import Item" {
                     if let Some(id) = server_ctx.pc.id() {
                         ctx.ui.open_file_requester(
@@ -3055,7 +3054,7 @@ impl Sidebar {
                                 character,
                             );
                             atom.redo(project, ui, ctx, server_ctx);
-                            UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                            server_ctx.history.write().add_undo(atom, ctx);
                         } else if let Some(instance_id) =
                             server_ctx.pc.get_region_item_instance_id()
                         {
@@ -3079,7 +3078,7 @@ impl Sidebar {
                                 item,
                             );
                             atom.redo(project, ui, ctx, server_ctx);
-                            UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                            server_ctx.history.write().add_undo(atom, ctx);
                         } else {
                             // Remove Region
                             let mut region = Region::default();
@@ -3092,7 +3091,7 @@ impl Sidebar {
                             {
                                 let atom = ProjectUndoAtom::RemoveRegion(index, region);
                                 atom.redo(project, ui, ctx, server_ctx);
-                                UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                                server_ctx.history.write().add_undo(atom, ctx);
                             }
                         }
                     } else if server_ctx.pc.is_character() {
@@ -3106,7 +3105,7 @@ impl Sidebar {
                             if let Some(index) = project.characters.get_index_of(&id) {
                                 let atom = ProjectUndoAtom::RemoveCharacter(index, character);
                                 atom.redo(project, ui, ctx, server_ctx);
-                                UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                                server_ctx.history.write().add_undo(atom, ctx);
                             }
                         }
                     } else if let ProjectContext::AvatarAnimation(avatar_id, anim_id, _) =
@@ -3124,7 +3123,7 @@ impl Sidebar {
                                 animation.clone(),
                             );
                             atom.redo(project, ui, ctx, server_ctx);
-                            UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                            server_ctx.history.write().add_undo(atom, ctx);
                         }
                     } else if let ProjectContext::Avatar(avatar_id) = server_ctx.pc {
                         // Remove Avatar
@@ -3133,7 +3132,7 @@ impl Sidebar {
                         {
                             let atom = ProjectUndoAtom::RemoveAvatar(index, avatar);
                             atom.redo(project, ui, ctx, server_ctx);
-                            UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                            server_ctx.history.write().add_undo(atom, ctx);
                         }
                     } else if server_ctx.pc.is_item() {
                         // Remove Item
@@ -3146,7 +3145,7 @@ impl Sidebar {
                             if let Some(index) = project.items.get_index_of(&id) {
                                 let atom = ProjectUndoAtom::RemoveItem(index, item);
                                 atom.redo(project, ui, ctx, server_ctx);
-                                UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                                server_ctx.history.write().add_undo(atom, ctx);
                             }
                         }
                     } else if server_ctx.pc.is_tilemap() {
@@ -3162,7 +3161,7 @@ impl Sidebar {
                             {
                                 let atom = ProjectUndoAtom::RemoveTilemap(index, tilemap);
                                 atom.redo(project, ui, ctx, server_ctx);
-                                UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                                server_ctx.history.write().add_undo(atom, ctx);
                             }
                         }
                     } else if server_ctx.pc.is_screen() {
@@ -3176,7 +3175,7 @@ impl Sidebar {
                             if let Some(index) = project.screens.get_index_of(&id) {
                                 let atom = ProjectUndoAtom::RemoveScreen(index, screen);
                                 atom.redo(project, ui, ctx, server_ctx);
-                                UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                                server_ctx.history.write().add_undo(atom, ctx);
                             }
                         }
                     } else if server_ctx.pc.is_asset() {
@@ -3190,7 +3189,7 @@ impl Sidebar {
                             if let Some(index) = project.assets.get_index_of(&id) {
                                 let atom = ProjectUndoAtom::RemoveAsset(index, asset);
                                 atom.redo(project, ui, ctx, server_ctx);
-                                UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                                server_ctx.history.write().add_undo(atom, ctx);
                             }
                         }
                     }
@@ -3222,7 +3221,7 @@ impl Sidebar {
                             );
                             update_region(ctx, &server_ctx.reference);
                             let undo = ProjectUndoAtom::RemoveRegion(insert_index, duplicated);
-                            UNDOMANAGER.write().unwrap().add_undo(undo, ctx);
+                            server_ctx.history.write().add_undo(undo, ctx);
                             redraw = true;
                         }
                     } else if server_ctx.pc.is_character() {
@@ -3255,7 +3254,7 @@ impl Sidebar {
                             update_region(ctx, &server_ctx.reference);
                             let undo =
                                 ProjectUndoAtom::RemoveCharacter(insert_index, duplicated.clone());
-                            UNDOMANAGER.write().unwrap().add_undo(undo, ctx);
+                            server_ctx.history.write().add_undo(undo, ctx);
                             redraw = true;
                         }
                     } else if server_ctx.pc.is_item() {
@@ -3285,7 +3284,7 @@ impl Sidebar {
                             );
                             update_region(ctx, &server_ctx.reference);
                             let undo = ProjectUndoAtom::RemoveItem(insert_index, duplicated);
-                            UNDOMANAGER.write().unwrap().add_undo(undo, ctx);
+                            server_ctx.history.write().add_undo(undo, ctx);
                             redraw = true;
                         }
                     } else if server_ctx.pc.is_screen() {
@@ -3317,7 +3316,7 @@ impl Sidebar {
                             );
                             update_region(ctx, &server_ctx.reference);
                             let undo = ProjectUndoAtom::RemoveScreen(insert_index, duplicated);
-                            UNDOMANAGER.write().unwrap().add_undo(undo, ctx);
+                            server_ctx.history.write().add_undo(undo, ctx);
                             redraw = true;
                         }
                     } else {
@@ -3354,7 +3353,7 @@ impl Sidebar {
                             );
                             update_region(ctx, &server_ctx.reference);
                             let undo = ProjectUndoAtom::RemoveAvatar(insert_index, duplicated);
-                            UNDOMANAGER.write().unwrap().add_undo(undo, ctx);
+                            server_ctx.history.write().add_undo(undo, ctx);
                             redraw = true;
                         }
                     }
@@ -3741,7 +3740,7 @@ impl Sidebar {
                             .collect();
                         let atom = ProjectUndoAtom::AddAvatarAnimation(id.references, anim);
                         atom.redo(project, ui, ctx, server_ctx);
-                        UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                        server_ctx.history.write().add_undo(atom, ctx);
                         redraw = true;
                     }
                 } else if id.name == "Item Item Code Edit" {
@@ -4308,7 +4307,7 @@ impl Sidebar {
         ui.set_widget_disabled_state("Region Remove", ctx, region_id.is_none());
         ui.set_widget_disabled_state("Region Settings", ctx, region_id.is_none());
 
-        if UNDOMANAGER.read().unwrap().has_undo() {
+        if server_ctx.history.read().has_undo() {
             ctx.ui.set_enabled("Undo");
             ctx.ui.set_enabled("Redo");
         }
@@ -5229,14 +5228,14 @@ impl Sidebar {
                     } else {
                         false
                     };
-                UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
+                server_ctx.history.write().add_undo(undo_atom, ctx);
                 if !used_incremental {
                     return true;
                 }
                 server_ctx.reference.write().set_dirty();
                 return false;
             }
-            UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
+            server_ctx.history.write().add_undo(undo_atom, ctx);
             server_ctx.reference.write().set_dirty();
         }
 

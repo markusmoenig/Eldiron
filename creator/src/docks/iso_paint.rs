@@ -1,4 +1,4 @@
-use crate::editor::UNDOMANAGER;
+
 use crate::prelude::*;
 use rusterix::material_library::{
     MATERIAL_FINISH_NAMES as MATERIAL_FINISH_VALUES,
@@ -4027,7 +4027,7 @@ impl Dock for IsoPaintDock {
                             Box::new(new_paint),
                         ),
                     };
-                    UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
+                    server_ctx.history.write().add_undo(undo_atom, ctx);
                     ctx.ui.redraw_all = true;
                     ctx.ui.send(TheEvent::SetStatusText(
                         TheId::empty(),
@@ -4066,7 +4066,7 @@ impl Dock for IsoPaintDock {
                                 Box::new(new_paint),
                             ),
                         };
-                        UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
+                        server_ctx.history.write().add_undo(undo_atom, ctx);
                         ctx.ui.redraw_all = true;
                         ctx.ui.send(TheEvent::SetStatusText(
                             TheId::empty(),
@@ -4106,7 +4106,7 @@ impl Dock for IsoPaintDock {
                                 Box::new(new_paint),
                             ),
                         };
-                        UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
+                        server_ctx.history.write().add_undo(undo_atom, ctx);
                         ctx.ui.redraw_all = true;
                         ctx.ui.send(TheEvent::SetStatusText(
                             TheId::empty(),

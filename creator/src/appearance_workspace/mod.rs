@@ -357,7 +357,7 @@ impl AppearanceWorkspace {
                                 ),
                                 project,
                                 ctx,
-                             &server.reference);
+                             &server.reference, &server.history);
                         }
                         return true;
                     }

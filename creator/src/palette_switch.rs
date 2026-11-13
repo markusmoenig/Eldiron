@@ -1,5 +1,5 @@
 //! Palette replacement is previewed, then committed as one project edit.
-use crate::{editor::UNDOMANAGER, prelude::*, undo::project_atoms::ProjectUndoAtom};
+use crate::{prelude::*, undo::project_atoms::ProjectUndoAtom};
 use shared::palette::{PaletteState, PaletteSwitch};
 mod lospec;
 const DIALOG: &str = "Switch Project Palette";
@@ -221,7 +221,7 @@ impl PaletteSwitchController {
                             return true;
                         }
                         plan.after.apply(project);
-                        UNDOMANAGER.write().unwrap().add_undo(
+                        server.history.write().add_undo(
                             ProjectUndoAtom::PaletteSwitch(
                                 Box::new(plan.before),
                                 Box::new(plan.after),

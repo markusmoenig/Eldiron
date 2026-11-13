@@ -1,4 +1,4 @@
-use crate::editor::UNDOMANAGER;
+
 use crate::prelude::*;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
@@ -1208,7 +1208,7 @@ impl Action for BuildProcedural {
             || old_map.linedefs != new_map.linedefs
             || old_map.sectors != new_map.sectors;
         if map_changed {
-            UNDOMANAGER.write().unwrap().add_undo(
+            server_ctx.history.write().add_undo(
                 ProjectUndoAtom::MapEdit(server_ctx.pc, Box::new(old_map), Box::new(new_map)),
                 ctx,
             );

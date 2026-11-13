@@ -1388,7 +1388,7 @@ mod acceptance {
             editor.documents.project = project;
             editor.server_ctx.curr_region = editor.documents.project.regions[0].id;
             editor.server_ctx.pc = ProjectContext::Region(editor.server_ctx.curr_region);
-            *UNDOMANAGER.write().unwrap() = UndoManager::default();
+            *editor.server_ctx.history.write() = UndoManager::default();
             let mut ui = TheUI::new();
             let mut ctx = TheContext::new(1024, 768, 1.);
             let original = snapshot(&editor.documents.project);
@@ -1446,7 +1446,7 @@ mod acceptance {
             let undo = invoke(&mut editor, ScepterCommand::ProjectUndo, &mut ui, &mut ctx);
             assert_eq!(undo["ok"], true);
             assert!(!editor.documents.project.regions[0].characters.contains_key(&npc));
-            assert!(!UNDOMANAGER.read().unwrap().has_undo());
+            assert!(!editor.server_ctx.history.read().has_undo());
             // Selection is view state and can differ after explicit selection; clear it before comparing authoring state.
             for r in &mut editor.documents.project.regions {
                 r.map.clear_selection();

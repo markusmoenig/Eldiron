@@ -1,5 +1,5 @@
 use crate::actions::geometry_face_ops::surface_segment_points;
-use crate::editor::{ACTIONLIST, DOCKMANAGER, UNDOMANAGER};
+use crate::editor::{ACTIONLIST, DOCKMANAGER};
 use crate::editor_display::{
     EditorDisplay, EditorDisplayOwner, EditorDisplayResult, EditorDisplaySession,
 };
@@ -2535,7 +2535,7 @@ impl ToolList {
                     }
                 }
             }
-            UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
+            server_ctx.history.write().add_undo(undo_atom, ctx);
         }
     }
 
@@ -2685,7 +2685,7 @@ impl ToolList {
             };
             if should_forward_to_tool {
                 return self.editor_tools[self.curr_editor_tool]
-                    .handle_event(event, ui, ctx, project, &mut server_ctx.shared, &server_ctx.jobs, &server_ctx.reference);
+                    .handle_event(event, ui, ctx, project, &mut server_ctx.shared, &server_ctx.jobs, &server_ctx.reference, &server_ctx.history);
             }
         }
 
@@ -4060,7 +4060,7 @@ impl ToolList {
                             server_ctx.shared.moved_item_surface_placements.clear();
 
                             for atom in move_atoms {
-                                UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                                server_ctx.history.write().add_undo(atom, ctx);
                             }
                         }
                     } else {

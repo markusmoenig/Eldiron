@@ -1,4 +1,4 @@
-use crate::prelude::CreatorReference;
+use crate::prelude::{CreatorHistory, CreatorReference};
 pub mod tile_draw;
 pub mod tile_eraser;
 pub mod tile_fill;
@@ -45,6 +45,7 @@ pub trait EditorTool: Send + Sync {
         server_ctx: &mut ServerContext,
         jobs: &CreatorJobs,
         reference: &CreatorReference,
+        creator_history: &CreatorHistory,
     ) -> bool {
         false
     }

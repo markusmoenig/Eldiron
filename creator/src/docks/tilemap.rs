@@ -1,4 +1,4 @@
-use crate::editor::UNDOMANAGER;
+
 use crate::prelude::*;
 use rusterix::TileRole;
 
@@ -302,7 +302,7 @@ impl Dock for TilemapDock {
                             let atom =
                                 ProjectUndoAtom::TilePickerEdit(Box::new(before), Box::new(after));
                             atom.redo(project, ui, ctx, _server_ctx);
-                            UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                            _server_ctx.history.write().add_undo(atom, ctx);
                             self.clear(ui);
                             self.sync_used(project, ui);
                             ctx.ui.send(TheEvent::Custom(

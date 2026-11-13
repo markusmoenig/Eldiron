@@ -1,4 +1,4 @@
-use crate::{editor::UNDOMANAGER, prelude::*};
+use crate::{prelude::*};
 
 pub struct ClearPalette {
     id: TheId,
@@ -59,7 +59,7 @@ impl Action for ClearPalette {
             project.palette.clone(),
             project.palette_materials.clone(),
         );
-        UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
+        server_ctx.history.write().add_undo(undo_atom, ctx);
     }
 
     fn params(&self) -> TheNodeUI {

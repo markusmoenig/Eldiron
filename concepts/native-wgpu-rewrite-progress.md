@@ -9448,3 +9448,97 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   OPEN, Goal ACTIVE. Concurrent networking concept untouched/excluded. Next
   substantial app-owner work is history/undo and remaining tool/action/dock owners;
   native3D clipboard/bake/world-mode adapters and final retirement also remain.
+
+### Application-owned Creator history (active, 2026-11-14)
+
+- Cache/palette checkpoint4420515c committed21 files with all available checks;
+  concurrent networking concept unchanged. Continued the larger UndoManager owner.
+- Added CPU-only CreatorHistory under CreatorContext, with owned Arc/RwLock
+  guards (same scoped-guard pattern as reference service). Inactive document
+  sessions retain their existing UndoManager snapshots; no serialized Project,
+  undo atom, revision or saved-checkpoint semantics changed in this first pass.
+- Replaced the process-wide UNDOMANAGER definition/callers; read/write access now
+  comes from actual context or explicit CreatorHistory arguments for narrow
+  authoring helpers. EditorTool dispatch is being wired to the same explicit
+  history service. Owned guards permit undo callbacks to borrow authoring state
+  without borrowing the whole context. Unique revision allocation stays a plain
+  atomic ID allocator, not an active-history owner.
+- Mechanical import cleanup left4 empty use statements; corrected. Second
+  canonical check reaches91 unwired call arguments, with no other compiler error
+  class. First propagation pass wired those calls and9 intermediate helpers.
+  Diagnostic edits validate exact source hashes and UTF-8 byte→character offsets;
+  avoid repeating older reference migration's byte-position corruption. Only
+  history-bearing signatures receive formatting, not whole large source files.
+- Remaining work: converge canonical compile, compile all test callers, verify
+  per-app histories/document switching/dirty+saved/undo+redo/Scepter revision
+  guards, then batch feature/assembled/browser/Apple validation. No history tests
+  pass claimed yet. Batch UNCOMMITTED; Goal active. Potential pre-existing
+  ProjectUndo.saved_index branching/retention issue identified during audit;
+  investigate separately after ownership compiles, preserving serialization.
+- Canonical native history library compile PASS9.13s after6 iterations. Pending
+  authoring-draft commit APIs now also receive explicit history through Dock /
+  DockManager; this preserves CPU-only Save/Play/transition behavior. Four unused
+  implementation parameters renamed with underscore; no global UNDOMANAGER
+  references remain (including old commented code). Test callers still compiling.
+- Added meaningful CPU tests using actual RenameAsset authoring atoms, real undo/
+  redo callbacks and document-style history snapshots: per-context isolation,
+  callback borrowing, branch-after-save and retention/zero-capacity saved state.
+  These also check no engine/GPU initialization. The latter two are expected to
+  expose the pre-existing ProjectUndo index-only checkpoint issue; do not claim
+  them passing or change serialized project formats to repair it.
+- Test caller propagation converged in4 builds: canonical native TEST BUILD
+  PASS22.89s; all missing history arguments resolved, including standalone CPU
+  Prefab/geometry fixtures and Dock pending-commit protocols. No global manager
+  remains. New isolation/actual undo+redo/snapshot test PASS; expected focused RED
+  confirms2 saved-state defects (2failed/1passed0.42s): replacement branch inherits
+  discarded future's saved index; retention falsely marks its different origin
+  clean. Log owned-history-checkpoints-red.log. This is existing ProjectUndo
+  behavior, independent of moving ownership; fix required for dirty/save parity.
+- ProjectUndo.saved_index now Option<isize>, matching the earlier PixelUndo
+  checkpoint policy. Branching invalidates an unreachable future save; retention
+  invalidates saves older than the retained origin; mark_saved restores a valid
+  checkpoint. ProjectUndo is Clone/Debug runtime state, NOT project serialization.
+  No authored schema/bytes or undo atom layout changed. Fifth build/focused GREEN
+  pending; no broad pass claimed yet. Continue actual document/dirty/Scepter/
+  undo tests and batched feature/host checks after focused results.
+- Fifth canonical native TEST BUILD PASS22.78s. Focused history GREEN PASS3/0.38s:
+  independent active managers, actual undo/redo borrowing their context, cloned
+  document history snapshots, branch saved-state revocation, retention origin and
+  zero-history unsaved state; no engine/GPU initialization. Native reference
+  Creator compile PASS8.41s. Logs owned-history-checkpoints-{red,green}.log.
+- Staticlib/browser builds now run for the coherent history/checkpoint batch.
+  Next one serial ordinary Creator regression suite (shared tool/dock globals
+  still preclude claiming parallel fixture isolation), assembled native workflow,
+  and actual browser branch-save/Undo/Redo/unsaved-close proof plus Swift host.
+  Do not repeat unrelated glyph/visibility suites in isolation; existing assembled
+  checkpoint covers integrations. All broader results still pending, uncommitted.
+- Full ordinary serial run completed623 PASS /1 FAIL /107 ignored251.45s.
+  Sole failure viewport_drag_saves_once_and_escape_restores_source was fixture
+  wiring: it published edits into its explicit creator_history, then constructed
+  a DIFFERENT context and undid that empty context's history. Repaired fixture
+  to create one context first and pass that same owner through drag/undo/redo.
+  All623 other cases already passed; do not rerun unchanged broad cases solely
+  for this test-only correction. Sixth native test build/failed-case check next.
+- Browser first save/rename succeeds, but project-Undo probe timed out clean
+  because the text field retained undo focus. Existing Editor routing correctly
+  prioritizes focused text undo. Preserve that behavior. Probe now explicitly
+  focuses the world via acknowledged right-button down/up (no movement) before
+  project toolbar Undo/Redo, with a fresh fixture to discard prior local-editor
+  test state. This is test routing correction, not a production policy change.
+- Reference DEFAULT-feature test executable also compiled PASS44.05s; current
+  native staticlib PASS17.41s, browser release PASS35.81s/package98,311,157B and
+  Swift link PASS. Actual new-history native/browser/Swift acceptance still pending.
+
+- Sixth native test build PASS24.39s; corrected visual fixture PASS1/0.41s.
+  Ordinary regression evidence is623 passed in original serial run plus this
+  corrected sole failure, total624 ordinary cases verified;107 explicit ignored
+  integration cases remain separately classified. No unchanged broad rerun.
+- Full assembled native Metal workflow PASS1/135.86s, all five source DPI
+  comparisons max channel delta1. New-history Swift host runtime PASS actual
+  CAMetalLayer/handle/document/controlled PNG transactions. No OS clipboard claim.
+- Browser refocus probe still failed first Undo: screenshot revealed toolbar
+  coordinates239/277 were between/wrong buttons. Correct CSS centers217/257 for
+  this1600-wide layout. Production focus/dispatch unchanged. Fresh-page reset then
+  stalled: task-only closed renderer40827 consumed98.7% CPU and CDP stopped
+  responding. Restarting only task Chrome9267 with a fresh temporary profile;
+  preserve failure logs and do not claim browser history acceptance yet.

@@ -896,7 +896,7 @@ mod tests {
         f.text("Character e\u{301}");
         assert!(
             f.dock
-                .commit_pending_edits(&mut f.ctx, &mut f.project, &f.server.jobs, &f.server.reference)
+                .commit_pending_edits(&mut f.ctx, &mut f.project, &f.server.jobs, &f.server.reference, &f.server.history)
                 .unwrap()
         );
         assert_eq!(
@@ -1145,7 +1145,7 @@ mod tests {
         assert!(!f.dock.has_changes());
         assert!(
             !f.dock
-                .commit_pending_edits(&mut f.ctx, &mut f.project, &f.server.jobs, &f.server.reference)
+                .commit_pending_edits(&mut f.ctx, &mut f.project, &f.server.jobs, &f.server.reference, &f.server.history)
                 .unwrap()
         );
         assert_eq!(f.model().lock().unwrap().editor().error, feedback);

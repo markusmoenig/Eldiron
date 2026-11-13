@@ -7,7 +7,7 @@ use crate::blocks::{
     localized_block_asset_description, localized_block_asset_name, prefab_object_default_color,
     prefab_uses_auto_sizing, upgrade_bundled_prefab_geometry,
 };
-use crate::editor::{UNDOMANAGER};
+
 use crate::prelude::*;
 use rusterix::D3Camera;
 use std::collections::HashMap;
@@ -815,7 +815,7 @@ impl BlocksDock {
                 server_ctx.jobs.scene_mut()
                     .set_block_props(project.block_props.clone());
                 crate::utils::editor_scene_refresh_prefab_assets(&before, project, server_ctx);
-                UNDOMANAGER.write().unwrap().add_undo(
+                server_ctx.history.write().add_undo(
                     ProjectUndoAtom::ProjectEdit(
                         fl!("prefab_delete"),
                         Box::new(before),
@@ -911,7 +911,7 @@ impl BlocksDock {
         server_ctx.jobs.scene_mut()
             .set_block_props(project.block_props.clone());
         crate::utils::editor_scene_refresh_prefab_assets(&before, project, server_ctx);
-        UNDOMANAGER.write().unwrap().add_undo(
+        server_ctx.history.write().add_undo(
             ProjectUndoAtom::ProjectEdit(
                 fl!("prefab_duplicate"),
                 Box::new(before),

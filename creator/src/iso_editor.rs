@@ -1,5 +1,5 @@
 //! Authoring controls shared by the compact mesh inspector and iso tile brush.
-use crate::editor::UNDOMANAGER;
+
 use crate::prelude::*;
 use rusterix::{MapCamera, PixelSource, Value};
 
@@ -140,7 +140,7 @@ pub fn handle_event(
             }
             if linked {
                 map.changed = map.changed.wrapping_add(1);
-                UNDOMANAGER.write().unwrap().add_undo(
+                server.history.write().add_undo(
                     crate::undo::project_atoms::ProjectUndoAtom::MapEdit(
                         server.pc,
                         Box::new(before),
@@ -190,7 +190,7 @@ pub fn handle_event(
                 shared::isometric::placement::synchronize(project);
                 let after = project.get_map(server).unwrap().clone();
                 if !before.selected_sectors.is_empty() {
-                    UNDOMANAGER.write().unwrap().add_undo(
+                    server.history.write().add_undo(
                         crate::undo::project_atoms::ProjectUndoAtom::MapEdit(
                             server.pc,
                             Box::new(before.clone()),

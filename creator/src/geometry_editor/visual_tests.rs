@@ -95,6 +95,7 @@ fn quadruped_uses_the_same_resources_and_pose_keys_interpolate() {
 }
 #[test]
 fn viewport_drag_saves_once_and_escape_restores_source() {
+    let mut server = ServerContext::default();
     let mut d = scene::new_document();
     let joint = scene::add_joint(&mut d, "root", [0.2, 1., 0.]).unwrap();
     let e = d.evaluate().unwrap();
@@ -116,9 +117,9 @@ fn viewport_drag_saves_once_and_escape_restores_source() {
     host.scene.projection = Some(frame);
     let mut ui = TheUI::new();
     let mut ctx = TheContext::new(400, 400, 1.);
-    *UNDOMANAGER.write().unwrap() = crate::undo::UndoManager::new();
+    *server.history.write() = crate::undo::UndoManager::new();
     let event = |p| TheEvent::RenderViewClicked(TheId::named(PREVIEW), p);
-    host.scene_event(&event(p), &mut project, &mut ui, &mut ctx)
+    host.scene_event(&event(p), &mut project, &mut ui, &mut ctx, &server.history)
         .unwrap();
     for n in [5, 15, 30] {
         host.scene_event(
@@ -126,7 +127,7 @@ fn viewport_drag_saves_once_and_escape_restores_source() {
             &mut project,
             &mut ui,
             &mut ctx,
-        )
+         &server.history)
         .unwrap();
     }
     host.scene_event(
@@ -134,7 +135,7 @@ fn viewport_drag_saves_once_and_escape_restores_source() {
         &mut project,
         &mut ui,
         &mut ctx,
-    )
+     &server.history)
     .unwrap();
     let changed = project.procedural_appearances[&id].clone();
     assert_ne!(changed, original);
@@ -146,15 +147,10 @@ fn viewport_drag_saves_once_and_escape_restores_source() {
             .iter()
             .any(|p| p.translation[0] > 0.2)
     );
-    let mut server = ServerContext::default();
-    UNDOMANAGER
-        .write()
-        .unwrap()
+    server.history.write()
         .undo(&mut server, &mut project, &mut ui, &mut ctx);
     assert_eq!(project.procedural_appearances[&id], original);
-    UNDOMANAGER
-        .write()
-        .unwrap()
+    server.history.write()
         .redo(&mut server, &mut project, &mut ui, &mut ctx);
     assert_eq!(project.procedural_appearances[&id], changed);
     host.document = Some(next.clone());
@@ -167,16 +163,16 @@ fn viewport_drag_saves_once_and_escape_restores_source() {
         .unwrap()
         .project(r.rest()[r.index(&joint).unwrap()].translation);
     let p = Vec2::new(q[0].round() as i32, q[1].round() as i32);
-    host.scene_event(&event(p), &mut project, &mut ui, &mut ctx)
+    host.scene_event(&event(p), &mut project, &mut ui, &mut ctx, &server.history)
         .unwrap();
     host.scene_event(
         &TheEvent::RenderViewDragged(TheId::named(PREVIEW), Vec2::new(p.x + 25, p.y)),
         &mut project,
         &mut ui,
         &mut ctx,
-    )
+     &server.history)
     .unwrap();
-    host.finish_scene_drag(&mut project, &mut ctx, true);
+    host.finish_scene_drag(&mut project, &mut ctx, true, &server.history);
     assert_eq!(project.procedural_appearances[&id], changed);
 }
 #[test]
@@ -238,6 +234,7 @@ fn shield_surface_is_linked_to_the_ruleset_not_owned_by_the_model() {
 }
 #[test]
 fn human_tools_navigate_to_shared_resources_and_keep_pose_phase() {
+    let creator_history = CreatorHistory::default();
     let root = Document::load(denrim_materials::geometry::HUMAN_EXAMPLE).unwrap();
     let mut p = Project::default();
     let id = Uuid::new_v4();
@@ -264,7 +261,7 @@ fn human_tools_navigate_to_shared_resources_and_keep_pose_phase() {
         &mut p,
         &mut ui,
         &mut ctx,
-    )
+     &creator_history)
     .unwrap();
     host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
     assert_eq!(host.group_path, ["body-op-0"]);
@@ -274,7 +271,7 @@ fn human_tools_navigate_to_shared_resources_and_keep_pose_phase() {
         &mut p,
         &mut ui,
         &mut ctx,
-    )
+     &creator_history)
     .unwrap();
     host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
     assert!(host.group_path.is_empty());
@@ -290,7 +287,7 @@ fn human_tools_navigate_to_shared_resources_and_keep_pose_phase() {
         &mut p,
         &mut ui,
         &mut ctx,
-    )
+     &creator_history)
     .unwrap();
     host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
     host.inspector.joint = scene::armature(host.document.as_ref().unwrap())
@@ -304,7 +301,7 @@ fn human_tools_navigate_to_shared_resources_and_keep_pose_phase() {
         &mut p,
         &mut ui,
         &mut ctx,
-    )
+     &creator_history)
     .unwrap();
     let root = Document::load(&p.procedural_appearances[&id]).unwrap();
     let e = root.evaluate().unwrap();

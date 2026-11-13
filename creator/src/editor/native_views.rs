@@ -593,7 +593,7 @@ impl Editor {
         (
             serde_json::to_value(&self.documents.sessions[self.documents.active_session].project)
                 .unwrap(),
-            UNDOMANAGER.read().unwrap().revision(),
+            self.server_ctx.history.read().revision(),
         )
     }
     pub(crate) fn inject_native_play_projection_for_test(&mut self) {
@@ -628,7 +628,7 @@ impl Editor {
             .map
             .properties
             .set("native-authored-during-play", Value::Bool(true));
-        UNDOMANAGER.write().unwrap().add_undo(
+        self.server_ctx.history.write().add_undo(
             ProjectUndoAtom::MapEdit(
                 ProjectContext::Region(region.id),
                 Box::new(before),

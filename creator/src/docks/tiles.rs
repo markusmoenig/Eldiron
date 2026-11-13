@@ -1,4 +1,4 @@
-use crate::editor::{ACTIONLIST, UNDOMANAGER};
+use crate::editor::{ACTIONLIST};
 use crate::prelude::*;
 use rusterix::{TileRole, TileSource, VertexBlendPreset};
 use web_time::Instant;
@@ -464,7 +464,7 @@ impl Dock for TilesDock {
                             );
                         }
                         if let Some(undo_atom) = undo_atom {
-                            UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
+                            server_ctx.history.write().add_undo(undo_atom, ctx);
                             ctx.ui.send(TheEvent::Custom(
                                 TheId::named("Update Minimap"),
                                 TheValue::Empty,
@@ -535,7 +535,7 @@ impl Dock for TilesDock {
                             );
                         }
                         if let Some(undo_atom) = undo_atom {
-                            UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
+                            server_ctx.history.write().add_undo(undo_atom, ctx);
                             ctx.ui.send(TheEvent::Custom(
                                 TheId::named("Update Minimap"),
                                 TheValue::Empty,
@@ -793,7 +793,7 @@ impl Dock for TilesDock {
                         }
 
                         if let Some(undo_atom) = undo_atom {
-                            UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
+                            server_ctx.history.write().add_undo(undo_atom, ctx);
                             ctx.ui.send(TheEvent::Custom(
                                 TheId::named("Update Minimap"),
                                 TheValue::Empty,
@@ -948,7 +948,7 @@ impl Dock for TilesDock {
                     }
 
                     if let Some(undo_atom) = undo_atom {
-                        UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
+                        server_ctx.history.write().add_undo(undo_atom, ctx);
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Update Minimap"),
                             TheValue::Empty,
@@ -1038,7 +1038,7 @@ impl Dock for TilesDock {
                         }
                         if changed {
                             let after = project.clone();
-                            UNDOMANAGER.write().unwrap().add_undo(
+                            server_ctx.history.write().add_undo(
                                 ProjectUndoAtom::TilePickerEdit(Box::new(before), Box::new(after)),
                                 ctx,
                             );
@@ -1635,7 +1635,7 @@ impl TilesDock {
         self.tile_hover_source = None;
         self.tile_preview_mode = false;
         let after = project.clone();
-        UNDOMANAGER.write().unwrap().add_undo(
+        server_ctx.history.write().add_undo(
             ProjectUndoAtom::TilePickerEdit(Box::new(before), Box::new(after)),
             ctx,
         );
@@ -1667,7 +1667,7 @@ impl TilesDock {
         self.tile_hover_source = None;
         self.tile_preview_mode = false;
         let after = project.clone();
-        UNDOMANAGER.write().unwrap().add_undo(
+        server_ctx.history.write().add_undo(
             ProjectUndoAtom::TilePickerEdit(Box::new(before), Box::new(after)),
             ctx,
         );

@@ -11,12 +11,14 @@ impl GeometryEditor {
         root: Document,
         project: &mut Project,
         ctx: &mut TheContext,
+
+        creator_history: &CreatorHistory,
     ) -> Result<(), String> {
         let id = self.selected.ok_or("Select a model")?;
         let next = root.save().map_err(|e| e.to_string())?;
         let old = project.procedural_appearances.insert(id, next.clone());
         if old.as_ref() != Some(&next) {
-            UNDOMANAGER.write().unwrap().add_undo(
+            creator_history.write().add_undo(
                 ProjectUndoAtom::ProceduralAppearanceEdit(id, old, Some(next)),
                 ctx,
             );
@@ -42,6 +44,8 @@ impl GeometryEditor {
         project: &mut Project,
         ctx: &mut TheContext,
         cancel: bool,
+
+        creator_history: &CreatorHistory,
     ) {
         if let Some(drag) = self.scene.drag.take() {
             if let Some(id) = self.selected {
@@ -49,7 +53,7 @@ impl GeometryEditor {
                 if cancel {
                     project.procedural_appearances.insert(id, drag.source);
                 } else if after.as_ref() != Some(&drag.source) {
-                    UNDOMANAGER.write().unwrap().add_undo(
+                    creator_history.write().add_undo(
                         ProjectUndoAtom::ProceduralAppearanceEdit(id, Some(drag.source), after),
                         ctx,
                     );
@@ -79,6 +83,7 @@ impl GeometryEditor {
         project: &mut Project,
         _ui: &mut TheUI,
         ctx: &mut TheContext,
+        creator_history: &CreatorHistory,
     ) -> Result<bool, String> {
         if let TheEvent::ModifierChanged(shift, _, alt, _) = event {
             self.scene.shift = *shift;
@@ -107,7 +112,7 @@ impl GeometryEditor {
                 return Ok(true);
             }
             TheEvent::IndexChanged(id, index) if id.name == "MZ Geometry Tool" => {
-                self.finish_drag(project, ctx, false);
+                self.finish_drag(project, ctx, false, creator_history);
                 self.scene.tool = *index as usize;
                 if matches!(self.scene.tool, 2 | 3 | 5) {
                     self.playback.rest();
@@ -236,8 +241,8 @@ impl GeometryEditor {
                 return Ok(true);
             }
             TheEvent::StateChanged(id, TheWidgetState::Clicked) if id.name == "MZ Add Motion" => {
-                self.finish_drag(project, ctx, false);
-                self.scene_add_motion(project, ctx)?;
+                self.finish_drag(project, ctx, false, creator_history);
+                self.scene_add_motion(project, ctx, creator_history)?;
                 return Ok(true);
             }
             TheEvent::StateChanged(id, TheWidgetState::Clicked)
@@ -247,7 +252,7 @@ impl GeometryEditor {
                     || id.name == "MZ Add Profile"
                     || id.name == "MZ Delete Profile" =>
             {
-                self.finish_drag(project, ctx, false);
+                self.finish_drag(project, ctx, false, creator_history);
                 let mut root = self.scene_root(project)?;
                 let doc = root
                     .group_document_mut(&self.group_path)
@@ -316,7 +321,7 @@ impl GeometryEditor {
                     }
                     prune(&mut root, &removed_joints, &removed_parts);
                 }
-                self.scene_commit_root(root, project, ctx)?;
+                self.scene_commit_root(root, project, ctx, creator_history)?;
                 self.inspector_dirty = true;
                 return Ok(true);
             }
@@ -337,7 +342,7 @@ impl GeometryEditor {
                         j.label = label.chars().take(64).collect();
                     }
                 }
-                self.scene_commit_root(root, project, ctx)?;
+                self.scene_commit_root(root, project, ctx, creator_history)?;
                 return Ok(true);
             }
             TheEvent::RenderViewContext(id, p) if id.name == PREVIEW && self.scene.tool == 3 => {
@@ -345,7 +350,7 @@ impl GeometryEditor {
                 if !self.native_pick_ready(project) {
                     return Ok(false);
                 }
-                self.finish_drag(project, ctx, false);
+                self.finish_drag(project, ctx, false, creator_history);
                 let doc = self.document.as_ref().ok_or("Create a model")?;
                 let e = self.evaluation.as_ref().ok_or("No model")?;
                 let hit = {
@@ -408,7 +413,7 @@ impl GeometryEditor {
                     .group_document_mut(&self.group_path)
                     .map_err(|e| e.to_string())?;
                 scene::parts_mut(d)?[self.inspector.part] = next;
-                self.scene_commit_root(root, project, ctx)?;
+                self.scene_commit_root(root, project, ctx, creator_history)?;
                 self.inspector_dirty = true;
                 return Ok(true);
             }
@@ -420,7 +425,7 @@ impl GeometryEditor {
                 if self.scene.alt && self.scene.tool == 2 {
                     return Ok(false);
                 }
-                self.finish_drag(project, ctx, false);
+                self.finish_drag(project, ctx, false, creator_history);
                 let doc = self.document.as_ref().ok_or("Create a model")?;
                 let e = self.evaluation.as_ref().ok_or("No model")?;
                 let source = self
@@ -549,7 +554,7 @@ impl GeometryEditor {
                         .iter()
                         .position(|j| j.id == new)
                         .unwrap();
-                    self.scene_commit_root(root, project, ctx)?;
+                    self.scene_commit_root(root, project, ctx, creator_history)?;
                     self.inspector_dirty = true;
                     return Ok(true);
                 }
@@ -715,13 +720,13 @@ impl GeometryEditor {
                 return Ok(true);
             }
             TheEvent::RenderViewUp(id, _) if id.name == PREVIEW && self.scene.drag.is_some() => {
-                self.finish_scene_drag(project, ctx, false);
+                self.finish_scene_drag(project, ctx, false, creator_history);
                 return Ok(true);
             }
             TheEvent::KeyCodeDown(TheValue::KeyCode(TheKeyCode::Escape))
                 if self.scene.drag.is_some() =>
             {
-                self.finish_scene_drag(project, ctx, true);
+                self.finish_scene_drag(project, ctx, true, creator_history);
                 return Ok(true);
             }
             _ => {}
@@ -732,6 +737,7 @@ impl GeometryEditor {
         &mut self,
         project: &mut Project,
         ctx: &mut TheContext,
+        creator_history: &CreatorHistory,
     ) -> Result<(), String> {
         let mut root = self.scene_root(project)?;
         if !self.playback.clips.is_empty() && self.group_path != self.playback.scope {
@@ -792,7 +798,7 @@ impl GeometryEditor {
                 },
             }],
         });
-        self.scene_commit_root(root, project, ctx)?;
+        self.scene_commit_root(root, project, ctx, creator_history)?;
         self.scene.pending_clip = Some(id);
         self.playback.phase = 0.;
         self.playback.playing = false;

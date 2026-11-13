@@ -1,5 +1,5 @@
 use shared::context::ServerContext;
-use crate::editor::UNDOMANAGER;
+
 use crate::prelude::*;
 
 pub struct TilePickerTool {
@@ -45,11 +45,12 @@ impl EditorTool for TilePickerTool {
         server_ctx: &mut ServerContext,
         jobs: &CreatorJobs,
         reference: &CreatorReference,
+        creator_history: &CreatorHistory,
     ) -> bool {
         if let TheEvent::TileEditorClicked(id, coord) = event
             && id.name == "Tile Editor Dock RGBA Layout View"
         {
-            return self.pick_from(*coord, ui, ctx, project, server_ctx, jobs, reference);
+            return self.pick_from(*coord, ui, ctx, project, server_ctx, jobs, reference, creator_history);
         }
         false
     }
@@ -65,6 +66,8 @@ impl TilePickerTool {
         server_ctx: &mut ServerContext,
         jobs: &CreatorJobs,
         reference: &CreatorReference,
+
+        creator_history: &CreatorHistory,
     ) -> bool {
         if let Some(editor) = ui.get_rgba_layout("Tile Editor Dock RGBA Layout")
             && let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view()
@@ -119,7 +122,7 @@ impl TilePickerTool {
                 project.palette.clone(),
                 project.palette_materials.clone(),
             );
-            UNDOMANAGER.write().unwrap().add_undo(undo, ctx);
+            creator_history.write().add_undo(undo, ctx);
         }
 
         apply_palette(ui, ctx, server_ctx, project, reference);

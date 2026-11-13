@@ -69,7 +69,7 @@ pub mod prelude {
 
     pub use shared::prelude::*;
     // Transitional controller spelling; the owner is now Creator-specific.
-    pub use crate::creator_context::{CreatorContext, CreatorContext as ServerContext, CreatorJobs, CreatorReference};
+    pub use crate::creator_context::{CreatorContext, CreatorContext as ServerContext, CreatorHistory, CreatorJobs, CreatorReference};
     pub use std::sync::{LazyLock, RwLock};
     pub use theframework::prelude::*;
 

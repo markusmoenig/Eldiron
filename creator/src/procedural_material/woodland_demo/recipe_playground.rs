@@ -845,14 +845,10 @@ fn footprint_controls_review(project: &Project, fence: Uuid) {
         b.max.x - b.min.x
     };
     assert!((width(&p) - 3.6).abs() < 1e-4);
-    crate::editor::UNDOMANAGER
-        .write()
-        .unwrap()
+    server.history.write()
         .undo(&mut server, &mut p, &mut ui, &mut ctx);
     assert!((width(&p) - 2.1).abs() < 1e-4);
-    crate::editor::UNDOMANAGER
-        .write()
-        .unwrap()
+    server.history.write()
         .redo(&mut server, &mut p, &mut ui, &mut ctx);
     assert!((width(&p) - 3.6).abs() < 1e-4);
     eprintln!("Verified Follow recipe shape control, freeze, enable and real map undo/redo.");

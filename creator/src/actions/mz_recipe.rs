@@ -1,5 +1,5 @@
 //! One recipe application path for both region geometry and isolated Prefab parts.
-use crate::editor::UNDOMANAGER;
+
 use crate::prelude::*;
 use shared::geometry_recipe::{self, BINDING, Binding};
 
@@ -161,7 +161,7 @@ impl Action for ApplyMZRecipe {
             ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
             return;
         }
-        UNDOMANAGER.write().unwrap().add_undo(
+        server_ctx.history.write().add_undo(
             ProjectUndoAtom::ProjectEdit(
                 "Apply MZ Recipe".into(),
                 Box::new(before),

@@ -205,7 +205,7 @@ impl Editor {
         }
     }
     pub(super) fn mark_current_document_saved(&mut self, ui: &mut TheUI) {
-        UNDOMANAGER.write().unwrap().mark_saved();
+        self.server_ctx.history.write().mark_saved();
         DOCKMANAGER.write().unwrap().mark_saved();
         if let Some(session) = self
             .documents

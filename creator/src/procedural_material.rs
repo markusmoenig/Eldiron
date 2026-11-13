@@ -1,7 +1,6 @@
 //! MaterialZ is the authoring authority; normal tiles are the baked runtime cache.
 //! Native display uses injected GPU outputs; authored bakes use a separate worker.
 use crate::{
-    editor::{UNDOMANAGER},
     material_editor::*,
     prelude::*,
 };
@@ -1621,7 +1620,7 @@ impl ProceduralMaterialEditor {
                         let next = image_source::set(&asset, &operation, Some(image))?;
                         let bundle = next.save().map_err(|e| e.to_string())?;
                         project.procedural_materials.insert(target, bundle.clone());
-                        UNDOMANAGER.write().unwrap().add_undo(
+                        server.history.write().add_undo(
                             ProjectUndoAtom::ProceduralMaterialEdit(target, before, bundle),
                             ctx,
                         );
@@ -1660,7 +1659,7 @@ impl ProceduralMaterialEditor {
                                 .procedural_materials
                                 .insert(tile, bundle.clone())
                                 .unwrap();
-                            UNDOMANAGER.write().unwrap().add_undo(
+                            server.history.write().add_undo(
                                 ProjectUndoAtom::ProceduralMaterialEdit(tile, before, bundle),
                                 ctx,
                             );
@@ -1690,7 +1689,7 @@ impl ProceduralMaterialEditor {
                     && *state == TheWidgetState::Clicked
                     && matches!(id.name.as_str(), "Undo" | "Redo") =>
             {
-                let mut undo = UNDOMANAGER.write().unwrap();
+                let mut undo = server.history.write();
                 if id.name == "Undo" {
                     undo.undo(server, project, ui, ctx);
                 } else {
@@ -1771,7 +1770,7 @@ impl ProceduralMaterialEditor {
                         server.curr_tile_board_cell = None;
                         server.curr_tile_id = Some(id);
                         server.curr_tile_source = Some(rusterix::TileSource::SingleTile(id));
-                        UNDOMANAGER.write().unwrap().add_undo(
+                        server.history.write().add_undo(
                             ProjectUndoAtom::TilePickerEdit(
                                 Box::new(before),
                                 Box::new(project.clone()),
@@ -1881,7 +1880,7 @@ impl ProceduralMaterialEditor {
                                     .procedural_materials
                                     .insert(tile, bundle.clone())
                                     .unwrap();
-                                UNDOMANAGER.write().unwrap().add_undo(
+                                server.history.write().add_undo(
                                     ProjectUndoAtom::ProceduralMaterialEdit(tile, before, bundle),
                                     ctx,
                                 );
@@ -1949,7 +1948,7 @@ impl ProceduralMaterialEditor {
                         Ok((asset, bundle)) => {
                             if bundle != before {
                                 project.procedural_materials.insert(tile, bundle.clone());
-                                UNDOMANAGER.write().unwrap().add_undo(
+                                server.history.write().add_undo(
                                     ProjectUndoAtom::ProceduralMaterialEdit(tile, before, bundle),
                                     ctx,
                                 );

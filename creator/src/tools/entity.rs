@@ -1,6 +1,5 @@
 use crate::hud::{Hud, HudMode};
 use crate::{
-    editor::{UNDOMANAGER},
     prelude::*,
 };
 use MapEvent::*;
@@ -1286,7 +1285,7 @@ impl EntityTool {
                 character.clone(),
             );
             Self::remove_selected_character_instance(project, ui, ctx, server_ctx, character.id);
-            UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+            server_ctx.history.write().add_undo(atom, ctx);
             return true;
         }
 
@@ -1297,7 +1296,7 @@ impl EntityTool {
                 item.clone(),
             );
             Self::remove_selected_item_instance(project, ui, ctx, server_ctx, item.id);
-            UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+            server_ctx.history.write().add_undo(atom, ctx);
             return true;
         }
 

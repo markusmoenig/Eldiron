@@ -315,13 +315,15 @@ impl PrefabNodePane {
         ctx: &mut TheContext,
         jobs: &CreatorJobs,
         reference: &CreatorReference,
+
+        creator_history: &CreatorHistory,
     ) {
         // The explicit reference controller persists through the asset owner;
         // completed controller payloads must not accumulate in a second queue.
         self.editor.take_edits();
         self.store_error = None;
         #[cfg(feature = "native-ui")]
-        if ctx.ui.command_paint && self.store_native_document(project, ctx, jobs, reference) {
+        if ctx.ui.command_paint && self.store_native_document(project, ctx, jobs, reference, creator_history) {
             return;
         }
         if self.doc == self.committed {
@@ -347,9 +349,7 @@ impl PrefabNodePane {
                     return;
                 };
                 if change.apply(project, true) {
-                    crate::editor::UNDOMANAGER
-                        .write()
-                        .unwrap()
+                    creator_history.write()
                         .add_undo(ProjectUndoAtom::PrefabGraphEdit(Box::new(change)), ctx);
                     crate::block_props::sync_existing_prefab_presentations(project, jobs, reference);
                 }
@@ -374,13 +374,14 @@ impl PrefabNodePane {
         project: &mut Project,
         jobs: &CreatorJobs,
         reference: &CreatorReference,
+        creator_history: &CreatorHistory,
     ) -> bool {
         #[cfg(feature = "native-ui")]
-        if let Some(handled) = self.native_event(event, ui, ctx, project, jobs, reference) {
+        if let Some(handled) = self.native_event(event, ui, ctx, project, jobs, reference, creator_history) {
             return handled;
         }
         #[cfg(feature = "native-ui")]
-        let native_domain = match self.prepare_native_domain_event(event, ctx, project, jobs, reference) {
+        let native_domain = match self.prepare_native_domain_event(event, ctx, project, jobs, reference, creator_history) {
             Ok(domain) => domain,
             Err(message) => {
                 // Keep the current invalid draft visible and restore the branch
@@ -399,7 +400,7 @@ impl PrefabNodePane {
             }
             TheEvent::NewListItemSelected(id, _) if id.name == "Prefab Branch" => {
                 self.editor.finish_text(&mut self.doc, true);
-                self.store(project, ctx, jobs, reference);
+                self.store(project, ctx, jobs, reference, creator_history);
                 if let Some(asset) = self.asset {
                     self.load(project, asset, Some(id.uuid), ui, ctx);
                 }
@@ -408,7 +409,7 @@ impl PrefabNodePane {
             TheEvent::StateChanged(id, TheWidgetState::Clicked) if id.name == TIDY => {
                 self.tidy();
                 self.fit(ui);
-                self.store(project, ctx, jobs, reference);
+                self.store(project, ctx, jobs, reference, creator_history);
             }
             TheEvent::RenderViewDrop(id, point, drop) if id.name == VIEW => {
                 let Some(key) = drop.id.name.strip_prefix("Node Catalog/") else {
@@ -424,7 +425,7 @@ impl PrefabNodePane {
                         .to_graph([point.x as f32, point.y as f32]),
                 );
                 self.doc.nodes.push(node);
-                self.store(project, ctx, jobs, reference);
+                self.store(project, ctx, jobs, reference, creator_history);
             }
             TheEvent::RenderViewClicked(id, p) if id.name == VIEW => {
                 if let Some(view) = ui.get_render_view(VIEW) {
@@ -448,7 +449,7 @@ impl PrefabNodePane {
                     [p.x as f32, p.y as f32],
                     &AllowGraphConnections,
                 );
-                self.store(project, ctx, jobs, reference);
+                self.store(project, ctx, jobs, reference, creator_history);
             }
             TheEvent::RenderViewScrollBy(id, d) | TheEvent::RenderViewPreciseScrollBy(id, d)
                 if id.name == VIEW =>
@@ -481,7 +482,7 @@ impl PrefabNodePane {
                 match key {
                     TheKeyCode::Return => {
                         self.editor.finish_text(&mut self.doc, true);
-                        self.store(project, ctx, jobs, reference);
+                        self.store(project, ctx, jobs, reference, creator_history);
                     }
                     TheKeyCode::Escape => {
                         self.editor.finish_text(&mut self.doc, false);
@@ -509,7 +510,7 @@ impl PrefabNodePane {
                         self.doc
                             .connections
                             .retain(|c| ports.contains(&c.from) && ports.contains(&c.to));
-                        self.store(project, ctx, jobs, reference);
+                        self.store(project, ctx, jobs, reference, creator_history);
                     }
                     _ => {}
                 }

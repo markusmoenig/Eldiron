@@ -431,7 +431,7 @@ impl ProceduralMaterialEditor {
         };
         created.install(project);
         *project.get_map_mut(server).unwrap() = new_map.clone();
-        UNDOMANAGER.write().unwrap().add_undo(
+        server.history.write().add_undo(
             ProjectUndoAtom::MapMaterialCompositionCreate(
                 server.pc,
                 Box::new(old_map),

@@ -114,6 +114,8 @@ impl GeometryEditor {
         project: &mut Project,
         ui: &mut TheUI,
         ctx: &mut TheContext,
+
+        creator_history: &CreatorHistory,
     ) -> bool {
         let result: Option<Result<(), String>> = match event {
             TheEvent::IndexChanged(id, index) if id.name == "MZ Geometry Actions" => {
@@ -121,7 +123,7 @@ impl GeometryEditor {
                 Some((|| {
                     match index {
                         5 => {
-                            self.finish_drag(project, ctx, false);
+                            self.finish_drag(project, ctx, false, creator_history);
                             let selected = self.selected.ok_or("Select a geometry asset")?;
                             let op = self
                                 .selected_operation
@@ -284,7 +286,7 @@ impl GeometryEditor {
                         };
                         *controls = data.controls;
                     }
-                    self.commit(next, project, ctx)
+                    self.commit(next, project, ctx, creator_history)
                 })())
             }
             TheEvent::FileRequesterResult(id, paths)
@@ -315,7 +317,7 @@ impl GeometryEditor {
                         project
                             .procedural_appearances
                             .insert(selected, text.clone());
-                        UNDOMANAGER.write().unwrap().add_undo(
+                        creator_history.write().add_undo(
                             ProjectUndoAtom::ProceduralAppearanceEdit(selected, None, Some(text)),
                             ctx,
                         );

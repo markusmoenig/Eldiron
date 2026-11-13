@@ -1,7 +1,7 @@
 #[cfg(feature = "native-ui")]
 #[path = "palette_native.rs"]
 mod native;
-use crate::editor::{ACTIONLIST, UNDOMANAGER};
+use crate::editor::{ACTIONLIST};
 use crate::prelude::*;
 use crate::undo::project_helper::{apply_palette, refresh_palette_runtime};
 use rusterix::PixelSource;
@@ -708,7 +708,7 @@ impl PaletteDock {
             crate::utils::editor_scene_apply_map_edit_atom(project, server_ctx, undo_atom);
         }
         if let Some(undo_atom) = undo_atom {
-            UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
+            server_ctx.history.write().add_undo(undo_atom, ctx);
             ctx.ui.send(TheEvent::Custom(
                 TheId::named("Update Minimap"),
                 TheValue::Empty,
@@ -845,7 +845,7 @@ impl PaletteDock {
             crate::utils::editor_scene_apply_map_edit_atom(project, server_ctx, undo_atom);
         }
         if let Some(undo_atom) = undo_atom {
-            UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
+            server_ctx.history.write().add_undo(undo_atom, ctx);
             ctx.ui.send(TheEvent::Custom(
                 TheId::named("Update Minimap"),
                 TheValue::Empty,
@@ -974,7 +974,7 @@ impl Dock for PaletteDock {
                         let slot = project.palette.current_index as usize;
                         // Choosing an available swatch fills the selected slot deliberately.
                         project.palette.colors[slot] = Some(color);
-                        UNDOMANAGER.write().unwrap().add_undo(
+                        server_ctx.history.write().add_undo(
                             ProjectUndoAtom::PaletteEdit(
                                 before,
                                 materials,
@@ -1022,9 +1022,7 @@ impl Dock for PaletteDock {
                     apply_palette(ui, ctx, &mut server_ctx.shared, project, &server_ctx.reference);
                     refresh_palette_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                     self.sync_widgets(ui, ctx, project);
-                    UNDOMANAGER
-                        .write()
-                        .unwrap()
+                    server_ctx.history.write()
                         .add_undo(Self::palette_undo_atom(prev, prev_materials, project), ctx);
                 }
                 true
@@ -1051,9 +1049,7 @@ impl Dock for PaletteDock {
                     apply_palette(ui, ctx, &mut server_ctx.shared, project, &server_ctx.reference);
                     refresh_palette_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                     self.sync_widgets(ui, ctx, project);
-                    UNDOMANAGER
-                        .write()
-                        .unwrap()
+                    server_ctx.history.write()
                         .add_undo(Self::palette_undo_atom(prev, prev_materials, project), ctx);
                 }
                 true
@@ -1098,9 +1094,7 @@ impl Dock for PaletteDock {
                     }
                     refresh_palette_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                     self.sync_widgets(ui, ctx, project);
-                    UNDOMANAGER
-                        .write()
-                        .unwrap()
+                    server_ctx.history.write()
                         .add_undo(Self::palette_undo_atom(prev, prev_materials, project), ctx);
                 }
                 true
@@ -1119,9 +1113,7 @@ impl Dock for PaletteDock {
                         apply_palette(ui, ctx, &mut server_ctx.shared, project, &server_ctx.reference);
                         refresh_palette_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                         self.sync_widgets(ui, ctx, project);
-                        UNDOMANAGER
-                            .write()
-                            .unwrap()
+                        server_ctx.history.write()
                             .add_undo(Self::palette_undo_atom(prev, prev_materials, project), ctx);
                     }
                     true
@@ -1142,9 +1134,7 @@ impl Dock for PaletteDock {
                         apply_palette(ui, ctx, &mut server_ctx.shared, project, &server_ctx.reference);
                         refresh_palette_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                         self.sync_widgets(ui, ctx, project);
-                        UNDOMANAGER
-                            .write()
-                            .unwrap()
+                        server_ctx.history.write()
                             .add_undo(Self::palette_undo_atom(prev, prev_materials, project), ctx);
                     }
                     true
@@ -1176,9 +1166,7 @@ impl Dock for PaletteDock {
                     apply_palette(ui, ctx, &mut server_ctx.shared, project, &server_ctx.reference);
                     refresh_palette_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                     self.sync_widgets(ui, ctx, project);
-                    UNDOMANAGER
-                        .write()
-                        .unwrap()
+                    server_ctx.history.write()
                         .add_undo(Self::palette_undo_atom(prev, prev_materials, project), ctx);
                 }
                 true

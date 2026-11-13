@@ -1,5 +1,4 @@
 use crate::{
-    editor::{UNDOMANAGER},
     prelude::*,
 };
 use rusterix::chunkbuilder::{
@@ -357,7 +356,7 @@ impl Tool for TerrainTool {
             ToolEvent::DeActivate => {
                 if let Some(map) = project.get_map_mut(server) {
                     if let Some(atom) = self.finish(map, server.pc, &server.jobs, &server.reference) {
-                        UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                        server.history.write().add_undo(atom, ctx);
                     }
                 }
                 self.hover = None;

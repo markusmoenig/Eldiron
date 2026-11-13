@@ -1,4 +1,4 @@
-use crate::editor::{DOCKMANAGER, UNDOMANAGER};
+use crate::editor::{DOCKMANAGER};
 use crate::prelude::*;
 
 const REMAP_ALL_ID: &str = "actionRemapAll";
@@ -330,9 +330,7 @@ impl Action for RemapTile {
             }
 
             if !edits.is_empty() {
-                UNDOMANAGER
-                    .write()
-                    .unwrap()
+                server_ctx.history.write()
                     .add_undo(ProjectUndoAtom::TileBatchEdit(edits), ctx);
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Update Tiles"),
@@ -365,14 +363,10 @@ impl Action for RemapTile {
             if !edits.is_empty() {
                 if edits.len() == 1 {
                     let (prev, next) = edits.into_iter().next().unwrap();
-                    UNDOMANAGER
-                        .write()
-                        .unwrap()
+                    server_ctx.history.write()
                         .add_undo(ProjectUndoAtom::TileEdit(prev, next), ctx);
                 } else {
-                    UNDOMANAGER
-                        .write()
-                        .unwrap()
+                    server_ctx.history.write()
                         .add_undo(ProjectUndoAtom::TileBatchEdit(edits), ctx);
                 }
                 ctx.ui.send(TheEvent::Custom(

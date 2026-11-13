@@ -1,4 +1,4 @@
-use crate::editor::{UNDOMANAGER};
+
 use crate::prelude::*;
 use rusterix::Value;
 use vek::{Vec2, Vec3};
@@ -310,7 +310,7 @@ impl MapEditor {
         let undo_atom =
             ProjectUndoAtom::MapEdit(server_ctx.pc, Box::new(prev), Box::new(map.clone()));
         crate::utils::editor_scene_apply_map_edit_atom(project, server_ctx, &undo_atom);
-        UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
+        server_ctx.history.write().add_undo(undo_atom, ctx);
         server_ctx.reference.write().set_overlay_dirty();
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Update Action Parameters"),
@@ -395,7 +395,7 @@ impl MapEditor {
         let undo_atom =
             ProjectUndoAtom::MapEdit(server_ctx.pc, Box::new(prev), Box::new(map.clone()));
         crate::utils::editor_scene_apply_map_edit_atom(project, server_ctx, &undo_atom);
-        UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
+        server_ctx.history.write().add_undo(undo_atom, ctx);
         server_ctx.reference.write().set_overlay_dirty();
         ctx.ui.send(TheEvent::SetStatusText(
             TheId::empty(),
@@ -1330,7 +1330,7 @@ impl MapEditor {
     fn add_map_undo(&self, map: &Map, prev: Map, ctx: &mut TheContext, server_ctx: &ServerContext) {
         let undo_atom =
             ProjectUndoAtom::MapEdit(server_ctx.pc, Box::new(prev), Box::new(map.clone()));
-        UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
+        server_ctx.history.write().add_undo(undo_atom, ctx);
         server_ctx.reference.write().set_dirty();
     }
 }

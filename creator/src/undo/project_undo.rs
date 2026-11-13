@@ -6,7 +6,9 @@ use theframework::prelude::*;
 pub struct ProjectUndo {
     pub stack: Vec<ProjectUndoAtom>,
     pub index: isize,
-    pub saved_index: isize,
+    /// None when branching/retention discards the saved source. This history
+    /// metadata is not serialized into the authored project.
+    pub saved_index: Option<isize>,
 }
 
 impl Default for ProjectUndo {
@@ -20,7 +22,7 @@ impl ProjectUndo {
         Self {
             stack: vec![],
             index: -1,
-            saved_index: -1,
+            saved_index: Some(-1),
         }
     }
 
@@ -31,15 +33,15 @@ impl ProjectUndo {
     pub fn clear(&mut self) {
         self.stack = vec![];
         self.index = -1;
-        self.saved_index = -1;
+        self.saved_index = Some(-1);
     }
 
     pub fn mark_saved(&mut self) {
-        self.saved_index = self.index;
+        self.saved_index = Some(self.index);
     }
 
     pub fn has_unsaved(&self) -> bool {
-        self.index != self.saved_index
+        self.saved_index != Some(self.index)
     }
 
     pub fn has_undo(&self) -> bool {
@@ -55,6 +57,10 @@ impl ProjectUndo {
 
     pub fn add(&mut self, atom: ProjectUndoAtom) {
         let to_remove = self.stack.len() as isize - self.index - 1;
+        if self.saved_index.is_some_and(|saved| saved > self.index) {
+            // A replacement edit cannot inherit the discarded future's save.
+            self.saved_index = None;
+        }
         for _i in 0..to_remove {
             self.stack.pop();
         }
@@ -97,14 +103,14 @@ impl ProjectUndo {
 
             // Adjust the index accordingly
             self.index -= excess as isize;
-            self.saved_index -= excess as isize;
+            self.saved_index = self.saved_index.and_then(|saved| {
+                let next = saved - excess as isize;
+                (next >= -1).then_some(next)
+            });
 
             // Clamp to -1 minimum in case we truncated everything
             if self.index < -1 {
                 self.index = -1;
-            }
-            if self.saved_index < -1 {
-                self.saved_index = -1;
             }
         }
     }

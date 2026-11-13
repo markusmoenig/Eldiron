@@ -2884,6 +2884,7 @@ impl TheWidget for MaterialEditorWidget {
 mod tests {
     #[test]
     fn geometry_native_values_reach_the_host_and_keep_the_active_control() {
+        let creator_history = CreatorHistory::default();
         use denrim_materials::geometry::{Document, Operation};
         let mut w = widget();
         w.id = TheId::named("MZ Geometry Rows");
@@ -2919,19 +2920,19 @@ mod tests {
             &mut project,
             &mut ui,
             &mut ctx
-        ));
+        , &creator_history));
         assert!(host.handle_event(
             &TheEvent::StateChanged(TheId::named("MZ New Human"), TheWidgetState::Clicked),
             &mut project,
             &mut ui,
             &mut ctx
-        ));
+        , &creator_history));
         assert!(host.handle_event(
             &TheEvent::ValueChanged(id, TheValue::Float(2.0)),
             &mut project,
             &mut ui,
             &mut ctx
-        ));
+        , &creator_history));
         let doc = Document::load(project.procedural_appearances.values().next().unwrap()).unwrap();
         let Operation::Group { controls, .. } = &doc.rows[0].tiles[0].op else {
             panic!()

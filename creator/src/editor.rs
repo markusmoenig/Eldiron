@@ -182,8 +182,6 @@ const ISO_PAINT_PAR_COMPOSITE_PIXELS: usize = 32_768;
 pub static PREVIEW_ICON: LazyLock<RwLock<(TheRGBATile, i32)>> =
     LazyLock::new(|| RwLock::new((TheRGBATile::default(), 0)));
 
-pub static UNDOMANAGER: LazyLock<RwLock<UndoManager>> =
-    LazyLock::new(|| RwLock::new(UndoManager::default()));
 pub static TOOLLIST: LazyLock<RwLock<ToolList>> =
     LazyLock::new(|| RwLock::new(ToolList::default()));
 pub static ACTIONLIST: LazyLock<RwLock<ActionList>> =
@@ -4895,13 +4893,13 @@ impl Editor {
         }
         self.persist_active_region_view_state();
         let dock_dirty = DOCKMANAGER.read().unwrap().has_dock_changes();
-        let undo = UNDOMANAGER.read().unwrap().clone();
+        let undo = self.server_ctx.history.read().clone();
         self.documents.store_active(undo, dock_dirty);
     }
 
     fn sync_editor_from_active_session(&mut self) {
         if let Some(undo) = self.documents.restore_active() {
-            *UNDOMANAGER.write().unwrap() = undo;
+            *self.server_ctx.history.write() = undo;
         }
     }
 
@@ -4909,7 +4907,7 @@ impl Editor {
         DOCKMANAGER
             .write()
             .unwrap()
-            .commit_pending_edits(ctx, &mut self.documents.project, &self.server_ctx.jobs, &self.server_ctx.reference)
+            .commit_pending_edits(ctx, &mut self.documents.project, &self.server_ctx.jobs, &self.server_ctx.reference, &self.server_ctx.history)
     }
     fn deactivate_project_for_switch(
         &mut self,
@@ -4930,7 +4928,7 @@ impl Editor {
         { self.sidebar.minimap_geometry.deactivate(ui); self.sidebar.minimap_scene.deactivate(ui); self.sidebar.minimap_palette.deactivate(ui); }
         self.procedural_material.reset(ui, ctx);
         self.geometry_editor
-            .finish_drag(&mut self.documents.project, ctx, false);
+            .finish_drag(&mut self.documents.project, ctx, false, &self.server_ctx.history);
         self.geometry_editor.reset(ui, ctx);
         self.appearance_workspace.reset(ui, ctx);
         self.palette_switch.reset();
@@ -5516,7 +5514,7 @@ impl Editor {
             TheValue::Empty,
         ));
 
-        UNDOMANAGER.read().unwrap().set_undo_state_to_ui(ctx);
+        self.server_ctx.history.read().set_undo_state_to_ui(ctx);
     }
 
     fn switch_to_session(
@@ -5629,7 +5627,7 @@ impl Editor {
             .get(self.documents.active_session)
             .map(|session| session.detached_dock_dirty)
             .unwrap_or(false);
-        UNDOMANAGER.read().unwrap().has_unsaved()
+        self.server_ctx.history.read().has_unsaved()
             || DOCKMANAGER.read().unwrap().has_dock_changes()
             || detached_dock_dirty
     }
@@ -7086,7 +7084,7 @@ impl Editor {
         );
         editor_scene_apply_map_edit(&self.documents.project, &self.server_ctx, &old_map, &new_map);
         update_region(ctx, &self.server_ctx.reference);
-        UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
+        self.server_ctx.history.write().add_undo(undo_atom, ctx);
 
         serde_json::json!({
             "ok": true,
@@ -7494,7 +7492,7 @@ impl Editor {
         };
 
         let new_project = self.documents.project.clone();
-        UNDOMANAGER.write().unwrap().add_undo(
+        self.server_ctx.history.write().add_undo(
             ProjectUndoAtom::ProjectEdit(
                 format!("Scepter Script Edit: {kind} {name}"),
                 Box::new(old_project),
@@ -7837,7 +7835,7 @@ impl Editor {
         };
 
         let new_project = self.documents.project.clone();
-        UNDOMANAGER.write().unwrap().add_undo(
+        self.server_ctx.history.write().add_undo(
             ProjectUndoAtom::ProjectEdit(
                 format!("Scepter Attribute Edit: {kind} {name}"),
                 Box::new(old_project),
@@ -10123,7 +10121,7 @@ impl TheTrait for Editor {
             }
             if self
                 .geometry_editor
-                .handle_event(&event, &mut self.documents.project, ui, ctx)
+                .handle_event(&event, &mut self.documents.project, ui, ctx, &self.server_ctx.history)
             {
                 redraw = true;
                 continue;
@@ -10239,7 +10237,7 @@ impl TheTrait for Editor {
                             redraw = true;
                         }
                     } else if id.name == "Set Project Undo State" {
-                        UNDOMANAGER.read().unwrap().set_undo_state_to_ui(ctx);
+                        self.server_ctx.history.read().set_undo_state_to_ui(ctx);
                     } else if id.name == "Pick Tile Source" {
                         if let TheValue::List(values) = value {
                             let picked = match values.as_slice() {
@@ -10679,7 +10677,7 @@ impl TheTrait for Editor {
                             instance,
                         );
                         atom.redo(&mut self.documents.project, ui, ctx, &mut self.server_ctx);
-                        UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                        self.server_ctx.history.write().add_undo(atom, ctx);
                     } else if drop.id.name.starts_with("Item") {
                         let mut instance = Item {
                             item_id: drop.id.references,
@@ -10714,7 +10712,7 @@ impl TheTrait for Editor {
                         };
                         match placement {
                             Ok(()) => {
-                                UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                                self.server_ctx.history.write().add_undo(atom, ctx);
                                 if support_surface_sample.is_some() {
                                     ctx.ui.send(TheEvent::SetStatusText(
                                         TheId::empty(),
@@ -11463,7 +11461,7 @@ impl TheTrait for Editor {
                             }
                             refresh_action_ui = true;
                         } else {
-                            let mut manager = UNDOMANAGER.write().unwrap();
+                            let mut manager = self.server_ctx.history.write();
 
                             if id.name == "Undo" {
                                 manager.undo(&mut self.server_ctx, &mut self.documents.project, ui, ctx);
@@ -12259,7 +12257,7 @@ mod tests {
                 let pixel = rusterix::isometric::Projection::editor(map, size)
                     .screen(world, h)
                     .map(|v| v.round() as i32);
-                let undo_revision = UNDOMANAGER.read().unwrap().revision();
+                let undo_revision = editor.server_ctx.history.read().revision();
                 for (phase, event) in [
                     (
                         "hover",
@@ -12289,7 +12287,7 @@ mod tests {
                     );
                 }
                 assert!(
-                    UNDOMANAGER.read().unwrap().revision() > undo_revision,
+                    editor.server_ctx.history.read().revision() > undo_revision,
                     "{alias} benchmark must commit an actual placement"
                 );
             }

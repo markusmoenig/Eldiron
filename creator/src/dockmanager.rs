@@ -334,6 +334,7 @@ impl DockManager {
         project: &mut Project,
         jobs: &CreatorJobs,
         reference: &CreatorReference,
+        creator_history: &CreatorHistory,
     ) -> Result<bool, String> {
         let mut changed = false;
         let mut error = None;
@@ -342,7 +343,7 @@ impl DockManager {
             .values_mut()
             .chain(self.editor_docks.values_mut())
         {
-            match dock.commit_pending_edits(ctx, project, jobs, reference) {
+            match dock.commit_pending_edits(ctx, project, jobs, reference, creator_history) {
                 Ok(applied) => changed |= applied,
                 Err(message) => {
                     if error.is_none() {
@@ -1023,6 +1024,7 @@ mod native_graph_owner_tests {
             project: &mut Project,
             _jobs: &CreatorJobs,
             _reference: &CreatorReference,
+            creator_history: &CreatorHistory,
         ) -> Result<bool, String> {
             self.calls.fetch_add(1, Ordering::Relaxed);
             if self.fail {
@@ -1093,6 +1095,7 @@ mod native_graph_owner_tests {
     }
     #[test]
     fn document_barrier_commits_hidden_views_even_when_another_draft_is_invalid() {
+        let creator_history = CreatorHistory::default();
     let reference = CreatorReference::default();
         let mut manager = manager();
         let failed = Arc::new(AtomicUsize::new(0));
@@ -1117,7 +1120,7 @@ mod native_graph_owner_tests {
         let mut project = Project::default();
         assert_eq!(
             manager
-                .commit_pending_edits(&mut ctx, &mut project, &CreatorJobs::default(), &reference)
+                .commit_pending_edits(&mut ctx, &mut project, &CreatorJobs::default(), &reference, &creator_history)
                 .unwrap_err(),
             "invalid draft"
         );

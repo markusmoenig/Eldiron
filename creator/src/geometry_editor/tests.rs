@@ -171,6 +171,7 @@ fn geometry_view_has_typed_rows_palette_and_no_surface_settings() {
 }
 #[test]
 fn queued_geometry_commands_use_current_source_without_a_ui_refresh() {
+    let creator_history = CreatorHistory::default();
     let id = Uuid::new_v4();
     let mut project = Project::default();
     project
@@ -190,7 +191,7 @@ fn queued_geometry_commands_use_current_source_without_a_ui_refresh() {
         },
         &mut project,
         &mut ctx,
-    )
+     &creator_history)
     .unwrap();
     host.apply_command(
         MaterialEditorCommand::SetNumber {
@@ -200,7 +201,7 @@ fn queued_geometry_commands_use_current_source_without_a_ui_refresh() {
         },
         &mut project,
         &mut ctx,
-    )
+     &creator_history)
     .unwrap();
     let result = Document::load(&project.procedural_appearances[&id]).unwrap();
     assert!(matches!(result.rows[3].tiles[1].op,Operation::Extrude{depth} if depth==0.05));
@@ -488,6 +489,7 @@ fn save_png(path: &str, image: &TheRGBABuffer, w: u32, h: u32) {
 
 #[test]
 fn human_controls_edit_profiles_bindings_and_motion_without_touching_tiles() {
+    let creator_history = CreatorHistory::default();
     let mut doc = Document::load(denrim_materials::geometry::HUMAN_DETAIL_EXAMPLE).unwrap();
     let before = doc.evaluate().unwrap().mesh.vertex_count();
     for (operation, parameter, value, selection) in [
@@ -568,7 +570,7 @@ fn human_controls_edit_profiles_bindings_and_motion_without_touching_tiles() {
         },
         &mut p,
         &mut ctx,
-    )
+     &creator_history)
     .unwrap();
     assert_eq!(
         saved, p.procedural_appearances[&id],
@@ -705,6 +707,7 @@ fn grouped_controls_use_real_ranges_and_palette_pickers() {
 
 #[test]
 fn group_details_preserve_parent_controls_and_undo_the_whole_recipe() {
+    let creator_history = CreatorHistory::default();
     let mut p = Project::default();
     let id = Uuid::new_v4();
     let mut doc = Document::load(denrim_materials::geometry::HUMAN_EXAMPLE).unwrap();
@@ -733,7 +736,7 @@ fn group_details_preserve_parent_controls_and_undo_the_whole_recipe() {
         },
         &mut p,
         &mut ctx,
-    )
+     &creator_history)
     .unwrap();
     let after = p.procedural_appearances[&id].clone();
     let root = Document::load(&after).unwrap();
@@ -769,6 +772,7 @@ fn group_details_preserve_parent_controls_and_undo_the_whole_recipe() {
 
 #[test]
 fn group_navigation_opens_details_and_returns_to_compact_body_controls() {
+    let creator_history = CreatorHistory::default();
     let mut p = Project::default();
     let mut ctx = TheContext::new(400, 1000, 1.);
     let mut ui = TheUI::new();
@@ -788,13 +792,13 @@ fn group_navigation_opens_details_and_returns_to_compact_body_controls() {
         &mut p,
         &mut ui,
         &mut ctx,
-    );
+     &creator_history);
     host.handle_event(
         &TheEvent::StateChanged(TheId::named("MZ New Human"), TheWidgetState::Clicked),
         &mut p,
         &mut ui,
         &mut ctx,
-    );
+     &creator_history);
     host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
     assert_eq!(host.scene.tool, 1);
     assert_eq!(host.group_path, ["body-op-0"]);
@@ -803,7 +807,7 @@ fn group_navigation_opens_details_and_returns_to_compact_body_controls() {
         &mut p,
         &mut ui,
         &mut ctx,
-    );
+     &creator_history);
     host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
     assert!(host.group_path.is_empty());
     assert!(
@@ -824,7 +828,7 @@ fn group_navigation_opens_details_and_returns_to_compact_body_controls() {
         &mut p,
         &mut ui,
         &mut ctx,
-    );
+     &creator_history);
     host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
     assert_eq!(host.group_path, ["body-op-0"]);
     assert_eq!(host.document.as_ref().unwrap().label, "Body details");
@@ -837,7 +841,7 @@ fn group_navigation_opens_details_and_returns_to_compact_body_controls() {
         &mut p,
         &mut ui,
         &mut ctx,
-    );
+     &creator_history);
     host.update(&p, &mut ui, &mut ctx, &ServerContext::default());
     assert!(host.group_path.is_empty());
     assert!(
