@@ -9,6 +9,8 @@ use std::hash::{Hash, Hasher};
 
 #[cfg(feature = "native-ui")]
 pub mod native;
+#[cfg(feature = "native-render")]
+pub(crate) mod native_geometry;
 
 pub static MINIMAPBUFFER: LazyLock<RwLock<TheRGBABuffer>> =
     LazyLock::new(|| RwLock::new(TheRGBABuffer::default()));
@@ -237,9 +239,24 @@ fn draw_isometric_minimap(
     rusterix::isometric::draw(&base, assets, buffer, projection, 0.);
 }
 
+trait MinimapDiagramPainter {
+    fn line(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, color: RGBA);
+    fn outline(&mut self, rect: &TheDim, color: &RGBA);
+}
+
 fn draw_geometry_minimap(map: &Map, buffer: &mut TheRGBABuffer, bbox: Vec4<f32>) {
-    let dim = *buffer.dim();
-    let render_dim = Vec2::new(dim.width as f32, dim.height as f32);
+    struct Raster<'a>(&'a mut TheRGBABuffer);
+    impl MinimapDiagramPainter for Raster<'_> {
+        fn line(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, color: RGBA) {
+            self.0.draw_line(x0, y0, x1, y1, color);
+        }
+        fn outline(&mut self, rect: &TheDim, color: &RGBA) { self.0.draw_rect_outline(rect, color); }
+    }
+    let size = Vec2::new(buffer.dim().width as f32, buffer.dim().height as f32);
+    geometry_minimap(map, size, bbox, &mut Raster(buffer));
+}
+
+fn geometry_minimap(map: &Map, render_dim: Vec2<f32>, bbox: Vec4<f32>, painter: &mut dyn MinimapDiagramPainter) {
     let edge_color = [150, 154, 158, 255];
     let selected_edge_color = [235, 226, 180, 255];
     let selected_vertex_color = [255, 245, 178, 255];
@@ -273,7 +290,7 @@ fn draw_geometry_minimap(map: &Map, buffer: &mut TheRGBABuffer, bbox: Vec4<f32>)
             let y = min.y.min(max.y) as i32;
             let w = (min.x - max.x).abs().max(1.0) as i32;
             let h = (min.y - max.y).abs().max(1.0) as i32;
-            buffer.draw_rect_outline(&TheDim::rect(x, y, w, h), &bbox_color);
+            painter.outline(&TheDim::rect(x, y, w, h), &bbox_color);
         }
 
         let mut drawn_edges = BTreeSet::new();
@@ -309,7 +326,7 @@ fn draw_geometry_minimap(map: &Map, buffer: &mut TheRGBABuffer, bbox: Vec4<f32>)
                 } else {
                     color
                 };
-                buffer.draw_line(a.x as i32, a.y as i32, b.x as i32, b.y as i32, line_color);
+                painter.line(a.x as i32, a.y as i32, b.x as i32, b.y as i32, line_color);
             }
         }
 
@@ -322,7 +339,7 @@ fn draw_geometry_minimap(map: &Map, buffer: &mut TheRGBABuffer, bbox: Vec4<f32>)
                 continue;
             }
             let pos = world_to_minimap_pixel(Vec2::new(world.x, world.z), render_dim, bbox);
-            buffer.draw_rect_outline(
+            painter.outline(
                 &TheDim::rect(pos.x as i32 - 2, pos.y as i32 - 2, 4, 4),
                 &selected_vertex_color,
             );
@@ -355,7 +372,7 @@ fn draw_geometry_minimap(map: &Map, buffer: &mut TheRGBABuffer, bbox: Vec4<f32>)
             }
             let start = world_to_minimap_pixel(Vec2::new(start.x, start.z), render_dim, bbox);
             let end = world_to_minimap_pixel(Vec2::new(end.x, end.z), render_dim, bbox);
-            buffer.draw_line(
+            painter.line(
                 start.x as i32,
                 start.y as i32,
                 end.x as i32,
@@ -379,7 +396,7 @@ fn draw_geometry_minimap(map: &Map, buffer: &mut TheRGBABuffer, bbox: Vec4<f32>)
                 continue;
             }
             let pos = world_to_minimap_pixel(Vec2::new(world.x, world.z), render_dim, bbox);
-            buffer.draw_rect_outline(
+            painter.outline(
                 &TheDim::rect(pos.x as i32 - 2, pos.y as i32 - 2, 4, 4),
                 &selected_surface_color,
             );

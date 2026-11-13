@@ -425,6 +425,8 @@ pub trait TheRenderViewTrait: TheWidget {
     #[cfg(feature = "text")]
     fn set_paint_source(&mut self, source: Option<std::sync::Arc<dyn RenderViewPaintSource>>);
     #[cfg(feature = "text")]
+    fn clear_paint_source(&mut self, expected: &std::sync::Arc<dyn RenderViewPaintSource>) -> bool;
+    #[cfg(feature = "text")]
     /// Publish a shared GPU image, or clear all view content with `None`.
     /// This releases the former CPU viewport cache. The application owns image
     /// residency and republishes handles after device/resource replacement.
@@ -451,6 +453,16 @@ pub trait TheRenderViewTrait: TheWidget {
 }
 
 impl TheRenderViewTrait for TheRenderView {
+    #[cfg(feature = "text")]
+    fn clear_paint_source(&mut self, expected: &std::sync::Arc<dyn RenderViewPaintSource>) -> bool {
+        if matches!(&self.native_content, Some(NativeContent::Source(current)) if std::sync::Arc::ptr_eq(current, expected))
+        {
+            self.set_image_handle(None);
+            true
+        } else {
+            false
+        }
+    }
     #[cfg(feature = "text")]
     fn set_paint_source(&mut self, source: Option<std::sync::Arc<dyn RenderViewPaintSource>>) {
         if matches!((&self.native_content, &source),

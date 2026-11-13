@@ -6064,3 +6064,141 @@ replacing the pixels while retaining unversioned global MINIMAPBOX input. Do not
 claim all minimaps migrated until the geometry/action/palette/custom cases and
 unconverted character rig preview are inventoried and verified. Full M0–M9 Goal
 remains active; runtime/authoring project separation and platform gates remain.
+
+## 2026-11-13 — Geometry overview minimap ownership/GPU paint (checkpoint verified)
+
+The ordinary 3D region geometry-overview minimap now publishes native paint
+instead of a CPU display bitmap. Extracted the existing geometry projection and
+selection algorithm behind a small line/outline description boundary; retained
+its explicit raster reference adapter. Native paint covers geometry bounds/edges,
+selected faces/vertices/surface annotations, camera/look-at markers, and the shared
+Swash Region label. Source publication releases RenderView CPU display storage.
+
+Added an application-owned GeometryOverview and immutable frame receipt. Creator
+retains a minimap token only when that receipt actually appears in its painted
+root, and acknowledges it after presentation. Navigation uses the acknowledged
+bbox plus document incarnation, region/map, view identity/rectangle, DPI, mode and
+actual geometry fingerprint. Content replacement cannot reuse a serialized map
+revision; no project format was changed. Camera-marker-only changes preserve the
+acknowledged navigation transform, allowing continuous drags. Late acknowledgements
+cannot cross geometry/document/view/DPI/mode scopes. Other source publishers revoke
+geometry navigation; identity-checked source clearing cannot erase their content.
+
+Added LogicalPixelLine: GPU Bresenham in logical pixels, preserving pixel-square
+coverage through fractional DPI, alongside the existing physical PixelLine.
+This reuses its exact endpoint/64-bit-product coverage logic; endpoint halves live
+in small storage metadata, with the host device/pipeline and no CPU bitmap.
+
+Scope is deliberately explicit: this converts the geometry overview for ordinary
+regions in 3D modes. It does not retire the ordinary SceneVM minimap readback,
+sprite-isometric CPU producer, action/palette minimaps, character rig preview or
+all custom/Prefab context adapters. Those remain active work, not completed gates.
+
+Evidence so far:
+- Initial native geometry-owner check passed20.39s:
+  `/private/tmp/eldiron-native-geometry-minimap-check.log`.
+- Logical-line native check passed22.95s:
+  `/private/tmp/eldiron-native-logical-minimap-check.log`.
+- Existing assembled test builds passed41.53s,26.61s,29.57s,28.98s:
+  `/private/tmp/eldiron-native-geometry-minimap-build.log`,
+  `eldiron-native-geometry-minimap-final-build.log`,
+  `eldiron-native-geometry-minimap-scoped-build.log`,
+  `eldiron-native-geometry-minimap-integration-build.log` under `/private/tmp`.
+- Added populated rotated-geometry/selection/camera-marker CPU-oracle cases to the
+  existing source comparisons, including100/125/150/175/200% DPI. The same existing
+  checkpoint checks actual Sidebar event publication, no CPU display allocation,
+  no repeated static redraw, initial/late/reused-revision/document/DPI scope
+  rejection, continuous marker movement, and identity-safe source replacement.
+  Label uses the existing Swash UI label path; the pixel oracle isolates diagram
+  geometry/markers rather than misrepresenting old fontdue as identical text.
+- Focused actual Metal run is pending:
+  `/private/tmp/eldiron-native-geometry-minimap-focused-metal.log`.
+  Fix failures before a complete assembled Creator run, final production/reference
+  checks and checkpoint commit. No additional standalone test suite/count added.
+- A formatter initially traversed native_views.rs's path modules. Inspected and
+  removed those formatting-only sibling changes, preserving their HEAD contents.
+  Subsequent formatting is scoped; networking concept remains untouched.
+
+Geometry minimap follow-up:
+- First focused run failed2.20s in a fixture scope assertion. Project::default
+  already contains a region; the fixture appended its own region but edited
+  index0 during replacement validation. Cleared the unrelated default fixture
+  region, preserving the production geometry-content fingerprint/checks.
+  `/private/tmp/eldiron-native-geometry-minimap-focused-metal.log`.
+- Corrected fixture build passed27.65s:
+  `/private/tmp/eldiron-native-geometry-minimap-fixture-build.log`.
+- Corrected GPU run reached exact geometry parity at100% but failed125% DPI
+  (max delta213, sharp-line coverage),2.76s:
+  `/private/tmp/eldiron-native-geometry-minimap-corrected-metal.log`.
+- Moved the pixel shaders' inverse basis into a CPU f64-computed matrix in the
+  existing UBO (16 extra bytes). This avoids per-fragment approximate reciprocal
+  division at exact logical pixel boundaries, with no image upload or extra
+  buffer/texture. Physical PixelLine's established coverage remains unchanged.
+  The same inverse serves sprite/pixel-rect, sampled-line, radial and logical-line
+  source operations, so their existing cases must remain passing.
+- Inverse build passed47.73s:
+  `/private/tmp/eldiron-native-minimap-dpi-inverse-build.log`.
+- Focused actual Metal run **passed1,2.80s**. Both populated oblique geometry
+  cases are exactly equal to the CPU diagram reference (max delta0) at all five
+  scales; particle/source cases remain max delta1. Scope/Sidebar/lifetime cases
+  passed in the same run:
+  `/private/tmp/eldiron-native-minimap-dpi-inverse-metal.log`.
+- Added explicit geometry-source revocation at document deactivation and Sidebar
+  project reload, before replacing its owner. Editor.rs received only two lines;
+  no whole-file formatter was used.
+- Extending the same existing checkpoint's DPI comparisons across all source
+  fixtures (including populated/clipped tile boards and drag ghosts), then run
+  the whole Creator checkpoint once. Current build:
+  `/private/tmp/eldiron-native-source-dpi-matrix-build.log`.
+  No final assembled/production/reference result for this change yet.
+
+Source-DPI review and execution adjustment:
+- Full source matrix build passed25.86s:
+  `/private/tmp/eldiron-native-source-dpi-matrix-build.log`.
+- Expanded matrix initially hit a half-pixel AA edge in its test-only grey
+  backdrop (max21 at150%). The oracle describes nearest logical pixels, so that
+  backdrop now uses PixelRects rather than an antialiased vector rectangle.
+  `/private/tmp/eldiron-native-source-dpi-matrix-metal.log` (failed2.45s).
+  Correction build27.99s:
+  `/private/tmp/eldiron-native-source-dpi-pixel-bg-build.log`.
+- A subsequent stochastic particle snapshot hit one procedural source-alpha
+  pixel with max2: GPU[189,163,115] vs CPU[188,161,115] at(8,3) in14x9. The opaque
+  source still differs by at most1; byte rounding during composition adds another
+  level. CPU f32 reconstruction confirms this two-stage rounding explanation.
+  `/private/tmp/eldiron-native-source-dpi-matrix-final-metal.log` (failed2.49s).
+- Reviewed the actual GPU/reference capture side by side, enlarged12x:
+  `/private/tmp/eldiron-procedural-aa-review.png`. No coverage/alignment change;
+  the difference is a tiny intensity change in generated AA. Applied an explicit
+  reviewed budget2 ONLY to procedural source-alpha comparisons, as section8 of
+  the plan permits reviewed AA differences. Ordinary assets, silhouettes and
+  geometry remain budget1 (geometry currently exact0). This is not a claim of
+  bit-identical procedural AA, nor completion of M0–M9.
+- User reported slow progress. Stop repeated micro-level parity iterations;
+  implement larger coherent batches and use one assembled Creator checkpoint per
+  batch. Keep real silhouette, scope, timing and compatibility failures blocking.
+- Current final combined build:
+  `/private/tmp/eldiron-native-minimap-integrated-final-build.log`.
+
+Final geometry overview checkpoint evidence:
+- Combined assembled-test build passed45.13s:
+  `/private/tmp/eldiron-native-minimap-integrated-final-build.log`.
+- Native production compile passed24.55s (six existing warnings):
+  `/private/tmp/eldiron-native-geometry-minimap-production-check.log`.
+- Reference Creator compile passed23.71s:
+  `/private/tmp/eldiron-geometry-minimap-reference-check.log`.
+- Full assembled actual Metal Creator checkpoint, diagnostic source-only
+  environment explicitly unset, **passed1,89.52s**:
+  `/private/tmp/eldiron-native-geometry-minimap-root-metal.log`.
+  Both geometry fixtures matched exactly at100/125/150/175/200% DPI. The expanded
+  asset/board/ghost/source matrix passed its recorded budgets, including the
+  explicitly reviewed procedural source-alpha budget2 described above.
+- `git diff --check` passed. No serialized project change, new standalone test
+  suite, physical IME result or loaded-project performance claim is included.
+
+Resume here: the next coherent implementation batch should remove remaining
+ordinary minimap SceneVM readbacks and sprite-isometric CPU display production,
+using host-owned GPU targets and acknowledged navigation scopes. Geometry-only
+completion does not satisfy the remaining minimap cases or M0–M9 acceptance.
+Runtime/authoring project separation, canonical GPU entrypoint retirement, and
+the outstanding physical/platform/performance gates remain open. Preserve the
+untracked concurrent `concepts/networking-mmo-concept.md` unchanged.

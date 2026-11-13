@@ -19,6 +19,7 @@ struct Params {
     color0: Color,
     color1: Color,
     gradient: [f32; 4],
+    inverse: [f32; 4],
 }
 #[derive(Clone)]
 struct Geometry {
@@ -31,6 +32,10 @@ struct Geometry {
 enum ImageEffect {
     PixelTriangle([Point; 3]),
     PixelLine([i32; 4]),
+    LogicalPixelLine {
+        endpoints: [i32; 4],
+        basis: [f32; 4],
+    },
     SampledLine {
         endpoints: [f32; 4],
         basis: [f32; 4],
@@ -488,6 +493,8 @@ impl PaintRenderer {
             viewport: [size.0 as f32, size.1 as f32],
             mode: (if let Some(ImageEffect::Present(srgb)) = effect {
                 if srgb { 8 } else { 9 }
+            } else if matches!(effect, Some(ImageEffect::LogicalPixelLine { .. })) {
+                17
             } else if matches!(effect, Some(ImageEffect::Sprite { .. })) {
                 15
             } else if matches!(effect, Some(ImageEffect::SampledLine { .. })) {
@@ -563,6 +570,7 @@ impl PaintRenderer {
                 },
                 |size| [size[0], size[1], 0., 0.],
             ),
+            inverse: [0.; 4],
         };
         if let Some(Field::Radial(layer, rect, _)) = field {
             // The radial shader explicitly quantizes/composites encoded bytes,
@@ -581,7 +589,7 @@ impl PaintRenderer {
         }
         if let Some(ImageEffect::PixelLine(points)) = effect {
             // Numeric 16-bit halves are exact f32 values, including negative
-            // coordinates. Keep the common 64-byte UBO without NaN bit packing.
+            // coordinates. Preserve exact endpoint halves without NaN bit packing.
             params.color1 = points.map(|p| ((p as u32) >> 16) as f32);
             params.gradient = points.map(|p| ((p as u32) & 65535) as f32);
         }
@@ -596,6 +604,32 @@ impl PaintRenderer {
             params.color1 = [scale[0], scale[1], 0., 0.];
             params.gradient = basis;
         }
+        if let Some(ImageEffect::LogicalPixelLine { basis, .. }) = effect {
+            params.gradient = basis;
+        }
+        let pixel_basis = match effect {
+            Some(
+                ImageEffect::Sprite { basis, .. }
+                | ImageEffect::SampledLine { basis, .. }
+                | ImageEffect::LogicalPixelLine { basis, .. },
+            ) => Some(basis),
+            _ => match field {
+                Some(Field::Radial(_, _, basis)) => Some(basis),
+                _ => None,
+            },
+        };
+        if let Some([a, b, c, d]) = pixel_basis {
+            // Avoid per-fragment approximate reciprocal division at exact
+            // logical pixel boundaries, especially 125/150/175% DPI.
+            let (a, b, c, d) = (a as f64, b as f64, c as f64, d as f64);
+            let determinant = a * d - b * c;
+            params.inverse = [
+                (d / determinant) as f32,
+                (-c / determinant) as f32,
+                (-b / determinant) as f32,
+                (a / determinant) as f32,
+            ];
+        }
         let uniform = self
             .context
             .device
@@ -606,10 +640,19 @@ impl PaintRenderer {
             });
         let texture = image.map_or(&*self.white, |(image, _)| image);
         let sampler = &self.samplers[&image.map(|(_, s)| s).unwrap_or(Sampling::Linear)];
-        let field_data = field.map(|field| match field {
+        let mut field_data = field.map(|field| match field {
             Field::Distance(field, _) => distance_data(field, self.legacy_display),
             Field::Radial(layer, ..) => radial_data(layer),
         });
+        if let Some(ImageEffect::LogicalPixelLine { endpoints, .. }) = effect {
+            field_data = Some(vec![DistanceData {
+                bounds: endpoints.map(|p| ((p as u32) >> 16) as f32),
+                radii: endpoints.map(|p| ((p as u32) & 65535) as f32),
+                fill: [0.; 4],
+                border: [0.; 4],
+                meta: [0.; 4],
+            }]);
+        }
         let field_buffer = field_data.as_ref().filter(|v| !v.is_empty()).map(|data| {
             self.context
                 .device
@@ -1110,6 +1153,41 @@ impl PaintRenderer {
                             0,
                             None,
                             Some(ImageEffect::PixelLine([a[0], a[1], b[0], b[1]])),
+                        ));
+                    }
+                }
+                PaintOp::LogicalPixelLine { from, to, color } => {
+                    let a = from.map(|n| n.round() as i32);
+                    let b = to.map(|n| n.round() as i32);
+                    let [ma, mb, mc, md, _, _] = transform.0;
+                    let basis = [ma * density, mb * density, mc * density, md * density];
+                    if basis.iter().any(|n| !n.is_finite()) {
+                        return Err(RenderError("nonfinite logical line transform".into()));
+                    }
+                    if transform.inverse().is_some() {
+                        let rect = Rect::new(
+                            a[0].min(b[0]) as f32,
+                            a[1].min(b[1]) as f32,
+                            (a[0].abs_diff(b[0]) as f64 + 1.) as f32,
+                            (a[1].abs_diff(b[1]) as f64 + 1.) as f32,
+                        );
+                        let (mut vertices, indices) =
+                            mesh::quad(rect, Rect::default(), transform, density);
+                        for v in &mut vertices {
+                            v.color = [rect.x, rect.y, rect.width, rect.height];
+                        }
+                        draws.push(self.draw_with_effects(
+                            self.geometry(&vertices, &indices),
+                            &Brush::Solid(*color),
+                            None,
+                            size,
+                            level,
+                            0,
+                            None,
+                            Some(ImageEffect::LogicalPixelLine {
+                                endpoints: [a[0], a[1], b[0], b[1]],
+                                basis,
+                            }),
                         ));
                     }
                 }

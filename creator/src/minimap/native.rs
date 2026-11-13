@@ -398,9 +398,10 @@ pub(crate) fn reference_cases() -> Vec<(&'static str, Arc<dyn RenderViewPaintSou
         impl RenderViewPaintSource for SourceImage {
             fn paint(&self, painter: &mut WidgetPainter<'_>, viewport: [f32; 2]) -> UiPaintResult {
                 let rect = Rect::new(0., 0., viewport[0], viewport[1]);
-                painter
-                    .list
-                    .rect(rect, 0., [42. / 255., 42. / 255., 42. / 255., 1.]);
+                painter.list.ops.push(PaintOp::PixelRects {
+                    rects: vec![rect].into(),
+                    color: [42. / 255., 42. / 255., 42. / 255., 1.],
+                });
                 painter.list.ops.push(PaintOp::PixelRadialLayer {
                     rect,
                     layer: self.0.clone(),
@@ -435,5 +436,7 @@ pub(crate) fn reference_cases() -> Vec<(&'static str, Arc<dyn RenderViewPaintSou
             reference,
         ));
     }
+    #[cfg(feature = "native-render")]
+    cases.extend(crate::minimap::native_geometry::reference_cases());
     cases
 }

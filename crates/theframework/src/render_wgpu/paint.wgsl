@@ -1,4 +1,4 @@
-struct Params { viewport:vec2<f32>,mode:u32,source:u32,color0:vec4<f32>,color1:vec4<f32>,gradient:vec4<f32> };
+struct Params { viewport:vec2<f32>,mode:u32,source:u32,color0:vec4<f32>,color1:vec4<f32>,gradient:vec4<f32>,inverse:vec4<f32> };
 @group(0) @binding(0) var<uniform> params:Params;
 @group(0) @binding(1) var image:texture_2d<f32>;
 @group(0) @binding(2) var image_sampler:sampler;
@@ -98,7 +98,7 @@ struct Out{@builtin(position)position:vec4<f32>,@location(0)local:vec2<f32>,@loc
         output_local=local*(vec2<f32>(1.)+2.*pad)-pad;
         position+=bx*(pixel.x+output_local.x-local.x)+by*(pixel.y+output_local.y-local.y);
     }
-    if((params.mode&255u)==15u || (params.mode&255u)==16u){
+    if((params.mode&255u)==15u || (params.mode&255u)==16u || (params.mode&255u)==17u){
         let bx=params.gradient.xy;let by=params.gradient.zw;
         origin=p-bx*local.x-by*local.y;
         let determinant=abs(bx.x*by.y-bx.y*by.x);
@@ -197,9 +197,8 @@ fn line_minor(k:u32,minor:u32,major:u32)->u32{
     }
     return quotient;
 }
-fn line_coverage(point:vec2<i32>)->bool{
-    let packed=(vec4<u32>(params.color1)<<vec4<u32>(16u))|vec4<u32>(params.gradient);
-    let endpoints=bitcast<vec4<i32>>(packed);let a=endpoints.xy;let b=endpoints.zw;
+fn line_coverage(point:vec2<i32>,endpoints:vec4<i32>)->bool{
+    let a=endpoints.xy;let b=endpoints.zw;
     if(all(a==b)){return all(point==a);}
     let af=bitcast<vec2<u32>>(a);let bf=bitcast<vec2<u32>>(b);let pf=bitcast<vec2<u32>>(point);
     let distance=select(af-bf,bf-af,b>=a);
@@ -226,7 +225,7 @@ fn triangle_coverage(p:vec2<f32>)->bool {
     let mode=params.mode&255u;
     if(mode==16u){
         let bx=params.gradient.xy;let by=params.gradient.zw;let q=i.position.xy-i.origin;
-        let logical=vec2<f32>(q.x*by.y-q.y*by.x,bx.x*q.y-bx.y*q.x)/(bx.x*by.y-bx.y*by.x);
+        let logical=vec2<f32>(dot(params.inverse.xy,q),dot(params.inverse.zw,q));
         if(any(logical<i.color.xy) || any(logical>=i.color.xy+i.color.zw)){return vec4<f32>(0.);}
         return radial_color(logical,i.color);
     }
@@ -235,7 +234,7 @@ fn triangle_coverage(p:vec2<f32>)->bool {
     var c=params.color0;
     if(mode==15u){
         let bx=params.gradient.xy;let by=params.gradient.zw;let q=i.position.xy-i.origin;
-        let logical=vec2<f32>(q.x*by.y-q.y*by.x,bx.x*q.y-bx.y*q.x)/(bx.x*by.y-bx.y*by.x);
+        let logical=vec2<f32>(dot(params.inverse.xy,q),dot(params.inverse.zw,q));
         let pixel=floor(logical-i.color.xy);
         if(any(pixel<vec2<f32>(0.)) || any(pixel>=i.color.zw)){return vec4<f32>(0.);}
         let position=vec2<i32>(min(floor(pixel/params.color1.xy),vec2<f32>(textureDimensions(image))-vec2<f32>(1.)));
@@ -247,7 +246,7 @@ fn triangle_coverage(p:vec2<f32>)->bool {
         // Invert the draw basis at the physical center. Interpolated local
         // coordinates can drift across exact texel boundaries at fractional DPI.
         let bx=params.gradient.xy;let by=params.gradient.zw;let q=i.position.xy-i.origin;
-        let logical=vec2<f32>(q.x*by.y-q.y*by.x,bx.x*q.y-bx.y*q.x)/(bx.x*by.y-bx.y*by.x);
+        let logical=vec2<f32>(dot(params.inverse.xy,q),dot(params.inverse.zw,q));
         let alpha=select(0.,c.a,all(floor(logical)==i.pixel));
         return vec4<f32>(c.rgb*alpha,alpha);
     }
@@ -255,8 +254,16 @@ fn triangle_coverage(p:vec2<f32>)->bool {
         let alpha=select(0.,c.a,triangle_coverage(floor(i.position.xy)+vec2<f32>(0.5)));
         return vec4<f32>(c.rgb*alpha,alpha);
     }
+    if(mode==17u){
+        let bx=params.gradient.xy;let by=params.gradient.zw;let q=i.position.xy-i.origin;
+        let logical=vec2<f32>(dot(params.inverse.xy,q),dot(params.inverse.zw,q));
+        let packed=(vec4<u32>(field[0].bounds)<<vec4<u32>(16u))|vec4<u32>(field[0].radii);
+        let alpha=select(0.,c.a,line_coverage(vec2<i32>(floor(logical)),bitcast<vec4<i32>>(packed)));
+        return vec4<f32>(c.rgb*alpha,alpha);
+    }
     if(mode==12u){
-        let alpha=select(0.,c.a,line_coverage(vec2<i32>(floor(i.position.xy))));
+        let packed=(vec4<u32>(params.color1)<<vec4<u32>(16u))|vec4<u32>(params.gradient);
+        let alpha=select(0.,c.a,line_coverage(vec2<i32>(floor(i.position.xy)),bitcast<vec4<i32>>(packed)));
         return vec4<f32>(c.rgb*alpha,alpha);
     }
     if(mode==11u){

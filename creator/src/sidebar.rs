@@ -38,6 +38,8 @@ pub struct Sidebar {
 
     #[cfg(feature = "native-ui")]
     minimap_sources: crate::minimap::native::Sources,
+    #[cfg(feature = "native-render")]
+    pub(crate) minimap_geometry: crate::minimap::native_geometry::GeometryOverview,
 
     pub startup: bool,
 }
@@ -163,6 +165,8 @@ impl Sidebar {
         {
             self.minimap_sources = Default::default();
         }
+        #[cfg(feature = "native-render")]
+        { self.minimap_geometry = Default::default(); }
         self.curr_tilemap_uuid = None;
         self.curr_tile_collection_uuid = None;
         self.pending_palette_drag_undo = None;
@@ -199,6 +203,8 @@ impl Sidebar {
 
             #[cfg(feature = "native-ui")]
             minimap_sources: Default::default(),
+            #[cfg(feature = "native-render")]
+            minimap_geometry: Default::default(),
 
             startup: true,
         }
@@ -231,11 +237,22 @@ impl Sidebar {
                     )
                 });
             if let Some(source) = source {
+                #[cfg(feature = "native-render")]
+                self.minimap_geometry.deactivate(ui);
+                let view = ui.get_render_view("MiniMap").unwrap();
                 view.set_paint_source(Some(source));
                 return view.needs_redraw();
             }
             self.minimap_sources.clear_active();
         }
+        #[cfg(feature = "native-render")]
+        if ctx.ui.command_paint {
+            if self.minimap_geometry.publish(project, server_ctx, ui, ctx) {
+                return ui.get_render_view("MiniMap").unwrap().needs_redraw();
+            }
+            self.minimap_geometry.deactivate(ui);
+        }
+        let view = ui.get_render_view("MiniMap").unwrap();
         // Explicit adapter for the remaining world/procedural minimaps.
         // render_buffer_mut revokes a previously published native source.
         let buffer = view.render_buffer_mut();
@@ -951,6 +968,13 @@ impl Sidebar {
 
                         let width = dim.width as f32;
                         let height = dim.height as f32;
+                        #[cfg(feature = "native-render")]
+                        let native_bbox = if ctx.ui.command_paint {
+                            match self.minimap_geometry.navigation_bbox(id, project, server_ctx, ui, ctx) {
+                                Ok(bbox) => bbox,
+                                Err(()) => return redraw,
+                            }
+                        } else { None };
                         let mut update_pos_3d: Option<Vec3<f32>> = None;
                         let mut update_look_at_3d: Option<Vec3<f32>> = None;
                         let mut handled_minimap_input = false;
@@ -963,6 +987,8 @@ impl Sidebar {
                             } else {
                                 bbox
                             };
+                            #[cfg(feature = "native-render")]
+                            let bbox = native_bbox.unwrap_or(bbox);
                             let grid_pos = crate::minimap::minimap_pixel_to_world_on_map(
                                 Vec2::new(coord.x as f32, coord.y as f32),
                                 Vec2::new(width, height),
@@ -3766,6 +3792,8 @@ impl Sidebar {
         server_ctx: &mut ServerContext,
         project: &mut Project,
     ) {
+        #[cfg(feature = "native-render")]
+        self.minimap_geometry.deactivate(ui);
         self.reset_for_project_switch();
 
         _ = RUSTERIX

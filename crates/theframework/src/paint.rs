@@ -362,6 +362,13 @@ pub enum PaintOp {
         to: Point,
         color: Color,
     },
+    /// Inclusive Bresenham coverage in logical pixels. Each covered logical
+    /// pixel follows the paint transform and DPI as a nearest-sampled square.
+    LogicalPixelLine {
+        from: Point,
+        to: Point,
+        color: Color,
+    },
     /// Legacy capped DDA in logical pixels: ceil(max(abs(delta))) steps,
     /// capped at 8192, inclusive endpoints rounded away from zero at halves.
     /// Repeated samples retain their ordered alpha blending. Logical pixel
@@ -667,6 +674,7 @@ impl PaintList {
                     }
                 }
                 PaintOp::PixelLine { from, to, color }
+                | PaintOp::LogicalPixelLine { from, to, color }
                 | PaintOp::SampledLine { from, to, color } => {
                     if from
                         .iter()
