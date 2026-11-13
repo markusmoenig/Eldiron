@@ -120,10 +120,17 @@ impl Editor {
                 }
             };
             // Owned snapshot and assets: no live selection/camera/server changes.
+            let preview = match self.scepter_preview.request() {
+                Ok(preview) => preview,
+                Err(error) => {
+                    job.finish(failure(error));
+                    return;
+                }
+            };
             let project = self.documents.project.clone();
             std::thread::spawn(move || {
                 let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    super::scepter_preview::render(project, index, &command)
+                    preview.render(project, index, &command)
                 }))
                 .unwrap_or_else(|_| Err("Preview worker failed".into()))
                 .map(|v| json!({"ok":true,"preview":v,"session":session,"revision":revision}))
@@ -369,7 +376,7 @@ impl Editor {
         ctx: &mut TheContext,
     ) -> Result<Json, String> {
         if let Some(sender) = self.scepter_sender.clone() {
-            let Some(permit) = super::scepter_staging::Permit::acquire() else {
+            let Some(permit) = self.scepter_preparation.acquire() else {
                 return Ok(
                     json!({"ok":false,"http_status":409,"error":"Another transaction is preparing; poll its job before editing again"}),
                 );
@@ -1051,6 +1058,8 @@ material "surface" called "Test surface"
     fn scepter_gpu_road_preview_2d_and_3d() {
         let project = road_fixture();
         let mut editor = Editor::new();
+        #[cfg(feature = "native-render")]
+        editor.bind_native_reference_context(pollster::block_on(renderkit::GpuContext::headless()).unwrap());
         editor.documents.project = project.clone();
         *editor.server_ctx.history.write() = UndoManager::default();
         let mut ui = TheUI::new();
@@ -1153,7 +1162,7 @@ material "surface" called "Test surface"
         for view in ["2d", "iso", "3d"] {
             let request:RegionRenderPreview=serde_json::from_value(json!({"region":{"id":project.regions[0].id},"view":view,"bounds":[0,0,3,1],"size":[640,384],"camera":{"center":[1.5,0.,0.5],"position":[1.5,3.,4.],"scale":2.5}})).unwrap();
             let result =
-                super::super::scepter_preview::render(project.clone(), 0, &request).unwrap();
+                editor.scepter_preview.render(project.clone(), 0, &request).unwrap();
             assert_eq!(result["ready"], true);
             let base64 = result["png_base64"].as_str().unwrap();
             let mut decoded = Vec::new();

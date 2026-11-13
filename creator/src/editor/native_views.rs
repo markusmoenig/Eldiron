@@ -96,6 +96,8 @@ impl Editor {
         &mut self,
         context: std::sync::Arc<renderkit::GpuContext>,
     ) {
+        #[cfg(not(target_arch = "wasm32"))]
+        self.scepter_preview.bind_context(context.clone());
         if self.server_ctx.reference.bind_context(context) {
             self.procedural_material.reset_model_gpu();
         }

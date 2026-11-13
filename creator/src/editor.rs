@@ -494,6 +494,10 @@ pub struct Editor {
     scepter_sender: Option<std::sync::mpsc::Sender<ScepterEvent>>,
     #[cfg(not(target_arch = "wasm32"))]
     scepter_tracking: scepter_context::Tracking,
+    #[cfg(not(target_arch = "wasm32"))]
+    scepter_preparation: scepter_staging::Gate,
+    #[cfg(not(target_arch = "wasm32"))]
+    scepter_preview: scepter_preview::PreviewService,
     last_3d_hover_redraw_at: Option<web_time::Instant>,
     last_authoring_input_at: Option<web_time::Instant>,
 
@@ -7930,6 +7934,10 @@ impl TheTrait for Editor {
             scepter_sender: None,
             #[cfg(not(target_arch = "wasm32"))]
             scepter_tracking: Default::default(),
+            #[cfg(not(target_arch = "wasm32"))]
+            scepter_preparation: Default::default(),
+            #[cfg(not(target_arch = "wasm32"))]
+            scepter_preview: Default::default(),
             last_3d_hover_redraw_at: None,
             last_authoring_input_at: None,
 

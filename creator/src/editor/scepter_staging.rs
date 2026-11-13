@@ -5,20 +5,23 @@ use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
 };
-static PREPARING: AtomicBool = AtomicBool::new(false);
+/// One preparation slot per application; a worker owns its permit until
+/// publication or channel retirement. Clones address the same application's gate.
+#[derive(Clone, Debug, Default)]
+pub(super) struct Gate(Arc<AtomicBool>);
 #[derive(Debug)]
-pub(crate) struct Permit;
-impl Permit {
-    pub(super) fn acquire() -> Option<Self> {
-        PREPARING
+pub(crate) struct Permit(Arc<AtomicBool>);
+impl Gate {
+    pub(super) fn acquire(&self) -> Option<Permit> {
+        self.0
             .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
             .ok()
-            .map(|_| Self)
+            .map(|_| Permit(self.0.clone()))
     }
 }
 impl Drop for Permit {
     fn drop(&mut self) {
-        PREPARING.store(false, Ordering::Release);
+        self.0.store(false, Ordering::Release);
     }
 }
 #[derive(Debug)]
@@ -164,6 +167,24 @@ fn preserve_view(live: &Project, staged: &mut Project, selection_changed: bool) 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn preparation_gate_is_application_local_and_worker_drop_releases_its_owner() {
+        let first = Editor::new();
+        let second = Editor::new();
+        let permit = first.scepter_preparation.acquire().unwrap();
+        assert!(first.scepter_preparation.clone().acquire().is_none());
+        let other = second.scepter_preparation.acquire().unwrap();
+        drop(other);
+        assert!(first.scepter_preparation.acquire().is_none());
+        std::thread::spawn(move || drop(permit)).join().unwrap();
+        assert!(first.scepter_preparation.acquire().is_some());
+        assert!(second.scepter_preparation.acquire().is_some());
+        for editor in [&first, &second] {
+            assert!(!editor.server_ctx.reference.initialized());
+            assert!(!editor.server_ctx.jobs.scene_initialized());
+        }
+    }
+
     use eldiron_scepter::{
         EditOperation, GeometryCreate, RegionRef, ScepterCommand, ScepterRequest, Transaction,
     };

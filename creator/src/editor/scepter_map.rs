@@ -1385,6 +1385,8 @@ mod acceptance {
                 }),
             ];
             let mut editor = Editor::new();
+            #[cfg(feature = "native-render")]
+            editor.bind_native_reference_context(pollster::block_on(renderkit::GpuContext::headless()).unwrap());
             editor.documents.project = project;
             editor.server_ctx.curr_region = editor.documents.project.regions[0].id;
             editor.server_ctx.pc = ProjectContext::Region(editor.server_ctx.curr_region);
@@ -1420,7 +1422,7 @@ mod acceptance {
             for view in ["2d", "iso"] {
                 let request:RegionRenderPreview=serde_json::from_value(json!({"region":{"id":editor.documents.project.regions[0].id},"view":view,"size":[768,640],"bounds":[x as i32-1,z as i32-5,8,11],"camera":{"center":[x+3.,0.,z+1.],"scale":7.,"elevation":55.}})).unwrap();
                 let image =
-                    super::super::scepter_preview::render(editor.documents.project.clone(), 0, &request)
+                    editor.scepter_preview.render(editor.documents.project.clone(), 0, &request)
                         .unwrap();
                 assert_eq!(image["ready"], true);
                 std::fs::write(
