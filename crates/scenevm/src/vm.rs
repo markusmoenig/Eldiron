@@ -2042,15 +2042,80 @@ fn surface_paint_minification_filter(
 ) -> vec4<f32> {
     var premultiplied = vec3<f32>(0.0);
     var alpha_sum = 0.0;
-    for (var y = -1; y <= 1; y = y + 1) {
-        for (var x = -1; x <= 1; x = x + 1) {
-            let offset = paint_dx * (f32(x) * 0.3333333) +
-                paint_dy * (f32(y) * 0.3333333);
-            let color = surface_paint_color_at(
-                vec2<i32>(floor(paint_pos + offset)), paint_geo, entry_index);
-            premultiplied += color.rgb * color.a;
-            alpha_sum += color.a;
-        }
+    // Keep the fixed 3x3 kernel explicit. Dawn/Metal can stall when a filter
+    // loop calls the open-addressed paint lookup, even for an empty table.
+    // Preserve row-major accumulation and the original alpha-correct weights.
+    {
+        let offset = paint_dx * (f32(-1) * 0.3333333) +
+            paint_dy * (f32(-1) * 0.3333333);
+        let color = surface_paint_color_at(
+            vec2<i32>(floor(paint_pos + offset)), paint_geo, entry_index);
+        premultiplied += color.rgb * color.a;
+        alpha_sum += color.a;
+    }
+    {
+        let offset = paint_dx * (f32(0) * 0.3333333) +
+            paint_dy * (f32(-1) * 0.3333333);
+        let color = surface_paint_color_at(
+            vec2<i32>(floor(paint_pos + offset)), paint_geo, entry_index);
+        premultiplied += color.rgb * color.a;
+        alpha_sum += color.a;
+    }
+    {
+        let offset = paint_dx * (f32(1) * 0.3333333) +
+            paint_dy * (f32(-1) * 0.3333333);
+        let color = surface_paint_color_at(
+            vec2<i32>(floor(paint_pos + offset)), paint_geo, entry_index);
+        premultiplied += color.rgb * color.a;
+        alpha_sum += color.a;
+    }
+    {
+        let offset = paint_dx * (f32(-1) * 0.3333333) +
+            paint_dy * (f32(0) * 0.3333333);
+        let color = surface_paint_color_at(
+            vec2<i32>(floor(paint_pos + offset)), paint_geo, entry_index);
+        premultiplied += color.rgb * color.a;
+        alpha_sum += color.a;
+    }
+    {
+        let offset = paint_dx * (f32(0) * 0.3333333) +
+            paint_dy * (f32(0) * 0.3333333);
+        let color = surface_paint_color_at(
+            vec2<i32>(floor(paint_pos + offset)), paint_geo, entry_index);
+        premultiplied += color.rgb * color.a;
+        alpha_sum += color.a;
+    }
+    {
+        let offset = paint_dx * (f32(1) * 0.3333333) +
+            paint_dy * (f32(0) * 0.3333333);
+        let color = surface_paint_color_at(
+            vec2<i32>(floor(paint_pos + offset)), paint_geo, entry_index);
+        premultiplied += color.rgb * color.a;
+        alpha_sum += color.a;
+    }
+    {
+        let offset = paint_dx * (f32(-1) * 0.3333333) +
+            paint_dy * (f32(1) * 0.3333333);
+        let color = surface_paint_color_at(
+            vec2<i32>(floor(paint_pos + offset)), paint_geo, entry_index);
+        premultiplied += color.rgb * color.a;
+        alpha_sum += color.a;
+    }
+    {
+        let offset = paint_dx * (f32(0) * 0.3333333) +
+            paint_dy * (f32(1) * 0.3333333);
+        let color = surface_paint_color_at(
+            vec2<i32>(floor(paint_pos + offset)), paint_geo, entry_index);
+        premultiplied += color.rgb * color.a;
+        alpha_sum += color.a;
+    }
+    {
+        let offset = paint_dx * (f32(1) * 0.3333333) +
+            paint_dy * (f32(1) * 0.3333333);
+        let color = surface_paint_color_at(
+            vec2<i32>(floor(paint_pos + offset)), paint_geo, entry_index);
+        premultiplied += color.rgb * color.a;
+        alpha_sum += color.a;
     }
     if (alpha_sum <= 0.00001) {
         return vec4<f32>(0.0);

@@ -25,7 +25,7 @@ Started: 2026-11-11 (Asia/Bangkok). Overall Goal: active; full M0–M9 scope rem
 - M2: in progress. Paint/Swash/Parley pipeline and native/foreign hosts work; batching, resource lifetime budgets and full text/input parity remain.
 - M3: in progress. Every active built-in TheWidget implementation now has a command paint path, including procedural controls and the legacy node canvas. Complex Creator integration, full widget catalog parity and legacy adapter retirement remain.
 - M4: in progress. CPU schema/identity extraction, shared `GameSession`, CPU startup preparation, message/party/world-target policies and terminal adoption are implemented and tested. Per-session routing, local players, world values, runtime IDs and region context ownership now pass controlled overlapping-session and parallel assembled-player regressions. Graphical clients adopt GameSession; Creator shares its clock/output pump and runtime-owned PlayerInput. Text Play state is now Editor-owned and uses explicit CPU runtime borrows. Canonical Creator Play now owns a separate runtime Project projection; startup/warmup, entities/generated geometry and time no longer mutate authored Documents. The Console also consumes explicit addressed CPU inspections and rejects stale runtime actor links/history without reading the global server or authored entity fallbacks. Native Creator now owns its GameSession server/assets/current-map/clock/audio lifetime and advances from host elapsed time independently of rendering. Reference storage/start-menu/source bridges and remaining bitmap/value data extraction remain; this evidence does not establish full simultaneous Creator Play workflows.
-- M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Immutable ordinary editor-view preparation, exact reference/native view outputs and retained CPU chunk publication are now available through SceneViews. Common HUD, paint/props panels, profile displays and ViewCube now have retained command frames, guarded input and actual GPU composition/reconstruction evidence. Six standard tools additionally emit ordered typed overlay aggregates with exact presented-frame and detail-profile source guards. Full-viewport profile editing is now connected to the actual native Creator root with document/widget binding, presentation-gated input and inline commit/cancel; ordinary stopped top-down, sprite-isometric and 3D region rendering and the six standard tool overlays now use the same native application owner and real tool dispatch. Orbit/orthographic/first-person views include depth-aware guides, retained ViewCube and explicit tool query snapshots; surface paint uses the view-owned GPU scene. The Terrain tool now also uses retained native controls and GPU brush guides with real sculpt/cancel integration. Rect now also uses presentation-gated composition/rotation controls, shared source sprite previews blitted on the GPU, terrain-conforming perimeters, and view-owned 3D queries; actual isometric placement and fractional-DPI sprite sampling pass in the assembled checkpoint. Isometric terrain Paint now also uses retained native controls, batched GPU brush feedback, update-phase editable source publication and the existing authoring/undo dispatch. Native 3D Paint now also consumes dedicated scene-owned paint-coordinate queries and explicit authoring surface captures, with camera-scoped drafts and GPU composition; full Paint workflow/platform parity remains unverified. The isolated Prefab viewport now also uses native top-down/isometric/3D outputs, live effects with hierarchy-aware owned drags, and actual 3D Paint authoring on its asset-owned layer. Paint now shares the normal tile picker; its settings live only in the viewport overlay. The canonical Creator Play toolbar now owns the same CPU clock/output pump as GameSession, and its live authoring viewport keeps its own native SceneView. The authored Game-tool viewport now also uses the common GameScreenController/SceneViews/Swash presentation; authoring GameInput now also shares runtime controls while retaining the native scene in supported contexts. Region geometry, ordinary scene and sprite-isometric minimaps now have owned GPU outputs and presentation-scoped navigation; palette and rig previews also have retained native sources and acknowledged palette input. Authored screen minimaps now also use a GPU-only ordered 2D overview producer with compatible source sampling and acknowledged screen-scoped navigation. Parent-region minimaps during Prefab/profile/detail editing also have independent native source production and presented-parent navigation without modifying the isolated editor map. Remaining uncommon contexts/tools retain explicit migration adapters. Application/global/document/Play ownership, main world/tool/HUD integration, remaining producers, full visual/workflow/performance acceptance and canonical retirement remain.
+- M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Immutable ordinary editor-view preparation, exact reference/native view outputs and retained CPU chunk publication are now available through SceneViews. Common HUD, paint/props panels, profile displays and ViewCube now have retained command frames, guarded input and actual GPU composition/reconstruction evidence. Six standard tools additionally emit ordered typed overlay aggregates with exact presented-frame and detail-profile source guards. Full-viewport profile editing is now connected to the actual native Creator root with document/widget binding, presentation-gated input and inline commit/cancel; ordinary stopped top-down, sprite-isometric and 3D region rendering and the six standard tool overlays now use the same native application owner and real tool dispatch. Orbit/orthographic/first-person views include depth-aware guides, retained ViewCube and explicit tool query snapshots; surface paint uses the view-owned GPU scene. The Terrain tool now also uses retained native controls and GPU brush guides with real sculpt/cancel integration. Rect now also uses presentation-gated composition/rotation controls, shared source sprite previews blitted on the GPU, terrain-conforming perimeters, and view-owned 3D queries; actual isometric placement and fractional-DPI sprite sampling pass in the assembled checkpoint. Isometric terrain Paint now also uses retained native controls, batched GPU brush feedback, update-phase editable source publication and the existing authoring/undo dispatch. Native 3D Paint now also consumes dedicated scene-owned paint-coordinate queries and explicit authoring surface captures, with camera-scoped drafts and GPU composition; full Paint workflow/platform parity remains unverified. The isolated Prefab viewport now also uses native top-down/isometric/3D outputs, live effects with hierarchy-aware owned drags, and actual 3D Paint authoring on its asset-owned layer. Paint now shares the normal tile picker; its settings live only in the viewport overlay. The canonical Creator Play toolbar now owns the same CPU clock/output pump as GameSession, and its live authoring viewport keeps its own native SceneView. The authored Game-tool viewport now also uses the common GameScreenController/SceneViews/Swash presentation; authoring GameInput now also shares runtime controls while retaining the native scene in supported contexts. Region geometry, ordinary scene and sprite-isometric minimaps now have owned GPU outputs and presentation-scoped navigation; palette and rig previews also have retained native sources and acknowledged palette input. Authored screen minimaps now also use a GPU-only ordered 2D overview producer with compatible source sampling and acknowledged screen-scoped navigation. Parent-region minimaps during Prefab/profile/detail editing also have independent native source production and presented-parent navigation without modifying the isolated editor map. Main native authoring static geometry/readiness/billboards now use an application-owned bounded CPU source, retained across GPU reconstruction and isolated from clipboard projections. Remaining uncommon contexts/tools retain explicit migration adapters. Application/global/document/Play ownership, main world/tool/HUD integration, remaining producers, full visual/workflow/performance acceptance and canonical retirement remain.
 - M6: in progress. Independent GPU game views, common player/input/camera components, authored screen paint, private world descriptions, view-owned speech, acknowledged-frame world pointer gestures, relative first-person mouse look, default/world-intent cursors, world/UI item drag previews and acknowledged authored inventory/equipment pointer/keyboard gestures are implemented. Application-owned audio is integrated into the common player with cancellable CPU preparation jobs. The native container HUD now includes acknowledged paint/input, real server transfers, scrolling, GPU recovery and navigation lifetime. Floating inventory/equipment, action catalogue/spellbook and preferences now use typed native HUD owners, retained text/source resources and acknowledged input. Acknowledged UI-origin tooltips now use retained text and host deadlines. UI-origin Drop cursors and acknowledged drag/assignment highlighting now have GPU and authoritative transfer evidence. Native isometric source production, shared CPU source publication, game-view outputs and acknowledged input receipts now have GPU/CPU and shipped-source device-reconstruction evidence. Browser worker hosting, remaining game-mode/HUD policy parity, performance acceptance remain. Canonical native desktop launchers now share the common application/host; see launcher verification below.
 - M7/M8/M9: Retirement and platform/full acceptance pending. Canonical desktop clients share one common player; the Xcode client now uses it through the retained ABI over a Rust-created CAMetalLayer surface. Native/ARM64 simulator app bundles link, and real Swift/static-library and registered-scene layer checks pass. Browser player bootstrap and the host-owned text/IME service now use the shared path; browser Creator, CJK fonts, 3D color parity, native text/platform parity, Creator wrapper and complete physical/release acceptance remain; this is not complete application/platform parity.
 
@@ -7569,3 +7569,91 @@ M5 owned main authoring source checkpoint verified:
   bounded-frame-checkpoint and minimal-surface after saving their diagnostics;
   user browser untouched. Next investigate browser3D via temporary per-pass
   instrumentation of the existing bundle, retaining liveness/color gates.
+
+
+M8 browser3D narrowing (diagnostics only):
+- Temporary JS WebGPU instrumentation of unchanged optimized bundle: skipping
+  only vm-3d-raster-pass draw calls reached71 presentations/tick10, no GPU
+  validation/Canvas2D/readback, finished scene/post/compositor work. A subsequent
+  constant-color fs_main substitution retained actual geometry, shadows and all
+  remaining passes and reached61 presentations/tick10, also no errors. Thus the
+  original main fragment evaluation/resources need diagnosis; this is no longer
+  an undifferentiated surface/queue issue. Neither substituted output is parity
+  acceptance, and no production shader feature has been removed.
+- Logs /private/tmp/eldiron-browser-3d-pass-isolation-{main-retry,fragment}.log.
+  First cold probe's15s CDP timeout was too short; subsequent bounded45s startup
+  probes retain intermediate telemetry. Unmodified main raster still has its
+  earlier5-frame stall evidence; keep real3D acceptance open. Next temporarily
+  isolate paint/shadow/irradiance sampling and fix the demonstrated cause.
+
+- Further temporary fragment isolation: returning empty only from
+  sample_surface_paint reached64 frames/tick12 with full main geometry/shadow/
+  lighting/post logic active and errors[]. An equivalent early dummy-table guard
+  retained the original5-frame stall (tick6, four pending buffers); a guard alone
+  is not a fix. Logs ...pass-isolation-{no-paint,paint-empty}.log. Narrowing paint
+  lookup/filter shader control flow next, preserving authored paint functionality
+  rather than shipping the diagnostic feature omission.
+
+- Fixed nine-tap single-loop rewrite also stalls5 frames/tick7, so it was not
+  adopted. Omitting ONLY minification (nearest diagnostic, normal entry lookup/
+  bilinear path/materials retained) reached64 frames/tick20, errors[], no transfer.
+  Instrumented actual GPU table creation is48 bytes/12 zero words, the expected
+  dummy entry. This is evidence against corrupt supplied table contents and
+  narrows to the looped minification/filter call path. Temporary explicit nine
+  taps now being measured with original row order/offset/alpha weights retained.
+  Logs ...pass-isolation-{single-loop,nearest-filter,unrolled}.log. Do not ship
+  missing filtering or count feature-omitting probes as acceptance.
+
+
+M8 browser3D paint-filter implementation candidate:
+- Temporary explicit nine-tap kernel reached73 frames/tick16 with the complete
+  fragment, original row-major offsets/weights and alpha correction, no omitted
+  scene feature, errors[], readback0. ...pass-isolation-unrolled.log. The original
+  looped kernel and equivalent single-loop kernel both stall at5. Adopted the
+  measured explicit kernel in shared SceneVM3D shader for native and browser;
+  no vendor branch/feature fallback, format/API/serialized change.
+- Rebuilding the production optimized WASM bundle (without shader substitutions)
+  plus the existing assembled Creator/actual3D Paint workflow. Shader parsing and
+  actual native/browser checks still required before claiming a fixed checkpoint.
+
+
+M8 production browser3D liveness and device recovery verified:
+- Unmodified rebuilt optimized bundle passed47.14s, packaged54,152,006bytes.
+  Actual production3D reached81 frames/tick11 before completed-GPU capture,
+  then real device.destroy rebuilt to gen2 on the SAME session
+  7fbf351a-70b1-4db9-ae4e-f590e2e2dfdc,133 frames/tick20. Readback0,
+  Canvas2D0,colorCopies0,errors[]. No shader substitutions in this run.
+  /private/tmp/eldiron-browser-3d-production-paint-filter.log.
+- Visually inspected actual completed image: expected blue/gray scene, textured
+  geometry, actor/equipment and authored bitmap HUD; earlier green/dark defect
+  is absent. Saved concepts/native-wgpu-evidence/browser-3d-production.png;
+  kept earlier defective browser-3d-diagnostic.png as historical evidence.
+  Full equal-state native/browser image comparisons and physical gates remain.
+- Existing assembled Creator Metal test passed1,104.82s, including actual3D
+  Paint authoring/surface lookup plus ordinary/isometric/Prefab/runtime/asset
+  workflows. Build50.97s. Logs
+  /private/tmp/eldiron-browser-paint-filter-creator-{build,metal}.log.
+- Before saving shader checkpoint, production browser validation is also loading
+  a temporary painted copy of shipped3DStarter:17 persistent faces/68 UV chunks,
+  negative and nonnegative coordinates, alternating magenta/cyan alpha192.
+  It uses existing project JSON schema/current bake version24 and no renderer
+  substitution. Generator /private/tmp/eldiron-browser-painted-fixture.py,
+  output release/3DStarterPainted.eldiron (11,490,224bytes), validation
+  /private/tmp/eldiron-browser-3d-production-painted.log. This checks actual
+  nonempty paint table/filter display and recovery, beyond the empty-table case.
+
+
+Painted browser probe found a separate M6 adoption gap:
+- Temporary painted project reached68 frames/tick10, but instrumentation still
+  sees the48-byte zero dummy table. Thus this run does NOT validate nonempty
+  WebGPU paint sampling. Inspection confirms presentation GameSceneInput and
+  prepare_game_views expose no surface-paint source at all; region iso_paint is
+  not passed from RuntimeView into the common player renderer. Do not classify
+  it as a painted parity pass or hide the discrepancy.
+- Shared shader checkpoint itself is verified by actual production browser3D
+  sustained liveness/colors/device replacement and native Creator3D authoring.
+  Save it before addressing the newly exposed M6 gap. Next extract a CPU source
+  publication for existing baked3D paint and pass it through the runtime/view
+  boundary into view-owned uploads, preserving current serialized paint data,
+  cancellation/incarnation and no normal color readback. Then repeat the actual
+  nonempty browser case and existing assembled client/Creator checks.
