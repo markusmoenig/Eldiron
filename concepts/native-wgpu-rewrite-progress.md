@@ -24,7 +24,7 @@ Started: 2026-11-11 (Asia/Bangkok). Overall Goal: active; full M0–M9 scope rem
 - M1: in progress. Shared GPU context, scene output leases, explicit captures, native/foreign surface presentation and independent normal/isometric game-view lifecycle/recovery work; main Creator/auxiliary view adoption and full resource/platform acceptance remain.
 - M2: in progress. Paint/Swash/Parley pipeline and native/foreign hosts work; batching, resource lifetime budgets and full text/input parity remain.
 - M3: in progress. Every active built-in TheWidget implementation now has a command paint path, including procedural controls and the legacy node canvas. Complex Creator integration, full widget catalog parity and legacy adapter retirement remain.
-- M4: in progress. CPU schema/identity extraction, shared `GameSession`, CPU startup preparation, message/party/world-target policies and terminal adoption are implemented and tested. Per-session routing, local players, world values, runtime IDs and region context ownership now pass controlled overlapping-session and parallel assembled-player regressions. Graphical clients adopt GameSession; Creator shares its clock/output pump and runtime-owned PlayerInput. Full Creator storage ownership and remaining bitmap/value data extraction remain; this evidence does not establish full simultaneous Creator Play workflows.
+- M4: in progress. CPU schema/identity extraction, shared `GameSession`, CPU startup preparation, message/party/world-target policies and terminal adoption are implemented and tested. Per-session routing, local players, world values, runtime IDs and region context ownership now pass controlled overlapping-session and parallel assembled-player regressions. Graphical clients adopt GameSession; Creator shares its clock/output pump and runtime-owned PlayerInput. Text Play state is now Editor-owned and uses explicit CPU runtime borrows. Full Creator storage ownership and remaining bitmap/value data extraction remain; this evidence does not establish full simultaneous Creator Play workflows.
 - M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Immutable ordinary editor-view preparation, exact reference/native view outputs and retained CPU chunk publication are now available through SceneViews. Common HUD, paint/props panels, profile displays and ViewCube now have retained command frames, guarded input and actual GPU composition/reconstruction evidence. Six standard tools additionally emit ordered typed overlay aggregates with exact presented-frame and detail-profile source guards. Full-viewport profile editing is now connected to the actual native Creator root with document/widget binding, presentation-gated input and inline commit/cancel; ordinary stopped top-down, sprite-isometric and 3D region rendering and the six standard tool overlays now use the same native application owner and real tool dispatch. Orbit/orthographic/first-person views include depth-aware guides, retained ViewCube and explicit tool query snapshots; surface paint uses the view-owned GPU scene. The Terrain tool now also uses retained native controls and GPU brush guides with real sculpt/cancel integration. Rect now also uses presentation-gated composition/rotation controls, shared source sprite previews blitted on the GPU, terrain-conforming perimeters, and view-owned 3D queries; actual isometric placement and fractional-DPI sprite sampling pass in the assembled checkpoint. Isometric terrain Paint now also uses retained native controls, batched GPU brush feedback, update-phase editable source publication and the existing authoring/undo dispatch. Native 3D Paint now also consumes dedicated scene-owned paint-coordinate queries and explicit authoring surface captures, with camera-scoped drafts and GPU composition; full Paint workflow/platform parity remains unverified. The isolated Prefab viewport now also uses native top-down/isometric/3D outputs, live effects with hierarchy-aware owned drags, and actual 3D Paint authoring on its asset-owned layer. Paint now shares the normal tile picker; its settings live only in the viewport overlay. The canonical Creator Play toolbar now owns the same CPU clock/output pump as GameSession, and its live authoring viewport keeps its own native SceneView. The authored Game-tool viewport now also uses the common GameScreenController/SceneViews/Swash presentation; authoring GameInput now also shares runtime controls while retaining the native scene in supported contexts. Remaining contexts/tools retain explicit migration adapters. Application/global/document/Play ownership, main world/tool/HUD integration, remaining producers, full visual/workflow/performance acceptance and canonical retirement remain.
 - M6: in progress. Independent GPU game views, common player/input/camera components, authored screen paint, private world descriptions, view-owned speech, acknowledged-frame world pointer gestures, relative first-person mouse look, default/world-intent cursors, world/UI item drag previews and acknowledged authored inventory/equipment pointer/keyboard gestures are implemented. Application-owned audio is integrated into the common player with cancellable CPU preparation jobs. The native container HUD now includes acknowledged paint/input, real server transfers, scrolling, GPU recovery and navigation lifetime. Floating inventory/equipment, action catalogue/spellbook and preferences now use typed native HUD owners, retained text/source resources and acknowledged input. Acknowledged UI-origin tooltips now use retained text and host deadlines. UI-origin Drop cursors and acknowledged drag/assignment highlighting now have GPU and authoritative transfer evidence. Native isometric source production, shared CPU source publication, game-view outputs and acknowledged input receipts now have GPU/CPU and shipped-source device-reconstruction evidence. Browser worker hosting, remaining game-mode/HUD policy parity, performance acceptance remain. Canonical native desktop launchers now share the common application/host; see launcher verification below.
 - M7/M8/M9: Retirement and platform/full acceptance pending. Canonical desktop clients share one common player; the Xcode client now uses it through the retained ABI over a Rust-created CAMetalLayer surface. Native/ARM64 simulator app bundles link, and real Swift/static-library and registered-scene layer checks pass. Browser bootstrap, native text/platform parity, Creator wrapper and complete physical/release acceptance remain; this is not complete application/platform parity.
@@ -5296,3 +5296,96 @@ modal/Scepter/command/source-edit matrix; full visual/save-reopen/resource/
 performance/release/browser/Apple acceptance. No M0–M9 gate or overall completion
 is claimed. Preserve the hidden Collision Probe and unrelated networking concept;
 keep the full Goal active.
+
+## 2026-11-13 — Text Play owns its state and borrows explicit CPU runtime parts
+
+This is a further M4/M5 ownership step, not the complete Creator GameSession
+storage cutover. Paint retains the corrected normal tilepicker dock and the
+viewport-only controls; no old Paint dock was restored.
+
+- Removed the process-global TEXTGAME owner. Each Editor now owns TextGameState,
+  including output blocks, choice state and auto-attack state. Existing
+  Play/resume/Stop/project-switch reset policies use that owner.
+- Removed all 17 RUSTERIX references from textplay.rs (one import plus 16 access
+  sites). Text commands, time/choice expiry, locale/message resolution, exits,
+  spells and auto-attack borrow TextGameRuntime's CPU Server/Assets/time through
+  three Editor call boundaries. No graphics owner is accepted by TextGameState.
+- Canonical Play's discrete text actions now use its existing PlayerInput queue,
+  including delayed player registration and bounded rejection reporting. A
+  rejected numbered choice remains selectable. Explicit reference/tooling hosts
+  without CreatorPlaySession retain a named direct-Server adapter.
+- TextGameState receives an immutable Project. The existing text-command map/time
+  projection is now explicitly at CreatorPlaySession's CPU adapter boundary,
+  rather than being performed inside a text presenter. Authoring/runtime map and
+  time storage are still shared here and require the full storage migration.
+- The tool and dock's three activation callers request their application's state
+  through UI events. Requests carry both widget identity and a fresh, ephemeral
+  ServerContext.document_instance. Clearing a project renews that identity even
+  when serialized map IDs and long-lived widgets are reused. Mode/dock checks
+  reject activation of an input that has become hidden. ServerContext is not
+  serialized, so this adds no project-format field.
+- Native full-game Text Play no longer renders the hidden PolyView world through
+  the bitmap adapter. Its visible TextView and input emit normal framework GPU
+  paint with the shared Parley/Swash text resources. Reference presentation is
+  retained; the authoring Text Play dock can still have a visible world viewport.
+
+Verification at this checkpoint is recorded below once terminal results are
+available. No new test suite was created; the existing assembled Creator GPU
+checkpoint now includes actual Text Play mode activation, command delivery into
+PlayerInput, stale-document activation rejection, GPU painting without scene
+readback/CPU display storage and Stop cleanup alongside all existing Paint,
+Prefab, game-screen and runtime lifecycle assertions.
+
+Still required: complete Creator GameSession Server/Assets/project/startup/audio
+storage ownership; remaining Server clients in debug/tool/authoring paths;
+authoring/runtime map separation preserving edits during Play (whole-map snapshot
+restoration remains a migration adapter); remaining renderer/global/core-data
+retirement and full simultaneous-application, workflow, visual/DPI/platform,
+resource/performance/release acceptance. Physical Mac and simulator runtime
+blockers remain as documented. No M0–M9 gate is marked complete.
+
+Text Play verification: the existing assembled native Creator GPU checkpoint
+passed **1**, **93.12 s** (27.49 s build),
+`/private/tmp/eldiron-native-text-owner-scopes-root.log`. It verifies the actual
+Text Play button/activation, one discrete text-command submission through shared
+PlayerInput, unchanged runtime incarnation, rejection of old-document activation
+against a persistent widget, native root text painting without scene color
+readback/CPU display storage, and output reset on Stop. All previous Prefab/Paint,
+GameInput, authored game-screen text, GPU recovery and runtime lifecycle assertions
+remain in the same run. No new suite was created.
+
+Reference Creator/common graphical client/terminal compilation passed **21.72 s**,
+`/private/tmp/eldiron-text-owner-reference-check.log`. Shared runtime policy code
+was unchanged, so its previously passing CPU suite was not rerun. An initial
+checkpoint used the action count from before the view-change Stop; that assertion
+was corrected to measure the command after mode activation (earlier failed run:
+`/private/tmp/eldiron-native-text-owner-root.log`, 73.95 s). Native compile also
+caught a wrong PaintList test field, an immutable UI-send context and a misplaced
+new context initializer; these were corrected rather than weakening input or paint
+requirements. `git diff --check` passed.
+
+Desktop availability changed: current ioreg reports CGSSessionOnConsoleKey=Yes
+and does not report CGSSessionScreenIsLocked. Do not interpret an absent key as a
+full physical-workflow pass. The current native Creator Winit smoke command
+(`cargo run -p eldiron-creator --no-default-features --features native-host --bin
+eldiron-creator-native --offline -- --smoke`, shared target and macOS deployment
+26.1) exited **0**, `/private/tmp/eldiron-native-text-owner-surface-smoke.log`,
+21.94 s build. Its current implementation exits successfully after three actual
+presentation acknowledgements. An explicit numeric diagnostic is now added for
+the next smoke log; interactive visual/input/DPI/workflow acceptance remains open.
+The historical locked-Mac observations stay historical evidence. The simulator
+runtime mismatch and all other unavailable platform gates remain unverified.
+
+The explicit-count physical Winit smoke also exited **0** and logged
+`Creator native smoke passed: 3 successful surface presentations`,
+`/private/tmp/eldiron-native-text-owner-surface-count.log` (21.53 s build).
+This supersedes the previous blanket claim that physical surface presentation is
+currently unavailable; it does not establish visual/input/workflow parity.
+Attempted native-window inspection using a temporary app bundle timed out twice
+in computer-use app selection, so no physical visual inspection is claimed.
+The temporary bundle `/private/tmp/EldironNativeRewrite.app` points to the native
+migration binary; it is not a source or user-project modification.
+
+Latest user steering: native startup feels slower than the CPU version. Prioritize
+same-project startup profiling and removal of avoidable work before continuing
+larger ownership changes. Keep the full M0–M9 objective active.

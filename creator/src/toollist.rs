@@ -3346,7 +3346,12 @@ impl ToolList {
                             stack.set_index(if self.text_game_mode { 1 } else { 0 });
                         }
                         if self.text_game_mode {
-                            crate::editor::TEXTGAME.write().unwrap().activate(ui, ctx);
+                            crate::textplay::TextGameState::request_activation(
+                                crate::textplay::TextGameState::GAME_INPUT_ID,
+                                server_ctx.document_instance,
+                                ui,
+                                ctx,
+                            );
                         } else if let Some(widget) = ui.get_widget("PolyView") {
                             let id = widget.id().clone();
                             ctx.ui.set_focus(&id);

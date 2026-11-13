@@ -368,6 +368,12 @@ impl Editor {
         ));
         self.active_session
     }
+    pub(crate) fn native_text_output_for_test(&self, text: &str) -> bool {
+        self.text_game.contains_output(text)
+    }
+    pub(crate) fn native_document_instance_for_test(&self) -> Uuid {
+        self.server_ctx.document_instance
+    }
     pub(crate) fn native_play_stats_for_test(&self) -> Option<(u64, Uuid, usize)> {
         let session = self.play_session.as_ref()?;
         Some((

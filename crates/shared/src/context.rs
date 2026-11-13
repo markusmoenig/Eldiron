@@ -422,6 +422,10 @@ pub enum MapContext {
 
 /// This gives context to the server of the editing state for live highlighting.
 pub struct ServerContext {
+    /// Ephemeral authoring-document incarnation. Renewed by clear even when
+    /// another tab reuses the same serialized project/map/widget identities.
+    pub document_instance: Uuid,
+
     // Tree Ids
     pub tree_regions_id: Uuid,
     pub tree_characters_id: Uuid,
@@ -716,6 +720,7 @@ impl Default for ServerContext {
 impl ServerContext {
     pub fn new() -> Self {
         Self {
+            document_instance: Uuid::new_v4(),
             curr_region: Uuid::nil(),
 
             tree_regions_id: Uuid::new_v4(),

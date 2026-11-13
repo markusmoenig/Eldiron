@@ -28,6 +28,31 @@ impl CreatorPlaySession {
             last: Instant::now(),
         }
     }
+    /// Transitional projection for the text command host. Keep source writes
+    /// at the CPU owner boundary; TextGameState receives an immutable document.
+    pub fn refresh_text_runtime_view(
+        project: &mut shared::project::Project,
+        bridge: &mut rusterix::Rusterix,
+    ) {
+        for region in &mut project.regions {
+            bridge.server.apply_entities_items(&mut region.map);
+            if let Some(time) = bridge.server.get_time(&region.map.id) {
+                bridge.client.set_server_time(time);
+                project.time = time;
+            }
+        }
+    }
+    pub fn text_runtime<'a>(
+        play: Option<&'a mut Self>,
+        bridge: &'a mut rusterix::Rusterix,
+    ) -> crate::textplay::TextGameRuntime<'a> {
+        crate::textplay::TextGameRuntime {
+            server: &mut bridge.server,
+            assets: &bridge.assets,
+            time: bridge.client.server_time,
+            input: play.map(|play| (&mut play.input, play.requested)),
+        }
+    }
     pub fn suspend_clock(&mut self) {
         self.clock.reset_elapsed();
         self.last = Instant::now();

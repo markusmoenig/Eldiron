@@ -230,6 +230,10 @@ impl UiApplication for NativeCreatorApplication {
         self.editor.post_ui(&mut ui.context);
         self.presentations += 1;
         if self.smoke && self.presentations >= 3 {
+            eprintln!(
+                "Creator native smoke passed: {} successful surface presentations",
+                self.presentations
+            );
             ui.requests.push(HostRequest::Exit);
         }
     }
@@ -2392,12 +2396,127 @@ mod tests {
                 .1,
             0
         );
+        // Text Play shares the same input queue/CPU incarnation and emits
+        // native widget paint without drawing the hidden game framebuffer.
+        app.session.context.ui.send(TheEvent::StateChanged(
+            TheId::named("Text Play"),
+            TheWidgetState::Clicked,
+        ));
+        for _ in 0..3 {
+            app.update(&mut host, Duration::from_millis(16));
+        }
+        assert_eq!(
+            app.session
+                .context
+                .ui
+                .focus
+                .as_ref()
+                .map(|id| id.name.as_str()),
+            Some(crate::textplay::TextGameState::GAME_INPUT_ID),
+            "the application services the text tool activation request"
+        );
+        let input = app
+            .session
+            .ui
+            .get_widget(crate::textplay::TextGameState::GAME_INPUT_ID)
+            .unwrap()
+            .id()
+            .clone();
+        app.session.context.ui.send(TheEvent::Custom(
+            TheId::named_with_id_and_reference(
+                crate::textplay::TextGameState::ACTIVATE_EVENT,
+                input.uuid,
+                Uuid::new_v4(),
+            ),
+            TheValue::Text(crate::textplay::TextGameState::GAME_INPUT_ID.into()),
+        ));
+        app.session.context.ui.set_focus(&world_view);
+        for _ in 0..2 {
+            app.update(&mut host, Duration::from_millis(16));
+        }
+        assert_eq!(
+            app.session.context.ui.focus.as_ref().unwrap().uuid,
+            world_view.uuid,
+            "an old document cannot activate a persistent text widget in the new document"
+        );
+        crate::textplay::TextGameState::request_activation(
+            crate::textplay::TextGameState::GAME_INPUT_ID,
+            app.application.editor.native_document_instance_for_test(),
+            &mut app.session.ui,
+            &mut app.session.context,
+        );
+        for _ in 0..2 {
+            app.update(&mut host, Duration::from_millis(16));
+        }
+        assert_eq!(
+            app.session.context.ui.focus.as_ref().unwrap().uuid,
+            input.uuid
+        );
+        let before_text = app
+            .application
+            .editor
+            .native_runtime_input_for_test()
+            .unwrap();
+        app.session.context.ui.send(TheEvent::ValueChanged(
+            TheId::named(crate::textplay::TextGameState::GAME_INPUT_ID),
+            TheValue::Text("intent look".into()),
+        ));
+        for _ in 0..3 {
+            app.update(&mut host, Duration::from_millis(16));
+        }
+        let after_text = app
+            .application
+            .editor
+            .native_runtime_input_for_test()
+            .unwrap();
+        assert_eq!(after_text.0, before_text.0);
+        assert_eq!(
+            after_text.1.submitted_actions,
+            before_text.1.submitted_actions + 1
+        );
+        assert!(
+            app.application
+                .editor
+                .native_text_output_for_test("> intent look")
+        );
+        let before_text_paint = gpu.transfers();
+        let frame = app.frame(&mut host, &mut replacement).unwrap();
+        // Preparing this root fails explicitly if a widget lacks native paint.
+        renderer
+            .render(
+                &frame,
+                &replacement,
+                &output.view,
+                output.descriptor.format,
+                (1600, 1000),
+                1.,
+                [0.; 4],
+            )
+            .unwrap();
+        app.presented(&mut host);
+        assert_eq!(
+            gpu.transfers().readback_bytes,
+            before_text_paint.readback_bytes
+        );
+        assert!(
+            !app.application
+                .editor
+                .native_world_has_cpu_storage_for_test()
+        );
+        app.session.context.ui.send(TheEvent::StateChanged(
+            TheId::named("Text Play"),
+            TheWidgetState::Clicked,
+        ));
+        for _ in 0..2 {
+            app.update(&mut host, Duration::from_millis(16));
+        }
         app.session.context.ui.send(TheEvent::StateChanged(
             TheId::named("Stop"),
             TheWidgetState::Clicked,
         ));
         app.update(&mut host, Duration::from_millis(16));
         assert!(app.application.editor.native_play_stats_for_test().is_none());
+        assert!(!app.application.editor.native_text_output_for_test("> intent look"));
         assert_eq!(
             serde_json::to_value(&app.application.editor.project_for_native_test().regions).unwrap(),
             authored,

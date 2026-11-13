@@ -67,7 +67,12 @@ impl Tool for GameTool {
                     stack.set_index(if server_ctx.text_game_mode { 1 } else { 0 });
                 }
                 if server_ctx.text_game_mode {
-                    crate::editor::TEXTGAME.write().unwrap().activate(ui, ctx);
+                    crate::textplay::TextGameState::request_activation(
+                        crate::textplay::TextGameState::GAME_INPUT_ID,
+                        server_ctx.document_instance,
+                        ui,
+                        ctx,
+                    );
                 }
                 ctx.ui.redraw_all = true;
                 ctx.ui.relayout = true;

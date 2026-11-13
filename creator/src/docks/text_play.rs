@@ -1,4 +1,3 @@
-use crate::editor::TEXTGAME;
 use crate::prelude::*;
 
 pub struct TextPlayDock;
@@ -20,9 +19,14 @@ impl Dock for TextPlayDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         _project: &Project,
-        _server_ctx: &mut ServerContext,
+        server_ctx: &mut ServerContext,
     ) {
-        TEXTGAME.write().unwrap().activate_dock(ui, ctx);
+        TextGameState::request_activation(
+            TextGameState::DOCK_INPUT_ID,
+            server_ctx.document_instance,
+            ui,
+            ctx,
+        );
     }
 
     fn supports_actions(&self) -> bool {

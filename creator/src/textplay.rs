@@ -1,9 +1,29 @@
-use crate::editor::RUSTERIX;
 use crate::prelude::*;
 use rusterix::server::message::EntityAction;
 use shared::text_game as sg;
 use std::collections::BTreeSet;
 use toml::Table;
+
+/// Explicit CPU borrow supplied by Creator's Play owner. Text output never
+/// owns a renderer, polls Server, or reaches into the global presentation facade.
+pub(crate) struct TextGameRuntime<'a> {
+    pub server: &'a mut rusterix::Server,
+    pub assets: &'a rusterix::Assets,
+    pub time: TheTime,
+    pub input: Option<(&'a mut eldiron_runtime::PlayerInput, bool)>,
+}
+impl TextGameRuntime<'_> {
+    fn action(&mut self, action: EntityAction) -> Option<String> {
+        if let Some((input, requested)) = &mut self.input {
+            input.submit_action(self.server, *requested, action).err()
+        } else {
+            // Explicit reference/tooling hosts may still start the facade
+            // without a Creator Play owner.
+            self.server.local_player_action(action);
+            None
+        }
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum AutoAttackMode {
@@ -25,7 +45,6 @@ pub struct TextGameState {
     dirty: bool,
     appended_since_sync: bool,
     force_scroll_to_bottom: bool,
-    active_input_id: &'static str,
     choices: Vec<rusterix::Choice>,
 }
 
@@ -48,7 +67,6 @@ impl TextGameState {
             dirty: false,
             appended_since_sync: false,
             force_scroll_to_bottom: false,
-            active_input_id: Self::GAME_INPUT_ID,
             choices: Vec::new(),
         }
     }
@@ -96,12 +114,29 @@ impl TextGameState {
         self.force_scroll_to_bottom = true;
     }
 
-    fn activate_input(&mut self, input_id: &str, ui: &mut TheUI, ctx: &mut TheContext) {
-        self.active_input_id = if input_id == Self::DOCK_INPUT_ID {
-            Self::DOCK_INPUT_ID
-        } else {
-            Self::GAME_INPUT_ID
-        };
+    pub(crate) const ACTIVATE_EVENT: &'static str = "Activate Text Game Input";
+
+    /// Tools/docks request activation from the application owner. Both the
+    /// document incarnation and widget identity must still match on delivery.
+    pub(crate) fn request_activation(
+        input_id: &str,
+        document: Uuid,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+    ) {
+        if let Some(widget) = ui.get_widget(input_id) {
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named_with_id_and_reference(
+                    Self::ACTIVATE_EVENT,
+                    widget.id().uuid,
+                    document,
+                ),
+                TheValue::Text(input_id.into()),
+            ));
+        }
+    }
+
+    pub(crate) fn activate_input(&mut self, input_id: &str, ui: &mut TheUI, ctx: &mut TheContext) {
         self.sync_output(ui, ctx);
         ui.set_widget_value(input_id, ctx, TheValue::Text(String::new()));
         if let Some(widget) = ui.get_widget(input_id) {
@@ -110,12 +145,11 @@ impl TextGameState {
         }
     }
 
-    pub fn activate(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
-        self.activate_input(Self::GAME_INPUT_ID, ui, ctx);
-    }
-
-    pub fn activate_dock(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
-        self.activate_input(Self::DOCK_INPUT_ID, ui, ctx);
+    #[cfg(test)]
+    pub(crate) fn contains_output(&self, text: &str) -> bool {
+        self.blocks.iter().any(|block| {
+            block.text.contains(text) || block.spans.iter().any(|span| span.text.contains(text))
+        })
     }
 
     pub fn sync_output(&self, ui: &mut TheUI, ctx: &mut TheContext) {
@@ -140,27 +174,21 @@ impl TextGameState {
         }
     }
 
-    pub fn handle_input(
+    pub(crate) fn handle_input(
         &mut self,
         input_id: &str,
         command: &str,
-        project: &mut Project,
+        project: &Project,
         server_ctx: &ServerContext,
+        runtime: &mut TextGameRuntime<'_>,
         ui: &mut TheUI,
         ctx: &mut TheContext,
     ) -> bool {
-        self.active_input_id = if input_id == Self::DOCK_INPUT_ID {
-            Self::DOCK_INPUT_ID
-        } else {
-            Self::GAME_INPUT_ID
-        };
         let trimmed = command.trim();
         if trimmed.is_empty() {
             ui.set_widget_value(input_id, ctx, TheValue::Text(String::new()));
             return false;
         }
-
-        refresh_text_runtime_view(project);
 
         let colors = authoring_colors(&project.authoring);
         self.push_line(
@@ -168,7 +196,7 @@ impl TextGameState {
             colors.message_categories.get("system"),
         );
 
-        let keep_running = self.handle_command(trimmed, project, server_ctx);
+        let keep_running = self.handle_command(trimmed, project, server_ctx, runtime);
         self.sync_output(ui, ctx);
         self.dirty = false;
         self.appended_since_sync = false;
@@ -181,10 +209,11 @@ impl TextGameState {
         keep_running
     }
 
-    pub fn update(
+    pub(crate) fn update(
         &mut self,
         project: &Project,
         server_ctx: &ServerContext,
+        runtime: &mut TextGameRuntime<'_>,
         messages: &mut Vec<TextGameMessage>,
         says: &mut Vec<TextGameSay>,
         choices: &mut Vec<rusterix::MultipleChoice>,
@@ -201,8 +230,8 @@ impl TextGameState {
                 &project.authoring,
                 std::mem::take(messages),
                 std::mem::take(says),
-                current_time_hour(project, server_ctx),
-                current_time_label(project, server_ctx),
+                current_time_hour(project, server_ctx, runtime.server),
+                current_time_label(project, server_ctx, runtime.server),
                 authoring_auto_attack_mode(&project.authoring) == AutoAttackMode::OnAttack,
             )
         } else {
@@ -211,7 +240,7 @@ impl TextGameState {
             Vec::new()
         };
         self.apply_outputs(project, server_ctx, &outputs);
-        self.prune_choices(project, server_ctx);
+        self.prune_choices(project, server_ctx, runtime);
         for prompt in std::mem::take(choices) {
             let Some(player) = current_region(project, server_ctx)
                 .and_then(|region| region.map.entities.iter().find(|entity| entity.is_player()))
@@ -228,7 +257,7 @@ impl TextGameState {
                 prompt.expires_at_tick,
                 prompt.max_distance,
             ));
-            self.prune_choices(project, server_ctx);
+            self.prune_choices(project, server_ctx, runtime);
             let labels = self
                 .choices
                 .iter()
@@ -255,16 +284,15 @@ impl TextGameState {
                     };
                     let label = current_region(project, server_ctx)
                         .map(|region| {
-                            let runtime = RUSTERIX.read().unwrap();
                             let (from, to, _, _) = choice.session_meta();
                             rusterix::client::resolver::MsgResolver::new().resolve_with_context(
                                 rusterix::MsgParser::new().parse(&label),
                                 &region.map,
-                                &runtime.assets,
+                                runtime.assets,
                                 rusterix::client::resolver::MessageContext {
                                     sender_entity: Some(from),
                                     receiver_entity: Some(to),
-                                    world_time: Some(runtime.client.server_time),
+                                    world_time: Some(runtime.time),
                                     ..Default::default()
                                 },
                             )
@@ -285,14 +313,19 @@ impl TextGameState {
                 self.push_plain_line(&fl!("text_play_choose"));
             }
         }
-        self.process_auto_attack(project, server_ctx);
+        self.process_auto_attack(project, server_ctx, runtime);
         self.sync_output(ui, ctx);
         self.dirty = false;
         self.appended_since_sync = false;
         self.force_scroll_to_bottom = false;
     }
 
-    fn prune_choices(&mut self, project: &Project, server_ctx: &ServerContext) {
+    fn prune_choices(
+        &mut self,
+        project: &Project,
+        server_ctx: &ServerContext,
+        runtime: &mut TextGameRuntime<'_>,
+    ) {
         let Some(region) = current_region(project, server_ctx) else {
             self.choices.clear();
             return;
@@ -304,12 +337,7 @@ impl TextGameState {
             .and_then(|table| table.get("game")?.get("ticks_per_minute")?.as_integer())
             .unwrap_or(4)
             .max(1) as u32;
-        let ticks = RUSTERIX
-            .read()
-            .unwrap()
-            .client
-            .server_time
-            .to_ticks(ticks_per_minute);
+        let ticks = runtime.time.to_ticks(ticks_per_minute);
         self.choices.retain(|choice| {
             let (from, to, expires, distance) = choice.session_meta();
             ticks <= expires
@@ -328,19 +356,17 @@ impl TextGameState {
     fn handle_command(
         &mut self,
         input: &str,
-        project: &mut Project,
+        project: &Project,
         server_ctx: &ServerContext,
+        runtime: &mut TextGameRuntime<'_>,
     ) -> bool {
-        self.prune_choices(project, server_ctx);
+        self.prune_choices(project, server_ctx, runtime);
         if let Ok(number) = input.parse::<usize>() {
             let selected = selected_text_choice(&self.choices, number).cloned();
             if let Some(choice) = selected {
-                self.choices.clear();
-                RUSTERIX
-                    .write()
-                    .unwrap()
-                    .server
-                    .local_player_action(EntityAction::Choice(choice));
+                if self.submit_action(runtime, EntityAction::Choice(choice)) {
+                    self.choices.clear();
+                }
                 return true;
             }
             self.push_plain_line(&fl!("text_play_invalid_choice"));
@@ -386,7 +412,7 @@ impl TextGameState {
                 }
             }
             _ if matches!(direction, "north" | "south" | "east" | "west") => {
-                if move_by_direction(direction, project, server_ctx) {
+                if move_by_direction(direction, project, server_ctx, runtime) {
                 } else {
                     self.push_plain_line("You cannot go that way.");
                 }
@@ -413,7 +439,7 @@ impl TextGameState {
                 let target = input["go ".len()..].trim().to_ascii_lowercase();
                 if target.is_empty() {
                     self.push_plain_line("Usage: go <direction or exit name>");
-                } else if move_by_exit_name(&target, project, server_ctx) {
+                } else if move_by_exit_name(&target, project, server_ctx, runtime) {
                 } else {
                     self.push_plain_line("No matching exit.");
                 }
@@ -428,16 +454,12 @@ impl TextGameState {
                     let target = parts.next().map(str::trim).unwrap_or("");
                     if !intent.is_empty() && !target.is_empty() {
                         if let Some(error) =
-                            trigger_text_intent(project, server_ctx, intent, target)
+                            trigger_text_intent(project, server_ctx, runtime, intent, target)
                         {
                             self.push_plain_line(&error);
                         }
                     } else if !intent.is_empty() {
-                        RUSTERIX
-                            .write()
-                            .unwrap()
-                            .server
-                            .local_player_action(EntityAction::Intent(intent.to_string()));
+                        self.submit_action(runtime, EntityAction::Intent(intent.to_string()));
                     } else {
                         self.push_plain_line("Usage: intent <name> [target]");
                     }
@@ -459,42 +481,41 @@ impl TextGameState {
                         if let Some(target) = target {
                             let intent = resolve_intent_alias(&project.authoring, &intent);
                             if let Some(error) =
-                                trigger_text_intent(project, server_ctx, &intent, &target)
+                                trigger_text_intent(project, server_ctx, runtime, &intent, &target)
                             {
                                 self.push_plain_line(&error);
                             }
                         } else {
-                            RUSTERIX
-                                .write()
-                                .unwrap()
-                                .server
-                                .local_player_action(EntityAction::Intent(intent));
+                            self.submit_action(runtime, EntityAction::Intent(intent));
                         }
                     }
                     rusterix::client::text_command::TextCommand::Cast { spell, target } => {
-                        if let Some(error) =
-                            trigger_text_spell(project, server_ctx, &spell, target.as_deref())
-                        {
+                        if let Some(error) = trigger_text_spell(
+                            project,
+                            server_ctx,
+                            runtime,
+                            &spell,
+                            target.as_deref(),
+                        ) {
                             self.push_plain_line(&error);
                         }
                     }
                     rusterix::client::text_command::TextCommand::Craft { recipe: _ } => {
-                        RUSTERIX
-                            .write()
-                            .unwrap()
-                            .server
-                            .local_player_action(EntityAction::TextCommand(input.to_string()));
+                        self.submit_action(runtime, EntityAction::TextCommand(input.to_string()));
                     }
                     rusterix::client::text_command::TextCommand::Action { action, target } => {
                         if target.is_none() {
-                            RUSTERIX
-                                .write()
-                                .unwrap()
-                                .server
-                                .local_player_action(EntityAction::TextCommand(input.to_string()));
-                        } else if let Some(error) =
-                            trigger_text_action(project, server_ctx, &action, target.as_deref())
-                        {
+                            self.submit_action(
+                                runtime,
+                                EntityAction::TextCommand(input.to_string()),
+                            );
+                        } else if let Some(error) = trigger_text_action(
+                            project,
+                            server_ctx,
+                            runtime,
+                            &action,
+                            target.as_deref(),
+                        ) {
                             self.push_plain_line(&error);
                         }
                     }
@@ -510,7 +531,7 @@ impl TextGameState {
                             && supported_intents.contains(&verb)
                         {
                             if let Some(error) =
-                                trigger_text_intent(project, server_ctx, &verb, target)
+                                trigger_text_intent(project, server_ctx, runtime, &verb, target)
                             {
                                 self.push_plain_line(&error);
                             }
@@ -590,7 +611,21 @@ impl TextGameState {
         self.appended_since_sync = true;
     }
 
-    fn process_auto_attack(&mut self, project: &Project, server_ctx: &ServerContext) {
+    fn submit_action(&mut self, runtime: &mut TextGameRuntime<'_>, action: EntityAction) -> bool {
+        if let Some(error) = runtime.action(action) {
+            self.push_plain_line(&error);
+            false
+        } else {
+            true
+        }
+    }
+
+    fn process_auto_attack(
+        &mut self,
+        project: &Project,
+        server_ctx: &ServerContext,
+        runtime: &mut TextGameRuntime<'_>,
+    ) {
         if authoring_auto_attack_mode(&project.authoring) != AutoAttackMode::OnAttack {
             self.session.clear_auto_attack_target();
             return;
@@ -628,15 +663,10 @@ impl TextGameState {
         }
 
         let distance = player.get_pos_xz().distance(target.get_pos_xz());
-        RUSTERIX
-            .write()
-            .unwrap()
-            .server
-            .local_player_action(EntityAction::EntityClicked(
-                target_id,
-                distance,
-                Some("attack".into()),
-            ));
+        self.submit_action(
+            runtime,
+            EntityAction::EntityClicked(target_id, distance, Some("attack".into())),
+        );
     }
 
     fn apply_outputs(
@@ -729,17 +759,6 @@ fn current_region<'a>(
     server_ctx: &ServerContext,
 ) -> Option<&'a shared::region::Region> {
     project.get_region_ctx(server_ctx)
-}
-
-fn refresh_text_runtime_view(project: &mut Project) {
-    let mut rusterix = RUSTERIX.write().unwrap();
-    for region in &mut project.regions {
-        rusterix.server.apply_entities_items(&mut region.map);
-        if let Some(time) = rusterix.server.get_time(&region.map.id) {
-            rusterix.client.set_server_time(time);
-            project.time = time;
-        }
-    }
 }
 
 fn render_room_blocks(
@@ -942,7 +961,12 @@ fn block_ends_with(block: &TheTextViewBlock, suffix: &str) -> bool {
     }
 }
 
-fn move_by_direction(direction: &str, project: &Project, server_ctx: &ServerContext) -> bool {
+fn move_by_direction(
+    direction: &str,
+    project: &Project,
+    server_ctx: &ServerContext,
+    runtime: &mut TextGameRuntime<'_>,
+) -> bool {
     let Some(region) = current_region(project, server_ctx) else {
         return false;
     };
@@ -955,17 +979,18 @@ fn move_by_direction(direction: &str, project: &Project, server_ctx: &ServerCont
         sg::authoring_connection_probe_distance(&project.authoring),
     );
     if let Some(exit) = exits.into_iter().find(|exit| exit.direction == direction) {
-        RUSTERIX
-            .write()
-            .unwrap()
-            .server
-            .local_player_teleport_pos(exit.target_center);
+        runtime.server.local_player_teleport_pos(exit.target_center);
         return true;
     }
     false
 }
 
-fn move_by_exit_name(target: &str, project: &Project, server_ctx: &ServerContext) -> bool {
+fn move_by_exit_name(
+    target: &str,
+    project: &Project,
+    server_ctx: &ServerContext,
+    runtime: &mut TextGameRuntime<'_>,
+) -> bool {
     let Some(region) = current_region(project, server_ctx) else {
         return false;
     };
@@ -982,11 +1007,7 @@ fn move_by_exit_name(target: &str, project: &Project, server_ctx: &ServerContext
             || exit.title.to_ascii_lowercase() == target
             || exit.target_title.to_ascii_lowercase() == target
     }) {
-        RUSTERIX
-            .write()
-            .unwrap()
-            .server
-            .local_player_teleport_pos(exit.target_center);
+        runtime.server.local_player_teleport_pos(exit.target_center);
         return true;
     }
     false
@@ -995,6 +1016,7 @@ fn move_by_exit_name(target: &str, project: &Project, server_ctx: &ServerContext
 fn trigger_text_intent(
     project: &Project,
     server_ctx: &ServerContext,
+    runtime: &mut TextGameRuntime<'_>,
     intent: &str,
     query: &str,
 ) -> Option<String> {
@@ -1007,40 +1029,26 @@ fn trigger_text_intent(
     };
 
     match target {
-        sg::TextTarget::Entity { id, distance } => {
-            RUSTERIX
-                .write()
-                .unwrap()
-                .server
-                .local_player_action(EntityAction::EntityClicked(
-                    id,
-                    if intent.trim().eq_ignore_ascii_case("look") {
-                        0.0
-                    } else {
-                        distance
-                    },
-                    Some(intent.trim().to_string()),
-                ));
-        }
-        sg::TextTarget::Item { id, distance } => {
-            RUSTERIX
-                .write()
-                .unwrap()
-                .server
-                .local_player_action(EntityAction::ItemClicked(
-                    id,
-                    if intent.trim().eq_ignore_ascii_case("look") {
-                        0.0
-                    } else {
-                        distance
-                    },
-                    Some(intent.trim().to_string()),
-                    None,
-                ));
-        }
+        sg::TextTarget::Entity { id, distance } => runtime.action(EntityAction::EntityClicked(
+            id,
+            if intent.trim().eq_ignore_ascii_case("look") {
+                0.0
+            } else {
+                distance
+            },
+            Some(intent.trim().to_string()),
+        )),
+        sg::TextTarget::Item { id, distance } => runtime.action(EntityAction::ItemClicked(
+            id,
+            if intent.trim().eq_ignore_ascii_case("look") {
+                0.0
+            } else {
+                distance
+            },
+            Some(intent.trim().to_string()),
+            None,
+        )),
     }
-
-    None
 }
 
 fn current_player_supported_intents(
@@ -1100,6 +1108,7 @@ fn ruleset_spell_kind(project: &Project, spell_id: &str) -> String {
 fn trigger_text_spell(
     project: &Project,
     server_ctx: &ServerContext,
+    runtime: &mut TextGameRuntime<'_>,
     spell: &str,
     target: Option<&str>,
 ) -> Option<String> {
@@ -1107,6 +1116,7 @@ fn trigger_text_spell(
         return trigger_text_intent(
             project,
             server_ctx,
+            runtime,
             &format!("spell:{}", spell.trim()),
             target,
         );
@@ -1126,21 +1136,17 @@ fn trigger_text_spell(
     let Some(player) = region.map.entities.iter().find(|entity| entity.is_player()) else {
         return Some("No local player found.".into());
     };
-    RUSTERIX
-        .write()
-        .unwrap()
-        .server
-        .local_player_action(EntityAction::EntityClicked(
-            player.id,
-            0.0,
-            Some(format!("spell:{}", spell.trim())),
-        ));
-    None
+    runtime.action(EntityAction::EntityClicked(
+        player.id,
+        0.0,
+        Some(format!("spell:{}", spell.trim())),
+    ))
 }
 
 fn trigger_text_action(
     project: &Project,
     server_ctx: &ServerContext,
+    runtime: &mut TextGameRuntime<'_>,
     action: &str,
     target: Option<&str>,
 ) -> Option<String> {
@@ -1154,24 +1160,28 @@ fn trigger_text_action(
     trigger_text_intent(
         project,
         server_ctx,
+        runtime,
         &format!("action:{}", action.trim()),
         target,
     )
 }
 
-fn current_time_hour(project: &Project, server_ctx: &ServerContext) -> Option<u8> {
+fn current_time_hour(
+    project: &Project,
+    server_ctx: &ServerContext,
+    server: &rusterix::Server,
+) -> Option<u8> {
     let region = current_region(project, server_ctx)?;
-    RUSTERIX
-        .read()
-        .unwrap()
-        .server
-        .get_time(&region.map.id)
-        .map(|time| time.hours)
+    server.get_time(&region.map.id).map(|time| time.hours)
 }
 
-fn current_time_label(project: &Project, server_ctx: &ServerContext) -> Option<String> {
+fn current_time_label(
+    project: &Project,
+    server_ctx: &ServerContext,
+    server: &rusterix::Server,
+) -> Option<String> {
     let region = current_region(project, server_ctx)?;
-    let time = RUSTERIX.read().unwrap().server.get_time(&region.map.id)?;
+    let time = server.get_time(&region.map.id)?;
     let label = if time.minutes == 0 {
         let period = if time.hours >= 12 { "PM" } else { "AM" };
         let hour = if time.hours % 12 == 0 {
@@ -1185,6 +1195,7 @@ fn current_time_label(project: &Project, server_ctx: &ServerContext) -> Option<S
     };
     Some(label)
 }
+
 fn config_table(src: &str) -> Option<Table> {
     src.parse::<Table>().ok()
 }
