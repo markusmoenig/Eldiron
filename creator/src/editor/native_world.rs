@@ -11,6 +11,8 @@ mod navigation;
 mod visibility;
 #[path = "native_world_speech.rs"]
 mod speech;
+#[path = "native_world_scope.rs"]
+mod scope;
 use crate::editor_overlay::panel::PanelScope;
 use crate::editor_overlay::procedural_gpu::GpuIcons;
 use crate::hud::{Hud, HudInputs, HudStyle};
@@ -53,6 +55,7 @@ struct Binding {
     document: Uuid,
     runtime: Option<Uuid>,
     paste: Option<paste::Stamp>,
+    detail: scope::DetailScope,
     view: TheId,
     tool: Uuid,
     context: ProjectContext,
@@ -72,6 +75,7 @@ impl Binding {
         self.document == next.document
             && self.runtime == next.runtime
             && self.paste.is_some() == next.paste.is_some()
+            && self.detail == next.detail
             && self.view == next.view
             && self.tool == next.tool
             && self.context == next.context
@@ -734,9 +738,7 @@ impl Editor {
             );
         }
         if self.server_ctx.pc != owner.context
-            || self
-                .documents.project
-                .get_map(&self.server_ctx)
+            || scope::map(&self.documents.project, &self.server_ctx)
                 .is_none_or(|map| map.id != owner.map)
         {
             return;
@@ -749,12 +751,10 @@ impl Editor {
         // Cancel through the gesture's original projection. Camera switches
         // may already have updated the current view before this barrier runs.
         let mode = self.server_ctx.editor_view_mode;
-        let navigation = self
-            .documents.project
-            .get_map(&self.server_ctx)
+        let navigation = scope::map(&self.documents.project, &self.server_ctx)
             .map(|map| (map.camera, map.offset, map.grid_size, map.subdivisions));
         self.server_ctx.editor_view_mode = owner.mode;
-        if let Some(map) = self.documents.project.get_map_mut(&self.server_ctx) {
+        if let Some(map) = scope::map_mut(&mut self.documents.project, &self.server_ctx) {
             map.camera = owner.camera;
         }
         tools.cancel_native_world_gesture(ui, ctx, &mut self.documents.project, &mut self.server_ctx);
@@ -762,7 +762,7 @@ impl Editor {
         self.server_ctx.editor_view_mode = mode;
         let mut projection_changed = false;
         if let (Some((camera, offset, grid, subdivisions)), Some(map)) =
-            (navigation, self.documents.project.get_map_mut(&self.server_ctx))
+            (navigation, scope::map_mut(&mut self.documents.project, &self.server_ctx))
         {
             projection_changed = map.camera != camera;
             map.camera = camera;
@@ -786,11 +786,12 @@ impl Editor {
             || !(self.server_ctx.pc.is_region() || self.server_ctx.pc.is_prefab())
             || self.server_ctx.world_mode
             || self.server_ctx.profile_view.is_some()
-            || self.server_ctx.editing_surface.is_some()
+            || (self.server_ctx.editing_surface.is_some()
+                && self.server_ctx.editor_view_mode == EditorViewMode::D2)
         {
             return false;
         }
-        let Some(map) = self.documents.project.get_map(&self.server_ctx) else {
+        let Some(map) = scope::map(&self.documents.project, &self.server_ctx) else {
             return false;
         };
         if self.server_ctx.editor_view_mode == EditorViewMode::D2 {
@@ -866,7 +867,7 @@ impl Editor {
         if !self.native_world_owns_viewport() || crate::geometry_editor::is_visible(ui) {
             return None;
         }
-        let map = self.documents.project.get_map(&self.server_ctx)?;
+        let map = scope::map(&self.documents.project, &self.server_ctx)?;
         let document = self.documents.active_id()?;
         let tool = self.server_ctx.tools.write().get_current_tool().id().uuid;
         let view = crate::utils::map_editor_render_view(ui, &self.server_ctx)?;
@@ -882,6 +883,7 @@ impl Editor {
             document,
             runtime: self.play_session.as_ref().map(|session| session.pump().session_id()),
             paste: paste::Stamp::current(&self.server_ctx),
+            detail: scope::DetailScope::current(&self.server_ctx),
             view,
             tool,
             context: self.server_ctx.pc,
@@ -1002,10 +1004,7 @@ impl Editor {
         {
             ctx.ui.set_focus(&binding.view);
         }
-        let map = self
-            .documents
-            .project
-            .get_map(&self.server_ctx)
+        let map = scope::map(&self.documents.project, &self.server_ctx)
             .ok_or("missing native world map")?;
         let authored_stamp = SourceStamp::new(map);
         let paste = self
@@ -1538,7 +1537,7 @@ impl Editor {
         if next.as_ref() != Some(&frame.binding) || frame.target.revision != world.epoch {
             return;
         }
-        let Some(map) = self.documents.project.get_map(&self.server_ctx) else {
+        let Some(map) = scope::map(&self.documents.project, &self.server_ctx) else {
             return;
         };
         if SourceStamp::new(map) != frame.stamp || current_camera != frame.camera {
@@ -1598,7 +1597,7 @@ impl Editor {
                 continue;
             };
             let target = binding.target(self.native_viewport.world.epoch);
-            let Some(map) = self.documents.project.get_map(&self.server_ctx) else {
+            let Some(map) = scope::map(&self.documents.project, &self.server_ctx) else {
                 continue;
             };
             let mut tools = self.server_ctx.tools.write();
@@ -1625,7 +1624,7 @@ impl Editor {
         let camera = self
             .native_world_camera()
             .map(|camera| CameraStamp::new(camera.as_ref(), binding.size));
-        let map = self.documents.project.get_map(&self.server_ctx)?;
+        let map = scope::map(&self.documents.project, &self.server_ctx)?;
         let world = &mut self.native_viewport.world;
         let mut retry = world.retry_click.take()?;
         if !retry.binding.capture_compatible(&binding) || retry.camera != camera {
@@ -1792,9 +1791,7 @@ impl Editor {
                     frame.binding == binding
                         && frame.ready
                         && frame.camera == current_camera
-                        && self
-                            .documents.project
-                            .get_map(&self.server_ctx)
+                        && scope::map(&self.documents.project, &self.server_ctx)
                             .is_some_and(|map| frame.stamp == SourceStamp::new(map))
                 })
             && self.server_ctx.docks.write().prepare_native_view_input(
@@ -1806,7 +1803,7 @@ impl Editor {
         {
             let next = self.native_world_binding(ui, ctx);
             self.bind_native_world(next.clone(), ui, ctx);
-            if let (Some(binding), Some(map)) = (next, self.documents.project.get_map(&self.server_ctx)) {
+            if let (Some(binding), Some(map)) = (next, scope::map(&self.documents.project, &self.server_ctx)) {
                 self.native_viewport.world.retry_click = Some(RetryClick {
                     binding,
                     stamp: SourceStamp::new(map),
@@ -1864,7 +1861,7 @@ impl Editor {
         let mut accepted_query = None;
         let frame = world.presented.clone();
         let target = binding.target(world.epoch);
-        let Some(map) = self.documents.project.get_map_mut(&self.server_ctx) else {
+        let Some(map) = scope::map_mut(&mut self.documents.project, &self.server_ctx) else {
             return true;
         };
         let mut tools = self.server_ctx.tools.write();
@@ -2144,7 +2141,7 @@ impl Editor {
         self.server_ctx.hover_cursor = None;
         self.server_ctx.hover_cursor_3d = None;
         self.server_ctx.geo_hit = None;
-        let map = self.documents.project.get_map(&self.server_ctx).unwrap();
+        let map = scope::map(&self.documents.project, &self.server_ctx).unwrap();
         let before = serde_json::to_vec(map).unwrap();
         let vertices = map.vertices.len();
         let view = crate::utils::map_editor_render_view(ui, &self.server_ctx)
@@ -2160,7 +2157,7 @@ impl Editor {
         Some((source.snapshot(), source.ready()))
     }
     pub(crate) fn native_paste_authored_for_test(&self) -> Vec<u8> {
-        serde_json::to_vec(self.documents.project.get_map(&self.server_ctx).unwrap()).unwrap()
+        serde_json::to_vec(scope::map(&self.documents.project, &self.server_ctx).unwrap()).unwrap()
     }
     pub(crate) fn native_paste_projection_for_test(&self) -> Option<Arc<Map>> {
         self.native_viewport
@@ -2197,7 +2194,7 @@ impl Editor {
     }
     pub(crate) fn native_paste_ready_for_test(&self) -> bool {
         let world = &self.native_viewport.world;
-        let map = self.documents.project.get_map(&self.server_ctx).unwrap();
+        let map = scope::map(&self.documents.project, &self.server_ctx).unwrap();
         world.presented.as_ref().is_some_and(|frame| {
             frame.binding.paste.as_ref().is_some_and(|stamp| {
                 stamp.has_target()
@@ -2227,7 +2224,7 @@ impl Editor {
         )
     }
     pub(crate) fn native_world_debug_for_test(&self) -> String {
-        let map = self.documents.project.get_map(&self.server_ctx).unwrap();
+        let map = scope::map(&self.documents.project, &self.server_ctx).unwrap();
         let frame = self.native_viewport.world.presented.as_ref();
         let builds = self.server_ctx.jobs.scene();
         format!(
@@ -2254,9 +2251,7 @@ impl Editor {
             .as_ref()
             .is_some_and(|frame| {
                 frame.ready
-                    && self
-                        .documents.project
-                        .get_map(&self.server_ctx)
+                    && scope::map(&self.documents.project, &self.server_ctx)
                         .is_some_and(|map| frame.stamp == SourceStamp::new(map))
             })
     }
@@ -2383,7 +2378,7 @@ impl Editor {
     }
     pub(crate) fn native_paint_state_for_test(&self) -> (f32, usize, Option<u64>) {
         let paint = self.native_paint_layer_for_test();
-        let map = self.documents.project.get_map(&self.server_ctx).unwrap();
+        let map = scope::map(&self.documents.project, &self.server_ctx).unwrap();
         (
             paint.active_opacity,
             paint
@@ -2399,7 +2394,7 @@ impl Editor {
         )
     }
     pub(crate) fn native_paint_point_for_test(&self, size: (i32, i32)) -> Vec2<i32> {
-        let map = self.documents.project.get_map(&self.server_ctx).unwrap();
+        let map = scope::map(&self.documents.project, &self.server_ctx).unwrap();
         let bounds = map.sectors.last().unwrap().bounding_box(map);
         let point = (bounds.min + bounds.max) * 0.5;
         assert!(
@@ -2432,7 +2427,7 @@ impl Editor {
         self.server_ctx.reference.write().assets.tiles.insert(tile.id, tile);
     }
     pub(crate) fn native_rect_state_for_test(&self) -> (bool, f32, usize) {
-        let map = self.documents.project.get_map(&self.server_ctx).unwrap();
+        let map = scope::map(&self.documents.project, &self.server_ctx).unwrap();
         (
             self.server_ctx.rect_compose_mode,
             map.properties.get_float_default("iso_brush_yaw", 0.),
@@ -2443,8 +2438,7 @@ impl Editor {
         self.server_ctx.terrain_brush_radius
     }
     pub(crate) fn native_terrain_points_for_test(&self) -> Option<rusterix::Value> {
-        self.documents.project
-            .get_map(&self.server_ctx)
+        scope::map(&self.documents.project, &self.server_ctx)
             .unwrap()
             .properties
             .get("terrain_sculpt")

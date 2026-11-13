@@ -131,7 +131,7 @@ impl Editor {
         self.native_viewport.enabled
             && !self.server_ctx.game_mode
             && !self.native_display_owns_viewport()
-            && self.documents.project.get_map(&self.server_ctx).is_none()
+            && self.native_world_map_id().is_none()
     }
     /// An asset/code dock replaces the world canvas. Its hidden scene widget
     /// cannot opt into legacy rendering merely because it has no active GPU

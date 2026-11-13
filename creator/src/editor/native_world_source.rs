@@ -110,7 +110,7 @@ impl Editor {
         let Some(document) = self.documents.active_id() else {
             return false;
         };
-        let Some(map) = self.documents.project.get_map(&self.server_ctx) else {
+        let Some(map) = scope::map(&self.documents.project, &self.server_ctx) else {
             return false;
         };
         let bridge = self.server_ctx.reference.read();

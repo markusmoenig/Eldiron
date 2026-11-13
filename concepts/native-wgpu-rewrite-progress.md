@@ -9965,3 +9965,100 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   repeat. Full M0–M9 Goal ACTIVE. Next: inspect/migrate custom profile/surface
   viewport producers and remaining bake adapter; preserve serialized map and
   undo semantics, then continue core/retirement/resource/performance gates.
+
+## 2026-11-14 — Parent world geometry during 3D surface-detail editing (active)
+
+- Clipboard batch committed9fe3d93f; only concurrent networking concept remained.
+- Surface audit: world_mode/profile_view have no production repository setters;
+  legacy2D editing_surface branch is retained but current camera switch clears
+  that flag. Real3D detail mode still matters: Project::get_map deliberately
+  returns a child profile, while existing ToolList::get_tool_map_mut explicitly
+  selects the parent region for3D tools. Native world previously used the former
+  for render sources/picking/HUD and could display/edit against the wrong scope.
+- Added CPU map-scope regression using actual Project/Region/Surface/Profile,
+  with all3D cameras,2D child selection and Prefab isolation. RED0/1/.12s on
+  wrong parent ID; explicit world scope helper GREEN1/.12s (build23.28s).
+  Source/input/clipboard/retry/diagnostic callers now use that helper; shared
+  Project::get_map semantics and serialized data remain unchanged.
+- Now freezing explicit detail/editing planes in capture binding, including the
+  nonserialized footprint, and allowing3D editing_surface to stay native.2D custom
+  surface adapter still retained. Shared guide producer must not hide profile
+  handles through the normal geometry-object-only policy. Assembled real detail
+  selection/source/serialization/guide verification being added; no full new
+  acceptance claimed. Full M0–M9 Goal stays ACTIVE.
+
+- DetailScope key now includes edit mode, explicit active/editing planes and
+  nonserialized cached footprints. CPU scope/plane regression PASS2/.11s.
+  Integration builds1/2 PASS23.07/23.54s. First assembled attempt failed15.20s
+  during fixture construction: +/-0.4 profile corners snap to the same default
+  unit-grid vertex. Corrected fixture to the established +/-0.5 construction and
+  clear its inherited temporary polygon before adding the host. No production
+  failure inferred from that fixture error; next build/run pending.
+- Added assembled parent-world source/ghost-independent profile marker position,
+  unchanged authored snapshot before input, actual child-handle selection and
+  unchanged parent vertices assertions. Restore root/cube acknowledgement after
+  fixture retirement before continuing the existing camera workflow. Normal
+  geometry-only guide policy now yields to explicit Detail mode, keeping profile
+  markers visible in populated mixed maps.2D custom surface fallback remains.
+
+- Corrected fixture build3 PASS23.21s; actual assembled detail subcase now passes
+  through parent mesh retention, projected profile markers and real child-handle
+  selection without parent vertex mutation. Captured/inspected parent sphere
+  and four child handles on their host surface. Normal display delta readback0,
+  no CPU viewport storage; PNG remains explicit evidence only. Enclosing native
+  workflow still running. Existing typed overlay CPU regression PASS17/1ignored/
+  3.73s, including stale source/document/ordered fixture checks. Browser common
+  code release being rebuilt; final library/static/host checks follow.
+
+- Full assembled detail-scope run PASS1/142.04s after fixture repair, through
+  existing camera/clipboard/Play/document/recovery workflow. Browser release
+  preceding the final missing-child refinement PASS37.70s (package collection
+  pending). Actual view inspected: populated parent mesh and profile handles.
+- Follow-up ownership audit found empty-view clearing and world-speech routing
+  still used the child-oriented Project accessor. A deleted selected profile
+  would make prepare_native_views clear the newly painted, still-existing parent
+  world. Both now use the explicit world-map ID. Existing map-scope CPU case
+  includes missing-child retention; assembled case additionally removes its child
+  and requires a ready, retained parent paint publication with unchanged authored
+  bytes. This is source/ownership validation, not a change to editor actions.
+  Integration build4/final assembly pending;2D custom-profile adapter still open.
+
+- Final scope build4 PASS24.29s; build5 (new helper formatting only) completed.
+  Scope CPU PASS2/.11s including missing child. Full final assembled Metal PASS1/
+  145.36s: parent retained after child removal; original child selection/source/
+  no-mutation checks plus complete surrounding workflow pass. Source DPImaxdelta1.
+- Final shared browser release PASS36.81s/package98,278,069B. Browser bootstrap
+  actual150%/device recovery passes; copy/paste compatibility probe is running.
+  This browser case exercises normal3D shared-source compatibility, not live
+  surface-detail UI parity. Final reference PASS8.89s; required staticlib feature
+  archive PASS19.07s. Current Swift link/runtime collection pending.
+
+- Browser compatibility PASS doc312b2750-cbc4-42a4-b02b-63d105dc1970,38frames,
+  3devices/gen3, actual2400x1287/CSS1600x858. Current saved base/pending archives
+  byte-identical1,446,330B SHA8f15834d61e4021e195631703466d18a4bc35eee5b1b256b8c30e32db4fd5cd4;
+  committed8 vertices1,447,000B SHAc6457ddf9bb286d613fb5a81ec8c76a1d9e2ace747575c305534dd0575543473;
+  undo4 vertices1,446,331B SHA1903e368de1e131c0ea84e7f36bec40571a7d47adf4aae3aa834c8c96321ecba,
+  whole JSON differs only expected map.changed26→28. All normal root/readback/
+  asset/color copies/Canvas2D0/errors[]. No live browser detail-UI parity claim.
+- Final build5 PASS22.70s. Durable inspected native-surface-detail-parent.png
+  543,821B SHA004d2d8fa15f5c523c65e668bc5f78b712e475a8c4069749c17d03131c284d39.
+  Native actual detail input case usesOrbit; CPU map selection covers all3D
+  cameras. Shared guide fixes and missing-child world retention are verified.
+  Current Swift link PASS; runtime collecting. Reference/static/browser logs
+  /private/tmp/eldiron-native-detail-{final-reference,final-staticlib,
+  browser-bootstrap,browser-compatibility,swift-host-link,swift-host-runtime}.log.
+- Further inventory confirms default Creator launcher still uses TheApp under
+  default desktop feature; M7 canonical launcher cutover remains work. Main
+  custom Screen/Character/Item editing sources and legacy2D surface/bake branches
+  require explicit remaining-adapter audit before that cutover. Do not infer
+  M5/M7 completion from the now-working region/prefab/native Play paths.
+
+- Current Swift host runtime PASS CAMetalLayer/handle/document/controlled PNG
+  transactions on the final static library. Available parent-world detail scope
+  acceptance verified; serialized project format and separate editor/minimap
+  sub-map selection preserved. Full M0–M9 Goal ACTIVE with outstanding custom2D
+  contexts/bakes, canonical default launcher/legacy retirement, resource budgets,
+  equal-hardware performance and unavailable physical/cross-platform gates.
+  Next useful implementation: migrate active custom Screen/Character/Item2D
+  main viewport sources (D2PreviewBuilder + shared Overview2D renderer and guide
+  layers) with clip/source/paste/input scoping; inspect live caller context first.

@@ -899,7 +899,7 @@ impl ToolList {
                     | MapToolType::Vertex
                     | MapToolType::Linedef
                     | MapToolType::Sector
-            );
+            ) && server_ctx.geometry_edit_mode != GeometryEditMode::Detail;
             let selected_tile = scene.selected;
             let white_tile = scene.white;
             let push_cube_marker = |scene: &mut rusterix::SceneHandler,

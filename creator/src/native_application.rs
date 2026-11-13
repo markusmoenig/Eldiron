@@ -785,6 +785,9 @@ mod tests {
                 );
             }
             if camera_index == 2 {
+                check_native_surface_detail(
+                    &mut app, &mut host, &mut replacement, &gpu, &mut renderer, &output,
+                );
                 assert!(app.application.editor.handle_native_world_input(
                     &cube_click,
                     &mut app.session.ui,
@@ -2995,6 +2998,145 @@ mod tests {
         app.application.editor.check_host_save_conflict_for_test(&mut app.session.ui, &mut app.session.context);
         app.update(host, Duration::from_millis(16));
         assert_eq!(gpu.transfers().readback_bytes, before, "document transfers use CPU source bytes, never scene color capture");
+    }
+
+    fn check_native_surface_detail(
+        app: &mut UiApplicationAdapter<NativeCreatorApplication>,
+        host: &mut HostContext,
+        images: &mut ImageRegistry,
+        gpu: &Arc<GpuContext>,
+        renderer: &mut PaintRenderer,
+        output: &Arc<GpuImage>,
+    ) {
+        let fixture = app
+            .application
+            .editor
+            .begin_native_surface_detail_for_test();
+        let transfers = gpu.transfers();
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let (view, point, image) = loop {
+            app.update(host, Duration::from_millis(16));
+            let paint = app.frame(host, images).unwrap();
+            assert!(
+                app.application.pending.as_ref().unwrap().world_for_test(),
+                "surface detail stays native"
+            );
+            renderer
+                .render(
+                    &paint,
+                    images,
+                    &output.view,
+                    output.descriptor.format,
+                    (1200, 800),
+                    1.,
+                    [0.; 4],
+                )
+                .unwrap();
+            app.presented(host);
+            if let Some(frame) = app
+                .application
+                .editor
+                .native_surface_detail_frame_for_test(&fixture)
+            {
+                break frame;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "surface detail source never became ready"
+            );
+        };
+        assert_eq!(gpu.transfers().readback_bytes, transfers.readback_bytes);
+        assert!(
+            !app.application
+                .editor
+                .native_world_has_cpu_storage_for_test()
+        );
+        let mut capture = ReadbackTicket::capture(gpu, images.get(image).unwrap().clone()).unwrap();
+        gpu.device
+            .poll(wgpu::PollType::Wait {
+                submission_index: None,
+                timeout: Some(Duration::from_secs(30)),
+            })
+            .unwrap();
+        let pixels = capture.try_finish(gpu).unwrap().unwrap();
+        let file =
+            std::fs::File::create("/private/tmp/eldiron-native-surface-detail-parent.png").unwrap();
+        let mut encoder = png::Encoder::new(file, pixels.width(), pixels.height());
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        encoder
+            .write_header()
+            .unwrap()
+            .write_image_data(pixels.pixels())
+            .unwrap();
+        for event in [
+            TheEvent::RenderViewHoverChanged(view.clone(), point),
+            TheEvent::RenderViewClicked(view.clone(), point),
+            TheEvent::RenderViewUp(view, point),
+        ] {
+            app.session.context.ui.send(event);
+            app.update(host, Duration::from_millis(16));
+        }
+        app.application
+            .editor
+            .check_native_surface_detail_selection_for_test(&fixture);
+        // The selected child can disappear while the parent document remains.
+        // Empty-view handling must not erase its newly painted parent world.
+        let expected = app
+            .application
+            .editor
+            .remove_native_surface_detail_child_for_test(&fixture);
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            app.update(host, Duration::from_millis(16));
+            let paint = app.frame(host, images).unwrap();
+            assert!(
+                app.application.pending.as_ref().unwrap().world_for_test(),
+                "removing a profile must not clear the displayed parent world"
+            );
+            renderer
+                .render(
+                    &paint,
+                    images,
+                    &output.view,
+                    output.descriptor.format,
+                    (1200, 800),
+                    1.,
+                    [0.; 4],
+                )
+                .unwrap();
+            app.presented(host);
+            if app
+                .application
+                .editor
+                .native_missing_detail_child_ready_for_test(&fixture, &expected)
+            {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "parent world did not recover from a missing profile"
+            );
+        }
+        app.application
+            .editor
+            .finish_native_surface_detail_for_test(fixture, &mut app.session.ui);
+        app.update(host, Duration::from_millis(16));
+        // Restore the ordinary world/cube acknowledgement before the enclosing
+        // camera workflow continues using its actual navigation controls.
+        let paint = app.frame(host, images).unwrap();
+        renderer
+            .render(
+                &paint,
+                images,
+                &output.view,
+                output.descriptor.format,
+                (1200, 800),
+                1.,
+                [0.; 4],
+            )
+            .unwrap();
+        app.presented(host);
     }
 
     fn check_native_paste(

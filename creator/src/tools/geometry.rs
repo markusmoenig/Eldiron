@@ -2397,7 +2397,7 @@ fn point_in_screen_rect(point: Vec2<f32>, top_left: Vec2<f32>, bottom_right: Vec
         && point.y <= bottom_right.y
 }
 
-fn project_geometry_point_to_screen(
+pub(crate) fn project_geometry_point_to_screen(
     camera: &Camera3D,
     point: Vec3<f32>,
     width: f32,

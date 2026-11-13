@@ -246,7 +246,7 @@ impl Editor {
             "world": self.native_world_owns_viewport(),
             "paste": {
                 "active": self.server_ctx.paste_clipboard.is_some(),
-                "authored_vertices": self.documents.project.get_map(&self.server_ctx).map(|map| map.vertices.len()),
+                "authored_vertices": scope::map(&self.documents.project, &self.server_ctx).map(|map| map.vertices.len()),
                 "projected_vertices": self.native_viewport.world.paste.as_ref().map(|preview| preview.map.vertices.len()),
                 "ready": self.native_viewport.world.presented.as_ref().is_some_and(|frame| frame.binding.paste.is_some() && frame.ready),
                 "target": self.server_ctx.hover_cursor_3d.map(|point| point.into_array()),

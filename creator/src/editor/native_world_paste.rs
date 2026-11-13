@@ -85,7 +85,7 @@ impl Editor {
         let Some(stamp) = stamp else {
             return self.native_viewport.world.paste.take().is_some();
         };
-        let Some(authored) = self.documents.project.get_map(&self.server_ctx) else {
+        let Some(authored) = scope::map(&self.documents.project, &self.server_ctx) else {
             return false;
         };
         let bridge = self.server_ctx.reference.read();
@@ -205,7 +205,7 @@ impl Editor {
         {
             return true;
         }
-        let map = self.documents.project.get_map(&self.server_ctx).unwrap();
+        let map = scope::map(&self.documents.project, &self.server_ctx).unwrap();
         let current_camera = self
             .native_world_camera()
             .map(|camera| CameraStamp::new(camera.as_ref(), binding.size));

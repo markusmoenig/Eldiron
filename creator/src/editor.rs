@@ -9079,7 +9079,7 @@ impl TheTrait for Editor {
 
             #[cfg(feature = "native-render")]
             let world_speech_region = self.server_ctx.pc.is_region()
-                .then(|| self.documents.project.get_map(&self.server_ctx).map(|map| map.id))
+                .then(|| self.native_world_map_id())
                 .flatten();
             // Native Play owns its GameSession; only the reference adapter
             // lends facade storage while both use the shared CPU output pump.
