@@ -3,6 +3,97 @@
 use super::*;
 use theframework::platform::{InputEvent, PointerButton, UiSession};
 impl Editor {
+    pub(super) fn handle_native_viewcube_input(
+        &mut self,
+        binding: &Binding,
+        input: MapEvent,
+        ctx: &mut TheContext,
+    ) -> bool {
+        let world = &mut self.native_viewport.world;
+        if let Some(capture) = &mut world.cube_capture {
+            if capture.binding == *binding {
+                match input {
+                    MapEvent::MapDragged(at) => {
+                        let delta = at - capture.origin;
+                        if delta.x as i64 * delta.x as i64 + delta.y as i64 * delta.y as i64 >= 4 {
+                            capture.orbiting = true;
+                        }
+                        if capture.orbiting {
+                            let camera = &mut self.server_ctx.camera;
+                            #[cfg(target_os = "macos")]
+                            camera.mouse_dragged_viewcube_macos_primary(&at);
+                            #[cfg(not(target_os = "macos"))]
+                            camera.mouse_dragged_orbit(&at);
+                            ctx.ui.redraw_all = true;
+                        }
+                        return true;
+                    }
+                    MapEvent::MapUp(_) | MapEvent::MapEscape => {
+                        let capture = world.cube_capture.take().unwrap();
+                        self.server_ctx.camera.reset_mouse_tracking();
+                        if matches!(input, MapEvent::MapUp(_)) && !capture.orbiting {
+                            snap_cube(capture.face, ctx, &mut self.server_ctx.camera);
+                        }
+                        return true;
+                    }
+                    _ => {}
+                }
+            }
+        }
+        if let MapEvent::MapClicked(at) = input {
+            if !self.server_ctx.game_input_mode
+                && self.server_ctx.tools.read().viewcube_navigation_enabled()
+            {
+                let pick = world.cube.pick(
+                    binding.cube_target(world.epoch),
+                    &self.server_ctx.camera.orbit_camera,
+                    at,
+                );
+                match pick {
+                    CubePick::Unavailable => {
+                        ctx.ui.redraw_all = true;
+                        return true;
+                    }
+                    CubePick::Face(face) => {
+                        #[cfg(target_os = "macos")]
+                        {
+                            self.server_ctx.camera.reset_mouse_tracking();
+                            self.server_ctx.camera.mouse_dragged_orbit(&at);
+                            world.cube_capture = Some(CubeCapture {
+                                binding: binding.clone(),
+                                origin: at,
+                                face,
+                                orbiting: false,
+                            });
+                        }
+                        #[cfg(not(target_os = "macos"))]
+                        snap_cube(face, ctx, &mut self.server_ctx.camera);
+                        return true;
+                    }
+                    CubePick::Outside => {}
+                }
+            }
+        }
+        if binding.paste.is_some()
+            && binding.mode != EditorViewMode::D2
+            && !self.server_ctx.game_input_mode
+            && self.server_ctx.tools.read().viewcube_navigation_enabled()
+        {
+            if let MapEvent::MapHover(at) = input {
+                if !matches!(
+                    world.cube.pick(
+                        binding.cube_target(world.epoch),
+                        &self.server_ctx.camera.orbit_camera,
+                        at
+                    ),
+                    CubePick::Outside
+                ) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
     pub(crate) fn track_native_world_navigation(
         &mut self,
         event: &InputEvent,
@@ -153,6 +244,13 @@ impl Editor {
             "navigation": self.native_viewport.world.relative_navigation.is_some(), "moving": camera.move_action.is_some(), "fly": self.server_ctx.editor_fly_nav_active,
             "fly_mouse": self.server_ctx.editor_fly_nav_mouse_down,
             "world": self.native_world_owns_viewport(),
+            "paste": {
+                "active": self.server_ctx.paste_clipboard.is_some(),
+                "authored_vertices": self.documents.project.get_map(&self.server_ctx).map(|map| map.vertices.len()),
+                "projected_vertices": self.native_viewport.world.paste.as_ref().map(|preview| preview.map.vertices.len()),
+                "ready": self.native_viewport.world.presented.as_ref().is_some_and(|frame| frame.binding.paste.is_some() && frame.ready),
+                "target": self.server_ctx.hover_cursor_3d.map(|point| point.into_array()),
+            },
             "speech": self.native_viewport.world.speech.diagnostics(),
         })
     }

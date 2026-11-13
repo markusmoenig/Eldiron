@@ -94,6 +94,15 @@ impl Editor {
             .map(|region| region.config.clone())
             .unwrap_or_default()
     }
+    /// Shared CPU projection policy for authored and pending-paste sources.
+    /// Keep editor-only placement/config filtering out of serialized maps.
+    pub(super) fn project_native_world_geometry(&self, map: &mut Map) {
+        if self.server_ctx.editor_view_mode != EditorViewMode::D2 && self.server_ctx.pc.is_region()
+        {
+            crate::utils::filter_iso_placements_for_3d(map, &self.documents.project.tiles);
+            crate::utils::apply_region_config(map, self.native_world_geometry_config());
+        }
+    }
     pub(crate) fn advance_native_world_source(&mut self) -> bool {
         if !self.native_world_owns_viewport() {
             return self.native_viewport.world.source.take().is_some();
@@ -124,7 +133,7 @@ impl Editor {
             config: self.native_world_geometry_config(),
             assets: self.native_world_asset_key(assets),
         };
-        let publication = &mut self.native_viewport.world.source;
+        let publication = &self.native_viewport.world.source;
         let changed = publication
             .as_ref()
             .is_none_or(|old| !old.key.same_source(&key));
@@ -135,13 +144,7 @@ impl Editor {
                 None
             } else {
                 let mut projection = map.clone();
-                if key.three_d && key.context.is_region() {
-                    crate::utils::filter_iso_placements_for_3d(
-                        &mut projection,
-                        &self.documents.project.tiles,
-                    );
-                    crate::utils::apply_region_config(&mut projection, key.config.clone());
-                }
+                self.project_native_world_geometry(&mut projection);
                 Some(crate::scene_source::Source::for_editor(
                     crate::scene_source::SourceKey {
                         document,
@@ -153,14 +156,17 @@ impl Editor {
                     assets,
                 ))
             };
-            *publication = Some(Publication {
+            self.native_viewport.world.source = Some(Publication {
                 key,
                 source,
                 empty: rusterix::scene_build_index::SceneBuildIndex::default().snapshot(),
             });
         }
         changed
-            | publication
+            | self
+                .native_viewport
+                .world
+                .source
                 .as_mut()
                 .and_then(|publication| publication.source.as_mut())
                 .is_some_and(|source| source.advance())

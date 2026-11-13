@@ -1723,6 +1723,26 @@ impl SceneVM {
         )
     }
 
+    /// Filter geometry before selecting the nearest surface on the active layer.
+    pub fn pick_geo_id_normal_at_uv_filtered(
+        &self,
+        fb_w: u32,
+        fb_h: u32,
+        screen_uv: [f32; 2],
+        include_hidden: bool,
+        include_billboards: bool,
+        accept: impl Fn(GeoId) -> bool + Sync,
+    ) -> Option<(GeoId, vek::Vec3<f32>, f32, vek::Vec3<f32>)> {
+        self.active_vm().pick_geo_id_normal_at_uv_filtered(
+            fb_w,
+            fb_h,
+            screen_uv,
+            include_hidden,
+            include_billboards,
+            accept,
+        )
+    }
+
     pub fn paint_surface_buffer(&self, fb_w: u32, fb_h: u32) -> PaintSurfaceBuffer {
         self.active_vm().paint_surface_buffer(fb_w, fb_h)
     }

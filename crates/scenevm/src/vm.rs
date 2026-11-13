@@ -13914,6 +13914,27 @@ impl VM {
         include_hidden: bool,
         include_billboards: bool,
     ) -> Option<(GeoId, Vec3<f32>, f32, Vec3<f32>)> {
+        self.pick_geo_id_normal_at_uv_filtered(
+            fb_w,
+            fb_h,
+            screen_uv,
+            include_hidden,
+            include_billboards,
+            |_| true,
+        )
+    }
+
+    /// Apply a geometry policy before choosing the closest intersection. This
+    /// keeps transient preview surfaces from hiding an authored surface behind them.
+    pub fn pick_geo_id_normal_at_uv_filtered(
+        &self,
+        fb_w: u32,
+        fb_h: u32,
+        screen_uv: [f32; 2],
+        include_hidden: bool,
+        include_billboards: bool,
+        accept: impl Fn(GeoId) -> bool + Sync,
+    ) -> Option<(GeoId, Vec3<f32>, f32, Vec3<f32>)> {
         if fb_w == 0 || fb_h == 0 {
             return None;
         }
@@ -13951,6 +13972,10 @@ impl VM {
                         {
                             return None;
                         }
+                        let geo = cached_static_tri_geo_ids.get(tri_idx).copied()?;
+                        if !accept(geo) {
+                            return None;
+                        }
                         let a = cached_static_v3.get(tri[0] as usize)?;
                         let b = cached_static_v3.get(tri[1] as usize)?;
                         let c = cached_static_v3.get(tri[2] as usize)?;
@@ -13962,7 +13987,6 @@ impl VM {
                         if t <= 1e-5 {
                             return None;
                         }
-                        let geo = cached_static_tri_geo_ids.get(tri_idx).copied()?;
                         Some((t, geo, ray_origin + ray_dir * t, normal))
                     })
                     .reduce_with(|a, b| if a.0 <= b.0 { a } else { b })
@@ -13985,6 +14009,12 @@ impl VM {
                     {
                         continue;
                     }
+                    let Some(geo) = cached_static_tri_geo_ids.get(tri_idx).copied() else {
+                        continue;
+                    };
+                    if !accept(geo) {
+                        continue;
+                    }
                     let a = cached_static_v3.get(tri[0] as usize);
                     let b = cached_static_v3.get(tri[1] as usize);
                     let c = cached_static_v3.get(tri[2] as usize);
@@ -14002,9 +14032,6 @@ impl VM {
                     if t <= 1e-5 || t >= best_t {
                         continue;
                     }
-                    let Some(geo) = cached_static_tri_geo_ids.get(tri_idx).copied() else {
-                        continue;
-                    };
                     best_t = t;
                     best_geo = Some(geo);
                     best_pos = ray_origin + ray_dir * t;
@@ -14025,7 +14052,7 @@ impl VM {
 
                         for poly_list in chunk.polys3d_map.values() {
                             for poly in poly_list {
-                                if poly.indices.is_empty() || poly.vertices.is_empty() {
+                                if !accept(poly.id) || poly.indices.is_empty() || poly.vertices.is_empty() {
                                     continue;
                                 }
 
@@ -14082,7 +14109,7 @@ impl VM {
                 for chunk in self.chunks_map.values() {
                     for poly_list in chunk.polys3d_map.values() {
                         for poly in poly_list {
-                            if poly.indices.is_empty() || poly.vertices.is_empty() {
+                            if !accept(poly.id) || poly.indices.is_empty() || poly.vertices.is_empty() {
                                 continue;
                             }
 
@@ -14133,6 +14160,9 @@ impl VM {
                 .iter()
                 .chain(self.dynamic_avatar_objects.values())
             {
+                if !accept(obj.id) {
+                    continue;
+                }
                 if obj.kind == DynamicKind::Mesh {
                     let mut mesh_pos: Vec<[f32; 3]> = Vec::with_capacity(obj.mesh_vertices.len());
                     for v in obj.mesh_vertices.iter() {
@@ -15112,6 +15142,83 @@ mod shader_tests {
     use crate::{Chunk, GeoId, Light, Poly3D};
     use uuid::Uuid;
     use vek::{Mat4, Vec3};
+
+    #[test]
+    fn filtered_surface_pick_reveals_authored_geometry_behind_preview() {
+        use crate::{DynamicObject, dynamic::DynamicMeshVertex};
+        use bytemuck::Zeroable;
+        let authored = GeoId::Sector(1);
+        let ghost = GeoId::Sector(2);
+        let dynamic = GeoId::Item(3);
+        let mut vm = VM::new(16, 16);
+        let mut chunk = Chunk::default();
+        for (id, z) in [(authored, 0.), (ghost, 2.)] {
+            let poly = Poly3D::cube(id, Uuid::nil(), Vec3::new(0., 0., z), 1.);
+            // Install the equivalent GPU-derived triangle cache too. The first
+            // query uses chunks; the second must honor the same policy on cache.
+            let base = vm.cached_static_v3.len() as u32;
+            for position in &poly.vertices {
+                let mut vertex = super::Vert3DPod::zeroed();
+                vertex.pos = [position[0], position[1], position[2]];
+                vm.cached_static_v3.push(vertex);
+            }
+            for &(a, b, c) in &poly.indices {
+                vm.cached_static_i3
+                    .extend([base + a as u32, base + b as u32, base + c as u32]);
+                vm.cached_static_tri_geo_ids.push(id);
+                vm.cached_static_tri_visibility.push(true);
+            }
+            chunk.polys3d_map.insert(id, vec![poly]);
+        }
+        vm.chunks_map.insert(Uuid::new_v4(), chunk);
+        for cached in [false, true] {
+            vm.accel_dirty = !cached;
+            vm.geometry3d_dirty = !cached;
+            assert_eq!(
+                vm.pick_geo_id_normal_at_uv(128, 128, [0.5; 2], false, false)
+                    .unwrap()
+                    .0,
+                ghost
+            );
+            let hit = vm
+                .pick_geo_id_normal_at_uv_filtered(128, 128, [0.5; 2], false, false, |id| {
+                    id != ghost
+                })
+                .unwrap();
+            assert_eq!(hit.0, authored);
+            assert!((hit.1.z - 0.5).abs() < 1e-5);
+            assert!(
+                vm.pick_geo_id_normal_at_uv_filtered(128, 128, [0.5; 2], false, false, |_| false)
+                    .is_none()
+            );
+        }
+        vm.dynamic_objects.push(DynamicObject::mesh(
+            dynamic,
+            Uuid::nil(),
+            [(-1., -1.), (1., -1.), (0., 1.)]
+                .map(|(x, y)| DynamicMeshVertex {
+                    position: Vec3::new(x, y, 3.),
+                    normal: Vec3::unit_z(),
+                    uv: vek::Vec2::zero(),
+                })
+                .to_vec(),
+            vec![0, 1, 2],
+        ));
+        assert_eq!(
+            vm.pick_geo_id_normal_at_uv(128, 128, [0.5; 2], false, true)
+                .unwrap()
+                .0,
+            dynamic
+        );
+        assert_eq!(
+            vm.pick_geo_id_normal_at_uv_filtered(128, 128, [0.5; 2], false, true, |id| id
+                != dynamic
+                && id != ghost)
+                .unwrap()
+                .0,
+            authored
+        );
+    }
 
     #[test]
     fn irradiance_cache_ignores_particles_but_refreshes_light_and_gate_changes() {

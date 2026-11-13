@@ -352,6 +352,7 @@ pub(super) struct NativeWorldFrame {
     ready: bool,
     camera: Option<CameraStamp>,
     output: ViewImage,
+    paste_ignored: Option<Arc<FxHashSet<scenevm::GeoId>>>,
     cube: Option<CubeFrame>,
     isometric: Option<Arc<eldiron_presentation::isometric::IsometricWorldTargets>>,
     overlay: Arc<ToolOverlayFrame>,
@@ -786,8 +787,6 @@ impl Editor {
             || self.server_ctx.world_mode
             || self.server_ctx.profile_view.is_some()
             || self.server_ctx.editing_surface.is_some()
-            || (self.server_ctx.paste_clipboard.is_some()
-                && self.server_ctx.editor_view_mode != EditorViewMode::D2)
         {
             return false;
         }
@@ -1018,6 +1017,7 @@ impl Editor {
         let paste_map = paste.map(|preview| preview.map.clone());
         let paste_source = paste.and_then(|preview| preview.snapshot());
         let paste_ready = paste.is_some_and(|preview| preview.ready());
+        let paste_ignored = paste.map(|preview| preview.ignored.clone());
         let authored_map = map;
         let map = paste_map.as_deref().unwrap_or(map);
         let projected = self
@@ -1207,12 +1207,14 @@ impl Editor {
                         assets,
                         &Default::default(),
                     );
-                    self.server_ctx.tools.write().prepare_geometry_overlay_3d(
+                    self.server_ctx.tools.write().prepare_geometry_overlay_3d_for_map(
                         &self.documents.project,
                         &self.server_ctx,
                         assets,
                         camera.as_ref(),
                         scene,
+                        Some(map),
+                        paste_ignored.as_deref(),
                     );
                     let (paint_owner, paint_context, mut paint) =
                         if let ProjectContext::Prefab(id) = self.server_ctx.pc {
@@ -1500,6 +1502,7 @@ impl Editor {
             ready,
             camera: camera_stamp,
             output,
+            paste_ignored,
             cube,
             isometric,
             overlay,
@@ -1731,6 +1734,13 @@ impl Editor {
             }
         }
         if binding.paste.is_some() {
+            if focused
+                && ui.context_menu.is_none()
+                && ctx.ui.overlay.is_none()
+                && self.handle_native_viewcube_input(&binding, input, ctx)
+            {
+                return true;
+            }
             return self.handle_native_paste_input(&binding, input, ui, ctx, focused);
         }
         let current_camera = self
@@ -1809,74 +1819,13 @@ impl Editor {
             ctx.ui.redraw_all = true;
             return true;
         }
-        let world = &mut self.native_viewport.world;
         if matches!(input, MapEvent::MapClicked(_)) {
-            world.world_capture = None;
+            self.native_viewport.world.world_capture = None;
         }
-        if let Some(capture) = &mut world.cube_capture {
-            if capture.binding == binding {
-                match input {
-                    MapEvent::MapDragged(at) => {
-                        let delta = at - capture.origin;
-                        if delta.x as i64 * delta.x as i64 + delta.y as i64 * delta.y as i64 >= 4 {
-                            capture.orbiting = true;
-                        }
-                        if capture.orbiting {
-                            let camera = &mut self.server_ctx.camera;
-                            #[cfg(target_os = "macos")]
-                            camera.mouse_dragged_viewcube_macos_primary(&at);
-                            #[cfg(not(target_os = "macos"))]
-                            camera.mouse_dragged_orbit(&at);
-                            ctx.ui.redraw_all = true;
-                        }
-                        return true;
-                    }
-                    MapEvent::MapUp(_) | MapEvent::MapEscape => {
-                        let capture = world.cube_capture.take().unwrap();
-                        self.server_ctx.camera.reset_mouse_tracking();
-                        if matches!(input, MapEvent::MapUp(_)) && !capture.orbiting {
-                            snap_cube(capture.face, ctx, &mut self.server_ctx.camera);
-                        }
-                        return true;
-                    }
-                    _ => {}
-                }
-            }
+        if self.handle_native_viewcube_input(&binding, input, ctx) {
+            return true;
         }
-        if let MapEvent::MapClicked(at) = input {
-            if !self.server_ctx.game_input_mode
-                && self.server_ctx.tools.read().viewcube_navigation_enabled()
-            {
-                let pick = world.cube.pick(
-                    binding.cube_target(world.epoch),
-                    &self.server_ctx.camera.orbit_camera,
-                    at,
-                );
-                match pick {
-                    CubePick::Unavailable => {
-                        ctx.ui.redraw_all = true;
-                        return true;
-                    }
-                    CubePick::Face(face) => {
-                        #[cfg(target_os = "macos")]
-                        {
-                            self.server_ctx.camera.reset_mouse_tracking();
-                            self.server_ctx.camera.mouse_dragged_orbit(&at);
-                            world.cube_capture = Some(CubeCapture {
-                                binding: binding.clone(),
-                                origin: at,
-                                face,
-                                orbiting: false,
-                            });
-                        }
-                        #[cfg(not(target_os = "macos"))]
-                        snap_cube(face, ctx, &mut self.server_ctx.camera);
-                        return true;
-                    }
-                    CubePick::Outside => {}
-                }
-            }
-        }
+        let world = &mut self.native_viewport.world;
         if matches!(input, MapEvent::MapUp(_))
             && world
                 .world_capture
@@ -2193,6 +2142,8 @@ impl Editor {
         }
         self.server_ctx.clipboard = clipboard;
         self.server_ctx.hover_cursor = None;
+        self.server_ctx.hover_cursor_3d = None;
+        self.server_ctx.geo_hit = None;
         let map = self.documents.project.get_map(&self.server_ctx).unwrap();
         let before = serde_json::to_vec(map).unwrap();
         let vertices = map.vertices.len();
@@ -2218,6 +2169,29 @@ impl Editor {
             .as_ref()
             .map(|preview| preview.map.clone())
     }
+    pub(crate) fn native_paste_has_ghost_guides_for_test(&self) -> bool {
+        let world = &self.native_viewport.world;
+        let Some(ignored) = world
+            .presented
+            .as_ref()
+            .and_then(|frame| frame.paste_ignored.as_ref())
+        else {
+            return false;
+        };
+        world
+            .gpu
+            .as_ref()
+            .and_then(|gpu| gpu.scenes.scene(gpu.view).ok())
+            .is_some_and(|scene| {
+                scene
+                    .overlay_3d
+                    .owner_geo_ids()
+                    .any(|id| ignored.contains(&id))
+            })
+    }
+    pub(crate) fn native_paste_mode_for_test(&self) -> EditorViewMode {
+        self.server_ctx.editor_view_mode
+    }
     pub(crate) fn native_paste_active_for_test(&self) -> bool {
         self.server_ctx.paste_clipboard.is_some()
     }
@@ -2225,7 +2199,16 @@ impl Editor {
         let world = &self.native_viewport.world;
         let map = self.documents.project.get_map(&self.server_ctx).unwrap();
         world.presented.as_ref().is_some_and(|frame| {
-            frame.binding.paste.is_some() && world.frame_is_fresh(frame, map, &None)
+            frame.binding.paste.as_ref().is_some_and(|stamp| {
+                stamp.has_target()
+                    && Some(stamp) == paste::Stamp::current(&self.server_ctx).as_ref()
+            }) && world.frame_is_fresh(
+                frame,
+                map,
+                &self
+                    .native_world_camera()
+                    .map(|camera| CameraStamp::new(camera.as_ref(), frame.binding.size)),
+            )
         })
     }
     pub(crate) fn native_paste_preview_for_test(

@@ -9844,3 +9844,124 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   real simultaneous populated previews/2d_iso coverage and remaining explicit
   reference-feature capture/preparation adapter remain recorded work. Full M0–M9
   Goal active; physical/performance/resource/adaptor gates remain unverified.
+
+## 2026-11-14 — Native 3D pending clipboard adapter (active)
+
+- Scepter batch committed79bc302f. Concurrent networking concept remains untouched.
+- Audited material CPU thread-local memoization: image links depend on unique
+  ProceduralAssets revision; world-coordinate library classification uses fixed
+  UUID prefixes, not mutable configuration. Revisions are nonserialized, unique
+  on clone/deserialization/mutation. No cross-document defect demonstrated;
+  these bounded pure CPU memoization caches do not own application/GPU state.
+- Implementing 3D pending topology paste using acknowledged SceneViews camera/ray
+  and base surfaces. Added filtered nearest-hit query through VM/SceneVM and
+  SceneViews, with policy applied before reduction in cached, uncached, wasm and
+  dynamic candidate paths. Exact displayed preview retains excluded ghost IDs;
+  querying the closest ghost then falling back to ground was rejected because
+  that can oscillate above elevated authored surfaces.
+- Preview source now selects editor filtering for3D, retains original authoring
+  source, and cannot commit before matching ready root acknowledgement. Shared
+  ViewCube handling extracted to navigation module so paste retains navigation.
+  Existing region3D geometry-object immediate paste semantics remain unchanged.
+- First native test compile failed on only4 wrong namespace references (Creator
+  already exports FxHashSet through prelude) and geo_hit field shape; corrected.
+  Second test build pending. Added CPU nearest-ghost/underlying authored hit test
+  for uncached/cached/dynamic paths plus finite/forward/clipped ground candidate
+  checks. Extending existing assembled native workflow through3D clipboard modes;
+  no new pass/acceptance claimed yet. Full M0–M9 Goal remains active.
+
+- Native test build2 PASS23.35s; build3 fresh. SceneVM CPU nearest-hit regression
+  PASS1/.01s (build2.73s). Initial Creator test command accidentally selected0
+  tests due to module path; corrected exact native_views::world::paste test
+  PASS1/.00s. The0-test invocation is not acceptance evidence.
+- First assembled run passed through the added3D preview/commit/undo/move checks,
+  but inspected3D captures exposed missing clipboard wire feedback: shared
+  guide producer still read project.get_map rather than the supplied projected
+  map. Added explicit immutable-map guide entry point, kept reference wrapper,
+  and made native composition supply its exact map. Added assembled assertion
+  that displayed3D guide geometry contains the exact clipboard ghost IDs.
+  Guide-fixed compile/run/captures pending. Initial captures NOT promoted as
+  completed visual parity. Original authoring/reference sources remain retained.
+
+- First assembled run PASS1/138.50s, but guide-fixed run then correctly FAILED
+  0/1 in13.94s on the new ghost-ID assertion. Cause: existing direct-geometry
+  policy intentionally returns early when geometry objects are present, hiding
+  topology guides even with the correct projected map. Added explicit clipboard
+  guide descriptions before that policy: ghost linedefs/vertices/object edges
+  only, using theme wire color and exact projected IDs, with no project mutation
+  or extra render/readback. Reference producer supplies no clipboard policy.
+- Also centralized3D CPU projection filtering (region config and isometric
+  placements) between main publication and paste source; expanded preview key to
+  full context/runtime/config/assets. Builds4/5/6/7 pass (41.75/23.49/22.73/23.43s;
+  build6 confirmed from its log). Final guide fix build8 pending.
+  Browser optional view-inspection diagnostics now expose transient paste state
+  and authored/projected vertex counts for controlled end-to-end proof.
+
+- Final clipboard/guide native test build8 PASS25.05s. Full assembled Metal
+  workflow PASS1/145.13s, now with actual ghost-ID guide assertions acrossOrbit,
+  3DIso, FirstP, plus2D/2DIso move/acknowledge/commit/undo/cancel and existing
+  document/Play/recovery checks. Inspected all3 new3D captures: outline/corners
+  now visible, including mixed topology/geometry-object maps. Explicit test PNGs
+  only; display path assertions still zero color readback/no CPU view storage.
+- Kept pre-existing out-of-view captured editor ray policy when sharing query
+  validation. The new filtered API rejects out-of-bounds/NaN UV, while ordinary
+  editor picking retains finite outside rays. Existing GPU picking case extended
+  with real filtered hit/exclusion/miss-ray/layer-restore/dirty/stale-output and
+  captured-drag checks; PASS1/.52s (build22.08s). No extra GPU fixture duplicated.
+- Browser release first passed1m14s/package98,303,777B before final ghost policy;
+  final ghost build PASS36.36s/package98,278,098B. Actual150% bootstrap PASS native
+  WebGPU, physical2400x1287/CSS1600x858, idle device generation1→2, all normal
+  transfers/root bytes/Canvas2D/errors0. Copy/paste probe reached4 authored/8
+  projected vertices, ready ghost, unchanged authored clean document.
+- Pending-paste loss then generation3/one recovered frame stalled the PROBE on
+  ready=false. Source inspection shows diagnostics were emitted in frame(),
+  BEFORE presented() acknowledgement; idle view correctly needs no extra frame.
+  Moved optional inspected-view diagnostics after acknowledgement, preserving
+  idle scheduling. Actual recovered click/undo and corrected browser rerun
+  pending; do not claim a renderer recovery defect from the stale diagnostic.
+  Native assembly predates only this wasm diagnostic move and shared validation
+  restoration; native paste behavior on in-view inputs is unchanged.
+
+- Actual already-recovered browser click/undo PASS:4→8→4 authored vertices, ghost
+  revoked once, zero normal GPU transfers/CPU root/Canvas2D/errors throughout.
+  Confirms the timeout was the pre-ack diagnostic, not broken rendering/input.
+  Independent fresh archive extraction: base and pending whole JSON AND bytes
+  identical1,446,315B SHA f9307581966bec1679305ed737cabbd97552fffe73dc35df32ef674a0ef2d3db.
+  Committed8 vertices1,446,991B SHA3e8fd6d9bb792f0277b10614f9e21580255a7bc0627c624e0f3abb9a5d713523;
+  undone4 vertices differs only serialized map.changed26→28 (ordinary undo
+  invalidation), not topology/assets/content. No whole-JSON undo equality claim.
+- Corrected optional-diagnostic browser package PASS39.17s/98,283,571B; fresh
+  full proof pending. Reference final check PASS.31s. Initial21.52s static archive
+  was accidentally built with native-host feature, so Swift link had missing
+  FFI exports. Rebuilding with the required staticlib feature; that initial link
+  failure is not a source/ABI regression and not a passed Swift verification.
+
+- Final corrected browser proof PASS: documentb7f9d09e-8d88-467d-a48d-8c4abd073e57,
+  37 presentations,3 devices/generation3. After pending loss, first recovered
+  presentation23 already reports ready=true (previous22), target unchanged.
+  Actual4→8→4 commit/undo and current fresh Save operations passed, normal root/
+  readback/asset/copy/Canvas2D all0/errors[]. Final base/pending byte-identical
+  1,446,299B SHA465eff144f14dcbb93cdaa4072dd789afa91e742f18b983a62a52cb679528de0.
+  Commit1,446,975B SHA0218bf4434762aad756f0d89be949b71193a723af53eaaac8df6b5774919774a;
+  undo1,446,300B SHAc53c36ce5405f2fbebca6e69844e7f4e26bf9aebbb0d3baa6c2c59cd0285ea80,
+  exact whole JSON except expected map.changed26→28. This is controlled browser
+  clipboard transport/internal geometry clipboard, NOT physical OS clipboard.
+- Durable inspected images native-3d-paste-{orbit,3d-iso,first-person}.png and
+  browser-3d-paste-{preview,recovered}-150.png retained. Native captures represent
+  final ghost policy; browser captures represent final39.17s package with
+  acknowledgement-timed diagnostics. Initial missing-wire captures not promoted.
+- Required staticlib feature archive PASS35.23s; Swift link now PASS with current
+  archive's actual native-static-libs list. Current Swift runtime pending final
+  collection. No cross-platform, physical-window/IME/monitor or M0 performance
+  claim. Prefab pending geometry-object paste and simultaneous Scepter populated
+  previews remain additional coverage; region geometry-object immediate behavior
+  unchanged. Profile/custom-surface/bake adapters and core/legacy retirement remain
+  work; world_mode flag has reads but no current repository setter (audit only).
+
+- Swift current staticlib runtime PASS actual CAMetalLayer, handle/document and
+  controlled PNG clipboard transactions. Logs /private/tmp/eldiron-3d-paste-
+  {ffi-staticlib,swift-host-final-link,swift-host-runtime}.log. Available native
+  pending3D topology clipboard acceptance verified; no broad unchanged625-case
+  repeat. Full M0–M9 Goal ACTIVE. Next: inspect/migrate custom profile/surface
+  viewport producers and remaining bake adapter; preserve serialized map and
+  undo semantics, then continue core/retirement/resource/performance gates.

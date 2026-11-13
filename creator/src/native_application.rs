@@ -779,6 +779,11 @@ mod tests {
                 .unwrap();
             app.presented(&mut host);
             assert_eq!(gpu.transfers().readback_bytes, before);
+            if matches!(camera_index, 2 | 3 | 4) {
+                check_native_paste(
+                    &mut app, &mut host, &mut replacement, &gpu, &mut renderer, &output,
+                );
+            }
             if camera_index == 2 {
                 assert!(app.application.editor.handle_native_world_input(
                     &cube_click,
@@ -3052,6 +3057,12 @@ mod tests {
                 )
                 .unwrap();
             app.presented(host);
+            // A 3D target requires an acknowledged camera/ray; the first hover
+            // before any paste frame deliberately cannot produce one.
+            assert!(app.application.editor.handle_native_world_input(
+                &TheEvent::RenderViewHoverChanged(view.clone(), point),
+                &mut app.session.ui, &mut app.session.context,
+            ));
             if app.application.editor.native_paste_ready_for_test() {
                 break;
             }
@@ -3100,6 +3111,10 @@ mod tests {
             images.get(preview.1).is_some(),
             "paste output is a native GPU resource"
         );
+        if app.application.editor.native_paste_mode_for_test() != crate::prelude::EditorViewMode::D2 {
+            assert!(app.application.editor.native_paste_has_ghost_guides_for_test(),
+                "the displayed 3D guides must include the clipboard projection");
+        }
         let original_projection = app
             .application
             .editor
@@ -3146,6 +3161,12 @@ mod tests {
                 )
                 .unwrap();
             app.presented(host);
+            // A 3D target requires an acknowledged camera/ray; the first hover
+            // before any paste frame deliberately cannot produce one.
+            assert!(app.application.editor.handle_native_world_input(
+                &TheEvent::RenderViewHoverChanged(view.clone(), point),
+                &mut app.session.ui, &mut app.session.context,
+            ));
             if app.application.editor.native_paste_ready_for_test() {
                 break;
             }
@@ -3186,10 +3207,12 @@ mod tests {
             })
             .unwrap();
         let pixels = capture.try_finish(gpu).unwrap().unwrap();
-        let mode = if moved.camera == rusterix::MapCamera::TwoDIso {
-            "isometric"
-        } else {
-            "topdown"
+        let mode = match app.application.editor.native_paste_mode_for_test() {
+            crate::prelude::EditorViewMode::Orbit => "orbit",
+            crate::prelude::EditorViewMode::Iso => "3d-iso",
+            crate::prelude::EditorViewMode::FirstP => "first-person",
+            _ if moved.camera == rusterix::MapCamera::TwoDIso => "isometric",
+            _ => "topdown",
         };
         let path = format!("/private/tmp/eldiron-native-paste-{mode}.png");
         let file = std::fs::File::create(path).unwrap();

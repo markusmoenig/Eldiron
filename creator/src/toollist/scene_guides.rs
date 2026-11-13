@@ -123,18 +123,102 @@ impl ToolList {
         camera: &dyn D3Camera,
         scene: &mut rusterix::SceneHandler,
     ) {
+        self.prepare_geometry_overlay_3d_for_map(
+            project,
+            server_ctx,
+            assets,
+            camera,
+            scene,
+            project.get_map(server_ctx),
+            None,
+        );
+    }
+
+    /// Guides for an explicitly supplied immutable authoring projection. The
+    /// project supplies shared assets; no temporary map is installed into it.
+    pub(crate) fn prepare_geometry_overlay_3d_for_map(
+        &mut self,
+        project: &Project,
+        server_ctx: &ServerContext,
+        assets: &Assets,
+        camera: &dyn D3Camera,
+        scene: &mut rusterix::SceneHandler,
+        source_map: Option<&Map>,
+        paste_ghosts: Option<&FxHashSet<GeoId>>,
+    ) {
         if server_ctx.editor_view_mode == EditorViewMode::D2 {
             return;
         }
 
         scene.clear_overlay();
+        if let (Some(map), Some(ghosts)) = (source_map, paste_ghosts) {
+            // Clipboard feedback survives ordinary tool policies that hide
+            // legacy topology when a map also contains geometry objects.
+            let nudge = camera.basis_vectors().0 * -0.008;
+            let color = Self::overlay_color(self.prefab_preview_wire_rgb, 0.98);
+            for line in &map.linedefs {
+                if ghosts.contains(&GeoId::Linedef(line.id))
+                    && let (Some(a), Some(b)) = (
+                        map.get_vertex_3d(line.start_vertex),
+                        map.get_vertex_3d(line.end_vertex),
+                    )
+                {
+                    scene.overlay_3d.add_hardware_line_3d(
+                        GeoId::Linedef(line.id),
+                        a + nudge,
+                        b + nudge,
+                        color,
+                        40,
+                    );
+                }
+            }
+            for vertex in &map.vertices {
+                if ghosts.contains(&GeoId::Vertex(vertex.id))
+                    && let Some(point) = map.get_vertex_3d(vertex.id)
+                {
+                    let (_, right, up) = camera.basis_vectors();
+                    scene.overlay_3d.add_billboard_3d(
+                        GeoId::Vertex(vertex.id),
+                        scene.selected,
+                        point + nudge,
+                        right,
+                        up,
+                        0.16,
+                        true,
+                    );
+                }
+            }
+            for object in &map.geometry_objects {
+                if !ghosts.contains(&GeoId::GeometryObject(object.id)) {
+                    continue;
+                }
+                for face in &object.faces {
+                    for i in 0..face.indices.len() {
+                        if let (Some(a), Some(b)) = (
+                            object.vertices.get(face.indices[i]),
+                            object
+                                .vertices
+                                .get(face.indices[(i + 1) % face.indices.len()]),
+                        ) {
+                            scene.overlay_3d.add_hardware_line_3d(
+                                GeoId::GeometryObject(object.id),
+                                object.transform_point(*a) + nudge,
+                                object.transform_point(*b) + nudge,
+                                color,
+                                40,
+                            );
+                        }
+                    }
+                }
+            }
+        }
         if server_ctx.show_editor_grid
-            && let Some(map) = project.get_map(server_ctx)
+            && let Some(map) = source_map
         {
             self.add_construction_grid_3d(assets, scene, map, server_ctx);
         }
         if server_ctx.curr_map_tool_type == MapToolType::Terrain {
-            if let Some(map) = project.get_map(server_ctx)
+            if let Some(map) = source_map
                 && let Some(center) = server_ctx.hover_cursor_3d
             {
                 let points = TerrainTool::outline(
@@ -179,7 +263,7 @@ impl ToolList {
         };
         let thickness = 0.15;
 
-        if let Some(source_map) = project.get_map(server_ctx) {
+        if let Some(source_map) = source_map {
             let filtered;
             let map = if source_map.sectors.iter().any(|s| s.layer.is_some()) {
                 let mut map = source_map.clone();

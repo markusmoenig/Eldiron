@@ -85,6 +85,19 @@ pub struct EditorPick {
     pub guide: Option<(GeoId, scenevm::prelude::Vec3<f32>, f32)>,
     pub gizmo: Option<(GeoId, scenevm::prelude::Vec3<f32>, f32)>,
 }
+/// Base-layer surface query for tools with an explicit geometry exclusion policy.
+/// The ray and camera belong to the acknowledged output, including on a miss.
+#[derive(Clone, Copy, Debug)]
+pub struct EditorSurfacePick {
+    pub camera: scenevm::Camera3D,
+    pub ray: Option<(scenevm::prelude::Vec3<f32>, scenevm::prelude::Vec3<f32>)>,
+    pub base: Option<(
+        GeoId,
+        scenevm::prelude::Vec3<f32>,
+        f32,
+        scenevm::prelude::Vec3<f32>,
+    )>,
+}
 impl SceneViews {
     /// Read the exact completed output without invalidating it. Layer selection
     /// is restored; this API cannot update scene content or acknowledge input.
@@ -95,18 +108,7 @@ impl SceneViews {
         gizmos: bool,
         guides: bool,
     ) -> Option<EditorPick> {
-        if uv.iter().any(|v| !v.is_finite()) || self.context.is_lost() {
-            return None;
-        }
-        let view = self.views.get_mut(&displayed.view)?;
-        if view.isometric
-            || view.dirty
-            || view.size.0 == 0
-            || view.size.1 == 0
-            || view.output != Some(displayed)
-        {
-            return None;
-        }
+        let view = self.editor_query_view(displayed, uv)?;
         let vm = &mut view.scene.vm;
         let active = vm.active_vm_index();
         vm.set_active_vm(0);
@@ -138,6 +140,53 @@ impl SceneViews {
             guide,
             gizmo,
         })
+    }
+    /// Query the displayed base layer, rejecting transient geometry before the
+    /// nearest-hit reduction. This performs no readback or scene mutation.
+    pub fn pick_editor_surface_filtered(
+        &mut self,
+        displayed: ViewImage,
+        uv: [f32; 2],
+        accept: impl Fn(GeoId) -> bool + Sync,
+    ) -> Option<EditorSurfacePick> {
+        if uv.iter().any(|v| *v < 0. || *v >= 1.) {
+            return None;
+        }
+        let view = self.editor_query_view(displayed, uv)?;
+        let vm = &mut view.scene.vm;
+        let active = vm.active_vm_index();
+        vm.set_active_vm(0);
+        let camera = vm.active_vm().camera3d;
+        let ray = vm.ray_from_uv_with_size(view.size.0, view.size.1, uv);
+        let base = vm.pick_geo_id_normal_at_uv_filtered(
+            view.size.0,
+            view.size.1,
+            uv,
+            false,
+            false,
+            accept,
+        );
+        vm.set_active_vm(active);
+        Some(EditorSurfacePick { camera, ray, base })
+    }
+    fn editor_query_view(
+        &mut self,
+        displayed: ViewImage,
+        uv: [f32; 2],
+    ) -> Option<&mut super::SceneView> {
+        if uv.iter().any(|v| !v.is_finite()) || self.context.is_lost() {
+            return None;
+        }
+        let view = self.views.get_mut(&displayed.view)?;
+        if view.isometric
+            || view.dirty
+            || view.size.0 == 0
+            || view.size.1 == 0
+            || view.output != Some(displayed)
+        {
+            return None;
+        }
+        Some(view)
     }
     /// Rectangle selection reads the same displayed guide layer as pointer
     /// selection. It never rebuilds geometry or changes output revisions.

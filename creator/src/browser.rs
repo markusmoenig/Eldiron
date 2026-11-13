@@ -219,14 +219,6 @@ impl GpuApplication for BrowserCreator {
                     let _ = root.remove_attribute(name);
                 }
             }
-            if root.has_attribute("data-eldiron-inspect-view") {
-                let _ = root.set_attribute(
-                    "data-eldiron-view-source",
-                    &self.app.application.host_view_diagnostics().to_string(),
-                );
-            } else {
-                let _ = root.remove_attribute("data-eldiron-view-source");
-            }
             if let Some(info) = self.app.application.host_document_info() {
                 let _ = root.set_attribute("data-eldiron-document", &info.document.to_string());
                 let _ = root.set_attribute("data-eldiron-dirty", &info.dirty.to_string());
@@ -244,6 +236,16 @@ impl GpuApplication for BrowserCreator {
             .and_then(|w| w.document())
             .and_then(|d| d.document_element())
         {
+            // Inspection describes the output accepted by this presentation,
+            // including the first recovered frame of an otherwise idle view.
+            if root.has_attribute("data-eldiron-inspect-view") {
+                let _ = root.set_attribute(
+                    "data-eldiron-view-source",
+                    &self.app.application.host_view_diagnostics().to_string(),
+                );
+            } else {
+                let _ = root.remove_attribute("data-eldiron-view-source");
+            }
             let _ = root.set_attribute(
                 "data-eldiron-presentations",
                 &self.presentations.to_string(),

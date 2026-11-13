@@ -400,6 +400,16 @@ fn acknowledged_ray_frames_route_actual_geometry_and_reject_newer_dirty_or_unack
         chunk,
     });
     let output = views.render(view, 1, &mut images).unwrap().unwrap();
+    let active_layer = views.scene(view).unwrap().vm.active_vm_index();
+    let surface = views.pick_editor_surface_filtered(output, [0.5; 2], |_| true).unwrap();
+    assert_eq!(surface.base.unwrap().0, GeoId::Item(7));
+    let excluded = views.pick_editor_surface_filtered(output, [0.5; 2], |_| false).unwrap();
+    assert!(excluded.base.is_none() && excluded.ray.is_some());
+    assert_eq!(views.scene(view).unwrap().vm.active_vm_index(), active_layer);
+    assert!(views.pick_editor_surface_filtered(output, [-0.1, 0.5], |_| true).is_none());
+    assert!(views.pick_editor_surface_filtered(output, [f32::NAN, 0.5], |_| true).is_none());
+    assert!(views.pick_editor(output, [-0.1, 0.5], false, false).is_some(),
+        "captured editor drags retain their existing out-of-view ray policy");
     screen.begin_world_frame(&session.view()).unwrap();
     screen
         .world
@@ -522,7 +532,11 @@ fn acknowledged_ray_frames_route_actual_geometry_and_reject_newer_dirty_or_unack
             .effects
             .is_empty()
     );
+    assert!(views.pick_editor_surface_filtered(output, [0.5; 2], |_| true).is_none(),
+        "a mutated VM cannot answer a displayed surface query");
     let newer = views.render(view, 2, &mut images).unwrap().unwrap();
+    assert!(views.pick_editor_surface_filtered(output, [0.5; 2], |_| true).is_none(),
+        "a replacement output cannot answer for the old displayed image");
     assert!(
         screen
             .world_input(&session.view(), Some(&views), &press, false)
