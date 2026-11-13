@@ -6710,3 +6710,12 @@ Resume after this verified parent-context batch:
    classification during complete Creator retirement.
 3. Full M0-M9 workflow/platform/physical-host and measured release performance
    gates remain open. The complete objective stays active.
+
+Physical-host revalidation afterf57b9bbc:
+- cua.getState returned apps=[] and the concrete native inventory error:
+  "The Mac is locked and automatic unlock could not unlock it. Ask the user to
+  unlock the Mac manually before continuing." CUA observation was completed;
+  no window interactions, settings changes or unlock bypass were attempted.
+- This blocks current physical macOS window/IME/workflow evidence until manual
+  unlock. Prior actual Metal/headless checks remain valid for their narrower
+  scope. Other code/validation work continues; this is not a whole-goal impasse.
