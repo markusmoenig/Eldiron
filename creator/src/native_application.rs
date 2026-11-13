@@ -214,6 +214,7 @@ impl UiApplication for NativeCreatorApplication {
         redraw |= self.editor.update_ui(&mut ui.ui, &mut ui.context);
         redraw |= self.editor.update(&mut ui.context);
         self.editor.publish_native_world_paint_sources();
+        redraw |= self.editor.advance_native_world_source();
         redraw |= self.editor.advance_native_world_paste();
         redraw |= self.editor.advance_native_minimap_source();
         self.editor.sync_native_game_input(&mut ui.ui, &ui.context);
@@ -2883,6 +2884,15 @@ mod tests {
             .scene_handler
             .build_index
             .snapshot();
+        for _ in 0..128 {
+            app.update(host, Duration::from_millis(16));
+            if app.application.editor.native_world_source_for_test().is_some_and(|(_, ready)| ready) {
+                break;
+            }
+        }
+        let (owned_source, ready) = app.application.editor.native_world_source_for_test().unwrap();
+        assert!(ready, "the application must publish its own completed authoring source");
+        assert!(!Arc::ptr_eq(&source, &owned_source), "native geometry must not borrow the reference worker's publication");
         let before_transfers = gpu.transfers();
         let (view, vertices, authored) = app
             .application
@@ -2945,8 +2955,12 @@ mod tests {
                     .build_index
                     .snapshot()
             ),
-            "paste must not replace the main authored source"
+            "paste must not replace the reference source"
         );
+        assert!(Arc::ptr_eq(
+            &owned_source,
+            &app.application.editor.native_world_source_for_test().unwrap().0,
+        ), "clipboard previews must retain the application's authoring source");
         assert_eq!(
             gpu.transfers().readback_bytes,
             before_transfers.readback_bytes
@@ -3077,6 +3091,10 @@ mod tests {
             vertices + 4,
             "real paste dispatcher commits once"
         );
+        assert!(!Arc::ptr_eq(
+            &owned_source,
+            &app.application.editor.native_world_source_for_test().unwrap().0,
+        ), "an authored paste must replace the owned static geometry publication");
         for (command, expected) in [
             ("Undo", vertices),
             ("Redo", vertices + 4),
@@ -3127,6 +3145,16 @@ mod tests {
                 break;
             }
         }
+        assert!(app.application.editor.native_world_ready_for_test());
+        let retained = app.application.editor.native_world_source_for_test().unwrap().0;
+        app.gpu_recreated(host, images).unwrap();
+        assert!(Arc::ptr_eq(
+            &retained,
+            &app.application.editor.native_world_source_for_test().unwrap().0,
+        ), "GPU reconstruction must preserve completed CPU authoring geometry");
+        let list = app.frame(host, images).unwrap();
+        renderer.render(&list, images, &output.view, output.descriptor.format, (1200, 800), 1., [0.; 4]).unwrap();
+        app.presented(host);
         assert!(app.application.editor.native_world_ready_for_test());
     }
     fn check_asset_sources(

@@ -7519,3 +7519,53 @@ Surface checkpoint continuation:
   bounded scene_source service already used by auxiliary/paste previews. Preserve
   3D region configuration/placement filtering, direct isometric production,
   explicit source/camera/document input guards and existing reference adapters.
+
+
+M5 main native authoring source ownership (implementation in progress):
+- Added native_world_source, an Editor/native-application-owned static geometry
+  publication using the existing bounded scene_source CPU service. Document,
+  runtime incarnation, context/map/revision, 2D/3D mode, region configuration and
+  immutable source catalog scope it. Camera/layout/GPU replacement do not own or
+  restart these jobs. Direct isometric views keep their GPU producer and need
+  no artificial CPU chunk build just to become ready.
+- Main native world now consumes that publication/readiness/source identity
+  instead of SCENEMANAGER or Rusterix's global build_index. The existing reference
+  worker remains for named unmigrated/capture adapters; it is not retired yet.
+- Preserved 3D region config and isometric-placement filtering on a CPU map clone,
+  plus editor preview_hide policy. No authored/serialized map is modified.
+  Retained source/camera/document acknowledgement guards now address the owned
+  publication. Cached avatar variants remain a separate GPU binding revision,
+  rather than restarting static chunk jobs for every such publication.
+- Shared scene_source now owns per-chunk billboard metadata and replaces it with
+  each chunk/clear. Native world/paste dynamic billboard preparation consumes
+  its own metadata rather than borrowing the global renderer's billboard map.
+- First native Creator compile passed10.51s without errors. Focused ownership/
+  source-lifetime assertions are being added to the existing assembled Creator
+  integration before the next meaningful Metal checkpoint. Uncommon contexts,
+  3D paste, remaining globals/adapters and full M0–M9 acceptance are still open.
+
+
+M5 owned main authoring source checkpoint verified:
+- Existing assembled Creator Metal integration passed1 in102.17s, including
+  new assertions in its ordinary/isometric paste workflow: native source is
+  distinct from reference build_index; unchanged/moving clipboard previews retain
+  the completed authoring Arc; actual dispatcher commit replaces it; GPU
+  reconstruction preserves CPU geometry and renders/acknowledges it again.
+  Existing undo/redo, source/picking, runtime/Play, auxiliary views and asset
+  checks passed in the same run. No separate fixture suite was introduced.
+- Test build passed45.90s. Native Creator check previously passed10.51s; reference
+  desktop check passed19.76s; staticlib check passed20.83s. Logs:
+  /private/tmp/eldiron-owned-authoring-source-{build,metal,reference,staticlib}.log.
+  First test command used an incomplete exact name and selected0 tests; corrected
+  to native_application::tests::native_creator_application_paints_the_root_ui_without_a_root_framebuffer
+  before recording the actual1-test result.
+- Actual requested topdown/isometric paste PNGs visually inspected: grid/wire
+  placement and projected yellow surface retained. Readback is still requested
+  test evidence only; unchanged native composition remains zero color readback.
+- This removes main native geometry/readiness/billboard borrowing from the global
+  renderer, not every global dependency. CPU catalog/runtime/toolbar/camera
+  bridges, reference worker callers, uncommon views and3D paste remain M5 work.
+- Stopped only task-owned headless Chrome profiles ime-atomic-final,
+  bounded-frame-checkpoint and minimal-surface after saving their diagnostics;
+  user browser untouched. Next investigate browser3D via temporary per-pass
+  instrumentation of the existing bundle, retaining liveness/color gates.

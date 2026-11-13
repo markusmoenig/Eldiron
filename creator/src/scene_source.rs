@@ -16,10 +16,18 @@ pub(crate) struct Source {
     pub key: SourceKey,
     manager: SceneManager,
     index: SceneBuildIndex,
+    billboards: FxHashMap<(i32, i32), Vec<rusterix::BillboardMetadata>>,
 }
 impl Source {
     pub fn new(key: SourceKey, map: Map, assets: &rusterix::Assets) -> Self {
+        Self::build(key, map, assets, false)
+    }
+    pub fn for_editor(key: SourceKey, map: Map, assets: &rusterix::Assets) -> Self {
+        Self::build(key, map, assets, true)
+    }
+    fn build(key: SourceKey, map: Map, assets: &rusterix::Assets, preview_filters: bool) -> Self {
         let mut manager = SceneManager::new();
+        manager.set_apply_preview_filters(preview_filters);
         manager.set_tile_list(assets.tile_list.clone(), assets.tile_indices.clone());
         manager.set_block_props(assets.block_props.clone());
         manager.set_palette(
@@ -32,6 +40,7 @@ impl Source {
             key,
             manager,
             index: SceneBuildIndex::default(),
+            billboards: Default::default(),
         }
     }
     /// Called by application update, with bounded work per update. Preparation
@@ -45,8 +54,15 @@ impl Source {
         let worked = self.manager.tick_batch(8) > 0;
         while let Some(result) = self.manager.receive() {
             match result {
-                SceneManagerResult::Clear => self.index.clear(),
-                SceneManagerResult::Chunk(chunk, ..) => self.index.index_chunk(&chunk),
+                SceneManagerResult::Clear => {
+                    self.index.clear();
+                    self.billboards.clear();
+                }
+                SceneManagerResult::Chunk(chunk, _, _, billboards) => {
+                    self.billboards
+                        .insert((chunk.origin.x, chunk.origin.y), billboards);
+                    self.index.index_chunk(&chunk);
+                }
                 _ => (),
             }
         }
@@ -57,5 +73,12 @@ impl Source {
     }
     pub fn snapshot(&self) -> Arc<SceneBuildSnapshot> {
         self.index.snapshot()
+    }
+    pub fn billboards(&self) -> FxHashMap<scenevm::GeoId, rusterix::BillboardMetadata> {
+        self.billboards
+            .values()
+            .flatten()
+            .map(|billboard| (billboard.geo_id, billboard.clone()))
+            .collect()
     }
 }

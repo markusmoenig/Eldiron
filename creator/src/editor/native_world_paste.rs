@@ -45,6 +45,9 @@ impl Preview {
     pub(super) fn snapshot(&self) -> Option<Arc<SceneBuildSnapshot>> {
         self.source.as_ref().map(|source| source.snapshot())
     }
+    pub(super) fn billboards(&self) -> FxHashMap<scenevm::GeoId, rusterix::BillboardMetadata> {
+        self.source.as_ref().map(|source| source.billboards()).unwrap_or_default()
+    }
 }
 impl Editor {
     pub(crate) fn advance_native_world_paste(&mut self) -> bool {

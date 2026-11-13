@@ -3,6 +3,8 @@
 use super::*;
 #[path = "native_world_paste.rs"]
 mod paste;
+#[path = "native_world_source.rs"]
+mod source;
 use crate::editor_overlay::panel::PanelScope;
 use crate::editor_overlay::procedural_gpu::GpuIcons;
 use crate::hud::{Hud, HudInputs, HudStyle};
@@ -52,6 +54,7 @@ struct Binding {
     map: Uuid,
     mode: EditorViewMode,
     camera: MapCamera,
+    geometry_config: String,
     guide_properties: ValueContainer,
     density: u32,
     assets: AssetKey,
@@ -350,6 +353,7 @@ pub(super) struct NativeWorldFrame {
     pub(super) receipt: FrameReceipt,
 }
 pub(crate) struct NativeWorld {
+    source: Option<source::Publication>,
     paste: Option<paste::Preview>,
     binding: Option<Binding>,
     epoch: u64,
@@ -389,6 +393,7 @@ struct CubeCapture {
 impl Default for NativeWorld {
     fn default() -> Self {
         Self {
+            source: None,
             paste: None,
             binding: None,
             epoch: 0,
@@ -427,18 +432,10 @@ impl NativeWorld {
                         && preview.snapshot().is_some_and(|source| Arc::ptr_eq(&source, &frame.source))
                 })
             } else {
-                let builds = SCENEMANAGER.read().unwrap();
-                !builds.has_pending_geometry()
-                    && builds.source_matches(map.id, frame.binding.camera)
-                    && Arc::ptr_eq(
-                        &frame.source,
-                        &RUSTERIX
-                            .read()
-                            .unwrap()
-                            .scene_handler
-                            .build_index
-                            .snapshot(),
-                    )
+                self.source.as_ref().is_some_and(|source| {
+                    source.matches(&frame.binding, map) && source.ready()
+                        && Arc::ptr_eq(&frame.source, &source.snapshot())
+                })
             }
     }
     fn bind(&mut self, next: Option<Binding>, ui: &mut TheUI) {
@@ -856,21 +853,12 @@ impl Editor {
             map: map.id,
             mode: self.server_ctx.editor_view_mode,
             camera: map.camera,
+            geometry_config: self.native_world_geometry_config(),
             guide_properties: self.build_values.clone(),
             density: ctx.scale_factor.to_bits(),
             style: HudStyle::current(),
             slots,
-            assets: AssetKey {
-                source: assets.visual_source_revision,
-                avatars: assets.avatars.revision(),
-                tiles: assets.tiles_revision,
-                prefabs: assets.block_props_revision,
-                config: assets.config.clone(),
-                palette: assets.palette.clone(),
-                material: self.documents.project.procedural_materials.revision(),
-                appearance: self.documents.project.procedural_appearances.revision(),
-                geometry: self.procedural_appearance_revision,
-            },
+            assets: self.native_world_asset_key(assets),
         })
     }
     /// Advance only pending particle production at the editor's update cadence.
@@ -1067,16 +1055,16 @@ impl Editor {
             .as_ref()
             .map(|play| play.assets(&bridge.assets))
             .unwrap_or(&bridge.assets);
-        let source = paste_source.unwrap_or_else(|| bridge.scene_handler.build_index.snapshot());
+        let authored_source = world.source.as_ref().filter(|source| source.matches(&binding, authored_map));
+        let source = paste_source.unwrap_or_else(|| {
+            authored_source.map(|source| source.snapshot()).unwrap_or_else(|| {
+                rusterix::scene_build_index::SceneBuildIndex::default().snapshot()
+            })
+        });
         let ready = if binding.paste.is_some() {
             paste_ready
-        } else if binding.mode == EditorViewMode::D2 && map.camera == MapCamera::TwoDIso {
-            // Iso source geometry is produced directly from this map. Creator
-            // intentionally does not tick the unrelated legacy chunk builder.
-            true
         } else {
-            let builds = SCENEMANAGER.read().unwrap();
-            !builds.has_pending_geometry() && builds.source_matches(map.id, binding.camera)
+            authored_source.is_some_and(|source| source.ready())
         };
         if gpu.configured.as_ref() != Some(&binding.assets) {
             if gpu
@@ -1150,7 +1138,11 @@ impl Editor {
             let scene = gpu.scenes.scene_mut(gpu.view).map_err(|e| e.to_string())?;
             scene.runtime_render_state = key.runtime.clone();
             if source_changed {
-                scene.billboards = bridge.scene_handler.billboards.clone();
+                scene.billboards = if binding.paste.is_some() {
+                    world.paste.as_ref().map(|preview| preview.billboards()).unwrap_or_default()
+                } else {
+                    authored_source.map(|source| source.billboards()).unwrap_or_default()
+                };
             }
             let isometric = map.camera == MapCamera::TwoDIso && binding.mode == EditorViewMode::D2;
             if isometric {
@@ -2120,6 +2112,10 @@ impl Editor {
         ctx.ui.set_focus(&view);
         ctx.ui.send(TheEvent::Paste(TheValue::Empty, None));
         (view, vertices, before)
+    }
+    pub(crate) fn native_world_source_for_test(&self) -> Option<(Arc<SceneBuildSnapshot>, bool)> {
+        let source = self.native_viewport.world.source.as_ref()?;
+        Some((source.snapshot(), source.ready()))
     }
     pub(crate) fn native_paste_authored_for_test(&self) -> Vec<u8> {
         serde_json::to_vec(self.documents.project.get_map(&self.server_ctx).unwrap()).unwrap()
