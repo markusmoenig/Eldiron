@@ -403,6 +403,10 @@ impl ProceduralMaterialEditor {
             checker,
         })
     }
+    pub(crate) fn reset_model_gpu(&mut self) {
+        #[cfg(not(target_arch = "wasm32"))]
+        { self.model_sources = Default::default(); }
+    }
     pub(crate) fn invalidate_gpu_preview(&mut self, ui: &mut TheUI) {
         self.native.retire_gpu();
         self.native.thumbnails.invalidate();

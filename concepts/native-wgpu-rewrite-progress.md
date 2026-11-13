@@ -8968,3 +8968,80 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   untouched and excluded. Ready for local ownership checkpoint; continue M5
   explicit device injection/CPU facade separation, other application globals and
   remaining viewport adapters, then outstanding full M0–M9 acceptance. Goal ACTIVE.
+
+
+### Explicit GPU context for Creator reference facade (active, 2026-11-14)
+
+- Engine ownership checkpoint5dc0b1bb contains115 files, excludes concurrent
+  networking concept. Next M5 boundary is hidden native GLOBAL_GPU allocation
+  through SceneVM::default inside first reference asset/settings lookup.
+- Added Rusterix::with_scene_handler assembly constructor, preserving existing
+  initialization algorithms and default compatibility constructors. Creator native/
+  browser host binds its actual ImageRegistry GpuContext BEFORE init_ui, and
+  reference lazy construction uses SceneVM::new_with_context on that host device.
+  Reference-only host retains its explicit compatibility behavior for now.
+- Added SceneVM::rebind_context and VM::reset_gpu_domain to retain CPU scene,
+  cameras, shaders, chunks, atlas inputs/palette while clearing derived buffers/
+  pipelines/targets/temporal history. Rebind called during host GPU recovery;
+  non-initializing binding for an unused facade remains lazy. Shared atlas GPU
+  textures already rebuild by generation. Frozen CPU-backed images retain pixels.
+- Production native initial compile PASS20.29s. Extended EXISTING two-output GPU
+  contract with replacement device/old-target rejection/retained CPU policy and
+  recovered explicit capture; assembled ownership assertion checks actual facade
+  generation. Model-source worker ownership is reset on a host domain change so
+  late old-device results cannot publish into the current owner. Source-persistent
+  pending work can reschedule; broader worker/budget acceptance remains open.
+- This batch is UNVERIFIED/UNCOMMITTED pending focused GPU contract, native
+  assembled and reference/browser/staticlib/Swift plus actual document/recovery
+  checks. No hidden-GPU retirement acceptance before those pass.
+
+- Focused real Metal scene contract PASSED1/0.31s after rebuilding2.33s. Explicit
+  outputs recover on a new actual device, reject old target, preserve CPU shader/
+  background, recapture expected red output, keep the second view in its original
+  domain, zero implicit readback/target CPU storage, compatibility GPU stays COLD.
+- Native test build PASS42.92s; reference Creator compile PASS24.99s. Full native
+  assembled check now running (explicit-reference-assembled-metal.log), including
+  assertion that first real Creator frame leaves compatibility GPU uninitialized.
+  Browser release/staticlib builds running. No ordinary620-case suite repeat for
+  this narrower constructor/device-state change; focused contract then assembled
+  workflow/platform checks are its relevant gates. Evidence remains pending.
+
+- Full native assembled Metal PASS1/144.08s, including the new REAL FIRST FRAME
+  assertion that SceneVM compatibility GPU remains uninitialized and reference
+  facade generation equals the actual host. Existing source/DPI comparisons remain
+  max delta1 and all tools/painting/documents/Play/recovery workflows pass.
+- Browser release1m21s/package98,030,672B, actual staticlib45.33s, linked Swift host
+  runtime PASS (CAMetalLayer/handle/document/PNG), all14 independently resolved
+  renderer feature/dependency boundaries PASS. Only whitespace/line wrapping was
+  subsequently changed; no source behavior differs from those built artifacts.
+- Actual browser boot docaaaa4c19-4fe2-404c-8e7f-091fd53f71d6 gen1→2 retains
+  camera/document; fresh chooser original3DStarter doca9fba7be-e054-4240-a02f-
+ 45dee724241a, real drag/release and loss gen2→3 retain source/cancel capture.
+  Play runtime6fc13027-e5f3-4112-a2e9-2ede264c6984 survives loss gen3→4 with
+  ticks8→9; Stop/save exact authoring camera. Corrected fresh-file/cleared-handle
+  CURRENT OPFS saves before/after Play are BYTE IDENTICAL1,448,879B SHA256
+ 719a5611e255447980cce1e3b1363dcba76791b8c62bce0899899add4936dee2,
+  independently parsed WHOLE JSON equal. Canceled CJK-dirty unload retains doc.
+ 63 frames/devices4 exactly/gen4/root/readback/normal color copies/Canvas2D0,
+  errors[]. Final actual save/open/save check running; no checkpoint until parsed.
+
+- Final actual browser save/open/save PASS: WHOLE authored JSON equal, archives
+ 1,448,916/1,468,960B; new docbcac261e-cee2-4a45-8c10-f76a61108ea1 retains
+  generation/devices4,71 frames/root/readback/normal copies/Canvas2D0/errors[].
+  explicit-reference-reopen.log and explicit-reference-{browser,reopen}-{before,
+  after}.eldiron under /private/tmp. All browser saves use fresh names AND clear
+  prior transfer handles before admitting SaveAs; current committed bytes verified.
+- Explicit host-device injection ready for local checkpoint. Canonical startup no
+  longer creates/uses compatibility GLOBAL_GPU; actual first-frame assertion
+  verifies this, native/browser/Swift workflows pass. SceneVM default and reference
+  constructors remain explicitly named compatibility paths; Scepter requested
+  previews and appearance reference worker still have separate caller adapters to
+  retire. No claim that every remaining Creator path avoids these adapters.
+- Next useful viewport inventory: native_world_owns_viewport still excludes active
+  2D visibility masking and speech; region effect/tile-picker tools, World/profile/
+  editing-surface/3D-map-clipboard/custom contexts and persisted/progressive
+  orthographic bakes have either separate native display owners or remaining CPU
+  adapters. Inspect actual owner/callers per case, preserve semantics, do not simply
+  remove guards or hide visible unmigrated views. Retire these and remaining app
+  globals, then resource/performance/full platform gates. Goal remains ACTIVE;
+  no M0–M9 completion claim. Concurrent networking concept untouched.

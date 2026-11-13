@@ -119,6 +119,60 @@ impl SceneVM {
         this.refresh_layer_metadata();
         this
     }
+    /// Diagnostic for the remaining explicit reference adapter. Querying this
+    /// never initializes a GPU; canonical application startup must leave it cold.
+    pub fn compatibility_gpu_initialized() -> bool {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            crate::GLOBAL_GPU.get().is_some()
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            crate::GLOBAL_GPU_WASM.with(|state| state.borrow().is_some())
+        }
+    }
+
+    pub fn device_generation(&self) -> Option<u64> {
+        self.gpu.as_ref().and_then(|gpu| gpu.context_generation)
+    }
+
+    /// Rebuild derived GPU state on a replacement host device while retaining
+    /// the prepared CPU scene and view policy. No compatibility device lookup.
+    pub fn rebind_context(&mut self, context: Arc<GpuContext>) {
+        let generation = context.generation();
+        if self.device_generation() == Some(generation) {
+            return;
+        }
+        let mut surface = Texture::render_target(self.size.0.max(1), self.size.1.max(1));
+        surface.ensure_gpu_in_domain(&context.device, generation);
+        self.vm.reset_gpu_domain(generation);
+        for vm in &mut self.overlay_vms {
+            vm.reset_gpu_domain(generation);
+        }
+        self.compositing_pipeline = None;
+        self.rgba_overlay_pipeline = None;
+        if let Some(overlay) = self.rgba_overlay.as_mut() {
+            overlay.texture.gpu = None;
+            overlay.dirty = true;
+        }
+        self.isometric_pass = None;
+        self.gpu = Some(GPUState {
+            context_generation: Some(generation),
+            _instance: context.instance.clone(),
+            _adapter: context.adapter.clone(),
+            device: context.device.clone(),
+            queue: context.queue.clone(),
+            surface,
+            #[cfg(not(target_arch = "wasm32"))]
+            window_surface: None,
+        });
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.needs_gpu_init = false;
+            self.init_in_flight = false;
+        }
+    }
+
     pub fn render_gpu(
         &mut self,
         target: &mut SceneRenderTarget,

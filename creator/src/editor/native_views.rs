@@ -92,6 +92,14 @@ impl NativeViewTokens {
     }
 }
 impl Editor {
+    pub(crate) fn bind_native_reference_context(
+        &mut self,
+        context: std::sync::Arc<renderkit::GpuContext>,
+    ) {
+        if self.server_ctx.reference.bind_context(context) {
+            self.procedural_material.reset_model_gpu();
+        }
+    }
     pub(super) fn native_minimap_asset_key(&self, assets: &rusterix::Assets) -> u64 {
         use std::hash::{Hash, Hasher};
         let mut key = std::collections::hash_map::DefaultHasher::new();

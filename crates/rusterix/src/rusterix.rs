@@ -102,8 +102,17 @@ impl Rusterix {
         Self::new_with_audio(false)
     }
 
+    /// Assemble a facade around an application-provided scene renderer. This
+    /// constructor never discovers a GPU or opens an audio device.
+    pub fn with_scene_handler(scene_handler: SceneHandler) -> Self {
+        Self::with_scene_handler_and_audio(scene_handler, false)
+    }
+
     fn new_with_audio(enable_audio: bool) -> Self {
-        let mut scene_handler = SceneHandler::default();
+        Self::with_scene_handler_and_audio(SceneHandler::default(), enable_audio)
+    }
+
+    fn with_scene_handler_and_audio(mut scene_handler: SceneHandler, enable_audio: bool) -> Self {
 
         if let Some(bytes) = crate::Embedded::get("shader/2d_shader.wgsl") {
             if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {

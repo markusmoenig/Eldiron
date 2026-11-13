@@ -2113,7 +2113,7 @@ impl Editor {
     pub(crate) fn authoring_camera_for_test(&mut self) -> &mut EditCamera {
         &mut self.server_ctx.camera
     }
-    pub(crate) fn check_context_ownership_for_test(&mut self) {
+    pub(crate) fn check_context_ownership_for_test(&mut self, gpu: &Arc<renderkit::GpuContext>) {
         // Resetting another CPU authoring context cannot cancel this owner.
         let initial_scale = self.server_ctx.camera.iso_camera.scale;
         self.server_ctx.camera.move_action = Some(CustomMoveAction::Forward);
@@ -2122,8 +2122,11 @@ impl Editor {
         assert!(!self.server_ctx.reference.initialized());
         assert!(!independent.jobs.scene_initialized());
         assert!(!independent.reference.initialized());
+        independent.reference.bind_context(gpu.clone());
+        assert!(!independent.reference.initialized());
         independent.reference.write().assets.config = "independent owner".into();
         assert!(independent.reference.initialized());
+        assert_eq!(independent.reference.read().scene_handler.vm.device_generation(), Some(gpu.generation()));
         assert!(!self.server_ctx.reference.initialized());
         independent.jobs.scene_mut().startup();
         assert!(independent.jobs.scene_initialized());

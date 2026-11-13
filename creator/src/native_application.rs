@@ -81,8 +81,10 @@ impl UiApplication for NativeCreatorApplication {
         self.editor
             .window_resized(ui.context.width, ui.context.height);
     }
-    fn initialize(&mut self, ui: &mut UiSession, _: &mut UiFrameImages<'_>) -> Result<()> {
+    fn initialize(&mut self, ui: &mut UiSession, images: &mut UiFrameImages<'_>) -> Result<()> {
         let mut profile = crate::misc::FrameProfile::new();
+        self.editor
+            .bind_native_reference_context(images.registry.context().clone());
         // Preserve Creator's existing root/layout bootstrap before docks are
         // constructed; some source-backed docks inspect their initial bounds.
         ui.ui.canvas.root = true;
@@ -317,6 +319,8 @@ impl UiApplication for NativeCreatorApplication {
     }
 
     fn gpu_recreated(&mut self, ui: &mut UiSession, images: &mut UiFrameImages<'_>) -> Result<()> {
+        self.editor
+            .bind_native_reference_context(images.registry.context().clone());
         self.pending = None;
         self.editor.cancel_native_play_input(&mut ui.ui);
         self.editor.reset_native_play_gpu(images.registry).map_err(RenderError)?;
@@ -369,13 +373,21 @@ mod tests {
         // External services are unrelated to offscreen UI verification.
         application.start_services = false;
         let mut app = UiApplicationAdapter::new(application);
-        app.application.editor.check_context_ownership_for_test();
+        app.application.editor.check_context_ownership_for_test(&gpu);
         let mut host = HostContext::new((1200, 800));
         app.initialize(&mut host, &mut registry).unwrap();
+        assert_eq!(
+            app.application.editor.reference_for_test().read().scene_handler.vm.device_generation(),
+            Some(gpu.generation()),
+        );
         let authored =
             serde_json::to_value(&app.application.editor.project_for_native_test()).unwrap();
         app.update(&mut host, Duration::from_millis(16));
         let list = app.frame(&mut host, &mut registry).unwrap();
+        assert!(
+            !scenevm::SceneVM::compatibility_gpu_initialized(),
+            "canonical Creator startup must not initialize the compatibility device",
+        );
         list.validate().unwrap();
         assert!(
             app.session.ui.canvas.buffer.pixels().is_empty(),

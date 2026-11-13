@@ -6609,6 +6609,36 @@ impl VM {
         }
     }
 
+    /// Retire only device-derived state. Authored chunks, camera, palette,
+    /// prepared CPU geometry and source pixels survive a host device change.
+    pub(crate) fn reset_gpu_domain(&mut self, generation: u64) {
+        if self.gpu_domain == Some(generation) {
+            return;
+        }
+        self.gpu_domain = Some(generation);
+        self.gpu = None;
+        self.layer_texture = None;
+        self.ping_pong_textures = None;
+        self.ping_pong_front = 0;
+        self.prev_dummy = None;
+        if let Some(frozen) = self.frozen_frame_texture.as_mut() {
+            frozen.gpu = None;
+            if frozen.data.is_empty() {
+                self.frozen_frame_texture = None;
+            }
+        }
+        self.palette_dirty = true;
+        self.tile_gpu_dirty = true;
+        self.sdf_data_dirty = true;
+        self.material_table_dirty = true;
+        self.raster3d_paint_overlay_dirty = true;
+        self.irradiance_grid_dirty = true;
+        self.geometry2d_dirty = true;
+        self.geometry3d_dirty = true;
+        self.visibility_dirty = true;
+        self.line3d_dirty = true;
+    }
+
     pub fn init_gpu(&mut self, device: &wgpu::Device) -> crate::SceneVMResult<()> {
         use wgpu::ShaderSource;
 
