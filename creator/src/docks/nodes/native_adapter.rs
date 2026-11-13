@@ -865,10 +865,11 @@ mod tests {
      {
         let isolated = std::env::var_os("ELDIRON_NATIVE_NODE_DOCK_ISOLATED").is_some();
         if isolated {
-            assert_no_world_owners();
+            assert!(crate::editor::reference_runtime().is_none());
         }
 
         let mut f = Fixture::new();
+        assert!(!f.server.jobs.scene_initialized());
         assert!(
             f.ui.get_widget(VIEW)
                 .unwrap()
@@ -888,7 +889,7 @@ mod tests {
         f.text("Character e\u{301}");
         assert!(
             f.dock
-                .commit_pending_edits(&mut f.ctx, &mut f.project)
+                .commit_pending_edits(&mut f.ctx, &mut f.project, &f.server.jobs)
                 .unwrap()
         );
         assert_eq!(
@@ -916,7 +917,7 @@ mod tests {
             "Character e\u{301}"
         );
         if isolated {
-            assert_no_world_owners();
+            assert_no_world_owners(&f.server.jobs);
         }
     }
     #[test]
@@ -1137,7 +1138,7 @@ mod tests {
         assert!(!f.dock.has_changes());
         assert!(
             !f.dock
-                .commit_pending_edits(&mut f.ctx, &mut f.project)
+                .commit_pending_edits(&mut f.ctx, &mut f.project, &f.server.jobs)
                 .unwrap()
         );
         assert_eq!(f.model().lock().unwrap().editor().error, feedback);
@@ -1167,9 +1168,9 @@ mod tests {
         );
         f.paint();
     }
-    fn assert_no_world_owners() {
+    fn assert_no_world_owners(jobs: &CreatorJobs) {
         assert!(crate::editor::reference_runtime().is_none());
-        assert!(std::sync::LazyLock::get(&crate::editor::SCENEMANAGER).is_none());
+        assert!(!jobs.scene_initialized());
 
         // Authoring cameras are CPU values owned by each Creator context.
     }

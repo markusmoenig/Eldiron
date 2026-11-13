@@ -1,5 +1,5 @@
 use crate::{
-    editor::{RUSTERIX, SCENEMANAGER, UNDOMANAGER},
+    editor::{RUSTERIX, UNDOMANAGER},
     prelude::*,
 };
 use rusterix::chunkbuilder::{
@@ -215,7 +215,7 @@ impl TerrainTool {
                 r.set_tiles_for_maps(tiles, false, [&*map]);
                 (r.assets.tile_list.clone(), r.assets.tile_indices.clone())
             };
-            SCENEMANAGER.write().unwrap().set_tile_list(tiles, indices);
+            server.jobs.scene_mut().set_tile_list(tiles, indices);
         }
     }
 
@@ -226,7 +226,7 @@ impl TerrainTool {
         if TerrainSculpt::dab(map, center, self.radius, amount, stroke.mode) {
             Self::ensure_ground(map, server);
             stroke.changed = true;
-            let chunk = SCENEMANAGER.read().unwrap().chunk_size().max(1);
+            let chunk = rusterix::scenemanager::SceneManager::DEFAULT_CHUNK_SIZE.max(1);
             let min = (center - self.radius - 1.).map(|v| (v.floor() as i32).div_euclid(chunk));
             let max = (center + self.radius + 1.).map(|v| (v.ceil() as i32).div_euclid(chunk));
             for z in min.y..=max.y {
@@ -238,7 +238,7 @@ impl TerrainTool {
         }
     }
 
-    fn publish(&mut self, map: &Map, force: bool) {
+    fn publish(&mut self, map: &Map, force: bool, jobs: &CreatorJobs) {
         let Some(stroke) = &mut self.stroke else {
             return;
         };
@@ -253,24 +253,30 @@ impl TerrainTool {
             crate::utils::editor_scene_incremental_map_update(
                 map.clone(),
                 stroke.dirty.iter().copied().collect(),
+                jobs,
             );
             stroke.published = Some(Instant::now());
         }
     }
 
-    fn finish(&mut self, map: &mut Map, pc: ProjectContext) -> Option<ProjectUndoAtom> {
+    fn finish(
+        &mut self,
+        map: &mut Map,
+        pc: ProjectContext,
+        jobs: &CreatorJobs,
+    ) -> Option<ProjectUndoAtom> {
         if self.stroke.as_ref().is_some_and(|s| s.before.id != map.id) {
             self.stroke = None;
             return None;
         }
-        self.publish(map, true);
+        self.publish(map, true, jobs);
         let stroke = self.stroke.take()?;
         stroke
             .changed
             .then(|| ProjectUndoAtom::MapEdit(pc, Box::new(stroke.before), Box::new(map.clone())))
     }
 
-    fn cancel(&mut self, map: &mut Map) {
+    fn cancel(&mut self, map: &mut Map, jobs: &CreatorJobs) {
         if let Some(stroke) = self.stroke.take() {
             if stroke.changed && stroke.before.id == map.id {
                 let revision = map.changed.wrapping_add(1);
@@ -279,6 +285,7 @@ impl TerrainTool {
                 crate::utils::editor_scene_incremental_map_update(
                     map.clone(),
                     stroke.dirty.into_iter().collect(),
+                    jobs,
                 );
                 RUSTERIX.write().unwrap().set_dirty();
             }
@@ -351,7 +358,7 @@ impl Tool for TerrainTool {
             }
             ToolEvent::DeActivate => {
                 if let Some(map) = project.get_map_mut(server) {
-                    if let Some(atom) = self.finish(map, server.pc) {
+                    if let Some(atom) = self.finish(map, server.pc, &server.jobs) {
                         UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
                     }
                 }
@@ -397,7 +404,7 @@ impl Tool for TerrainTool {
                     published: None,
                 });
                 self.dab(map, p, self.strength * 0.1, server);
-                self.publish(map, false);
+                self.publish(map, false, &server.jobs);
                 self.set_hover(Some(p), map, server, ctx);
             }
             MapEvent::MapDragged(at) => {
@@ -426,7 +433,7 @@ impl Tool for TerrainTool {
                             );
                         }
                     }
-                    self.publish(map, false);
+                    self.publish(map, false, &server.jobs);
                 }
                 self.set_hover(Some(p), map, server, ctx);
             }
@@ -440,10 +447,10 @@ impl Tool for TerrainTool {
             }
             MapEvent::MapUp(_) => {
                 self.panel_down = false;
-                return self.finish(map, server.pc);
+                return self.finish(map, server.pc, &server.jobs);
             }
             MapEvent::MapEscape => {
-                self.cancel(map);
+                self.cancel(map, &server.jobs);
                 self.set_hover(None, map, server, ctx);
                 self.panel_down = false;
             }
@@ -481,7 +488,7 @@ impl Tool for TerrainTool {
                 stroke.mode = mode;
                 let at = stroke.last;
                 self.dab(map, at, self.strength * elapsed.min(0.15), server);
-                self.publish(map, false);
+                self.publish(map, false, &server.jobs);
                 self.set_hover(Some(at), map, server, ctx);
                 return true;
             }

@@ -51,6 +51,7 @@ impl EditorTool for TileEraserTool {
         ctx: &mut TheContext,
         project: &mut Project,
         server_ctx: &mut ServerContext,
+        _jobs: &CreatorJobs,
     ) -> bool {
         let mut redraw = false;
 

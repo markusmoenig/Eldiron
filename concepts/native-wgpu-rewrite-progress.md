@@ -8758,3 +8758,106 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   SCENEMANAGER and application tool/dock ownership; continue retiring canonical
   renderer/CPU display adapters, then full source/workflow/resource/release/platform
   acceptance. Full Goal remains ACTIVE, all unverified platform gates stay open.
+
+
+### Creator scene-job ownership migration (active, 2026-11-14)
+
+- Camera checkpoint aae52aa2 contains45 files/350 insertions and excludes the
+  unrelated networking concept. All earlier M0–M9 limitations remain active.
+- Next global inventory: SCENEMANAGER has64 textual references including tests/
+  imports, with application init/poll/tick, tools, incremental map/palette/Prefab
+  projections and minimap readiness consumers. Its actual implementation is a
+  cooperative CPU chunk builder with local state/results, not a GPU renderer or
+  background thread (crates/rusterix/src/scenemanager.rs).
+- Added application-local CreatorJobs with lazy OnceCell<RefCell<SceneManager>>;
+  scoped read/write borrows and non-initializing existing-scene access. No GPU,
+  surface or event loop ownership is introduced. CreatorContext owns this CPU
+  service; extended existing context-independence assertion to check that another
+  context's job startup cannot initialize this owner. Initial native check pending.
+- SCENEMANAGER GLOBAL IS STILL ACTIVE at this foundation step. Next replace its
+  references with explicit owner borrows, pass narrow CreatorJobs to palette/
+  Prefab/incremental helpers that currently lack a context, retain shared-only
+  pixel-tool data interfaces by passing jobs separately, and update existing
+  no-renderer-initialization tests to inspect the owning context. Preserve lazy
+  non-initializing Prefab projection behavior. Do not silently drop required cache
+  synchronization or replace this migration with another process-global proxy.
+- After integration: compile all changed feature paths, focused ownership/pure
+  graph/undo checks, assembled native workflow and actual browser/document/host
+  verification. No scene-job retirement/acceptance claimed before that evidence.
+
+- Jobs foundation native compile passed10.27s. Replaced production scene global
+  reads/writes with owned service access; polling now returns an owned result
+  before UI dispatch so a RefMut cannot remain held through handlers. Fixed32-
+  unit chunk policy is explicit SceneManager::DEFAULT_CHUNK_SIZE, shared by CPU
+  planners without initializing jobs. No chunk-size algorithm/config changed.
+- Narrow CreatorJobs references are now being passed through incremental map,
+  palette and Prefab projection helpers and save barriers. Pixel editing keeps
+  its shared-only data context and receives jobs as a separate service. Existing-
+  only Prefab sync calls existing_scene_mut, so pure graph/undo paths must remain
+  non-initializing. Project/schema source functions in shared remain untouched.
+- Initial integration check failed49 errors, then12 after job argument wiring;
+  these are compiler-guided missing service boundaries, not accepted behavior.
+  Private Prefab view/controller commit helpers and Dock save barrier now carry
+  jobs explicitly; Terrain publish/finish/cancel do likewise. Fifth native check
+  running /private/tmp/eldiron-owned-jobs-integration-check-5.log. Global static
+  declaration is removed, but test-only SCENEMANAGER references still need scoped
+  owner assertions; no retirement claim until all code/tests compile and run.
+
+- Owned scene jobs production native integration now PASS9.06s (check-5.log).
+  No production SCENEMANAGER symbol remains. Tests now probe owning job services
+  rather than a removed process singleton; data-only snapshots that receive no
+  service retain their no-Rusterix/no-raster assertions and source API boundary.
+  New save barrier carries narrow jobs explicitly through DockManager/Dock and
+  Prefab controllers. No scene service is stored in process-global docks.
+- First native test build failed8 diagnostics: one pre-fixture owner assertion
+  referenced f too early, seven direct Prefab test calls needed their persistent
+  fixture job service. Fixed those; Prefab fixture owns CreatorJobs, event/commit
+  paths use that same service, unconditional non-initialization assertion added.
+  Rebuild pending (owned-jobs-native-build.{log,json}). Need run focused pure
+  graph/Prefab undo and context/scene workflows before assembled integration.
+
+- Owned-jobs native test compilation PASSED22.73s after scoped fixture argument
+  fixes (owned-jobs-native-build.log). Formatted only added/changed job signatures
+  and the small new jobs module; did not reformat editor/sidebar/world bodies.
+  Next run existing pure Prefab/undo/graph barriers with isolated no-world probes,
+  then assembled native flow and independent reference/WASM/staticlib checks.
+  No functional job ownership acceptance or checkpoint until those pass.
+
+- Focused job-owner regressions PASSED:12 pure native Prefab source/save/IME/
+  retained-transaction cases2.18s (GPU pane case correctly ignored), scoped
+  Prefab Undo1/0.46s, retained native graph-owner save/undo1/2.48s, all isolated
+  no-world probes enabled. Full assembled Metal PASSED1/141.97s including owned
+  context/job independence, actual world/tools/terrain/painting/documents/Play
+  and device generation recovery. Logs owned-jobs-{prefab-tests,prefab-undo-test,
+  node-owner-test,assembled-metal}.log under /private/tmp.
+- Independent reference compile20.69s, actual staticlib44.11s and browser release
+ 1m20s/package97,935,749B pass. One reference-only unused-argument suppression
+  subsequently includes jobs in the existing let-discard tuple; no functional
+  change. Browser boot doc1a41ece6-411a-4acd-b3a5-8cb6afa3e7b0 gen1→2 retains
+  exact camera/document, devices2/root/readback/normal color copies/Canvas2D0,
+  errors[]. Final browser document/navigation/Play and linked Swift actual host
+  checks running; no acceptance from those until logs inspected.
+
+- Final owned-jobs linked Swift CAMetalLayer/handle/document/PNG host PASSED
+  (owned-jobs-swift-host-runtime.log). Browser actual navigation, idle/in-flight
+  recovery and Play/Stop PASSED: gen1→4, four actual devices total, same runtime
+  f3f3eb2c-c0a0-4c04-9e39-0a83fb06eee5 across Play loss, ticks9→10. Before/after
+  Play OPFS archives byte-identical1,448,878B SHA256
+  f507ea05621b4626af4cc011a09c08f58456ed640f0412f79f1e595e973d1487.
+  Unsaved CJK rename/canceled beforeunload retains dirty document.61 presentations,
+  root/full-color readback/normal color copies/Canvas2D0, errors[].
+- Additional real browser CtrlS→CtrlO chooser→SaveAs reopened the saved CJK edit
+  into a NEW document c7575342-16fe-4448-b690-17a605645c2f without another GPU
+  device; all69 presentations/device generation4, root/readback/color copies0.
+  Independent ZIP/project.json comparison of owned-jobs-reopen-{before,after}:
+  WHOLE AUTHORED JSON EXACTLY EQUAL, zero field differences. ZIP compressed sizes
+  differ (1,448,914/1,468,960B), not a schema/content change. Existing initial-load
+  default item identities differ between independently booted unsaved fixtures;
+  no cross-run byte-equality claim. Saved document identity/content roundtrip is
+  verified. Logs/archives under /private/tmp with owned-jobs prefix.
+- SCENEMANAGER global retirement verified: no references in Creator. Context-local
+  lazy CPU jobs preserve pure graph non-initialization and application lifecycle.
+  Checkpoint this batch; next retire remaining RUSTERIX aggregate ownership with
+  narrow explicit services, keeping canonical GPU context/session ownership and
+  declared reference adapters visible. M0–M9 Goal remains ACTIVE; physical host,
+  remaining adapters, release performance/resource/platform gates still open.

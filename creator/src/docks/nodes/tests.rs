@@ -2487,7 +2487,7 @@ fn authoring_nodes_and_preview_snapshots_do_not_require_raster_or_world_renderer
     let isolated = std::env::var_os("ELDIRON_NATIVE_NODES_ISOLATED").is_some();
     if isolated {
         assert!(crate::editor::reference_runtime().is_none());
-        assert!(std::sync::LazyLock::get(&crate::editor::SCENEMANAGER).is_none());
+        // Scene preparation is application-owned; this data API receives no jobs.
     }
     let mut dock = NodesDock::new();
     assert!(dock.resources.is_none());
@@ -2523,7 +2523,7 @@ fn authoring_nodes_and_preview_snapshots_do_not_require_raster_or_world_renderer
     assert!(dock.resources.is_none());
     if isolated {
         assert!(crate::editor::reference_runtime().is_none());
-        assert!(std::sync::LazyLock::get(&crate::editor::SCENEMANAGER).is_none());
+        // Scene preparation is application-owned; this data API receives no jobs.
     }
 }
 

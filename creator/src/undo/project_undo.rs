@@ -1,4 +1,3 @@
-// use crate::editor::{SCENEMANAGER, SHADEGRIDFX};
 use crate::prelude::*;
 use crate::undo::project_atoms::ProjectUndoAtom;
 use theframework::prelude::*;

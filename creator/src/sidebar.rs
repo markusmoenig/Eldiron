@@ -1,5 +1,5 @@
 use crate::editor::{
-    ACTIONLIST, CONFIG, CONFIGEDITOR, DOCKMANAGER, PALETTE, RUSTERIX, SCENEMANAGER, SIDEBARMODE,
+    ACTIONLIST, CONFIG, CONFIGEDITOR, DOCKMANAGER, PALETTE, RUSTERIX, SIDEBARMODE,
     TOOLLIST, UNDOMANAGER,
 };
 use crate::minimap::{draw_minimap, draw_minimap_context_label, minimap_bbox_for_map};
@@ -1023,7 +1023,7 @@ impl Sidebar {
                                         );
                                         UNDOMANAGER.write().unwrap().add_undo(undo, ctx);
                                     }
-                                    crate::undo::project_helper::refresh_palette_runtime(project);
+                                    crate::undo::project_helper::refresh_palette_runtime(project, &server_ctx.jobs);
                                 }
                             }
 
@@ -1368,7 +1368,7 @@ impl Sidebar {
                         ui, ctx, project, server_ctx, id.name == "Update Minimap",
                     );
                 } else if id.name == "Update Tiles" {
-                    self.update_tiles(ui, ctx, project);
+                    self.update_tiles(ui, ctx, project, &server_ctx.jobs);
                 } else if id.name == "Show Node Settings" {
                     if let Some(stack) = ui.get_stack_layout("Sidebar Bottom Stack") {
                         stack.set_index(1);
@@ -1987,7 +1987,7 @@ impl Sidebar {
                             }
                         }
                     }
-                    crate::undo::project_helper::refresh_palette_runtime(project);
+                    crate::undo::project_helper::refresh_palette_runtime(project, &server_ctx.jobs);
                 } else if id.name == "Tilemap Filter Edit" || id.name == "Tilemap Filter Role" {
                     if let Some(id) = self.curr_tilemap_uuid {
                         self.show_filtered_tiles(ui, ctx, project.get_tilemap(id).as_deref())
@@ -2696,7 +2696,7 @@ impl Sidebar {
                             }
                         }
 
-                        crate::undo::project_helper::refresh_palette_runtime(project);
+                        crate::undo::project_helper::refresh_palette_runtime(project, &server_ctx.jobs);
 
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Soft Update Minimap"),
@@ -3985,7 +3985,7 @@ impl Sidebar {
         // ));
 
         self.show_actions(ui, ctx, project, server_ctx);
-        self.update_tiles(ui, ctx, project);
+        self.update_tiles(ui, ctx, project, &server_ctx.jobs);
 
         TOOLLIST.write().unwrap().get_current_tool().tool_event(
             ToolEvent::Activate,
@@ -5256,10 +5256,16 @@ impl Sidebar {
     }
 
     /// Tilemaps in the project have been updated, propagate the change to all relevant parties.
-    pub fn update_tiles(&mut self, _ui: &mut TheUI, ctx: &mut TheContext, project: &mut Project) {
+    pub fn update_tiles(
+        &mut self,
+        _ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        jobs: &CreatorJobs,
+    ) {
         let mut rusterix = RUSTERIX.write().unwrap();
         rusterix.set_tiles(project.tiles.clone(), true);
-        SCENEMANAGER.write().unwrap().set_tile_list(
+        jobs.scene_mut().set_tile_list(
             rusterix.assets.tile_list.clone(),
             rusterix.assets.tile_indices.clone(),
         );

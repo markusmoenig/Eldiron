@@ -2106,14 +2106,22 @@ impl Editor {
 
 #[cfg(test)]
 impl Editor {
+    pub(crate) fn reference_jobs_for_test(&self) -> &CreatorJobs {
+        &self.server_ctx.jobs
+    }
     pub(crate) fn authoring_camera_for_test(&mut self) -> &mut EditCamera {
         &mut self.server_ctx.camera
     }
-    pub(crate) fn check_camera_ownership_for_test(&mut self) {
+    pub(crate) fn check_context_ownership_for_test(&mut self) {
         // Resetting another CPU authoring context cannot cancel this owner.
         let initial_scale = self.server_ctx.camera.iso_camera.scale;
         self.server_ctx.camera.move_action = Some(CustomMoveAction::Forward);
         let mut independent = CreatorContext::new();
+        assert!(!self.server_ctx.jobs.scene_initialized());
+        assert!(!independent.jobs.scene_initialized());
+        independent.jobs.scene_mut().startup();
+        assert!(independent.jobs.scene_initialized());
+        assert!(!self.server_ctx.jobs.scene_initialized(), "another CPU context cannot initialize this owner's scene jobs");
         independent.camera.iso_camera.scale = initial_scale + 7.;
         independent.camera.move_action = Some(CustomMoveAction::Backward);
         independent.camera.reset_for_project_switch();
@@ -2194,7 +2202,7 @@ impl Editor {
     pub(crate) fn native_world_debug_for_test(&self) -> String {
         let map = self.documents.project.get_map(&self.server_ctx).unwrap();
         let frame = self.native_viewport.world.presented.as_ref();
-        let builds = SCENEMANAGER.read().unwrap();
+        let builds = self.server_ctx.jobs.scene();
         format!(
             "frame={} ready={} current_map={} pending={} projection={}",
             frame.is_some(),

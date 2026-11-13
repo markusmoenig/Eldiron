@@ -1,4 +1,4 @@
-use crate::editor::{RUSTERIX, SCENEMANAGER};
+use crate::editor::{RUSTERIX};
 use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use MapEvent::*;
@@ -2401,7 +2401,7 @@ impl RectTool {
 
     fn add_2d_cell_dirty_chunk(cell: Vec2<i32>, chunks: &mut FxHashSet<(i32, i32)>) {
         // Scene streaming uses world-space chunks; this is unrelated to a tile's pixel size.
-        let chunk_size = SCENEMANAGER.read().unwrap().chunk_size();
+        let chunk_size = rusterix::scenemanager::SceneManager::DEFAULT_CHUNK_SIZE;
         Self::add_2d_cell_dirty_chunk_with_size(cell, chunk_size, chunks);
     }
 
@@ -2436,6 +2436,7 @@ impl RectTool {
                 crate::utils::editor_scene_replace_incremental_map_update(
                     work_map.clone(),
                     dirty_chunks,
+                    &server_ctx.jobs,
                 );
             }
             *last_live_scene_sync_at = Some(now);

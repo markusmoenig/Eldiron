@@ -213,6 +213,7 @@ impl PrefabNodePane {
         sequence: u64,
         project: &mut Project,
         ctx: &mut TheContext,
+        jobs: &CreatorJobs,
     ) -> Result<bool, String> {
         let missing: Vec<_> = self
             .native_workspace
@@ -271,7 +272,7 @@ impl PrefabNodePane {
             }
         }
         if changed {
-            crate::block_props::sync_existing_prefab_presentations(project);
+            crate::block_props::sync_existing_prefab_presentations(project, jobs);
         }
         self.sync_native_mirror();
         if let Some(error) = dispatch_error.or_else(|| self.native_error(project)) {
@@ -286,17 +287,19 @@ impl PrefabNodePane {
         &mut self,
         project: &mut Project,
         ctx: &mut TheContext,
+        jobs: &CreatorJobs,
     ) -> Result<bool, String> {
         let keys: Vec<_> = self.native_workspace.views.keys().copied().collect();
         for key in keys {
             self.checkpoint_native_source(key, false);
         }
-        self.collect_native_through(u64::MAX, project, ctx)
+        self.collect_native_through(u64::MAX, project, ctx, jobs)
     }
     pub(super) fn store_native_document(
         &mut self,
         project: &mut Project,
         ctx: &mut TheContext,
+        jobs: &CreatorJobs,
     ) -> bool {
         let Some(key) = self
             .active_native_key()
@@ -311,7 +314,7 @@ impl PrefabNodePane {
         {
             Ok(outcome) => {
                 if self.apply_native_effect(outcome, ctx) {
-                    crate::block_props::sync_existing_prefab_presentations(project);
+                    crate::block_props::sync_existing_prefab_presentations(project, jobs);
                 }
             }
             Err(error) => {
@@ -409,6 +412,7 @@ impl PrefabNodePane {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
+        jobs: &CreatorJobs,
     ) -> Option<bool> {
         match event {
             TheEvent::WidgetResized(id, _)
@@ -420,7 +424,7 @@ impl PrefabNodePane {
             }
             TheEvent::GraphCommitted(id, commit) if id.name == VIEW => {
                 self.native_workspace.cpu.binding_source(commit.binding)?;
-                let _ = self.collect_native_through(commit.sequence, project, ctx);
+                let _ = self.collect_native_through(commit.sequence, project, ctx, jobs);
                 Some(true)
             }
             TheEvent::GraphDrop(id, binding, point, drop) if id.name == VIEW => {
@@ -436,7 +440,7 @@ impl PrefabNodePane {
                     return Some(false);
                 };
                 self.checkpoint_native_source(key, true);
-                let _ = self.collect_native_through(u64::MAX, project, ctx);
+                let _ = self.collect_native_through(u64::MAX, project, ctx, jobs);
                 let Some(source) = self.native_workspace.cpu.source(key) else {
                     return Some(false);
                 };
@@ -453,7 +457,7 @@ impl PrefabNodePane {
                     .commit_document(project, key, document)
                     && self.apply_native_effect(outcome, ctx)
                 {
-                    crate::block_props::sync_existing_prefab_presentations(project);
+                    crate::block_props::sync_existing_prefab_presentations(project, jobs);
                 }
                 self.sync_native_mirror();
                 self.rebind_native_source(key);
@@ -471,6 +475,7 @@ impl PrefabNodePane {
         event: &TheEvent,
         ctx: &mut TheContext,
         project: &mut Project,
+        jobs: &CreatorJobs,
     ) -> Result<bool, String> {
         if self.native.is_none() {
             return Ok(false);
@@ -486,7 +491,7 @@ impl PrefabNodePane {
         if !domain {
             return Ok(false);
         }
-        let _ = self.commit_native_pending(project, ctx);
+        let _ = self.commit_native_pending(project, ctx, jobs);
         if matches!(event, TheEvent::NewListItemSelected(id, _) if id.name == "Prefab Branch")
             && let Some(error) = &self.store_error
         {
@@ -584,6 +589,7 @@ mod tests {
         second: Uuid,
         events: std::sync::mpsc::Receiver<TheEvent>,
         undo_signals: usize,
+        jobs: CreatorJobs,
     }
     impl Fixture {
         fn new() -> Self {
@@ -624,6 +630,7 @@ mod tests {
                 second,
                 events,
                 undo_signals: 0,
+                jobs: CreatorJobs::default(),
             };
             f.pump();
             f.paint();
@@ -655,7 +662,7 @@ mod tests {
                         self.undo_signals += 1;
                     }
                     self.pane
-                        .handle(&event, &mut self.ui, &mut self.ctx, &mut self.project);
+                        .handle(&event, &mut self.ui, &mut self.ctx, &mut self.project, &self.jobs);
                 }
             }
             panic!("native prefab events must settle");
@@ -715,7 +722,7 @@ mod tests {
         }
         fn commit(&mut self) -> Result<bool, String> {
             self.pane
-                .commit_native_pending(&mut self.project, &mut self.ctx)
+                .commit_native_pending(&mut self.project, &mut self.ctx, &self.jobs)
         }
     }
 
@@ -724,7 +731,7 @@ mod tests {
         let isolated = std::env::var_os("ELDIRON_NATIVE_PREFAB_ISOLATED").is_some();
         if isolated {
             assert!(crate::editor::reference_runtime().is_none());
-            assert!(std::sync::LazyLock::get(&crate::editor::SCENEMANAGER).is_none());
+            // No process-global scene preparation service exists.
         }
         let mut f = Fixture::new();
         let first = f.first;
@@ -762,9 +769,10 @@ mod tests {
         assert!(f.pane.resources.is_none());
         assert!(f.ui.canvas.buffer.pixels().is_empty());
         assert!(!f.pane.has_native_pending());
+        assert!(!f.jobs.scene_initialized());
         if isolated {
             assert!(crate::editor::reference_runtime().is_none());
-            assert!(std::sync::LazyLock::get(&crate::editor::SCENEMANAGER).is_none());
+            assert!(!f.jobs.scene_initialized());
         }
     }
 
@@ -819,6 +827,7 @@ mod tests {
             &mut f.ui,
             &mut f.ctx,
             &mut f.project,
+            &f.jobs,
         );
         assert_eq!(f.pane.part, Some(f.second));
         assert_eq!(f.first_name(), "Saved first");
@@ -829,6 +838,7 @@ mod tests {
             &mut f.ui,
             &mut f.ctx,
             &mut f.project,
+            &f.jobs,
         );
         assert_eq!(
             f.project.block_props[&f.asset]
@@ -858,6 +868,7 @@ mod tests {
             &mut f.ui,
             &mut f.ctx,
             &mut f.project,
+            &f.jobs,
         );
         assert_eq!(f.first_name(), "Saved first");
         assert!(f.pane.resources.is_none());
@@ -893,6 +904,7 @@ mod tests {
             &mut f.ui,
             &mut f.ctx,
             &mut f.project,
+            &f.jobs,
         );
         assert_eq!(
             f.pane.part,
@@ -1026,6 +1038,7 @@ mod tests {
             &mut f.ui,
             &mut f.ctx,
             &mut f.project,
+            &f.jobs,
         );
         f.pump();
         assert_eq!(f.first_name(), "A2");
@@ -1076,6 +1089,7 @@ mod tests {
             &mut f.ui,
             &mut f.ctx,
             &mut f.project,
+            &f.jobs,
         );
         assert_eq!(f.pane.part, Some(f.first));
         assert!(f.pane.store_error.is_some());
@@ -1303,6 +1317,7 @@ mod tests {
             &mut f.ui,
             &mut f.ctx,
             &mut f.project,
+            &f.jobs,
         );
         assert_eq!(f.pane.doc.nodes.len(), before + 1);
         assert!(f.pane.resources.is_none());

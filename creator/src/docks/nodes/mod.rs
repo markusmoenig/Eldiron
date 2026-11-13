@@ -1439,6 +1439,7 @@ impl Dock for NodesDock {
         &mut self,
         ctx: &mut TheContext,
         project: &mut Project,
+        _jobs: &CreatorJobs,
     ) -> Result<bool, String> {
         #[cfg(feature = "native-ui")]
         if self.native_enabled {

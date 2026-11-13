@@ -532,9 +532,7 @@ impl Action for Duplicate {
             .write()
             .unwrap()
             .set_block_props(prefabs.clone());
-        crate::editor::SCENEMANAGER
-            .write()
-            .unwrap()
+        server_ctx.jobs.scene_mut()
             .set_block_props(prefabs);
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Map Selection Changed"),

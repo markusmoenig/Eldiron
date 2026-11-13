@@ -31,7 +31,7 @@ use rayon::prelude::*;
 use rusterix::render_settings::RendererBackend;
 use rusterix::server::message::AudioCommand;
 use rusterix::{
-    PlayerCamera, Rusterix, SceneManager, SceneManagerResult, Texture, Value, ValueContainer,
+    PlayerCamera, Rusterix, SceneManagerResult, Texture, Value, ValueContainer,
 };
 #[cfg(all(
     feature = "self-update",
@@ -383,8 +383,6 @@ pub static CONFIGEDITOR: LazyLock<RwLock<ConfigEditor>> =
     LazyLock::new(|| RwLock::new(ConfigEditor::new()));
 pub static CONFIG: LazyLock<RwLock<toml::Table>> =
     LazyLock::new(|| RwLock::new(toml::Table::default()));
-pub static SCENEMANAGER: LazyLock<RwLock<SceneManager>> =
-    LazyLock::new(|| RwLock::new(SceneManager::default()));
 pub static DOCKMANAGER: LazyLock<RwLock<DockManager>> =
     LazyLock::new(|| RwLock::new(DockManager::default()));
 
@@ -4928,7 +4926,7 @@ impl Editor {
         DOCKMANAGER
             .write()
             .unwrap()
-            .commit_pending_edits(ctx, &mut self.documents.project)
+            .commit_pending_edits(ctx, &mut self.documents.project, &self.server_ctx.jobs)
     }
     fn deactivate_project_for_switch(
         &mut self,
@@ -4986,7 +4984,7 @@ impl Editor {
         self.iso_paint_render_cache = SharedIsoPaintRenderCache::default();
         self.text_game.reset();
 
-        SCENEMANAGER.write().unwrap().reset_for_project_switch();
+        self.server_ctx.jobs.scene_mut().reset_for_project_switch();
         {
             let mut rusterix = RUSTERIX.write().unwrap();
             if rusterix.server.state != rusterix::ServerState::Off {
@@ -5504,7 +5502,7 @@ impl Editor {
                 crate::undo::project_helper::palette_material_ids(&self.documents.project);
             rusterix.set_tiles(self.documents.project.tiles.clone(), true);
         }
-        SCENEMANAGER.write().unwrap().set_palette(
+        self.server_ctx.jobs.scene_mut().set_palette(
             self.documents.project.palette.clone(),
             self.documents.project
                 .palette_materials
@@ -8601,11 +8599,9 @@ impl TheTrait for Editor {
             .builder_d2
             .set_properties(&self.build_values);
         RUSTERIX.write().unwrap().set_d2();
-        SCENEMANAGER
-            .write()
-            .unwrap()
+        self.server_ctx.jobs.scene_mut()
             .set_apply_preview_filters(true);
-        SCENEMANAGER.write().unwrap().startup();
+        self.server_ctx.jobs.scene_mut().startup();
 
         init_profile.lap("init_scene");
         self.event_receiver = Some(ui.add_input_state_listener("Main Receiver".into()));
@@ -8796,7 +8792,7 @@ impl TheTrait for Editor {
         }
 
         // Get build results from the scene manager if any
-        while let Some(result) = SCENEMANAGER.write().unwrap().receive() {
+        while let Some(result) = self.server_ctx.jobs.receive_scene() {
             redraw = true;
             match result {
                 SceneManagerResult::Startup => {
@@ -9092,7 +9088,7 @@ impl TheTrait for Editor {
                     .get_map(&self.server_ctx)
                     .is_some_and(|map| map.camera == MapCamera::TwoDIso);
             if !sprite_iso {
-                SCENEMANAGER.write().unwrap().tick_batch(8);
+                self.server_ctx.jobs.scene_mut().tick_batch(8);
             } else {
                 self.server_ctx.background_progress = None;
             }
@@ -12215,7 +12211,7 @@ mod tests {
                 }
                 if target >= 2 {
                     assert!(
-                        !SCENEMANAGER.read().unwrap().is_busy(),
+                        !editor.server_ctx.jobs.scene().is_busy(),
                         "benchmark must finish terrain generation"
                     );
                 }

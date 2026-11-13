@@ -1,4 +1,4 @@
-use crate::editor::{CONFIGEDITOR, DOCKMANAGER, PALETTE, RUSTERIX, SCENEMANAGER};
+use crate::editor::{CONFIGEDITOR, DOCKMANAGER, PALETTE, RUSTERIX};
 use crate::prelude::*;
 use rusterix::{PixelSource, Value, ValueContainer, pixel_to_vec4};
 use std::str::FromStr;
@@ -872,12 +872,12 @@ pub fn scenemanager_render_map(project: &Project, server_ctx: &ServerContext) {
     if server_ctx.editor_view_mode == EditorViewMode::D2 {
         // In 2D we render the current map (region/profile/character/item), but never screens.
         if let Some(map) = project.get_map(server_ctx) {
-            SCENEMANAGER.write().unwrap().set_map(map.clone());
+            server_ctx.jobs.scene_mut().set_map(map.clone());
         }
     } else {
         if server_ctx.pc.is_prefab() {
             if let Some(map) = project.get_map(server_ctx) {
-                SCENEMANAGER.write().unwrap().set_map(map.clone());
+                server_ctx.jobs.scene_mut().set_map(map.clone());
             }
             return;
         }
@@ -894,7 +894,7 @@ pub fn scenemanager_render_map(project: &Project, server_ctx: &ServerContext) {
                 filter_iso_placements_for_3d(&mut map, &project.tiles);
                 // Keep editor-only preview filters in sync with region config for 3D builds.
                 apply_region_config(&mut map, region.config.clone());
-                SCENEMANAGER.write().unwrap().set_map(map);
+                server_ctx.jobs.scene_mut().set_map(map);
             }
         }
     }
@@ -922,13 +922,9 @@ pub fn editor_scene_full_rebuild(project: &Project, server_ctx: &ServerContext) 
             rusterix.assets.tile_indices.clone(),
         )
     };
-    SCENEMANAGER
-        .write()
-        .unwrap()
+    server_ctx.jobs.scene_mut()
         .set_tile_list(tile_list, tile_indices);
-    SCENEMANAGER
-        .write()
-        .unwrap()
+    server_ctx.jobs.scene_mut()
         .set_block_props(project.block_props.clone());
     scenemanager_render_map(project, server_ctx);
     RUSTERIX.write().unwrap().set_dirty();
@@ -953,9 +949,7 @@ pub fn editor_scene_refresh_material_textures(project: &Project, server_ctx: &Se
             rusterix.assets.tile_indices.clone(),
         )
     };
-    SCENEMANAGER
-        .write()
-        .unwrap()
+    server_ctx.jobs.scene_mut()
         .sync_tile_textures(tiles, indices);
 }
 
@@ -995,7 +989,7 @@ pub fn editor_scene_refresh_prefab_assets(
         rusterix::resolve_block_prop_geometry(&old_instances, &before.block_props).geometry_objects;
     let new_geometry = rusterix::resolve_block_prop_geometry(&new_instances, &project.block_props)
         .geometry_objects;
-    let chunk_size = SCENEMANAGER.read().unwrap().chunk_size().max(1);
+    let chunk_size = rusterix::scenemanager::SceneManager::DEFAULT_CHUNK_SIZE.max(1);
     let mut dirty_chunks = FxHashSet::default();
     for bbox in old_geometry
         .iter()
@@ -1026,13 +1020,12 @@ pub fn editor_scene_refresh_prefab_assets(
         let mut rusterix = RUSTERIX.write().unwrap();
         rusterix.set_block_props(project.block_props.clone());
     }
-    SCENEMANAGER
-        .write()
-        .unwrap()
+    server_ctx.jobs.scene_mut()
         .set_block_props(project.block_props.clone());
     editor_scene_replace_incremental_map_update(
         new_map.clone(),
         dirty_chunks.into_iter().collect(),
+        &server_ctx.jobs,
     );
     true
 }
@@ -1084,8 +1077,12 @@ pub fn editor_scene_apply_map_edit_atom(
     }
 }
 
-pub fn editor_scene_incremental_map_update(map: Map, dirty_chunks: Vec<(i32, i32)>) {
-    let mut scenemanager = SCENEMANAGER.write().unwrap();
+pub fn editor_scene_incremental_map_update(
+    map: Map,
+    dirty_chunks: Vec<(i32, i32)>,
+    jobs: &CreatorJobs,
+) {
+    let mut scenemanager = jobs.scene_mut();
     scenemanager.update_map(map);
     if !dirty_chunks.is_empty() {
         scenemanager.add_dirty(dirty_chunks);
@@ -1093,8 +1090,12 @@ pub fn editor_scene_incremental_map_update(map: Map, dirty_chunks: Vec<(i32, i32
     RUSTERIX.write().unwrap().set_overlay_dirty();
 }
 
-pub fn editor_scene_replace_incremental_map_update(map: Map, dirty_chunks: Vec<(i32, i32)>) {
-    let mut scenemanager = SCENEMANAGER.write().unwrap();
+pub fn editor_scene_replace_incremental_map_update(
+    map: Map,
+    dirty_chunks: Vec<(i32, i32)>,
+    jobs: &CreatorJobs,
+) {
+    let mut scenemanager = jobs.scene_mut();
     scenemanager.update_map(map);
     if !dirty_chunks.is_empty() {
         scenemanager.replace_dirty(dirty_chunks);

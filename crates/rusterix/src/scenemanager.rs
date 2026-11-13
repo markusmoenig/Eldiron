@@ -56,6 +56,10 @@ impl Default for SceneManager {
 }
 
 impl SceneManager {
+    /// Fixed chunk policy shared with CPU authoring planners. Querying this
+    /// geometry rule must not initialize a presentation service.
+    pub const DEFAULT_CHUNK_SIZE: i32 = 32;
+
     fn render_bbox(&self) -> BBox {
         self.map.bbox_with_block_props(&self.assets.block_props)
     }
@@ -142,7 +146,7 @@ impl SceneManager {
         Self {
             assets: Assets::default(),
             map: Map::default(),
-            chunk_size: 32,
+            chunk_size: Self::DEFAULT_CHUNK_SIZE,
 
             dirty: FxHashSet::default(),
             all: FxHashSet::default(),

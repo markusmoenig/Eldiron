@@ -681,7 +681,7 @@ mod tests {
             assert_eq!(f.saved("behavior/world"), "World 東京");
             if std::env::var_os("ELDIRON_NATIVE_NODE_SOURCE_ISOLATED").is_some() {
                 assert!(crate::editor::reference_runtime().is_none());
-                assert!(std::sync::LazyLock::get(&crate::editor::SCENEMANAGER).is_none());
+                // Scene preparation is application-owned; this data API receives no jobs.
 
                 // Authoring cameras are CPU values owned by each Creator context.
             }

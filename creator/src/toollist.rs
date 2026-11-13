@@ -1,5 +1,5 @@
 use crate::actions::geometry_face_ops::surface_segment_points;
-use crate::editor::{ACTIONLIST, DOCKMANAGER, RUSTERIX, SCENEMANAGER, SIDEBARMODE, UNDOMANAGER};
+use crate::editor::{ACTIONLIST, DOCKMANAGER, RUSTERIX, SIDEBARMODE, UNDOMANAGER};
 use crate::editor_display::{
     EditorDisplay, EditorDisplayOwner, EditorDisplayResult, EditorDisplaySession,
 };
@@ -1318,7 +1318,7 @@ impl ToolList {
         owners: &mut FxHashSet<GeoId>,
         include_terrain: bool,
     ) {
-        let chunk_size = SCENEMANAGER.write().unwrap().chunk_size();
+        let chunk_size = rusterix::scenemanager::SceneManager::DEFAULT_CHUNK_SIZE;
         let scene = TopologyScene::build(map);
         for origin in chunk_origins {
             let bbox = rusterix::BBox::from_pos_size(
@@ -1642,7 +1642,11 @@ impl ToolList {
         }
     }
 
-    fn apply_geometry_owner_replacement(new_map: &Map, plan: GeometryOwnerReplacementPlan) -> bool {
+    fn apply_geometry_owner_replacement(
+        new_map: &Map,
+        plan: GeometryOwnerReplacementPlan,
+        jobs: &CreatorJobs,
+    ) -> bool {
         if plan.owners.is_empty() || plan.chunk_origins.is_empty() {
             return false;
         }
@@ -1655,7 +1659,7 @@ impl ToolList {
         build_map.update_surfaces();
 
         let assets = RUSTERIX.read().unwrap().assets.clone();
-        let chunk_size = SCENEMANAGER.write().unwrap().chunk_size();
+        let chunk_size = rusterix::scenemanager::SceneManager::DEFAULT_CHUNK_SIZE;
         let mut builder = TopologyBuilder::new();
         let mut generated_chunks = Vec::new();
 
@@ -1674,11 +1678,15 @@ impl ToolList {
                 .replace_owner_geometry(&plan.owners, generated_chunks);
         }
 
-        crate::utils::editor_scene_incremental_map_update(build_map, Vec::new());
+        crate::utils::editor_scene_incremental_map_update(build_map, Vec::new(), jobs);
         true
     }
 
-    fn apply_geometry_scene_update(new_map: &Map, plan: GeometryOwnerReplacementPlan) -> bool {
+    fn apply_geometry_scene_update(
+        new_map: &Map,
+        plan: GeometryOwnerReplacementPlan,
+        jobs: &CreatorJobs,
+    ) -> bool {
         if plan
             .owners
             .iter()
@@ -1690,10 +1698,11 @@ impl ToolList {
             crate::utils::editor_scene_replace_incremental_map_update(
                 build_map,
                 plan.chunk_origins.into_iter().collect(),
+                jobs,
             );
             return true;
         }
-        Self::apply_geometry_owner_replacement(new_map, plan)
+        Self::apply_geometry_owner_replacement(new_map, plan, jobs)
     }
 
     pub(crate) fn try_incremental_map_edit(
@@ -1708,6 +1717,7 @@ impl ToolList {
                 crate::utils::editor_scene_replace_incremental_map_update(
                     new_map.clone(),
                     dirty_chunks,
+                    &server_ctx.jobs,
                 );
                 return true;
             }
@@ -1715,12 +1725,12 @@ impl ToolList {
         }
 
         if let Some(dirty_chunks) = Self::changed_rect_paint_chunks(old_map, new_map) {
-            crate::utils::editor_scene_incremental_map_update(new_map.clone(), dirty_chunks);
+            crate::utils::editor_scene_incremental_map_update(new_map.clone(), dirty_chunks, &server_ctx.jobs);
             return true;
         }
 
         if let Some(plan) = Self::changed_geometry_replacement_plan(old_map, new_map) {
-            return Self::apply_geometry_scene_update(new_map, plan);
+            return Self::apply_geometry_scene_update(new_map, plan, &server_ctx.jobs);
         }
 
         false
@@ -1731,7 +1741,7 @@ impl ToolList {
         new_map: &Map,
     ) -> Option<Vec<(i32, i32)>> {
         // Scene streaming uses world-space chunks; this is unrelated to tile resolution.
-        let chunk_size = SCENEMANAGER.read().unwrap().chunk_size();
+        let chunk_size = rusterix::scenemanager::SceneManager::DEFAULT_CHUNK_SIZE;
         Self::changed_d2_rect_paint_chunks_with_size(old_map, new_map, chunk_size)
     }
 
@@ -1855,6 +1865,7 @@ impl ToolList {
             crate::utils::editor_scene_replace_incremental_map_update(
                 map.clone(),
                 chunk_origins.into_iter().collect(),
+                &server_ctx.jobs,
             );
             return true;
         }
@@ -1930,6 +1941,7 @@ impl ToolList {
                             chunk_origins: live_chunk_origins,
                             include_terrain: false,
                         },
+                        &server_ctx.jobs,
                     );
                 }
             }
@@ -1937,6 +1949,7 @@ impl ToolList {
             crate::utils::editor_scene_replace_incremental_map_update(
                 map.clone(),
                 chunk_origins.into_iter().collect(),
+                &server_ctx.jobs,
             );
             return true;
         }
@@ -1948,6 +1961,7 @@ impl ToolList {
                 chunk_origins,
                 include_terrain,
             },
+            &server_ctx.jobs,
         )
     }
 
@@ -2494,6 +2508,7 @@ impl ToolList {
                             crate::utils::editor_scene_incremental_map_update(
                                 (**new_map).clone(),
                                 dirty_chunks,
+                                &server_ctx.jobs,
                             );
                             used_incremental_scene_update = true;
                         }
@@ -2501,7 +2516,7 @@ impl ToolList {
                             && let ProjectUndoAtom::MapEdit(_, _, new_map) = &undo_atom
                         {
                             used_incremental_scene_update =
-                                Self::apply_geometry_scene_update(new_map, plan);
+                                Self::apply_geometry_scene_update(new_map, plan, &server_ctx.jobs);
                         }
                         if !used_incremental_scene_update {
                             crate::utils::editor_scene_full_rebuild(project, server_ctx);
@@ -2517,7 +2532,7 @@ impl ToolList {
                         } else {
                             let prefabs = project.block_props.clone();
                             RUSTERIX.write().unwrap().set_block_props(prefabs.clone());
-                            SCENEMANAGER.write().unwrap().set_block_props(prefabs);
+                            server_ctx.jobs.scene_mut().set_block_props(prefabs);
                         }
                     }
                     if let ProjectUndoAtom::MapEdit(_, old_map, new_map) = &undo_atom {
@@ -2677,7 +2692,7 @@ impl ToolList {
             };
             if should_forward_to_tool {
                 return self.editor_tools[self.curr_editor_tool]
-                    .handle_event(event, ui, ctx, project, server_ctx);
+                    .handle_event(event, ui, ctx, project, &mut server_ctx.shared, &server_ctx.jobs);
             }
         }
 

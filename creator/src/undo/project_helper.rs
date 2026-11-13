@@ -1,4 +1,4 @@
-use crate::editor::{DOCKMANAGER, PALETTE, RUSTERIX, SCENEMANAGER, TOOLLIST};
+use crate::editor::{DOCKMANAGER, PALETTE, RUSTERIX, TOOLLIST};
 use crate::prelude::*;
 use rusterix::material_library::MATERIAL_PRESET_NAMES;
 use theframework::prelude::*;
@@ -980,7 +980,7 @@ pub fn palette_status_text(
     }
 }
 
-pub fn refresh_palette_runtime(project: &Project) {
+pub fn refresh_palette_runtime(project: &Project, jobs: &CreatorJobs) {
     *PALETTE.write().unwrap() = project.palette.clone();
     let (tile_list, tile_indices) = {
         let mut rusterix = RUSTERIX.write().unwrap();
@@ -995,11 +995,9 @@ pub fn refresh_palette_runtime(project: &Project) {
             rusterix.assets.tile_indices.clone(),
         )
     };
-    SCENEMANAGER
-        .write()
-        .unwrap()
+    jobs.scene_mut()
         .set_tile_list(tile_list, tile_indices);
-    SCENEMANAGER.write().unwrap().set_palette(
+    jobs.scene_mut().set_palette(
         project.palette.clone(),
         palette_material_values(project),
         palette_material_ids(project),

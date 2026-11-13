@@ -1,4 +1,4 @@
-use crate::editor::{RUSTERIX, SCENEMANAGER, UNDOMANAGER};
+use crate::editor::{RUSTERIX, UNDOMANAGER};
 use crate::prelude::*;
 
 #[derive(Clone, Copy)]
@@ -60,9 +60,7 @@ impl PrefabAction {
             let mut rusterix = RUSTERIX.write().unwrap();
             rusterix.set_block_props(project.block_props.clone());
         }
-        SCENEMANAGER
-            .write()
-            .unwrap()
+        server_ctx.jobs.scene_mut()
             .set_block_props(project.block_props.clone());
 
         let updated_incrementally = before

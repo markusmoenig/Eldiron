@@ -340,7 +340,12 @@ fn add_bbox_dirty_chunks(bbox: rusterix::BBox, chunks: &mut FxHashSet<(i32, i32)
     }
 }
 
-fn refresh_geometry_topology_edit(old_map: Option<&Map>, map: &Map, ctx: &mut TheContext) {
+fn refresh_geometry_topology_edit(
+    old_map: Option<&Map>,
+    map: &Map,
+    ctx: &mut TheContext,
+    jobs: &CreatorJobs,
+) {
     let mut dirty_chunks = FxHashSet::default();
     if let Some(old_map) = old_map {
         for object in &old_map.geometry_objects {
@@ -359,6 +364,7 @@ fn refresh_geometry_topology_edit(old_map: Option<&Map>, map: &Map, ctx: &mut Th
         crate::utils::editor_scene_replace_incremental_map_update(
             map.clone(),
             dirty_chunks.into_iter().collect(),
+            jobs,
         );
     } else {
         RUSTERIX.write().unwrap().set_dirty();
@@ -3672,6 +3678,7 @@ impl Tool for GeometryTool {
                     crate::utils::editor_scene_replace_incremental_map_update(
                         map.clone(),
                         dirty_chunks.into_iter().collect(),
+                        &server_ctx.jobs,
                     );
                 }
                 RUSTERIX.write().unwrap().set_overlay_dirty();
@@ -3714,7 +3721,7 @@ impl Tool for GeometryTool {
                             normalize_geometry_faces_for_object(map, drag.object_id);
                         if topology_changed {
                             sanitize_geometry_selection(map);
-                            refresh_geometry_topology_edit(Some(&old_map), map, ctx);
+                            refresh_geometry_topology_edit(Some(&old_map), map, ctx, &server_ctx.jobs);
                         }
                     }
                     return Some(ProjectUndoAtom::MapEdit(
@@ -3763,7 +3770,7 @@ impl Tool for GeometryTool {
 
                 if delete_selected_geometry_faces(map) || delete_selected_geometry_vertices(map) {
                     sanitize_geometry_selection(map);
-                    refresh_geometry_topology_edit(Some(&old_map), map, ctx);
+                    refresh_geometry_topology_edit(Some(&old_map), map, ctx, &server_ctx.jobs);
                     return Some(ProjectUndoAtom::MapEdit(
                         server_ctx.pc,
                         Box::new(old_map),
@@ -3777,7 +3784,7 @@ impl Tool for GeometryTool {
                 map.selected_geometry_objects.clear();
                 map.selected_geometry_vertices.clear();
                 map.selected_geometry_faces.clear();
-                refresh_geometry_topology_edit(Some(&old_map), map, ctx);
+                refresh_geometry_topology_edit(Some(&old_map), map, ctx, &server_ctx.jobs);
                 Some(ProjectUndoAtom::MapEdit(
                     server_ctx.pc,
                     Box::new(old_map),
@@ -3833,7 +3840,7 @@ impl Tool for GeometryTool {
                     if !rotate_selected_geometry_objects(map, axis, 1) {
                         return None;
                     }
-                    refresh_geometry_topology_edit(Some(&old_map), map, ctx);
+                    refresh_geometry_topology_edit(Some(&old_map), map, ctx, &server_ctx.jobs);
                     return Some(ProjectUndoAtom::MapEdit(
                         server_ctx.pc,
                         Box::new(old_map),
@@ -3847,7 +3854,7 @@ impl Tool for GeometryTool {
                         return None;
                     }
                     sanitize_geometry_selection(map);
-                    refresh_geometry_topology_edit(Some(&old_map), map, ctx);
+                    refresh_geometry_topology_edit(Some(&old_map), map, ctx, &server_ctx.jobs);
                     return Some(ProjectUndoAtom::MapEdit(
                         server_ctx.pc,
                         Box::new(old_map),
@@ -3862,7 +3869,7 @@ impl Tool for GeometryTool {
                     }
                     normalize_selected_geometry_object_faces(map);
                     sanitize_geometry_selection(map);
-                    refresh_geometry_topology_edit(Some(&old_map), map, ctx);
+                    refresh_geometry_topology_edit(Some(&old_map), map, ctx, &server_ctx.jobs);
                     return Some(ProjectUndoAtom::MapEdit(
                         server_ctx.pc,
                         Box::new(old_map),
@@ -3877,7 +3884,7 @@ impl Tool for GeometryTool {
                     }
                     normalize_selected_geometry_object_faces(map);
                     sanitize_geometry_selection(map);
-                    refresh_geometry_topology_edit(Some(&old_map), map, ctx);
+                    refresh_geometry_topology_edit(Some(&old_map), map, ctx, &server_ctx.jobs);
                     return Some(ProjectUndoAtom::MapEdit(
                         server_ctx.pc,
                         Box::new(old_map),
@@ -3948,7 +3955,7 @@ impl Tool for GeometryTool {
                     }
                     normalize_selected_geometry_object_faces(map);
                     sanitize_geometry_selection(map);
-                    refresh_geometry_topology_edit(Some(&old_map), map, ctx);
+                    refresh_geometry_topology_edit(Some(&old_map), map, ctx, &server_ctx.jobs);
                     return Some(ProjectUndoAtom::MapEdit(
                         server_ctx.pc,
                         Box::new(old_map),

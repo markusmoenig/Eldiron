@@ -51,7 +51,7 @@ impl Action for ClearPalette {
         project.palette.clear();
         project.reset_all_palette_materials();
         apply_palette(ui, ctx, server_ctx, project);
-        crate::undo::project_helper::refresh_palette_runtime(project);
+        crate::undo::project_helper::refresh_palette_runtime(project, &server_ctx.jobs);
 
         let undo_atom = ProjectUndoAtom::PaletteEdit(
             prev,

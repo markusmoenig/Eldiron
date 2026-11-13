@@ -132,6 +132,7 @@ pub trait Dock: Send + Sync {
         &mut self,
         _ctx: &mut TheContext,
         _project: &mut Project,
+        _jobs: &CreatorJobs,
     ) -> Result<bool, String> {
         Ok(false)
     }

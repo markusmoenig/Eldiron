@@ -332,6 +332,7 @@ impl DockManager {
         &mut self,
         ctx: &mut TheContext,
         project: &mut Project,
+        jobs: &CreatorJobs,
     ) -> Result<bool, String> {
         let mut changed = false;
         let mut error = None;
@@ -340,7 +341,7 @@ impl DockManager {
             .values_mut()
             .chain(self.editor_docks.values_mut())
         {
-            match dock.commit_pending_edits(ctx, project) {
+            match dock.commit_pending_edits(ctx, project, jobs) {
                 Ok(applied) => changed |= applied,
                 Err(message) => {
                     if error.is_none() {
@@ -451,7 +452,7 @@ impl DockManager {
             let prefab_changed = crate::blocks::upgrade_bundled_prefab_geometry(project, asset_id)
                 | crate::blocks::ensure_prefab_default_surfaces(project, asset_id);
             if prefab_changed {
-                crate::undo::project_helper::refresh_palette_runtime(project);
+                crate::undo::project_helper::refresh_palette_runtime(project, &server_ctx.jobs);
             }
             if let Err(message) = crate::block_props::begin_prefab_editor(project, asset_id) {
                 ctx.ui
@@ -1019,6 +1020,7 @@ mod native_graph_owner_tests {
             &mut self,
             _: &mut TheContext,
             project: &mut Project,
+            _jobs: &CreatorJobs,
         ) -> Result<bool, String> {
             self.calls.fetch_add(1, Ordering::Relaxed);
             if self.fail {
@@ -1112,7 +1114,7 @@ mod native_graph_owner_tests {
         let mut project = Project::default();
         assert_eq!(
             manager
-                .commit_pending_edits(&mut ctx, &mut project)
+                .commit_pending_edits(&mut ctx, &mut project, &CreatorJobs::default())
                 .unwrap_err(),
             "invalid draft"
         );

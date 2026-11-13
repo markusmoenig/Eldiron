@@ -1,4 +1,4 @@
-use crate::editor::{DOCKMANAGER, RUSTERIX, SCENEMANAGER, TOOLLIST};
+use crate::editor::{DOCKMANAGER, RUSTERIX, TOOLLIST};
 use crate::prelude::*;
 use crate::toollist::ToolList;
 use shared::project::PaletteMaterial;
@@ -127,7 +127,7 @@ impl ProjectUndoAtom {
             }
             let prefabs = project.block_props.clone();
             RUSTERIX.write().unwrap().set_block_props(prefabs.clone());
-            SCENEMANAGER.write().unwrap().set_block_props(prefabs);
+            server_ctx.jobs.scene_mut().set_block_props(prefabs);
             if server_ctx.pc.is_prefab() {
                 let used_incremental = previous_map
                     .map(|previous| {
@@ -135,9 +135,7 @@ impl ProjectUndoAtom {
                     })
                     .unwrap_or(false);
                 if !used_incremental {
-                    SCENEMANAGER
-                        .write()
-                        .unwrap()
+                    server_ctx.jobs.scene_mut()
                         .update_map(restored_map.clone());
                 }
             } else {
@@ -172,7 +170,7 @@ impl ProjectUndoAtom {
                     ));
                     RUSTERIX.write().unwrap().set_dirty();
                 } else {
-                    SCENEMANAGER.write().unwrap().update_map(map.clone());
+                    server_ctx.jobs.scene_mut().update_map(map.clone());
                     update_region(ctx);
                 }
             } else if pc.is_screen() {
@@ -213,7 +211,7 @@ impl ProjectUndoAtom {
             *region = restored_region.clone();
             region.map.clear_temp();
             region.map.update_surfaces();
-            SCENEMANAGER.write().unwrap().update_map(region.map.clone());
+            server_ctx.jobs.scene_mut().update_map(region.map.clone());
             update_region(ctx);
         }
         if !preserved_dock.is_empty() && DOCKMANAGER.read().unwrap().dock != preserved_dock {
@@ -276,6 +274,7 @@ impl ProjectUndoAtom {
         ctx: &mut TheContext,
         asset_id: Uuid,
         restored_asset: &rusterix::BlockPropAsset,
+        jobs: &CreatorJobs,
     ) {
         project.block_props.insert(asset_id, restored_asset.clone());
         let prefabs = project.block_props.clone();
@@ -284,7 +283,7 @@ impl ProjectUndoAtom {
             rusterix.set_block_props(prefabs.clone());
             rusterix.scene_handler.reset_geometry_particle_emitters();
         }
-        SCENEMANAGER.write().unwrap().set_block_props(prefabs);
+        jobs.scene_mut().set_block_props(prefabs);
         ctx.ui.send(TheEvent::Custom(
             TheId::named(crate::docks::blocks::BLOCKS_DOCK_SYNC_EVENT),
             TheValue::Empty,
@@ -297,9 +296,10 @@ impl ProjectUndoAtom {
         ctx: &mut TheContext,
         change: &shared::prefab_graph::PrefabGraphChange,
         forward: bool,
+        jobs: &CreatorJobs,
     ) {
         if change.apply(project, forward) {
-            crate::block_props::sync_existing_prefab_presentations(project);
+            crate::block_props::sync_existing_prefab_presentations(project, jobs);
             ctx.ui.send(TheEvent::Custom(
                 TheId::named(crate::docks::blocks::BLOCKS_DOCK_SYNC_EVENT),
                 TheValue::Empty,
@@ -432,10 +432,10 @@ impl ProjectUndoAtom {
                 Self::apply_prefab_paint_state(project, ctx, *asset_id, old);
             }
             PrefabAssetEdit(asset_id, old, _) => {
-                Self::apply_prefab_asset_state(project, ctx, *asset_id, old);
+                Self::apply_prefab_asset_state(project, ctx, *asset_id, old, &server_ctx.jobs);
             }
             PrefabGraphEdit(change) => {
-                Self::apply_prefab_graph_state(project, ctx, change, false);
+                Self::apply_prefab_graph_state(project, ctx, change, false, &server_ctx.jobs);
             }
             MapMaterialCompositionCreate(pc, old, new, created) => {
                 project.remove_tile(&created.tile.id);
@@ -1102,7 +1102,7 @@ impl ProjectUndoAtom {
             PaletteSwitch(old, _) => {
                 old.apply(project);
                 apply_palette(ui, ctx, server_ctx, project);
-                crate::undo::project_helper::refresh_palette_runtime(project);
+                crate::undo::project_helper::refresh_palette_runtime(project, &server_ctx.jobs);
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Palette Changed"),
                     TheValue::Empty,
@@ -1115,7 +1115,7 @@ impl ProjectUndoAtom {
                 project.palette_materials = old_materials.clone();
                 project.ensure_palette_materials_len();
                 apply_palette(ui, ctx, server_ctx, project);
-                crate::undo::project_helper::refresh_palette_runtime(project);
+                crate::undo::project_helper::refresh_palette_runtime(project, &server_ctx.jobs);
             }
             TileEdit(old, _new) => {
                 project.tiles.insert(old.id, old.clone());
@@ -1161,10 +1161,10 @@ impl ProjectUndoAtom {
                 Self::apply_prefab_paint_state(project, ctx, *asset_id, new);
             }
             PrefabAssetEdit(asset_id, _, new) => {
-                Self::apply_prefab_asset_state(project, ctx, *asset_id, new);
+                Self::apply_prefab_asset_state(project, ctx, *asset_id, new, &server_ctx.jobs);
             }
             PrefabGraphEdit(change) => {
-                Self::apply_prefab_graph_state(project, ctx, change, true);
+                Self::apply_prefab_graph_state(project, ctx, change, true, &server_ctx.jobs);
             }
             MapMaterialCompositionCreate(pc, old, new, created) => {
                 created.install(project);
@@ -1947,7 +1947,7 @@ impl ProjectUndoAtom {
             PaletteSwitch(_, new) => {
                 new.apply(project);
                 apply_palette(ui, ctx, server_ctx, project);
-                crate::undo::project_helper::refresh_palette_runtime(project);
+                crate::undo::project_helper::refresh_palette_runtime(project, &server_ctx.jobs);
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Palette Changed"),
                     TheValue::Empty,
@@ -1960,7 +1960,7 @@ impl ProjectUndoAtom {
                 project.palette_materials = new_materials.clone();
                 project.ensure_palette_materials_len();
                 apply_palette(ui, ctx, server_ctx, project);
-                crate::undo::project_helper::refresh_palette_runtime(project);
+                crate::undo::project_helper::refresh_palette_runtime(project, &server_ctx.jobs);
             }
             TileEdit(_old, new) => {
                 project.tiles.insert(new.id, new.clone());
@@ -2078,7 +2078,7 @@ mod tests {
         let isolated = std::env::var_os("ELDIRON_NATIVE_PREFAB_ISOLATED").is_some();
         if isolated {
             assert!(crate::editor::reference_runtime().is_none());
-            assert!(std::sync::LazyLock::get(&SCENEMANAGER).is_none());
+            // No process-global scene preparation service exists.
         }
         let mut project = Project::default();
         let mut asset = rusterix::BlockPropAsset::new("Undo scope");
@@ -2107,6 +2107,7 @@ mod tests {
         let mut ui = TheUI::new();
         let mut ctx = TheContext::new(64, 64, 1.);
         let mut server_ctx = ServerContext::default();
+        assert!(!server_ctx.jobs.scene_initialized());
         let mut history = crate::undo::project_undo::ProjectUndo::new();
         history.add(atom);
         history.mark_saved();
@@ -2130,7 +2131,7 @@ mod tests {
         }
         if isolated {
             assert!(crate::editor::reference_runtime().is_none());
-            assert!(std::sync::LazyLock::get(&SCENEMANAGER).is_none());
+            assert!(!server_ctx.jobs.scene_initialized());
         }
     }
 

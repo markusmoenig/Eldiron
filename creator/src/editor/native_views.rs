@@ -217,7 +217,7 @@ impl Editor {
             let map = crate::minimap::native_scene::overview_map(&self.documents.project, &self.server_ctx)
                 .map(|(map, _)| map);
             let ready = map.is_some_and(|map| {
-                let builds = SCENEMANAGER.read().unwrap();
+                let builds = self.server_ctx.jobs.scene();
                 !builds.has_pending_geometry() && builds.source_matches(map.id, map.camera)
             });
             self.sidebar.minimap_scene.prepare(
@@ -429,7 +429,7 @@ impl Editor {
         self.server_ctx.curr_block_asset_id = Some(id);
         self.server_ctx.curr_block_asset_name = Some(asset.name.clone());
         self.documents.project.block_props.insert(id, asset);
-        crate::block_props::sync_existing_prefab_presentations(&self.documents.project);
+        crate::block_props::sync_existing_prefab_presentations(&self.documents.project, &self.server_ctx.jobs);
         let mut docks = DOCKMANAGER.write().unwrap();
         docks.set_dock(
             "Prefabs".into(),
@@ -457,7 +457,7 @@ impl Editor {
     }
     pub(crate) fn rename_native_prefab_for_test(&mut self, id: Uuid, name: &str) {
         self.documents.project.block_props.get_mut(&id).unwrap().name = name.into();
-        crate::block_props::sync_existing_prefab_presentations(&self.documents.project);
+        crate::block_props::sync_existing_prefab_presentations(&self.documents.project, &self.server_ctx.jobs);
     }
     pub(crate) fn begin_native_play_for_test(
         &mut self,

@@ -11,6 +11,7 @@ pub use tile_picker::*;
 pub use tile_select::*;
 
 use shared::prelude::*;
+use crate::creator_context::CreatorJobs;
 use theframework::prelude::*;
 
 /// Tool trait for dock editors (like tile editor, tilemap editor, etc.)
@@ -41,6 +42,7 @@ pub trait EditorTool: Send + Sync {
         ctx: &mut TheContext,
         project: &mut Project,
         server_ctx: &mut ServerContext,
+        jobs: &CreatorJobs,
     ) -> bool {
         false
     }

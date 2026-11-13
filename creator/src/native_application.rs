@@ -369,7 +369,7 @@ mod tests {
         // External services are unrelated to offscreen UI verification.
         application.start_services = false;
         let mut app = UiApplicationAdapter::new(application);
-        app.application.editor.check_camera_ownership_for_test();
+        app.application.editor.check_context_ownership_for_test();
         let mut host = HostContext::new((1200, 800));
         app.initialize(&mut host, &mut registry).unwrap();
         let authored =
@@ -592,18 +592,14 @@ mod tests {
         // a new world pick. This is the application's normal update path.
         for _ in 0..64 {
             app.update(&mut host, Duration::from_millis(16));
-            if !crate::editor::SCENEMANAGER
-                .read()
-                .unwrap()
+            if !app.application.editor.reference_jobs_for_test().scene()
                 .has_pending_geometry()
             {
                 break;
             }
         }
         assert!(
-            !crate::editor::SCENEMANAGER
-                .read()
-                .unwrap()
+            !app.application.editor.reference_jobs_for_test().scene()
                 .has_pending_geometry()
         );
         assert_eq!(
@@ -699,7 +695,7 @@ mod tests {
                     _ => rusterix::MapCamera::ThreeDIso,
                 };
                 let ready = camera_index == 1 || {
-                    let builds = crate::editor::SCENEMANAGER.read().unwrap();
+                    let builds = app.application.editor.reference_jobs_for_test().scene();
                     !builds.has_pending_geometry()
                         && builds.source_matches(
                             app.application.editor.project_for_native_test().regions[0]
@@ -1301,7 +1297,7 @@ mod tests {
         loop {
             app.update(&mut host, Duration::from_millis(16));
             let ready = {
-                let builds = crate::editor::SCENEMANAGER.read().unwrap();
+                let builds = app.application.editor.reference_jobs_for_test().scene();
                 !builds.has_pending_geometry()
                     && builds.source_matches(
                         app.application.editor.project_for_native_test().regions[0]

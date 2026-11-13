@@ -1,11 +1,15 @@
 //! Creator-owned authoring services. Shared runtime/project helpers receive the
 //! CPU context through explicit borrows; they never own the editor's camera.
+mod jobs;
+pub use jobs::CreatorJobs;
+
 use crate::editcamera::EditCamera;
 use std::ops::{Deref, DerefMut};
 
 pub struct CreatorContext {
     pub shared: shared::context::ServerContext,
     pub camera: EditCamera,
+    pub jobs: CreatorJobs,
 }
 impl Default for CreatorContext {
     fn default() -> Self {
@@ -17,6 +21,7 @@ impl CreatorContext {
         Self {
             shared: shared::context::ServerContext::new(),
             camera: EditCamera::new(),
+            jobs: CreatorJobs::default(),
         }
     }
 }

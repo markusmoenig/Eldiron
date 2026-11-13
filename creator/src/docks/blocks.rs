@@ -7,7 +7,7 @@ use crate::blocks::{
     localized_block_asset_description, localized_block_asset_name, prefab_object_default_color,
     prefab_uses_auto_sizing, upgrade_bundled_prefab_geometry,
 };
-use crate::editor::{RUSTERIX, SCENEMANAGER, UNDOMANAGER};
+use crate::editor::{RUSTERIX, UNDOMANAGER};
 use crate::prelude::*;
 use rusterix::D3Camera;
 use std::collections::HashMap;
@@ -814,9 +814,7 @@ impl BlocksDock {
                     .write()
                     .unwrap()
                     .set_block_props(project.block_props.clone());
-                SCENEMANAGER
-                    .write()
-                    .unwrap()
+                server_ctx.jobs.scene_mut()
                     .set_block_props(project.block_props.clone());
                 crate::utils::editor_scene_refresh_prefab_assets(&before, project, server_ctx);
                 UNDOMANAGER.write().unwrap().add_undo(
@@ -903,7 +901,7 @@ impl BlocksDock {
             duplicate_name.clone(),
         );
         if ensure_prefab_default_surfaces(project, duplicate_id) {
-            crate::undo::project_helper::refresh_palette_runtime(project);
+            crate::undo::project_helper::refresh_palette_runtime(project, &server_ctx.jobs);
         }
         self.selected = duplicate_id;
         self.active_tab = BlockCatalogTab::User;
@@ -914,9 +912,7 @@ impl BlocksDock {
             .write()
             .unwrap()
             .set_block_props(project.block_props.clone());
-        SCENEMANAGER
-            .write()
-            .unwrap()
+        server_ctx.jobs.scene_mut()
             .set_block_props(project.block_props.clone());
         crate::utils::editor_scene_refresh_prefab_assets(&before, project, server_ctx);
         UNDOMANAGER.write().unwrap().add_undo(
@@ -1724,15 +1720,13 @@ impl Dock for BlocksDock {
                     let palette_changed = project.palette != palette_before
                         || project.palette_materials != palette_materials_before;
                     if palette_changed {
-                        crate::undo::project_helper::refresh_palette_runtime(project);
+                        crate::undo::project_helper::refresh_palette_runtime(project, &server_ctx.jobs);
                     }
                     RUSTERIX
                         .write()
                         .unwrap()
                         .set_block_props(project.block_props.clone());
-                    SCENEMANAGER
-                        .write()
-                        .unwrap()
+                    server_ctx.jobs.scene_mut()
                         .sync_block_props(project.block_props.clone());
                 }
                 self.selected = asset_id;
