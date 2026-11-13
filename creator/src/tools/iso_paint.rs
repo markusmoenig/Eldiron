@@ -112,6 +112,8 @@ impl IsoPaintSelectionProjection {
 pub struct IsoPaintTool {
     overlay: super::paint_overlay::PaintOverlay,
     id: TheId,
+    view_input: Option<ToolViewInput>,
+    native_input: bool,
     painting: bool,
     previous_dock: Option<String>,
     active_stroke: Option<Uuid>,
@@ -119,7 +121,7 @@ pub struct IsoPaintTool {
     stamp_clip_geo: Option<[u32; 4]>,
     stroke_before: Option<IsoPaintLayer>,
     stroke_changed: bool,
-    paint_surface_cache: Option<scenevm::PaintSurfaceBuffer>,
+    paint_surface_cache: Option<std::sync::Arc<scenevm::PaintSurfaceBuffer>>,
     selection_drag_start: Option<Vec2<i32>>,
     selection_projection: Option<IsoPaintSelectionProjection>,
     selection_move_bounds: Option<[f32; 4]>,
@@ -715,44 +717,55 @@ impl IsoPaintTool {
     }
 
     fn paint_point(
+        &self,
         coord: Vec2<i32>,
         server_ctx: &ServerContext,
         viewport_size: Option<[i32; 2]>,
     ) -> IsoPaintPoint {
         // Read the dedicated paint coordinate emitted by the actual rasterized triangle. It is
         // intentionally separate from the material texture UV, which may repeat across tiles.
-        let (raster_surface, brush_transform) = viewport_size
-            .and_then(|[width, height]| {
-                if width <= 0 || height <= 0 {
-                    return None;
-                }
-                RUSTERIX.read().ok().and_then(|rusterix| {
-                    let screen_uv = [
-                        coord.x as f32 / width as f32,
-                        coord.y as f32 / height as f32,
-                    ];
-                    let surface = rusterix.scene_handler.vm.pick_paint_surface_at_uv(
-                        width as u32,
-                        height as u32,
-                        screen_uv,
-                    )?;
-                    let brush_transform = rusterix.scene_handler.vm.paint_surface_brush_transform(
-                        width as u32,
-                        height as u32,
-                        screen_uv,
-                        &surface,
-                    );
-                    Some((surface, brush_transform))
+        let (raster_surface, brush_transform) = if self.native_input {
+            self.view_input
+                .as_ref()
+                .and_then(|input| input.paint.as_ref())
+                .map_or((None, None), |p| (p.surface, p.brush_transform))
+        } else {
+            viewport_size
+                .and_then(|[width, height]| {
+                    if width <= 0 || height <= 0 {
+                        return None;
+                    }
+                    RUSTERIX.read().ok().and_then(|rusterix| {
+                        let screen_uv = [
+                            coord.x as f32 / width as f32,
+                            coord.y as f32 / height as f32,
+                        ];
+                        let surface = rusterix.scene_handler.vm.pick_paint_surface_at_uv(
+                            width as u32,
+                            height as u32,
+                            screen_uv,
+                        )?;
+                        let brush_transform =
+                            rusterix.scene_handler.vm.paint_surface_brush_transform(
+                                width as u32,
+                                height as u32,
+                                screen_uv,
+                                &surface,
+                            );
+                        Some((surface, brush_transform))
+                    })
                 })
-            })
-            .map_or((None, None), |(surface, transform)| {
-                (Some(surface), transform)
-            });
+                .map_or((None, None), |(surface, transform)| {
+                    (Some(surface), transform)
+                })
+        };
         let owner = raster_surface
             .as_ref()
             .map(|surface| Self::owner_from_geo_id(surface.geo_id))
             .or_else(|| server_ctx.geo_hit.map(Self::owner_from_geo_id));
-        let world = if server_ctx.geo_hit.is_some() {
+        let world = if self.native_input && raster_surface.is_some() {
+            raster_surface.map(|surface| Vec3::from(surface.world))
+        } else if server_ctx.geo_hit.is_some() {
             Some(server_ctx.geo_hit_pos)
         } else {
             server_ctx.hover_cursor_3d
@@ -775,10 +788,7 @@ impl IsoPaintTool {
                     .as_ref()
                     .map(|surface| surface.plane.normal)
             });
-        let camera_scale = RUSTERIX
-            .read()
-            .ok()
-            .map(|rusterix| rusterix.client.camera_d3.scale());
+        let camera_scale = self.camera_scale();
         IsoPaintPoint::new([coord.x, coord.y], world, owner)
             .with_surface_uv(surface_uv)
             .with_paint_geo(raster_surface.map(|surface| surface.paint_geo))
@@ -788,9 +798,23 @@ impl IsoPaintTool {
             .with_brush_transform(brush_transform)
     }
 
+    fn camera_scale(&self) -> Option<f32> {
+        if self.native_input {
+            self.view_input.as_ref()?.camera.map(|c| match c.kind {
+                scenevm::CameraKind::OrthoIso => c.ortho_half_h,
+                _ => 1.,
+            })
+        } else {
+            RUSTERIX.read().ok().map(|r| r.client.camera_d3.scale())
+        }
+    }
     fn capture_paint_surface(
+        &self,
         viewport_size: Option<[i32; 2]>,
-    ) -> Option<scenevm::PaintSurfaceBuffer> {
+    ) -> Option<std::sync::Arc<scenevm::PaintSurfaceBuffer>> {
+        if self.native_input {
+            return self.view_input.as_ref()?.paint.as_ref()?.capture.clone();
+        }
         let [width, height] = viewport_size?;
         if width <= 0 || height <= 0 {
             return None;
@@ -808,8 +832,8 @@ impl IsoPaintTool {
                         .paint_surface_buffer(width as u32, height as u32),
                 )
             })
+            .map(std::sync::Arc::new)
     }
-
     fn surface_pixel_derivative(
         buffer: &scenevm::PaintSurfaceBuffer,
         x: i32,
@@ -976,10 +1000,7 @@ impl IsoPaintTool {
         let clip_owner = faces
             .first()
             .map(|entry| Self::owner_from_geo_id(entry.3.geo_id));
-        let camera_scale = RUSTERIX
-            .read()
-            .ok()
-            .map(|rusterix| rusterix.client.camera_d3.scale());
+        let camera_scale = self.camera_scale();
         faces
             .into_iter()
             .filter(|(_, _, _, pixel)| {
@@ -1011,6 +1032,7 @@ impl IsoPaintTool {
     }
 
     fn selection_projection(
+        &self,
         buffer: &scenevm::PaintSurfaceBuffer,
         start: Vec2<i32>,
         _map: &Map,
@@ -1055,7 +1077,11 @@ impl IsoPaintTool {
         // Use the exact camera that produced the surface buffer. Reconstructing it from the
         // editor camera can differ in its resolved center and shifts the projected outline away
         // from the pixels that will be committed on release.
-        let camera = RUSTERIX.read().ok()?.scene_handler.vm.vm.camera3d;
+        let camera = if self.native_input {
+            self.view_input.as_ref()?.camera?
+        } else {
+            RUSTERIX.read().ok()?.scene_handler.vm.vm.camera3d
+        };
         Some(IsoPaintSelectionProjection {
             owner,
             origin_world,
@@ -1068,7 +1094,6 @@ impl IsoPaintTool {
             viewport,
         })
     }
-
     fn selection_hit_pixel(
         buffer: &scenevm::PaintSurfaceBuffer,
         coord: Vec2<i32>,
@@ -1279,6 +1304,8 @@ impl Tool for IsoPaintTool {
         Self {
             overlay: Default::default(),
             id: TheId::named("3D Paint Tool"),
+            view_input: None,
+            native_input: false,
             painting: false,
             previous_dock: None,
             active_stroke: None,
@@ -1309,7 +1336,17 @@ impl Tool for IsoPaintTool {
         Some(&mut self.overlay)
     }
     fn set_native_overlay_input(&mut self, native: bool) {
+        self.native_input = native;
         self.overlay.set_native_input(native);
+    }
+    fn set_view_input(&mut self, input: Option<ToolViewInput>) {
+        self.view_input = input;
+    }
+    fn view_surface_capture(&self, event: &MapEvent) -> bool {
+        matches!(event, MapEvent::MapClicked(_))
+            && self.overlay.controls().is_some_and(|c| {
+                c.operation != "pick" && (c.operation == "select" || c.mode != "stamp")
+            })
     }
     fn clear_paint_overlay_hover(&mut self, server: &mut ServerContext) {
         self.terrain_hover = None;
@@ -1628,14 +1665,14 @@ impl Tool for IsoPaintTool {
                     Self::sync_live_paint_settings(ui, &mut region.iso_paint);
                 }
                 if region.iso_paint.active_operation == "pick" {
-                    let point = Self::paint_point(coord, server_ctx, viewport_size);
+                    let point = self.paint_point(coord, server_ctx, viewport_size);
                     Self::pick_paint_color(&mut region.iso_paint, &point, ctx);
                     return None;
                 }
                 self.painting = true;
                 self.stroke_before = Some(region.iso_paint.clone());
                 if region.iso_paint.active_operation == "select" {
-                    self.paint_surface_cache = Self::capture_paint_surface(viewport_size);
+                    self.paint_surface_cache = self.capture_paint_surface(viewport_size);
                     let move_hit = self.paint_surface_cache.as_ref().and_then(|buffer| {
                         region.iso_paint.active_selection().and_then(|selection| {
                             Self::selection_hit_pixel(buffer, coord, selection)
@@ -1644,7 +1681,7 @@ impl Tool for IsoPaintTool {
                     self.selection_projection = self
                         .paint_surface_cache
                         .as_ref()
-                        .and_then(|buffer| Self::selection_projection(buffer, coord, &region.map));
+                        .and_then(|buffer| self.selection_projection(buffer, coord, &region.map));
                     self.selection_grid_step =
                         ServerContext::edit_grid_step(region.map.subdivisions).max(0.01);
                     let selection_grid_step = self.selection_grid_step;
@@ -1681,7 +1718,7 @@ impl Tool for IsoPaintTool {
                     return None;
                 }
                 if Self::is_stamp_mode(&region.iso_paint) {
-                    let point = Self::paint_point(coord, server_ctx, viewport_size);
+                    let point = self.paint_point(coord, server_ctx, viewport_size);
                     self.stamp_clip_geo = Self::stamp_clip_geo(&region.iso_paint, &point);
                     let clip_geo = self.stamp_clip_geo;
                     let changed = Self::apply_stamp_at(&mut region.iso_paint, point, clip_geo);
@@ -1699,11 +1736,11 @@ impl Tool for IsoPaintTool {
                     ));
                     return None;
                 }
-                self.paint_surface_cache = Self::capture_paint_surface(viewport_size);
+                self.paint_surface_cache = self.capture_paint_surface(viewport_size);
                 let mut projected_points =
                     self.projected_paint_points(coord, &region.iso_paint, viewport_size);
                 let point = if projected_points.is_empty() {
-                    Self::paint_point(coord, server_ctx, viewport_size)
+                    self.paint_point(coord, server_ctx, viewport_size)
                 } else {
                     projected_points.remove(0)
                 };
@@ -1760,7 +1797,7 @@ impl Tool for IsoPaintTool {
                         region.iso_paint.active_stamp_density,
                     )
                 {
-                    let point = Self::paint_point(coord, server_ctx, viewport_size);
+                    let point = self.paint_point(coord, server_ctx, viewport_size);
                     let changed =
                         Self::apply_stamp_at(&mut region.iso_paint, point, self.stamp_clip_geo);
                     if changed {
@@ -1776,7 +1813,7 @@ impl Tool for IsoPaintTool {
                     let projected_points =
                         self.projected_paint_points(coord, &region.iso_paint, viewport_size);
                     let changed = if projected_points.is_empty() {
-                        let point = Self::paint_point(coord, server_ctx, viewport_size);
+                        let point = self.paint_point(coord, server_ctx, viewport_size);
                         region.iso_paint.append_point(stroke_id, point)
                     } else {
                         region
@@ -1841,7 +1878,7 @@ impl Tool for IsoPaintTool {
                         region.iso_paint.active_stamp_density,
                     )
                 {
-                    let point = Self::paint_point(coord, server_ctx, viewport_size);
+                    let point = self.paint_point(coord, server_ctx, viewport_size);
                     let changed =
                         Self::apply_stamp_at(&mut region.iso_paint, point, self.stamp_clip_geo);
                     self.stroke_changed |= changed;
@@ -1851,7 +1888,7 @@ impl Tool for IsoPaintTool {
                     let projected_points =
                         self.projected_paint_points(coord, &region.iso_paint, viewport_size);
                     let changed = if projected_points.is_empty() {
-                        let point = Self::paint_point(coord, server_ctx, viewport_size);
+                        let point = self.paint_point(coord, server_ctx, viewport_size);
                         region.iso_paint.append_point(stroke_id, point)
                     } else {
                         region

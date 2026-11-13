@@ -30,7 +30,7 @@ pub mod entity;
 pub mod overlay_frame;
 pub mod vertex;
 mod view_input;
-pub use view_input::ToolViewInput;
+pub use view_input::{ToolPaintInput, ToolViewInput};
 pub use overlay_frame::{
     ToolOverlayCommand, ToolOverlayFrame, ToolOverlayInputs, ToolOverlayTarget,
 };
@@ -129,6 +129,8 @@ pub trait Tool: Send + Sync {
 
     /// The viewport supplies checked CPU queries immediately before dispatch.
     fn set_view_input(&mut self, _input: Option<ToolViewInput>) {}
+    /// Request CPU authoring surface data for this event, independently of paint.
+    fn view_surface_capture(&self, _event: &MapEvent) -> bool { false }
     fn sync_overlay_sources(&mut self, _project: &Project, _server: &ServerContext) {}
     fn overlay_paint(&mut self) -> Option<&mut paint_overlay::PaintOverlay> { None }
     fn clear_paint_overlay_hover(&mut self, _server: &mut ServerContext) {}

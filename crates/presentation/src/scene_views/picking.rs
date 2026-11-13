@@ -178,3 +178,92 @@ impl SceneViews {
         Some(hits)
     }
 }
+
+/// Dedicated authoring coordinates from one completed view. A confirmed miss is
+/// distinct from unavailable output; the material UV is never substituted.
+#[derive(Clone, Copy, Debug)]
+pub struct EditorPaintPick {
+    pub output: ViewImage,
+    pub surface: Option<scenevm::PaintSurfacePixel>,
+    pub brush_transform: Option<[f32; 4]>,
+}
+/// Explicit CPU authoring data. Camera and output identify exactly the snapshot
+/// used by selection/projected strokes, independently of subsequent preparation.
+pub struct EditorPaintCapture {
+    pub output: ViewImage,
+    pub camera: scenevm::Camera3D,
+    pub buffer: std::sync::Arc<scenevm::PaintSurfaceBuffer>,
+}
+impl SceneViews {
+    pub fn pick_editor_paint(
+        &mut self,
+        displayed: ViewImage,
+        uv: [f32; 2],
+    ) -> Option<EditorPaintPick> {
+        if uv.iter().any(|v| !v.is_finite() || *v < 0. || *v >= 1.) || self.context.is_lost() {
+            return None;
+        }
+        let view = self.views.get_mut(&displayed.view)?;
+        if view.isometric
+            || view.dirty
+            || view.size.0 == 0
+            || view.size.1 == 0
+            || view.output != Some(displayed)
+        {
+            return None;
+        }
+        let vm = &mut view.scene.vm;
+        let active = vm.active_vm_index();
+        vm.set_active_vm(0);
+        let surface = vm
+            .pick_paint_surface_at_uv(view.size.0, view.size.1, uv)
+            .filter(|s| s.valid);
+        let brush_transform = surface.as_ref().and_then(|surface| {
+            vm.paint_surface_brush_transform(view.size.0, view.size.1, uv, surface)
+        });
+        vm.set_active_vm(active);
+        Some(EditorPaintPick {
+            output: displayed,
+            surface,
+            brush_transform,
+        })
+    }
+    /// Called only in response to an authoring request, never frame preparation
+    /// or ordinary picking. Existing GPU capture and explicit CPU fallback keep
+    /// identical static-surface policies; no reference VM/device is borrowed.
+    pub fn capture_editor_paint(&mut self, displayed: ViewImage) -> Option<EditorPaintCapture> {
+        if self.context.is_lost() {
+            return None;
+        }
+        let view = self.views.get_mut(&displayed.view)?;
+        if view.isometric
+            || view.dirty
+            || view.size.0 == 0
+            || view.size.1 == 0
+            || view.output != Some(displayed)
+        {
+            return None;
+        }
+        let vm = &mut view.scene.vm;
+        let active = vm.active_vm_index();
+        vm.set_active_vm(0);
+        let camera = vm.active_vm().camera3d;
+        #[cfg(not(target_arch = "wasm32"))]
+        let gpu_capture = vm.paint_surface_buffer_gpu(view.size.0, view.size.1);
+        #[cfg(target_arch = "wasm32")]
+        let gpu_capture: Option<scenevm::PaintSurfaceBuffer> = None;
+        let buffer = if let Some(buffer) = gpu_capture {
+            self.context
+                .record_capture(view.size.0 as u64 * view.size.1 as u64 * 32);
+            buffer
+        } else {
+            vm.paint_surface_buffer(view.size.0, view.size.1)
+        };
+        vm.set_active_vm(active);
+        Some(EditorPaintCapture {
+            output: displayed,
+            camera,
+            buffer: std::sync::Arc::new(buffer),
+        })
+    }
+}

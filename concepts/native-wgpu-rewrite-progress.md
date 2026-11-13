@@ -25,7 +25,7 @@ Started: 2026-11-11 (Asia/Bangkok). Overall Goal: active; full M0–M9 scope rem
 - M2: in progress. Paint/Swash/Parley pipeline and native/foreign hosts work; batching, resource lifetime budgets and full text/input parity remain.
 - M3: in progress. Every active built-in TheWidget implementation now has a command paint path, including procedural controls and the legacy node canvas. Complex Creator integration, full widget catalog parity and legacy adapter retirement remain.
 - M4: in progress. CPU schema/identity extraction, shared `GameSession`, CPU startup preparation, message/party/world-target policies and terminal adoption are implemented and tested. Per-session routing, local players, world values, runtime IDs and region context ownership now pass controlled overlapping-session and parallel assembled-player regressions. Graphical/Creator adoption and remaining bitmap/value data extraction remain; this evidence does not establish full simultaneous Creator Play workflows.
-- M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Immutable ordinary editor-view preparation, exact reference/native view outputs and retained CPU chunk publication are now available through SceneViews. Common HUD, paint/props panels, profile displays and ViewCube now have retained command frames, guarded input and actual GPU composition/reconstruction evidence. Six standard tools additionally emit ordered typed overlay aggregates with exact presented-frame and detail-profile source guards. Full-viewport profile editing is now connected to the actual native Creator root with document/widget binding, presentation-gated input and inline commit/cancel; ordinary stopped top-down, sprite-isometric and 3D region rendering and the six standard tool overlays now use the same native application owner and real tool dispatch. Orbit/orthographic/first-person views include depth-aware guides, retained ViewCube and explicit tool query snapshots; surface paint uses the view-owned GPU scene. The Terrain tool now also uses retained native controls and GPU brush guides with real sculpt/cancel integration. Rect now also uses presentation-gated composition/rotation controls, shared source sprite previews blitted on the GPU, terrain-conforming perimeters, and view-owned 3D queries; actual isometric placement and fractional-DPI sprite sampling pass in the assembled checkpoint. Isometric terrain Paint now also uses retained native controls, batched GPU brush feedback, update-phase editable source publication and the existing authoring/undo dispatch. 3D Paint and other contexts/tools and Play remain on their explicit migration adapters. Application/global/document/Play ownership, main world/tool/HUD integration, remaining producers, full visual/workflow/performance acceptance and canonical retirement remain.
+- M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Immutable ordinary editor-view preparation, exact reference/native view outputs and retained CPU chunk publication are now available through SceneViews. Common HUD, paint/props panels, profile displays and ViewCube now have retained command frames, guarded input and actual GPU composition/reconstruction evidence. Six standard tools additionally emit ordered typed overlay aggregates with exact presented-frame and detail-profile source guards. Full-viewport profile editing is now connected to the actual native Creator root with document/widget binding, presentation-gated input and inline commit/cancel; ordinary stopped top-down, sprite-isometric and 3D region rendering and the six standard tool overlays now use the same native application owner and real tool dispatch. Orbit/orthographic/first-person views include depth-aware guides, retained ViewCube and explicit tool query snapshots; surface paint uses the view-owned GPU scene. The Terrain tool now also uses retained native controls and GPU brush guides with real sculpt/cancel integration. Rect now also uses presentation-gated composition/rotation controls, shared source sprite previews blitted on the GPU, terrain-conforming perimeters, and view-owned 3D queries; actual isometric placement and fractional-DPI sprite sampling pass in the assembled checkpoint. Isometric terrain Paint now also uses retained native controls, batched GPU brush feedback, update-phase editable source publication and the existing authoring/undo dispatch. Native 3D Paint now also consumes dedicated scene-owned paint-coordinate queries and explicit authoring surface captures, with camera-scoped drafts and GPU composition; full Paint workflow/platform parity remains unverified. Other contexts/tools and Play remain on their explicit migration adapters. Application/global/document/Play ownership, main world/tool/HUD integration, remaining producers, full visual/workflow/performance acceptance and canonical retirement remain.
 - M6: in progress. Independent GPU game views, common player/input/camera components, authored screen paint, private world descriptions, view-owned speech, acknowledged-frame world pointer gestures, relative first-person mouse look, default/world-intent cursors, world/UI item drag previews and acknowledged authored inventory/equipment pointer/keyboard gestures are implemented. Application-owned audio is integrated into the common player with cancellable CPU preparation jobs. The native container HUD now includes acknowledged paint/input, real server transfers, scrolling, GPU recovery and navigation lifetime. Floating inventory/equipment, action catalogue/spellbook and preferences now use typed native HUD owners, retained text/source resources and acknowledged input. Acknowledged UI-origin tooltips now use retained text and host deadlines. UI-origin Drop cursors and acknowledged drag/assignment highlighting now have GPU and authoritative transfer evidence. Native isometric source production, shared CPU source publication, game-view outputs and acknowledged input receipts now have GPU/CPU and shipped-source device-reconstruction evidence. Browser worker hosting, remaining game-mode/HUD policy parity, performance acceptance remain. Canonical native desktop launchers now share the common application/host; see launcher verification below.
 - M7/M8/M9: Retirement and platform/full acceptance pending. Canonical desktop clients share one common player; the Xcode client now uses it through the retained ABI over a Rust-created CAMetalLayer surface. Native/ARM64 simulator app bundles link, and real Swift/static-library and registered-scene layer checks pass. Browser bootstrap, native text/platform parity, Creator wrapper and complete physical/release acceptance remain; this is not complete application/platform parity.
 
@@ -4641,3 +4641,72 @@ checkpoint at coherent integrations.
 Final reference compilation with batched `PixelRects` and the shared reference
 feedback producer passed, 9.36 s:
 `/private/tmp/eldiron-native-paint-reference-final.log`. `git diff --check` passed.
+
+
+### Native 3D Paint surface ownership (2026-11-13)
+
+Connected the real 3D Paint controller to the native completed SceneView. All
+ordinary stopped region cameras are now eligible for this owner; Prefab/custom
+contexts and the remaining migration adapters are still explicit exclusions.
+
+- Added stamped `pick_editor_paint` and `capture_editor_paint` APIs. Point queries
+  preserve dedicated paint UVs, normals and brush transforms; material texture
+  UVs are never substituted. The explicit authoring capture carries its output,
+  camera and shared CPU metadata buffer. It saves/restores the active VM layer
+  and never queries or swaps the reference VM.
+- `ToolViewInput` carries immutable Paint results. The controller keeps its
+  existing stamp/coat/selection, undo and serialization logic. Projected strokes
+  and selection request a surface snapshot on down; ordinary hover and painting
+  frames do not. Native camera scale and selection projection come from the
+  completed view's camera. Release reuses the retained query and releases CPU
+  snapshot pins after controller dispatch. Cancellation releases those pins too.
+- Paint's captured surface/selection plane is frozen to its down-camera. Camera
+  motion cancels the original owned draft instead of reinterpreting the cached
+  screen coordinates. The existing document/map/tool cancellation barriers stay
+  in force. Base-surface preference now also covers Paint/Rect/Terrain/Probe
+  authoring queries rather than using guide geometry for these targets.
+- Explicit GPU surface captures contribute their logical metadata payload to
+  the common capture counters (two RGBA32F planes, excluding row padding). The
+  pre-existing surface export's busy polling is replaced by a bounded wait and
+  its existing CPU fallback on mapping failure/timeout. Browser calls use the
+  explicit CPU authoring fallback because synchronous GPU mapping cannot pump
+  the browser event loop. Browser runtime validation remains open.
+
+Verification: native compile passed, 22.68 s,
+`/private/tmp/eldiron-native-paint3d-check.log`. The existing assembled Creator
+GPU check passed **1**, 24.86 s (27.99 s test build),
+`/private/tmp/eldiron-native-paint3d-root-visible.log`. It now also checks actual
+3D authoring with stable surface data, one requested capture, no captures for
+hover/presentation/committed-paint rendering, release and camera-motion rollback.
+This Paint-specific authoring case uses the orthographic 3D camera; exhaustive
+Orbit/first-person and complete selection/stamp/erase/undo/DPI parity are not
+claimed by it. No separate test suite or broad platform matrix was introduced.
+
+The earlier `eldiron-native-paint3d-root.log` and
+`eldiron-native-paint3d-root-geometry.log` failed because the small test viewport's
+entire object was covered by Paint's original overlay panel. The latter recorded
+valid acknowledged geometry (688 triangles, clean acceleration/geometry flags)
+and `/private/tmp/eldiron-native-paint3d-diagnostic.png` confirmed the occlusion.
+The passing check uses the actual host resize path and a visible real surface;
+no target geometry or pick result is injected. These failed runs are superseded.
+
+Next: adopt Collision Probe's retained legend/routes and owning camera, then
+Prefab/effects/custom contexts and Creator Play/common-session convergence.
+Global/reference retirement, accepted-click retry, complete concurrency/modal/
+workflow/resource/performance/DPI coverage and all prior physical/platform gates
+remain. The locked-Mac and simulator runtime limitations remain external
+acceptance blockers, not overall-work blockers. No M0–M9 or Goal completion is
+claimed; keep implementation-first checkpoint verification.
+
+Final reference Creator compilation passed, 20.62 s:
+`/private/tmp/eldiron-native-paint3d-reference.log`. `git diff --check` passed.
+
+Follow-up source inspection: `ToolList::new` deliberately leaves Collision Probe
+unregistered with the comment that its workflow is being revised. Preserve that
+existing choice; do not expose/unhide it as part of this rewrite. Its retained
+producer can be migrated separately, but active Prefab/effects/custom-context
+adoption is the next application integration priority.
+
+Current GPU-rendered Creator startup capture (refreshed by the assembled check):
+`/private/tmp/eldiron-native-creator-startup.png`. This is an offscreen renderer
+capture, not physical-window presentation evidence.

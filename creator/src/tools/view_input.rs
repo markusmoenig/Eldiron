@@ -13,7 +13,15 @@ pub struct ToolViewInput {
     pub base: Option<(GeoId, Vec3<f32>, f32)>,
     pub dynamic: Option<(GeoId, Vec3<f32>, f32)>,
     pub paint_geo: Option<[u32; 4]>,
+    pub paint: Option<ToolPaintInput>,
     pub rectangle: Option<(Vec2<f32>, Vec2<f32>, Vec<GeoId>)>,
+}
+#[derive(Clone)]
+pub struct ToolPaintInput {
+    pub surface: Option<scenevm::PaintSurfacePixel>,
+    pub brush_transform: Option<[f32; 4]>,
+    /// Only present for an explicit authoring capture; shared through release.
+    pub capture: Option<std::sync::Arc<scenevm::PaintSurfaceBuffer>>,
 }
 impl ToolViewInput {
     pub fn ray(&self) -> Option<rusterix::Ray> {

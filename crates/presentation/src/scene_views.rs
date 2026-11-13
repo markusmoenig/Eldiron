@@ -9,7 +9,7 @@ use theframework_core::Uuid;
 mod editor;
 mod isometric;
 mod picking;
-pub use picking::{EditorPick, ViewPick, ViewPickHit};
+pub use picking::{EditorPaintCapture, EditorPaintPick, EditorPick, ViewPick, ViewPickHit};
 
 /// Stable application/controller identity, independent of window/device lifetime.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

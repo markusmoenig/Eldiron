@@ -1115,6 +1115,185 @@ mod tests {
             )
             .unwrap();
         app.presented(&mut host);
+        // Continue the same assembled checkpoint through actual 3D Paint.
+        // Give the actual object space outside Paint's original overlay panel.
+        host.resize((1600, 1000), 1.);
+        app.resize(&mut host);
+        let output = GpuImage::new(&gpu, ImageDescriptor::rgba(1600, 1000)).unwrap();
+        app.session.context.ui.send(TheEvent::IndexChanged(
+            TheId::named("Editor View Switch"),
+            3,
+        ));
+        app.session.context.ui.send(TheEvent::IndexChanged(
+            TheId::named(crate::tools::paint_picker::MODE),
+            0,
+        ));
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            app.update(&mut host, Duration::from_millis(16));
+            let ready = {
+                let builds = crate::editor::SCENEMANAGER.read().unwrap();
+                !builds.has_pending_geometry()
+                    && builds.source_matches(
+                        app.application.editor.project_for_native_test().regions[0]
+                            .map
+                            .id,
+                        rusterix::MapCamera::ThreeDIso,
+                    )
+            };
+            if ready {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "3D Paint source never became ready"
+            );
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        app.update(&mut host, Duration::from_millis(16));
+        let before = gpu.transfers();
+        let paint = app.frame(&mut host, &mut replacement).unwrap();
+        assert!(
+            app.application.pending.as_ref().unwrap().world_for_test(),
+            "3D Paint uses its native scene owner"
+        );
+        renderer
+            .render(
+                &paint,
+                &replacement,
+                &output.view,
+                output.descriptor.format,
+                (1600, 1000),
+                1.,
+                [0.; 4],
+            )
+            .unwrap();
+        app.presented(&mut host);
+        assert_eq!(
+            gpu.transfers().readback_bytes,
+            before.readback_bytes,
+            "3D Paint presentation cannot capture surface data"
+        );
+        let target = app.application.editor.native_paint_3d_target_for_test();
+        if target.is_none() {
+            let mut capture = ReadbackTicket::capture(&gpu, output.clone()).unwrap();
+            gpu.device
+                .poll(wgpu::PollType::Wait {
+                    submission_index: None,
+                    timeout: Some(Duration::from_secs(30)),
+                })
+                .unwrap();
+            let pixels = capture.try_finish(&gpu).unwrap().unwrap();
+            let mut encoder = png::Encoder::new(
+                std::fs::File::create("/private/tmp/eldiron-native-paint3d-diagnostic.png")
+                    .unwrap(),
+                1600,
+                1000,
+            );
+            encoder.set_color(png::ColorType::Rgba);
+            encoder.set_depth(png::BitDepth::Eight);
+            encoder
+                .write_header()
+                .unwrap()
+                .write_image_data(pixels.pixels())
+                .unwrap();
+        }
+        let at = target.unwrap_or_else(|| {
+            panic!(
+                "real 3D paint surface: {}",
+                app.application.editor.native_paint_3d_debug_for_test()
+            )
+        });
+        let original = app.application.editor.native_paint_state_for_test();
+        app.session
+            .context
+            .ui
+            .send(TheEvent::RenderViewHoverChanged(world_view.clone(), at));
+        app.update(&mut host, Duration::from_millis(16));
+        assert_eq!(
+            gpu.transfers().readback_bytes,
+            before.readback_bytes,
+            "hover is a read-only CPU query"
+        );
+        app.session
+            .context
+            .ui
+            .send(TheEvent::RenderViewClicked(world_view.clone(), at));
+        app.session
+            .context
+            .ui
+            .send(TheEvent::RenderViewUp(world_view.clone(), at));
+        app.update(&mut host, Duration::from_millis(16));
+        assert!(
+            app.application.editor.native_paint_state_for_test().1 > original.1,
+            "the actual 3D Paint controller commits a stroke"
+        );
+        assert!(
+            app.application.editor.native_paint_has_3d_data_for_test(),
+            "authored points retain the owning scene's paint UV, face and normal"
+        );
+        let captured = gpu.transfers();
+        assert_eq!(
+            captured.capture_requests,
+            before.capture_requests + 1,
+            "one explicit down-request captures authoring surface data"
+        );
+        assert!(captured.readback_bytes > before.readback_bytes);
+        let paint = app.frame(&mut host, &mut replacement).unwrap();
+        renderer
+            .render(
+                &paint,
+                &replacement,
+                &output.view,
+                output.descriptor.format,
+                (1600, 1000),
+                1.,
+                [0.; 4],
+            )
+            .unwrap();
+        app.presented(&mut host);
+        assert_eq!(
+            gpu.transfers().readback_bytes,
+            captured.readback_bytes,
+            "rendering committed paint never recaptures its surface"
+        );
+        // A moving camera revokes the frozen down-camera's draft rather than
+        // reinterpreting its captured screen-space coordinates.
+        let at = app
+            .application
+            .editor
+            .native_paint_3d_target_for_test()
+            .unwrap();
+        let original = app.application.editor.native_paint_state_for_test().1;
+        app.session
+            .context
+            .ui
+            .send(TheEvent::RenderViewClicked(world_view.clone(), at));
+        app.update(&mut host, Duration::from_millis(16));
+        assert!(app.application.editor.native_paint_state_for_test().1 > original);
+        crate::editor::EDITCAMERA
+            .write()
+            .unwrap()
+            .iso_camera
+            .zoom(1.);
+        let paint = app.frame(&mut host, &mut replacement).unwrap();
+        assert_eq!(
+            app.application.editor.native_paint_state_for_test().1,
+            original,
+            "camera motion cancels the original Paint draft"
+        );
+        renderer
+            .render(
+                &paint,
+                &replacement,
+                &output.view,
+                output.descriptor.format,
+                (1600, 1000),
+                1.,
+                [0.; 4],
+            )
+            .unwrap();
+        app.presented(&mut host);
         // Check the new sampler within this assembled checkpoint. The reference
         // uses the existing independent CPU DDA, including duplicate blending.
         use theframework::paint::{DisplayCompositing, PaintOp};

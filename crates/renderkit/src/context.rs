@@ -88,7 +88,9 @@ impl GpuContext {
     pub fn record_upload(&self, bytes: u64) {
         self.counters.uploaded.fetch_add(bytes, Ordering::Relaxed);
     }
-    pub(crate) fn record_capture(&self, bytes: u64) {
+    /// Record an explicit capture request submitted by an injected renderer.
+    /// `bytes` is its logical GPU readback payload, excluding row padding.
+    pub fn record_capture(&self, bytes: u64) {
         self.counters.readback.fetch_add(bytes, Ordering::Relaxed);
         self.counters.captures.fetch_add(1, Ordering::Relaxed);
     }

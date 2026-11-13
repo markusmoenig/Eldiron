@@ -13334,14 +13334,12 @@ impl VM {
         slice.map_async(wgpu::MapMode::Read, move |r| {
             let _ = tx.send(r);
         });
-        loop {
-            let _ = device.poll(wgpu::PollType::Poll);
-            match rx.try_recv() {
-                Ok(Ok(())) => break,
-                Ok(Err(_)) => return None,
-                Err(std::sync::mpsc::TryRecvError::Empty) => continue,
-                Err(std::sync::mpsc::TryRecvError::Disconnected) => return None,
-            }
+        if device.poll(wgpu::PollType::Wait {
+            submission_index: None,
+            timeout: Some(std::time::Duration::from_secs(30)),
+        }).is_err() || !matches!(rx.try_recv(),Ok(Ok(()))) {
+            readback.unmap();
+            return None;
         }
         let mapped = slice.get_mapped_range();
         let read_f32 = |offset: usize| -> f32 {

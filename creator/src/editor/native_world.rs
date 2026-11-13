@@ -108,7 +108,9 @@ impl SourceStamp {
 struct CameraStamp([u32; 16]);
 impl CameraStamp {
     fn new(camera: &dyn D3Camera, size: (usize, usize)) -> Self {
-        let camera = camera.as_scenevm_camera_for_surface(size.0 as f32, size.1 as f32);
+        Self::from_scene(camera.as_scenevm_camera_for_surface(size.0 as f32, size.1 as f32))
+    }
+    fn from_scene(camera: scenevm::Camera3D) -> Self {
         Self(
             [
                 camera.pos.x,
@@ -198,6 +200,7 @@ impl WorldGpu {
         at: Vec2<i32>,
         server: &ServerContext,
         rectangle: Option<(Vec2<f32>, Vec2<f32>, scenevm::GeoId)>,
+        capture_surface: bool,
     ) -> Option<(EditorPick, crate::tools::ToolViewInput)> {
         let pick = self.scenes.pick_editor(
             frame.output,
@@ -220,6 +223,25 @@ impl WorldGpu {
             )),
             None => None,
         };
+        let paint = if server.curr_map_tool_type == MapToolType::IsoPaint {
+            let uv = [
+                at.x as f32 / frame.binding.size.0 as f32,
+                at.y as f32 / frame.binding.size.1 as f32,
+            ];
+            let surface = self.scenes.pick_editor_paint(frame.output, uv)?;
+            let capture = if capture_surface {
+                Some(self.scenes.capture_editor_paint(frame.output)?.buffer)
+            } else {
+                None
+            };
+            Some(crate::tools::ToolPaintInput {
+                surface: surface.surface,
+                brush_transform: surface.brush_transform,
+                capture,
+            })
+        } else {
+            None
+        };
         let input = crate::tools::ToolViewInput {
             camera: Some(pick.camera),
             ray: Some(pick.ray?),
@@ -227,6 +249,7 @@ impl WorldGpu {
             base: pick.base.map(|(geo, at, depth, _)| (geo, at, depth)),
             dynamic: pick.dynamic,
             paint_geo: pick.paint_geo,
+            paint,
             rectangle,
         };
         Some((pick, input))
@@ -447,7 +470,13 @@ fn apply_pick(pick: EditorPick, map: &Map, server: &mut ServerContext) {
             })
             .min_by(|a, b| a.1.total_cmp(&b.1))
             .map(|(surface, _)| surface.clone());
-        base_preferred = (server.curr_map_tool_type == MapToolType::Sector
+        base_preferred = matches!(
+            server.curr_map_tool_type,
+            MapToolType::IsoPaint
+                | MapToolType::Rect
+                | MapToolType::Terrain
+                | MapToolType::CollisionProbe
+        ) || (server.curr_map_tool_type == MapToolType::Sector
             && server.geometry_edit_mode != GeometryEditMode::Detail)
             || ((server.block_tool_active
                 || matches!(
@@ -506,11 +535,30 @@ fn isometric_input(
         base: None,
         dynamic: None,
         paint_geo: None,
+        paint: None,
         rectangle: None,
     })
 }
 impl Editor {
     fn bind_native_world(&mut self, next: Option<Binding>, ui: &mut TheUI, ctx: &mut TheContext) {
+        // Paint's surface cache and selection plane belong to the down-camera.
+        // Navigation cannot reinterpret them using a newly presented camera.
+        let paint_camera_changed = self.server_ctx.curr_map_tool_type == MapToolType::IsoPaint
+            && self
+                .native_viewport
+                .world
+                .world_capture
+                .as_ref()
+                .and_then(|owner| owner.query.as_ref()?.camera)
+                .is_some_and(|old| {
+                    next.as_ref().and_then(|binding| {
+                        self.native_world_camera()
+                            .map(|camera| CameraStamp::new(camera.as_ref(), binding.size))
+                    }) != Some(CameraStamp::from_scene(old))
+                });
+        if paint_camera_changed {
+            self.cancel_native_world_gesture(ui, ctx);
+        }
         if self
             .native_viewport
             .world
@@ -559,6 +607,7 @@ impl Editor {
             map.camera = owner.camera;
         }
         tools.cancel_native_world_gesture(ui, ctx, &mut self.project, &mut self.server_ctx);
+        tools.get_current_tool().set_view_input(None);
         self.server_ctx.editor_view_mode = mode;
         let mut projection_changed = false;
         if let (Some((camera, offset, grid, subdivisions)), Some(map)) =
@@ -607,24 +656,21 @@ impl Editor {
             }
         }
         let tools = TOOLLIST.read().unwrap();
-        let terrain_paint = tools.current_game_tool_command_id() == Some("tool.iso_paint")
-            && self.server_ctx.editor_view_mode == EditorViewMode::D2
-            && map.camera == MapCamera::TwoDIso;
         if tools.editor_mode
-            || !(terrain_paint
-                || matches!(
-                    tools.current_game_tool_command_id(),
-                    Some(
-                        "tool.vertex"
-                            | "tool.linedef"
-                            | "tool.sector"
-                            | "tool.entity"
-                            | "tool.geometry"
-                            | "tool.blocks"
-                            | "tool.terrain"
-                            | "tool.rect"
-                    )
-                ))
+            || !matches!(
+                tools.current_game_tool_command_id(),
+                Some(
+                    "tool.vertex"
+                        | "tool.linedef"
+                        | "tool.sector"
+                        | "tool.entity"
+                        | "tool.geometry"
+                        | "tool.blocks"
+                        | "tool.terrain"
+                        | "tool.rect"
+                        | "tool.iso_paint"
+                )
+            )
         {
             return false;
         }
@@ -1393,6 +1439,7 @@ impl Editor {
                 &mut self.project,
                 &mut self.server_ctx,
             );
+            tools.get_current_tool().set_view_input(None);
             ctx.ui.redraw_all |= redraw;
             return true;
         }
@@ -1462,7 +1509,7 @@ impl Editor {
                         world
                             .gpu
                             .as_mut()?
-                            .query(frame, at, &self.server_ctx, rectangle)
+                            .query(frame, at, &self.server_ctx, rectangle, false)
                     });
                 if let Some((pick, input)) = query {
                     apply_pick(pick, map, &mut self.server_ctx);
@@ -1552,9 +1599,19 @@ impl Editor {
                 {
                     return true;
                 }
-                let query = frame
-                    .as_ref()
-                    .and_then(|frame| world.gpu.as_mut()?.query(frame, at, &self.server_ctx, None));
+                let capture_surface = TOOLLIST
+                    .read()
+                    .unwrap()
+                    .game_tools
+                    .iter()
+                    .find(|tool| tool.id().uuid == binding.tool)
+                    .is_some_and(|tool| tool.view_surface_capture(&input));
+                let query = frame.as_ref().and_then(|frame| {
+                    world
+                        .gpu
+                        .as_mut()?
+                        .query(frame, at, &self.server_ctx, None, capture_surface)
+                });
                 let Some((pick, input)) = query else {
                     ctx.ui.redraw_all = true;
                     return true;
@@ -1642,6 +1699,66 @@ impl Editor {
             builds.has_pending_geometry(),
             builds.source_matches(map.id, map.camera)
         )
+    }
+    pub(crate) fn native_paint_3d_target_for_test(&mut self) -> Option<Vec2<i32>> {
+        let world = &mut self.native_viewport.world;
+        let frame = world.presented.clone()?;
+        let gpu = world.gpu.as_mut()?;
+        // Choose a real paintable triangle outside the actual Paint panel/cube.
+        // No fixture hit or synthesized paint coordinate is injected.
+        for y in (8..frame.binding.size.1.saturating_sub(8)).step_by(8) {
+            for x in (16..frame.binding.size.0.saturating_sub(8)).step_by(8) {
+                if x < 520 && y < 274 {
+                    continue;
+                }
+                let uv = [
+                    x as f32 / frame.binding.size.0 as f32,
+                    y as f32 / frame.binding.size.1 as f32,
+                ];
+                if gpu
+                    .scenes
+                    .pick_editor_paint(frame.output, uv)?
+                    .surface
+                    .is_some()
+                {
+                    return Some(Vec2::new(x as i32, y as i32));
+                }
+            }
+        }
+        None
+    }
+    pub(crate) fn native_paint_3d_debug_for_test(&self) -> String {
+        let world = &self.native_viewport.world;
+        let scene = world.gpu.as_ref().and_then(|g| g.scenes.scene(g.view).ok());
+        format!(
+            "{} stats={:?} camera={:?} bounds={:?}",
+            self.native_world_debug_for_test(),
+            scene.map(|s| s.vm.vm.debug_stats()),
+            scene.map(|s| s.vm.vm.camera3d),
+            scene.and_then(|s| s.vm.vm.scene_bounds_3d())
+        )
+    }
+    pub(crate) fn native_paint_has_3d_data_for_test(&self) -> bool {
+        let paint = &self
+            .project
+            .get_region(&self.server_ctx.curr_region)
+            .unwrap()
+            .iso_paint;
+        paint
+            .chunks
+            .values()
+            .flat_map(|c| &c.strokes)
+            .max_by_key(|s| s.order)
+            .is_some_and(|stroke| {
+                stroke.points.iter().any(|p| {
+                    p.paint_geo.is_some()
+                        && p.surface_uv.is_some()
+                        && p.surface_normal.is_some()
+                        && p.owner.as_ref().is_some_and(|owner| {
+                            !matches!(owner, shared::iso_paint::IsoPaintOwner::Terrain { .. })
+                        })
+                })
+            })
     }
     pub(crate) fn native_paint_state_for_test(&self) -> (f32, usize, Option<u64>) {
         let region = self
