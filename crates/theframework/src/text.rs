@@ -1,5 +1,6 @@
 //! Shared text layout and Swash glyph images for measurement, editing and GPU blits.
 use crate::paint::{FontFace, Glyph, GlyphRun, Point, Rect};
+mod fonts;
 use parley::{
     Alignment, AlignmentOptions, FontContext, Layout, LayoutContext, PositionedLayoutItem,
     StyleProperty,
@@ -7,7 +8,7 @@ use parley::{
 use std::{
     collections::HashMap,
     sync::{
-        Arc,
+        Arc, Weak,
         atomic::{AtomicU64, Ordering},
     },
 };
@@ -309,6 +310,8 @@ pub struct TextSystem {
     font_revision: u64,
     layouts: LayoutContext<usize>,
     faces: HashMap<(u64, u32), Arc<FontFace>>,
+    // Collection faces share bytes; weak lookup entries cannot retain replaced sources.
+    font_data: HashMap<u64, Weak<[u8]>>,
 }
 impl Default for TextSystem {
     fn default() -> Self {
@@ -318,6 +321,7 @@ impl Default for TextSystem {
             font_revision: 0,
             layouts: LayoutContext::new(),
             faces: HashMap::new(),
+            font_data: HashMap::new(),
         }
     }
 }
@@ -351,20 +355,23 @@ impl TextSystem {
         // Retained layouts keep their Arc faces. The lookup cache must not keep
         // every superseded project font alive forever.
         self.faces.clear();
+        self.font_data.retain(|_, data| data.strong_count() > 0);
+    }
+    fn font_blob(&mut self, data: Arc<[u8]>) -> parley::fontique::Blob<u8> {
+        self.font_data.retain(|_, data| data.strong_count() > 0);
+        let blob = parley::fontique::Blob::new(Arc::new(data.clone()));
+        self.font_data.insert(blob.id(), Arc::downgrade(&data));
+        blob
     }
     pub fn register_font(&mut self, data: Vec<u8>) {
-        if !self
-            .fonts
-            .collection
-            .register_fonts(parley::fontique::Blob::new(Arc::new(data)), None)
-            .is_empty()
-        {
+        let data = self.font_blob(Arc::from(data));
+        if !self.fonts.collection.register_fonts(data, None).is_empty() {
             self.fonts_changed();
         }
     }
     /// Register an authored asset name independently of the font's internal family name.
     pub fn register_font_named(&mut self, name: &str, data: Vec<u8>) -> bool {
-        let data = parley::fontique::Blob::new(Arc::new(data));
+        let data = self.font_blob(Arc::from(data));
         let info = parley::fontique::FontInfoOverride {
             family_name: Some(name),
             ..Default::default()
@@ -562,14 +569,20 @@ impl TextSystem {
                     let r = gr.run();
                     let font = r.font();
                     let identity = (font.data.id(), font.index);
+                    let font_data = &mut self.font_data;
                     let face = self
                         .faces
                         .entry(identity)
                         .or_insert_with(|| {
-                            Arc::new(FontFace {
-                                identity,
-                                data: Arc::from(font.data.as_ref()),
-                            })
+                            let data = font_data
+                                .get(&font.data.id())
+                                .and_then(Weak::upgrade)
+                                .unwrap_or_else(|| {
+                                    let data: Arc<[u8]> = Arc::from(font.data.as_ref());
+                                    font_data.insert(font.data.id(), Arc::downgrade(&data));
+                                    data
+                                });
+                            Arc::new(FontFace { identity, data })
                         })
                         .clone();
                     let glyphs: Vec<_> = gr
@@ -810,6 +823,92 @@ mod tests {
                 "fallback must preserve primary Latin font"
             );
         }
+        // Exercise the same collection policy without any installed fonts. Its
+        // regional faces must share one immutable TTC source, including editors.
+        let mut fallback = TextSystem::default();
+        fallback.fonts.collection =
+            parley::fontique::Collection::new(parley::fontique::CollectionOptions {
+                system_fonts: false,
+                shared: false,
+            });
+        fallback.register_bundled_fonts();
+        let cjk = fonts::cjk_data();
+        fallback.register_cjk_fallback(cjk.clone(), Some("zh-TW"));
+        let source = "編輯器 简体中文 日本語 ひらがな カタカナ 한국어 Журнал";
+        let shaped = fallback.layout(source, "Roboto", 13., None);
+        assert!(
+            shaped
+                .runs
+                .iter()
+                .flat_map(|run| run.glyphs.iter())
+                .all(|glyph| glyph.id != 0),
+            "supplied regional fallback must cover shipped CJK/Cyrillic text"
+        );
+        let mut indices = std::collections::HashSet::new();
+        let mut raster = GlyphCache::new(2 * 1024 * 1024);
+        for run in &shaped.runs {
+            if run.font.data.len() == cjk.len() {
+                assert!(
+                    Arc::ptr_eq(&run.font.data, &cjk),
+                    "regional faces must share the supplied CPU collection"
+                );
+                indices.insert(run.font.identity.1);
+                let ink = run
+                    .glyphs
+                    .iter()
+                    .filter_map(|glyph| raster.glyph(run, glyph.id, 1.25, glyph.position))
+                    .any(|(_, image)| image.pixels.iter().any(|value| *value > 0));
+                assert!(
+                    ink,
+                    "fallback must produce real Swash ink, not only glyph IDs"
+                );
+            }
+        }
+        assert!(
+            indices.contains(&0) && indices.contains(&1) && indices.contains(&3),
+            "kana/Korean/default traditional Han retain their own collection faces: {indices:?}"
+        );
+        let mut editor = crate::text_edit::EditorController::new(false);
+        editor.prepare(
+            &mut fallback,
+            TextOptions {
+                family: "Roboto",
+                size: 13.,
+                width: None,
+                line_height: None,
+            },
+        );
+        editor.set_text(&mut fallback, source);
+        let editable = editor.layout(&mut fallback);
+        assert!(
+            editable
+                .runs
+                .iter()
+                .flat_map(|run| run.glyphs.iter())
+                .all(|glyph| glyph.id != 0)
+        );
+        assert_eq!(
+            editable.width(),
+            shaped.width(),
+            "labels and editing must share fallback measurement"
+        );
+        let mut only_fallback = TextSystem::default();
+        only_fallback.fonts.collection =
+            parley::fontique::Collection::new(parley::fontique::CollectionOptions {
+                system_fonts: false,
+                shared: false,
+            });
+        only_fallback.register_cjk_fallback(cjk, Some("en"));
+        let cyrillic = only_fallback.layout("Журнал", "Unavailable Project Font", 13., None);
+        assert!(
+            !cyrillic.runs.is_empty()
+                && cyrillic
+                    .runs
+                    .iter()
+                    .flat_map(|run| run.glyphs.iter())
+                    .all(|glyph| glyph.id != 0),
+            "Cyrillic fallback must also work when an authored font lacks it"
+        );
     }
 
     #[test]

@@ -67,11 +67,7 @@ impl TheContext {
         #[cfg(feature = "text")]
         let mut text = crate::text::TextSystem::default();
         #[cfg(feature = "text")]
-        for path in ["fonts/Roboto-Bold.ttf", "fonts/SourceCodePro-Bold.ttf"] {
-            if let Some(font) = crate::Embedded::get(path) {
-                text.register_font(font.data.to_vec());
-            }
-        }
+        text.register_bundled_fonts();
         Self {
             #[cfg(feature = "text")]
             text,

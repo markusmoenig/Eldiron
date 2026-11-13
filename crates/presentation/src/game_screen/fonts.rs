@@ -27,14 +27,7 @@ pub struct GameFonts {
 }
 fn builtin_fonts() -> TextSystem {
     let mut text = TextSystem::default();
-    for (family, file) in [
-        ("Roboto", "fonts/Roboto-Bold.ttf"),
-        ("Source Code Pro", "fonts/SourceCodePro-Bold.ttf"),
-    ] {
-        if let Some(font) = theframework::Embedded::get(file) {
-            text.register_font_named(family, font.data.to_vec());
-        }
-    }
+    text.register_bundled_fonts();
     text
 }
 impl Default for GameFonts {

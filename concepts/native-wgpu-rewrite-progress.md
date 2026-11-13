@@ -22,12 +22,12 @@ Started: 2026-11-11 (Asia/Bangkok). Overall Goal: active; full M0–M9 scope rem
 
 - M0: in progress. Baseline compile, explicit ownership/paint/text decisions and GPU visual fixtures exist; release performance baselines and complete workflow inventory remain.
 - M1: in progress. Shared GPU context, scene output leases, explicit captures, native/foreign surface presentation and independent normal/isometric game-view lifecycle/recovery work; main Creator/auxiliary view adoption and full resource/platform acceptance remain.
-- M2: in progress. Paint/Swash/Parley pipeline and native/foreign hosts work; batching, resource lifetime budgets and full text/input parity remain.
+- M2: in progress. Paint/Swash/Parley pipeline and native/foreign hosts work; supplied browser CJK/Cyrillic fallback, source-byte sharing and actual IME/GPU recovery now pass. Batching, resource lifetime budgets and full text/input parity remain.
 - M3: in progress. Every active built-in TheWidget implementation now has a command paint path, including procedural controls and the legacy node canvas. Complex Creator integration, full widget catalog parity and legacy adapter retirement remain.
 - M4: in progress. CPU schema/identity extraction, shared `GameSession`, CPU startup preparation, message/party/world-target policies and terminal adoption are implemented and tested. Per-session routing, local players, world values, runtime IDs and region context ownership now pass controlled overlapping-session and parallel assembled-player regressions. Graphical clients adopt GameSession; Creator shares its clock/output pump and runtime-owned PlayerInput. Text Play state is now Editor-owned and uses explicit CPU runtime borrows. Canonical Creator Play now owns a separate runtime Project projection; startup/warmup, entities/generated geometry and time no longer mutate authored Documents. The Console also consumes explicit addressed CPU inspections and rejects stale runtime actor links/history without reading the global server or authored entity fallbacks. Native Creator now owns its GameSession server/assets/current-map/clock/audio lifetime and advances from host elapsed time independently of rendering. Reference storage/start-menu/source bridges and remaining bitmap/value data extraction remain; this evidence does not establish full simultaneous Creator Play workflows.
 - M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Immutable ordinary editor-view preparation, exact reference/native view outputs and retained CPU chunk publication are now available through SceneViews. Common HUD, paint/props panels, profile displays and ViewCube now have retained command frames, guarded input and actual GPU composition/reconstruction evidence. Six standard tools additionally emit ordered typed overlay aggregates with exact presented-frame and detail-profile source guards. Full-viewport profile editing is now connected to the actual native Creator root with document/widget binding, presentation-gated input and inline commit/cancel; ordinary stopped top-down, sprite-isometric and 3D region rendering and the six standard tool overlays now use the same native application owner and real tool dispatch. Orbit/orthographic/first-person views include depth-aware guides, retained ViewCube and explicit tool query snapshots; surface paint uses the view-owned GPU scene. The Terrain tool now also uses retained native controls and GPU brush guides with real sculpt/cancel integration. Rect now also uses presentation-gated composition/rotation controls, shared source sprite previews blitted on the GPU, terrain-conforming perimeters, and view-owned 3D queries; actual isometric placement and fractional-DPI sprite sampling pass in the assembled checkpoint. Isometric terrain Paint now also uses retained native controls, batched GPU brush feedback, update-phase editable source publication and the existing authoring/undo dispatch. Native 3D Paint now also consumes dedicated scene-owned paint-coordinate queries and explicit authoring surface captures, with camera-scoped drafts and GPU composition; full Paint workflow/platform parity remains unverified. The isolated Prefab viewport now also uses native top-down/isometric/3D outputs, live effects with hierarchy-aware owned drags, and actual 3D Paint authoring on its asset-owned layer. Paint now shares the normal tile picker; its settings live only in the viewport overlay. The canonical Creator Play toolbar now owns the same CPU clock/output pump as GameSession, and its live authoring viewport keeps its own native SceneView. The authored Game-tool viewport now also uses the common GameScreenController/SceneViews/Swash presentation; authoring GameInput now also shares runtime controls while retaining the native scene in supported contexts. Region geometry, ordinary scene and sprite-isometric minimaps now have owned GPU outputs and presentation-scoped navigation; palette and rig previews also have retained native sources and acknowledged palette input. Authored screen minimaps now also use a GPU-only ordered 2D overview producer with compatible source sampling and acknowledged screen-scoped navigation. Parent-region minimaps during Prefab/profile/detail editing also have independent native source production and presented-parent navigation without modifying the isolated editor map. Main native authoring static geometry/readiness/billboards now use an application-owned bounded CPU source, retained across GPU reconstruction and isolated from clipboard projections. Remaining uncommon contexts/tools retain explicit migration adapters. Application/global/document/Play ownership, main world/tool/HUD integration, remaining producers, full visual/workflow/performance acceptance and canonical retirement remain.
 - M6: in progress. Independent GPU game views, common player/input/camera components, authored screen paint, private world descriptions, view-owned speech, acknowledged-frame world pointer gestures, relative first-person mouse look, default/world-intent cursors, world/UI item drag previews and acknowledged authored inventory/equipment pointer/keyboard gestures are implemented. Application-owned audio is integrated into the common player with cancellable CPU preparation jobs. The native container HUD now includes acknowledged paint/input, real server transfers, scrolling, GPU recovery and navigation lifetime. Floating inventory/equipment, action catalogue/spellbook and preferences now use typed native HUD owners, retained text/source resources and acknowledged input. Acknowledged UI-origin tooltips now use retained text and host deadlines. UI-origin Drop cursors and acknowledged drag/assignment highlighting now have GPU and authoritative transfer evidence. Native isometric source production, shared CPU source publication, game-view outputs and acknowledged input receipts now have GPU/CPU and shipped-source device-reconstruction evidence. Persistent region 3D paint now also crosses the CPU asset boundary into independent per-view GPU uploads; actual painted browser rendering/device recovery and native integration pass. Browser worker hosting, uncommon Prefab/stamp/live paint publication, remaining game-mode/HUD policy parity and performance acceptance remain. Canonical native desktop launchers now share the common application/host; see launcher verification below.
-- M7/M8/M9: Retirement and platform/full acceptance pending. Canonical desktop clients share one common player; the Xcode client now uses it through the retained ABI over a Rust-created CAMetalLayer surface. Native/ARM64 simulator app bundles link, and real Swift/static-library and registered-scene layer checks pass. Browser player bootstrap and the host-owned text/IME service now use the shared path; browser Creator, CJK fonts, 3D color parity, native text/platform parity, Creator wrapper and complete physical/release acceptance remain; this is not complete application/platform parity.
+- M7/M8/M9: Retirement and platform/full acceptance pending. Canonical desktop clients share one common player; the Xcode client now uses it through the retained ABI over a Rust-created CAMetalLayer surface. Native/ARM64 simulator app bundles link, and real Swift/static-library and registered-scene layer checks pass. Browser player bootstrap, text/IME, supplied CJK/Cyrillic fonts and 3D/persistent-paint outputs now pass actual rendering and device-recovery cases through the shared path. Browser Creator, full text/image/platform/performance parity and the versioned/document Creator wrapper remain; this is not complete application/platform parity.
 
 ## Native window validation correction (2026-11-12)
 
@@ -7722,3 +7722,89 @@ M6 surface-paint CPU/view checkpoint assembled verification complete:
   full multi-view parity/resource budgets, browser supplied fallback fonts and
   host/physical/performance acceptance. Native Creator static source ownership,
   renderer/global retirement, browser Creator and Creator Apple FFI remain open.
+
+
+M2/M8 supplied browser CJK fonts (in progress after98e4f39b):
+- Retrieved unmodified Noto Sans CJK Regular TTC, pinned Sans2.004 release,
+  19,484,784 bytes; SHA256b76b0433203017ca80401b2ee0dd69350349871c4b19d504c34dbdd80541690a.
+  Root LICENSE from that tag is SIL OFL1.1 (the Sans/LICENSE path was404).
+  Metadata confirms ten JP/KR/SC/TC/HK proportional/monospace faces. Verified
+  primary documentation at https://github.com/notofonts/noto-cjk/tree/Sans2.004
+  and https://github.com/notofonts/noto-cjk/blob/main/Sans/README.md. Files/license/
+  provenance in crates/theframework/webfonts. Native production excludes the
+  collection; WASM and native text-only tests explicitly include it.
+- Centralized bundled UI/game fonts in TextSystem.register_bundled_fonts. Browser
+  fallback follows host language for default Han, with kana/Hangul/Bopomofo faces
+  supplied through Fontique script fallbacks. Layout/ink/editing stay Parley/Swash.
+- Font source byte cache now uses weak source identities and shared Arc bytes;
+  multiple TTC faces no longer copy the entire collection into each FontFace.
+  Font re-registration retires stale lookup entries while retained layouts keep
+  their source. Added CJK/glyph ink/face-sharing/editor assertions to the existing
+  bundled-symbol fallback test, with system discovery disabled.
+- Compilation/tests/browser IME captures remain pending; no CJK coverage gate is
+  claimed yet. Preserve language-specific glyph selection, Latin metrics and
+  project font overrides, then rebuild browser and verify committed/preedit ink.
+
+- CJK source compile for actual WASM client passed24.46s. Existing extended
+  bundled fallback test passed1,0.29s, with system_fonts=false: real Swash ink,
+  TC(default Han)/JP(kana)/KR faces, shared TTC Arc and identical editing/label
+  widths. All166 renderer-free UI tests passed2.23s.
+- Optimized WASM build passed42.17s; packaged73,814,090bytes, an observed
+  +19,510,566bytes versus the prior54,303,524byte bundle. The unmodified collection
+  itself is19,484,784bytes; no unmeasured startup/performance claim is made.
+  Native production excludes it via cfg; text source registration and shaped
+  FontFace snapshots share source bytes rather than copy the TTC per face.
+- Actual125% task browser now loading this bundle for source-asserted IME/undo/
+  focus/device recovery. Temporary capture helper waits for completed GPU work
+  before each requested screenshot, then resumes the same application; physical
+  native/browser display gates remain open. Combined native applications also
+  rebuilding after the shared font registration/source-byte changes.
+  Logs /private/tmp/eldiron-browser-cjk-source-{check,cpu,ui-tests,
+  package-pipeline,bootstrap,assembled-build}.log.
+
+
+Actual browser supplied CJK ink/recovery verified:
+- Actual125% production browser (canvas945x517, CSS756x414) source-asserted
+  lifecycle passed: committedÉowyn日本語, undo→Éowyn, redo, canceled stale preedit/
+  late end, focused-target2→3, Start, and actual device.destroy during selected
+  日本 preedit→gen2 on same sessionba3c0821-b99d-4d9e-9c4a-a573581f74b7.
+  Final796 frames/tick116, errors[], readback0/Canvas2D0/colorCopies0.
+  /private/tmp/eldiron-browser-cjk-source-{bootstrap,lifecycle}.log.
+- Visually inspected completed-GPU captures: readable日本語 rather than missing
+  glyph boxes; actual日本 preedit with the second character selected survives
+  generation2. Saved browser-cjk-commit.png and browser-cjk-preedit-recovery.png
+  in concepts/native-wgpu-evidence. This supersedes the earlier tofu observation
+  for these supplied-font cases, not every text/physical-host acceptance gate.
+- Added an explicit Cyrl fallback to the supplied family so authored game fonts
+  lacking Cyrillic also resolve. Extended the same existing fallback test with a
+  collection containing ONLY the CJK fallback and an unavailable primary font;
+  its final CPU/build/browser check is pending. Native production cfg excludes
+  this browser fallback registration. Native common-player integration passed1,
+  29.66s; Creator test is still running.
+
+
+M2/M8 font source checkpoint verified:
+- Final focused CPU fallback test passed1,0.38s, including Cyrillic with NO
+  primary/system font. Existing renderer-free UI suite passed166,2.23s. Native
+  common-player Metal case passed1,29.66s; assembled Creator Metal case passed1,
+  108.12s (combined build41.43s). ARM64 iOS simulator common-player library
+  check passed18.71s; native production does not embed this browser collection.
+- Final optimized WASM build49.43s/package73,814,338bytes. Actual final browser
+  mixed Cyrillic/Han/Japanese/Hangul source `Журнал 中文 日本語 한글` passed and
+  survived real GPU replacement on sessiondc5e62aa-efd9-4010-8671-3e0792e61990,
+  gen2/742 frames/tick105, readback0/Canvas2D0/colorCopies0/errors[].
+  Completed-GPU recovered PNG visually inspected: readable mixed text rather
+  than tofu, retained cursor/focus and expected authored Latin/pixel typography.
+  Saved concepts/native-wgpu-evidence/browser-cjk-mixed-recovery.png.
+  Logs /private/tmp/eldiron-browser-cjk-final-{bootstrap,mixed,ios}.log and
+  ...cjk-source-{cpu-final,player-metal,creator-metal,final-package-pipeline}.log.
+- Noto source/license/provenance and the measured19.5MB bundle cost are retained.
+  Coverage here is supplied CJK/Cyrillic/script fallback, font-byte sharing and
+  browser composition/recovery; full font/locale/emoji/RTL quality, physical IME,
+  atlas/performance budgets, browser Creator and complete M0–M9 gates remain.
+- Next ownership/host work: inspect the existing Creator Apple GPU facade and
+  document/foreign-host APIs before adding versioned handle/document callbacks.
+  Current facade already uses ForeignApplicationHost and the common presenter
+  but still exposes a single thread-local APP and command-driven file dialogs.
+  Preserve its symbols/Swift callers and coordinate with M5's remaining globals;
+  do not claim isolated simultaneous Creator hosts while those globals remain.
