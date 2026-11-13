@@ -43,6 +43,9 @@ Output is under the Cargo target directory at
 Use `--package eldiron-client --bin eldiron-client` for the canonical name.
 The browser must provide WebGPU; startup errors appear on the page. Its canvas
 uses the shared GPU compositor/scene outputs with no Canvas2D image presentation.
+Browser text input uses a host-owned invisible textarea for composition and
+committed text; the common controller retains selection, history and GPU text
+painting. Native key commands and DOM text insertion remain separate.
 Successful surface acknowledgements update `data-eldiron-presentations` on the
 root element; `data-eldiron-state` reports loading, starting, playing or error.
 

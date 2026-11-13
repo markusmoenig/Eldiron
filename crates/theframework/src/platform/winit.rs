@@ -15,6 +15,9 @@ use renderkit::{RenderError, Result, SurfaceState};
 use std::sync::Arc;
 use web_time::{Duration, Instant};
 
+#[cfg(target_arch = "wasm32")]
+mod web_text;
+
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
 type ClipboardState = Option<arboard::Clipboard>;
 #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
@@ -24,6 +27,8 @@ struct ClipboardState;
 enum HostEvent {
     Ready(u64, Result<GpuPresenter<'static>>),
     Clipboard(u64, ClipboardResult),
+    #[cfg(target_arch = "wasm32")]
+    BrowserInput(InputEvent),
 }
 #[derive(Clone, Copy, PartialEq)]
 struct WindowState {
@@ -45,6 +50,7 @@ struct Host {
     suspended: bool,
     occluded: bool,
     dirty: bool,
+    redraw_requested: bool,
     next_present: Instant,
     next_update: Option<Instant>,
     last_update: Instant,
@@ -56,6 +62,8 @@ struct Host {
     applied: Option<WindowState>,
     focused: bool,
     clipboard: ClipboardState,
+    #[cfg(target_arch = "wasm32")]
+    browser_text: Option<web_text::BrowserText>,
 }
 impl Host {
     fn sync_window_state(&mut self) {
@@ -102,6 +110,15 @@ impl Host {
                     ),
                 );
             }
+        }
+        #[cfg(target_arch = "wasm32")]
+        if let Some(text) = &mut self.browser_text {
+            text.sync(state.text_input);
+        }
+        #[cfg(target_arch = "wasm32")]
+        if self.browser_text.as_ref().is_some_and(|text| text.inspection_requested()) {
+            let source = self.app.native_text_snapshot(&mut self.context);
+            self.browser_text.as_ref().unwrap().inspect(source.as_ref());
         }
         if old.is_none_or(|old| old.visible != state.visible) {
             window.set_cursor_visible(state.visible);
@@ -249,6 +266,13 @@ impl ApplicationHandler<HostEvent> for Host {
                                     );
                                     return;
                                 }
+                                match web_text::BrowserText::new(canvas, self.proxy.clone()) {
+                                    Ok(text) => self.browser_text = Some(text),
+                                    Err(error) => {
+                                        self.fail(event_loop, error);
+                                        return;
+                                    }
+                                }
                             }
                         }
                     }
@@ -279,6 +303,7 @@ impl ApplicationHandler<HostEvent> for Host {
     }
     fn suspended(&mut self, _: &ActiveEventLoop) {
         self.suspended = true;
+        self.redraw_requested = false;
         self.route(InputEvent::Focus(false));
         if self.initialized {
             self.app.suspended(&mut self.context);
@@ -289,6 +314,21 @@ impl ApplicationHandler<HostEvent> for Host {
     }
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: HostEvent) {
         match event {
+            #[cfg(target_arch = "wasm32")]
+            HostEvent::BrowserInput(event) => {
+                if let InputEvent::Modifiers(modifiers) = &event {
+                    self.mods = *modifiers;
+                }
+                if let InputEvent::Focus(focused) = &event {
+                    self.focused = *focused;
+                    if !focused {
+                        self.mods = Modifiers::default();
+                        self.ime.disable();
+                        self.touch = None;
+                    }
+                }
+                self.route(event);
+            }
             HostEvent::Clipboard(request, result) => {
                 self.route(InputEvent::Clipboard { request, result });
             }
@@ -358,7 +398,10 @@ impl ApplicationHandler<HostEvent> for Host {
                     self.resize(w.inner_size());
                 }
             }
-            WindowEvent::RedrawRequested => self.redraw(event_loop),
+            WindowEvent::RedrawRequested => {
+                self.redraw_requested = false;
+                self.redraw(event_loop);
+            }
             WindowEvent::Occluded(value) => {
                 self.occluded = value;
                 if !value {
@@ -367,6 +410,12 @@ impl ApplicationHandler<HostEvent> for Host {
                 }
             }
             WindowEvent::Focused(focused) => {
+                // DOM focus transferring from the canvas to its text service
+                // is still focus inside the same application.
+                #[cfg(target_arch = "wasm32")]
+                if !focused && self.browser_text.as_ref().is_some_and(|text| text.owns_focus()) {
+                    return;
+                }
                 self.focused = focused;
                 self.route(InputEvent::Focus(focused));
                 if !focused {
@@ -442,7 +491,11 @@ impl ApplicationHandler<HostEvent> for Host {
                     && !self.mods.super_key
                     && (!self.mods.control || self.mods.alt)
                 {
-                    if let Some(text) = event.text {
+                    #[cfg(target_arch = "wasm32")]
+                    let use_key_text = !self.browser_text.as_ref().is_some_and(|text| text.active());
+                    #[cfg(not(target_arch = "wasm32"))]
+                    let use_key_text = true;
+                    if let Some(text) = event.text.filter(|_| use_key_text) {
                         if let Some(event) = self.ime.key_text(text_target, text.to_string()) {
                             self.route(event);
                         }
@@ -549,14 +602,19 @@ impl ApplicationHandler<HostEvent> for Host {
                 let size = p.surface.physical_size();
                 size.0 > 0 && size.1 > 0
             });
-        if self.dirty && can_present && now >= self.next_present {
+        // Coalesce requests until Winit delivers the frame. Its web backend
+        // cancels/replaces the previous RAF on every request_redraw; repeatedly
+        // requesting during simulation wakes can otherwise starve presentation.
+        let needs_redraw = self.dirty && can_present && !self.redraw_requested;
+        if needs_redraw && now >= self.next_present {
             if let Some(window) = &self.window {
                 window.request_redraw();
+                self.redraw_requested = true;
             }
         }
         let wake = next_wake(
             self.next_update,
-            self.dirty && can_present,
+            self.dirty && can_present && !self.redraw_requested,
             self.next_present,
             now,
         );
@@ -755,6 +813,7 @@ pub fn run(app: Box<dyn GpuApplication>) -> Result<()> {
         suspended: false,
         occluded: false,
         dirty: true,
+        redraw_requested: false,
         next_present: now,
         next_update: Some(now),
         last_update: now,
@@ -766,6 +825,8 @@ pub fn run(app: Box<dyn GpuApplication>) -> Result<()> {
         applied: None,
         focused: true,
         clipboard: Default::default(),
+        #[cfg(target_arch = "wasm32")]
+        browser_text: None,
     };
     #[cfg(not(target_arch = "wasm32"))]
     {

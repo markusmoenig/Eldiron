@@ -27,7 +27,7 @@ Started: 2026-11-11 (Asia/Bangkok). Overall Goal: active; full M0–M9 scope rem
 - M4: in progress. CPU schema/identity extraction, shared `GameSession`, CPU startup preparation, message/party/world-target policies and terminal adoption are implemented and tested. Per-session routing, local players, world values, runtime IDs and region context ownership now pass controlled overlapping-session and parallel assembled-player regressions. Graphical clients adopt GameSession; Creator shares its clock/output pump and runtime-owned PlayerInput. Text Play state is now Editor-owned and uses explicit CPU runtime borrows. Canonical Creator Play now owns a separate runtime Project projection; startup/warmup, entities/generated geometry and time no longer mutate authored Documents. The Console also consumes explicit addressed CPU inspections and rejects stale runtime actor links/history without reading the global server or authored entity fallbacks. Native Creator now owns its GameSession server/assets/current-map/clock/audio lifetime and advances from host elapsed time independently of rendering. Reference storage/start-menu/source bridges and remaining bitmap/value data extraction remain; this evidence does not establish full simultaneous Creator Play workflows.
 - M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Immutable ordinary editor-view preparation, exact reference/native view outputs and retained CPU chunk publication are now available through SceneViews. Common HUD, paint/props panels, profile displays and ViewCube now have retained command frames, guarded input and actual GPU composition/reconstruction evidence. Six standard tools additionally emit ordered typed overlay aggregates with exact presented-frame and detail-profile source guards. Full-viewport profile editing is now connected to the actual native Creator root with document/widget binding, presentation-gated input and inline commit/cancel; ordinary stopped top-down, sprite-isometric and 3D region rendering and the six standard tool overlays now use the same native application owner and real tool dispatch. Orbit/orthographic/first-person views include depth-aware guides, retained ViewCube and explicit tool query snapshots; surface paint uses the view-owned GPU scene. The Terrain tool now also uses retained native controls and GPU brush guides with real sculpt/cancel integration. Rect now also uses presentation-gated composition/rotation controls, shared source sprite previews blitted on the GPU, terrain-conforming perimeters, and view-owned 3D queries; actual isometric placement and fractional-DPI sprite sampling pass in the assembled checkpoint. Isometric terrain Paint now also uses retained native controls, batched GPU brush feedback, update-phase editable source publication and the existing authoring/undo dispatch. Native 3D Paint now also consumes dedicated scene-owned paint-coordinate queries and explicit authoring surface captures, with camera-scoped drafts and GPU composition; full Paint workflow/platform parity remains unverified. The isolated Prefab viewport now also uses native top-down/isometric/3D outputs, live effects with hierarchy-aware owned drags, and actual 3D Paint authoring on its asset-owned layer. Paint now shares the normal tile picker; its settings live only in the viewport overlay. The canonical Creator Play toolbar now owns the same CPU clock/output pump as GameSession, and its live authoring viewport keeps its own native SceneView. The authored Game-tool viewport now also uses the common GameScreenController/SceneViews/Swash presentation; authoring GameInput now also shares runtime controls while retaining the native scene in supported contexts. Region geometry, ordinary scene and sprite-isometric minimaps now have owned GPU outputs and presentation-scoped navigation; palette and rig previews also have retained native sources and acknowledged palette input. Authored screen minimaps now also use a GPU-only ordered 2D overview producer with compatible source sampling and acknowledged screen-scoped navigation. Parent-region minimaps during Prefab/profile/detail editing also have independent native source production and presented-parent navigation without modifying the isolated editor map. Remaining uncommon contexts/tools retain explicit migration adapters. Application/global/document/Play ownership, main world/tool/HUD integration, remaining producers, full visual/workflow/performance acceptance and canonical retirement remain.
 - M6: in progress. Independent GPU game views, common player/input/camera components, authored screen paint, private world descriptions, view-owned speech, acknowledged-frame world pointer gestures, relative first-person mouse look, default/world-intent cursors, world/UI item drag previews and acknowledged authored inventory/equipment pointer/keyboard gestures are implemented. Application-owned audio is integrated into the common player with cancellable CPU preparation jobs. The native container HUD now includes acknowledged paint/input, real server transfers, scrolling, GPU recovery and navigation lifetime. Floating inventory/equipment, action catalogue/spellbook and preferences now use typed native HUD owners, retained text/source resources and acknowledged input. Acknowledged UI-origin tooltips now use retained text and host deadlines. UI-origin Drop cursors and acknowledged drag/assignment highlighting now have GPU and authoritative transfer evidence. Native isometric source production, shared CPU source publication, game-view outputs and acknowledged input receipts now have GPU/CPU and shipped-source device-reconstruction evidence. Browser worker hosting, remaining game-mode/HUD policy parity, performance acceptance remain. Canonical native desktop launchers now share the common application/host; see launcher verification below.
-- M7/M8/M9: Retirement and platform/full acceptance pending. Canonical desktop clients share one common player; the Xcode client now uses it through the retained ABI over a Rust-created CAMetalLayer surface. Native/ARM64 simulator app bundles link, and real Swift/static-library and registered-scene layer checks pass. Browser bootstrap, native text/platform parity, Creator wrapper and complete physical/release acceptance remain; this is not complete application/platform parity.
+- M7/M8/M9: Retirement and platform/full acceptance pending. Canonical desktop clients share one common player; the Xcode client now uses it through the retained ABI over a Rust-created CAMetalLayer surface. Native/ARM64 simulator app bundles link, and real Swift/static-library and registered-scene layer checks pass. Browser player bootstrap and the host-owned text/IME service now use the shared path; browser Creator, CJK fonts, 3D color parity, native text/platform parity, Creator wrapper and complete physical/release acceptance remain; this is not complete application/platform parity.
 
 ## Native window validation correction (2026-11-12)
 
@@ -7182,3 +7182,221 @@ Browser/common-player checkpoint final compilation:
   reviewable implementation checkpoint. No project serialization or authored
   fixture was modified. Browser3D performance/visual capture, full density/input/
   audio/lifecycle, native physical-host gates and M0–M9 retirement remain open.
+
+
+Browser text service and RAF diagnosis (implementation in progress):
+- Winit0.30.12 web set_ime_allowed/set_ime_cursor_area are explicit no-ops.
+  Added a host-owned, invisible caret-positioned textarea for actual browser
+  composition/committed input. Existing controllers own text/selection/undo and
+  GPU paint; events carry existing focus-target identities. Physical navigation/
+  shortcuts retain Winit translation; native key text is suppressed only while
+  this browser input service is active to prevent double insertion. DOM listener
+  lifetime belongs to the host. Initial wasm check corrected DOM type conversions
+  and legacy key enum naming, then canonical wasm check passed12.91s.
+- Primary event ordering references: https://www.w3.org/TR/input-events-2/ and
+  https://www.w3.org/TR/uievents/. Browser IME integration/pixel verification is
+  still pending; physical OS IME remains unavailable on the locked Mac.
+- Fresh3D run without Runtime/Debugger enable also stopped at8 presentations;
+  capture timed out. A bounded CPU profile succeeded and showed mostly idle
+  time plus repeated requestAnimationFrame cancellation/postTask scheduling,
+  rather than a verified GPU bottleneck. Source inspection found Winit web's
+  AnimationFrameHandler::request cancels its previous RAF on every call.
+- Shared host previously requested redraw on every due simulation wake until
+  the frame arrived. Added one pending-redraw flag, cleared on delivered redraw/
+  suspend, and exclude the pending frame from timer wake policy. This coalesces
+  browser RAF requests without changing runtime clock or owning a second loop.
+  The real3D capture and text service must be rerun on the final packaged bundle
+  before classifying this diagnosis as a verified fix. Logs:
+  /private/tmp/eldiron-browser-3d-no-inspector.log,
+  /private/tmp/eldiron-browser-3d-profile.log and
+  /private/tmp/eldiron-browser-3d-active-sample.txt.
+
+
+Browser text integration first actual run:
+- Final CPU/DOM bridge compiled and optimized package54,138,463bytes generated.
+  Logs: /private/tmp/eldiron-browser-text-{wasm-check,native-check}.log and
+  /private/tmp/eldiron-browser-text-cursor-package-pipeline.log. Native check
+  passed14.60s. Source now converts DOM UTF-16 composition selection using the
+  existing checked UTF-16→UTF-8 mapping, after the input event updates the DOM.
+- Actual CDP IME generated preedit日本, selection1..2 in the native textarea;
+  GPU paint showed transient underline/selected composition, then committed
+  three characters once. Ordinary Éowyn committed key text painted once. Focus
+  transfer retired the text service; late composition callback was ignored;
+  game Start retained session1f96245a-7de5-49ac-8596-8ae32df61ab0 and released
+  the textarea. Presents566/tick79, readback0/Canvas2D0/colorCopies0/errors[].
+  /private/tmp/eldiron-browser-text-lifecycle.log and actual text-*.png captures.
+- This first invocation does NOT establish undo/redo parity. Its synthetic
+  modifier mask lacked Control/Shift physical transitions. Winit web delivers a
+  key before its same-event modifier change, so the first probe was off by one.
+  Corrected validation to press/release actual modifiers, rather than changing
+  production shortcut behavior to fit an invalid physical sequence.
+- Japanese glyphs paint as missing-glyph boxes in this project's pixel font on
+  browser (no system fonts). Composition delivery is observed, but CJK/fallback
+  visual parity is NOT passed. Shipped Creator zh-CN/zh-TW need an explicit
+  browser font source policy before M8 completion. Do not equate committed
+  Unicode/input metadata with successful glyph coverage.
+- Fresh final RAF bundle3D still reached7 acks then capture timed out. A one-second
+  GPU-process sample shows a Chrome IOSurfaceSharedEvent wait, while bounded CPU
+  sampling was mostly idle; coalescing alone has NOT resolved3D. No invalid3D
+  screenshot is durable evidence. Continue diagnosing actual GPU submissions/
+  sharing or browser backend behavior; browser3D acceptance remains open.
+
+
+Browser command ordering correction, verification pending:
+- The second physical-modifier probe completed its state/lifetime assertions,
+  but reviewing its actual undo/redo captures still showed incorrect history
+  transitions. Do not classify its final PASS line as undo/redo acceptance.
+- Removed synthetic DOM key redispatch into the canvas. The text service now
+  publishes a neutral modifier snapshot immediately before each translated
+  physical/logical key through one ordered host event queue. This avoids
+  depending on Winit web's key-before-modifiers order across DOM focus transfer.
+  Character insertion continues only through DOM input/composition events;
+  navigation/commands never insert text. Native Winit translation is unchanged.
+  The final release browser validation must verify the actual history images.
+- Seven existing framework platform/IME/host tests passed0.35s on native:
+  /private/tmp/eldiron-browser-host-final-tests.log. No new isolated test suite
+  was added. The rewrite's physical OS/IME gate remains open.
+- Primary Chromium sources confirm IOSurface WebGPU/compositor sharing uses
+  shared-event fences. This supports investigating the observed wait, not a
+  confirmed Chromium defect: https://chromium.googlesource.com/chromium/src/gpu/+/5495e3b456fd7e45856fa4e1ed6a77db1b82c4d3/command_buffer/service/shared_image/iosurface_image_backing.mm
+  A separate isolated browser diagnostic changes only ANGLE's compositor backend
+  and observes actual GPU queue completion/pass labels. Application shaders and
+  WebGPU device selection remain unchanged. Browser3D remains unverified.
+
+
+Browser actual3D capture and remaining visual defect:
+- Paused only the diagnostic browser's next RAF callback, awaited real WebGPU
+  queue completion, and captured its actual canvas. All14 submitted buffers
+  completed (raster shadow/3D/bloom, scene composition and ordered UI), then
+  resumed the same runtime3638046f-effe-4a49-b5a5-a98223f4f318, presentations3→7,
+  ticks0→14. No Canvas2D/color copies/renderkit readback or GPU validation errors.
+  /private/tmp/eldiron-browser-3d-idle-capture.log, exit0. This is an explicit
+  diagnostic capture pause; normal GPU scene presentation does not read back.
+- Visually inspected actual image, now durable as
+  concepts/native-wgpu-evidence/browser-3d-diagnostic.png. Actual authored
+  Dungeon geometry, HUD/portrait/inventory render. However viewport colors are
+  strongly green/dark compared with the native starter capture's blue/gray;
+  visual parity is NOT established. Need equal startup/time/settings comparison
+  and investigate shader/color/source differences before accepting3D. Fixture
+  bytes match the shipped3DStarter (SHA1 7178c81e580226b74971ef3a78e40843be9c94ec).
+- Earlier direct captures under GPU backlog still hang Chrome's IOSurface wait.
+  The successful idle capture/resume narrows the issue; it does not prove a
+  production fix or normal under-load capture/performance acceptance.
+- Alternate --use-angle=gl diagnostic is unavailable: Chrome152 permits only
+  ANGLE Metal here and reports no WebGPU adapter after GL initialization fails.
+  Its visible error panel confirms host error reporting, not successful3D.
+  No application backend/feature restriction was relaxed to force a pass.
+- Atomic IME host commit now delivers TextFor while the marked range still
+  exists, then clears metadata; the browser cancels only an empty composition.
+  Extended the existing composition/selection/undo regression with the real
+  ImeSession sequence. Focused test passed0.45s; all46 existing controller tests
+  passed0.91s: /private/tmp/eldiron-host-ime-{commit-cpu,controller-tests}.log.
+  Final optimized browser package54,135,635bytes built40.83s. New isolated browser
+  actual commit/history/device-recovery-during-preedit verification is running.
+
+
+Atomic IME browser/device evidence and probe correction:
+- Actual preedit survived GPU generation1→2 on the same
+  session0ae547d6-b90b-4d5d-8f49-c87daf14ff74, with textarea focus/value日本 and
+  the GPU-selected preedit range retained. Game start afterward remained in that
+  session, tick19/presents145, readback0/Canvas2D0/colorCopies0/GPU errors[].
+  /private/tmp/eldiron-browser-ime-atomic-{bootstrap,lifecycle}.log. Actual
+  preedit-recovered.png inspected. Undo now correctly restores Éowyn after the
+  atomic commit correction, preserving the preceding edit.
+- The redo capture still exposed a validation-script error: CDP Shift uses bit8,
+  while the temporary shortcut helper used bit1 (Alt). Corrected Ctrl+Shift to
+  mask10, with explicit modifier transitions. This supersedes the earlier
+  modifier-order explanation as evidence for the incorrect redo result. The
+  browser adapter's explicit modifier-before-key queue remains a deliberate
+  deterministic platform translation, not a claim that this probe established
+  a Winit modifier bug. No production shortcut policy was changed for CDP.
+  Final corrected-modifier capture verification is pending; do not classify
+  the script's earlier state-only PASS lines as successful redo images.
+
+
+Text/host assembled build matrix and source inspection:
+- Final native graphical launchers, Creator native/reference/staticlib, canonical
+  classic wasm launcher and all13 boundaries passed:
+  /private/tmp/eldiron-browser-text-final-{launchers,creator-native,
+  creator-reference,creator-staticlib,canonical-wasm,boundaries}.log.
+  Staticlib23.09s, canonical wasm32.03s. This matrix includes the real atomic
+  ImeSession commit ordering. No GPU/serialized-data API was widened.
+- Correct Shift-mask run visually verifies undo→Éowyn and redo→Éowyn plus three
+  committed glyphs. Device recovery during preedit again retains the same
+  session a1551630-2920-4492-a87e-1281968ca0b8 and GPU generation1→2. However the
+  following focus-return image looks empty. Keep that gate open until source
+  state versus glyph painting is distinguished; images alone cannot assert
+  correct CPU binding contents. Log:
+  /private/tmp/eldiron-browser-ime-correct-shift-lifecycle.log.
+- Added opt-in existing native-text CPU snapshot inspection to the browser host.
+  A validation page setting data-eldiron-inspect-text requests addressed text,
+  revision, selection and composition metadata on its hidden textarea. Normal
+  pages do not request/publish text contents. This shares GpuApplication's existing
+  native_text_snapshot, performs no readback and cannot edit the source. Final
+  optimized wasm build passed48.37s, package54,147,385bytes:
+  /private/tmp/eldiron-browser-text-inspection-package-pipeline.log. A source-
+  asserted browser workflow is now running to diagnose the focus-return symptom.
+
+
+Source-asserted browser IME workflow:
+- Final source-asserted run passed on session850e28e5-46d2-49fa-9c0b-dee0900a25ca:
+  Latin sourceÉowyn; commitÉowyn日本語 with composition=null/selection15;
+  undoÉowyn; redoÉowyn日本語; next preedit range15..20; blur removes the active
+  source; focus return changes target2→3 while retainingÉowyn日本語 and rejecting
+  the late callback. WebGPU generation1→2 preserved that active preedit. Start
+  retained session/tick19/presents147/readback0/Canvas2D0/colorCopies0/errors[].
+  /private/tmp/eldiron-browser-text-source-{bootstrap,lifecycle}.log.
+- The source-inspected focus-return image renders the retained field correctly
+  (CJK still tofu). Inspection-disabled run waits >2 acknowledged frames before
+  each capture; it again has the apparently empty focus-return field despite
+  correct undo/redo and other control paint. Thus a transient100ms sleep alone
+  does not explain it. Preserve this as a paint/layout/resource diagnosis,
+  NOT a CPU text-loss claim or a passed browser focus-visual gate. No source
+  state was changed to force a pass. Logs:
+  /private/tmp/eldiron-browser-text-acknowledged-{bootstrap,lifecycle}.log.
+- Same-page A/B capture is running: stable focus return with source inspection
+  off, then opt-in source inspection, then off again. The CPU source query is
+  read-only; determine whether it changes layout generation/timing or exposes
+  a stale cached paint input before fixing the underlying cause.
+
+
+Completed-GPU text capture resolves the apparent source-loss diagnosis:
+- Same-page A/B queries do NOT show a deterministic inspection/layout fix:
+  one pre-inspection frame rendered text while later inspection/off frames were
+  blank. Source remained exactlyÉowyn日本語, target3, selection15. Do not change
+  document/layout logic merely to fit those inconsistent headless captures.
+- Paused only the next diagnostic RAF callback, awaited actual WebGPU queue
+  completion, and captured the existing focused field with source inspection
+  disabled. Actual complete image correctly shows Éowyn plus the committed three
+  glyphs and caret; source unchanged. Resumed the SAME session
+  52d14d1a-7393-4253-8f08-1a3237c09f85, presentations5861→5876/ticks848→851,
+  GPU generation2, readback0/Canvas2D0/colorCopies0/errors[]. Log:
+  /private/tmp/eldiron-browser-focus-idle-capture.log. Screenshot inspected and
+  durable as concepts/native-wgpu-evidence/browser-ime-focus-gpu-idle.png.
+- Together with the source-asserted commit/undo/redo/focus run and selected
+  preedit surviving actual device destruction, this verifies CPU text semantics
+  and a completed-GPU focused frame on the real browser. It does NOT establish
+  normal physical display/OS IME or reliable headless capture under GPU backlog.
+  CJK still needs supplied fallback glyphs; browser3D colors remain discrepant.
+  Durable browser-ime-preedit-recovery.png shows the actual retained marked
+  selection after GPU replacement; missing CJK ink is explicitly unaccepted.
+- Browser host/text checkpoint is ready for a local commit after final isolated
+  wasm feature checks. No screenshot-dependent paint workaround, serialized
+  project change, or CPU framebuffer fallback was introduced. Continue M5/M8/M9
+  implementation and acceptance; no milestone or overall Goal is complete.
+
+
+Browser text host checkpoint final isolation:
+- Independent framework platform-winit wasm build with NO widget UI passed
+ 13.12s: /private/tmp/eldiron-browser-text-isolated-wasm-check.log. The text
+ service uses only existing neutral text/host/GPU contracts; no UI/Pixels
+ dependency was added to that independently resolved platform consumer.
+- Final diff check passed. Checkpoint covers browser text/composition/commands,
+ stable focus tokens, corrected native/web commit ordering, RAF coalescing and
+ opt-in CPU source diagnostics. Tests and browser observations above retain
+ their exact scope; incomplete glyph/platform/3D/performance gates stay open.
+- Precise continuation: finish browser supplied CJK font policy and equal-state
+ 3D color comparison; investigate direct headless capture/backpressure without
+ introducing rendering readbacks. Independently continue native Creator's
+ remaining 3D paste/uncommon contexts, application/global ownership retirement,
+ Creator Apple/browser bootstrap and the full M0–M9 acceptance matrix.

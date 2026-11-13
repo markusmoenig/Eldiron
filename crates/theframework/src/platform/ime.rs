@@ -57,14 +57,17 @@ impl ImeSession {
         let Some(target) = target else {
             return Vec::new();
         };
-        let mut events = vec![InputEvent::CompositionFor {
-            target,
-            text: String::new(),
-            cursor: None,
-        }];
+        let mut events = Vec::new();
+        // Text commits the marked range with its original selection/history.
+        // Clearing first cancels that state before the controller can commit it.
         if !text.is_empty() {
             events.push(InputEvent::TextFor { target, text });
         }
+        events.push(InputEvent::CompositionFor {
+            target,
+            text: String::new(),
+            cursor: None,
+        });
         events
     }
     /// A key that opens/focuses an editor is an activation, not text for the new

@@ -88,6 +88,25 @@ fn composition_preserves_committed_selection_until_commit_and_undo() {
     editor.input(&mut fonts, &InputEvent::Focus(false));
     assert!(!editor.is_composing());
     assert_eq!(editor.text(), "A日本Z");
+
+    // Exercise the actual host event sequence, including a selected marked
+    // range and an earlier edit whose undo record must remain independent.
+    let (mut fonts, mut editor) = fixture(false, "Éowyn");
+    text(&mut editor, &mut fonts, "!");
+    let mut ime = crate::platform::ImeSession::default();
+    ime.set_target(Some(editor.input_target()));
+    ime.enable();
+    let preedit = ime.preedit("日本".into(), Some((3, 6))).unwrap();
+    editor.input(&mut fonts, &preedit);
+    for event in ime.commit("日本語".into()) {
+        editor.input(&mut fonts, &event);
+    }
+    assert_eq!(editor.text(), "Éowyn!日本語");
+    assert!(!editor.is_composing());
+    assert!(editor.undo(&mut fonts));
+    assert_eq!(editor.text(), "Éowyn!");
+    assert!(editor.redo(&mut fonts));
+    assert_eq!(editor.text(), "Éowyn!日本語");
 }
 #[test]
 fn backspace_and_forward_delete_handle_graphemes_and_crlf() {

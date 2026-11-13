@@ -92,7 +92,7 @@ syntect = { version = "5.2.0", default-features = false, features = [
 ] }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
-web-sys = { version = "0.3", features = ["Gpu", "GpuTextureFormat", "Clipboard", "Navigator", "Performance", "Window", "Document", "HtmlElement", "HtmlCanvasElement", "Node"] }
+web-sys = { version = "0.3", features = ["Gpu", "GpuTextureFormat", "Clipboard", "Navigator", "Performance", "Window", "Document", "HtmlElement", "HtmlCanvasElement", "HtmlTextAreaElement", "CompositionEvent", "InputEvent", "KeyboardEvent", "FocusEvent", "Node"] }
 
 [features]
 platform-winit = ["dep:winit", "render-wgpu"]
