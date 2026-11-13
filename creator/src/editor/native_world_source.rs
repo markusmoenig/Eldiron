@@ -86,21 +86,22 @@ impl Editor {
         }
     }
     pub(super) fn native_world_geometry_config(&self) -> String {
-        if self.server_ctx.editor_view_mode == EditorViewMode::D2 || !self.server_ctx.pc.is_region()
+        if self.server_ctx.editor_view_mode == EditorViewMode::D2
+            || !scope::uses_region(&self.server_ctx)
         {
             return String::new();
         }
-        self.server_ctx
-            .pc
-            .id()
-            .and_then(|id| self.documents.project.get_region(&id))
+        self.documents
+            .project
+            .get_region_ctx(&self.server_ctx)
             .map(|region| region.config.clone())
             .unwrap_or_default()
     }
     /// Shared CPU projection policy for authored and pending-paste sources.
     /// Keep editor-only placement/config filtering out of serialized maps.
     pub(super) fn project_native_world_geometry(&self, map: &mut Map) {
-        if self.server_ctx.editor_view_mode != EditorViewMode::D2 && self.server_ctx.pc.is_region()
+        if self.server_ctx.editor_view_mode != EditorViewMode::D2
+            && scope::uses_region(&self.server_ctx)
         {
             crate::utils::filter_iso_placements_for_3d(map, &self.documents.project.tiles);
             crate::utils::apply_region_config(map, self.native_world_geometry_config());

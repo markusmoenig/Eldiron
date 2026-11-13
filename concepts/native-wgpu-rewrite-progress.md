@@ -10166,3 +10166,90 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   browser parity. Short CDP CPU profile underway for Rust/WASM attribution.
   Native Screen adapter scope and all available native/Swift checks are ready
   for a checkpoint; full M0–M9 objective remains ACTIVE and incomplete.
+
+## 2026-11-14 — Region preview contexts and Screen browser follow-up (active)
+
+- Screen adapter checkpoint a9be8ff8; networking concept preserved/untracked.
+- Browser became responsive after the bounded initial bootstrap timeout. Short
+  CDP CPU profile of current page is predominantly idle, with named Rust/WASM
+  update samples; it does not attribute the older busy renderer. No renderer
+  defect/fix conclusion from the startup timeout. Active Screen selected through
+  real project tree at actual2400x1287/CSS1600x858; root and color readbacks0.
+- Initial keyboard clipboard workflow had no selected Screen geometry; CtrlA
+  did not select it. Corrected fixture uses actual Sector tool click on its square
+  before copying. Real Screen copy/paste preview, device replacement, same-target
+  commit and toolbar Undo PASS doca8d1084a-ce35-4753-aa28-2794eb8b242c;579frames,
+  2devices/gen2; all normal root/readback/asset/color copies/Canvas2D0/errors[].
+- Fresh committed archives: base/pending byte-identical1,389,803B
+  SHAbfc078a394e48e05465232eeda99c18365beef2763e5c06022aab4d29b82f122;
+  commit1,390,226B SHAa60b960c461f05c2f9e10960110853c75c44b1822ecaf721ed2763b3c516fc4c;
+  undo1,389,803B SHAcf7cb2a5ba7059a681ea9697a12b9639cb296f39523c64c548eaac6eb7255d05.
+  Screen4→8→4vertices; region remains4 throughout; whole undo JSON differs only
+  Screen.changed26→28. No pending geometry or device state serialized.
+- Native ownership now follows the actual shared Region map context for actor
+  selections rather than only pc.is_region; parent3D map scope/config follows
+  curr_region, never the actor template UUID. Prefab keeps its isolated source;
+  hidden widgets still decline publication. Extended CPU parent/detail case
+  across Character/Item and all3D cameras PASS1/.12s. Added actual real-context
+  Character/Item frame assertions for parent identity/config, no map mutation,
+  no CPU target/readback, plus surrounding assembled workflow. Compile1
+  PASS27.11s; full native region-context assembly pending.
+
+- Region-context assembled run1 PASS1/155.58s (Character/Item in inherited3D
+  editor mode); original Screen checks still exactRGB0 and source DPImaxdelta1.
+- Follow-up context audit found Screen→actor preserves editor modeD2 while the
+  selected region may retain a 3D game camera. Legacy treats every non-TwoDIso
+  map as ordinary2D in that editor mode. Removed native's extra game-camera
+  restriction; dedicated isometric selection still uses TwoDIso. Visibility now
+  follows that same non-isometric2D policy. Added both real actor selections in
+  inherited2D mode, with unchanged game-camera/authored-map bytes and correct
+  empty2D source-config contract. Build2/final assembly pending.
+- Inspected durable browser-custom-screen-recovered-150.png201,471B
+  SHAcf2c06650199efa0de7bc808b7fac7944eed5e3997c77d6e6669b69c1b50780f.
+  Region-context browser build1 PASS/package98,286,888B (before the final
+  inherited2D refinement); final build/runtime to follow at this checkpoint.
+
+- Resource audit found a concrete scope-retention bug: removing/recreating the
+  sole world SceneView left its SharedAtlas owner alive. SceneHandler uses fresh
+  guide UUIDs, and configure_scene/build_atlas only adds current assets; old
+  guides/deleted document tiles could remain resident. World scope/catalog
+  changes now replace that private SceneViews/atlas owner after removing its
+  imported output. CPU publications remain separate; host/device is shared as
+  before. Actual context fixture records a known installed old guide and rejects
+  its presence in the newly acknowledged atlas. This is world-owner cleanup,
+  not a claim that all caches/atlases satisfy final budgets. Build3 plus final
+  integrated resource/context validation pending.
+
+- Inherited2D region-context assembly PASS1/177.60s (before atlas retirement).
+  Build3 PASS28.05s; final marker-precondition build4 PASS26.47s. Final atlas/context
+  browser release PASS41.73s/package98,303,461B. New browser bootstrap with bounded
+  longer startup diagnostics PASS doc7b03cdd7-7a68-4622-af9e-70d41559d5ff, actual
+  150%,2devices/gen2 and preservedcamera/root/readbacks0/errors[]. Actual actor
+  tree selections in this final package collecting. Final native atlas run is
+  through context and visibility checks and continuing surrounding workflow.
+
+- Final native atlas/context assembled run PASS1/178.07s, including installed-old
+  guide precondition and rejection in new atlas, all four real Character/Item
+  context modes, Screen exactRGB0 and surrounding clipboard/document/Play/device
+  workflow. Final reference compile PASS. Source DPI maxdelta remains<=1.
+- Browser QA correction: initial scripted 'character2d'/'item2d' labels were not
+  backed by actual tree selection; inspected captures showed Screen/Screen
+  Settings after tree expansion changed row positions. Do NOT promote those
+  labels/captures as actor evidence. Corrected clicks from inspected UI select
+  actual Player (Character title) and Wooden Arrows (Item title), preserving
+  native region2D output. Item categories require a separate expansion first.
+- Confirmed actor browser states pass with normal root/readback/asset/color
+  copies/Canvas2D0/errors[]; actual selected Item2D device recovery PASS at
+  doc7b03cdd7-7a68-4622-af9e-70d41559d5ff,637frames,4devices/gen4. Actual150%.
+  Fresh pre-change, actual Item and recovered Item archives byte-identical
+  1,389,817B SHA9f47ca1711d0b457d1cfa0d836f227725a4dd6eeca93defc62aa63320d86bda2;
+  region game camera remainsThreeDIso despite editor2D. Source-byte/schema
+  compatibility verified. Durable inspected real Character2D/Item2D-recovered
+  captures retained; invalid earlier automated actor labels not retained.
+- Current native/available browser region-context scope acceptance verified.
+  This does not establish all resource budgets or physical/cross-platform gates.
+  No full Goal completion. Next coherent producer: remaining legacy2D
+  editing_surface profile path. Production assignment audit currently finds no
+  Some setter outside tests; preserve that dormant UX while adopting its
+  existing child-map/base/outline/paste compatibility adapter, then continue
+  orthographic persisted/progressive bakes and canonical Creator retirement.

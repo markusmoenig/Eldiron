@@ -2,8 +2,14 @@
 //! A 3D profile selection edits a child while its world still shows the region.
 use super::*;
 
+/// Match the legacy main canvas selection. Actor templates keep the selected
+/// region visible; dock visibility still follows the normal UI tree.
+pub(super) fn uses_region(server: &ServerContext) -> bool {
+    !server.pc.is_prefab() && server.get_map_context() == MapContext::Region
+}
+
 pub(super) fn map<'a>(project: &'a Project, server: &ServerContext) -> Option<&'a Map> {
-    if server.editor_view_mode != EditorViewMode::D2 && server.pc.is_region() {
+    if server.editor_view_mode != EditorViewMode::D2 && uses_region(server) {
         project
             .get_region(&server.curr_region)
             .map(|region| &region.map)
@@ -13,7 +19,7 @@ pub(super) fn map<'a>(project: &'a Project, server: &ServerContext) -> Option<&'
 }
 
 pub(super) fn map_mut<'a>(project: &'a mut Project, server: &ServerContext) -> Option<&'a mut Map> {
-    if server.editor_view_mode != EditorViewMode::D2 && server.pc.is_region() {
+    if server.editor_view_mode != EditorViewMode::D2 && uses_region(server) {
         project
             .get_region_mut(&server.curr_region)
             .map(|region| &mut region.map)
@@ -81,21 +87,29 @@ mod tests {
         server.pc = ProjectContext::Region(region_id);
         server.active_detail_surface = Some(surface.clone());
         server.geometry_edit_mode = GeometryEditMode::Detail;
-        for mode in [
-            EditorViewMode::Orbit,
-            EditorViewMode::Iso,
-            EditorViewMode::FirstP,
+        for context in [
+            ProjectContext::Region(region_id),
+            ProjectContext::Character(Uuid::new_v4()),
+            ProjectContext::Item(Uuid::new_v4()),
         ] {
-            server.editor_view_mode = mode;
-            assert_eq!(project.get_map(&server).unwrap().id, profile_id);
-            assert_eq!(
-                map(&project, &server).unwrap().id,
-                parent_id,
-                "3D world geometry cannot be replaced by its selected flat profile"
-            );
-            map_mut(&mut project, &server).unwrap().offset = Vec2::new(7., 9.);
-            assert_eq!(project.get_map(&server).unwrap().offset, Vec2::zero());
+            server.pc = context;
+            for mode in [
+                EditorViewMode::Orbit,
+                EditorViewMode::Iso,
+                EditorViewMode::FirstP,
+            ] {
+                server.editor_view_mode = mode;
+                assert_eq!(project.get_map(&server).unwrap().id, profile_id);
+                assert_eq!(
+                    map(&project, &server).unwrap().id,
+                    parent_id,
+                    "3D world geometry cannot be replaced by its selected flat profile"
+                );
+                map_mut(&mut project, &server).unwrap().offset = Vec2::new(7., 9.);
+                assert_eq!(project.get_map(&server).unwrap().offset, Vec2::zero());
+            }
         }
+        server.pc = ProjectContext::Region(region_id);
         let child = project.regions[0].map.profiles.remove(&profile_id).unwrap();
         assert!(project.get_map(&server).is_none());
         assert_eq!(
@@ -148,6 +162,139 @@ mod tests {
         assert!(DetailScope::current(&server) != initial);
         server.active_detail_surface = None;
         assert!(DetailScope::current(&server) != initial);
+    }
+}
+
+#[cfg(test)]
+pub(crate) struct RegionContextFixture {
+    project: Project,
+    context: ProjectContext,
+    mode: EditorViewMode,
+    parent: Uuid,
+    authored: Vec<u8>,
+    actor: Vec<u8>,
+    previous_guide: Uuid,
+}
+
+#[cfg(test)]
+impl Editor {
+    pub(crate) fn begin_native_region_context_for_test(
+        &mut self,
+        item: bool,
+        two_d: bool,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+    ) -> RegionContextFixture {
+        let gpu = self.native_viewport.world.gpu.as_ref().unwrap();
+        let previous_guide = gpu.scenes.scene(gpu.view).unwrap().white;
+        assert!(gpu.scenes.atlas().tile_index(&previous_guide).is_some());
+        let parent = self
+            .documents
+            .project
+            .get_region_ctx(&self.server_ctx)
+            .unwrap();
+        let fixture = RegionContextFixture {
+            project: self.documents.project.clone(),
+            context: self.server_ctx.pc,
+            mode: self.server_ctx.editor_view_mode,
+            parent: parent.map.id,
+            authored: serde_json::to_vec(&parent.map).unwrap(),
+            actor: Vec::new(),
+            previous_guide,
+        };
+        let context = if item {
+            let mut actor = shared::item::Item::new();
+            actor.map.add_vertex_at(1000., 2000.);
+            let id = actor.id;
+            self.documents.project.items.insert(id, actor);
+            ProjectContext::Item(id)
+        } else {
+            let mut actor = shared::character::Character::new();
+            actor.map.add_vertex_at(1000., 2000.);
+            let id = actor.id;
+            self.documents.project.characters.insert(id, actor);
+            ProjectContext::Character(id)
+        };
+        if two_d {
+            // Screen selection forces the editor into 2D. Returning to an
+            // actor keeps that mode without changing the region's game camera.
+            self.server_ctx.editor_view_mode = EditorViewMode::D2;
+        }
+        crate::undo::project_helper::set_project_context(
+            ctx,
+            ui,
+            &self.documents.project,
+            &mut self.server_ctx,
+            context,
+        );
+        let mut fixture = fixture;
+        fixture.actor = self.native_region_actor_bytes_for_test();
+        fixture
+    }
+    fn native_region_actor_bytes_for_test(&self) -> Vec<u8> {
+        let actor = match self.server_ctx.pc {
+            ProjectContext::Character(id) => &self.documents.project.characters[&id].map,
+            ProjectContext::Item(id) => &self.documents.project.items[&id].map,
+            _ => panic!("expected actor context"),
+        };
+        serde_json::to_vec(actor).unwrap()
+    }
+    pub(crate) fn native_region_context_ready_for_test(
+        &self,
+        fixture: &RegionContextFixture,
+    ) -> bool {
+        let Some(frame) = self
+            .native_viewport
+            .world
+            .presented
+            .as_ref()
+            .filter(|frame| frame.ready && frame.binding.context == self.server_ctx.pc)
+        else {
+            return false;
+        };
+        assert_eq!(frame.binding.map, fixture.parent);
+        assert!(frame.binding.custom.is_none());
+        let gpu = self.native_viewport.world.gpu.as_ref().unwrap();
+        assert!(
+            gpu.scenes
+                .atlas()
+                .tile_index(&fixture.previous_guide)
+                .is_none(),
+            "replaced view guide tiles cannot accumulate in the current atlas"
+        );
+        let region = self
+            .documents
+            .project
+            .get_region_ctx(&self.server_ctx)
+            .unwrap();
+        assert_eq!(
+            frame.binding.geometry_config,
+            if frame.binding.mode == EditorViewMode::D2 {
+                ""
+            } else {
+                region.config.as_str()
+            }
+        );
+        assert_eq!(serde_json::to_vec(&region.map).unwrap(), fixture.authored);
+        assert_eq!(self.native_region_actor_bytes_for_test(), fixture.actor);
+        true
+    }
+    pub(crate) fn finish_native_region_context_for_test(
+        &mut self,
+        fixture: RegionContextFixture,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+    ) {
+        self.documents.project = fixture.project;
+        self.server_ctx.editor_view_mode = fixture.mode;
+        crate::undo::project_helper::set_project_context(
+            ctx,
+            ui,
+            &self.documents.project,
+            &mut self.server_ctx,
+            fixture.context,
+        );
+        self.invalidate_native_world_viewport(ui);
     }
 }
 

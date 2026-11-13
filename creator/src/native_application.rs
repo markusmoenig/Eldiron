@@ -867,6 +867,7 @@ mod tests {
             }
         }
         check_native_custom_contexts(&mut app, &mut host, &mut replacement, &gpu, &mut renderer, &output);
+        check_native_region_contexts(&mut app, &mut host, &mut replacement, &gpu, &mut renderer, &output);
         check_native_visibility(&mut app, &mut host, &mut replacement, &gpu, &mut renderer);
         app.session.context.ui.send(TheEvent::Custom(
             TheId::named("Set Tool"),
@@ -2999,6 +3000,71 @@ mod tests {
         app.application.editor.check_host_save_conflict_for_test(&mut app.session.ui, &mut app.session.context);
         app.update(host, Duration::from_millis(16));
         assert_eq!(gpu.transfers().readback_bytes, before, "document transfers use CPU source bytes, never scene color capture");
+    }
+
+    fn check_native_region_contexts(
+        app: &mut UiApplicationAdapter<NativeCreatorApplication>,
+        host: &mut HostContext,
+        images: &mut ImageRegistry,
+        gpu: &Arc<GpuContext>,
+        renderer: &mut PaintRenderer,
+        output: &Arc<GpuImage>,
+    ) {
+        for (item, two_d) in [(false, false), (true, false), (false, true), (true, true)] {
+            let fixture = app.application.editor.begin_native_region_context_for_test(
+                item,
+                two_d,
+                &mut app.session.ui,
+                &mut app.session.context,
+            );
+            let before = gpu.transfers().readback_bytes;
+            let deadline = Instant::now() + Duration::from_secs(10);
+            loop {
+                app.update(host, Duration::from_millis(16));
+                let list = app.frame(host, images).unwrap();
+                assert!(
+                    app.application.pending.as_ref().unwrap().world_for_test(),
+                    "actor selection must retain its native region canvas"
+                );
+                renderer
+                    .render(
+                        &list,
+                        images,
+                        &output.view,
+                        output.descriptor.format,
+                        (1200, 800),
+                        1.,
+                        [0.; 4],
+                    )
+                    .unwrap();
+                app.presented(host);
+                if app
+                    .application
+                    .editor
+                    .native_region_context_ready_for_test(&fixture)
+                {
+                    break;
+                }
+                assert!(
+                    Instant::now() < deadline,
+                    "actor's region canvas never became ready"
+                );
+            }
+            assert_eq!(gpu.transfers().readback_bytes, before);
+            assert!(
+                !app.application
+                    .editor
+                    .native_world_has_cpu_storage_for_test()
+            );
+            app.application
+                .editor
+                .finish_native_region_context_for_test(
+                    fixture,
+                    &mut app.session.ui,
+                    &mut app.session.context,
+                );
+            app.update(host, Duration::from_millis(16));
+        }
     }
 
     fn check_native_custom_contexts(

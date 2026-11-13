@@ -803,13 +803,9 @@ impl Editor {
         let Some(map) = scope::map(&self.documents.project, &self.server_ctx) else {
             return false;
         };
-        if !(self.server_ctx.pc.is_region() || self.server_ctx.pc.is_prefab()
+        if !(scope::uses_region(&self.server_ctx) || self.server_ctx.pc.is_prefab()
             || custom::Description::current(map, &self.server_ctx).is_some()) { return false; }
-        if self.server_ctx.editor_view_mode == EditorViewMode::D2 {
-            if !matches!(map.camera, MapCamera::TwoD | MapCamera::TwoDIso) {
-                return false;
-            }
-        } else {
+        if self.server_ctx.editor_view_mode != EditorViewMode::D2 {
             // Persisted/live orthographic bakes retain their explicit adapter
             // until its progressive output and bake lifecycle are adopted.
             if map.orthographic_bake.is_some() {
@@ -1074,7 +1070,10 @@ impl Editor {
             binding.map,
             binding.runtime,
         );
-        if gpu.scope != Some(scope) {
+        let atlas_changed = gpu.configured.as_ref().is_some_and(|old| {
+            !old.same_atlas(&binding.assets)
+        });
+        if gpu.scope != Some(scope) || atlas_changed {
             // Reopened/copied documents may reuse map IDs and local revisions.
             // Neither atlas residency nor builder caches can cross that lifetime.
             gpu.scope = Some(scope);
@@ -1082,6 +1081,9 @@ impl Editor {
             gpu.scenes
                 .remove(gpu.view, images.registry)
                 .map_err(|e| e.to_string())?;
+            // This owner contains only the main world view. Retire its atlas
+            // with the old source, including random guide IDs and deleted tiles.
+            gpu.scenes = SceneViews::new(images.registry, scenevm::SharedAtlas::new(1024, 1024));
             gpu.scenes
                 .create(gpu.view, (0, 0))
                 .map_err(|e| e.to_string())?;
@@ -1446,7 +1448,7 @@ impl Editor {
                 Sampling::Nearest,
             );
         }
-        if binding.mode == EditorViewMode::D2 && map.camera == MapCamera::TwoD && binding.custom.is_none() {
+        if binding.mode == EditorViewMode::D2 && map.camera != MapCamera::TwoDIso && binding.custom.is_none() {
             let settings = &gpu.scenes.scene(gpu.view).map_err(|e| e.to_string())?.settings;
             if let Some(mask) = visibility::paint(map, assets, binding.size, settings) {
                 list.ops.push(mask);
