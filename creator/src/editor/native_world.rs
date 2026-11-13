@@ -781,7 +781,7 @@ impl Editor {
             return false;
         }
         let bridge = RUSTERIX.read().unwrap();
-        // The shared CPU pump publishes live actors into the authoring map.
+        // The shared CPU pump publishes live actors into a separate projection.
         // Speech/visibility, orthographic bakes and the remaining custom
         // contexts still have explicit migration adapters.
         let owned_play = self.play_session.as_ref().is_some_and(|play| {
@@ -965,6 +965,8 @@ impl Editor {
             .documents.project
             .get_map(&self.server_ctx)
             .ok_or("missing native world map")?;
+        let projected = self.play_session.as_ref().map(|play| play.authoring_map(map));
+        let map = projected.as_deref().unwrap_or(map);
         let camera = self.native_world_camera();
         let camera_stamp = camera
             .as_ref()

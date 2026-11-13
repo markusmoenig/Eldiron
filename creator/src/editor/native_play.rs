@@ -491,11 +491,12 @@ impl Editor {
         }
         owner.input_blocked = blocked;
         let world = play.pump.view(
-            &self.documents.project,
+            &play.project,
             &bridge.server,
             &bridge.assets,
             &bridge.client.current_map,
-        );
+        )
+        .with_presentation_sources(&self.documents.project);
         let created = owner.sync(
             binding.clone(),
             &world,
@@ -545,11 +546,12 @@ impl Editor {
         };
         let bridge = RUSTERIX.read().unwrap();
         let world = play.pump.view(
-            &self.documents.project,
+            &play.project,
             &bridge.server,
             &bridge.assets,
             &bridge.client.current_map,
-        );
+        )
+        .with_presentation_sources(&self.documents.project);
         let Some((list, frame)) = self.native_viewport.play.paint(&world, images)? else {
             return Ok(None);
         };
@@ -587,11 +589,12 @@ impl Editor {
         };
         let bridge = RUSTERIX.read().unwrap();
         let world = play.pump.view(
-            &self.documents.project,
+            &play.project,
             &bridge.server,
             &bridge.assets,
             &bridge.client.current_map,
-        );
+        )
+        .with_presentation_sources(&self.documents.project);
         if let Some(screen) = &mut owner.screen {
             screen
                 .screen
@@ -635,11 +638,12 @@ struct PlayRuntime<'a> {
 impl PlayRuntime<'_> {
     fn world(&self) -> RuntimeView<'_> {
         self.play.pump.view(
-            self.project,
+            &self.play.project,
             &self.bridge.server,
             &self.bridge.assets,
             &self.bridge.client.current_map,
         )
+        .with_presentation_sources(self.project)
     }
 }
 impl NativePlay {

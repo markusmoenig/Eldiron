@@ -30,6 +30,18 @@ pub struct RuntimeView<'a> {
     pub render_state: RuntimeRenderState,
 }
 impl RuntimeView<'_> {
+    /// Creator may edit screen layouts/fonts/config while a session is running.
+    /// Those presentation sources can stay live without borrowing authored maps
+    /// as simulation storage. Map, time, state and incarnation stay unchanged.
+    pub fn with_presentation_sources<'a>(self, sources: &'a Project) -> RuntimeView<'a>
+    where
+        Self: 'a,
+    {
+        RuntimeView {
+            project: sources,
+            ..self
+        }
+    }
     pub fn config(&self) -> &str {
         &self.project.config
     }
@@ -147,6 +159,14 @@ mod tests {
         let addressed = session.view_region(&first).unwrap();
         assert_eq!(addressed.map.unwrap().id, first);
         assert_eq!(addressed.time, before);
+        let mut live_sources = Project::new();
+        live_sources.config = "live screen configuration".into();
+        live_sources.time = TheTime::new_time(23, 59).unwrap();
+        let live = addressed.with_presentation_sources(&live_sources);
+        assert_eq!(live.config(), "live screen configuration");
+        assert_eq!(live.map.unwrap().id, first);
+        assert_eq!(live.time, before);
+        assert_eq!(live.session_id, session.view().session_id);
         assert!(
             session
                 .view_region(&theframework_core::Uuid::new_v4())

@@ -494,6 +494,54 @@ impl Editor {
     ) -> &Vec<shared::region::Region> {
         &self.documents.sessions[index].project.regions
     }
+    pub(crate) fn native_play_authoring_checkpoint_for_test(&mut self) -> (serde_json::Value, u64) {
+        self.sync_active_session_from_editor();
+        (
+            serde_json::to_value(&self.documents.sessions[self.documents.active_session].project)
+                .unwrap(),
+            UNDOMANAGER.read().unwrap().revision(),
+        )
+    }
+    pub(crate) fn inject_native_play_projection_for_test(&mut self) {
+        let play = self.play_session.as_ref().unwrap();
+        let mut bridge = RUSTERIX.write().unwrap();
+        let mut map = play.project.regions[0].map.clone();
+        let region = bridge.server.region_id_map[&map.id];
+        map.properties.set("native-runtime-only", Value::Bool(true));
+        map.add_vertex_at(1000., 1000.);
+        bridge.server.runtime_maps.insert(region, map);
+    }
+    pub(crate) fn native_play_projection_received_for_test(&self) -> bool {
+        self.play_session.as_ref().is_some_and(|play| {
+            let runtime = &play.project.regions[0].map;
+            let authored = &self.documents.project.regions[0].map;
+            let view = play.authoring_map(authored);
+            runtime
+                .properties
+                .get_bool_default("native-runtime-only", false)
+                && runtime.vertices.len() == authored.vertices.len() + 1
+                && view.vertices.len() == authored.vertices.len()
+                && !view
+                    .properties
+                    .get_bool_default("native-runtime-only", false)
+        })
+    }
+    pub(crate) fn edit_native_play_authoring_for_test(&mut self, ctx: &mut TheContext) {
+        let region = &mut self.documents.project.regions[0];
+        let before = region.map.clone();
+        region
+            .map
+            .properties
+            .set("native-authored-during-play", Value::Bool(true));
+        UNDOMANAGER.write().unwrap().add_undo(
+            ProjectUndoAtom::MapEdit(
+                ProjectContext::Region(region.id),
+                Box::new(before),
+                Box::new(region.map.clone()),
+            ),
+            ctx,
+        );
+    }
     pub(crate) fn native_world_vertices_for_test(&self) -> usize {
         self.documents.project
             .get_map(&self.server_ctx)

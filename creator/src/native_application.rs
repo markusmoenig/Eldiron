@@ -1854,6 +1854,8 @@ mod tests {
         let authored =
             serde_json::to_value(&app.application.editor.project_for_native_test().regions)
                 .unwrap();
+        let authored_session = app.application.editor.native_play_authoring_checkpoint_for_test();
+        let authored_time = app.application.editor.project_for_native_test().time;
         app.session.context.ui.send(TheEvent::StateChanged(
             TheId::named("Play"),
             TheWidgetState::Clicked,
@@ -1864,6 +1866,16 @@ mod tests {
             .editor
             .native_play_stats_for_test()
             .expect("toolbar Play owns the shared runtime driver");
+        assert_eq!(
+            app.application.editor.native_play_authoring_checkpoint_for_test(),
+            authored_session,
+            "startup/warmup cannot modify the saved document or its undo revision"
+        );
+        app.application.editor.inject_native_play_projection_for_test();
+        let runtime_time = TheTime::new_time(21, 37).unwrap();
+        app.session.context.ui.send(TheEvent::ValueChanged(
+            TheId::named("Server Time Slider"), TheValue::Time(runtime_time),
+        ));
         let deadline = Instant::now() + Duration::from_secs(5);
         loop {
             app.update(&mut host, Duration::from_millis(16));
@@ -1903,6 +1915,12 @@ mod tests {
                 "live Play source never became ready"
             );
         }
+        assert!(app.application.editor.native_play_projection_received_for_test());
+        assert_eq!(
+            app.application.editor.native_play_authoring_checkpoint_for_test(),
+            authored_session,
+            "server-generated geometry belongs only to the runtime projection"
+        );
         app.application.editor.queue_native_play_message_for_test();
         let deadline = Instant::now() + Duration::from_secs(5);
         loop {
@@ -2615,6 +2633,22 @@ mod tests {
         for _ in 0..2 {
             app.update(&mut host, Duration::from_millis(16));
         }
+        assert_eq!(
+            app.application.editor.project_for_native_test().time,
+            authored_time,
+            "text commands and clock updates cannot advance authored time"
+        );
+        assert_eq!(
+            serde_json::to_value(&app.application.editor.project_for_native_test().regions).unwrap(),
+            authored,
+            "running text/graphical Play cannot alter authored maps"
+        );
+        app.application.editor.edit_native_play_authoring_for_test(&mut app.session.context);
+        let edited_session = app.application.editor.native_play_authoring_checkpoint_for_test();
+        assert_ne!(edited_session.1, authored_session.1);
+        let edited_authored = serde_json::to_value(
+            &app.application.editor.project_for_native_test().regions,
+        ).unwrap();
         app.session.context.ui.send(TheEvent::StateChanged(
             TheId::named("Stop"),
             TheWidgetState::Clicked,
@@ -2624,9 +2658,24 @@ mod tests {
         assert!(!app.application.editor.native_text_output_for_test("> intent look"));
         assert_eq!(
             serde_json::to_value(&app.application.editor.project_for_native_test().regions).unwrap(),
-            authored,
-            "Stop restores the authored document before restarting the same map IDs"
+            edited_authored,
+            "Stop preserves edits made during Play instead of restoring an old snapshot"
         );
+        assert_eq!(app.application.editor.project_for_native_test().time, authored_time);
+        app.session.context.ui.send(TheEvent::StateChanged(TheId::named("Undo"), TheWidgetState::Clicked));
+        app.update(&mut host, Duration::from_millis(16));
+        let mut undone = authored.clone();
+        undone[0]["map"]["changed"] = serde_json::json!(
+            edited_authored[0]["map"]["changed"].as_u64().unwrap() + 1
+        );
+        assert_eq!(serde_json::to_value(&app.application.editor.project_for_native_test().regions).unwrap(), undone);
+        app.session.context.ui.send(TheEvent::StateChanged(TheId::named("Redo"), TheWidgetState::Clicked));
+        app.update(&mut host, Duration::from_millis(16));
+        let mut authored = edited_authored;
+        authored[0]["map"]["changed"] = serde_json::json!(
+            undone[0]["map"]["changed"].as_u64().unwrap() + 1
+        );
+        assert_eq!(serde_json::to_value(&app.application.editor.project_for_native_test().regions).unwrap(), authored);
         app.session.context.ui.send(TheEvent::StateChanged(
             TheId::named("Play"),
             TheWidgetState::Clicked,
@@ -2635,7 +2684,7 @@ mod tests {
         let restarted = app.application.editor.native_play_stats_for_test().unwrap();
         assert_ne!(restarted.1, initial.1, "restarting revokes the prior runtime identity");
         // Project replacement stops the original runtime before projecting or
-        // saving the new document, and restores its original authored map.
+        // saving the new document, and preserves current authored edits.
         app.application
             .editor
             .begin_native_play_for_test(&mut app.session.ui, &mut app.session.context);
