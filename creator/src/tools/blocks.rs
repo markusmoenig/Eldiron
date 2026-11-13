@@ -5,7 +5,7 @@ use crate::blocks::{
     block_stroke_cells, block_surface_base_y, component_uses_cylinder, cylinder_vertices_and_faces,
     default_block_asset_id, localized_block_asset_name, style_block_asset_object,
 };
-use crate::editor::{DOCKMANAGER, RUSTERIX};
+use crate::editor::{DOCKMANAGER, };
 use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use MapEvent::*;
@@ -83,7 +83,7 @@ impl BlockTool {
     }
 
     fn horizontal_grid_step(map: &Map, server_ctx: &ServerContext) -> f32 {
-        let rusterix = RUSTERIX.read().unwrap();
+        let rusterix = server_ctx.reference.read();
         crate::blocks::block_tool_horizontal_grid_step(
             server_ctx.curr_block_asset_id,
             &rusterix.assets.block_props,
@@ -99,9 +99,7 @@ impl BlockTool {
         if block_asset(asset_id).is_some() {
             return None;
         }
-        RUSTERIX
-            .read()
-            .unwrap()
+        server_ctx.reference.read()
             .assets
             .block_props
             .get(&asset_id)
@@ -810,7 +808,7 @@ impl BlockTool {
             let asset_id = Self::selected_asset_id(server_ctx);
             if let Some(asset) = block_asset(asset_id) {
                 asset_name = localized_block_asset_name(asset);
-                let palette = RUSTERIX.read().unwrap().assets.palette.clone();
+                let palette = server_ctx.reference.read().assets.palette.clone();
                 for cell in &cells {
                     created.extend(Self::make_objects(
                         asset,
@@ -841,9 +839,7 @@ impl BlockTool {
                     .curr_block_asset_name
                     .clone()
                     .unwrap_or_else(|| "Project Prop".to_string());
-                let asset = RUSTERIX
-                    .read()
-                    .unwrap()
+                let asset = server_ctx.reference.read()
                     .assets
                     .block_props
                     .get(&asset_id)
@@ -861,7 +857,7 @@ impl BlockTool {
                             ));
                         }
                     } else if let Some(hit) = self.drag_surface_hit {
-                        let assets = RUSTERIX.read().unwrap().assets.block_props.clone();
+                        let assets = server_ctx.reference.read().assets.block_props.clone();
                         let supported = if asset.placement.mode
                             == rusterix::BlockPropPlacementMode::AnySurface
                         {

@@ -1,4 +1,4 @@
-use crate::editor::{CONFIGEDITOR, DOCKMANAGER, PALETTE, RUSTERIX};
+use crate::editor::{CONFIGEDITOR, DOCKMANAGER, PALETTE, };
 use crate::prelude::*;
 use rusterix::{PixelSource, Value, ValueContainer, pixel_to_vec4};
 use std::str::FromStr;
@@ -914,7 +914,7 @@ pub fn editor_scene_full_rebuild(project: &Project, server_ctx: &ServerContext) 
         material_maps.push(current_map);
     }
     let (tile_list, tile_indices) = {
-        let mut rusterix = RUSTERIX.write().unwrap();
+        let mut rusterix = server_ctx.reference.write();
         rusterix.set_block_props(project.block_props.clone());
         rusterix.set_tiles_for_maps(project.tiles.clone(), true, material_maps);
         (
@@ -927,13 +927,13 @@ pub fn editor_scene_full_rebuild(project: &Project, server_ctx: &ServerContext) 
     server_ctx.jobs.scene_mut()
         .set_block_props(project.block_props.clone());
     scenemanager_render_map(project, server_ctx);
-    RUSTERIX.write().unwrap().set_dirty();
+    server_ctx.reference.write().set_dirty();
 }
 
 /// Install procedural bake results without clearing or rebuilding the visible map.
 pub fn editor_scene_refresh_material_textures(project: &Project, server_ctx: &ServerContext) {
     let (tiles, indices) = {
-        let mut rusterix = RUSTERIX.write().unwrap();
+        let mut rusterix = server_ctx.reference.write();
         if server_ctx.editor_view_mode == EditorViewMode::D2
             && server_ctx.editing_surface.is_none()
             && project
@@ -1009,7 +1009,7 @@ pub fn editor_scene_refresh_prefab_assets(
 
     if dirty_chunks.is_empty() {
         if serde_json::to_value(old_map).ok() == serde_json::to_value(new_map).ok() {
-            RUSTERIX.write().unwrap().set_overlay_dirty();
+            server_ctx.reference.write().set_overlay_dirty();
             return true;
         }
         editor_scene_full_rebuild(project, server_ctx);
@@ -1017,7 +1017,7 @@ pub fn editor_scene_refresh_prefab_assets(
     }
 
     {
-        let mut rusterix = RUSTERIX.write().unwrap();
+        let mut rusterix = server_ctx.reference.write();
         rusterix.set_block_props(project.block_props.clone());
     }
     server_ctx.jobs.scene_mut()
@@ -1025,8 +1025,7 @@ pub fn editor_scene_refresh_prefab_assets(
     editor_scene_replace_incremental_map_update(
         new_map.clone(),
         dirty_chunks.into_iter().collect(),
-        &server_ctx.jobs,
-    );
+        &server_ctx.jobs, &server_ctx.reference);
     true
 }
 
@@ -1037,7 +1036,7 @@ pub fn editor_scene_apply_map_edit(
     new_map: &Map,
 ) -> bool {
     let has_unregistered_direct_color = {
-        let rusterix = RUSTERIX.read().unwrap();
+        let rusterix = server_ctx.reference.read();
         new_map.geometry_objects.iter().any(|object| {
             object.faces.iter().any(|face| {
                 face.tile.iter().chain(face.tiles.values()).any(|source| {
@@ -1081,28 +1080,28 @@ pub fn editor_scene_incremental_map_update(
     map: Map,
     dirty_chunks: Vec<(i32, i32)>,
     jobs: &CreatorJobs,
-) {
+ reference: &CreatorReference) {
     let mut scenemanager = jobs.scene_mut();
     scenemanager.update_map(map);
     if !dirty_chunks.is_empty() {
         scenemanager.add_dirty(dirty_chunks);
     }
-    RUSTERIX.write().unwrap().set_overlay_dirty();
+    reference.write().set_overlay_dirty();
 }
 
 pub fn editor_scene_replace_incremental_map_update(
     map: Map,
     dirty_chunks: Vec<(i32, i32)>,
     jobs: &CreatorJobs,
-) {
+ reference: &CreatorReference) {
     let mut scenemanager = jobs.scene_mut();
     scenemanager.update_map(map);
     if !dirty_chunks.is_empty() {
         scenemanager.replace_dirty(dirty_chunks);
     }
-    RUSTERIX.write().unwrap().set_overlay_dirty();
+    reference.write().set_overlay_dirty();
 }
 
-pub fn editor_scene_overlay_only() {
-    RUSTERIX.write().unwrap().set_overlay_dirty();
+pub fn editor_scene_overlay_only( reference: &CreatorReference) {
+    reference.write().set_overlay_dirty();
 }

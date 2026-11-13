@@ -1,4 +1,3 @@
-use crate::editor::{RUSTERIX};
 use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use MapEvent::*;
@@ -312,13 +311,13 @@ impl Tool for RectTool {
                     map.properties.set("iso_edit_height", Value::Float(h));
                     map.changed = map.changed.wrapping_add(1);
                     map.curr_rectangle = None;
-                    RUSTERIX.write().unwrap().set_dirty();
+                    server_ctx.reference.write().set_dirty();
                     ctx.ui.redraw_all = true;
                     return None;
                 }
                 if map.camera == rusterix::MapCamera::TwoDIso && (c == ',' || c == '.') {
                     Self::rotate_brush(map, if c == ',' { -90. } else { 90. });
-                    RUSTERIX.write().unwrap().set_dirty();
+                    server_ctx.reference.write().set_dirty();
                     ctx.ui.redraw_all = true;
                     return None;
                 }
@@ -334,7 +333,7 @@ impl Tool for RectTool {
                     self.reset_stroke();
                     self.hud_control_active = true;
                     Self::rotate_brush(map, delta);
-                    RUSTERIX.write().unwrap().set_dirty();
+                    server_ctx.reference.write().set_dirty();
                     ctx.ui.redraw_all = true;
                     return None;
                 }
@@ -348,7 +347,7 @@ impl Tool for RectTool {
                             Vec2::new(view.dim().width as f32, view.dim().height as f32),
                             coord.map(|v| v as f32),
                         );
-                        RUSTERIX.write().unwrap().set_dirty();
+                        server_ctx.reference.write().set_dirty();
                         ctx.ui.redraw_all = true;
                     }
                     return None;
@@ -376,13 +375,13 @@ impl Tool for RectTool {
                         .into(),
                     ));
                     ctx.ui.redraw_all = true;
-                    RUSTERIX.write().unwrap().set_dirty();
+                    server_ctx.reference.write().set_dirty();
                     return None;
                 }
                 if self.hud.clicked(coord.x, coord.y, map, ui, ctx, server_ctx) {
                     self.reset_stroke();
                     self.hud_control_active = true;
-                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                    server_ctx.reference.write().set_dirty();
                     return None;
                 }
 
@@ -435,7 +434,7 @@ impl Tool for RectTool {
                     let use_terrain_paint = Self::uses_terrain_paint(
                         map,
                         source.as_ref(),
-                        &RUSTERIX.read().unwrap().assets,
+                        &server_ctx.reference.read().assets,
                     );
                     if let Some(cp) = server_ctx.hover_cursor {
                         self.begin_stroke_if_needed(map);
@@ -468,8 +467,7 @@ impl Tool for RectTool {
                                     verts,
                                     get_source(ui, server_ctx),
                                     ui.shift,
-                                    self.mode,
-                                )
+                                    self.mode, &server_ctx.reference)
                             };
                             if changed {
                                 self.stroke_changed = true;
@@ -520,7 +518,7 @@ impl Tool for RectTool {
                     return None;
                 }
                 if self.hud.dragged(coord.x, coord.y, map, ui, ctx, server_ctx) {
-                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                    server_ctx.reference.write().set_dirty();
                     return None;
                 }
                 if ui.alt {
@@ -537,7 +535,7 @@ impl Tool for RectTool {
                     let use_terrain_paint = Self::uses_terrain_paint(
                         map,
                         source.as_ref(),
-                        &RUSTERIX.read().unwrap().assets,
+                        &server_ctx.reference.read().assets,
                     );
                     self.hovered_vertices = apply_hover(coord, ui, ctx, map, server_ctx);
                     if let Some(cp) = server_ctx.hover_cursor {
@@ -593,8 +591,7 @@ impl Tool for RectTool {
                                         verts,
                                         get_source(ui, server_ctx),
                                         ui.shift,
-                                        self.mode,
-                                    )
+                                        self.mode, &server_ctx.reference)
                                 };
                                 if changed {
                                     self.stroke_changed = true;
@@ -688,7 +685,7 @@ impl Tool for RectTool {
                 ));
                 self.reset_stroke();
                 map.clear_temp();
-                crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                server_ctx.reference.write().set_dirty();
             }
         }
         undo_atom
@@ -794,11 +791,11 @@ impl Tool for RectTool {
                                     } else if self.hud.selected_icon_index == 3 {
                                         linedef.properties.set("row4_source", source.clone());
                                     }
-                                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                                    server_ctx.reference.write().set_dirty();
                                 }
                             }
 
-                            crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                            server_ctx.reference.write().set_dirty();
                         }
                     }
                 } else if id.name == "Remove Map Properties" && *state == TheWidgetState::Clicked {
@@ -824,11 +821,11 @@ impl Tool for RectTool {
                                         .properties
                                         .set("row4_source", Value::Source(PixelSource::Off));
                                 }
-                                crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                                server_ctx.reference.write().set_dirty();
                             }
                         }
 
-                        crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                        server_ctx.reference.write().set_dirty();
                     }
                 }
             }
@@ -933,6 +930,7 @@ mod tests {
     }
     #[test]
     fn smooth_terrain_brush_preserves_rigid_iso_parts_and_explicit_levels() {
+        let mut server = ServerContext::default();
         let mut map = Map::default();
         map.camera = MapCamera::TwoDIso;
         map.properties.set("terrain_enabled", Value::Bool(true));
@@ -971,7 +969,7 @@ mod tests {
             Some(part_source),
             false,
             0
-        ));
+        , &server.reference));
         assert_eq!(
             map.sectors[0]
                 .properties
@@ -984,7 +982,7 @@ mod tests {
                 .get_bool_default("iso_walkable", false)
         );
         assert!(!map.properties.contains("tiles"));
-        let mut server = ServerContext::default();
+
         server.editor_view_mode = EditorViewMode::D2;
         server.hover_cursor = Some(Vec2::new(2., 3.));
         assert!(matches!(
@@ -1005,6 +1003,7 @@ mod tests {
     #[test]
     #[ignore = "native editor paint publication and undo use SceneVM's Metal context"]
     fn iso_ui_controls_and_real_paint_strokes_build_stairs_with_undo() {
+        let mut server = ServerContext::default();
         let mut p = Project::default();
         let map = &mut p.regions[0].map;
         *map = Map::default();
@@ -1015,16 +1014,14 @@ mod tests {
         p.procedural_appearances.insert(recipe,r#"{"version":1,"id":"step","label":"Stone step","rows":[{"id":"step","label":"Step","tiles":[{"id":"box","op":{"type":"box","size":[1,0.25,1]}},{"id":"lower","op":{"type":"transform","translation":[0,-0.125,0],"rotation":[0,0,0],"scale":[1,1,1]}}]}],"output":"step"}"#.into());
         assert!(shared::isometric::synchronize(&mut p).is_empty());
         assert!(p.tiles.contains_key(&recipe));
-        RUSTERIX
-            .write()
-            .unwrap()
+        server.reference.write()
             .set_tiles_for_maps(p.tiles.clone(), false, [&p.regions[0].map]);
         let mut ctx = TheContext::new(1000, 700, 1.);
         let mut ui = TheUI::new();
         let mut view = TheRenderView::new(TheId::named("PolyView"));
         view.set_dim(TheDim::sized(1000, 700), &mut ctx);
         ui.canvas.set_widget(view);
-        let mut server = ServerContext::default();
+
         server.curr_region = p.regions[0].id;
         server.pc = ProjectContext::Region(server.curr_region);
         server.editor_view_mode = EditorViewMode::D2;
@@ -1117,9 +1114,7 @@ mod tests {
         peak.properties.set("terrain_control", Value::Bool(true));
         peak.properties.set("smoothness", Value::Float(1.));
         map.changed = map.changed.wrapping_add(1);
-        RUSTERIX
-            .write()
-            .unwrap()
+        server.reference.write()
             .set_tiles_for_maps(p.tiles.clone(), false, [&*map]);
         server.curr_tile_id = Some(ground_id);
         server.curr_tile_source = Some(TileSource::SingleTile(ground_id));
@@ -1147,6 +1142,7 @@ mod tests {
 
     #[test]
     fn stroke_cell_paint_preserves_overwrite_stacking_and_erase() {
+    let reference = CreatorReference::default();
         let mut map = Map::new();
         let a = PixelSource::TileId(Uuid::new_v4());
         let b = PixelSource::TileId(Uuid::new_v4());
@@ -1156,7 +1152,7 @@ mod tests {
             Some(a.clone()),
             false,
             0
-        ));
+        , &reference));
         assert_eq!(map.sectors.len(), 1);
         let counts = (map.vertices.len(), map.linedefs.len());
         assert!(!RectTool::paint_cell(
@@ -1165,14 +1161,14 @@ mod tests {
             Some(a.clone()),
             false,
             0
-        ));
+        , &reference));
         assert!(RectTool::paint_cell(
             &mut map,
             cell(0., 0.),
             Some(b.clone()),
             false,
             0
-        ));
+        , &reference));
         assert_eq!(map.sectors[0].properties.get_default_source(), Some(&b));
         assert_eq!(counts, (map.vertices.len(), map.linedefs.len()));
         assert!(!RectTool::paint_cell(
@@ -1181,7 +1177,7 @@ mod tests {
             Some(a.clone()),
             false,
             1
-        ));
+        , &reference));
         // Existing stacked tiles have distinct rings; deleting their top layer
         // must preserve the cell underneath.
         let base = map.sectors[0].linedefs.clone();
@@ -1198,7 +1194,7 @@ mod tests {
         map.sectors.push(top);
         map.sanitize();
         assert_eq!(map.sectors.len(), 2);
-        assert!(RectTool::paint_cell(&mut map, cell(0., 0.), None, true, 0));
+        assert!(RectTool::paint_cell(&mut map, cell(0., 0.), None, true, 0, &reference));
         assert_eq!(map.sectors.len(), 1);
         assert_eq!(map.sectors[0].properties.get_default_source(), Some(&b));
         assert!(!RectTool::paint_cell(
@@ -1207,14 +1203,15 @@ mod tests {
             None,
             false,
             0
-        ));
-        assert!(RectTool::paint_cell(&mut map, cell(0., 0.), None, true, 0));
+        , &reference));
+        assert!(RectTool::paint_cell(&mut map, cell(0., 0.), None, true, 0, &reference));
         assert!(map.sectors.is_empty());
     }
 
     #[test]
     #[ignore = "requires ELDIRON_BENCH_PROJECT_PATH"]
     fn benchmark_large_map_rect_paint() {
+    let reference = CreatorReference::default();
         let path = std::env::var("ELDIRON_BENCH_PROJECT_PATH").unwrap();
         let project = shared::project_io::decode_project(&std::fs::read(path).unwrap()).unwrap();
         let mut map = project.regions.into_iter().next().unwrap().map;
@@ -1234,7 +1231,7 @@ mod tests {
                 Some(source.clone()),
                 false,
                 0
-            ));
+            , &reference));
         }
         println!(
             "Rect cell mutation mean={:.2}ms (excludes scene rebuild and stroke snapshots)",
@@ -1248,7 +1245,7 @@ mod tests {
                 Some(source.clone()),
                 false,
                 0
-            ));
+            , &reference));
         }
     }
 
@@ -1303,11 +1300,12 @@ mod tests {
     }
     #[test]
     fn compose_click_selects_one_2d_painted_tile_and_drag_does_not_paint() {
+        let mut server = ServerContext::default();
         use shared::material_composition::CompositionSurface;
         let mut map = Map::default();
         let source = PixelSource::TileId(Uuid::new_v4());
-        RectTool::paint_cell(&mut map, cell(0., 0.), Some(source.clone()), false, 0);
-        RectTool::paint_cell(&mut map, cell(1., 0.), Some(source.clone()), false, 0);
+        RectTool::paint_cell(&mut map, cell(0., 0.), Some(source.clone()), false, 0, &server.reference);
+        RectTool::paint_cell(&mut map, cell(1., 0.), Some(source.clone()), false, 0, &server.reference);
         let first = RectTool::rect_sector_at(&map, [0, 0]).unwrap();
         let before = serde_json::to_string(&map.sectors).unwrap();
         let mut ui = TheUI::default();
@@ -1317,7 +1315,7 @@ mod tests {
         let mut view = TheRenderView::new(TheId::named("PolyView"));
         view.set_dim(TheDim::new(0, 0, 400, 400), &mut ctx);
         ui.canvas.set_widget(view);
-        let mut server = ServerContext::default();
+
         server.pc = ProjectContext::Region(Uuid::new_v4());
         server.curr_map_tool_type = MapToolType::Rect;
         server.rect_compose_mode = true;
@@ -1823,10 +1821,11 @@ impl RectTool {
         source: Option<PixelSource>,
         erase: bool,
         mode: i32,
+        reference: &CreatorReference,
     ) -> bool {
         if map.camera == rusterix::MapCamera::TwoDIso {
             return hovered_vertices.is_some_and(|v| {
-                let rusterix = RUSTERIX.read().unwrap();
+                let rusterix = reference.read();
                 crate::iso_editor::paint_cell_with_tiles(
                     map,
                     v,
@@ -2367,7 +2366,7 @@ impl RectTool {
                 z.div_euclid(chunk_size) * chunk_size,
             ));
         } else if let Some((object_id, _)) = server_ctx.rect_geometry_face_3d {
-            let rusterix = crate::editor::RUSTERIX.read().unwrap();
+            let rusterix = server_ctx.reference.read();
             dirty_chunks.extend(
                 rusterix
                     .scene_handler
@@ -2378,7 +2377,7 @@ impl RectTool {
             && let Some(sector) = work_map.find_sector(sector_id)
         {
             {
-                let rusterix = crate::editor::RUSTERIX.read().unwrap();
+                let rusterix = server_ctx.reference.read();
                 dirty_chunks.extend(
                     rusterix
                         .scene_handler
@@ -2436,8 +2435,7 @@ impl RectTool {
                 crate::utils::editor_scene_replace_incremental_map_update(
                     work_map.clone(),
                     dirty_chunks,
-                    &server_ctx.jobs,
-                );
+                    &server_ctx.jobs, &server_ctx.reference);
             }
             *last_live_scene_sync_at = Some(now);
         }
@@ -2657,7 +2655,7 @@ impl RectTool {
             } else if self.hud.uses_native_input() {
                 None
             } else {
-                RUSTERIX.read().unwrap().scene_handler.vm.pick_geo_id_at_uv(
+                server_ctx.reference.read().scene_handler.vm.pick_geo_id_at_uv(
                     dim.width as u32, dim.height as u32, screen_uv, false, false,
                 )
             };

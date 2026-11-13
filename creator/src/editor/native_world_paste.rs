@@ -61,7 +61,7 @@ impl Editor {
         let Some(authored) = self.documents.project.get_map(&self.server_ctx) else {
             return false;
         };
-        let bridge = RUSTERIX.read().unwrap();
+        let bridge = self.server_ctx.reference.read();
         let assets = self
             .play_session
             .as_ref()

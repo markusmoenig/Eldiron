@@ -47,6 +47,7 @@ impl EditCamera {
         _ctx: &mut TheContext,
         _project: &mut Project,
         server_ctx: &mut ServerContext,
+        reference: &crate::creator_context::CreatorReference,
     ) {
         let mut view_switch = TheGroupButton::new(TheId::named("Editor View Switch"));
         view_switch.add_text_status_icon(
@@ -86,9 +87,7 @@ impl EditCamera {
 
         let mut fill = TheSlider::new(TheId::named("Editor Fill Light"));
         fill.set_value(TheValue::Float(
-            crate::editor::RUSTERIX
-                .read()
-                .unwrap()
+            reference.read()
                 .editor_preview_fill_strength,
         ));
         fill.set_range(TheValue::RangeF32(0.0..=1.0));

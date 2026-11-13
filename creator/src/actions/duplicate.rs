@@ -528,9 +528,7 @@ impl Action for Duplicate {
             return;
         }
         let prefabs = project.block_props.clone();
-        crate::editor::RUSTERIX
-            .write()
-            .unwrap()
+        server_ctx.reference.write()
             .set_block_props(prefabs.clone());
         server_ctx.jobs.scene_mut()
             .set_block_props(prefabs);

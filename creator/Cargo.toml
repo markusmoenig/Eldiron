@@ -31,6 +31,7 @@ path = "examples/reference_ui_capture.rs"
 required-features = ["desktop"]
 
 [dependencies]
+parking_lot = { version = "0.12.5", features = ["arc_lock"] }
 web-time = "1.1.0"
 eldiron-runtime = { path = "../crates/runtime" }
 theframework-core = { path = "../crates/theframework-core" }
@@ -81,7 +82,6 @@ self_update = { version = "0.44.0", optional = true, default-features = false, f
 ] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-parking_lot = { version = "0.12.5", features = ["arc_lock"] }
 i18n-embed = { version = "0.16.0", features = ["web-sys-requester"] }
 rust-embed = { version = "8", features = ["debug-embed"] }
 wasm-bindgen = "0.2"

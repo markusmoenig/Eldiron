@@ -421,7 +421,7 @@ mod tests {
             },
             None,
         );
-        dock.finish(&mut project);
+        dock.finish(&mut project, &server.reference);
         let resolved = project.rules.current.resolve().unwrap();
         assert_eq!(resolved.validation().error_count(), 0);
         assert_eq!(
@@ -468,7 +468,7 @@ mod tests {
             },
             None,
         );
-        dock.finish(&mut project);
+        dock.finish(&mut project, &server.reference);
         assert_eq!(
             project.rules.current.compile().unwrap()["icons"]["basic_attack"]["texture"].as_str(),
             Some(tile_id.to_string().as_str())

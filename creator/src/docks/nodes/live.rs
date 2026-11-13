@@ -66,8 +66,8 @@ pub(super) fn matches_owner(
 }
 impl NodesDock {
     pub(super) fn refresh_live(&mut self, project: &Project, server_ctx: &ServerContext) -> bool {
-        if let Some(runtime) = crate::editor::reference_runtime() {
-            self.update_live(&runtime.read().unwrap().server, project, server_ctx)
+        if let Some(runtime) = server_ctx.reference.existing() {
+            self.update_live(&runtime.server, project, server_ctx)
         } else {
             let changed = self.live.active
                 || self.live.time != project.time

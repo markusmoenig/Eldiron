@@ -1,5 +1,4 @@
 use crate::actions::edit_vertex::EDIT_VERTEX_ACTION_ID;
-use crate::editor::RUSTERIX;
 use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use MapEvent::*;
@@ -250,7 +249,7 @@ impl Tool for VertexTool {
                         _ => {}
                     }
                     {
-                        let mut rusterix = crate::editor::RUSTERIX.write().unwrap();
+                        let mut rusterix = server_ctx.reference.write();
                         rusterix.set_dirty();
                         rusterix.set_overlay_dirty();
                     }
@@ -264,7 +263,7 @@ impl Tool for VertexTool {
             MapClicked(coord) => {
                 if self.hud.clicked(coord.x, coord.y, map, ui, ctx, server_ctx) {
                     self.was_clicked = false;
-                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                    server_ctx.reference.write().set_dirty();
                     return None;
                 }
                 self.was_clicked = true;
@@ -577,7 +576,7 @@ impl Tool for VertexTool {
                         let ray = if let Some(view) = &self.view_input {
                             view.ray()?
                         } else {
-                            let rusterix = RUSTERIX.read().unwrap();
+                            let rusterix = server_ctx.reference.read();
                             rusterix.client.camera_d3.create_ray(
                                 Vec2::new(screen_uv[0], 1.0 - screen_uv[1]),
                                 Vec2::new(dim.width as f32, dim.height as f32),
@@ -616,7 +615,7 @@ impl Tool for VertexTool {
                             let ray = if let Some(view) = &self.view_input {
                                 view.ray()?
                             } else {
-                                let rusterix = RUSTERIX.read().unwrap();
+                                let rusterix = server_ctx.reference.read();
                                 rusterix.client.camera_d3.create_ray(
                                     Vec2::new(screen_uv[0], 1.0 - screen_uv[1]),
                                     Vec2::new(dim.width as f32, dim.height as f32),
@@ -656,7 +655,7 @@ impl Tool for VertexTool {
             }
             MapDragged(coord) => {
                 if self.hud.dragged(coord.x, coord.y, map, ui, ctx, server_ctx) {
-                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                    server_ctx.reference.write().set_dirty();
                     return None;
                 }
 
@@ -710,14 +709,14 @@ impl Tool for VertexTool {
                                 .click_pos
                                 .distance(Vec2::new(coord.x as f32, coord.y as f32));
                             if drag_distance < 5.0 {
-                                crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                                server_ctx.reference.write().set_dirty();
                                 return None;
                             }
 
                             let click_intersection = match self.click_ray_intersection_3d {
                                 Some(pos) => pos,
                                 None => {
-                                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                                    server_ctx.reference.write().set_dirty();
                                     return None;
                                 }
                             };
@@ -733,7 +732,7 @@ impl Tool for VertexTool {
                                 let ray = if let Some(view) = &self.view_input {
                                     view.ray()?
                                 } else {
-                                    let rusterix = RUSTERIX.read().unwrap();
+                                    let rusterix = server_ctx.reference.read();
                                     rusterix.client.camera_d3.create_ray(
                                         Vec2::new(screen_uv[0], 1.0 - screen_uv[1]),
                                         Vec2::new(dim.width as f32, dim.height as f32),
@@ -787,7 +786,7 @@ impl Tool for VertexTool {
                                 .click_pos
                                 .distance(Vec2::new(coord.x as f32, coord.y as f32));
                             if drag_distance < 5.0 {
-                                crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                                server_ctx.reference.write().set_dirty();
                                 return None;
                             }
 
@@ -796,7 +795,7 @@ impl Tool for VertexTool {
                             let click_intersection = match self.click_ray_intersection_3d {
                                 Some(pos) => pos,
                                 None => {
-                                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                                    server_ctx.reference.write().set_dirty();
                                     return None;
                                 }
                             };
@@ -818,7 +817,7 @@ impl Tool for VertexTool {
                                 let ray = if let Some(view) = &self.view_input {
                                     view.ray()?
                                 } else {
-                                    let rusterix = RUSTERIX.read().unwrap();
+                                    let rusterix = server_ctx.reference.read();
                                     rusterix.client.camera_d3.create_ray(
                                         Vec2::new(screen_uv[0], 1.0 - screen_uv[1]),
                                         Vec2::new(dim.width as f32, dim.height as f32),
@@ -917,7 +916,7 @@ impl Tool for VertexTool {
                     crate::utils::map_editor_render_view(ui, server_ctx)
                 {
                     if detail_mode_3d {
-                        crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                        server_ctx.reference.write().set_dirty();
                         return None;
                     }
 
@@ -974,7 +973,7 @@ impl Tool for VertexTool {
                         let vertices = if let Some(view) = &self.view_input {
                             view.rectangle(top_left, bottom_right)
                         } else {
-                            let mut rusterix = RUSTERIX.write().unwrap();
+                            let mut rusterix = server_ctx.reference.write();
                             rusterix.scene_handler.vm.set_active_vm(2);
                             let hits = rusterix.scene_handler.vm.active_vm().pick_geo_ids_in_rect(
                                 dim.width as u32,
@@ -1018,7 +1017,7 @@ impl Tool for VertexTool {
                         map.selected_vertices = selection.0;
                     }
                 }
-                crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                server_ctx.reference.write().set_dirty();
             }
             MapUp(_) => {
                 if self.click_selected {
@@ -1048,7 +1047,7 @@ impl Tool for VertexTool {
             }
             MapHover(coord) => {
                 if self.hud.hovered(coord.x, coord.y, map, ui, ctx, server_ctx) {
-                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                    server_ctx.reference.write().set_dirty();
                     return None;
                 }
 
@@ -1176,7 +1175,7 @@ impl Tool for VertexTool {
                     ));
                 }
                 self.was_clicked = false;
-                crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                server_ctx.reference.write().set_dirty();
             }
         };
         undo_atom

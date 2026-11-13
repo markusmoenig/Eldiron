@@ -1,5 +1,4 @@
 use crate::actions::geometry_face_ops::{face_uvs_for_indices, surface_segment_points};
-use crate::editor::RUSTERIX;
 use crate::prelude::*;
 use rusterix::PixelSource;
 use theframework::prelude::FxHashMap;
@@ -527,8 +526,8 @@ fn apply_surface_relief(
         return None;
     }
 
-    RUSTERIX.write().unwrap().set_dirty();
-    RUSTERIX.write().unwrap().set_overlay_dirty();
+    server_ctx.reference.write().set_dirty();
+    server_ctx.reference.write().set_overlay_dirty();
     ctx.ui.send(TheEvent::Custom(
         TheId::named("Map Selection Changed"),
         TheValue::Empty,

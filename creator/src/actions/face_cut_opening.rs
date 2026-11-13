@@ -2,7 +2,6 @@ use crate::actions::geometry_face_ops::{
     CutoutLoopValidation, cut_opening_selected_geometry_faces, cutout_selected_surface_loop,
     validate_selected_cutout_loops,
 };
-use crate::editor::RUSTERIX;
 use crate::prelude::*;
 
 pub struct CreateCutout {
@@ -94,8 +93,8 @@ impl Action for CreateCutout {
             return None;
         }
 
-        RUSTERIX.write().unwrap().set_dirty();
-        RUSTERIX.write().unwrap().set_overlay_dirty();
+        server_ctx.reference.write().set_dirty();
+        server_ctx.reference.write().set_overlay_dirty();
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Map Selection Changed"),
             TheValue::Empty,
@@ -204,8 +203,8 @@ impl Action for FaceCutOpening {
             return None;
         }
 
-        RUSTERIX.write().unwrap().set_dirty();
-        RUSTERIX.write().unwrap().set_overlay_dirty();
+        server_ctx.reference.write().set_dirty();
+        server_ctx.reference.write().set_overlay_dirty();
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Map Selection Changed"),
             TheValue::Empty,

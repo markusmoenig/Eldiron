@@ -1,4 +1,3 @@
-use crate::editor::RUSTERIX;
 pub use crate::prelude::*;
 use rusterix::PixelSource;
 
@@ -14,7 +13,10 @@ pub struct ActionMinimapSegment {
     pub end: Vec2<f32>,
 }
 
-pub fn parse_tile_id_pixelsource(text: &str) -> Option<PixelSource> {
+pub fn parse_tile_id_pixelsource(
+    text: &str,
+    reference: &CreatorReference,
+) -> Option<PixelSource> {
     let trimmed = text.trim();
     if trimmed.is_empty() {
         return None;
@@ -23,7 +25,7 @@ pub fn parse_tile_id_pixelsource(text: &str) -> Option<PixelSource> {
         return Some(PixelSource::TileId(id));
     }
     {
-        let rusterix = RUSTERIX.read().unwrap();
+        let rusterix = reference.read();
         if let Some((id, _tile)) = rusterix.assets.tiles.iter().find(|(_id, tile)| {
             tile.alias
                 .split([',', ';', '\n'])
@@ -193,13 +195,14 @@ pub fn apply_named_geometry_hud_material_to_selection(
 
 pub fn prefab_hud_material_slots_for_selected_instances(
     map: &Map,
+    reference: &CreatorReference,
 ) -> Option<Vec<ActionMaterialSlot>> {
     let instance_id = *map.selected_block_prop_instances.first()?;
     let instance = map
         .block_prop_instances
         .iter()
         .find(|instance| instance.id == instance_id)?;
-    let engine = RUSTERIX.read().unwrap();
+    let engine = reference.read();
     let asset = engine.assets.block_props.get(&instance.asset_id)?;
     let slots = rusterix::block_prop_asset_material_slots(asset);
     (!slots.is_empty()).then(|| {

@@ -214,6 +214,7 @@ impl PrefabNodePane {
         project: &mut Project,
         ctx: &mut TheContext,
         jobs: &CreatorJobs,
+        reference: &CreatorReference,
     ) -> Result<bool, String> {
         let missing: Vec<_> = self
             .native_workspace
@@ -272,7 +273,7 @@ impl PrefabNodePane {
             }
         }
         if changed {
-            crate::block_props::sync_existing_prefab_presentations(project, jobs);
+            crate::block_props::sync_existing_prefab_presentations(project, jobs, reference);
         }
         self.sync_native_mirror();
         if let Some(error) = dispatch_error.or_else(|| self.native_error(project)) {
@@ -288,18 +289,20 @@ impl PrefabNodePane {
         project: &mut Project,
         ctx: &mut TheContext,
         jobs: &CreatorJobs,
+        reference: &CreatorReference,
     ) -> Result<bool, String> {
         let keys: Vec<_> = self.native_workspace.views.keys().copied().collect();
         for key in keys {
             self.checkpoint_native_source(key, false);
         }
-        self.collect_native_through(u64::MAX, project, ctx, jobs)
+        self.collect_native_through(u64::MAX, project, ctx, jobs, reference)
     }
     pub(super) fn store_native_document(
         &mut self,
         project: &mut Project,
         ctx: &mut TheContext,
         jobs: &CreatorJobs,
+        reference: &CreatorReference,
     ) -> bool {
         let Some(key) = self
             .active_native_key()
@@ -314,7 +317,7 @@ impl PrefabNodePane {
         {
             Ok(outcome) => {
                 if self.apply_native_effect(outcome, ctx) {
-                    crate::block_props::sync_existing_prefab_presentations(project, jobs);
+                    crate::block_props::sync_existing_prefab_presentations(project, jobs, reference);
                 }
             }
             Err(error) => {
@@ -413,6 +416,7 @@ impl PrefabNodePane {
         ctx: &mut TheContext,
         project: &mut Project,
         jobs: &CreatorJobs,
+        reference: &CreatorReference,
     ) -> Option<bool> {
         match event {
             TheEvent::WidgetResized(id, _)
@@ -424,7 +428,7 @@ impl PrefabNodePane {
             }
             TheEvent::GraphCommitted(id, commit) if id.name == VIEW => {
                 self.native_workspace.cpu.binding_source(commit.binding)?;
-                let _ = self.collect_native_through(commit.sequence, project, ctx, jobs);
+                let _ = self.collect_native_through(commit.sequence, project, ctx, jobs, reference);
                 Some(true)
             }
             TheEvent::GraphDrop(id, binding, point, drop) if id.name == VIEW => {
@@ -440,7 +444,7 @@ impl PrefabNodePane {
                     return Some(false);
                 };
                 self.checkpoint_native_source(key, true);
-                let _ = self.collect_native_through(u64::MAX, project, ctx, jobs);
+                let _ = self.collect_native_through(u64::MAX, project, ctx, jobs, reference);
                 let Some(source) = self.native_workspace.cpu.source(key) else {
                     return Some(false);
                 };
@@ -457,7 +461,7 @@ impl PrefabNodePane {
                     .commit_document(project, key, document)
                     && self.apply_native_effect(outcome, ctx)
                 {
-                    crate::block_props::sync_existing_prefab_presentations(project, jobs);
+                    crate::block_props::sync_existing_prefab_presentations(project, jobs, reference);
                 }
                 self.sync_native_mirror();
                 self.rebind_native_source(key);
@@ -476,6 +480,7 @@ impl PrefabNodePane {
         ctx: &mut TheContext,
         project: &mut Project,
         jobs: &CreatorJobs,
+        reference: &CreatorReference,
     ) -> Result<bool, String> {
         if self.native.is_none() {
             return Ok(false);
@@ -491,7 +496,7 @@ impl PrefabNodePane {
         if !domain {
             return Ok(false);
         }
-        let _ = self.commit_native_pending(project, ctx, jobs);
+        let _ = self.commit_native_pending(project, ctx, jobs, reference);
         if matches!(event, TheEvent::NewListItemSelected(id, _) if id.name == "Prefab Branch")
             && let Some(error) = &self.store_error
         {
@@ -590,6 +595,7 @@ mod tests {
         events: std::sync::mpsc::Receiver<TheEvent>,
         undo_signals: usize,
         jobs: CreatorJobs,
+        reference: CreatorReference,
     }
     impl Fixture {
         fn new() -> Self {
@@ -631,11 +637,13 @@ mod tests {
                 events,
                 undo_signals: 0,
                 jobs: CreatorJobs::default(),
+                reference: CreatorReference::default(),
             };
             f.pump();
             f.paint();
             assert!(f.ui.get_widget(VIEW).unwrap().as_any().is::<TheGraphView>());
             assert!(f.pane.resources.is_none());
+            assert!(!f.reference.initialized());
             f
         }
         fn model(&self) -> NativePrefabState {
@@ -662,7 +670,7 @@ mod tests {
                         self.undo_signals += 1;
                     }
                     self.pane
-                        .handle(&event, &mut self.ui, &mut self.ctx, &mut self.project, &self.jobs);
+                        .handle(&event, &mut self.ui, &mut self.ctx, &mut self.project, &self.jobs, &self.reference);
                 }
             }
             panic!("native prefab events must settle");
@@ -722,7 +730,7 @@ mod tests {
         }
         fn commit(&mut self) -> Result<bool, String> {
             self.pane
-                .commit_native_pending(&mut self.project, &mut self.ctx, &self.jobs)
+                .commit_native_pending(&mut self.project, &mut self.ctx, &self.jobs, &self.reference)
         }
     }
 
@@ -730,7 +738,7 @@ mod tests {
     fn native_prefab_edits_compile_serialize_once_and_do_not_construct_world_renderers() {
         let isolated = std::env::var_os("ELDIRON_NATIVE_PREFAB_ISOLATED").is_some();
         if isolated {
-            assert!(crate::editor::reference_runtime().is_none());
+            // No global reference owner exists; data-only APIs receive no service.
             // No process-global scene preparation service exists.
         }
         let mut f = Fixture::new();
@@ -767,12 +775,15 @@ mod tests {
             f.project.prefab_graphs[&f.asset]
         );
         assert!(f.pane.resources.is_none());
+            assert!(!f.reference.initialized());
         assert!(f.ui.canvas.buffer.pixels().is_empty());
         assert!(!f.pane.has_native_pending());
         assert!(!f.jobs.scene_initialized());
+        assert!(!f.reference.initialized());
         if isolated {
-            assert!(crate::editor::reference_runtime().is_none());
+            // No global reference owner exists; data-only APIs receive no service.
             assert!(!f.jobs.scene_initialized());
+        assert!(!f.reference.initialized());
         }
     }
 
@@ -828,7 +839,7 @@ mod tests {
             &mut f.ctx,
             &mut f.project,
             &f.jobs,
-        );
+         &f.reference);
         assert_eq!(f.pane.part, Some(f.second));
         assert_eq!(f.first_name(), "Saved first");
         assert_ne!(f.model().lock().unwrap().binding(), old.binding);
@@ -839,7 +850,7 @@ mod tests {
             &mut f.ctx,
             &mut f.project,
             &f.jobs,
-        );
+         &f.reference);
         assert_eq!(
             f.project.block_props[&f.asset]
                 .find_part(f.second)
@@ -869,9 +880,10 @@ mod tests {
             &mut f.ctx,
             &mut f.project,
             &f.jobs,
-        );
+         &f.reference);
         assert_eq!(f.first_name(), "Saved first");
         assert!(f.pane.resources.is_none());
+            assert!(!f.reference.initialized());
     }
 
     #[test]
@@ -905,7 +917,7 @@ mod tests {
             &mut f.ctx,
             &mut f.project,
             &f.jobs,
-        );
+         &f.reference);
         assert_eq!(
             f.pane.part,
             Some(f.first),
@@ -927,6 +939,7 @@ mod tests {
         assert!(!f.pane.has_native_pending());
         assert!(f.pane.store_error.is_none());
         assert!(f.pane.resources.is_none());
+            assert!(!f.reference.initialized());
     }
     #[test]
     fn native_prefab_source_switch_keeps_completed_and_unsubmitted_edits_owned_by_their_source() {
@@ -1039,7 +1052,7 @@ mod tests {
             &mut f.ctx,
             &mut f.project,
             &f.jobs,
-        );
+         &f.reference);
         f.pump();
         assert_eq!(f.first_name(), "A2");
         assert_eq!(
@@ -1090,7 +1103,7 @@ mod tests {
             &mut f.ctx,
             &mut f.project,
             &f.jobs,
-        );
+         &f.reference);
         assert_eq!(f.pane.part, Some(f.first));
         assert!(f.pane.store_error.is_some());
         f.click("prefab_transform", "pivot_x");
@@ -1318,9 +1331,10 @@ mod tests {
             &mut f.ctx,
             &mut f.project,
             &f.jobs,
-        );
+         &f.reference);
         assert_eq!(f.pane.doc.nodes.len(), before + 1);
         assert!(f.pane.resources.is_none());
+            assert!(!f.reference.initialized());
     }
     #[cfg(feature = "native-render")]
     #[test]
@@ -1382,6 +1396,7 @@ mod tests {
             assert_eq!(gpu.transfers().readback_bytes, 0);
             assert_eq!(f.state().target, target);
             assert!(f.pane.resources.is_none());
+            assert!(!f.reference.initialized());
             assert!(f.ui.canvas.buffer.pixels().is_empty());
             let mut ticket = ReadbackTicket::capture(&gpu, output).unwrap();
             gpu.device

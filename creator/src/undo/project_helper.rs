@@ -1,4 +1,4 @@
-use crate::editor::{DOCKMANAGER, PALETTE, RUSTERIX, TOOLLIST};
+use crate::editor::{DOCKMANAGER, PALETTE, TOOLLIST};
 use crate::prelude::*;
 use rusterix::material_library::MATERIAL_PRESET_NAMES;
 use theframework::prelude::*;
@@ -358,19 +358,19 @@ pub fn gen_character_tree_node(character: &Character) -> TheTreeNode {
 }
 
 /// Returns a TheTreeNode for the item.
-pub fn resolved_item_default_icon_frames(item: &Item, project: &Project) -> Vec<rusterix::Texture> {
-    resolved_item_default_icon_frames_for_state(item, project, true)
+pub fn resolved_item_default_icon_frames(item: &Item, project: &Project, reference: &CreatorReference) -> Vec<rusterix::Texture> {
+    resolved_item_default_icon_frames_for_state(item, project, true, reference)
 }
 
 pub fn resolved_item_default_icon_frames_for_state(
     item: &Item,
     project: &Project,
     on: bool,
-) -> Vec<rusterix::Texture> {
+ reference: &CreatorReference) -> Vec<rusterix::Texture> {
     if let Ok(Some(frames)) = shared::ruleset_materials::frames_for_item(project, item, on) {
         return frames;
     }
-    let mut default_assets = RUSTERIX.read().unwrap().assets.clone();
+    let mut default_assets = reference.read().assets.clone();
     default_assets.item_icons.clear();
     default_assets.project_item_icon_keys.clear();
     if let Ok(states) = shared::rulesets::bundled_item_icon_states_for_project(&project.config) {
@@ -901,13 +901,13 @@ pub fn gen_asset_tree_node(asset: &Asset) -> TheTreeNode {
 }
 
 /// Rerender the current region.
-pub fn update_region(ctx: &mut TheContext) {
+pub fn update_region(ctx: &mut TheContext, reference: &CreatorReference) {
     ctx.ui.send(TheEvent::Custom(
         TheId::named("Update Minimap"),
         TheValue::Empty,
     ));
 
-    RUSTERIX.write().unwrap().set_dirty();
+    reference.write().set_dirty();
 
     ctx.ui.send(TheEvent::Custom(
         TheId::named("Render SceneManager Map"),
@@ -980,10 +980,10 @@ pub fn palette_status_text(
     }
 }
 
-pub fn refresh_palette_runtime(project: &Project, jobs: &CreatorJobs) {
+pub fn refresh_palette_runtime(project: &Project, jobs: &CreatorJobs, reference: &CreatorReference) {
     *PALETTE.write().unwrap() = project.palette.clone();
     let (tile_list, tile_indices) = {
-        let mut rusterix = RUSTERIX.write().unwrap();
+        let mut rusterix = reference.write();
         rusterix.assets.palette = project.palette.clone();
         shared::rusterix_utils::sync_item_icon_assets(&mut rusterix, project);
         rusterix.assets.palette_materials = palette_material_values(project);
@@ -1601,7 +1601,7 @@ pub fn set_project_context(
                 TheValue::Empty,
             ));
 
-            RUSTERIX.write().unwrap().set_dirty();
+            server_ctx.reference.write().set_dirty();
 
             ctx.ui.send(TheEvent::Custom(
                 TheId::named("Render SceneManager Map"),

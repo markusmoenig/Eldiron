@@ -244,7 +244,7 @@ pub fn handle_event(
         map.properties.set(key, value);
         map.curr_rectangle = None;
         map.changed = map.changed.wrapping_add(1);
-        crate::editor::RUSTERIX.write().unwrap().set_dirty();
+        server.reference.write().set_dirty();
         ctx.ui.redraw_all = true;
     }
     true

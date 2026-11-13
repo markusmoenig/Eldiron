@@ -1,5 +1,5 @@
 use crate::actions::geometry_face_ops::surface_segment_points;
-use crate::editor::{ACTIONLIST, DOCKMANAGER, RUSTERIX, SIDEBARMODE, UNDOMANAGER};
+use crate::editor::{ACTIONLIST, DOCKMANAGER, SIDEBARMODE, UNDOMANAGER};
 use crate::editor_display::{
     EditorDisplay, EditorDisplayOwner, EditorDisplayResult, EditorDisplaySession,
 };
@@ -460,7 +460,7 @@ impl ToolList {
                     map.subdivisions = subdivision;
                 }
                 {
-                    let mut rusterix = RUSTERIX.write().unwrap();
+                    let mut rusterix = server_ctx.reference.write();
                     rusterix.set_dirty();
                     rusterix.set_overlay_dirty();
                 }
@@ -530,7 +530,7 @@ impl ToolList {
         {
             slots.len()
         } else if let Some(slots) =
-            crate::actions::prefab_hud_material_slots_for_selected_instances(map)
+            crate::actions::prefab_hud_material_slots_for_selected_instances(map, &server_ctx.reference)
         {
             slots.len()
         } else if let Some(action_id) = server_ctx.curr_action_id {
@@ -595,7 +595,7 @@ impl ToolList {
             camera
         };
         {
-            let mut rusterix = RUSTERIX.write().unwrap();
+            let mut rusterix = server_ctx.reference.write();
             rusterix.client.set_camera_d3(Box::new(camera));
             rusterix.set_dirty();
             rusterix.set_overlay_dirty();
@@ -1337,8 +1337,8 @@ impl ToolList {
         chunk_origins: &FxHashSet<(i32, i32)>,
         owners: &mut FxHashSet<GeoId>,
         include_terrain: bool,
-    ) {
-        let rusterix = RUSTERIX.read().unwrap();
+     reference: &CreatorReference) {
+        let rusterix = reference.read();
         for origin in chunk_origins {
             let mut chunk_owners = rusterix
                 .scene_handler
@@ -1355,7 +1355,7 @@ impl ToolList {
     fn changed_geometry_replacement_plan(
         old_map: &Map,
         new_map: &Map,
-    ) -> Option<GeometryOwnerReplacementPlan> {
+     reference: &CreatorReference) -> Option<GeometryOwnerReplacementPlan> {
         let old_topology = rusterix::MapTopology::build(old_map);
         let new_topology = rusterix::MapTopology::build(new_map);
         let mut affected_sectors: FxHashSet<u32> = FxHashSet::default();
@@ -1535,7 +1535,7 @@ impl ToolList {
                 .copied()
                 .map(GeoId::GeometryObject),
         );
-        let prefab_assets = RUSTERIX.read().unwrap().assets.block_props.clone();
+        let prefab_assets = reference.read().assets.block_props.clone();
         let old_changed_instances = old_map
             .block_prop_instances
             .iter()
@@ -1571,7 +1571,7 @@ impl ToolList {
             Self::strip_terrain_owners(&mut owners);
         }
         {
-            let rusterix = RUSTERIX.read().unwrap();
+            let rusterix = reference.read();
             chunk_origins.extend(
                 rusterix
                     .scene_handler
@@ -1626,7 +1626,7 @@ impl ToolList {
             &mut owners,
             include_terrain,
         );
-        Self::expand_index_owners_for_chunks(&chunk_origins, &mut owners, include_terrain);
+        Self::expand_index_owners_for_chunks(&chunk_origins, &mut owners, include_terrain, reference);
         if !include_terrain {
             Self::strip_terrain_owners(&mut owners);
         }
@@ -1646,7 +1646,7 @@ impl ToolList {
         new_map: &Map,
         plan: GeometryOwnerReplacementPlan,
         jobs: &CreatorJobs,
-    ) -> bool {
+     reference: &CreatorReference) -> bool {
         if plan.owners.is_empty() || plan.chunk_origins.is_empty() {
             return false;
         }
@@ -1658,7 +1658,7 @@ impl ToolList {
         build_map.changed = build_map.changed.wrapping_add(1);
         build_map.update_surfaces();
 
-        let assets = RUSTERIX.read().unwrap().assets.clone();
+        let assets = reference.read().assets.clone();
         let chunk_size = rusterix::scenemanager::SceneManager::DEFAULT_CHUNK_SIZE;
         let mut builder = TopologyBuilder::new();
         let mut generated_chunks = Vec::new();
@@ -1672,13 +1672,13 @@ impl ToolList {
         }
 
         {
-            let mut rusterix = RUSTERIX.write().unwrap();
+            let mut rusterix = reference.write();
             rusterix
                 .scene_handler
                 .replace_owner_geometry(&plan.owners, generated_chunks);
         }
 
-        crate::utils::editor_scene_incremental_map_update(build_map, Vec::new(), jobs);
+        crate::utils::editor_scene_incremental_map_update(build_map, Vec::new(), jobs, reference);
         true
     }
 
@@ -1686,7 +1686,7 @@ impl ToolList {
         new_map: &Map,
         plan: GeometryOwnerReplacementPlan,
         jobs: &CreatorJobs,
-    ) -> bool {
+     reference: &CreatorReference) -> bool {
         if plan
             .owners
             .iter()
@@ -1698,11 +1698,10 @@ impl ToolList {
             crate::utils::editor_scene_replace_incremental_map_update(
                 build_map,
                 plan.chunk_origins.into_iter().collect(),
-                jobs,
-            );
+                jobs, reference);
             return true;
         }
-        Self::apply_geometry_owner_replacement(new_map, plan, jobs)
+        Self::apply_geometry_owner_replacement(new_map, plan, jobs, reference)
     }
 
     pub(crate) fn try_incremental_map_edit(
@@ -1717,20 +1716,19 @@ impl ToolList {
                 crate::utils::editor_scene_replace_incremental_map_update(
                     new_map.clone(),
                     dirty_chunks,
-                    &server_ctx.jobs,
-                );
+                    &server_ctx.jobs, &server_ctx.reference);
                 return true;
             }
             return false;
         }
 
         if let Some(dirty_chunks) = Self::changed_rect_paint_chunks(old_map, new_map) {
-            crate::utils::editor_scene_incremental_map_update(new_map.clone(), dirty_chunks, &server_ctx.jobs);
+            crate::utils::editor_scene_incremental_map_update(new_map.clone(), dirty_chunks, &server_ctx.jobs, &server_ctx.reference);
             return true;
         }
 
-        if let Some(plan) = Self::changed_geometry_replacement_plan(old_map, new_map) {
-            return Self::apply_geometry_scene_update(new_map, plan, &server_ctx.jobs);
+        if let Some(plan) = Self::changed_geometry_replacement_plan(old_map, new_map, &server_ctx.reference) {
+            return Self::apply_geometry_scene_update(new_map, plan, &server_ctx.jobs, &server_ctx.reference);
         }
 
         false
@@ -1845,7 +1843,7 @@ impl ToolList {
             }
 
             let mut chunk_origins = {
-                let rusterix = RUSTERIX.read().unwrap();
+                let rusterix = server_ctx.reference.read();
                 rusterix
                     .scene_handler
                     .build_index
@@ -1865,8 +1863,7 @@ impl ToolList {
             crate::utils::editor_scene_replace_incremental_map_update(
                 map.clone(),
                 chunk_origins.into_iter().collect(),
-                &server_ctx.jobs,
-            );
+                &server_ctx.jobs, &server_ctx.reference);
             return true;
         }
 
@@ -1890,7 +1887,7 @@ impl ToolList {
         }
 
         let mut chunk_origins = {
-            let rusterix = RUSTERIX.read().unwrap();
+            let rusterix = server_ctx.reference.read();
             rusterix
                 .scene_handler
                 .build_index
@@ -1900,7 +1897,7 @@ impl ToolList {
             Self::add_owner_dirty_chunks(map, owner, &mut chunk_origins);
         }
         Self::expand_topology_owners_for_chunks(map, &chunk_origins, &mut owners, include_terrain);
-        Self::expand_index_owners_for_chunks(&chunk_origins, &mut owners, include_terrain);
+        Self::expand_index_owners_for_chunks(&chunk_origins, &mut owners, include_terrain, &server_ctx.reference);
         if !include_terrain {
             Self::strip_terrain_owners(&mut owners);
         }
@@ -1915,7 +1912,7 @@ impl ToolList {
 
             if !live_owners.is_empty() {
                 let mut live_chunk_origins = {
-                    let rusterix = RUSTERIX.read().unwrap();
+                    let rusterix = server_ctx.reference.read();
                     rusterix
                         .scene_handler
                         .build_index
@@ -1930,7 +1927,7 @@ impl ToolList {
                     &mut live_owners,
                     false,
                 );
-                Self::expand_index_owners_for_chunks(&live_chunk_origins, &mut live_owners, false);
+                Self::expand_index_owners_for_chunks(&live_chunk_origins, &mut live_owners, false, &server_ctx.reference);
                 Self::strip_terrain_owners(&mut live_owners);
 
                 if !live_chunk_origins.is_empty() && !live_owners.is_empty() {
@@ -1941,16 +1938,14 @@ impl ToolList {
                             chunk_origins: live_chunk_origins,
                             include_terrain: false,
                         },
-                        &server_ctx.jobs,
-                    );
+                        &server_ctx.jobs, &server_ctx.reference);
                 }
             }
 
             crate::utils::editor_scene_replace_incremental_map_update(
                 map.clone(),
                 chunk_origins.into_iter().collect(),
-                &server_ctx.jobs,
-            );
+                &server_ctx.jobs, &server_ctx.reference);
             return true;
         }
 
@@ -1961,8 +1956,7 @@ impl ToolList {
                 chunk_origins,
                 include_terrain,
             },
-            &server_ctx.jobs,
-        )
+            &server_ctx.jobs, &server_ctx.reference)
     }
 
     fn changed_rect_paint_chunks(old_map: &Map, new_map: &Map) -> Option<Vec<(i32, i32)>> {
@@ -2483,7 +2477,7 @@ impl ToolList {
                             && server_ctx.editor_view_mode != EditorViewMode::D2
                             && let ProjectUndoAtom::MapEdit(_, old_map, new_map) = &undo_atom
                         {
-                            Self::changed_geometry_replacement_plan(old_map, new_map)
+                            Self::changed_geometry_replacement_plan(old_map, new_map, &server_ctx.reference)
                         } else {
                             None
                         };
@@ -2508,15 +2502,14 @@ impl ToolList {
                             crate::utils::editor_scene_incremental_map_update(
                                 (**new_map).clone(),
                                 dirty_chunks,
-                                &server_ctx.jobs,
-                            );
+                                &server_ctx.jobs, &server_ctx.reference);
                             used_incremental_scene_update = true;
                         }
                         if let Some(plan) = geometry_replacement_plan
                             && let ProjectUndoAtom::MapEdit(_, _, new_map) = &undo_atom
                         {
                             used_incremental_scene_update =
-                                Self::apply_geometry_scene_update(new_map, plan, &server_ctx.jobs);
+                                Self::apply_geometry_scene_update(new_map, plan, &server_ctx.jobs, &server_ctx.reference);
                         }
                         if !used_incremental_scene_update {
                             crate::utils::editor_scene_full_rebuild(project, server_ctx);
@@ -2531,7 +2524,7 @@ impl ToolList {
                                 .send(TheEvent::SetStatusText(TheId::empty(), message));
                         } else {
                             let prefabs = project.block_props.clone();
-                            RUSTERIX.write().unwrap().set_block_props(prefabs.clone());
+                            server_ctx.reference.write().set_block_props(prefabs.clone());
                             server_ctx.jobs.scene_mut().set_block_props(prefabs);
                         }
                     }
@@ -2627,7 +2620,7 @@ impl ToolList {
         if let TheEvent::ValueChanged(id, value) = event {
             if id.name == "Editor Fill Light" {
                 if let Some(strength) = value.to_f32() {
-                    let mut rusterix = crate::editor::RUSTERIX.write().unwrap();
+                    let mut rusterix = server_ctx.reference.write();
                     rusterix.editor_preview_fill_strength = strength.clamp(0.0, 1.0);
                     rusterix.set_dirty();
                     ctx.ui.redraw_all = true;
@@ -2692,7 +2685,7 @@ impl ToolList {
             };
             if should_forward_to_tool {
                 return self.editor_tools[self.curr_editor_tool]
-                    .handle_event(event, ui, ctx, project, &mut server_ctx.shared, &server_ctx.jobs);
+                    .handle_event(event, ui, ctx, project, &mut server_ctx.shared, &server_ctx.jobs, &server_ctx.reference);
             }
         }
 
@@ -2896,8 +2889,8 @@ impl ToolList {
                     }
                     server_ctx.editing_surface = None;
 
-                    RUSTERIX.write().unwrap().client.scene.d2_static.clear();
-                    RUSTERIX.write().unwrap().client.scene.d2_dynamic.clear();
+                    server_ctx.reference.write().client.scene.d2_static.clear();
+                    server_ctx.reference.write().client.scene.d2_dynamic.clear();
 
                     // Both 2D projections have distinct authoring sources.
                     // Returning from sprite-isometric must replace its dormant
@@ -2910,7 +2903,7 @@ impl ToolList {
                     } else if new {
                         self.update_geometry_overlay_3d(project, server_ctx);
                     }
-                    RUSTERIX.write().unwrap().set_dirty();
+                    server_ctx.reference.write().set_dirty();
 
                     ctx.ui.send(TheEvent::Custom(
                         TheId::named("Update Action List"),
@@ -3005,7 +2998,7 @@ impl ToolList {
                     server_ctx.geometry_gizmo_op = op;
                     self.update_geometry_overlay_3d(project, server_ctx);
                     {
-                        let mut rusterix = RUSTERIX.write().unwrap();
+                        let mut rusterix = server_ctx.reference.write();
                         rusterix.set_dirty();
                         rusterix.set_overlay_dirty();
                     }
@@ -3153,7 +3146,7 @@ impl ToolList {
                                 map.subdivisions =
                                     Self::step_grid_subdivision(map.subdivisions, delta);
                                 {
-                                    let mut rusterix = RUSTERIX.write().unwrap();
+                                    let mut rusterix = server_ctx.reference.write();
                                     rusterix.set_dirty();
                                     rusterix.set_overlay_dirty();
                                 }
@@ -3167,7 +3160,7 @@ impl ToolList {
                             {
                                 map.subdivisions = subdivision;
                                 {
-                                    let mut rusterix = RUSTERIX.write().unwrap();
+                                    let mut rusterix = server_ctx.reference.write();
                                     rusterix.set_dirty();
                                     rusterix.set_overlay_dirty();
                                 }
@@ -3186,7 +3179,7 @@ impl ToolList {
                                 if (*c == 'd' || *c == 'D') && !preserve_prefab_instance_shortcut {
                                     server_ctx.geometry_edit_mode = GeometryEditMode::Detail;
                                     self.update_geometry_overlay_3d(project, server_ctx);
-                                    RUSTERIX.write().unwrap().set_dirty();
+                                    server_ctx.reference.write().set_dirty();
                                     return false;
                                 }
                             }
@@ -3372,9 +3365,9 @@ impl ToolList {
                 {
                     // Re-clicking 2D while editing a profile/surface should exit surface mode.
                     server_ctx.editing_surface = None;
-                    RUSTERIX.write().unwrap().client.scene.d2_static.clear();
-                    RUSTERIX.write().unwrap().client.scene.d2_dynamic.clear();
-                    RUSTERIX.write().unwrap().set_dirty();
+                    server_ctx.reference.write().client.scene.d2_static.clear();
+                    server_ctx.reference.write().client.scene.d2_dynamic.clear();
+                    server_ctx.reference.write().set_dirty();
                     ctx.ui.send(TheEvent::Custom(
                         TheId::named("Render SceneManager Map"),
                         TheValue::Empty,
@@ -3399,7 +3392,7 @@ impl ToolList {
                         _ => None,
                     };
                     if let Some(key) = key {
-                        let mut rusterix = RUSTERIX.write().unwrap();
+                        let mut rusterix = server_ctx.reference.write();
                         if rusterix.client.focused_text_input_key_down(key) {
                             rusterix.set_overlay_dirty();
                             return true;
@@ -3732,7 +3725,7 @@ impl ToolList {
                             redraw = true;
                         }
                     } else {
-                        let current_map = RUSTERIX.read().unwrap().client.current_map.clone();
+                        let current_map = server_ctx.reference.read().client.current_map.clone();
                         for r in &mut project.regions {
                             if r.map.name == current_map {
                                 self.get_current_tool().region_map_event(
@@ -3770,7 +3763,7 @@ impl ToolList {
                         ));
                     }
 
-                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                    server_ctx.reference.write().set_dirty();
                     ctx.ui.redraw_all = true;
                     return true;
                 }
@@ -3794,7 +3787,7 @@ impl ToolList {
                             server_ctx.camera
                                 .set_fly_pointer(coord, view_size);
                         }
-                        crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                        server_ctx.reference.write().set_dirty();
                         ctx.ui.redraw_all = true;
                         return true;
                     }
@@ -3825,14 +3818,12 @@ impl ToolList {
                                     .then(|| edit_camera.orbit_camera.clone())
                             };
                             if let Some(camera) = prefab_camera {
-                                crate::editor::RUSTERIX
-                                    .write()
-                                    .unwrap()
+                                server_ctx.reference.write()
                                     .client
                                     .set_camera_d3(Box::new(camera));
                                 self.update_geometry_overlay_3d(project, server_ctx);
                             }
-                            crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                            server_ctx.reference.write().set_dirty();
                             ctx.ui.redraw_all = true;
                         }
                         // Do not leak a pending navigation drag into the active
@@ -3867,14 +3858,12 @@ impl ToolList {
                                     .then(|| edit_camera.orbit_camera.clone())
                             };
                             if let Some(camera) = prefab_camera {
-                                crate::editor::RUSTERIX
-                                    .write()
-                                    .unwrap()
+                                server_ctx.reference.write()
                                     .client
                                     .set_camera_d3(Box::new(camera));
                                 self.update_geometry_overlay_3d(project, server_ctx);
                             }
-                            crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                            server_ctx.reference.write().set_dirty();
                             ctx.ui.redraw_all = true;
                             return true;
                         }
@@ -3891,13 +3880,11 @@ impl ToolList {
                                         .mouse_dragged_pan_prefab(coord, Vec2::new(dim.x, dim.y));
                                     edit_camera.orbit_camera.clone()
                                 };
-                                crate::editor::RUSTERIX
-                                    .write()
-                                    .unwrap()
+                                server_ctx.reference.write()
                                     .client
                                     .set_camera_d3(Box::new(camera));
                                 self.update_geometry_overlay_3d(project, server_ctx);
-                                crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                                server_ctx.reference.write().set_dirty();
                                 ctx.ui.redraw_all = true;
                                 return true;
                             } else if let Some(region) =
@@ -3910,7 +3897,7 @@ impl ToolList {
                                         coord,
                                         Vec2::new(dim.x, dim.y),
                                     );
-                                crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                                server_ctx.reference.write().set_dirty();
                                 ctx.ui.redraw_all = true;
                                 return true;
                             }
@@ -3980,7 +3967,7 @@ impl ToolList {
                                 TheId::empty(),
                                 fl!("status_firstp_fly_nav_off"),
                             ));
-                            crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                            server_ctx.reference.write().set_dirty();
                             ctx.ui.redraw_all = true;
                         }
                         return true;
@@ -4099,7 +4086,7 @@ impl ToolList {
                         {
                             server_ctx.camera
                                 .set_fly_pointer(coord, view_size);
-                            crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                            server_ctx.reference.write().set_dirty();
                             ctx.ui.redraw_all = true;
                         }
                         return true;
@@ -4611,7 +4598,7 @@ impl ToolList {
                     server_ctx.editing_surface_hit_pos = None;
                     server_ctx.active_detail_surface = None;
                 }
-                RUSTERIX.write().unwrap().set_overlay_dirty();
+                server_ctx.reference.write().set_overlay_dirty();
             }
             if switched_tool
                 && server_ctx.editor_view_mode != EditorViewMode::D2
@@ -4624,7 +4611,7 @@ impl ToolList {
                     snapshot,
                 )
             {
-                RUSTERIX.write().unwrap().set_overlay_dirty();
+                server_ctx.reference.write().set_overlay_dirty();
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Map Selection Changed"),
                     TheValue::Empty,
@@ -4807,7 +4794,7 @@ impl ToolList {
         if server_ctx.editor_view_mode == EditorViewMode::D2 {
             return;
         }
-        let mut bridge = RUSTERIX.write().unwrap();
+        let mut bridge = server_ctx.reference.write();
         bridge.client.scene.d3_overlay.clear();
         let rusterix::Rusterix {
             assets,
@@ -4838,7 +4825,7 @@ impl ToolList {
         if server_ctx.editor_view_mode == EditorViewMode::D2 {
             return;
         }
-        let mut bridge = RUSTERIX.write().unwrap();
+        let mut bridge = server_ctx.reference.write();
         let rusterix::Rusterix {
             assets,
             client,
@@ -4863,7 +4850,7 @@ impl ToolList {
     ) -> Option<Vec2<f32>> {
         let mut rc = None;
 
-        let mut rusterix = RUSTERIX.write().unwrap();
+        let mut rusterix = server_ctx.reference.write();
         rusterix.client.scene.d3_overlay.clear();
 
         if let Some(region) = project.get_region_ctx(&server_ctx) {
@@ -4995,7 +4982,7 @@ impl ToolList {
             coord.y as f32 / dim.height as f32,
         ];
 
-        let mut rusterix = RUSTERIX.write().unwrap();
+        let mut rusterix = server_ctx.reference.write();
 
         server_ctx.hover_cursor_3d = None;
         server_ctx.hover_ray_origin_3d = None;

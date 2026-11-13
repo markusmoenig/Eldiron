@@ -1,6 +1,6 @@
 use crate::docks::palette::PaletteDock;
 use crate::docks::tiles::TilesDock;
-use crate::editor::{RUSTERIX, TOOLLIST, UNDOMANAGER};
+use crate::editor::{TOOLLIST, UNDOMANAGER};
 use crate::prelude::*;
 use scenevm::GeoId;
 
@@ -2331,9 +2331,13 @@ impl PrefabsEditorDock {
         Ok(())
     }
 
-    pub(super) fn sync_prefab_runtime(project: &mut Project, jobs: &CreatorJobs) {
+    pub(super) fn sync_prefab_runtime(
+        project: &mut Project,
+        jobs: &CreatorJobs,
+        reference: &CreatorReference,
+    ) {
         shared::prefab_graph::sync_prefab_placements(project);
-        crate::block_props::sync_existing_prefab_presentations(project, jobs);
+        crate::block_props::sync_existing_prefab_presentations(project, jobs, reference);
     }
 }
 
@@ -2365,10 +2369,11 @@ impl Dock for PrefabsEditorDock {
         ctx: &mut TheContext,
         project: &mut Project,
         jobs: &CreatorJobs,
+        reference: &CreatorReference,
     ) -> Result<bool, String> {
         #[cfg(feature = "native-ui")]
         {
-            return self.nodes.commit_native_pending(project, ctx, jobs);
+            return self.nodes.commit_native_pending(project, ctx, jobs, reference);
         }
         #[cfg(not(feature = "native-ui"))]
         {
@@ -2494,7 +2499,7 @@ impl Dock for PrefabsEditorDock {
         let drag = self.effect_drag.take().unwrap();
         let restored = Self::restore_owned_effect_field(&drag, project);
         if restored {
-            Self::sync_prefab_runtime(project, &server.jobs);
+            Self::sync_prefab_runtime(project, &server.jobs, &server.reference);
             if Self::active_asset_id(server) == Some(asset) {
                 self.sync_effect_editor(ui, ctx, project, asset);
             }
@@ -2530,7 +2535,7 @@ impl Dock for PrefabsEditorDock {
         {
             if let Some(asset) = self.nodes.native_source_asset(*binding) {
                 self.close_door_preview(project, asset, server_ctx);
-                return self.nodes.handle(event, ui, ctx, project, &server_ctx.jobs);
+                return self.nodes.handle(event, ui, ctx, project, &server_ctx.jobs, &server_ctx.reference);
             }
             return false;
         }
@@ -2538,7 +2543,7 @@ impl Dock for PrefabsEditorDock {
         if matches!(event, TheEvent::GraphCommitted(id, _) | TheEvent::GraphCommand(id, _, _)
             if id.name == super::prefab_nodes::VIEW)
         {
-            return self.nodes.handle(event, ui, ctx, project, &server_ctx.jobs);
+            return self.nodes.handle(event, ui, ctx, project, &server_ctx.jobs, &server_ctx.reference);
         }
         let Some(asset_id) = Self::active_asset_id(server_ctx) else {
             return false;
@@ -2562,7 +2567,7 @@ impl Dock for PrefabsEditorDock {
         {
             self.close_door_preview(project, asset_id, server_ctx);
         }
-        if self.mode == PrefabEditorMode::Parts && self.nodes.handle(event, ui, ctx, project, &server_ctx.jobs) {
+        if self.mode == PrefabEditorMode::Parts && self.nodes.handle(event, ui, ctx, project, &server_ctx.jobs, &server_ctx.reference) {
             if self.selected_part_id != self.nodes.part
                 || matches!(event, TheEvent::NewListItemSelected(id,_) if id.name=="Prefab Branch")
             {
@@ -2685,7 +2690,7 @@ impl Dock for PrefabsEditorDock {
                             }
                         }
                         drag.working = attachment.clone();
-                        Self::sync_prefab_runtime(project, &server_ctx.jobs);
+                        Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                         self.sync_effect_editor(ui, ctx, project, asset_id);
                         if !TOOLLIST.read().unwrap().native_world_input
                             && let Some(translated) = Self::translated_view_event(event)
@@ -2734,7 +2739,7 @@ impl Dock for PrefabsEditorDock {
                 .handle_event(event, ui, ctx, project, server_ctx);
             if edits_prefab {
                 match crate::block_props::sync_prefab_editor(project, asset_id) {
-                    Ok(()) => Self::sync_prefab_runtime(project, &server_ctx.jobs),
+                    Ok(()) => Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference),
                     Err(message) => ctx
                         .ui
                         .send(TheEvent::SetStatusText(TheId::empty(), message)),
@@ -2751,7 +2756,7 @@ impl Dock for PrefabsEditorDock {
                 .handle_event(event, ui, ctx, project, server_ctx);
             if edits_prefab {
                 match crate::block_props::sync_prefab_editor(project, asset_id) {
-                    Ok(()) => Self::sync_prefab_runtime(project, &server_ctx.jobs),
+                    Ok(()) => Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference),
                     Err(message) => ctx
                         .ui
                         .send(TheEvent::SetStatusText(TheId::empty(), message)),
@@ -2849,10 +2854,8 @@ impl Dock for PrefabsEditorDock {
                                 ctx,
                             );
                         }
-                        Self::sync_prefab_runtime(project, &server_ctx.jobs);
-                        RUSTERIX
-                            .write()
-                            .unwrap()
+                        Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
+                        server_ctx.reference.write()
                             .scene_handler
                             .reset_geometry_particle_emitters();
                         self.sync_effect_editor(ui, ctx, project, asset_id);
@@ -2885,7 +2888,7 @@ impl Dock for PrefabsEditorDock {
                     asset.placement.snap_to_grid = *index == 0;
                     asset.placement.snap_to_surfaces = *index != 3;
                     Self::push_project_undo(before, project, ctx);
-                    Self::sync_prefab_runtime(project, &server_ctx.jobs);
+                    Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                     ctx.ui.redraw_all = true;
                 }
                 true
@@ -2899,7 +2902,7 @@ impl Dock for PrefabsEditorDock {
                     Ok(_) => {
                         server_ctx.selected_prefab_effect_id = self.selected_effect_id;
                         Self::push_project_undo(before, project, ctx);
-                        Self::sync_prefab_runtime(project, &server_ctx.jobs);
+                        Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                         self.sync_effect_editor(ui, ctx, project, asset_id);
                         ctx.ui.send(TheEvent::SetStatusText(
                             TheId::empty(),
@@ -2920,7 +2923,7 @@ impl Dock for PrefabsEditorDock {
                         self.effect_inspector_page = 3;
                         server_ctx.selected_prefab_effect_id = self.selected_effect_id;
                         Self::push_project_undo(before, project, ctx);
-                        Self::sync_prefab_runtime(project, &server_ctx.jobs);
+                        Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                         self.sync_effect_editor(ui, ctx, project, asset_id);
                         ctx.ui.send(TheEvent::SetStatusText(
                             TheId::empty(),
@@ -2940,7 +2943,7 @@ impl Dock for PrefabsEditorDock {
                     Ok(_) => {
                         server_ctx.selected_prefab_effect_id = self.selected_effect_id;
                         Self::push_project_undo(before, project, ctx);
-                        Self::sync_prefab_runtime(project, &server_ctx.jobs);
+                        Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                         self.sync_effect_editor(ui, ctx, project, asset_id);
                         ctx.ui.send(TheEvent::SetStatusText(
                             TheId::empty(),
@@ -2998,7 +3001,7 @@ impl Dock for PrefabsEditorDock {
                 self.selected_effect_id = None;
                 server_ctx.selected_prefab_effect_id = None;
                 Self::push_project_undo(before, project, ctx);
-                Self::sync_prefab_runtime(project, &server_ctx.jobs);
+                Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                 self.sync_effect_editor(ui, ctx, project, asset_id);
                 ctx.ui.redraw_all = true;
                 true
@@ -3029,7 +3032,7 @@ impl Dock for PrefabsEditorDock {
                 }
                 if changed {
                     Self::push_project_undo(before, project, ctx);
-                    Self::sync_prefab_runtime(project, &server_ctx.jobs);
+                    Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                     self.sync_effect_editor(ui, ctx, project, asset_id);
                     ctx.ui.send(TheEvent::Custom(
                         TheId::named("Update Geometry Overlay 3D"),
@@ -3047,7 +3050,7 @@ impl Dock for PrefabsEditorDock {
                 match self.move_selected_effect_to_part(project, asset_id, part_id) {
                     Ok(true) => {
                         Self::push_project_undo(before, project, ctx);
-                        Self::sync_prefab_runtime(project, &server_ctx.jobs);
+                        Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                         self.sync_effect_editor(ui, ctx, project, asset_id);
                         ctx.ui.send(TheEvent::SetStatusText(
                             TheId::empty(),
@@ -3108,10 +3111,8 @@ impl Dock for PrefabsEditorDock {
                 }
                 if changed {
                     Self::push_project_undo(before, project, ctx);
-                    Self::sync_prefab_runtime(project, &server_ctx.jobs);
-                    RUSTERIX
-                        .write()
-                        .unwrap()
+                    Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
+                    server_ctx.reference.write()
                         .scene_handler
                         .reset_geometry_particle_emitters();
                     self.sync_effect_editor(ui, ctx, project, asset_id);
@@ -3153,7 +3154,7 @@ impl Dock for PrefabsEditorDock {
                 }
                 if changed {
                     Self::push_project_undo(before, project, ctx);
-                    Self::sync_prefab_runtime(project, &server_ctx.jobs);
+                    Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                     self.sync_effect_editor(ui, ctx, project, asset_id);
                     ctx.ui.redraw_all = true;
                 }
@@ -3172,10 +3173,8 @@ impl Dock for PrefabsEditorDock {
                     .is_some_and(|asset| Self::fit_particle_emission_to_part_top(asset, effect_id));
                 if changed {
                     Self::push_project_undo(before, project, ctx);
-                    Self::sync_prefab_runtime(project, &server_ctx.jobs);
-                    RUSTERIX
-                        .write()
-                        .unwrap()
+                    Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
+                    server_ctx.reference.write()
                         .scene_handler
                         .reset_geometry_particle_emitters();
                     self.sync_effect_editor(ui, ctx, project, asset_id);
@@ -3237,11 +3236,9 @@ impl Dock for PrefabsEditorDock {
                 }
                 if changed {
                     Self::push_project_undo(before, project, ctx);
-                    Self::sync_prefab_runtime(project, &server_ctx.jobs);
+                    Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                     if id.name != EFFECT_COLOR {
-                        RUSTERIX
-                            .write()
-                            .unwrap()
+                        server_ctx.reference.write()
                             .scene_handler
                             .reset_geometry_particle_emitters();
                     }
@@ -3259,7 +3256,7 @@ impl Dock for PrefabsEditorDock {
                         if (asset.placement.surface_offset - offset).abs() > f32::EPSILON {
                             asset.placement.surface_offset = offset;
                             Self::push_project_undo(before, project, ctx);
-                            Self::sync_prefab_runtime(project, &server_ctx.jobs);
+                            Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                         }
                     }
                     self.sync_effect_editor(ui, ctx, project, asset_id);
@@ -3438,7 +3435,7 @@ impl Dock for PrefabsEditorDock {
                 }
                 if changed {
                     Self::push_project_undo(before, project, ctx);
-                    Self::sync_prefab_runtime(project, &server_ctx.jobs);
+                    Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                     self.sync_effect_editor(ui, ctx, project, asset_id);
                     ctx.ui.redraw_all = true;
                 } else {
@@ -3554,7 +3551,7 @@ impl Dock for PrefabsEditorDock {
                 ) {
                     Ok(()) => {
                         Self::push_project_undo(before, project, ctx);
-                        Self::sync_prefab_runtime(project, &server_ctx.jobs);
+                        Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                         self.sync_part_tree(ui, ctx, project, asset_id);
                         ctx.ui.send(TheEvent::SetStatusText(
                             TheId::empty(),
@@ -3580,7 +3577,7 @@ impl Dock for PrefabsEditorDock {
                     Ok(count) => {
                         self.selected_part_id = Some(part_id);
                         Self::push_project_undo(before, project, ctx);
-                        Self::sync_prefab_runtime(project, &server_ctx.jobs);
+                        Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                         self.sync_part_tree(ui, ctx, project, asset_id);
                         ctx.ui.send(TheEvent::SetStatusText(
                             TheId::empty(),
@@ -3617,7 +3614,7 @@ impl Dock for PrefabsEditorDock {
                     return true;
                 }
                 Self::push_project_undo(before, project, ctx);
-                Self::sync_prefab_runtime(project, &server_ctx.jobs);
+                Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                 self.sync_part_tree(ui, ctx, project, asset_id);
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named(crate::docks::blocks::BLOCKS_DOCK_SYNC_EVENT),
@@ -3656,7 +3653,7 @@ impl Dock for PrefabsEditorDock {
                     .get(&asset_id)
                     .map(|asset| asset.name.clone());
                 Self::push_project_undo(before, project, ctx);
-                Self::sync_prefab_runtime(project, &server_ctx.jobs);
+                Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                 self.sync_part_tree(ui, ctx, project, asset_id);
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named(crate::docks::blocks::BLOCKS_DOCK_SYNC_EVENT),
@@ -3697,7 +3694,7 @@ impl Dock for PrefabsEditorDock {
                     surface.name = name.to_string();
                 }
                 Self::push_project_undo(before, project, ctx);
-                Self::sync_prefab_runtime(project, &server_ctx.jobs);
+                Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                 self.sync_part_tree(ui, ctx, project, asset_id);
                 true
             }
@@ -3734,7 +3731,7 @@ impl Dock for PrefabsEditorDock {
                     surface.snap_spacing = spacing;
                 }
                 Self::push_project_undo(before, project, ctx);
-                Self::sync_prefab_runtime(project, &server_ctx.jobs);
+                Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                 true
             }
             TheEvent::ValueChanged(id, TheValue::Text(value))
@@ -3769,7 +3766,7 @@ impl Dock for PrefabsEditorDock {
                     surface.allowed_item_tags = tags;
                 }
                 Self::push_project_undo(before, project, ctx);
-                Self::sync_prefab_runtime(project, &server_ctx.jobs);
+                Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                 true
             }
             TheEvent::ValueChanged(id, TheValue::Text(value))
@@ -3809,7 +3806,7 @@ impl Dock for PrefabsEditorDock {
                     surface.capacity = capacity;
                 }
                 Self::push_project_undo(before, project, ctx);
-                Self::sync_prefab_runtime(project, &server_ctx.jobs);
+                Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                 true
             }
             TheEvent::IndexChanged(id, index) if id.name == SUPPORT_SURFACE_POLICY => {
@@ -3839,7 +3836,7 @@ impl Dock for PrefabsEditorDock {
                     surface.occupancy_policy = policy;
                 }
                 Self::push_project_undo(before, project, ctx);
-                Self::sync_prefab_runtime(project, &server_ctx.jobs);
+                Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                 true
             }
             TheEvent::StateChanged(id, TheWidgetState::Clicked) if id.name == PART_CREATE => {
@@ -3858,7 +3855,7 @@ impl Dock for PrefabsEditorDock {
                     Ok(part_id) => {
                         self.selected_part_id = Some(part_id);
                         Self::push_project_undo(before, project, ctx);
-                        Self::sync_prefab_runtime(project, &server_ctx.jobs);
+                        Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                         self.sync_part_tree(ui, ctx, project, asset_id);
                         ctx.ui.send(TheEvent::SetStatusText(
                             TheId::empty(),
@@ -3890,7 +3887,7 @@ impl Dock for PrefabsEditorDock {
                         self.selected_support_surface_id = Some(surface_id);
                         self.selected_part_id = Some(part_id);
                         Self::push_project_undo(before, project, ctx);
-                        Self::sync_prefab_runtime(project, &server_ctx.jobs);
+                        Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                         self.sync_part_tree(ui, ctx, project, asset_id);
                         self.open_support_surface_popover(
                             ui,
@@ -3938,7 +3935,7 @@ impl Dock for PrefabsEditorDock {
                         self.selected_part_id = Some(part_id);
                         crate::block_props::select_prefab_part(project, part_id);
                         Self::push_project_undo(before, project, ctx);
-                        Self::sync_prefab_runtime(project, &server_ctx.jobs);
+                        Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                         self.sync_part_tree(ui, ctx, project, asset_id);
                         TOOLLIST
                             .write()
@@ -3990,7 +3987,7 @@ impl Dock for PrefabsEditorDock {
                             }
                         }
                         Self::push_project_undo(before, project, ctx);
-                        Self::sync_prefab_runtime(project, &server_ctx.jobs);
+                        Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                         self.sync_part_inspector(ui, ctx, project, asset_id);
                         ctx.ui.send(TheEvent::SetStatusText(
                             TheId::empty(),
@@ -4111,7 +4108,7 @@ impl Dock for PrefabsEditorDock {
                 match result {
                     Ok(_) => {
                         Self::push_project_undo(before, project, ctx);
-                        Self::sync_prefab_runtime(project, &server_ctx.jobs);
+                        Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                         self.sync_part_tree(ui, ctx, project, asset_id);
                         ctx.ui.send(TheEvent::SetStatusText(
                             TheId::empty(),
@@ -4159,7 +4156,7 @@ impl Dock for PrefabsEditorDock {
                     Ok(fallback_id) => {
                         self.selected_part_id = Some(fallback_id);
                         Self::push_project_undo(before, project, ctx);
-                        Self::sync_prefab_runtime(project, &server_ctx.jobs);
+                        Self::sync_prefab_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                         self.sync_part_tree(ui, ctx, project, asset_id);
                         ctx.ui.send(TheEvent::SetStatusText(
                             TheId::empty(),

@@ -306,7 +306,12 @@ impl State {
     pub fn pending(&self, tile: Uuid) -> bool {
         self.pending.keys().any(|(id, _)| *id == tile)
     }
-    pub fn update(&mut self, project: &mut Project, ctx: &mut TheContext) -> bool {
+    pub fn update(
+        &mut self,
+        project: &mut Project,
+        ctx: &mut TheContext,
+        reference: &CreatorReference,
+    ) -> bool {
         let mut changed = false;
         let completed = self
             .worker
@@ -403,7 +408,7 @@ impl State {
             return changed;
         }
         if self.worker.is_none() {
-            let Some((device, queue)) = RUSTERIX.read().unwrap().scene_handler.vm.gpu_context()
+            let Some((device, queue)) = reference.read().scene_handler.vm.gpu_context()
             else {
                 self.input = None;
                 return changed;
@@ -572,6 +577,7 @@ mod tests {
     }
     #[test]
     fn model_image_settings_survive_save_and_caches_ignore_derived_pixels() {
+    let reference = CreatorReference::default();
         let (mut p, model, tile, a) = fixture();
         let settings = spec(&image(&a, "model").unwrap()).unwrap();
         let before = key(&settings, &p, tile);
@@ -587,14 +593,14 @@ mod tests {
         p.procedural_materials.insert(tile, saved);
         let mut state = State::default();
         let mut ctx = TheContext::new(800, 600, 1.);
-        assert!(!state.update(&mut p, &mut ctx));
+        assert!(!state.update(&mut p, &mut ctx, &reference));
         assert!(state.worker.is_none(), "Reopen must use saved model pixels");
         assert!(!state.pending(tile));
         state
             .pending
             .insert((tile, "model".into()), before.wrapping_add(1));
         state.input = None;
-        state.update(&mut p, &mut ctx);
+        state.update(&mut p, &mut ctx, &reference);
         assert!(
             !state.pending(tile),
             "Undo to a saved image cancels stale pending work immediately"

@@ -1,5 +1,5 @@
 //! Create tilesets from images; Import is reserved for saved Eldiron assets.
-use crate::editor::{RUSTERIX, UNDOMANAGER};
+use crate::editor::{UNDOMANAGER};
 use crate::prelude::*;
 use shared::iso_bitmap::{self, ImportError, Kind, Settings};
 
@@ -578,7 +578,7 @@ impl Creator {
             TheId::named("Update Tiles"),
             TheValue::Empty,
         ));
-        RUSTERIX.write().unwrap().set_dirty();
+        server.reference.write().set_dirty();
         ctx.ui.redraw_all = true;
         Ok(())
     }

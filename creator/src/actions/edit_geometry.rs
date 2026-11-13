@@ -1,4 +1,3 @@
-use crate::editor::RUSTERIX;
 use crate::prelude::*;
 use rusterix::material_library::{
     MATERIAL_FINISH_NAMES as MATERIAL_FINISH_VALUES,
@@ -623,8 +622,8 @@ impl Action for EditGeometry {
         }
 
         map.update_surfaces();
-        RUSTERIX.write().unwrap().set_dirty();
-        RUSTERIX.write().unwrap().set_overlay_dirty();
+        server_ctx.reference.write().set_dirty();
+        server_ctx.reference.write().set_overlay_dirty();
         Some(ProjectUndoAtom::MapEdit(
             server_ctx.pc,
             Box::new(prev),

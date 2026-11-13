@@ -126,7 +126,7 @@ fn prepare(
     assets: &Assets,
 ) -> ToolOverlayFrame {
     let slots = crate::actions::named_geometry_hud_material_slots_for_selection(map)
-        .or_else(|| crate::actions::prefab_hud_material_slots_for_selected_instances(map));
+        .or_else(|| crate::actions::prefab_hud_material_slots_for_selected_instances(map, &server.reference));
     let light = ctx
         .ui
         .icon("light_small")

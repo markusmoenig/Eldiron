@@ -108,7 +108,7 @@ impl Editor {
         key.finish()
     }
     pub(crate) fn advance_native_minimap_source(&mut self) -> bool {
-        let bridge = RUSTERIX.read().unwrap();
+        let bridge = self.server_ctx.reference.read();
         let assets = self.native_minimap_asset_key(&bridge.assets);
         self.sidebar.minimap_scene.advance_source(
             &self.documents.project, &self.server_ctx, &bridge.assets, assets,
@@ -186,8 +186,7 @@ impl Editor {
                 &self.documents.project,
                 ui,
                 ctx,
-                self.procedural_appearance_revision,
-            );
+                self.procedural_appearance_revision, &self.server_ctx.reference);
         }
         let appearance = self
             .appearance_workspace
@@ -212,7 +211,7 @@ impl Editor {
             // Borrow matching main-world CPU geometry, or the overview's own
             // completed parent source when editing an isolated map. GPU view,
             // camera and targets always belong to the overview.
-            let bridge = RUSTERIX.read().unwrap();
+            let bridge = self.server_ctx.reference.read();
             let asset_key = self.native_minimap_asset_key(&bridge.assets);
             let map = crate::minimap::native_scene::overview_map(&self.documents.project, &self.server_ctx)
                 .map(|(map, _)| map);
@@ -429,7 +428,7 @@ impl Editor {
         self.server_ctx.curr_block_asset_id = Some(id);
         self.server_ctx.curr_block_asset_name = Some(asset.name.clone());
         self.documents.project.block_props.insert(id, asset);
-        crate::block_props::sync_existing_prefab_presentations(&self.documents.project, &self.server_ctx.jobs);
+        crate::block_props::sync_existing_prefab_presentations(&self.documents.project, &self.server_ctx.jobs, &self.server_ctx.reference);
         let mut docks = DOCKMANAGER.write().unwrap();
         docks.set_dock(
             "Prefabs".into(),
@@ -457,7 +456,7 @@ impl Editor {
     }
     pub(crate) fn rename_native_prefab_for_test(&mut self, id: Uuid, name: &str) {
         self.documents.project.block_props.get_mut(&id).unwrap().name = name.into();
-        crate::block_props::sync_existing_prefab_presentations(&self.documents.project, &self.server_ctx.jobs);
+        crate::block_props::sync_existing_prefab_presentations(&self.documents.project, &self.server_ctx.jobs, &self.server_ctx.reference);
     }
     pub(crate) fn begin_native_play_for_test(
         &mut self,
@@ -524,17 +523,17 @@ impl Editor {
     }
     pub(crate) fn native_owned_runtime_for_test(&self) -> Option<(bool, bool, std::time::Duration)> {
         let play = self.play_session.as_ref()?;
-        let bridge = RUSTERIX.read().unwrap();
+        let bridge = self.server_ctx.reference.read();
         Some((play.owned(), bridge.server.state == rusterix::ServerState::Off && play.state(&bridge.server) == rusterix::ServerState::Running, play.clock_step()))
     }
     pub(crate) fn publish_native_runtime_sources_for_test(&mut self) {
-        let mut bridge = RUSTERIX.write().unwrap();
+        let mut bridge = self.server_ctx.reference.write();
         bridge.assets.item_models.insert("Owned catalog checkpoint".into(), "new CPU source".into());
         bridge.assets.avatars.insert("Owned catalog checkpoint".into(), rusterix::Avatar::default());
         bridge.assets.mark_visual_sources_changed();
     }
     pub(crate) fn native_runtime_sources_received_for_test(&self) -> bool {
-        let bridge = RUSTERIX.read().unwrap();
+        let bridge = self.server_ctx.reference.read();
         let play = self.play_session.as_ref().unwrap();
         let assets = play.assets(&bridge.assets);
         !std::ptr::eq(assets, &bridge.assets)
@@ -546,7 +545,7 @@ impl Editor {
     }
     pub(crate) fn queue_native_unseen_audio_for_test(&mut self) {
         let play = self.play_session.as_mut().unwrap();
-        let mut bridge = RUSTERIX.write().unwrap();
+        let mut bridge = self.server_ctx.reference.write();
         let bridge = &mut *bridge;
         let parts = play.parts(&mut bridge.server, &mut bridge.assets);
         let region = parts.server.region_id_map[&parts.project.regions[1].map.id];
@@ -556,7 +555,7 @@ impl Editor {
     }
     pub(crate) fn queue_native_play_message_for_test(&mut self) {
         let play = self.play_session.as_mut().unwrap();
-        let mut bridge = RUSTERIX.write().unwrap();
+        let mut bridge = self.server_ctx.reference.write();
         let bridge = &mut *bridge;
         let parts = play.parts(&mut bridge.server, &mut bridge.assets);
         let id = parts.project.regions[0].map.id;
@@ -567,7 +566,7 @@ impl Editor {
     pub(crate) fn native_console_runtime_link_for_test(&self) -> Option<TheValue> { self.sidebar.console_runtime_link_for_test() }
     pub(crate) fn tag_native_console_actor_for_test(&mut self) {
         let play = self.play_session.as_mut().unwrap();
-        let mut bridge = RUSTERIX.write().unwrap();
+        let mut bridge = self.server_ctx.reference.write();
         let bridge = &mut *bridge;
         let parts = play.parts(&mut bridge.server, &mut bridge.assets);
         let map = &mut parts.project.regions[0].map;
@@ -591,7 +590,7 @@ impl Editor {
     }
     pub(crate) fn inject_native_play_projection_for_test(&mut self) {
         let play = self.play_session.as_mut().unwrap();
-        let mut bridge = RUSTERIX.write().unwrap();
+        let mut bridge = self.server_ctx.reference.write();
         let bridge = &mut *bridge;
         let parts = play.parts(&mut bridge.server, &mut bridge.assets);
         let mut map = parts.project.regions[0].map.clone();

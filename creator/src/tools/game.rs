@@ -1,4 +1,4 @@
-use crate::{editor::RUSTERIX, prelude::*};
+use crate::{prelude::*};
 use MapEvent::*;
 use rusterix::{EntityAction, Value};
 use std::sync::Mutex;
@@ -80,7 +80,7 @@ impl Tool for GameTool {
                 true
             }
             ToolEvent::DeActivate => {
-                RUSTERIX.write().unwrap().client.end_mouse_look();
+                server_ctx.reference.write().client.end_mouse_look();
                 ctx.set_cursor_visible(true);
 
                 if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
@@ -130,7 +130,7 @@ impl Tool for GameTool {
         }
         match map_event {
             MapClicked(coord) => {
-                let mut rusterix = RUSTERIX.write().unwrap();
+                let mut rusterix = _server_ctx.reference.write();
                 let is_running = rusterix.server.state == rusterix::ServerState::Running;
 
                 if is_running {
@@ -140,7 +140,7 @@ impl Tool for GameTool {
                 }
             }
             MapDragged(coord) => {
-                let mut rusterix = RUSTERIX.write().unwrap();
+                let mut rusterix = _server_ctx.reference.write();
                 let is_running = rusterix.server.state == rusterix::ServerState::Running;
 
                 if is_running {
@@ -152,7 +152,7 @@ impl Tool for GameTool {
                 }
             }
             MapUp(coord) => {
-                let mut rusterix = RUSTERIX.write().unwrap();
+                let mut rusterix = _server_ctx.reference.write();
                 let is_running = rusterix.server.state == rusterix::ServerState::Running;
 
                 if is_running {
@@ -183,13 +183,13 @@ impl Tool for GameTool {
         #[allow(clippy::single_match)]
         match event {
             TheEvent::RenderViewLostHover(id) if id.name == "PolyView" => {
-                RUSTERIX.write().unwrap().client.end_mouse_look();
+                server_ctx.reference.write().client.end_mouse_look();
             }
             TheEvent::KeyDown(TheValue::Char(char)) => {
                 if server_ctx.text_game_mode {
                     return false;
                 }
-                let mut rusterix = crate::editor::RUSTERIX.write().unwrap();
+                let mut rusterix = server_ctx.reference.write();
                 if rusterix.server.state == rusterix::ServerState::Running {
                     if server_ctx.game_input_mode && !server_ctx.game_mode {
                         let action = rusterix
@@ -209,7 +209,7 @@ impl Tool for GameTool {
                 if server_ctx.text_game_mode {
                     return false;
                 }
-                let mut rusterix = crate::editor::RUSTERIX.write().unwrap();
+                let mut rusterix = server_ctx.reference.write();
                 if rusterix.server.state == rusterix::ServerState::Running {
                     if server_ctx.game_input_mode && !server_ctx.game_mode {
                         let action = rusterix
@@ -242,7 +242,7 @@ impl Tool for GameTool {
                     _ => None,
                 };
                 if let Some(key) = key {
-                    let mut rusterix = crate::editor::RUSTERIX.write().unwrap();
+                    let mut rusterix = server_ctx.reference.write();
                     if rusterix.server.state == rusterix::ServerState::Running {
                         let action = rusterix.client.user_event(
                             if matches!(event, TheEvent::KeyCodeUp(_)) {
@@ -264,7 +264,7 @@ impl Tool for GameTool {
                     return false;
                 }
                 if id.name == "PolyView" {
-                    let mut rusterix = RUSTERIX.write().unwrap();
+                    let mut rusterix = server_ctx.reference.write();
                     let is_running = rusterix.server.state == rusterix::ServerState::Running;
 
                     let is_inside = rusterix.client.is_inside_game(*coord);

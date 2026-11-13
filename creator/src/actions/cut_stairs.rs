@@ -1,4 +1,3 @@
-use crate::editor::RUSTERIX;
 use crate::prelude::*;
 use earcutr::earcut;
 use theframework::prelude::FxHashMap;
@@ -434,7 +433,7 @@ impl Action for CutStairs {
         }
 
         {
-            let mut rusterix = RUSTERIX.write().unwrap();
+            let mut rusterix = server_ctx.reference.write();
             rusterix.set_dirty();
             rusterix.set_overlay_dirty();
         }

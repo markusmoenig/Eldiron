@@ -63,7 +63,12 @@ impl NodesDock {
             }
         }
     }
-    fn native_effects(&mut self, project: &Project, ctx: &mut TheContext) -> bool {
+    fn native_effects(
+        &mut self,
+        project: &Project,
+        ctx: &mut TheContext,
+        reference: &CreatorReference,
+    ) -> bool {
         let changes = self.native.take_changes();
         let changed = !changes.is_empty();
         let mut owners = std::collections::HashSet::new();
@@ -72,10 +77,8 @@ impl NodesDock {
                 && owners.insert(change.key.owner.clone())
                 && let Some(value) = project.node_graphs.get(&change.key.owner)
             {
-                if let Some(runtime) = crate::editor::reference_runtime() {
+                if let Some(runtime) = reference.existing_mut() {
                     runtime
-                        .write()
-                        .unwrap()
                         .server
                         .publish_node_graph(change.key.owner, value.clone());
                 }
@@ -276,9 +279,10 @@ impl NodesDock {
         &mut self,
         ctx: &mut TheContext,
         project: &mut Project,
+        reference: &CreatorReference,
     ) -> Result<bool, String> {
         let result = self.native.checkpoint_all(project);
-        let changed = self.native_effects(project, ctx);
+        let changed = self.native_effects(project, ctx, reference);
         self.sync_native(project);
         result.map(|collected| changed || collected)
     }
@@ -288,6 +292,7 @@ impl NodesDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
+        reference: &CreatorReference,
     ) {
         if let Some(key) = self.native.active.clone() {
             let result = if forward {
@@ -296,7 +301,7 @@ impl NodesDock {
                 self.native.undo_source(project, &key, &mut ctx.text)
             };
             self.native_status(ctx, result);
-            self.native_effects(project, ctx);
+            self.native_effects(project, ctx, reference);
             self.sync_native(project);
             self.render_native(ui, ctx);
         }
@@ -307,8 +312,9 @@ impl NodesDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
+        reference: &CreatorReference,
     ) -> bool {
-        if let Some(handled) = self.native_clipboard_event(event, ui, ctx, project) {
+        if let Some(handled) = self.native_clipboard_event(event, ui, ctx, project, reference) {
             return handled;
         }
         match event {
@@ -326,7 +332,7 @@ impl NodesDock {
                 }
                 let result = self.native.collect_through(project, packet.sequence);
                 self.native_status(ctx, result);
-                self.native_effects(project, ctx);
+                self.native_effects(project, ctx, reference);
                 self.sync_native(project);
                 self.render_native(ui, ctx);
                 return true;
@@ -356,7 +362,7 @@ impl NodesDock {
                     }
                     let handled = matches!(&result, Ok(Some(_)) | Err(_));
                     self.native_status(ctx, result.map(|changed| changed.unwrap_or(false)));
-                    self.native_effects(project, ctx);
+                    self.native_effects(project, ctx, reference);
                     self.sync_native(project);
                     self.render_native(ui, ctx);
                     return handled;
@@ -373,7 +379,7 @@ impl NodesDock {
                     self.native
                         .add_catalog_node(project, &key, definition, *point, &mut ctx.text);
                 self.native_status(ctx, result);
-                self.native_effects(project, ctx);
+                self.native_effects(project, ctx, reference);
                 self.sync_native(project);
                 self.prepare_native_layout();
                 self.render_native(ui, ctx);
@@ -388,7 +394,7 @@ impl NodesDock {
                 }
                 let result = self.native.collect_through(project, u64::MAX);
                 self.native_status(ctx, result);
-                self.native_effects(project, ctx);
+                self.native_effects(project, ctx, reference);
                 self.sync_native(project);
                 return false;
             }
@@ -410,7 +416,7 @@ impl NodesDock {
                     _ => return false,
                 };
                 self.native_status(ctx, result);
-                self.native_effects(project, ctx);
+                self.native_effects(project, ctx, reference);
                 self.sync_native(project);
                 self.render_native(ui, ctx);
                 return true;
@@ -444,7 +450,7 @@ impl NodesDock {
                 .strip_prefix("Branch/")
                 .and_then(|id| GraphId::parse_str(id).ok())
             {
-                let result = self.commit_native(ctx, project);
+                let result = self.commit_native(ctx, project, reference);
                 self.native_status(ctx, result);
                 let context = self.native.views[&key].context;
                 self.activate_native(ui, ctx, project, context, Some(root));
@@ -557,7 +563,7 @@ impl NodesDock {
                     _ => return false,
                 };
                 self.native_status(ctx, result);
-                self.native_effects(project, ctx);
+                self.native_effects(project, ctx, reference);
                 self.sync_native(project);
                 self.prepare_native_layout();
                 self.render_native(ui, ctx);
@@ -605,7 +611,7 @@ impl NodesDock {
                     Ok(to)
                 });
             self.native_status(ctx, result);
-            self.native_effects(project, ctx);
+            self.native_effects(project, ctx, reference);
             self.sync_native(project);
             self.render_native(ui, ctx);
             return true;
@@ -865,11 +871,12 @@ mod tests {
      {
         let isolated = std::env::var_os("ELDIRON_NATIVE_NODE_DOCK_ISOLATED").is_some();
         if isolated {
-            assert!(crate::editor::reference_runtime().is_none());
+            // No global reference owner exists; data-only APIs receive no service.
         }
 
         let mut f = Fixture::new();
         assert!(!f.server.jobs.scene_initialized());
+        assert!(!f.server.reference.initialized());
         assert!(
             f.ui.get_widget(VIEW)
                 .unwrap()
@@ -889,7 +896,7 @@ mod tests {
         f.text("Character e\u{301}");
         assert!(
             f.dock
-                .commit_pending_edits(&mut f.ctx, &mut f.project, &f.server.jobs)
+                .commit_pending_edits(&mut f.ctx, &mut f.project, &f.server.jobs, &f.server.reference)
                 .unwrap()
         );
         assert_eq!(
@@ -1138,7 +1145,7 @@ mod tests {
         assert!(!f.dock.has_changes());
         assert!(
             !f.dock
-                .commit_pending_edits(&mut f.ctx, &mut f.project, &f.server.jobs)
+                .commit_pending_edits(&mut f.ctx, &mut f.project, &f.server.jobs, &f.server.reference)
                 .unwrap()
         );
         assert_eq!(f.model().lock().unwrap().editor().error, feedback);
@@ -1169,7 +1176,7 @@ mod tests {
         f.paint();
     }
     fn assert_no_world_owners(jobs: &CreatorJobs) {
-        assert!(crate::editor::reference_runtime().is_none());
+        // No global reference owner exists; data-only APIs receive no service.
         assert!(!jobs.scene_initialized());
 
         // Authoring cameras are CPU values owned by each Creator context.

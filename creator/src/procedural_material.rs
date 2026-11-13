@@ -1,7 +1,7 @@
 //! MaterialZ is the authoring authority; normal tiles are the baked runtime cache.
 //! Native display uses injected GPU outputs; authored bakes use a separate worker.
 use crate::{
-    editor::{RUSTERIX, UNDOMANAGER},
+    editor::{UNDOMANAGER},
     material_editor::*,
     prelude::*,
 };
@@ -2217,7 +2217,7 @@ impl ProceduralMaterialEditor {
         }
         #[cfg(not(target_arch = "wasm32"))]
         {
-            changed |= self.model_sources.update(project, ctx);
+            changed |= self.model_sources.update(project, ctx, &server.reference);
         }
         let image_key = image_source::input_key(project);
         if self.image_source_key != Some(image_key) {
@@ -2314,7 +2314,7 @@ impl ProceduralMaterialEditor {
             #[cfg(not(target_arch = "wasm32"))]
             if !self.native_preview_enabled() && self.worker.is_none() && needs_worker {
                 if let Some((device, queue)) =
-                    RUSTERIX.read().unwrap().scene_handler.vm.gpu_context()
+                    server.reference.read().scene_handler.vm.gpu_context()
                 {
                     self.worker = Some(gpu::Worker::new(device, queue));
                 }
@@ -2840,7 +2840,7 @@ material "surface" called "Wall Bricks"
         for (i, id) in outputs.iter().enumerate() {
             assert_ne!(p.tiles[id].textures, old[i]);
             assert_eq!(
-                RUSTERIX.read().unwrap().assets.tiles[id].textures,
+                server.reference.read().assets.tiles[id].textures,
                 p.tiles[id].textures
             );
         }
@@ -3634,15 +3634,13 @@ material "surface" called "Wall Bricks"
             "A source without a flat tile must still receive its MZ preview"
         );
         let old = p.tiles[&outputs[0]].textures.clone();
-        let draw = |p: &Project| {
+        let draw = |p: &Project, reference: &CreatorReference| {
             let mut pixels = vec![0; 320 * 240 * 4];
-            RUSTERIX
-                .write()
-                .unwrap()
+            reference.write()
                 .draw_d2(&p.regions[0].map, &mut pixels, 320, 240);
             pixels
         };
-        let before = draw(&p);
+        let before = draw(&p, &server.reference);
         let next = edited(
             &source,
             MaterialEditorCommand::SetNumber {
@@ -3664,17 +3662,17 @@ material "surface" called "Wall Bricks"
         for id in outputs {
             assert_ne!(p.tiles[&id].textures, old);
             assert_eq!(
-                RUSTERIX.read().unwrap().assets.tiles[&id].textures,
+                server.reference.read().assets.tiles[&id].textures,
                 p.tiles[&id].textures
             );
         }
-        assert_ne!(draw(&p), before);
+        assert_ne!(draw(&p, &server.reference), before);
         atom.undo(&mut p, &mut ui, &mut ctx, &mut server);
         host.update(&mut ui, &mut ctx, &mut p, &mut server);
-        assert_eq!(draw(&p), before);
+        assert_eq!(draw(&p, &server.reference), before);
         atom.redo(&mut p, &mut ui, &mut ctx, &mut server);
         host.update(&mut ui, &mut ctx, &mut p, &mut server);
-        assert_ne!(draw(&p), before);
+        assert_ne!(draw(&p, &server.reference), before);
         // A source and its iso output may also share an ID. A late flat-preview
         // result must never replace the projected output's pixels.
         p.isometric_bakes.insert(
@@ -4247,6 +4245,7 @@ mod gpu_workspace_test {
     #[test]
     #[ignore = "requires a GPU device; writes /tmp/eldiron-materials-palette.png"]
     fn palette_starter_initial_cards_and_palette_updates_render_in_the_sidebar() {
+        let mut server = ServerContext::default();
         let mut project = Project::default();
         project.palette.colors[37] = Some(TheColor::new(0.8, 0.1, 0.1, 0.5));
         project.palette.colors[34] = Some(TheColor::new(0.1, 0.8, 0.1, 1.));
@@ -4257,9 +4256,7 @@ mod gpu_workspace_test {
         project
             .procedural_materials
             .insert(id, asset.save().unwrap());
-        let (device, queue) = RUSTERIX
-            .read()
-            .unwrap()
+        let (device, queue) = server.reference.read()
             .scene_handler
             .vm
             .gpu_context()
@@ -4270,7 +4267,7 @@ mod gpu_workspace_test {
         let mut host = ProceduralMaterialEditor::default();
         host.worker = Some(gpu::Worker::new(device, queue));
         host.open(id, &mut ui, &mut ctx, &project);
-        let mut server = ServerContext::default();
+
         let mut pixels = vec![0; 1200 * 850 * 4];
         ui.draw(&mut pixels, &mut ctx);
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);

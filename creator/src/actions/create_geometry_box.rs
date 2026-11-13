@@ -1,4 +1,3 @@
-use crate::editor::RUSTERIX;
 use crate::prelude::*;
 use rusterix::GeometryObject;
 use std::sync::Mutex;
@@ -305,7 +304,7 @@ impl CreateGeometryBox {
             return None;
         }
 
-        let rusterix = RUSTERIX.write().unwrap();
+        let rusterix = server_ctx.reference.write();
         let (ray_origin, ray_dir) = rusterix.scene_handler.vm.ray_from_uv_with_size(
             dim.width as u32,
             dim.height as u32,

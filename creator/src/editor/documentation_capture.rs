@@ -21,7 +21,7 @@ impl Capture {
             .set_dim(TheDim::sized(WIDTH as i32, HEIGHT as i32), &mut ctx);
         let mut editor = Editor::new();
         editor.init_ui(&mut ui, &mut ctx);
-        CreatorTheme::Brown.apply(&mut ui, &mut ctx);
+        CreatorTheme::Brown.apply(&mut ui, &mut ctx, &editor.server_ctx.reference);
         std::fs::create_dir_all(&destination).unwrap();
         Self {
             editor,
@@ -304,7 +304,7 @@ fn capture_3d(capture: &mut Capture, root: &std::path::Path) {
     // These are ordinary editor preview controls, not changes to the project.
     capture.editor.server_ctx.show_editor_grid = false;
     {
-        let mut runtime = RUSTERIX.write().unwrap();
+        let mut runtime = capture.editor.server_ctx.reference.write();
         runtime.editor_preview_lighting_enabled = true;
         runtime.editor_preview_fill_strength = 1.0;
         runtime.editor_preview_post_enabled = false;

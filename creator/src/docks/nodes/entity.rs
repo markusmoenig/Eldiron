@@ -193,6 +193,7 @@ impl NodesDock {
         project: &mut Project,
         drop: &TheDrop,
         point: Vec2<i32>,
+        reference: &CreatorReference,
     ) -> Result<bool, String> {
         if !self
             .owner
@@ -217,7 +218,7 @@ impl NodesDock {
         else {
             return Ok(false);
         };
-        self.finish(project);
+        self.finish(project, reference);
         if !apply_equipment_item(
             &mut self.doc,
             project,

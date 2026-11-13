@@ -680,7 +680,7 @@ mod tests {
             assert!(Arc::ptr_eq(&f.registry.views[&world].model, &model));
             assert_eq!(f.saved("behavior/world"), "World 東京");
             if std::env::var_os("ELDIRON_NATIVE_NODE_SOURCE_ISOLATED").is_some() {
-                assert!(crate::editor::reference_runtime().is_none());
+                // No global reference owner exists; data-only APIs receive no service.
                 // Scene preparation is application-owned; this data API receives no jobs.
 
                 // Authoring cameras are CPU values owned by each Creator context.

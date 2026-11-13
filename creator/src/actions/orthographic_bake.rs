@@ -1,4 +1,3 @@
-use crate::editor::RUSTERIX;
 use crate::prelude::*;
 
 const SAMPLE_COUNT_ID: &str = "actionBakeSamples";
@@ -67,7 +66,7 @@ impl Action for RenderOrthographicBake {
             .unwrap_or(32)
             .clamp(1, 256) as u32;
         let progress = {
-            let mut rusterix = RUSTERIX.write().unwrap();
+            let mut rusterix = server_ctx.reference.write();
             rusterix.set_dirty();
             rusterix.request_orthographic_bake(map.id, samples);
             rusterix.orthographic_bake.progress_text()
@@ -141,9 +140,7 @@ impl Action for ToggleOrthographicBakeVisibility {
         ctx: &mut TheContext,
         _server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
-        let status = match RUSTERIX
-            .write()
-            .unwrap()
+        let status = match _server_ctx.reference.write()
             .toggle_orthographic_bake_visibility()
         {
             Some(true) => fl!("status_bake_visible"),
@@ -215,7 +212,7 @@ impl Action for ClearOrthographicBake {
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
-        RUSTERIX.write().unwrap().clear_orthographic_bake();
+        server_ctx.reference.write().clear_orthographic_bake();
         map.orthographic_bake = None;
         map.changed = map.changed.wrapping_add(1);
         server_ctx.background_progress = None;

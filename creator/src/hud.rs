@@ -1,4 +1,4 @@
-use crate::editor::{ACTIONLIST, RUSTERIX};
+use crate::editor::{ACTIONLIST, };
 use crate::editor_overlay::procedural::{ColorNoise, ProceduralIcon};
 use crate::editor_overlay::{EditorOverlay, OverlaySources};
 use crate::prelude::*;
@@ -522,7 +522,7 @@ impl Hud {
         style: &HudStyle,
     ) -> HudFrame {
         let material_slots = crate::actions::named_geometry_hud_material_slots_for_selection(map)
-            .or_else(|| crate::actions::prefab_hud_material_slots_for_selected_instances(map))
+            .or_else(|| crate::actions::prefab_hud_material_slots_for_selected_instances(map, &server_ctx.reference))
             .or_else(|| self.active_action_material_slots(map, ctx, server_ctx))
             .or_else(|| self.active_palette_material_slots(map, ctx, server_ctx));
         let light = ctx.ui.icon("light_small").map(|icon| HudImageSource {
@@ -997,7 +997,7 @@ impl Hud {
             return false;
         };
         self.apply_action(action, map, server_ctx)
-            .apply_reference(ctx);
+            .apply_reference(ctx, &server_ctx.reference);
         true
     }
 
@@ -1079,7 +1079,7 @@ impl Hud {
             MapEvent::MapKey(key) if matches!(key, '1'..='6') => {
                 let subdivision = Self::GRID_SUBDIVISIONS[(key as u8 - b'1') as usize];
                 self.apply_action(HudAction::Subdivision(subdivision), map, server_ctx)
-                    .apply_reference(ctx);
+                    .apply_reference(ctx, &server_ctx.reference);
                 true
             }
             _ => false,

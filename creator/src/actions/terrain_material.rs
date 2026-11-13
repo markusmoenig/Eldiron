@@ -101,12 +101,12 @@ pub fn load(node: &mut TheNodeUI, p: &ValueContainer, kind: Kind) {
         p.get_int_default("terrain_material_order", 0),
     );
 }
-pub fn validate(node: &TheNodeUI) -> Result<(), String> {
+pub fn validate(node: &TheNodeUI, reference: &CreatorReference) -> Result<(), String> {
     for field in ["terrainMaterialSource", "terrainMaterialVergeSource"] {
         let text = node.get_text_value(field).unwrap_or_default();
         if !text.trim().is_empty()
             && !matches!(
-                super::parse_tile_id_pixelsource(&text),
+                super::parse_tile_id_pixelsource(&text, reference),
                 Some(PixelSource::TileId(_))
             )
         {
@@ -126,7 +126,12 @@ pub fn enabled(node: &TheNodeUI) -> bool {
                 .is_empty()
         })
 }
-pub fn apply(node: &TheNodeUI, p: &mut ValueContainer, kind: Kind) -> bool {
+pub fn apply(
+    node: &TheNodeUI,
+    p: &mut ValueContainer,
+    kind: Kind,
+    reference: &CreatorReference,
+) -> bool {
     let before = p.clone();
     for (field, key) in [
         ("terrainMaterialSource", "terrain_material_source"),
@@ -137,7 +142,7 @@ pub fn apply(node: &TheNodeUI, p: &mut ValueContainer, kind: Kind) -> bool {
     ] {
         match node
             .get_text_value(field)
-            .and_then(|s| super::parse_tile_id_pixelsource(&s))
+            .and_then(|s| super::parse_tile_id_pixelsource(&s, reference))
         {
             Some(source @ PixelSource::TileId(_)) => {
                 p.set(key, Value::Source(source));
@@ -186,7 +191,11 @@ pub fn apply(node: &TheNodeUI, p: &mut ValueContainer, kind: Kind) -> bool {
     }
     *p != before
 }
-pub fn slots(node: &TheNodeUI, kind: Kind) -> Vec<ActionMaterialSlot> {
+pub fn slots(
+    node: &TheNodeUI,
+    kind: Kind,
+    reference: &CreatorReference,
+) -> Vec<ActionMaterialSlot> {
     [("terrainMaterialSource", fl!("terrain_material_source"))]
         .into_iter()
         .chain(
@@ -197,7 +206,7 @@ pub fn slots(node: &TheNodeUI, kind: Kind) -> Vec<ActionMaterialSlot> {
             label,
             source: node
                 .get_text_value(field)
-                .and_then(|s| super::parse_tile_id_pixelsource(&s)),
+                .and_then(|s| super::parse_tile_id_pixelsource(&s, reference)),
         })
         .collect()
 }
@@ -222,6 +231,7 @@ mod tests {
     use crate::actions::{Action, edit_linedef::EditLinedef, edit_sector::EditSector};
     #[test]
     fn geometry_toml_roundtrip_and_material_assignment_have_map_undo_without_changing_height() {
+        let mut server = ServerContext::default();
         for line in [false, true] {
             let mut map = Map::default();
             let points =
@@ -261,11 +271,11 @@ mod tests {
             );
             let kind = if line { Kind::Line } else { Kind::Sector };
             let mut props = ValueContainer::default();
-            assert!(apply(&parsed, &mut props, kind));
+            assert!(apply(&parsed, &mut props, kind, &server.reference));
             let mut reopened = action.params();
             load(&mut reopened, &props, kind);
             assert_eq!(reopened.get_f32_value("terrainMaterialSoftEdge"), Some(0.6));
-            let mut server = ServerContext::default();
+
             server.pc = ProjectContext::Region(Uuid::new_v4());
             server.editor_view_mode = EditorViewMode::Orbit;
             assert!(action.is_applicable(&map, &mut TheContext::new(800, 600, 1.), &server));

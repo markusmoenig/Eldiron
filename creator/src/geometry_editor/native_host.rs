@@ -149,7 +149,7 @@ impl GeometryEditor {
         }
     }
     /// Select before the first CPU update. Converted preview requests must not
-    /// discover a GPU through RUSTERIX or start the reference framebuffer worker.
+    /// discover a GPU through the reference facade or start the reference framebuffer worker.
     pub(crate) fn enable_gpu_preview(&mut self) {
         if !self.native.enabled {
             self.native.enabled = true;
@@ -1012,7 +1012,7 @@ mod tests {
         editor.update(&project, &mut ui, &mut ctx, &ServerContext::default());
         assert!(
             editor.worker.is_none(),
-            "the converted path must never obtain a device via RUSTERIX or start a color-readback worker"
+            "the converted path must never obtain a device via the reference facade or start a color-readback worker"
         );
         assert!(editor.native.latest.is_some());
         let mut images = UiImages::new(gpu.clone());

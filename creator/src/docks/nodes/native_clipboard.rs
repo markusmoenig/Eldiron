@@ -183,6 +183,7 @@ impl NodesDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
+        reference: &CreatorReference,
     ) -> Option<bool> {
         let result = match event {
             TheEvent::GraphClipboardIntent(id, intent) if id.name == VIEW => {
@@ -194,7 +195,7 @@ impl NodesDock {
             _ => return None,
         };
         let handled = self.native_status(ctx, result);
-        self.native_effects(project, ctx);
+        self.native_effects(project, ctx, reference);
         self.sync_native(project);
         self.prepare_native_layout();
         self.render_native(ui, ctx);

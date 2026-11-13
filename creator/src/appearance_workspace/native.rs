@@ -605,6 +605,7 @@ mod tests {
     #[test]
     #[ignore = "requires native GPU"]
     fn native_appearance_host_queues_without_worker_and_promotes_only_painted_playback() {
+    let reference = CreatorReference::default();
         let gpu = pollster::block_on(GpuContext::headless()).unwrap();
         let mut ui = TheUI::new();
         let mut ctx = TheContext::new(640, 480, 1.);
@@ -633,7 +634,7 @@ mod tests {
         };
         host.enable_gpu_preview();
         let original = serde_json::to_value(&project).unwrap();
-        assert!(host.update(&project, &mut ui, &mut ctx, 0));
+        assert!(host.update(&project, &mut ui, &mut ctx, 0, &reference));
         assert!(host.worker.is_none());
         assert!(!host.pending);
         let mut images = ImageRegistry::new(gpu.clone());
@@ -645,14 +646,14 @@ mod tests {
         assert!((host.playhead - 0.3).abs() < 0.0001);
         host.phase = 0.6;
         host.invalidate();
-        host.update(&project, &mut ui, &mut ctx, 0);
+        host.update(&project, &mut ui, &mut ctx, 0, &reference);
         let pending = host
             .prepare_gpu_preview(&mut ui, &mut ctx, &mut images)
             .unwrap();
         assert!((host.playhead - 0.3).abs() < 0.0001);
         host.phase = 0.8;
         host.invalidate();
-        host.update(&project, &mut ui, &mut ctx, 0);
+        host.update(&project, &mut ui, &mut ctx, 0, &reference);
         let newest = host
             .prepare_gpu_preview(&mut ui, &mut ctx, &mut images)
             .unwrap();
@@ -738,7 +739,7 @@ mod tests {
         assert!(replacement.get(image).is_none());
         AppearanceWorkspace::show(&mut ui, &mut ctx, true);
         assert!(
-            host.update(&project, &mut ui, &mut ctx, 0),
+            host.update(&project, &mut ui, &mut ctx, 0, &reference),
             "a paused view must queue again after reopening"
         );
         let reopened = host
@@ -761,7 +762,7 @@ mod tests {
             &source_cpu
         ));
         ui.get_render_view(VIEW).unwrap().set_dim(dim, &mut ctx);
-        assert!(host.update(&project, &mut ui, &mut ctx, 0));
+        assert!(host.update(&project, &mut ui, &mut ctx, 0, &reference));
         let visible = host
             .prepare_gpu_preview(&mut ui, &mut ctx, &mut replacement)
             .unwrap();

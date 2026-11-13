@@ -370,9 +370,9 @@ pub(crate) struct HudEffects {
 impl HudEffects {
     /// Temporary reference controller adapter. Native owners consume the typed
     /// effects to invalidate their own scene/view state and forward UI events.
-    pub(super) fn apply_reference(self, ctx: &mut TheContext) {
+    pub(super) fn apply_reference(self, ctx: &mut TheContext, reference: &CreatorReference) {
         if self.scene_dirty || self.overlay_dirty {
-            let mut renderer = RUSTERIX.write().unwrap();
+            let mut renderer = reference.write();
             if self.scene_dirty {
                 renderer.set_dirty();
             }

@@ -1,5 +1,4 @@
 use crate::actions::geometry_face_ops::delete_selected_geometry_faces;
-use crate::editor::RUSTERIX;
 use crate::prelude::*;
 
 pub struct FaceDelete {
@@ -54,8 +53,8 @@ impl Action for FaceDelete {
             return None;
         }
 
-        RUSTERIX.write().unwrap().set_dirty();
-        RUSTERIX.write().unwrap().set_overlay_dirty();
+        server_ctx.reference.write().set_dirty();
+        server_ctx.reference.write().set_overlay_dirty();
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Map Selection Changed"),
             TheValue::Empty,

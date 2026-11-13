@@ -1,5 +1,4 @@
 use crate::actions::create_geometry_box::CreateGeometryBox;
-use crate::editor::RUSTERIX;
 use crate::prelude::*;
 
 const WIDTH_ID: &str = "primitiveWidth";
@@ -63,8 +62,8 @@ fn finish_created_object(
         TheId::named("Map Selection Changed"),
         TheValue::Empty,
     ));
-    RUSTERIX.write().unwrap().set_dirty();
-    RUSTERIX.write().unwrap().set_overlay_dirty();
+    server_ctx.reference.write().set_dirty();
+    server_ctx.reference.write().set_overlay_dirty();
     Some(ProjectUndoAtom::MapEdit(
         server_ctx.pc,
         Box::new(previous),

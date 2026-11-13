@@ -196,10 +196,15 @@ impl StressRun {
         }
     }
 
-    pub(super) fn after_frame(&mut self, frame: usize, ms: f64) {
+    pub(super) fn after_frame(
+        &mut self,
+        frame: usize,
+        ms: f64,
+        reference: &super::CreatorReference,
+    ) {
         let phase = (frame / PHASE_FRAMES) % 4;
         if phase != 0 && frame % PHASE_FRAMES == 30 {
-            let runtime = super::RUSTERIX.read().unwrap();
+            let runtime = reference.read();
             for id in [self.player, self.opponent] {
                 let entity = runtime.server.entities[&self.region]
                     .iter()

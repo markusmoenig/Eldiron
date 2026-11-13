@@ -1,5 +1,4 @@
 use crate::actions::geometry_face_ops::face_uvs_for_indices;
-use crate::editor::RUSTERIX;
 use crate::prelude::*;
 use earcutr::earcut;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
@@ -1045,7 +1044,7 @@ impl Action for CreateFittedGeometry {
         }
 
         {
-            let mut rusterix = RUSTERIX.write().unwrap();
+            let mut rusterix = server_ctx.reference.write();
             rusterix.set_dirty();
             rusterix.set_overlay_dirty();
         }

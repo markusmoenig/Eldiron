@@ -1,4 +1,3 @@
-use crate::editor::RUSTERIX;
 use crate::prelude::*;
 
 pub struct ClearTile {
@@ -84,8 +83,8 @@ impl Action for ClearTile {
 
         if changed {
             map.update_surfaces();
-            RUSTERIX.write().unwrap().set_dirty();
-            RUSTERIX.write().unwrap().set_overlay_dirty();
+            server_ctx.reference.write().set_dirty();
+            server_ctx.reference.write().set_overlay_dirty();
             Some(ProjectUndoAtom::MapEdit(
                 server_ctx.pc,
                 Box::new(prev),

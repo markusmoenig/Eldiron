@@ -85,7 +85,7 @@ fn publish(
             ctx,
         );
         crate::utils::editor_scene_refresh_material_textures(project, server);
-        let assets = crate::editor::RUSTERIX.read().unwrap();
+        let assets = server.reference.read();
         if let Some(paint) = layer(project, server) {
             paint.refresh_sources(&assets.assets);
             paint.apply_source_settings();

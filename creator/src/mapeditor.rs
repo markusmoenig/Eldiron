@@ -1,4 +1,4 @@
-use crate::editor::{RUSTERIX, SIDEBARMODE, UNDOMANAGER};
+use crate::editor::{SIDEBARMODE, UNDOMANAGER};
 use crate::prelude::*;
 use rusterix::Value;
 use vek::{Vec2, Vec3};
@@ -311,7 +311,7 @@ impl MapEditor {
             ProjectUndoAtom::MapEdit(server_ctx.pc, Box::new(prev), Box::new(map.clone()));
         crate::utils::editor_scene_apply_map_edit_atom(project, server_ctx, &undo_atom);
         UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
-        RUSTERIX.write().unwrap().set_overlay_dirty();
+        server_ctx.reference.write().set_overlay_dirty();
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Update Action Parameters"),
             TheValue::Empty,
@@ -396,7 +396,7 @@ impl MapEditor {
             ProjectUndoAtom::MapEdit(server_ctx.pc, Box::new(prev), Box::new(map.clone()));
         crate::utils::editor_scene_apply_map_edit_atom(project, server_ctx, &undo_atom);
         UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
-        RUSTERIX.write().unwrap().set_overlay_dirty();
+        server_ctx.reference.write().set_overlay_dirty();
         ctx.ui.send(TheEvent::SetStatusText(
             TheId::empty(),
             "Geometry pasted.".to_string(),
@@ -580,10 +580,16 @@ impl MapEditor {
         center
     }
 
-    pub fn load_from_project(&mut self, _ui: &mut TheUI, _ctx: &mut TheContext, project: &Project) {
+    pub fn load_from_project(
+        &mut self,
+        _ui: &mut TheUI,
+        _ctx: &mut TheContext,
+        project: &Project,
+        reference: &CreatorReference,
+    ) {
         self.curr_tile_uuid = None;
         {
-            let mut rusterix = RUSTERIX.write().unwrap();
+            let mut rusterix = reference.write();
             rusterix.set_tiles(project.tiles.clone(), true);
         }
     }
@@ -739,7 +745,6 @@ impl MapEditor {
                 //         layout.relayout(ctx);
                 //     }
                 // }
-                //crate::editor::RUSTERIX.write().unwrap().set_dirty();
             }
             TheEvent::RenderViewScrollBy(id, coord)
             | TheEvent::RenderViewPreciseScrollBy(id, coord) => {
@@ -748,7 +753,7 @@ impl MapEditor {
                         matches!(event, TheEvent::RenderViewPreciseScrollBy(_, _));
                     let is_running = server_ctx.play_state == rusterix::ServerState::Running;
                     if is_running && server_ctx.game_mode {
-                        let mut rusterix = crate::editor::RUSTERIX.write().unwrap();
+                        let mut rusterix = server_ctx.reference.write();
                         if rusterix.client.scroll_messages(coord.y as isize) {
                             return true;
                         }
@@ -836,9 +841,7 @@ impl MapEditor {
                                     if server_ctx.pc.is_prefab() {
                                         let camera =
                                             server_ctx.camera.orbit_camera.clone();
-                                        RUSTERIX
-                                            .write()
-                                            .unwrap()
+                                        server_ctx.reference.write()
                                             .client
                                             .set_camera_d3(Box::new(camera));
                                         ctx.ui.send(TheEvent::Custom(
@@ -885,9 +888,7 @@ impl MapEditor {
                         .scroll_by(*delta * 20.0, &mut server_ctx.shared);
                     if server_ctx.pc.is_prefab() {
                         let camera = server_ctx.camera.orbit_camera.clone();
-                        RUSTERIX
-                            .write()
-                            .unwrap()
+                        server_ctx.reference.write()
                             .client
                             .set_camera_d3(Box::new(camera));
                         ctx.ui.send(TheEvent::Custom(
@@ -963,7 +964,7 @@ impl MapEditor {
                         for sector in screen.map.sectors.iter_mut() {
                             if sector.creator_id == id.uuid {
                                 screen.map.selected_sectors = vec![sector.id];
-                                RUSTERIX.write().unwrap().set_dirty();
+                                server_ctx.reference.write().set_dirty();
                                 server_ctx.cc = ContentContext::Sector(id.uuid);
                                 // if !sector.properties.contains("source") {
                                 //     // Create default code item
@@ -1039,7 +1040,7 @@ impl MapEditor {
                     {
                         server_ctx.curr_region = content_region;
                         server_ctx.editing_pos_buffer = None;
-                        crate::undo::project_helper::update_region(ctx);
+                        crate::undo::project_helper::update_region(ctx, &server_ctx.reference);
                         redraw = true;
                     }
 
@@ -1169,7 +1170,7 @@ impl MapEditor {
                             }
                         }
                         server_ctx.content_click_from_map = false;
-                        RUSTERIX.write().unwrap().set_dirty();
+                        server_ctx.reference.write().set_dirty();
                     }
 
                     if found {
@@ -1330,7 +1331,7 @@ impl MapEditor {
         let undo_atom =
             ProjectUndoAtom::MapEdit(server_ctx.pc, Box::new(prev), Box::new(map.clone()));
         UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
-        RUSTERIX.write().unwrap().set_dirty();
+        server_ctx.reference.write().set_dirty();
     }
 }
 

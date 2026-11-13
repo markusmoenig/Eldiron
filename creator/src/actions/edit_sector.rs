@@ -131,7 +131,7 @@ impl Action for EditSector {
         _ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
-        if let Err(error) = terrain_material::validate(&self.nodeui) {
+        if let Err(error) = terrain_material::validate(&self.nodeui, &server_ctx.reference) {
             _ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
             return None;
         }
@@ -158,7 +158,7 @@ impl Action for EditSector {
             if server_ctx.pc.is_region() {
                 changed |= shape_terrain::apply(&self.nodeui, &mut sector.properties, Kind::Sector);
                 changed |=
-                    terrain_material::apply(&self.nodeui, &mut sector.properties, Kind::Sector);
+                    terrain_material::apply(&self.nodeui, &mut sector.properties, Kind::Sector, &server_ctx.reference);
             }
             if iso {
                 let h = self
@@ -248,7 +248,7 @@ impl Action for EditSector {
         _server
             .pc
             .is_region()
-            .then(|| terrain_material::slots(&self.nodeui, Kind::Sector))
+            .then(|| terrain_material::slots(&self.nodeui, Kind::Sector, &_server.reference))
     }
     fn set_hud_material_source(
         &mut self,

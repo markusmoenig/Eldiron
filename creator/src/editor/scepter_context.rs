@@ -410,7 +410,7 @@ impl Editor {
                 _ => {}
             }
         }
-        update_region(ctx);
+        update_region(ctx, &self.server_ctx.reference);
         Ok(self.scepter_context(ui))
     }
     pub(super) fn scepter_preview_request(

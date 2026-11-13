@@ -1,4 +1,4 @@
-use crate::editor::{ACTIONLIST, RUSTERIX};
+use crate::editor::{ACTIONLIST, };
 use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use MapEvent::*;
@@ -345,7 +345,7 @@ fn refresh_geometry_topology_edit(
     map: &Map,
     ctx: &mut TheContext,
     jobs: &CreatorJobs,
-) {
+ reference: &CreatorReference) {
     let mut dirty_chunks = FxHashSet::default();
     if let Some(old_map) = old_map {
         for object in &old_map.geometry_objects {
@@ -364,12 +364,11 @@ fn refresh_geometry_topology_edit(
         crate::utils::editor_scene_replace_incremental_map_update(
             map.clone(),
             dirty_chunks.into_iter().collect(),
-            jobs,
-        );
+            jobs, reference);
     } else {
-        RUSTERIX.write().unwrap().set_dirty();
+        reference.write().set_dirty();
     }
-    RUSTERIX.write().unwrap().set_overlay_dirty();
+    reference.write().set_overlay_dirty();
     ctx.ui.redraw_all = true;
     ctx.ui.send(TheEvent::Custom(
         TheId::named("Update Geometry Overlay 3D"),
@@ -842,7 +841,7 @@ fn selected_block_prop_instance_transforms(map: &Map) -> Vec<(Uuid, [[f32; 4]; 4
         .collect()
 }
 
-fn selected_block_prop_geometry(map: &Map) -> Vec<rusterix::GeometryObject> {
+fn selected_block_prop_geometry(map: &Map, reference: &CreatorReference) -> Vec<rusterix::GeometryObject> {
     let selected = map
         .selected_block_prop_instances
         .iter()
@@ -854,15 +853,15 @@ fn selected_block_prop_geometry(map: &Map) -> Vec<rusterix::GeometryObject> {
         .filter(|instance| selected.contains(&instance.id))
         .cloned()
         .collect::<Vec<_>>();
-    let assets = RUSTERIX.read().unwrap().assets.block_props.clone();
+    let assets = reference.read().assets.block_props.clone();
     rusterix::resolve_block_prop_geometry(&instances, &assets).geometry_objects
 }
 
-fn selected_block_prop_bounds(map: &Map) -> Option<(Vec3<f32>, Vec3<f32>)> {
+fn selected_block_prop_bounds(map: &Map, reference: &CreatorReference) -> Option<(Vec3<f32>, Vec3<f32>)> {
     let mut min = Vec3::broadcast(f32::INFINITY);
     let mut max = Vec3::broadcast(f32::NEG_INFINITY);
     let mut found = false;
-    for object in selected_block_prop_geometry(map) {
+    for object in selected_block_prop_geometry(map, reference) {
         for vertex in &object.vertices {
             let world = object.transform_point(*vertex);
             if !world.x.is_finite() || !world.y.is_finite() || !world.z.is_finite() {
@@ -880,18 +879,18 @@ fn selected_block_prop_bounds(map: &Map) -> Option<(Vec3<f32>, Vec3<f32>)> {
     found.then_some((min, max))
 }
 
-fn selected_block_prop_bboxes(map: &Map) -> Vec<rusterix::BBox> {
-    selected_block_prop_geometry(map)
+fn selected_block_prop_bboxes(map: &Map, reference: &CreatorReference) -> Vec<rusterix::BBox> {
+    selected_block_prop_geometry(map, reference)
         .iter()
         .filter_map(|object| object.bbox())
         .collect()
 }
 
-fn sync_block_prop_surface_items(map: &mut Map) {
+fn sync_block_prop_surface_items(map: &mut Map, reference: &CreatorReference) {
     if map.block_prop_surface_placements.is_empty() {
         return;
     }
-    let assets = RUSTERIX.read().unwrap().assets.block_props.clone();
+    let assets = reference.read().assets.block_props.clone();
     rusterix::sync_block_prop_surface_prop_transforms(
         &mut map.block_prop_instances,
         &map.block_prop_surface_placements,
@@ -2340,8 +2339,8 @@ fn remove_geometry_object_unit_selection(map: &mut Map, object_id: Uuid) {
     }
 }
 
-fn block_prop_instance_for_resolved_object(map: &Map, object_id: Uuid) -> Option<Uuid> {
-    let rusterix = RUSTERIX.read().unwrap();
+fn block_prop_instance_for_resolved_object(map: &Map, object_id: Uuid, reference: &CreatorReference) -> Option<Uuid> {
+    let rusterix = reference.read();
     rusterix::resolve_block_prop_geometry(&map.block_prop_instances, &rusterix.assets.block_props)
         .geometry_objects
         .into_iter()
@@ -2912,8 +2911,8 @@ fn select_geometry_contours(map: &mut Map, view_ray: Option<Vec3<f32>>) -> bool 
     true
 }
 
-fn refresh_geometry_selection(ctx: &mut TheContext) {
-    RUSTERIX.write().unwrap().set_overlay_dirty();
+fn refresh_geometry_selection(ctx: &mut TheContext, reference: &CreatorReference) {
+    reference.write().set_overlay_dirty();
     ctx.ui.redraw_all = true;
     ctx.ui.send(TheEvent::Custom(
         TheId::named("Map Selection Changed"),
@@ -3073,7 +3072,7 @@ impl Tool for GeometryTool {
                         if !matches!(gizmo_kind, GizmoDragKind::Move) {
                             return None;
                         }
-                        let Some((min, max)) = selected_block_prop_bounds(map) else {
+                        let Some((min, max)) = selected_block_prop_bounds(map, &server_ctx.reference) else {
                             return None;
                         };
                         let center = (min + max) * 0.5;
@@ -3183,7 +3182,7 @@ impl Tool for GeometryTool {
                             TheId::named("Map Selection Changed"),
                             TheValue::Empty,
                         ));
-                        RUSTERIX.write().unwrap().set_overlay_dirty();
+                        server_ctx.reference.write().set_overlay_dirty();
                         if !_ui.shift && !_ui.alt {
                             self.undo_map = Some(map.clone());
                             self.drag = Some(GeometryDrag {
@@ -3212,7 +3211,7 @@ impl Tool for GeometryTool {
                     .find(|object| object.id == object_id)
                 else {
                     if let Some(instance_id) =
-                        block_prop_instance_for_resolved_object(map, object_id)
+                        block_prop_instance_for_resolved_object(map, object_id, &server_ctx.reference)
                     {
                         if _ui.shift {
                             if !map.selected_block_prop_instances.contains(&instance_id) {
@@ -3229,7 +3228,7 @@ impl Tool for GeometryTool {
                             TheId::named("Map Selection Changed"),
                             TheValue::Empty,
                         ));
-                        RUSTERIX.write().unwrap().set_overlay_dirty();
+                        server_ctx.reference.write().set_overlay_dirty();
                     }
                     return None;
                 };
@@ -3324,7 +3323,7 @@ impl Tool for GeometryTool {
                         TheId::named("Map Selection Changed"),
                         TheValue::Empty,
                     ));
-                    RUSTERIX.write().unwrap().set_overlay_dirty();
+                    server_ctx.reference.write().set_overlay_dirty();
                     return None;
                 } else if selection_mode == GeometrySelectionMode::Object {
                     let keep_multi_selection = map.selected_geometry_objects.len() > 1
@@ -3377,7 +3376,7 @@ impl Tool for GeometryTool {
                     TheId::named("Map Selection Changed"),
                     TheValue::Empty,
                 ));
-                RUSTERIX.write().unwrap().set_overlay_dirty();
+                server_ctx.reference.write().set_overlay_dirty();
                 None
             }
             MapDragged(_coord) => {
@@ -3405,7 +3404,7 @@ impl Tool for GeometryTool {
                         let camera = if let Some(view) = &self.view_input {
                             view.camera?
                         } else {
-                            let mut rusterix = RUSTERIX.write().unwrap();
+                            let mut rusterix = server_ctx.reference.write();
                             let previous_vm = rusterix.scene_handler.vm.active_vm_index();
                             rusterix.scene_handler.vm.set_active_vm(2);
                             let camera = rusterix.scene_handler.vm.active_vm().camera3d;
@@ -3432,7 +3431,7 @@ impl Tool for GeometryTool {
                             TheId::named("Map Selection Changed"),
                             TheValue::Empty,
                         ));
-                        RUSTERIX.write().unwrap().set_overlay_dirty();
+                        server_ctx.reference.write().set_overlay_dirty();
                     }
                     return None;
                 };
@@ -3488,7 +3487,7 @@ impl Tool for GeometryTool {
 
                 let moving_prefab_instances = !drag.start_instance_transforms.is_empty();
                 let old_bboxes = if moving_prefab_instances {
-                    selected_block_prop_bboxes(map)
+                    selected_block_prop_bboxes(map, &server_ctx.reference)
                 } else if drag.vertex_indices.is_none() && !drag.start_object_transforms.is_empty()
                 {
                     drag.start_object_transforms
@@ -3543,7 +3542,7 @@ impl Tool for GeometryTool {
                             };
                         }
                     }
-                    sync_block_prop_surface_items(map);
+                    sync_block_prop_surface_items(map, &server_ctx.reference);
                     if let Some(anchor) = next_axis_anchor {
                         drag.start_plane_hit = Some(anchor);
                         drag.start_instance_transforms = drag
@@ -3651,7 +3650,7 @@ impl Tool for GeometryTool {
                     add_bbox_dirty_chunks(bbox, &mut dirty_chunks);
                 }
                 if moving_prefab_instances {
-                    for bbox in selected_block_prop_bboxes(map) {
+                    for bbox in selected_block_prop_bboxes(map, &server_ctx.reference) {
                         add_bbox_dirty_chunks(bbox, &mut dirty_chunks);
                     }
                 } else if drag.vertex_indices.is_none() && !drag.start_object_transforms.is_empty()
@@ -3678,10 +3677,9 @@ impl Tool for GeometryTool {
                     crate::utils::editor_scene_replace_incremental_map_update(
                         map.clone(),
                         dirty_chunks.into_iter().collect(),
-                        &server_ctx.jobs,
-                    );
+                        &server_ctx.jobs, &server_ctx.reference);
                 }
-                RUSTERIX.write().unwrap().set_overlay_dirty();
+                server_ctx.reference.write().set_overlay_dirty();
                 None
             }
             MapUp(_) => {
@@ -3693,7 +3691,7 @@ impl Tool for GeometryTool {
                                 TheId::named("Map Selection Changed"),
                                 TheValue::Empty,
                             ));
-                            RUSTERIX.write().unwrap().set_overlay_dirty();
+                            server_ctx.reference.write().set_overlay_dirty();
                         }
                         self.rectangle_undo_map = None;
                         self.rectangle_mode = false;
@@ -3721,7 +3719,7 @@ impl Tool for GeometryTool {
                             normalize_geometry_faces_for_object(map, drag.object_id);
                         if topology_changed {
                             sanitize_geometry_selection(map);
-                            refresh_geometry_topology_edit(Some(&old_map), map, ctx, &server_ctx.jobs);
+                            refresh_geometry_topology_edit(Some(&old_map), map, ctx, &server_ctx.jobs, &server_ctx.reference);
                         }
                     }
                     return Some(ProjectUndoAtom::MapEdit(
@@ -3756,7 +3754,7 @@ impl Tool for GeometryTool {
                     map.block_prop_surface_placements
                         .retain(|placement| !selected.contains(&placement.prop_instance_id));
                     map.selected_block_prop_instances.clear();
-                    sync_block_prop_surface_items(map);
+                    sync_block_prop_surface_items(map, &server_ctx.reference);
                     return Some(ProjectUndoAtom::MapEdit(
                         server_ctx.pc,
                         Box::new(old_map),
@@ -3770,7 +3768,7 @@ impl Tool for GeometryTool {
 
                 if delete_selected_geometry_faces(map) || delete_selected_geometry_vertices(map) {
                     sanitize_geometry_selection(map);
-                    refresh_geometry_topology_edit(Some(&old_map), map, ctx, &server_ctx.jobs);
+                    refresh_geometry_topology_edit(Some(&old_map), map, ctx, &server_ctx.jobs, &server_ctx.reference);
                     return Some(ProjectUndoAtom::MapEdit(
                         server_ctx.pc,
                         Box::new(old_map),
@@ -3784,7 +3782,7 @@ impl Tool for GeometryTool {
                 map.selected_geometry_objects.clear();
                 map.selected_geometry_vertices.clear();
                 map.selected_geometry_faces.clear();
-                refresh_geometry_topology_edit(Some(&old_map), map, ctx, &server_ctx.jobs);
+                refresh_geometry_topology_edit(Some(&old_map), map, ctx, &server_ctx.jobs, &server_ctx.reference);
                 Some(ProjectUndoAtom::MapEdit(
                     server_ctx.pc,
                     Box::new(old_map),
@@ -3807,7 +3805,7 @@ impl Tool for GeometryTool {
                         _ => {}
                     }
                     if changed {
-                        sync_block_prop_surface_items(map);
+                        sync_block_prop_surface_items(map, &server_ctx.reference);
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Map Selection Changed"),
                             TheValue::Empty,
@@ -3840,7 +3838,7 @@ impl Tool for GeometryTool {
                     if !rotate_selected_geometry_objects(map, axis, 1) {
                         return None;
                     }
-                    refresh_geometry_topology_edit(Some(&old_map), map, ctx, &server_ctx.jobs);
+                    refresh_geometry_topology_edit(Some(&old_map), map, ctx, &server_ctx.jobs, &server_ctx.reference);
                     return Some(ProjectUndoAtom::MapEdit(
                         server_ctx.pc,
                         Box::new(old_map),
@@ -3854,7 +3852,7 @@ impl Tool for GeometryTool {
                         return None;
                     }
                     sanitize_geometry_selection(map);
-                    refresh_geometry_topology_edit(Some(&old_map), map, ctx, &server_ctx.jobs);
+                    refresh_geometry_topology_edit(Some(&old_map), map, ctx, &server_ctx.jobs, &server_ctx.reference);
                     return Some(ProjectUndoAtom::MapEdit(
                         server_ctx.pc,
                         Box::new(old_map),
@@ -3869,7 +3867,7 @@ impl Tool for GeometryTool {
                     }
                     normalize_selected_geometry_object_faces(map);
                     sanitize_geometry_selection(map);
-                    refresh_geometry_topology_edit(Some(&old_map), map, ctx, &server_ctx.jobs);
+                    refresh_geometry_topology_edit(Some(&old_map), map, ctx, &server_ctx.jobs, &server_ctx.reference);
                     return Some(ProjectUndoAtom::MapEdit(
                         server_ctx.pc,
                         Box::new(old_map),
@@ -3884,7 +3882,7 @@ impl Tool for GeometryTool {
                     }
                     normalize_selected_geometry_object_faces(map);
                     sanitize_geometry_selection(map);
-                    refresh_geometry_topology_edit(Some(&old_map), map, ctx, &server_ctx.jobs);
+                    refresh_geometry_topology_edit(Some(&old_map), map, ctx, &server_ctx.jobs, &server_ctx.reference);
                     return Some(ProjectUndoAtom::MapEdit(
                         server_ctx.pc,
                         Box::new(old_map),
@@ -3896,7 +3894,7 @@ impl Tool for GeometryTool {
                     if !select_geometry_edge_loops(map) {
                         return None;
                     }
-                    refresh_geometry_selection(ctx);
+                    refresh_geometry_selection(ctx, &server_ctx.reference);
                     return None;
                 }
 
@@ -3907,7 +3905,7 @@ impl Tool for GeometryTool {
                     if !select_geometry_contours(map, server_ctx.hover_ray_dir_3d) {
                         return None;
                     }
-                    refresh_geometry_selection(ctx);
+                    refresh_geometry_selection(ctx, &server_ctx.reference);
                     return None;
                 }
 
@@ -3924,8 +3922,8 @@ impl Tool for GeometryTool {
                         return None;
                     }
                     sanitize_geometry_selection(map);
-                    RUSTERIX.write().unwrap().set_dirty();
-                    RUSTERIX.write().unwrap().set_overlay_dirty();
+                    server_ctx.reference.write().set_dirty();
+                    server_ctx.reference.write().set_overlay_dirty();
                     return Some(ProjectUndoAtom::MapEdit(
                         server_ctx.pc,
                         Box::new(old_map),
@@ -3955,7 +3953,7 @@ impl Tool for GeometryTool {
                     }
                     normalize_selected_geometry_object_faces(map);
                     sanitize_geometry_selection(map);
-                    refresh_geometry_topology_edit(Some(&old_map), map, ctx, &server_ctx.jobs);
+                    refresh_geometry_topology_edit(Some(&old_map), map, ctx, &server_ctx.jobs, &server_ctx.reference);
                     return Some(ProjectUndoAtom::MapEdit(
                         server_ctx.pc,
                         Box::new(old_map),
@@ -3974,8 +3972,8 @@ impl Tool for GeometryTool {
                         return None;
                     }
                     sanitize_geometry_selection(map);
-                    RUSTERIX.write().unwrap().set_dirty();
-                    RUSTERIX.write().unwrap().set_overlay_dirty();
+                    server_ctx.reference.write().set_dirty();
+                    server_ctx.reference.write().set_overlay_dirty();
                     return Some(ProjectUndoAtom::MapEdit(
                         server_ctx.pc,
                         Box::new(old_map),
@@ -3997,7 +3995,7 @@ impl Tool for GeometryTool {
                 }
                 rebuild_selected_parametric_geometry(map);
                 sanitize_geometry_selection(map);
-                RUSTERIX.write().unwrap().set_overlay_dirty();
+                server_ctx.reference.write().set_overlay_dirty();
                 Some(ProjectUndoAtom::MapEdit(
                     server_ctx.pc,
                     Box::new(old_map),

@@ -2739,7 +2739,7 @@ mod tests {
                 .native_play_stats_for_test()
                 .is_none()
         );
-        assert!(crate::editor::RUSTERIX.read().unwrap().server.state == rusterix::ServerState::Off);
+        assert!(app.application.editor.reference_for_test().read().server.state == rusterix::ServerState::Off);
         assert_eq!(
             serde_json::to_value(
                 app.application
@@ -2931,9 +2931,7 @@ mod tests {
         renderer: &mut PaintRenderer,
         output: &Arc<GpuImage>,
     ) {
-        let source = crate::editor::RUSTERIX
-            .read()
-            .unwrap()
+        let source = app.application.editor.reference_for_test().read()
             .scene_handler
             .build_index
             .snapshot();
@@ -3001,9 +2999,7 @@ mod tests {
         assert!(
             Arc::ptr_eq(
                 &source,
-                &crate::editor::RUSTERIX
-                    .read()
-                    .unwrap()
+                &app.application.editor.reference_for_test().read()
                     .scene_handler
                     .build_index
                     .snapshot()

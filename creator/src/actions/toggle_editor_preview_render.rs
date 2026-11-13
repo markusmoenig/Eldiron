@@ -1,8 +1,7 @@
-use crate::editor::RUSTERIX;
 use crate::prelude::*;
 
-fn set_dirty_and_status(ctx: &mut TheContext, status: String) {
-    RUSTERIX.write().unwrap().set_dirty();
+fn set_dirty_and_status(ctx: &mut TheContext, status: String, reference: &CreatorReference) {
+    reference.write().set_dirty();
     ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), status));
 }
 
@@ -57,7 +56,7 @@ impl Action for ToggleEditorPreviewPost {
         _server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
         let enabled = {
-            let mut rusterix = RUSTERIX.write().unwrap();
+            let mut rusterix = _server_ctx.reference.write();
             rusterix.editor_preview_post_enabled = !rusterix.editor_preview_post_enabled;
             rusterix.editor_preview_post_enabled
         };
@@ -67,8 +66,7 @@ impl Action for ToggleEditorPreviewPost {
                 fl!("status_editor_preview_post_on")
             } else {
                 fl!("status_editor_preview_post_off")
-            },
-        );
+            }, &_server_ctx.reference);
         None
     }
 
@@ -133,7 +131,7 @@ impl Action for ToggleEditorPreviewLighting {
         _server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
         let enabled = {
-            let mut rusterix = RUSTERIX.write().unwrap();
+            let mut rusterix = _server_ctx.reference.write();
             rusterix.editor_preview_lighting_enabled = !rusterix.editor_preview_lighting_enabled;
             rusterix.editor_preview_lighting_enabled
         };
@@ -143,8 +141,7 @@ impl Action for ToggleEditorPreviewLighting {
                 fl!("status_editor_preview_lighting_on")
             } else {
                 fl!("status_editor_preview_lighting_off")
-            },
-        );
+            }, &_server_ctx.reference);
         None
     }
 

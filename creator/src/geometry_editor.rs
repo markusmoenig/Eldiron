@@ -1,6 +1,6 @@
 //! Experimental geometry workspace using the existing MZ row widget.
 use crate::{
-    editor::{RUSTERIX, UNDOMANAGER},
+    editor::{UNDOMANAGER},
     material_editor::*,
     prelude::*,
 };
@@ -1955,7 +1955,7 @@ impl GeometryEditor {
                 #[cfg(not(target_arch = "wasm32"))]
                 if !use_native && self.worker.is_none() {
                     if let Some((device, queue)) =
-                        RUSTERIX.read().unwrap().scene_handler.vm.gpu_context()
+                        server.reference.read().scene_handler.vm.gpu_context()
                     {
                         self.worker = Some(preview::Worker::new(device, queue));
                     }

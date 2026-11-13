@@ -1,5 +1,5 @@
 use crate::editor::{
-    ACTIONLIST, CONFIG, CONFIGEDITOR, DOCKMANAGER, PALETTE, RUSTERIX, SIDEBARMODE,
+    ACTIONLIST, CONFIG, CONFIGEDITOR, DOCKMANAGER, PALETTE, SIDEBARMODE,
     TOOLLIST, UNDOMANAGER,
 };
 use crate::minimap::{draw_minimap, draw_minimap_context_label, minimap_bbox_for_map};
@@ -187,12 +187,12 @@ impl Sidebar {
         self.startup = true;
     }
 
-    fn preview_audio_asset(asset: &Asset) {
+    fn preview_audio_asset(asset: &Asset, reference: &CreatorReference) {
         let AssetBuffer::Audio(bytes) = &asset.buffer else {
             return;
         };
 
-        let mut rusterix = RUSTERIX.write().unwrap();
+        let mut rusterix = reference.write();
         if rusterix.audio.is_none() {
             rusterix.audio = AudioEngine::new().ok();
         }
@@ -743,7 +743,7 @@ impl Sidebar {
         runtime: Option<eldiron_runtime::RegionInspection<'_>>,
     ) -> bool {
         if self.tileset_creator.event(event,ui,ctx,project,server_ctx){return true;}
-        if crate::item_appearance::handle_event(event, project, ctx) {
+        if crate::item_appearance::handle_event(event, project, ctx, &server_ctx.reference) {
             return true;
         }
         let mut redraw = self
@@ -945,7 +945,7 @@ impl Sidebar {
                         .items
                         .get(&item_id)
                         .filter(|item| item.icon_frames_for_state(on).is_empty())
-                        .map(|item| resolved_item_default_icon_frames_for_state(item, project, on));
+                        .map(|item| resolved_item_default_icon_frames_for_state(item, project, on, &server_ctx.reference));
                     if let Some(item) = project.items.get_mut(&item_id) {
                         let frames = item.icon_frames_for_state_mut(on);
                         if frames.is_empty() {
@@ -1023,7 +1023,7 @@ impl Sidebar {
                                         );
                                         UNDOMANAGER.write().unwrap().add_undo(undo, ctx);
                                     }
-                                    crate::undo::project_helper::refresh_palette_runtime(project, &server_ctx.jobs);
+                                    crate::undo::project_helper::refresh_palette_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                                 }
                             }
 
@@ -1211,7 +1211,7 @@ impl Sidebar {
                     || (id.name == "Editing Texture Updated" && editing_item_icon)
                 {
                     shared::rusterix_utils::sync_item_icon_assets(
-                        &mut RUSTERIX.write().unwrap(),
+                        &mut server_ctx.reference.write(),
                         project,
                     );
                 }
@@ -1368,7 +1368,7 @@ impl Sidebar {
                         ui, ctx, project, server_ctx, id.name == "Update Minimap",
                     );
                 } else if id.name == "Update Tiles" {
-                    self.update_tiles(ui, ctx, project, &server_ctx.jobs);
+                    self.update_tiles(ui, ctx, project, &server_ctx.jobs, &server_ctx.reference);
                 } else if id.name == "Show Node Settings" {
                     if let Some(stack) = ui.get_stack_layout("Sidebar Bottom Stack") {
                         stack.set_index(1);
@@ -1987,7 +1987,7 @@ impl Sidebar {
                             }
                         }
                     }
-                    crate::undo::project_helper::refresh_palette_runtime(project, &server_ctx.jobs);
+                    crate::undo::project_helper::refresh_palette_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                 } else if id.name == "Tilemap Filter Edit" || id.name == "Tilemap Filter Role" {
                     if let Some(id) = self.curr_tilemap_uuid {
                         self.show_filtered_tiles(ui, ctx, project.get_tilemap(id).as_deref())
@@ -2696,7 +2696,7 @@ impl Sidebar {
                             }
                         }
 
-                        crate::undo::project_helper::refresh_palette_runtime(project, &server_ctx.jobs);
+                        crate::undo::project_helper::refresh_palette_runtime(project, &server_ctx.jobs, &server_ctx.reference);
 
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Soft Update Minimap"),
@@ -3220,7 +3220,7 @@ impl Sidebar {
                                 server_ctx,
                                 ProjectContext::Region(duplicated.id),
                             );
-                            update_region(ctx);
+                            update_region(ctx, &server_ctx.reference);
                             let undo = ProjectUndoAtom::RemoveRegion(insert_index, duplicated);
                             UNDOMANAGER.write().unwrap().add_undo(undo, ctx);
                             redraw = true;
@@ -3252,7 +3252,7 @@ impl Sidebar {
                                 server_ctx,
                                 ProjectContext::Character(duplicated.id),
                             );
-                            update_region(ctx);
+                            update_region(ctx, &server_ctx.reference);
                             let undo =
                                 ProjectUndoAtom::RemoveCharacter(insert_index, duplicated.clone());
                             UNDOMANAGER.write().unwrap().add_undo(undo, ctx);
@@ -3283,7 +3283,7 @@ impl Sidebar {
                                 server_ctx,
                                 ProjectContext::Item(duplicated.id),
                             );
-                            update_region(ctx);
+                            update_region(ctx, &server_ctx.reference);
                             let undo = ProjectUndoAtom::RemoveItem(insert_index, duplicated);
                             UNDOMANAGER.write().unwrap().add_undo(undo, ctx);
                             redraw = true;
@@ -3315,7 +3315,7 @@ impl Sidebar {
                                 server_ctx,
                                 ProjectContext::Screen(duplicated.id),
                             );
-                            update_region(ctx);
+                            update_region(ctx, &server_ctx.reference);
                             let undo = ProjectUndoAtom::RemoveScreen(insert_index, duplicated);
                             UNDOMANAGER.write().unwrap().add_undo(undo, ctx);
                             redraw = true;
@@ -3352,7 +3352,7 @@ impl Sidebar {
                                 server_ctx,
                                 ProjectContext::Avatar(duplicated.id),
                             );
-                            update_region(ctx);
+                            update_region(ctx, &server_ctx.reference);
                             let undo = ProjectUndoAtom::RemoveAvatar(insert_index, duplicated);
                             UNDOMANAGER.write().unwrap().add_undo(undo, ctx);
                             redraw = true;
@@ -3463,7 +3463,7 @@ impl Sidebar {
                         server_ctx.curr_region = region_id;
                         if switched {
                             // Follow the place into its region before centring on it.
-                            crate::undo::project_helper::update_region(ctx);
+                            crate::undo::project_helper::update_region(ctx, &server_ctx.reference);
                         }
                         // Centre the map on the place, like a character or item instance.
                         if let Some(render_view) = ui.get_render_view("PolyView")
@@ -3676,7 +3676,7 @@ impl Sidebar {
                             server_ctx,
                             ProjectContext::Asset(id.references),
                         );
-                        Self::preview_audio_asset(asset);
+                        Self::preview_audio_asset(asset, &server_ctx.reference);
                         redraw = true;
                     }
                 } else if id.name == "Asset Item Name Edit" {
@@ -3827,7 +3827,7 @@ impl Sidebar {
                         self.apply_screen(ui, ctx, Some(s));
                         server_ctx.curr_screen = id.uuid;
                         redraw = true;
-                        RUSTERIX.write().unwrap().set_dirty();
+                        server_ctx.reference.write().set_dirty();
                     }
                 } else if id.name == "Screen Add" {
                     if let Some(list_layout) = ui.get_list_layout("Screen List") {
@@ -3881,9 +3881,7 @@ impl Sidebar {
         { self.minimap_geometry.deactivate(ui); self.minimap_scene.deactivate(ui); self.minimap_palette.deactivate(ui); }
         self.reset_for_project_switch();
 
-        _ = RUSTERIX
-            .write()
-            .unwrap()
+        _ = server_ctx.reference.write()
             .scene_handler
             .settings
             .read(&project.config);
@@ -3968,7 +3966,7 @@ impl Sidebar {
         }
         CONFIGEDITOR.write().unwrap().read_defaults();
         {
-            let mut rusterix = RUSTERIX.write().unwrap();
+            let mut rusterix = server_ctx.reference.write();
             rusterix.assets.palette = project.palette.clone();
             rusterix.assets.palette_material_ids = palette_material_ids(project);
             rusterix.set_tiles(project.tiles.clone(), true);
@@ -3985,7 +3983,7 @@ impl Sidebar {
         // ));
 
         self.show_actions(ui, ctx, project, server_ctx);
-        self.update_tiles(ui, ctx, project, &server_ctx.jobs);
+        self.update_tiles(ui, ctx, project, &server_ctx.jobs, &server_ctx.reference);
 
         TOOLLIST.write().unwrap().get_current_tool().tool_event(
             ToolEvent::Activate,
@@ -4479,7 +4477,6 @@ impl Sidebar {
         //     TheValue::Empty,
         // ));
 
-        // RUSTERIX.write().unwrap().set_dirty();
 
         // if let Some(region_id) = region_id {
         //     ctx.ui.send(TheEvent::Custom(
@@ -5239,11 +5236,11 @@ impl Sidebar {
                 if !used_incremental {
                     return true;
                 }
-                crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                server_ctx.reference.write().set_dirty();
                 return false;
             }
             UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
-            crate::editor::RUSTERIX.write().unwrap().set_dirty();
+            server_ctx.reference.write().set_dirty();
         }
 
         if !param_update {
@@ -5262,8 +5259,8 @@ impl Sidebar {
         ctx: &mut TheContext,
         project: &mut Project,
         jobs: &CreatorJobs,
-    ) {
-        let mut rusterix = RUSTERIX.write().unwrap();
+     reference: &CreatorReference) {
+        let mut rusterix = reference.write();
         rusterix.set_tiles(project.tiles.clone(), true);
         jobs.scene_mut().set_tile_list(
             rusterix.assets.tile_list.clone(),

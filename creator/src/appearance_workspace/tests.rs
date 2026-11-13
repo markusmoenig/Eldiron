@@ -171,6 +171,7 @@ fn setup_is_not_duplicated_in_the_preview_and_item_states_have_direct_entrances(
 #[test]
 #[ignore = "requires a native GPU adapter"]
 fn appearance_roundtrip_preview_and_ui_snapshots() {
+    let reference = CreatorReference::default();
     use std::path::Path;
     let out = Path::new("/tmp/appearance-workspace-review");
     std::fs::create_dir_all(out).unwrap();
@@ -195,7 +196,7 @@ fn appearance_roundtrip_preview_and_ui_snapshots() {
         canonical
     );
     {
-        let mut runtime = RUSTERIX.write().unwrap();
+        let mut runtime = reference.write();
         runtime.assets.config = p.config.clone();
         runtime.assets.rules = p.rules_source().unwrap();
         runtime.assets.items = p
@@ -224,7 +225,7 @@ fn appearance_roundtrip_preview_and_ui_snapshots() {
     ui.canvas.set_right(browser);
     let mut host = AppearanceWorkspace {
         owner: Some(Owner::Character(id)),
-        snapshot: Some(Arc::new(RUSTERIX.read().unwrap().assets.clone())),
+        snapshot: Some(Arc::new(reference.read().assets.clone())),
         clip: 1,
         phase: 0.3,
         playing: false,
@@ -457,7 +458,7 @@ fn appearance_roundtrip_preview_and_ui_snapshots() {
     let before = p.clone();
     p.palette.colors.swap(20, 45);
     {
-        let mut runtime = RUSTERIX.write().unwrap();
+        let mut runtime = reference.write();
         shared::rusterix_utils::sync_procedural_avatar_assets(&mut runtime.assets, &p);
         host.snapshot = Some(Arc::new(runtime.assets.clone()));
     }

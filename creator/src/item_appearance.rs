@@ -33,7 +33,12 @@ fn set_attribute(data: &mut String, key: &str, value: String) -> Result<(), Stri
     *data = toml::to_string_pretty(&root).map_err(|e| e.to_string())?;
     Ok(())
 }
-pub fn handle_event(event: &TheEvent, project: &mut Project, ctx: &mut TheContext) -> bool {
+pub fn handle_event(
+    event: &TheEvent,
+    project: &mut Project,
+    ctx: &mut TheContext,
+    reference: &CreatorReference,
+) -> bool {
     let TheEvent::StateChanged(id, state) = event else {
         return false;
     };
@@ -115,7 +120,7 @@ pub fn handle_event(event: &TheEvent, project: &mut Project, ctx: &mut TheContex
                 let frames = if !item.icon_frames_for_state(on).is_empty() {
                     item.icon_frames_for_state(on).clone()
                 } else {
-                    resolved_item_default_icon_frames_for_state(&item, project, on)
+                    resolved_item_default_icon_frames_for_state(&item, project, on, reference)
                 };
                 let frames = if frames.is_empty() {
                     vec![rusterix::Texture::alloc(32, 32)]
@@ -302,6 +307,7 @@ mod tests {
     use super::*;
     #[test]
     fn item_geometry_actions_reopen_all_authored_models_and_torch_states() {
+    let reference = CreatorReference::default();
         let mut project = Project::default();
         project.sync_ruleset_items().unwrap();
         let geometry = project.procedural_appearances.clone();
@@ -316,7 +322,7 @@ mod tests {
                 TheId::named_with_reference("Item Geometry MZ", item.id),
                 TheWidgetState::Clicked,
             );
-            assert!(handle_event(&event, &mut project, &mut ctx));
+            assert!(handle_event(&event, &mut project, &mut ctx, &reference));
             assert_eq!(
                 attribute(&project.items[&item.id].data, "appearance_geometry").as_deref(),
                 Some(name.as_str())
@@ -326,13 +332,14 @@ mod tests {
                     TheId::named_with_reference("Item Geometry MZ Off", item.id),
                     TheWidgetState::Clicked,
                 );
-                assert!(handle_event(&event, &mut project, &mut ctx));
+                assert!(handle_event(&event, &mut project, &mut ctx, &reference));
             }
         }
         assert_eq!(project.procedural_appearances, geometry);
     }
     #[test]
     fn worn_material_actions_open_existing_mz_assets_without_creating_geometry() {
+    let reference = CreatorReference::default();
         let mut project = Project::default();
         project.sync_ruleset_items().unwrap();
         let item = project
@@ -351,7 +358,7 @@ mod tests {
                 TheId::named_with_reference(&format!("Item Worn Material MZ: {source}"), item.id),
                 TheWidgetState::Clicked,
             );
-            assert!(handle_event(&event, &mut project, &mut ctx));
+            assert!(handle_event(&event, &mut project, &mut ctx, &reference));
         }
         assert_eq!(project.procedural_materials.len(), before);
         assert_eq!(project.procedural_appearances, geometry);
@@ -359,11 +366,12 @@ mod tests {
             TheId::named_with_reference("Item Worn Geometry MZ", item.id),
             TheWidgetState::Clicked,
         );
-        assert!(handle_event(&event, &mut project, &mut ctx));
+        assert!(handle_event(&event, &mut project, &mut ctx, &reference));
         assert_eq!(project.procedural_appearances, geometry);
     }
     #[test]
     fn bitmap_icons_port_to_editable_animated_mz_and_reopen_without_duplication() {
+    let reference = CreatorReference::default();
         let mut p = Project::default();
         let mut item = Item::new();
         item.name = "Test item".into();
@@ -389,7 +397,7 @@ mod tests {
             TheId::named_with_reference("Item Icon MZ On", id),
             TheWidgetState::Clicked,
         );
-        assert!(handle_event(&event, &mut p, &mut ctx));
+        assert!(handle_event(&event, &mut p, &mut ctx, &reference));
         let icon = shared::ruleset_materials::icon_id(&p.items[&id].data).unwrap();
         assert!(shared::ruleset_materials::is_library_tile(&p.config, &icon));
         let frames = shared::ruleset_materials::frames_for_item(&p, &p.items[&id], true)
@@ -398,20 +406,20 @@ mod tests {
         assert_eq!(frames.len(), 2);
         assert_ne!(frames[0].data, frames[1].data);
         let count = p.procedural_materials.len();
-        assert!(handle_event(&event, &mut p, &mut ctx));
+        assert!(handle_event(&event, &mut p, &mut ctx, &reference));
         assert_eq!(p.procedural_materials.len(), count);
         let on_source = p.procedural_materials[&icon].clone();
         let off = TheEvent::StateChanged(
             TheId::named_with_reference("Item Icon MZ Off", id),
             TheWidgetState::Clicked,
         );
-        assert!(handle_event(&off, &mut p, &mut ctx));
+        assert!(handle_event(&off, &mut p, &mut ctx, &reference));
         let off_icon =
             shared::ruleset_materials::icon_id_for_state(&p.items[&id].data, false).unwrap();
         assert_ne!(icon, off_icon);
         assert_eq!(p.procedural_materials[&icon], on_source);
         let states = p.procedural_materials.len();
-        assert!(handle_event(&off, &mut p, &mut ctx));
+        assert!(handle_event(&off, &mut p, &mut ctx, &reference));
         assert_eq!(p.procedural_materials.len(), states);
         shared::entity_graph::synchronize(&mut p).unwrap();
         assert_eq!(
@@ -426,7 +434,7 @@ mod tests {
             TheId::named_with_reference("Item Geometry MZ", id),
             TheWidgetState::Clicked,
         );
-        assert!(handle_event(&geometry, &mut p, &mut ctx));
+        assert!(handle_event(&geometry, &mut p, &mut ctx, &reference));
         let model = Uuid::parse_str(&attribute(&p.items[&id].data, "appearance_geometry").unwrap())
             .unwrap();
         let mut runtime = rusterix::Item::default();

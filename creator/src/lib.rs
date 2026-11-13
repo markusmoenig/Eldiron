@@ -12,8 +12,6 @@ pub mod configeditor;
 pub mod dockmanager;
 mod documents;
 mod host_services;
-#[cfg(target_arch = "wasm32")]
-mod reference_state;
 #[cfg(feature = "native-render")]
 mod scene_source;
 pub mod docks;
@@ -71,7 +69,7 @@ pub mod prelude {
 
     pub use shared::prelude::*;
     // Transitional controller spelling; the owner is now Creator-specific.
-    pub use crate::creator_context::{CreatorContext, CreatorContext as ServerContext, CreatorJobs};
+    pub use crate::creator_context::{CreatorContext, CreatorContext as ServerContext, CreatorJobs, CreatorReference};
     pub use std::sync::{LazyLock, RwLock};
     pub use theframework::prelude::*;
 

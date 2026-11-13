@@ -1,6 +1,5 @@
 use crate::actions::edit_linedef::EDIT_LINEDEF_ACTION_ID;
 use crate::actions::geometry_face_ops::surface_segment_points;
-use crate::editor::RUSTERIX;
 use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use MapEvent::*;
@@ -801,14 +800,14 @@ impl Tool for LinedefTool {
                                 drag.changed = true;
                             }
                         }
-                        RUSTERIX.write().unwrap().set_overlay_dirty();
+                        server_ctx.reference.write().set_overlay_dirty();
                         return None;
                     }
                 }
                 MapUp(_) if self.surface_line_drag.is_some() => {
                     let drag = self.surface_line_drag.take()?;
                     if drag.changed {
-                        RUSTERIX.write().unwrap().set_overlay_dirty();
+                        server_ctx.reference.write().set_overlay_dirty();
                         return Some(ProjectUndoAtom::MapEdit(
                             server_ctx.pc,
                             Box::new(drag.undo_map),
@@ -835,7 +834,7 @@ impl Tool for LinedefTool {
                     {
                         let old_map = map.clone();
                         if delete_selected_surface_lines(map) {
-                            RUSTERIX.write().unwrap().set_overlay_dirty();
+                            server_ctx.reference.write().set_overlay_dirty();
                             ctx.ui.send(TheEvent::Custom(
                                 TheId::named("Map Selection Changed"),
                                 TheValue::Empty,
@@ -856,7 +855,7 @@ impl Tool for LinedefTool {
                         || !map.selected_geometry_surface_segments.is_empty();
                     if expand_selected_surface_components(map) || has_surface_selection {
                         {
-                            let mut rusterix = RUSTERIX.write().unwrap();
+                            let mut rusterix = server_ctx.reference.write();
                             rusterix.set_dirty();
                             rusterix.set_overlay_dirty();
                         }
@@ -873,7 +872,7 @@ impl Tool for LinedefTool {
                     self.surface_line_drag = None;
                     map.curr_grid_pos_3d = None;
                     server_ctx.hover_cursor_3d = None;
-                    RUSTERIX.write().unwrap().set_overlay_dirty();
+                    server_ctx.reference.write().set_overlay_dirty();
                     return None;
                 }
                 _ => {}
@@ -937,7 +936,7 @@ impl Tool for LinedefTool {
                     self.surface_line_start = None;
                     map.curr_grid_pos_3d = None;
                     server_ctx.hover_cursor_3d = None;
-                    RUSTERIX.write().unwrap().set_overlay_dirty();
+                    server_ctx.reference.write().set_overlay_dirty();
                     ctx.ui.send(TheEvent::Custom(
                         TheId::named("Map Selection Changed"),
                         TheValue::Empty,
@@ -1026,7 +1025,7 @@ impl Tool for LinedefTool {
                         TheValue::Empty,
                     ));
                     {
-                        let mut rusterix = RUSTERIX.write().unwrap();
+                        let mut rusterix = server_ctx.reference.write();
                         rusterix.set_dirty();
                         rusterix.set_overlay_dirty();
                     }
@@ -1095,7 +1094,7 @@ impl Tool for LinedefTool {
                         self.surface_line_start = None;
                     }
                     map.curr_grid_pos_3d = Some(point);
-                    RUSTERIX.write().unwrap().set_overlay_dirty();
+                    server_ctx.reference.write().set_overlay_dirty();
                     return Some(ProjectUndoAtom::MapEdit(
                         server_ctx.pc,
                         Box::new(old_map),
@@ -1134,7 +1133,7 @@ impl Tool for LinedefTool {
                     TheId::named("Map Selection Changed"),
                     TheValue::Empty,
                 ));
-                RUSTERIX.write().unwrap().set_overlay_dirty();
+                server_ctx.reference.write().set_overlay_dirty();
                 return Some(ProjectUndoAtom::MapEdit(
                     server_ctx.pc,
                     Box::new(old_map),
@@ -1150,7 +1149,7 @@ impl Tool for LinedefTool {
                     && face_index == start_face_index
                 {
                     server_ctx.hover_cursor_3d = Some(point);
-                    RUSTERIX.write().unwrap().set_overlay_dirty();
+                    server_ctx.reference.write().set_overlay_dirty();
                 } else {
                     server_ctx.hover_cursor_3d = None;
                 }
@@ -1413,7 +1412,7 @@ impl Tool for LinedefTool {
                         _ => {}
                     }
                     {
-                        let mut rusterix = RUSTERIX.write().unwrap();
+                        let mut rusterix = server_ctx.reference.write();
                         rusterix.set_dirty();
                         rusterix.set_overlay_dirty();
                     }
@@ -1427,7 +1426,7 @@ impl Tool for LinedefTool {
             MapClicked(coord) => {
                 if self.hud.clicked(coord.x, coord.y, map, ui, ctx, server_ctx) {
                     self.was_clicked = false;
-                    RUSTERIX.write().unwrap().set_dirty();
+                    server_ctx.reference.write().set_dirty();
                     return None;
                 }
 
@@ -2087,7 +2086,7 @@ impl Tool for LinedefTool {
                         let ray = if let Some(view) = &self.view_input {
                             view.ray()?
                         } else {
-                            let rusterix = RUSTERIX.read().unwrap();
+                            let rusterix = server_ctx.reference.read();
                             rusterix.client.camera_d3.create_ray(
                                 Vec2::new(screen_uv[0], 1.0 - screen_uv[1]),
                                 Vec2::new(dim.width as f32, dim.height as f32),
@@ -2147,7 +2146,7 @@ impl Tool for LinedefTool {
                             let ray = if let Some(view) = &self.view_input {
                                 view.ray()?
                             } else {
-                                let rusterix = RUSTERIX.read().unwrap();
+                                let rusterix = server_ctx.reference.read();
                                 rusterix.client.camera_d3.create_ray(
                                     Vec2::new(screen_uv[0], 1.0 - screen_uv[1]),
                                     Vec2::new(dim.width as f32, dim.height as f32),
@@ -2188,7 +2187,7 @@ impl Tool for LinedefTool {
             }
             MapDragged(coord) => {
                 if self.hud.dragged(coord.x, coord.y, map, ui, ctx, server_ctx) {
-                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                    server_ctx.reference.write().set_dirty();
                     return None;
                 }
 
@@ -2246,14 +2245,14 @@ impl Tool for LinedefTool {
                                 .click_pos
                                 .distance(Vec2::new(coord.x as f32, coord.y as f32));
                             if drag_distance < 5.0 {
-                                crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                                server_ctx.reference.write().set_dirty();
                                 return None;
                             }
 
                             let click_intersection = match self.click_ray_intersection_3d {
                                 Some(pos) => pos,
                                 None => {
-                                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                                    server_ctx.reference.write().set_dirty();
                                     return None;
                                 }
                             };
@@ -2266,7 +2265,7 @@ impl Tool for LinedefTool {
                             let ray = if let Some(view) = &self.view_input {
                                 view.ray()?
                             } else {
-                                let rusterix = RUSTERIX.read().unwrap();
+                                let rusterix = server_ctx.reference.read();
                                 rusterix.client.camera_d3.create_ray(
                                     Vec2::new(screen_uv[0], 1.0 - screen_uv[1]),
                                     Vec2::new(dim.width as f32, dim.height as f32),
@@ -2344,7 +2343,7 @@ impl Tool for LinedefTool {
                                         && !validate_detail_profile_in_bounds(profile_map, min, max)
                                     {
                                         *profile_map = self.rectangle_undo_map.clone();
-                                        crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                                        server_ctx.reference.write().set_dirty();
                                         return None;
                                     }
 
@@ -2360,7 +2359,7 @@ impl Tool for LinedefTool {
                                 .click_pos
                                 .distance(Vec2::new(coord.x as f32, coord.y as f32));
                             if drag_distance < 5.0 {
-                                crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                                server_ctx.reference.write().set_dirty();
                                 return None;
                             }
 
@@ -2369,7 +2368,7 @@ impl Tool for LinedefTool {
                             let click_intersection = match self.click_ray_intersection_3d {
                                 Some(pos) => pos,
                                 None => {
-                                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                                    server_ctx.reference.write().set_dirty();
                                     return None;
                                 }
                             };
@@ -2385,7 +2384,7 @@ impl Tool for LinedefTool {
                             let ray = if let Some(view) = &self.view_input {
                                 view.ray()?
                             } else {
-                                let rusterix = RUSTERIX.read().unwrap();
+                                let rusterix = server_ctx.reference.read();
                                 rusterix.client.camera_d3.create_ray(
                                     Vec2::new(screen_uv[0], 1.0 - screen_uv[1]),
                                     Vec2::new(dim.width as f32, dim.height as f32),
@@ -2479,7 +2478,7 @@ impl Tool for LinedefTool {
                     }
                 } else {
                     if detail_mode_3d {
-                        crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                        server_ctx.reference.write().set_dirty();
                         return None;
                     }
 
@@ -2554,7 +2553,7 @@ impl Tool for LinedefTool {
                                 let linedefs = if let Some(view) = &self.view_input {
                                     view.rectangle(top_left, bottom_right)
                                 } else {
-                                    let mut rusterix = RUSTERIX.write().unwrap();
+                                    let mut rusterix = server_ctx.reference.write();
                                     rusterix.scene_handler.vm.set_active_vm(2);
                                     let hits =
                                         rusterix.scene_handler.vm.active_vm().pick_geo_ids_in_rect(
@@ -2603,7 +2602,7 @@ impl Tool for LinedefTool {
                         }
                     }
                 }
-                crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                server_ctx.reference.write().set_dirty();
             }
             MapUp(_) => {
                 if self.click_selected {
@@ -2648,7 +2647,7 @@ impl Tool for LinedefTool {
             }
             MapHover(coord) => {
                 if self.hud.hovered(coord.x, coord.y, map, ui, ctx, server_ctx) {
-                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                    server_ctx.reference.write().set_dirty();
                     return None;
                 }
 
@@ -2874,7 +2873,7 @@ impl Tool for LinedefTool {
                     ));
                 }
                 self.was_clicked = false;
-                crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                server_ctx.reference.write().set_dirty();
             }
         }
         undo_atom
@@ -2988,7 +2987,7 @@ impl Tool for LinedefTool {
                                 ));
                             }
 
-                            crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                            server_ctx.reference.write().set_dirty();
                         }
                     }
                 } else if id.name == "Remove Map Properties" && *state == TheWidgetState::Clicked {
@@ -3032,7 +3031,7 @@ impl Tool for LinedefTool {
                             }
                         }
 
-                        crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                        server_ctx.reference.write().set_dirty();
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Map Selection Changed"),
                             TheValue::Empty,

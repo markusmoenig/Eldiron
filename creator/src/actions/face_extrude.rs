@@ -1,5 +1,4 @@
 use crate::actions::geometry_face_ops::extrude_selected_geometry_faces;
-use crate::editor::RUSTERIX;
 use crate::prelude::*;
 
 pub struct FaceExtrude {
@@ -75,8 +74,8 @@ impl Action for FaceExtrude {
             return None;
         }
 
-        RUSTERIX.write().unwrap().set_dirty();
-        RUSTERIX.write().unwrap().set_overlay_dirty();
+        server_ctx.reference.write().set_dirty();
+        server_ctx.reference.write().set_overlay_dirty();
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Map Selection Changed"),
             TheValue::Empty,

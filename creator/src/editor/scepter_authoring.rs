@@ -455,7 +455,7 @@ impl Editor {
             ctx,
         );
         crate::utils::editor_scene_full_rebuild(&self.documents.project, &self.server_ctx);
-        update_region(ctx);
+        update_region(ctx, &self.server_ctx.reference);
         if materials_changed {
             material_refresh(ctx);
         }

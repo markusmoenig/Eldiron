@@ -173,7 +173,7 @@ pub fn enable(map: &mut Map, server: &ServerContext) {
         let source = server
             .curr_tile_id
             .filter(|id| {
-                let runtime = crate::editor::RUSTERIX.read().unwrap();
+                let runtime = server.reference.read();
                 runtime.assets.tiles.get(id).is_some_and(|tile| {
                     tile.isometric
                         .as_ref()

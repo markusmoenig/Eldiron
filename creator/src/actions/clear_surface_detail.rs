@@ -1,4 +1,3 @@
-use crate::editor::RUSTERIX;
 use crate::prelude::*;
 
 fn surface_detail_target_faces(map: &Map, tool_type: MapToolType) -> Vec<(Uuid, usize)> {
@@ -127,7 +126,7 @@ impl Action for ClearSurfaceDetail {
         }
 
         {
-            let mut rusterix = RUSTERIX.write().unwrap();
+            let mut rusterix = server_ctx.reference.write();
             rusterix.set_dirty();
             rusterix.set_overlay_dirty();
         }

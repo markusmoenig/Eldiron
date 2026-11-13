@@ -138,7 +138,7 @@ impl NodesDock {
         if !BUTTONS.contains(&id.name.as_str()) {
             return false;
         }
-        self.finish(project);
+        self.finish(project, &server.reference);
         match id.name.as_str() {
             "Rules Checkpoint" => {
                 project.rules.checkpoint();
@@ -177,7 +177,7 @@ impl NodesDock {
             }
             _ => {}
         }
-        self.rules_error = sync_live_rules(project).err();
+        self.rules_error = sync_live_rules(project, &server.reference).err();
         self.histories.clear();
         self.branch_graphs.clear();
         self.branch_order.clear();

@@ -49,7 +49,7 @@ impl Editor {
                 && let Some(play) = &mut self.play_session
                 && previous.owns_runtime(play.pump().session_id())
             {
-                play.cancel_input(&mut RUSTERIX.write().unwrap().server);
+                play.cancel_input(&mut self.server_ctx.reference.write().server);
             }
             input.frame = frame;
         }
@@ -118,7 +118,7 @@ impl Editor {
         let Some(key) = eldiron_presentation::player_binding_key(*physical, logical) else {
             return Some(declined());
         };
-        let mut bridge = RUSTERIX.write().unwrap();
+        let mut bridge = self.server_ctx.reference.write();
         let play = self.play_session.as_mut()?;
         // Releases remain authoritative even after a modifier was pressed.
         if !pressed && !repeat {

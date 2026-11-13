@@ -1,4 +1,4 @@
-use crate::editor::{DOCKMANAGER, RUSTERIX};
+use crate::editor::{DOCKMANAGER, };
 use crate::prelude::*;
 use MapEvent::*;
 use ToolEvent::*;
@@ -308,7 +308,7 @@ impl IsoPaintTool {
                 self.reset_stroke();
                 let point = point?;
                 if region.iso_paint.active_operation == "pick" {
-                    Self::pick_paint_color(&mut region.iso_paint, &point, ctx);
+                    Self::pick_paint_color(&mut region.iso_paint, &point, ctx, &server.reference);
                     return None;
                 }
                 self.stroke_before = Some(region.iso_paint.clone());
@@ -591,9 +591,9 @@ impl IsoPaintTool {
         }
     }
 
-    fn pick_paint_color(layer: &mut IsoPaintLayer, point: &IsoPaintPoint, ctx: &mut TheContext) {
+    fn pick_paint_color(layer: &mut IsoPaintLayer, point: &IsoPaintPoint, ctx: &mut TheContext, reference: &CreatorReference) {
         let (Some(uv), Some(geo)) = (point.surface_uv, point.paint_geo) else { return; };
-        let assets = RUSTERIX.read().unwrap();
+        let assets = reference.read();
         layer.refresh_sources(&assets.assets);
         layer.ensure_baked_paint_current();
         let at = uv.map(|v| (v * 32.).floor() as i32);
@@ -735,7 +735,7 @@ impl IsoPaintTool {
                     if width <= 0 || height <= 0 {
                         return None;
                     }
-                    RUSTERIX.read().ok().and_then(|rusterix| {
+                    Some(server_ctx.reference.read()).and_then(|rusterix| {
                         let screen_uv = [
                             coord.x as f32 / width as f32,
                             coord.y as f32 / height as f32,
@@ -788,7 +788,7 @@ impl IsoPaintTool {
                     .as_ref()
                     .map(|surface| surface.plane.normal)
             });
-        let camera_scale = self.camera_scale();
+        let camera_scale = self.camera_scale( &server_ctx.reference);
         IsoPaintPoint::new([coord.x, coord.y], world, owner)
             .with_surface_uv(surface_uv)
             .with_paint_geo(raster_surface.map(|surface| surface.paint_geo))
@@ -798,19 +798,20 @@ impl IsoPaintTool {
             .with_brush_transform(brush_transform)
     }
 
-    fn camera_scale(&self) -> Option<f32> {
+    fn camera_scale(&self, reference: &CreatorReference) -> Option<f32> {
         if self.native_input {
             self.view_input.as_ref()?.camera.map(|c| match c.kind {
                 scenevm::CameraKind::OrthoIso => c.ortho_half_h,
                 _ => 1.,
             })
         } else {
-            RUSTERIX.read().ok().map(|r| r.client.camera_d3.scale())
+            Some(reference.read()).map(|r| r.client.camera_d3.scale())
         }
     }
     fn capture_paint_surface(
         &self,
         viewport_size: Option<[i32; 2]>,
+        reference: &CreatorReference,
     ) -> Option<std::sync::Arc<scenevm::PaintSurfaceBuffer>> {
         if self.native_input {
             return self.view_input.as_ref()?.paint.as_ref()?.capture.clone();
@@ -819,7 +820,7 @@ impl IsoPaintTool {
         if width <= 0 || height <= 0 {
             return None;
         }
-        let mut rusterix = RUSTERIX.write().ok()?;
+        let mut rusterix = reference.write();
         rusterix
             .scene_handler
             .vm
@@ -968,7 +969,7 @@ impl IsoPaintTool {
         coord: Vec2<i32>,
         layer: &IsoPaintLayer,
         viewport_size: Option<[i32; 2]>,
-    ) -> Vec<IsoPaintPoint> {
+     reference: &CreatorReference) -> Vec<IsoPaintPoint> {
         let Some(buffer) = self.paint_surface_cache.as_ref() else {
             return Vec::new();
         };
@@ -1000,7 +1001,7 @@ impl IsoPaintTool {
         let clip_owner = faces
             .first()
             .map(|entry| Self::owner_from_geo_id(entry.3.geo_id));
-        let camera_scale = self.camera_scale();
+        let camera_scale = self.camera_scale( reference);
         faces
             .into_iter()
             .filter(|(_, _, _, pixel)| {
@@ -1036,7 +1037,7 @@ impl IsoPaintTool {
         buffer: &scenevm::PaintSurfaceBuffer,
         start: Vec2<i32>,
         _map: &Map,
-    ) -> Option<IsoPaintSelectionProjection> {
+     reference: &CreatorReference) -> Option<IsoPaintSelectionProjection> {
         let mut clicked = None;
         let mut clicked_distance = i32::MAX;
         for y in start.y - 3..=start.y + 3 {
@@ -1080,7 +1081,7 @@ impl IsoPaintTool {
         let camera = if self.native_input {
             self.view_input.as_ref()?.camera?
         } else {
-            RUSTERIX.read().ok()?.scene_handler.vm.vm.camera3d
+            Some(reference.read())?.scene_handler.vm.vm.camera3d
         };
         Some(IsoPaintSelectionProjection {
             owner,
@@ -1501,7 +1502,7 @@ impl Tool for IsoPaintTool {
                     TheId::empty(),
                     fl!("status_iso_paint_active"),
                 ));
-                RUSTERIX.write().unwrap().set_overlay_dirty();
+                server_ctx.reference.write().set_overlay_dirty();
                 ctx.ui.redraw_all = true;
                 true
             }
@@ -1513,7 +1514,7 @@ impl Tool for IsoPaintTool {
                 server_ctx.hover_cursor_3d = None;
                 server_ctx.iso_paint_hover_screen = None;
                 server_ctx.iso_paint_selection_rect = None;
-                RUSTERIX.write().unwrap().set_overlay_dirty();
+                server_ctx.reference.write().set_overlay_dirty();
                 ctx.ui.redraw_all = true;
                 if !server_ctx.pc.is_prefab()
                     && DOCKMANAGER.read().unwrap().dock == "Paint"
@@ -1666,13 +1667,13 @@ impl Tool for IsoPaintTool {
                 }
                 if region.iso_paint.active_operation == "pick" {
                     let point = self.paint_point(coord, server_ctx, viewport_size);
-                    Self::pick_paint_color(&mut region.iso_paint, &point, ctx);
+                    Self::pick_paint_color(&mut region.iso_paint, &point, ctx, &server_ctx.reference);
                     return None;
                 }
                 self.painting = true;
                 self.stroke_before = Some(region.iso_paint.clone());
                 if region.iso_paint.active_operation == "select" {
-                    self.paint_surface_cache = self.capture_paint_surface(viewport_size);
+                    self.paint_surface_cache = self.capture_paint_surface(viewport_size, &server_ctx.reference);
                     let move_hit = self.paint_surface_cache.as_ref().and_then(|buffer| {
                         region.iso_paint.active_selection().and_then(|selection| {
                             Self::selection_hit_pixel(buffer, coord, selection)
@@ -1681,7 +1682,7 @@ impl Tool for IsoPaintTool {
                     self.selection_projection = self
                         .paint_surface_cache
                         .as_ref()
-                        .and_then(|buffer| self.selection_projection(buffer, coord, &region.map));
+                        .and_then(|buffer| self.selection_projection(buffer, coord, &region.map, &server_ctx.reference));
                     self.selection_grid_step =
                         shared::context::ServerContext::edit_grid_step(region.map.subdivisions).max(0.01);
                     let selection_grid_step = self.selection_grid_step;
@@ -1736,9 +1737,9 @@ impl Tool for IsoPaintTool {
                     ));
                     return None;
                 }
-                self.paint_surface_cache = self.capture_paint_surface(viewport_size);
+                self.paint_surface_cache = self.capture_paint_surface(viewport_size, &server_ctx.reference);
                 let mut projected_points =
-                    self.projected_paint_points(coord, &region.iso_paint, viewport_size);
+                    self.projected_paint_points(coord, &region.iso_paint, viewport_size, &server_ctx.reference);
                 let point = if projected_points.is_empty() {
                     self.paint_point(coord, server_ctx, viewport_size)
                 } else {
@@ -1811,7 +1812,7 @@ impl Tool for IsoPaintTool {
                     && let Some(stroke_id) = self.active_stroke
                 {
                     let projected_points =
-                        self.projected_paint_points(coord, &region.iso_paint, viewport_size);
+                        self.projected_paint_points(coord, &region.iso_paint, viewport_size, &server_ctx.reference);
                     let changed = if projected_points.is_empty() {
                         let point = self.paint_point(coord, server_ctx, viewport_size);
                         region.iso_paint.append_point(stroke_id, point)
@@ -1886,7 +1887,7 @@ impl Tool for IsoPaintTool {
                     && let Some(stroke_id) = self.active_stroke
                 {
                     let projected_points =
-                        self.projected_paint_points(coord, &region.iso_paint, viewport_size);
+                        self.projected_paint_points(coord, &region.iso_paint, viewport_size, &server_ctx.reference);
                     let changed = if projected_points.is_empty() {
                         let point = self.paint_point(coord, server_ctx, viewport_size);
                         region.iso_paint.append_point(stroke_id, point)
@@ -2005,7 +2006,7 @@ mod terrain_tests {
         let mut view = TheRenderView::new(TheId::named("PolyView"));
         view.set_dim(TheDim::sized(1000, 700), &mut ctx);
         ui.canvas.set_widget(view);
-        RUSTERIX.write().unwrap().set_tiles_for_maps(
+        server.reference.write().set_tiles_for_maps(
             project.tiles.clone(),
             false,
             [&project.regions[0].map],
@@ -2256,7 +2257,7 @@ mod terrain_tests {
         let mut view = TheRenderView::new(TheId::named("PolyView"));
         view.set_dim(TheDim::sized(1000, 700), &mut ctx);
         ui.canvas.set_widget(view);
-        RUSTERIX.write().unwrap().set_tiles_for_maps(
+        server.reference.write().set_tiles_for_maps(
             project.tiles.clone(),
             false,
             [&project.regions[0].map],

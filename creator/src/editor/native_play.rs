@@ -461,7 +461,7 @@ impl Editor {
         let binding = self.native_play_binding(ui, ctx);
         let wanted = binding.is_some() || self.native_game_input_owns_viewport();
         let blocked = ui.dialog.is_some() || ui.popover.is_some() || ui.context_menu.is_some();
-        let mut bridge = RUSTERIX.write().unwrap();
+        let mut bridge = self.server_ctx.reference.write();
         let Some(play) = self.play_session.as_mut().filter(|s| {
             self.documents.active_id() == Some(s.document)
         }) else {
@@ -544,7 +544,7 @@ impl Editor {
             }
             return Ok(None);
         };
-        let bridge = RUSTERIX.read().unwrap();
+        let bridge = self.server_ctx.reference.read();
         let world = play.view(&bridge, &self.documents.project);
         let Some((list, frame)) = self.native_viewport.play.paint(&world, images)? else {
             return Ok(None);
@@ -581,7 +581,7 @@ impl Editor {
         let Some(play) = &self.play_session else {
             return;
         };
-        let bridge = RUSTERIX.read().unwrap();
+        let bridge = self.server_ctx.reference.read();
         let world = play.view(&bridge, &self.documents.project);
         if let Some(screen) = &mut owner.screen {
             screen
@@ -607,7 +607,7 @@ impl Editor {
         Ok(())
     }
     pub(crate) fn cancel_native_play_input(&mut self, ui: &mut TheUI) {
-        let mut bridge = RUSTERIX.write().unwrap();
+        let mut bridge = self.server_ctx.reference.write();
         let owner = &mut self.native_viewport.play;
         if let Some(play) = &mut self.play_session {
             play.cancel_input(&mut bridge.server);
@@ -856,7 +856,7 @@ impl Editor {
             && let Some(play) = &mut self.play_session
             && let Some(action) = play.input.controls.control_key(&key, false)
         {
-            if let Err(error) = play.submit_action(&mut RUSTERIX.write().unwrap().server, action) {
+            if let Err(error) = play.submit_action(&mut self.server_ctx.reference.write().server, action) {
                 session
                     .context
                     .ui
@@ -940,7 +940,7 @@ impl Editor {
         if matches!(event, InputEvent::PointerButton { pressed: false, .. }) {
             self.native_viewport.play.pointer_capture = false;
         }
-        let mut bridge = RUSTERIX.write().unwrap();
+        let mut bridge = self.server_ctx.reference.write();
         let play = self.play_session.as_mut()?;
         let mut runtime = PlayRuntime {
             play,
@@ -1005,7 +1005,7 @@ impl Editor {
             .play_session
             .as_mut()
             .ok_or("No running Creator Play session")?;
-        let mut bridge = RUSTERIX.write().unwrap();
+        let mut bridge = self.server_ctx.reference.write();
         let mut runtime = PlayRuntime {
             play,
             project: &self.documents.project,

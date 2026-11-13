@@ -538,7 +538,7 @@ fn slots(
     server: &ServerContext,
 ) -> Option<Vec<(String, Option<rusterix::PixelSource>)>> {
     crate::actions::named_geometry_hud_material_slots_for_selection(map)
-        .or_else(|| crate::actions::prefab_hud_material_slots_for_selected_instances(map))
+        .or_else(|| crate::actions::prefab_hud_material_slots_for_selected_instances(map, &server.reference))
         .or_else(|| {
             let actions = ACTIONLIST.read().unwrap();
             actions
@@ -816,7 +816,7 @@ impl Editor {
         {
             return false;
         }
-        let bridge = RUSTERIX.read().unwrap();
+        let bridge = self.server_ctx.reference.read();
         // The shared CPU pump publishes live actors into a separate projection.
         // Speech/visibility, orthographic bakes and the remaining custom
         // contexts still have explicit migration adapters.
@@ -862,7 +862,7 @@ impl Editor {
         }
         let view = view.id().clone();
         let slots = slots(map, &self.server_ctx);
-        let bridge = RUSTERIX.read().unwrap();
+        let bridge = self.server_ctx.reference.read();
         let assets = self.play_session.as_ref().map(|play| play.assets(&bridge.assets)).unwrap_or(&bridge.assets);
         Some(Binding {
             document,
@@ -931,7 +931,7 @@ impl Editor {
                     && map.camera == MapCamera::TwoDIso
                 {
                     shared::iso_paint_terrain::sync(
-                        &mut RUSTERIX.write().unwrap().assets,
+                        &mut self.server_ctx.reference.write().assets,
                         map.id,
                         paint,
                     );
@@ -948,7 +948,7 @@ impl Editor {
             && region.map.camera == MapCamera::TwoDIso
         {
             shared::iso_paint_terrain::sync(
-                &mut RUSTERIX.write().unwrap().assets,
+                &mut self.server_ctx.reference.write().assets,
                 region.map.id,
                 &mut region.iso_paint,
             );
@@ -1069,7 +1069,7 @@ impl Editor {
             gpu.paint = Default::default();
         }
         // CPU-only bridge inputs: no legacy VM is borrowed, swapped or rendered.
-        let bridge = RUSTERIX.read().unwrap();
+        let bridge = self.server_ctx.reference.read();
         let assets = self
             .play_session
             .as_ref()
@@ -2106,6 +2106,7 @@ impl Editor {
 
 #[cfg(test)]
 impl Editor {
+    pub(crate) fn reference_for_test(&self) -> &CreatorReference { &self.server_ctx.reference }
     pub(crate) fn reference_jobs_for_test(&self) -> &CreatorJobs {
         &self.server_ctx.jobs
     }
@@ -2118,7 +2119,12 @@ impl Editor {
         self.server_ctx.camera.move_action = Some(CustomMoveAction::Forward);
         let mut independent = CreatorContext::new();
         assert!(!self.server_ctx.jobs.scene_initialized());
+        assert!(!self.server_ctx.reference.initialized());
         assert!(!independent.jobs.scene_initialized());
+        assert!(!independent.reference.initialized());
+        independent.reference.write().assets.config = "independent owner".into();
+        assert!(independent.reference.initialized());
+        assert!(!self.server_ctx.reference.initialized());
         independent.jobs.scene_mut().startup();
         assert!(independent.jobs.scene_initialized());
         assert!(!self.server_ctx.jobs.scene_initialized(), "another CPU context cannot initialize this owner's scene jobs");
@@ -2140,7 +2146,7 @@ impl Editor {
     ) -> (TheId, usize, Vec<u8>) {
         let mut clipboard = Map::new();
         let sector = crate::project_templates::rectangle(&mut clipboard, -0.5, -0.5, 1., 1.);
-        if let Some(id) = RUSTERIX.read().unwrap().assets.tiles.keys().next().copied() {
+        if let Some(id) = self.server_ctx.reference.read().assets.tiles.keys().next().copied() {
             clipboard
                 .find_sector_mut(sector)
                 .unwrap()
@@ -2364,9 +2370,7 @@ impl Editor {
                 .values()
                 .map(|c| c.strokes.len() + c.stamps.len())
                 .sum(),
-            RUSTERIX
-                .read()
-                .unwrap()
+            self.server_ctx.reference.read()
                 .assets
                 .terrain_paint
                 .get(&map.id)
@@ -2404,7 +2408,7 @@ impl Editor {
         });
         self.server_ctx.curr_tile_source = Some(rusterix::TileSource::SingleTile(tile.id));
         self.documents.project.tiles.insert(tile.id, tile.clone());
-        RUSTERIX.write().unwrap().assets.tiles.insert(tile.id, tile);
+        self.server_ctx.reference.write().assets.tiles.insert(tile.id, tile);
     }
     pub(crate) fn native_rect_state_for_test(&self) -> (bool, f32, usize) {
         let map = self.documents.project.get_map(&self.server_ctx).unwrap();

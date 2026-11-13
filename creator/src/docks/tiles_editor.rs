@@ -503,7 +503,7 @@ impl Dock for TilesEditorDock {
                     && let PixelEditingContext::ItemIcon(item_id, on, _) = server_ctx.editing_ctx
                 {
                     if let Some(item) = project.items.get(&item_id).cloned() {
-                        let after = resolved_item_default_icon_frames_for_state(&item, project, on);
+                        let after = resolved_item_default_icon_frames_for_state(&item, project, on, &server_ctx.reference);
                         let before = item.icon_frames_for_state(on).clone();
                         if before != after {
                             let default_is_empty = after.is_empty();

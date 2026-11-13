@@ -1,4 +1,4 @@
-use crate::{editor::RUSTERIX, prelude::*};
+use crate::{prelude::*};
 use MapEvent::*;
 use rusterix::{
     Assets, CollisionProbeStepKind, CollisionWorld,
@@ -83,8 +83,8 @@ impl CollisionProbeTool {
         Some(origin + dir * t)
     }
 
-    fn build_collision_world(map: &Map) -> CollisionWorld {
-        let assets = RUSTERIX.read().unwrap().assets.clone();
+    fn build_collision_world(map: &Map, reference: &CreatorReference) -> CollisionWorld {
+        let assets = reference.read().assets.clone();
         let mut world = CollisionWorld::default();
         let mut chunk_builder = D3ChunkBuilder::new();
         let chunk_size = 10;
@@ -128,7 +128,7 @@ impl CollisionProbeTool {
             return None;
         };
 
-        let world = Self::build_collision_world(map);
+        let world = Self::build_collision_world(map, &server_ctx.reference);
         let start_2d = Vec2::new(start.x, start.z);
         let target_2d = Vec2::new(target.x, target.z);
         let reference_y = world
@@ -149,7 +149,7 @@ impl CollisionProbeTool {
             .map(|step| step.to.y)
             .unwrap_or(reference_y);
         server_ctx.collision_probe_result = Some(result);
-        RUSTERIX.write().unwrap().set_overlay_dirty();
+        server_ctx.reference.write().set_overlay_dirty();
         ctx.ui.redraw_all = true;
         Some(Vec3::new(target.x, target_y, target.z))
     }
@@ -236,11 +236,11 @@ impl CollisionProbeTool {
         }
     }
 
-    fn project_3d_to_screen(point: Vec3<f32>, dim: TheDim) -> Option<Vec2<i32>> {
+    fn project_3d_to_screen(point: Vec3<f32>, dim: TheDim, reference: &CreatorReference) -> Option<Vec2<i32>> {
         if !point.x.is_finite() || !point.y.is_finite() || !point.z.is_finite() {
             return None;
         }
-        let rusterix = RUSTERIX.read().ok()?;
+        let rusterix = Some(reference.read())?;
         let view = rusterix.client.camera_d3.view_matrix();
         let proj = rusterix
             .client
@@ -270,15 +270,15 @@ impl CollisionProbeTool {
         dim: TheDim,
         result: &rusterix::CollisionProbeResult,
         faded: bool,
-    ) {
+     reference: &CreatorReference) {
         let color = [244, 114, 255, if faded { 190 } else { 255 }];
         let points = Self::goto_path_points(result);
         for segment in points.windows(2) {
-            let Some(a) = Self::project_3d_to_screen(segment[0] + Vec3::new(0.0, 0.18, 0.0), dim)
+            let Some(a) = Self::project_3d_to_screen(segment[0] + Vec3::new(0.0, 0.18, 0.0), dim, reference)
             else {
                 continue;
             };
-            let Some(b) = Self::project_3d_to_screen(segment[1] + Vec3::new(0.0, 0.18, 0.0), dim)
+            let Some(b) = Self::project_3d_to_screen(segment[1] + Vec3::new(0.0, 0.18, 0.0), dim, reference)
             else {
                 continue;
             };
@@ -442,7 +442,7 @@ impl Tool for CollisionProbeTool {
             }
             ToolEvent::DeActivate => {
                 Self::clear_probe(server_ctx);
-                RUSTERIX.write().unwrap().set_overlay_dirty();
+                server_ctx.reference.write().set_overlay_dirty();
                 ctx.ui.redraw_all = true;
                 true
             }
@@ -462,7 +462,7 @@ impl Tool for CollisionProbeTool {
             MapClicked(coord) => {
                 if server_ctx.collision_probe_points.is_empty() {
                     if let Some(start) = Self::pointer_position(ui, server_ctx, map, coord, None) {
-                        let world = Self::build_collision_world(map);
+                        let world = Self::build_collision_world(map, &server_ctx.reference);
                         let start_2d = Vec2::new(start.x, start.z);
                         let reference_y = world
                             .get_floor_height_nearest(start_2d, start.y)
@@ -473,7 +473,7 @@ impl Tool for CollisionProbeTool {
                         server_ctx.collision_probe_result = None;
                         server_ctx.collision_probe_points.push(start);
                         server_ctx.collision_probe_dragging = true;
-                        RUSTERIX.write().unwrap().set_overlay_dirty();
+                        server_ctx.reference.write().set_overlay_dirty();
                         ctx.ui.redraw_all = true;
                     }
                 } else if let Some(target) = self.update_probe(ui, ctx, map, server_ctx, coord) {
@@ -487,7 +487,7 @@ impl Tool for CollisionProbeTool {
                     server_ctx.collision_probe_target = None;
                     server_ctx.collision_probe_result = None;
                     server_ctx.collision_probe_dragging = true;
-                    RUSTERIX.write().unwrap().set_overlay_dirty();
+                    server_ctx.reference.write().set_overlay_dirty();
                     ctx.ui.redraw_all = true;
                 }
             }
@@ -507,7 +507,7 @@ impl Tool for CollisionProbeTool {
                 } else {
                     Self::finish_active_polyline(server_ctx);
                 }
-                RUSTERIX.write().unwrap().set_overlay_dirty();
+                server_ctx.reference.write().set_overlay_dirty();
                 ctx.ui.redraw_all = true;
             }
             _ => {}
@@ -532,7 +532,7 @@ impl Tool for CollisionProbeTool {
 
         if server_ctx.editor_view_mode != EditorViewMode::D2 {
             let dim = *buffer.dim();
-            Self::draw_goto_route_3d_screen(buffer, dim, latest_result, false);
+            Self::draw_goto_route_3d_screen(buffer, dim, latest_result, false, &server_ctx.reference);
             Self::draw_legend(buffer, _ctx, latest_result);
             return;
         }

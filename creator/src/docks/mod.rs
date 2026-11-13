@@ -133,6 +133,7 @@ pub trait Dock: Send + Sync {
         _ctx: &mut TheContext,
         _project: &mut Project,
         _jobs: &CreatorJobs,
+        _reference: &CreatorReference,
     ) -> Result<bool, String> {
         Ok(false)
     }

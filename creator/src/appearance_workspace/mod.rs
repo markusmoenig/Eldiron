@@ -1,5 +1,5 @@
 //! One entry point for a definition's model, materials, icons and equipped preview.
-use crate::{editor::RUSTERIX, prelude::*};
+use crate::{prelude::*};
 use std::sync::Arc;
 use web_time::Instant;
 pub mod data;
@@ -357,7 +357,7 @@ impl AppearanceWorkspace {
                                 ),
                                 project,
                                 ctx,
-                            );
+                             &server.reference);
                         }
                         return true;
                     }
@@ -567,6 +567,7 @@ impl AppearanceWorkspace {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         source_revision: u64,
+        reference: &CreatorReference,
     ) -> bool {
         self.visible_last_frame = self.visible(ui);
         if !self.visible_last_frame {
@@ -583,7 +584,7 @@ impl AppearanceWorkspace {
             rusterix::procedural_avatar::fingerprint(&(owner, owner.data(p), source_revision));
         if self.key != Some(key) {
             self.key = Some(key);
-            let mut assets = RUSTERIX.read().unwrap().assets.clone();
+            let mut assets = reference.read().assets.clone();
             assets.rules = p.rules_source().unwrap_or_default();
             assets.item_template_ids = p.items.values().map(|i| (i.id, i.name.clone())).collect();
             assets.items = p

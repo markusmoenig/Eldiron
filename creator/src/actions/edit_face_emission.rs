@@ -1,4 +1,3 @@
-use crate::editor::RUSTERIX;
 use crate::prelude::*;
 
 const ENABLED_ID: &str = "actionFaceEmissionEnabled";
@@ -219,8 +218,8 @@ impl Action for EditFaceEmission {
             return None;
         }
         map.changed = map.changed.wrapping_add(1);
-        RUSTERIX.write().unwrap().set_dirty();
-        RUSTERIX.write().unwrap().set_overlay_dirty();
+        server_ctx.reference.write().set_dirty();
+        server_ctx.reference.write().set_overlay_dirty();
         Some(ProjectUndoAtom::MapEdit(
             server_ctx.pc,
             Box::new(previous),

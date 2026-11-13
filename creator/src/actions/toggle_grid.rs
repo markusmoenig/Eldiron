@@ -1,4 +1,3 @@
-use crate::editor::RUSTERIX;
 use crate::prelude::*;
 
 pub struct ToggleGrid {
@@ -56,7 +55,7 @@ impl Action for ToggleGrid {
         server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
         server_ctx.show_editor_grid = !server_ctx.show_editor_grid;
-        RUSTERIX.write().unwrap().set_overlay_dirty();
+        server_ctx.reference.write().set_overlay_dirty();
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Update Geometry Overlay 3D"),
             TheValue::Empty,

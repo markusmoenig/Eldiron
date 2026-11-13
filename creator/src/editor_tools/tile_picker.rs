@@ -44,11 +44,12 @@ impl EditorTool for TilePickerTool {
         project: &mut Project,
         server_ctx: &mut ServerContext,
         jobs: &CreatorJobs,
+        reference: &CreatorReference,
     ) -> bool {
         if let TheEvent::TileEditorClicked(id, coord) = event
             && id.name == "Tile Editor Dock RGBA Layout View"
         {
-            return self.pick_from(*coord, ui, ctx, project, server_ctx, jobs);
+            return self.pick_from(*coord, ui, ctx, project, server_ctx, jobs, reference);
         }
         false
     }
@@ -63,6 +64,7 @@ impl TilePickerTool {
         project: &mut Project,
         server_ctx: &mut ServerContext,
         jobs: &CreatorJobs,
+        reference: &CreatorReference,
     ) -> bool {
         if let Some(editor) = ui.get_rgba_layout("Tile Editor Dock RGBA Layout")
             && let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view()
@@ -133,7 +135,7 @@ impl TilePickerTool {
             widget.set_value(TheValue::Text(sampled_color.to_hex()));
         }
 
-        crate::undo::project_helper::refresh_palette_runtime(project, jobs);
+        crate::undo::project_helper::refresh_palette_runtime(project, jobs, reference);
 
         true
     }

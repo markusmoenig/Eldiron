@@ -333,6 +333,7 @@ impl DockManager {
         ctx: &mut TheContext,
         project: &mut Project,
         jobs: &CreatorJobs,
+        reference: &CreatorReference,
     ) -> Result<bool, String> {
         let mut changed = false;
         let mut error = None;
@@ -341,7 +342,7 @@ impl DockManager {
             .values_mut()
             .chain(self.editor_docks.values_mut())
         {
-            match dock.commit_pending_edits(ctx, project, jobs) {
+            match dock.commit_pending_edits(ctx, project, jobs, reference) {
                 Ok(applied) => changed |= applied,
                 Err(message) => {
                     if error.is_none() {
@@ -452,7 +453,7 @@ impl DockManager {
             let prefab_changed = crate::blocks::upgrade_bundled_prefab_geometry(project, asset_id)
                 | crate::blocks::ensure_prefab_default_surfaces(project, asset_id);
             if prefab_changed {
-                crate::undo::project_helper::refresh_palette_runtime(project, &server_ctx.jobs);
+                crate::undo::project_helper::refresh_palette_runtime(project, &server_ctx.jobs, &server_ctx.reference);
             }
             if let Err(message) = crate::block_props::begin_prefab_editor(project, asset_id) {
                 ctx.ui
@@ -465,7 +466,7 @@ impl DockManager {
                 server_ctx.curr_region,
             ));
             self.prefab_return_preview_post = Some({
-                let mut rusterix = crate::editor::RUSTERIX.write().unwrap();
+                let mut rusterix = server_ctx.reference.write();
                 let enabled = rusterix.editor_preview_post_enabled;
                 rusterix.editor_preview_post_enabled = false;
                 enabled
@@ -487,7 +488,7 @@ impl DockManager {
                 let camera = server_ctx.camera
                     .orbit_camera
                     .clone();
-                let mut rusterix = crate::editor::RUSTERIX.write().unwrap();
+                let mut rusterix = server_ctx.reference.write();
                 rusterix.scene_handler.vm.set_active_vm(0);
                 rusterix.scene_handler.clear_runtime_scene();
                 rusterix.client.scene.d3_overlay.clear();
@@ -706,7 +707,7 @@ impl DockManager {
             server_ctx.curr_region = region_id;
 
             {
-                let mut rusterix = crate::editor::RUSTERIX.write().unwrap();
+                let mut rusterix = server_ctx.reference.write();
                 if let Some(enabled) = self.prefab_return_preview_post.take() {
                     rusterix.editor_preview_post_enabled = enabled;
                 }
@@ -1021,6 +1022,7 @@ mod native_graph_owner_tests {
             _: &mut TheContext,
             project: &mut Project,
             _jobs: &CreatorJobs,
+            _reference: &CreatorReference,
         ) -> Result<bool, String> {
             self.calls.fetch_add(1, Ordering::Relaxed);
             if self.fail {
@@ -1091,6 +1093,7 @@ mod native_graph_owner_tests {
     }
     #[test]
     fn document_barrier_commits_hidden_views_even_when_another_draft_is_invalid() {
+    let reference = CreatorReference::default();
         let mut manager = manager();
         let failed = Arc::new(AtomicUsize::new(0));
         let applied = Arc::new(AtomicUsize::new(0));
@@ -1114,7 +1117,7 @@ mod native_graph_owner_tests {
         let mut project = Project::default();
         assert_eq!(
             manager
-                .commit_pending_edits(&mut ctx, &mut project, &CreatorJobs::default())
+                .commit_pending_edits(&mut ctx, &mut project, &CreatorJobs::default(), &reference)
                 .unwrap_err(),
             "invalid draft"
         );

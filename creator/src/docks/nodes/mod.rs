@@ -17,7 +17,6 @@ mod overlay;
 mod rules;
 mod tiles;
 mod workspace;
-use crate::editor::RUSTERIX;
 use crate::prelude::*;
 pub use list::{
     branch_list_canvas, has_catalog, node_available, node_list_canvas, sync_branch_list,
@@ -32,9 +31,12 @@ use web_time::{Duration, Instant};
 use theframework::thegraph::*;
 
 /// Editing rules does not initialize a renderer in headless tooling.
-pub(crate) fn sync_live_rules(project: &Project) -> Result<(), String> {
-    if let Some(runtime) = crate::editor::reference_runtime() {
-        shared::rusterix_utils::sync_live_rules(&mut runtime.write().unwrap(), project)?;
+pub(crate) fn sync_live_rules(
+    project: &Project,
+    reference: &CreatorReference,
+) -> Result<(), String> {
+    if let Some(mut runtime) = reference.existing_mut() {
+        shared::rusterix_utils::sync_live_rules(&mut runtime, project)?;
     } else {
         project.rules_source()?;
     }
@@ -365,7 +367,7 @@ impl NodesDock {
         }
         ctx.ui.redraw_all = true;
     }
-    fn store(&mut self, project: &mut Project, checkpoint: bool) {
+    fn store(&mut self, project: &mut Project, checkpoint: bool, reference: &CreatorReference) {
         let Some(owner) = self.owner.clone() else {
             return;
         };
@@ -399,7 +401,7 @@ impl NodesDock {
                 project.rules.current = graph;
                 self.dirty = true;
                 self.branches_dirty = true;
-                self.rules_error = sync_live_rules(project).err();
+                self.rules_error = sync_live_rules(project, reference).err();
                 self.tiles.refresh(project);
             }
             return;
@@ -410,10 +412,8 @@ impl NodesDock {
             if owner.starts_with(shared::entity_graph::PREFIX) {
                 let _ = shared::entity_graph::update_owner(project, &owner, &self.doc);
             } else {
-                if let Some(runtime) = crate::editor::reference_runtime() {
+                if let Some(runtime) = reference.existing_mut() {
                     runtime
-                        .write()
-                        .unwrap()
                         .server
                         .publish_node_graph(owner.clone(), value);
                 }
@@ -423,7 +423,7 @@ impl NodesDock {
         }
     }
 
-    fn finish(&mut self, project: &mut Project) {
+    fn finish(&mut self, project: &mut Project, reference: &CreatorReference) {
         self.editor.finish_text(&mut self.doc, false);
         self.editor.take_edits();
         // Another action while an editor is open commits its draft.
@@ -432,7 +432,7 @@ impl NodesDock {
             self.write_conversation(editor);
         }
         self.conversation_field = None;
-        self.store(project, true);
+        self.store(project, true, reference);
     }
     /// Read a text value the overlay targets, whether a row or a list cell.
     fn value_at(doc: &GraphDocument, target: &TextTarget) -> Option<String> {
@@ -831,14 +831,19 @@ impl NodesDock {
         node.rows = vec![row];
         true
     }
-    fn close_conversation(&mut self, project: &mut Project, commit: bool) {
+    fn close_conversation(
+        &mut self,
+        project: &mut Project,
+        commit: bool,
+        reference: &CreatorReference,
+    ) {
         self.close_text_overlay(commit);
         self.conversation_field = None;
         let Some(editor) = self.conversation.take() else {
             return;
         };
         if commit && self.write_conversation(editor) {
-            self.finish(project);
+            self.finish(project, reference);
         }
     }
     /// Start editing one conversation field with the shared text overlay.
@@ -915,8 +920,8 @@ impl NodesDock {
         Some(document)
     }
     /// Put the shown branch on the clipboard.
-    fn copy_branch(&mut self, project: &mut Project) -> bool {
-        self.finish(project);
+    fn copy_branch(&mut self, project: &mut Project, reference: &CreatorReference) -> bool {
+        self.finish(project, reference);
         let Some(document) = self.branch_document() else {
             return false;
         };
@@ -930,6 +935,7 @@ impl NodesDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
+        reference: &CreatorReference,
     ) -> bool {
         let Some(clipboard) = self.clipboard.clone() else {
             return false;
@@ -947,7 +953,7 @@ impl NodesDock {
         }) {
             return false;
         }
-        self.finish(project);
+        self.finish(project, reference);
         let clipboard = clipboard;
 
         if clipboard
@@ -968,7 +974,7 @@ impl NodesDock {
         self.branches_dirty = true;
         self.apply_branch_filter();
         self.tidy_branch_once();
-        self.finish(project);
+        self.finish(project, reference);
         self.set_undo_state_to_ui(ctx);
         self.sync_branches(ui, ctx);
         self.fit_branch(ui);
@@ -1161,8 +1167,14 @@ impl NodesDock {
         }
     }
     /// Replaces the graph with an empty one.
-    fn clear_nodes(&mut self, ui: &mut TheUI, ctx: &mut TheContext, project: &mut Project) {
-        self.finish(project);
+    fn clear_nodes(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        reference: &CreatorReference,
+    ) {
+        self.finish(project, reference);
         self.doc.nodes.clear();
         self.doc.connections.clear();
         if self.is_configuration() {
@@ -1170,7 +1182,7 @@ impl NodesDock {
         }
         self.branches_dirty = true;
         self.apply_branch_filter();
-        self.finish(project);
+        self.finish(project, reference);
         self.set_undo_state_to_ui(ctx);
         self.render(ui, ctx);
     }
@@ -1440,10 +1452,11 @@ impl Dock for NodesDock {
         ctx: &mut TheContext,
         project: &mut Project,
         _jobs: &CreatorJobs,
+        reference: &CreatorReference,
     ) -> Result<bool, String> {
         #[cfg(feature = "native-ui")]
         if self.native_enabled {
-            return self.commit_native(ctx, project);
+            return self.commit_native(ctx, project, reference);
         }
         let _ = (ctx, project);
         Ok(false)
@@ -1522,14 +1535,14 @@ impl Dock for NodesDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        _: &mut ServerContext,
+        server_ctx: &mut ServerContext,
     ) {
         #[cfg(feature = "native-ui")]
         if self.native_enabled {
-            self.history_native(false, ui, ctx, project);
+            self.history_native(false, ui, ctx, project, &server_ctx.reference);
             return;
         }
-        self.finish(project);
+        self.finish(project, &server_ctx.reference);
         self.configuration_error = None;
         let key = self.history_key();
         if let Some(h) = key.as_ref().and_then(|k| self.histories.get_mut(k)) {
@@ -1541,7 +1554,7 @@ impl Dock for NodesDock {
                 self.editor = node_editor();
                 self.editor.viewport = viewport;
                 self.apply_branch_filter();
-                self.store(project, false);
+                self.store(project, false, &server_ctx.reference);
             }
         }
         self.set_undo_state_to_ui(ctx);
@@ -1552,14 +1565,14 @@ impl Dock for NodesDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &mut Project,
-        _: &mut ServerContext,
+        server_ctx: &mut ServerContext,
     ) {
         #[cfg(feature = "native-ui")]
         if self.native_enabled {
-            self.history_native(true, ui, ctx, project);
+            self.history_native(true, ui, ctx, project, &server_ctx.reference);
             return;
         }
-        self.finish(project);
+        self.finish(project, &server_ctx.reference);
         self.configuration_error = None;
         let key = self.history_key();
         if let Some(h) = key.as_ref().and_then(|k| self.histories.get_mut(k)) {
@@ -1571,7 +1584,7 @@ impl Dock for NodesDock {
                 self.editor = node_editor();
                 self.editor.viewport = viewport;
                 self.apply_branch_filter();
-                self.store(project, false);
+                self.store(project, false, &server_ctx.reference);
             }
         }
         self.set_undo_state_to_ui(ctx);
@@ -1587,7 +1600,7 @@ impl Dock for NodesDock {
     ) -> bool {
         #[cfg(feature = "native-ui")]
         if self.native_enabled {
-            return self.native_event(event, ui, ctx, project);
+            return self.native_event(event, ui, ctx, project, &server.reference);
         }
         if let TheEvent::Custom(id, _) = event
             && id.name == "Creator Theme Changed"
@@ -1616,25 +1629,25 @@ impl Dock for NodesDock {
         {
             match id.name.as_str() {
                 CLEAR_NODES if *state == TheWidgetState::Clicked => {
-                    self.clear_nodes(ui, ctx, project);
+                    self.clear_nodes(ui, ctx, project, &server.reference);
                     return true;
                 }
                 COPY_BRANCH if *state == TheWidgetState::Clicked => {
-                    self.copy_branch(project);
+                    self.copy_branch(project, &server.reference);
                     return true;
                 }
                 PASTE_BRANCH if *state == TheWidgetState::Clicked => {
-                    return self.paste_branch(ui, ctx, project);
+                    return self.paste_branch(ui, ctx, project, &server.reference);
                 }
                 BRANCH_TOGGLE if *state == TheWidgetState::Clicked => {
                     if !self.is_configuration() {
-                        self.finish(project);
+                        self.finish(project, &server.reference);
                         if let Some(node) = self
                             .active_branch
                             .and_then(|id| self.doc.nodes.iter_mut().find(|n| n.id == id))
                         {
                             node.disabled = !node.disabled;
-                            self.store(project, true);
+                            self.store(project, true, &server.reference);
                             self.set_undo_state_to_ui(ctx);
                         }
                     }
@@ -1644,7 +1657,7 @@ impl Dock for NodesDock {
                 }
                 BRANCH_REMOVE if *state == TheWidgetState::Clicked => {
                     if self.remove_branch() {
-                        self.finish(project);
+                        self.finish(project, &server.reference);
                     }
                     self.sync_branches(ui, ctx);
                     self.fit_branch(ui);
@@ -1653,7 +1666,7 @@ impl Dock for NodesDock {
                 }
                 BRANCH_TIDY if *state == TheWidgetState::Clicked => {
                     if self.tidy_branch() {
-                        self.store(project, true);
+                        self.store(project, true, &server.reference);
                         self.set_undo_state_to_ui(ctx);
                     }
                     self.fit_branch(ui);
@@ -1665,7 +1678,7 @@ impl Dock for NodesDock {
             if let Some(key) = id.name.strip_prefix("Branch/")
                 && let Ok(root) = Uuid::parse_str(key)
             {
-                self.finish(project);
+                self.finish(project, &server.reference);
                 // Each branch owns a document and its own history.
                 self.set_branch(Some(root));
                 self.set_undo_state_to_ui(ctx);
@@ -1686,7 +1699,7 @@ impl Dock for NodesDock {
                     if !matches!(server.pc, ProjectContext::CharacterData(_)) {
                         return false;
                     }
-                    match self.drop_equipment_item(project, drop, *point) {
+                    match self.drop_equipment_item(project, drop, *point, &server.reference) {
                         Ok(false) => return false,
                         Ok(true) => checkpoint = true,
                         Err(error) => {
@@ -1703,7 +1716,7 @@ impl Dock for NodesDock {
                     if key != drop.data || !node_available(server.pc, key) {
                         return false;
                     }
-                    self.finish(project);
+                    self.finish(project, &server.reference);
                     let position = self
                         .editor
                         .viewport
@@ -1800,7 +1813,7 @@ impl Dock for NodesDock {
                     && self.text_overlay.is_none()
                     && self.conversation.is_none() =>
             {
-                self.finish(project);
+                self.finish(project, &server.reference);
                 self.editor
                     .begin_cut(&mut self.doc, [p.x as f32, p.y as f32]);
             }
@@ -1842,7 +1855,7 @@ impl Dock for NodesDock {
                         .map(|editor| editor.pointer_down(point))
                         .unwrap_or(ConversationClick::Outside);
                     match click {
-                        ConversationClick::Outside => self.close_conversation(project, true),
+                        ConversationClick::Outside => self.close_conversation(project, true, &server.reference),
                         ConversationClick::Edit(field) => {
                             self.open_conversation_field(field, ui, ctx)
                         }
@@ -1903,7 +1916,7 @@ impl Dock for NodesDock {
                         self.editor.finish_text(&mut self.doc, false);
                     } else if let Some(id) = event_node {
                         self.choice_target = None;
-                        self.finish(project);
+                        self.finish(project, &server.reference);
                         let row = self
                             .doc
                             .nodes
@@ -2088,7 +2101,7 @@ impl Dock for NodesDock {
                     }
                 } else if self.conversation.is_some() && matches!(key, TheKeyCode::Escape) {
                     // Escape closes the conversation panel, like any other overlay.
-                    self.close_conversation(project, true);
+                    self.close_conversation(project, true, &server.reference);
                 } else if let Some((mut p, target)) = self.popup.take() {
                     match key {
                         TheKeyCode::Escape => {
@@ -2113,7 +2126,7 @@ impl Dock for NodesDock {
                         _ => self.popup = Some((p, target)),
                     }
                 } else if *key == TheKeyCode::Delete && self.editor.text_focus().is_none() {
-                    self.finish(project);
+                    self.finish(project, &server.reference);
                     if self.editor.selected_connection.is_some() {
                         self.editor.delete_connection(&mut self.doc);
                     } else if let Some(id) = self.editor.selected.take() {
@@ -2148,7 +2161,7 @@ impl Dock for NodesDock {
         if !self.editor.take_edits().is_empty() {
             checkpoint = true;
         }
-        self.store(project, checkpoint);
+        self.store(project, checkpoint, &server.reference);
         self.set_undo_state_to_ui(ctx);
         self.render(ui, ctx);
         true

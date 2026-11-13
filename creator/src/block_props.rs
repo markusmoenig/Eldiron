@@ -3,11 +3,13 @@ use std::hash::{Hash, Hasher};
 
 /// Projection adapter for already assembled legacy presentation owners. CPU
 /// authoring and undo call this only after their data/placement transaction.
-pub(crate) fn sync_existing_prefab_presentations(project: &Project, jobs: &CreatorJobs) {
-    if let Some(runtime) = crate::editor::reference_runtime() {
+pub(crate) fn sync_existing_prefab_presentations(
+    project: &Project,
+    jobs: &CreatorJobs,
+    reference: &CreatorReference,
+) {
+    if let Some(mut runtime) = reference.existing_mut() {
         runtime
-            .write()
-            .unwrap()
             .set_block_props(project.block_props.clone());
     }
     if let Some(mut scenes) = jobs.existing_scene_mut() {

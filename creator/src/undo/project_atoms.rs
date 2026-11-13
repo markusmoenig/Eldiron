@@ -1,4 +1,4 @@
-use crate::editor::{DOCKMANAGER, RUSTERIX, TOOLLIST};
+use crate::editor::{DOCKMANAGER, TOOLLIST};
 use crate::prelude::*;
 use crate::toollist::ToolList;
 use shared::project::PaletteMaterial;
@@ -126,7 +126,7 @@ impl ProjectUndoAtom {
                 return;
             }
             let prefabs = project.block_props.clone();
-            RUSTERIX.write().unwrap().set_block_props(prefabs.clone());
+            server_ctx.reference.write().set_block_props(prefabs.clone());
             server_ctx.jobs.scene_mut().set_block_props(prefabs);
             if server_ctx.pc.is_prefab() {
                 let used_incremental = previous_map
@@ -168,13 +168,13 @@ impl ProjectUndoAtom {
                         TheId::named("Update Minimap"),
                         TheValue::Empty,
                     ));
-                    RUSTERIX.write().unwrap().set_dirty();
+                    server_ctx.reference.write().set_dirty();
                 } else {
                     server_ctx.jobs.scene_mut().update_map(map.clone());
-                    update_region(ctx);
+                    update_region(ctx, &server_ctx.reference);
                 }
             } else if pc.is_screen() {
-                RUSTERIX.write().unwrap().set_dirty();
+                server_ctx.reference.write().set_dirty();
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Update Content List"),
                     TheValue::Empty,
@@ -212,7 +212,7 @@ impl ProjectUndoAtom {
             region.map.clear_temp();
             region.map.update_surfaces();
             server_ctx.jobs.scene_mut().update_map(region.map.clone());
-            update_region(ctx);
+            update_region(ctx, &server_ctx.reference);
         }
         if !preserved_dock.is_empty() && DOCKMANAGER.read().unwrap().dock != preserved_dock {
             DOCKMANAGER
@@ -275,11 +275,11 @@ impl ProjectUndoAtom {
         asset_id: Uuid,
         restored_asset: &rusterix::BlockPropAsset,
         jobs: &CreatorJobs,
-    ) {
+     reference: &CreatorReference) {
         project.block_props.insert(asset_id, restored_asset.clone());
         let prefabs = project.block_props.clone();
         {
-            let mut rusterix = RUSTERIX.write().unwrap();
+            let mut rusterix = reference.write();
             rusterix.set_block_props(prefabs.clone());
             rusterix.scene_handler.reset_geometry_particle_emitters();
         }
@@ -297,9 +297,9 @@ impl ProjectUndoAtom {
         change: &shared::prefab_graph::PrefabGraphChange,
         forward: bool,
         jobs: &CreatorJobs,
-    ) {
+     reference: &CreatorReference) {
         if change.apply(project, forward) {
-            crate::block_props::sync_existing_prefab_presentations(project, jobs);
+            crate::block_props::sync_existing_prefab_presentations(project, jobs, reference);
             ctx.ui.send(TheEvent::Custom(
                 TheId::named(crate::docks::blocks::BLOCKS_DOCK_SYNC_EVENT),
                 TheValue::Empty,
@@ -432,10 +432,10 @@ impl ProjectUndoAtom {
                 Self::apply_prefab_paint_state(project, ctx, *asset_id, old);
             }
             PrefabAssetEdit(asset_id, old, _) => {
-                Self::apply_prefab_asset_state(project, ctx, *asset_id, old, &server_ctx.jobs);
+                Self::apply_prefab_asset_state(project, ctx, *asset_id, old, &server_ctx.jobs, &server_ctx.reference);
             }
             PrefabGraphEdit(change) => {
-                Self::apply_prefab_graph_state(project, ctx, change, false, &server_ctx.jobs);
+                Self::apply_prefab_graph_state(project, ctx, change, false, &server_ctx.jobs, &server_ctx.reference);
             }
             MapMaterialCompositionCreate(pc, old, new, created) => {
                 project.remove_tile(&created.tile.id);
@@ -505,7 +505,7 @@ impl ProjectUndoAtom {
                 refresh_region_tree_diff(ui, new, project);
                 shared::rusterix_utils::insert_content_into_maps(project);
                 crate::utils::editor_scene_full_rebuild(project, server_ctx);
-                update_region(ctx);
+                update_region(ctx, &server_ctx.reference);
                 Self::refresh_prefab_editor_after_project_restore(ctx, server_ctx);
             }
             AddRegion(region) => {
@@ -541,7 +541,7 @@ impl ProjectUndoAtom {
                         server_ctx,
                         ProjectContext::Region(region_id),
                     );
-                    update_region(ctx);
+                    update_region(ctx, &server_ctx.reference);
                 }
             }
             RenameRegion(id, old, _new) => {
@@ -585,7 +585,7 @@ impl ProjectUndoAtom {
                             server_ctx,
                             ProjectContext::Region(region.id),
                         );
-                        update_region(ctx);
+                        update_region(ctx, &server_ctx.reference);
                     }
                 }
             }
@@ -641,7 +641,7 @@ impl ProjectUndoAtom {
                             server_ctx,
                             ProjectContext::Region(region.id),
                         );
-                        update_region(ctx);
+                        update_region(ctx, &server_ctx.reference);
                     }
                 }
             }
@@ -711,7 +711,7 @@ impl ProjectUndoAtom {
                         server_ctx,
                         ProjectContext::Character(character_id),
                     );
-                    update_region(ctx);
+                    update_region(ctx, &server_ctx.reference);
                 }
             }
             RenameCharacter(id, old, _new) => {
@@ -759,7 +759,7 @@ impl ProjectUndoAtom {
                         server_ctx,
                         ProjectContext::Item(item_id),
                     );
-                    update_region(ctx);
+                    update_region(ctx, &server_ctx.reference);
                 }
             }
             RenameItem(id, old, _new) => {
@@ -820,7 +820,7 @@ impl ProjectUndoAtom {
                         server_ctx,
                         ProjectContext::Tilemap(tilemap.id),
                     );
-                    update_region(ctx);
+                    update_region(ctx, &server_ctx.reference);
                 }
             }
             RenameTilemap(id, old, _new) => {
@@ -899,7 +899,7 @@ impl ProjectUndoAtom {
                         server_ctx,
                         ProjectContext::Screen(screen_id),
                     );
-                    update_region(ctx);
+                    update_region(ctx, &server_ctx.reference);
                 }
             }
             RenameScreen(id, old, _new) => {
@@ -954,7 +954,7 @@ impl ProjectUndoAtom {
                         server_ctx,
                         ProjectContext::Asset(asset_id),
                     );
-                    update_region(ctx);
+                    update_region(ctx, &server_ctx.reference);
                 }
             }
             RenameAsset(id, old, _new) => {
@@ -1004,14 +1004,14 @@ impl ProjectUndoAtom {
                         server_ctx,
                         ProjectContext::Avatar(avatar_id),
                     );
-                    update_region(ctx);
+                    update_region(ctx, &server_ctx.reference);
                 }
             }
             EditAvatar(id, old, _new) => {
                 project.avatars.insert(*id, old.clone());
                 rebuild_avatar_tree_node(id, project, ui, server_ctx);
                 set_project_context(ctx, ui, project, server_ctx, ProjectContext::Avatar(*id));
-                update_region(ctx);
+                update_region(ctx, &server_ctx.reference);
             }
             RenameAvatar(id, old, _new) => {
                 if let Some(avatar) = project.avatars.get_mut(id) {
@@ -1102,7 +1102,7 @@ impl ProjectUndoAtom {
             PaletteSwitch(old, _) => {
                 old.apply(project);
                 apply_palette(ui, ctx, server_ctx, project);
-                crate::undo::project_helper::refresh_palette_runtime(project, &server_ctx.jobs);
+                crate::undo::project_helper::refresh_palette_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Palette Changed"),
                     TheValue::Empty,
@@ -1115,7 +1115,7 @@ impl ProjectUndoAtom {
                 project.palette_materials = old_materials.clone();
                 project.ensure_palette_materials_len();
                 apply_palette(ui, ctx, server_ctx, project);
-                crate::undo::project_helper::refresh_palette_runtime(project, &server_ctx.jobs);
+                crate::undo::project_helper::refresh_palette_runtime(project, &server_ctx.jobs, &server_ctx.reference);
             }
             TileEdit(old, _new) => {
                 project.tiles.insert(old.id, old.clone());
@@ -1161,10 +1161,10 @@ impl ProjectUndoAtom {
                 Self::apply_prefab_paint_state(project, ctx, *asset_id, new);
             }
             PrefabAssetEdit(asset_id, _, new) => {
-                Self::apply_prefab_asset_state(project, ctx, *asset_id, new, &server_ctx.jobs);
+                Self::apply_prefab_asset_state(project, ctx, *asset_id, new, &server_ctx.jobs, &server_ctx.reference);
             }
             PrefabGraphEdit(change) => {
-                Self::apply_prefab_graph_state(project, ctx, change, true, &server_ctx.jobs);
+                Self::apply_prefab_graph_state(project, ctx, change, true, &server_ctx.jobs, &server_ctx.reference);
             }
             MapMaterialCompositionCreate(pc, old, new, created) => {
                 created.install(project);
@@ -1234,7 +1234,7 @@ impl ProjectUndoAtom {
                 refresh_region_tree_diff(ui, old, project);
                 shared::rusterix_utils::insert_content_into_maps(project);
                 crate::utils::editor_scene_full_rebuild(project, server_ctx);
-                update_region(ctx);
+                update_region(ctx, &server_ctx.reference);
                 Self::refresh_prefab_editor_after_project_restore(ctx, server_ctx);
             }
             AddRegion(region) => {
@@ -1261,7 +1261,7 @@ impl ProjectUndoAtom {
                         server_ctx,
                         ProjectContext::Region(region_id),
                     );
-                    update_region(ctx);
+                    update_region(ctx, &server_ctx.reference);
                 }
             }
             RemoveRegion(_, region) => {
@@ -1285,7 +1285,7 @@ impl ProjectUndoAtom {
                             server_ctx,
                             ProjectContext::Region(region.id),
                         );
-                        update_region(ctx);
+                        update_region(ctx, &server_ctx.reference);
                     }
                 }
             }
@@ -1355,7 +1355,7 @@ impl ProjectUndoAtom {
                             server_ctx,
                             ProjectContext::Region(region.id),
                         );
-                        update_region(ctx);
+                        update_region(ctx, &server_ctx.reference);
                     }
                 }
             }
@@ -1417,7 +1417,7 @@ impl ProjectUndoAtom {
                             server_ctx,
                             ProjectContext::Region(region.id),
                         );
-                        update_region(ctx);
+                        update_region(ctx, &server_ctx.reference);
                     }
                 }
             }
@@ -1454,7 +1454,7 @@ impl ProjectUndoAtom {
                             server_ctx,
                             ProjectContext::Character(character_id),
                         );
-                        update_region(ctx);
+                        update_region(ctx, &server_ctx.reference);
                     }
                 }
             }
@@ -1526,7 +1526,7 @@ impl ProjectUndoAtom {
                             server_ctx,
                             ProjectContext::Item(item_id),
                         );
-                        update_region(ctx);
+                        update_region(ctx, &server_ctx.reference);
                     }
                 }
             }
@@ -1596,7 +1596,7 @@ impl ProjectUndoAtom {
                             server_ctx,
                             ProjectContext::Tilemap(tilemap_id),
                         );
-                        update_region(ctx);
+                        update_region(ctx, &server_ctx.reference);
                     }
                 }
             }
@@ -1692,7 +1692,7 @@ impl ProjectUndoAtom {
                             server_ctx,
                             ProjectContext::Screen(screen_id),
                         );
-                        update_region(ctx);
+                        update_region(ctx, &server_ctx.reference);
                     }
                 }
             }
@@ -1758,7 +1758,7 @@ impl ProjectUndoAtom {
                             server_ctx,
                             ProjectContext::Asset(asset_id),
                         );
-                        update_region(ctx);
+                        update_region(ctx, &server_ctx.reference);
                     }
                 }
             }
@@ -1826,7 +1826,7 @@ impl ProjectUndoAtom {
                             server_ctx,
                             ProjectContext::Avatar(avatar_id),
                         );
-                        update_region(ctx);
+                        update_region(ctx, &server_ctx.reference);
                     }
                 }
             }
@@ -1857,7 +1857,7 @@ impl ProjectUndoAtom {
                 project.avatars.insert(*id, new.clone());
                 rebuild_avatar_tree_node(id, project, ui, server_ctx);
                 set_project_context(ctx, ui, project, server_ctx, ProjectContext::Avatar(*id));
-                update_region(ctx);
+                update_region(ctx, &server_ctx.reference);
             }
             RenameAvatar(id, _old, new) => {
                 if let Some(avatar) = project.avatars.get_mut(id) {
@@ -1947,7 +1947,7 @@ impl ProjectUndoAtom {
             PaletteSwitch(_, new) => {
                 new.apply(project);
                 apply_palette(ui, ctx, server_ctx, project);
-                crate::undo::project_helper::refresh_palette_runtime(project, &server_ctx.jobs);
+                crate::undo::project_helper::refresh_palette_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Palette Changed"),
                     TheValue::Empty,
@@ -1960,7 +1960,7 @@ impl ProjectUndoAtom {
                 project.palette_materials = new_materials.clone();
                 project.ensure_palette_materials_len();
                 apply_palette(ui, ctx, server_ctx, project);
-                crate::undo::project_helper::refresh_palette_runtime(project, &server_ctx.jobs);
+                crate::undo::project_helper::refresh_palette_runtime(project, &server_ctx.jobs, &server_ctx.reference);
             }
             TileEdit(_old, new) => {
                 project.tiles.insert(new.id, new.clone());
@@ -2077,7 +2077,7 @@ mod tests {
         use shared::prefab_graph::{PrefabGraphChange, PrefabGraphs};
         let isolated = std::env::var_os("ELDIRON_NATIVE_PREFAB_ISOLATED").is_some();
         if isolated {
-            assert!(crate::editor::reference_runtime().is_none());
+            // No global reference owner exists; data-only APIs receive no service.
             // No process-global scene preparation service exists.
         }
         let mut project = Project::default();
@@ -2108,6 +2108,7 @@ mod tests {
         let mut ctx = TheContext::new(64, 64, 1.);
         let mut server_ctx = ServerContext::default();
         assert!(!server_ctx.jobs.scene_initialized());
+        assert!(!server_ctx.reference.initialized());
         let mut history = crate::undo::project_undo::ProjectUndo::new();
         history.add(atom);
         history.mark_saved();
@@ -2130,8 +2131,9 @@ mod tests {
             assert!(ui.canvas.buffer.pixels().is_empty());
         }
         if isolated {
-            assert!(crate::editor::reference_runtime().is_none());
+            // No global reference owner exists; data-only APIs receive no service.
             assert!(!server_ctx.jobs.scene_initialized());
+        assert!(!server_ctx.reference.initialized());
         }
     }
 
@@ -2168,11 +2170,11 @@ mod tests {
         let mut server_ctx = ServerContext::default();
         atom.redo(&mut project, &mut ui, &mut ctx, &mut server_ctx);
         assert!(project.screens.contains_key(&id));
-        assert!(RUSTERIX.read().unwrap().assets.tiles.contains_key(&tile_id));
+        assert!(server_ctx.reference.read().assets.tiles.contains_key(&tile_id));
         atom.undo(&mut project, &mut ui, &mut ctx, &mut server_ctx);
         assert!(!project.screens.contains_key(&id));
         assert!(!project.tiles.contains_key(&tile_id));
-        assert!(!RUSTERIX.read().unwrap().assets.tiles.contains_key(&tile_id));
+        assert!(!server_ctx.reference.read().assets.tiles.contains_key(&tile_id));
         assert_eq!(server_ctx.pc, context);
         atom.redo(&mut project, &mut ui, &mut ctx, &mut server_ctx);
         assert_eq!(project.tiles[&tile_id], after.tiles[&tile_id]);

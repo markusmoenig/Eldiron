@@ -1,5 +1,4 @@
 use crate::actions::geometry_face_ops::duplicate_selected_surface_detail;
-use crate::editor::RUSTERIX;
 use crate::prelude::*;
 
 pub struct DuplicateSurfaceDetail {
@@ -95,7 +94,7 @@ impl Action for DuplicateSurfaceDetail {
             return None;
         }
 
-        RUSTERIX.write().unwrap().set_overlay_dirty();
+        server_ctx.reference.write().set_overlay_dirty();
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Map Selection Changed"),
             TheValue::Empty,

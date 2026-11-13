@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 use std::collections::hash_map::DefaultHasher;
 use vek::Vec2;
 
-use crate::editor::{ACTIONLIST, DOCKMANAGER, PALETTE, RUSTERIX};
+use crate::editor::{ACTIONLIST, DOCKMANAGER, PALETTE, };
 use std::hash::{Hash, Hasher};
 
 #[cfg(feature = "native-ui")]
@@ -694,9 +694,7 @@ pub fn draw_minimap(
         cache_key.hash(&mut hasher);
         hash_minimap_map_state(map, &mut hasher);
         if map.camera == MapCamera::TwoDIso {
-            RUSTERIX
-                .read()
-                .unwrap()
+            server_ctx.reference.read()
                 .assets
                 .tiles_revision
                 .hash(&mut hasher);
@@ -746,7 +744,7 @@ pub fn draw_minimap(
         let bbox = if map.camera == MapCamera::TwoDIso {
             isometric_minimap_bbox(
                 map,
-                &RUSTERIX.read().unwrap().assets,
+                &server_ctx.reference.read().assets,
                 Vec2::new(width, height),
             )
         } else {
@@ -757,7 +755,7 @@ pub fn draw_minimap(
         let scale_x = width / bbox.z;
         let scale_y = height / bbox.w;
 
-        let mut rusterix = RUSTERIX.write().unwrap();
+        let mut rusterix = server_ctx.reference.write();
         let mut map_copy = map.clone();
         map_copy.selected_linedefs.clear();
         map_copy.selected_sectors.clear();

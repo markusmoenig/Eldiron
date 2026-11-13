@@ -1,4 +1,3 @@
-use crate::editor::RUSTERIX;
 use crate::prelude::*;
 
 const HELP_FEEDBACK_ACTION: &str = "Help Feedback Action";
@@ -27,12 +26,13 @@ impl HelpDock {
         ctx: &mut TheContext,
         project: &Project,
         force: bool,
+        reference: &CreatorReference,
     ) -> bool {
         if !force && self.observed_rules.as_ref() == Some(&project.rules_document.current) {
             return false;
         }
         self.observed_rules = Some(project.rules_document.current.clone());
-        match Self::effective_rules(project) {
+        match Self::effective_rules(project, reference) {
             Ok(source) => {
                 if self.document.is_empty() || self.rules_source != source || self.draft_error {
                     let command = self.history.get(self.history_index).cloned().flatten();
@@ -43,19 +43,19 @@ impl HelpDock {
                     };
                     match response {
                         Ok(response) => {
-                            self.install_response(response, command.as_deref(), source, ui, ctx)
+                            self.install_response(response, command.as_deref(), source, ui, ctx, reference)
                         }
                         Err(error) => {
                             self.rules_source = source;
                             self.document = Self::error_document(command.as_deref(), error);
                             self.visible_item_ids.clear();
                             self.sync_output(ui);
-                            self.sync_item_gallery(ui, ctx, "");
+                            self.sync_item_gallery(ui, ctx, "", reference);
                         }
                     }
                 } else {
                     self.sync_output(ui);
-                    self.sync_item_gallery(ui, ctx, &source);
+                    self.sync_item_gallery(ui, ctx, &source, reference);
                 }
                 self.draft_error = false;
             }
@@ -69,7 +69,7 @@ impl HelpDock {
                 );
                 self.visible_item_ids.clear();
                 self.sync_output(ui);
-                self.sync_item_gallery(ui, ctx, "");
+                self.sync_item_gallery(ui, ctx, "", reference);
             }
         }
         if self.history.is_empty() {
@@ -83,8 +83,8 @@ impl HelpDock {
         ui.get_widget(HELP_INPUT).map(|widget| widget.id().clone())
     }
 
-    fn effective_rules(project: &Project) -> Result<String, String> {
-        crate::docks::nodes::sync_live_rules(project)?;
+    fn effective_rules(project: &Project, reference: &CreatorReference) -> Result<String, String> {
+        crate::docks::nodes::sync_live_rules(project, reference)?;
         project.rules_source()
     }
 
@@ -495,6 +495,7 @@ impl HelpDock {
     fn item_gallery_items(
         rules_source: &str,
         item_ids: &[String],
+        reference: &CreatorReference,
     ) -> Result<Vec<TheIconGridItem>, String> {
         if item_ids.is_empty() {
             return Ok(Vec::new());
@@ -511,7 +512,7 @@ impl HelpDock {
                 fallback_assets.textures.insert(asset.id.into(), texture);
             }
         }
-        let runtime = crate::editor::reference_runtime().map(|runtime| runtime.read().unwrap());
+        let runtime = reference.existing();
         let assets = runtime
             .as_ref()
             .map(|r| &r.assets)
@@ -547,8 +548,14 @@ impl HelpDock {
         rusterix::Texture::from_image_safe(asset.source).map(|texture| texture.to_rgba())
     }
 
-    fn sync_item_gallery(&self, ui: &mut TheUI, ctx: &mut TheContext, rules_source: &str) {
-        let items = Self::item_gallery_items(rules_source, &self.visible_item_ids)
+    fn sync_item_gallery(
+        &self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        rules_source: &str,
+        reference: &CreatorReference,
+    ) {
+        let items = Self::item_gallery_items(rules_source, &self.visible_item_ids, reference)
             .unwrap_or_else(|_| Vec::new());
         let show_gallery = !items.is_empty();
         if let Some(gallery) = ui.get_icon_grid_view(HELP_ITEM_GALLERY) {
@@ -573,6 +580,7 @@ impl HelpDock {
         rules_source: String,
         ui: &mut TheUI,
         ctx: &mut TheContext,
+        reference: &CreatorReference,
     ) {
         self.rules_source = rules_source;
         if response.clear {
@@ -583,7 +591,7 @@ impl HelpDock {
             self.document = Self::response_document(&response, command);
         }
         self.sync_output(ui);
-        self.sync_item_gallery(ui, ctx, &self.rules_source);
+        self.sync_item_gallery(ui, ctx, &self.rules_source, reference);
     }
 
     fn sync_history_controls(&self, ui: &mut TheUI, ctx: &mut TheContext) {
@@ -621,19 +629,20 @@ impl HelpDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
+        reference: &CreatorReference,
     ) {
-        match Self::effective_rules(project) {
+        match Self::effective_rules(project, reference) {
             Ok(rules_source) => {
                 match shared::rulesets::execute_ruleset_help(&rules_source, command) {
                     Ok(response) => {
-                        self.install_response(response, Some(command), rules_source, ui, ctx)
+                        self.install_response(response, Some(command), rules_source, ui, ctx, reference)
                     }
                     Err(error) => {
                         self.rules_source = rules_source;
                         self.visible_item_ids.clear();
                         self.document = Self::error_document(Some(command), error);
                         self.sync_output(ui);
-                        self.sync_item_gallery(ui, ctx, &self.rules_source);
+                        self.sync_item_gallery(ui, ctx, &self.rules_source, reference);
                     }
                 }
             }
@@ -641,7 +650,7 @@ impl HelpDock {
                 self.visible_item_ids.clear();
                 self.document = Self::error_document(Some(command), error);
                 self.sync_output(ui);
-                self.sync_item_gallery(ui, ctx, "");
+                self.sync_item_gallery(ui, ctx, "", reference);
             }
         }
     }
@@ -652,8 +661,9 @@ impl HelpDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
+        reference: &CreatorReference,
     ) {
-        self.execute_command(command, ui, ctx, project);
+        self.execute_command(command, ui, ctx, project, reference);
         self.record_history(command.to_string(), ui, ctx);
     }
 
@@ -663,6 +673,7 @@ impl HelpDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
+        reference: &CreatorReference,
     ) {
         let target = self.history_index as isize + offset;
         if target < 0 || target >= self.history.len() as isize {
@@ -671,23 +682,23 @@ impl HelpDock {
         self.history_index = target as usize;
         let command = self.history[self.history_index].clone();
         if let Some(command) = command {
-            self.execute_command(&command, ui, ctx, project);
+            self.execute_command(&command, ui, ctx, project, reference);
         } else {
-            match Self::effective_rules(project) {
+            match Self::effective_rules(project, reference) {
                 Ok(rules_source) => match shared::rulesets::ruleset_help_intro(&rules_source) {
-                    Ok(response) => self.install_response(response, None, rules_source, ui, ctx),
+                    Ok(response) => self.install_response(response, None, rules_source, ui, ctx, reference),
                     Err(error) => {
                         self.document = Self::error_document(None, error);
                         self.visible_item_ids.clear();
                         self.sync_output(ui);
-                        self.sync_item_gallery(ui, ctx, "");
+                        self.sync_item_gallery(ui, ctx, "", reference);
                     }
                 },
                 Err(error) => {
                     self.document = Self::error_document(None, error);
                     self.visible_item_ids.clear();
                     self.sync_output(ui);
-                    self.sync_item_gallery(ui, ctx, "");
+                    self.sync_item_gallery(ui, ctx, "", reference);
                 }
             }
         }
@@ -784,7 +795,7 @@ impl Dock for HelpDock {
         project: &Project,
         _server_ctx: &mut ServerContext,
     ) {
-        self.refresh_rules(ui, ctx, project, true);
+        self.refresh_rules(ui, ctx, project, true, &_server_ctx.reference);
         Self::clear_input(ui);
         Self::focus_input(ui, ctx);
     }
@@ -796,7 +807,7 @@ impl Dock for HelpDock {
         project: &mut Project,
         _server: &mut ServerContext,
     ) -> bool {
-        self.refresh_rules(ui, ctx, project, false)
+        self.refresh_rules(ui, ctx, project, false, &_server.reference)
     }
 
     fn handle_event(
@@ -810,7 +821,7 @@ impl Dock for HelpDock {
         if let TheEvent::Custom(id, TheValue::Text(command)) = event
             && id.name == HELP_FEEDBACK_ACTION
         {
-            self.navigate_to_command(command, ui, ctx, project);
+            self.navigate_to_command(command, ui, ctx, project, &_server_ctx.reference);
             Self::clear_input(ui);
             Self::focus_input(ui, ctx);
             return true;
@@ -818,13 +829,13 @@ impl Dock for HelpDock {
 
         if let TheEvent::StateChanged(id, TheWidgetState::Clicked) = event {
             if id.name == HELP_BACK {
-                self.navigate_history(-1, ui, ctx, project);
+                self.navigate_history(-1, ui, ctx, project, &_server_ctx.reference);
                 Self::clear_input(ui);
                 Self::focus_input(ui, ctx);
                 return true;
             }
             if id.name == HELP_FORWARD {
-                self.navigate_history(1, ui, ctx, project);
+                self.navigate_history(1, ui, ctx, project, &_server_ctx.reference);
                 Self::clear_input(ui);
                 Self::focus_input(ui, ctx);
                 return true;
@@ -836,7 +847,7 @@ impl Dock for HelpDock {
             && let Some(item_id) = self.visible_item_ids.get(*index).cloned()
         {
             let command = format!("item {item_id}");
-            self.navigate_to_command(&command, ui, ctx, project);
+            self.navigate_to_command(&command, ui, ctx, project, &_server_ctx.reference);
             Self::clear_input(ui);
             Self::focus_input(ui, ctx);
             return true;
@@ -850,7 +861,7 @@ impl Dock for HelpDock {
                 Self::clear_input(ui);
                 return false;
             }
-            self.navigate_to_command(&command, ui, ctx, project);
+            self.navigate_to_command(&command, ui, ctx, project, &_server_ctx.reference);
             Self::clear_input(ui);
             Self::focus_input(ui, ctx);
             return true;
@@ -876,7 +887,7 @@ mod tests {
         ui.canvas = dock.setup(&mut ctx);
         let mut server = ServerContext::default();
         dock.activate(&mut ui, &mut ctx, &project, &mut server);
-        dock.navigate_to_command("action basic_attack", &mut ui, &mut ctx, &project);
+        dock.navigate_to_command("action basic_attack", &mut ui, &mut ctx, &project, &server.reference);
         let history = dock.history.clone();
         let original = project.rules_document.current.clone();
         project

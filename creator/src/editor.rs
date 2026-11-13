@@ -138,7 +138,7 @@ impl CreatorTheme {
         }
         menu
     }
-    fn apply(self, ui: &mut TheUI, ctx: &mut TheContext) {
+    fn apply(self, ui: &mut TheUI, ctx: &mut TheContext, reference: &CreatorReference) {
         let mut profile = crate::misc::FrameProfile::new();
         let theme: Box<dyn TheTheme> = match self {
             Self::Brown => Box::new(TheBrownTheme::new()),
@@ -147,7 +147,7 @@ impl CreatorTheme {
         };
         ui.set_theme(theme, ctx);
         profile.lap("theme_widgets");
-        RUSTERIX.write().unwrap().client.editor_canvas_colors = Some([
+        reference.write().client.editor_canvas_colors = Some([
             *ui.style.theme().color(EditorCanvasBackground),
             *ui.style.theme().color(EditorGrid),
             *ui.style.theme().color(EditorSubGrid),
@@ -312,15 +312,6 @@ fn register_themed_bitmap_icons(ctx: &mut TheContext, color: RGBA) {
     }
 }
 
-#[cfg(target_arch = "wasm32")]
-pub use crate::reference_state::RUSTERIX;
-#[cfg(not(target_arch = "wasm32"))]
-pub static RUSTERIX: LazyLock<RwLock<Rusterix>> =
-    LazyLock::new(|| RwLock::new(Rusterix::new_without_audio()));
-#[cfg(not(target_arch = "wasm32"))]
-pub(crate) fn reference_runtime() -> Option<&'static RwLock<Rusterix>> { LazyLock::get(&RUSTERIX) }
-#[cfg(target_arch = "wasm32")]
-pub(crate) fn reference_runtime() -> Option<&'static crate::reference_state::BrowserReference> { RUSTERIX.get() }
 
 
 #[cfg(test)]
@@ -4851,7 +4842,7 @@ impl Editor {
     }
 
     pub(crate) fn runtime_state(&self) -> rusterix::ServerState {
-        let bridge = RUSTERIX.read().unwrap();
+        let bridge = self.server_ctx.reference.read();
         self.play_session
             .as_ref()
             .map(|play| play.state(&bridge.server))
@@ -4883,7 +4874,7 @@ impl Editor {
             play.advance_elapsed(
                 elapsed,
                 &self.documents.project,
-                &mut RUSTERIX.write().unwrap(),
+                &mut self.server_ctx.reference.write(),
             )?;
         }
         Ok(())
@@ -4926,7 +4917,7 @@ impl Editor {
         DOCKMANAGER
             .write()
             .unwrap()
-            .commit_pending_edits(ctx, &mut self.documents.project, &self.server_ctx.jobs)
+            .commit_pending_edits(ctx, &mut self.documents.project, &self.server_ctx.jobs, &self.server_ctx.reference)
     }
     fn deactivate_project_for_switch(
         &mut self,
@@ -4986,7 +4977,7 @@ impl Editor {
 
         self.server_ctx.jobs.scene_mut().reset_for_project_switch();
         {
-            let mut rusterix = RUSTERIX.write().unwrap();
+            let mut rusterix = self.server_ctx.reference.write();
             if rusterix.server.state != rusterix::ServerState::Off {
                 rusterix.server.stop();
             }
@@ -5422,7 +5413,7 @@ impl Editor {
         }
 
         {
-            let mut rusterix = RUSTERIX.write().unwrap();
+            let mut rusterix = self.server_ctx.reference.write();
             rusterix.assets.config = self.documents.project.config.clone();
             sync_editor_visual_assets(&mut rusterix, &self.documents.project);
             rusterix
@@ -5467,7 +5458,7 @@ impl Editor {
 
         self.sidebar
             .load_from_project(ui, ctx, &mut self.server_ctx, &mut self.documents.project);
-        self.mapeditor.load_from_project(ui, ctx, &self.documents.project);
+        self.mapeditor.load_from_project(ui, ctx, &self.documents.project, &self.server_ctx.reference);
         if let Some(widget) = ui.get_widget("Editor View Switch")
             && let Some(group) = widget.as_group_button()
         {
@@ -5490,7 +5481,7 @@ impl Editor {
 
         *PALETTE.write().unwrap() = self.documents.project.palette.clone();
         {
-            let mut rusterix = RUSTERIX.write().unwrap();
+            let mut rusterix = self.server_ctx.reference.write();
             rusterix.assets.palette = self.documents.project.palette.clone();
             rusterix.assets.palette_materials = self
                 .documents.project
@@ -7099,7 +7090,7 @@ impl Editor {
             Box::new(new_map.clone()),
         );
         editor_scene_apply_map_edit(&self.documents.project, &self.server_ctx, &old_map, &new_map);
-        update_region(ctx);
+        update_region(ctx, &self.server_ctx.reference);
         UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
 
         serde_json::json!({
@@ -7517,7 +7508,7 @@ impl Editor {
             ctx,
         );
         shared::rusterix_utils::insert_content_into_maps(&mut self.documents.project);
-        update_region(ctx);
+        update_region(ctx, &self.server_ctx.reference);
 
         serde_json::json!({
             "ok": true,
@@ -7860,7 +7851,7 @@ impl Editor {
             ctx,
         );
         shared::rusterix_utils::insert_content_into_maps(&mut self.documents.project);
-        update_region(ctx);
+        update_region(ctx, &self.server_ctx.reference);
 
         serde_json::json!({
             "ok": true,
@@ -8094,8 +8085,8 @@ impl TheTrait for Editor {
 
     fn init_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
         let mut init_profile = crate::misc::FrameProfile::new();
-        CreatorTheme::load().apply(ui, ctx);
-        RUSTERIX.write().unwrap().client.messages_font = ctx.ui.font.clone();
+        CreatorTheme::load().apply(ui, ctx, &self.server_ctx.reference);
+        self.server_ctx.reference.write().client.messages_font = ctx.ui.font.clone();
         init_profile.lap("init_theme_gpu");
 
         // Embedded Icons
@@ -8483,8 +8474,7 @@ impl TheTrait for Editor {
             &mut project_strip_layout,
             ctx,
             &mut self.documents.project,
-            &mut self.server_ctx.shared,
-        );
+            &mut self.server_ctx.shared, &self.server_ctx.reference);
 
         let (dock_is_normal, dock_is_available) = {
             let dock_manager = DOCKMANAGER.read().unwrap();
@@ -8592,13 +8582,11 @@ impl TheTrait for Editor {
             self.build_values
                 .set("character_off", Value::Texture(texture));
         }
-        RUSTERIX
-            .write()
-            .unwrap()
+        self.server_ctx.reference.write()
             .client
             .builder_d2
             .set_properties(&self.build_values);
-        RUSTERIX.write().unwrap().set_d2();
+        self.server_ctx.reference.write().set_d2();
         self.server_ctx.jobs.scene_mut()
             .set_apply_preview_filters(true);
         self.server_ctx.jobs.scene_mut().startup();
@@ -8648,7 +8636,7 @@ impl TheTrait for Editor {
             // A delayed runtime update must never project one document into
             // the newly active authoring project, even if serialized IDs match.
             self.play_session = None;
-            let mut runtime = RUSTERIX.write().unwrap();
+            let mut runtime = self.server_ctx.reference.write();
             runtime.server.stop();
             runtime.clear_all_audio();
             runtime.clear_say_messages();
@@ -8708,7 +8696,7 @@ impl TheTrait for Editor {
 
         if let Some((input_id, command)) = self.pending_text_game_command.take() {
             {
-                let mut bridge = RUSTERIX.write().unwrap();
+                let mut bridge = self.server_ctx.reference.write();
                 let (project, mut runtime) = CreatorPlaySession::text_runtime(
                     self.play_session.as_mut(), &self.documents.project, &mut bridge,
                 );
@@ -8731,9 +8719,9 @@ impl TheTrait for Editor {
                 self.runtime_state() == rusterix::ServerState::Running;
             if is_running && self.server_ctx.text_game_mode {
                 if let Some(session) = &mut self.play_session {
-                    session.flush_command(&mut RUSTERIX.write().unwrap());
+                    session.flush_command(&mut self.server_ctx.reference.write());
                 } else {
-                    warmup_runtime(&mut RUSTERIX.write().unwrap(), &mut self.documents.project, 1);
+                    warmup_runtime(&mut self.server_ctx.reference.write(), &mut self.documents.project, 1);
                 }
 
                 if let Some(region) = self.documents.project.get_region_ctx(&self.server_ctx) {
@@ -8746,7 +8734,7 @@ impl TheTrait for Editor {
                             std::mem::take(&mut outputs.choices),
                         )
                     } else {
-                        let mut runtime = RUSTERIX.write().unwrap();
+                        let mut runtime = self.server_ctx.reference.write();
                         (
                             runtime.server.get_messages(&region_id),
                             runtime.server.get_says(&region_id),
@@ -8754,7 +8742,7 @@ impl TheTrait for Editor {
                         )
                     };
 
-                    let mut bridge = RUSTERIX.write().unwrap();
+                    let mut bridge = self.server_ctx.reference.write();
                     let (project, mut runtime) = CreatorPlaySession::text_runtime(
                         self.play_session.as_mut(), &self.documents.project, &mut bridge,
                     );
@@ -8805,7 +8793,7 @@ impl TheTrait for Editor {
                         self.server_ctx.background_progress = Some(format!("{togo}/{total}"));
                     }
 
-                    let mut rusterix = RUSTERIX.write().unwrap();
+                    let mut rusterix = self.server_ctx.reference.write();
 
                     rusterix
                         .scene_handler
@@ -8838,7 +8826,7 @@ impl TheTrait for Editor {
                     ));
                 }
                 SceneManagerResult::Clear => {
-                    let mut rusterix = RUSTERIX.write().unwrap();
+                    let mut rusterix = self.server_ctx.reference.write();
                     rusterix
                         .scene_handler
                         .vm
@@ -9028,7 +9016,7 @@ impl TheTrait for Editor {
         profile.lap("input_setup");
         if tick_update {
             {
-                let mut rusterix = RUSTERIX.write().unwrap();
+                let mut rusterix = self.server_ctx.reference.write();
                 let server_state = self.play_session.as_ref().map(|play| play.state(&rusterix.server)).unwrap_or(rusterix.server.state);
                 let is_running = server_state == rusterix::ServerState::Running;
                 let animate_editor = self.server_ctx.editor_view_mode == EditorViewMode::D2;
@@ -9111,7 +9099,7 @@ impl TheTrait for Editor {
             // Native Play owns its GameSession; only the reference adapter
             // lends facade storage while both use the shared CPU output pump.
             {
-                let mut runtime = RUSTERIX.write().unwrap();
+                let mut runtime = self.server_ctx.reference.write();
                 let rusterix = &mut *runtime;
                 #[cfg(feature = "native-render")]
                 let native_game = self.native_viewport.enabled
@@ -9331,7 +9319,7 @@ impl TheTrait for Editor {
                         choices = std::mem::take(&mut self.pending_game_choices);
                     }
                 }
-                let mut bridge = RUSTERIX.write().unwrap();
+                let mut bridge = self.server_ctx.reference.write();
                 let (project, mut runtime) = CreatorPlaySession::text_runtime(
                     self.play_session.as_mut(), &self.documents.project, &mut bridge,
                 );
@@ -9382,13 +9370,13 @@ impl TheTrait for Editor {
                     if let Some(region) = self.documents.project.get_region_mut(&self.server_ctx.curr_region)
                     {
                         shared::iso_paint_terrain::sync(
-                            &mut RUSTERIX.write().unwrap().assets,
+                            &mut self.server_ctx.reference.write().assets,
                             region.map.id,
                             &mut region.iso_paint,
                         );
                     }
                     for paint in self.documents.project.block_prop_paint.values_mut() {
-                        paint.refresh_sources(&RUSTERIX.read().unwrap().assets);
+                        paint.refresh_sources(&self.server_ctx.reference.read().assets);
                         paint.ensure_baked_paint_current();
                     }
                     let prefab_paint_catalog = self.documents.project.block_prop_paint.clone();
@@ -9408,7 +9396,7 @@ impl TheTrait for Editor {
                         }
                     }
 
-                    let rusterix = &mut RUSTERIX.write().unwrap();
+                    let rusterix = &mut self.server_ctx.reference.write();
                     rusterix.client.use_editor_canvas = !running_game_mode;
                     rusterix.client.builder_d2.draw_grid = self.server_ctx.show_editor_grid;
 
@@ -10066,12 +10054,13 @@ impl TheTrait for Editor {
                         self.documents.project.get_map_mut(&self.server_ctx)
                     };
                     if let Some(map) = map_for_hud {
+                        let reference = self.server_ctx.reference.read();
                         TOOLLIST.write().unwrap().draw_hud(
                             render_view.render_buffer_mut(),
                             map,
                             ctx,
                             &mut self.server_ctx,
-                            &RUSTERIX.read().unwrap().assets,
+                            &reference.assets,
                         );
                     }
                 }
@@ -10179,7 +10168,7 @@ impl TheTrait for Editor {
             let inspection = self.play_session.as_ref()
                 .filter(|play| self.documents.active_id() == Some(play.document))
                 .and_then(|play| {
-                    play.inspect_region(&RUSTERIX.read().unwrap().server, self.server_ctx.curr_region)
+                    play.inspect_region(&self.server_ctx.reference.read().server, self.server_ctx.curr_region)
                 });
             if self.sidebar.handle_event_with_runtime(
                 &event, ui, ctx, &mut self.documents.project, &mut self.server_ctx, inspection,
@@ -10292,7 +10281,7 @@ impl TheTrait for Editor {
                         ctx.ui.redraw_all = true;
                         redraw = true;
                     } else if id.name == "Mark Rusterix Dirty" {
-                        RUSTERIX.write().unwrap().set_dirty();
+                        self.server_ctx.reference.write().set_dirty();
                         redraw = true;
                     } else if id.name == "Render SceneManager Map"
                         || id.name == "Switch SceneManager Camera"
@@ -10329,7 +10318,7 @@ impl TheTrait for Editor {
                             .unwrap()
                             .update_geometry_overlay_3d(&mut self.documents.project, &mut self.server_ctx);
                     } else if id.name == "Update Client Properties" {
-                        let mut rusterix = RUSTERIX.write().unwrap();
+                        let mut rusterix = self.server_ctx.reference.write();
                         self.build_values.set(
                             "no_rect_geo",
                             rusterix::Value::Bool(self.server_ctx.no_rect_geo_on_map),
@@ -10372,7 +10361,7 @@ impl TheTrait for Editor {
                                         ctx.ui.relayout = true;
                                     }
                                     insert_content_into_maps(&mut self.documents.project);
-                                    RUSTERIX.write().unwrap().set_dirty();
+                                    self.server_ctx.reference.write().set_dirty();
                                 }
                             }
                         }
@@ -10396,7 +10385,7 @@ impl TheTrait for Editor {
                                         ctx.ui.relayout = true;
                                     }
                                     insert_content_into_maps(&mut self.documents.project);
-                                    RUSTERIX.write().unwrap().set_dirty();
+                                    self.server_ctx.reference.write().set_dirty();
                                 }
                             }
                         }
@@ -10470,7 +10459,7 @@ impl TheTrait for Editor {
                                 location.x as f32 / dim.width as f32,
                                 location.y as f32 / dim.height as f32,
                             ];
-                            let mut rusterix = RUSTERIX.write().unwrap();
+                            let mut rusterix = self.server_ctx.reference.write();
                             rusterix.scene_handler.vm.set_active_vm(0);
                             let ray = rusterix.scene_handler.vm.ray_from_uv_with_size(
                                 dim.width as u32,
@@ -10710,8 +10699,7 @@ impl TheTrait for Editor {
                                     crate::tools::entity::EntityTool::commit_item_surface_placement(
                                         map,
                                         item_instance_id,
-                                        support_surface_sample,
-                                    )
+                                        support_surface_sample, &self.server_ctx.reference)
                                 })
                                 .unwrap_or_else(|| Err(fl!("status_prefab_surface_item_missing")))
                         } else {
@@ -10806,7 +10794,7 @@ impl TheTrait for Editor {
                             "Theme Light" => CreatorTheme::Light,
                             _ => CreatorTheme::Brown,
                         };
-                        theme.apply(ui, ctx);
+                        theme.apply(ui, ctx, &self.server_ctx.reference);
                         theme.save();
                         redraw = true;
                     } else if id.name == "Dock Edit Maximize" && state == TheWidgetState::Clicked {
@@ -11192,7 +11180,7 @@ impl TheTrait for Editor {
                             if let Some(session) = &mut self.play_session {
                                 session.suspend_clock();
                             }
-                            let mut bridge = RUSTERIX.write().unwrap();
+                            let mut bridge = self.server_ctx.reference.write();
                             if let Some(play) = &mut self.play_session { play.server_mut(&mut bridge.server).continue_instances(); } else { bridge.server.continue_instances(); }
                             update_server_icons = true;
                         } else {
@@ -11214,7 +11202,7 @@ impl TheTrait for Editor {
                                         self.documents.project.clone(),
                                         tick_ms,
                                         quick,
-                                        &mut RUSTERIX.write().unwrap(),
+                                        &mut self.server_ctx.reference.write(),
                                     ) {
                                         Ok(play) => self.play_session = Some(play),
                                         Err(error) => {
@@ -11224,7 +11212,7 @@ impl TheTrait for Editor {
                                     }
                                 } else {
                                     let mut runtime_project = self.documents.project.clone();
-                                    if let Err(error) = start_server(&mut RUSTERIX.write().unwrap(), &mut runtime_project, true)
+                                    if let Err(error) = start_server(&mut self.server_ctx.reference.write(), &mut runtime_project, true)
                                     {
                                         crate::docks::log::LogDock::set_output(&format!("Rules: {error}"), ui, ctx);
                                         ctx.ui.send(TheEvent::SetStatusText(
@@ -11233,27 +11221,25 @@ impl TheTrait for Editor {
                                         ));
                                         return true;
                                     }
-                                    RUSTERIX.write().unwrap().clear_say_messages();
-                                    let mut commands = setup_client(&mut RUSTERIX.write().unwrap(), &mut runtime_project);
+                                    self.server_ctx.reference.write().clear_say_messages();
+                                    let mut commands = setup_client(&mut self.server_ctx.reference.write(), &mut runtime_project);
                                     if ui
                                         .get_widget("Game Entity Defaults")
                                         .is_some_and(|button| button.state() == TheWidgetState::Clicked)
                                     {
-                                        commands.extend(RUSTERIX.write().unwrap().start_with_entity_defaults());
+                                        commands.extend(self.server_ctx.reference.write().start_with_entity_defaults());
                                     }
-                                    RUSTERIX
-                                        .write()
-                                        .unwrap()
+                                    self.server_ctx.reference.write()
                                         .server
                                         .process_client_commands(commands);
-                                    warmup_runtime(&mut RUSTERIX.write().unwrap(), &mut runtime_project, 3);
+                                    warmup_runtime(&mut self.server_ctx.reference.write(), &mut runtime_project, 3);
                                     self.play_session = self
                                         .documents
                                         .sessions
                                         .get(self.documents.active_session)
                                         .map(|document| {
                                             let tick_ms = CONFIGEDITOR.read().unwrap().game_tick_ms.max(1) as u64;
-                                            let runtime = RUSTERIX.read().unwrap();
+                                            let runtime = self.server_ctx.reference.read();
                                             CreatorPlaySession::new(
                                                 document.id,
                                                 runtime_project,
@@ -11269,7 +11255,7 @@ impl TheTrait for Editor {
                                 ));
                                 crate::docks::log::LogDock::set_output("", ui, ctx);
                                 self.last_processed_log_len = 0;
-                                RUSTERIX.write().unwrap().player_camera = PlayerCamera::D2;
+                                self.server_ctx.reference.write().player_camera = PlayerCamera::D2;
                             }
                             update_server_icons = true;
                         }
@@ -11282,7 +11268,7 @@ impl TheTrait for Editor {
                         }
                         let state = self.runtime_state();
                         if state == rusterix::ServerState::Running {
-                            let mut bridge = RUSTERIX.write().unwrap();
+                            let mut bridge = self.server_ctx.reference.write();
                             if let Some(play) = &mut self.play_session { play.server_mut(&mut bridge.server).pause(); } else { bridge.server.pause(); }
                             drop(bridge);
                             if let Some(session) = &mut self.play_session {
@@ -11299,7 +11285,7 @@ impl TheTrait for Editor {
                         }
                         self.play_session = None;
                         {
-                            let mut rusterix = RUSTERIX.write().unwrap();
+                            let mut rusterix = self.server_ctx.reference.write();
                             rusterix.server.stop();
                             rusterix.client.set_server_time(self.documents.project.time);
                             ui.set_widget_value("Server Time Slider", ctx, TheValue::Time(self.documents.project.time));
@@ -11545,7 +11531,7 @@ impl TheTrait for Editor {
                             } else {
                                 self.documents.project.time = time;
                             }
-                            let mut rusterix = RUSTERIX.write().unwrap();
+                            let mut rusterix = self.server_ctx.reference.write();
                             rusterix.client.set_server_time(time);
 
                             let active_server = self.play_session.as_mut().map(|play| play.server_mut(&mut rusterix.server));
@@ -11600,7 +11586,7 @@ impl TheTrait for Editor {
         profile.lap("appearance_keys");
         if appearance_revision != self.procedural_appearance_revision {
             self.procedural_appearance_revision = appearance_revision;
-            let mut runtime = RUSTERIX.write().unwrap();
+            let mut runtime = self.server_ctx.reference.write();
             shared::rusterix_utils::sync_item_icon_assets(&mut runtime, &self.documents.project);
             profile.lap("appearance_icons");
             shared::rusterix_utils::sync_procedural_avatar_assets(
@@ -11622,8 +11608,7 @@ impl TheTrait for Editor {
             &self.documents.project,
             ui,
             ctx,
-            self.procedural_appearance_revision,
-        );
+            self.procedural_appearance_revision, &self.server_ctx.reference);
 
         #[cfg(all(
             feature = "self-update",
@@ -11760,16 +11745,14 @@ impl TheTrait for Editor {
     }
 
     fn wants_mouse_motion(&self) -> bool {
-        RUSTERIX.read().unwrap().client.mouse_look.active
+        self.server_ctx.reference.read().client.mouse_look.active
     }
     fn mouse_leave(&mut self, _ctx: &mut TheContext) -> bool {
-        RUSTERIX.write().unwrap().client.end_mouse_look()
+        self.server_ctx.reference.write().client.end_mouse_look()
     }
 
     fn mouse_motion(&mut self, delta_x: f32, delta_y: f32, ctx: &mut TheContext) -> bool {
-        if RUSTERIX
-            .write()
-            .unwrap()
+        if self.server_ctx.reference.write()
             .client_mouse_motion(Vec2::new(delta_x, delta_y))
         {
             ctx.ui.redraw_all = true;
@@ -11810,7 +11793,7 @@ impl TheTrait for Editor {
 
         if handled {
             self.last_authoring_input_at = Some(web_time::Instant::now());
-            RUSTERIX.write().unwrap().set_dirty();
+            self.server_ctx.reference.write().set_dirty();
             ctx.ui.redraw_all = true;
         }
         handled
@@ -12227,7 +12210,7 @@ mod tests {
                 );
                 println!(
                     "Creator camera atlas={:?}",
-                    RUSTERIX.read().unwrap().scene_handler.vm.atlas_dims()
+                    editor.server_ctx.reference.read().scene_handler.vm.atlas_dims()
                 );
             }
             return;
@@ -12396,7 +12379,7 @@ mod tests {
             // Toolbar Play may open character creation. Enter the world through
             // the public quick-play route before claiming gameplay measurements.
             {
-                let mut runtime = RUSTERIX.write().unwrap();
+                let mut runtime = editor.server_ctx.reference.write();
                 if runtime.client.active_game_widget_camera_mode().is_none() {
                     let commands = runtime.start_with_entity_defaults();
                     assert!(!commands.is_empty(), "The benchmark must create a player");
@@ -12421,7 +12404,7 @@ mod tests {
                 });
             let mut game_samples = Vec::new();
             let mut stress = std::env::var_os("ELDIRON_BENCH_GAME_STRESS")
-                .map(|_| benchmark_stress::StressRun::new(&RUSTERIX.read().unwrap()));
+                .map(|_| benchmark_stress::StressRun::new(&editor.server_ctx.reference.read()));
             for i in 0..game_frames {
                 let frame_started = web_time::Instant::now();
                 if let Some(stress) = &mut stress {
@@ -12429,7 +12412,7 @@ mod tests {
                 }
                 if i == 10 {
                     if let Some(destination) = &teleport {
-                        let mut rusterix = RUSTERIX.write().unwrap();
+                        let mut rusterix = editor.server_ctx.reference.write();
                         rusterix
                             .server
                             .local_player_teleport("Entrance".into(), destination.clone());
@@ -12451,7 +12434,7 @@ mod tests {
                 }
                 println!("Creator game frame {i}={elapsed:.2}ms");
                 if let Some(stress) = &mut stress {
-                    stress.after_frame(i, elapsed);
+                    stress.after_frame(i, elapsed, &editor.server_ctx.reference);
                     // Keep simulation and cooldowns on their real clock. Sleep
                     // is deliberately outside the measured UI/render interval.
                     if let Some(left) = std::time::Duration::from_secs_f64(1. / 30.)
@@ -12487,7 +12470,7 @@ mod tests {
                 )
                 .unwrap();
             }
-            let rusterix = RUSTERIX.read().unwrap();
+            let rusterix = editor.server_ctx.reference.read();
             assert!(
                 rusterix
                     .server

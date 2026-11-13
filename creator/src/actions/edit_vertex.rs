@@ -302,7 +302,7 @@ impl Action for EditVertex {
             .nodeui
             .get_text_value("actionTileId")
             .unwrap_or_default();
-        let source = parse_tile_id_pixelsource(&tile_id_text)
+        let source = parse_tile_id_pixelsource(&tile_id_text, &server_ctx.reference)
             .or_else(|| (tile_id != Uuid::nil()).then_some(PixelSource::TileId(tile_id)));
 
         let x = self.nodeui.get_f32_value("actionVertexX").unwrap_or(0.0);

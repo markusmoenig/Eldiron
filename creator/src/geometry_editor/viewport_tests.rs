@@ -100,15 +100,13 @@ fn isometric_model_recipe_edits_refresh_all_tiles_and_the_scene_automatically() 
     publisher.handle_event(&picked, &mut ui, &mut ctx, &mut p, &mut server);
     publisher.update(&mut ui, &mut ctx, &mut p, &mut server);
     let old = outputs.map(|id| p.tiles[&id].clone());
-    let draw = |p: &Project| {
+    let draw = |p: &Project, reference: &CreatorReference| {
         let mut pixels = vec![0; 400 * 300 * 4];
-        RUSTERIX
-            .write()
-            .unwrap()
+        reference.write()
             .draw_d2(&p.regions[0].map, &mut pixels, 400, 300);
         pixels
     };
-    let before = draw(&p);
+    let before = draw(&p, &server.reference);
     geometry
         .apply_command(
             MaterialEditorCommand::SetNumber {
@@ -127,23 +125,23 @@ fn isometric_model_recipe_edits_refresh_all_tiles_and_the_scene_automatically() 
         assert_eq!(p.tiles[id].alias, old[i].alias);
         assert!(p.tiles[id].blocking);
         assert_eq!(
-            RUSTERIX.read().unwrap().assets.tiles[id].textures,
+            server.reference.read().assets.tiles[id].textures,
             p.tiles[id].textures
         );
     }
-    assert_ne!(draw(&p), before);
+    assert_ne!(draw(&p, &server.reference), before);
     UNDOMANAGER
         .write()
         .unwrap()
         .undo(&mut server, &mut p, &mut ui, &mut ctx);
     publisher.update(&mut ui, &mut ctx, &mut p, &mut server);
-    assert_eq!(draw(&p), before);
+    assert_eq!(draw(&p, &server.reference), before);
     UNDOMANAGER
         .write()
         .unwrap()
         .redo(&mut server, &mut p, &mut ui, &mut ctx);
     publisher.update(&mut ui, &mut ctx, &mut p, &mut server);
-    assert_ne!(draw(&p), before);
+    assert_ne!(draw(&p, &server.reference), before);
 }
 
 #[test]

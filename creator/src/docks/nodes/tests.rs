@@ -84,14 +84,15 @@ fn direct_event_to_say_and_filter_branches_need_no_binding_nodes() {
 
 #[test]
 fn project_storage_roundtrips_and_old_projects_default_to_empty() {
+    let reference = CreatorReference::default();
     let mut project = Project::new();
     let mut dock = NodesDock::new();
     dock.owner = Some("behavior/character/test".into());
-    dock.store(&mut project, false);
+    dock.store(&mut project, false, &reference);
     assert!(project.node_graphs.is_empty());
     assert!(!dock.dirty);
     add(&mut dock, "event");
-    dock.store(&mut project, true);
+    dock.store(&mut project, true, &reference);
     let json = serde_json::to_value(&project).unwrap();
     let restored: Project = serde_json::from_value(json.clone()).unwrap();
     let graph: GraphDocument = serde_json::from_value(
@@ -146,7 +147,7 @@ fn creator_dock_edits_undo_and_owner_switching() {
             to,
         });
     }
-    dock.store(&mut project, true);
+    dock.store(&mut project, true, &server.reference);
     let first_doc = dock.doc.clone();
     dock.render(&mut ui, &mut ctx);
     if let Ok(path) = std::env::var("ELDIRON_NODES_SNAPSHOT") {
@@ -166,7 +167,7 @@ fn creator_dock_edits_undo_and_owner_switching() {
     dock.activate(&mut ui, &mut ctx, &project, &mut server);
     assert!(dock.doc.nodes.is_empty());
     add(&mut dock, "say");
-    dock.store(&mut project, true);
+    dock.store(&mut project, true, &server.reference);
     server.pc = ProjectContext::CharacterCode(first);
     dock.activate(&mut ui, &mut ctx, &project, &mut server);
     // Activating lays the branch out, so only the graph itself is compared.
@@ -373,7 +374,7 @@ fn equipment_accepts_project_item_drops_with_zoom_history_and_saved_setup() {
             .contains("no equipment slot")
     );
     assert_eq!(project.node_graphs, before);
-    dock.store(&mut project, false);
+    dock.store(&mut project, false, &server.reference);
     assert!(
         dock.configuration_error.is_some(),
         "feedback survives hover/pan refreshes"
@@ -806,12 +807,12 @@ fn clearing_the_graph_records_an_undo_step() {
     dock.activate(&mut ui, &mut ctx, &project, &mut server);
     add(&mut dock, "event");
     add(&mut dock, "say");
-    dock.finish(&mut project);
+    dock.finish(&mut project, &server.reference);
 
     let key = format!("behavior/character/{owner}");
     assert!(project.node_graphs.contains_key(&key));
 
-    dock.clear_nodes(&mut ui, &mut ctx, &mut project);
+    dock.clear_nodes(&mut ui, &mut ctx, &mut project, &server.reference);
 
     // Clearing has to be undoable, which is what enables the Undo button.
     let history = dock
@@ -1191,7 +1192,7 @@ fn folding_shrinks_the_shown_branch() {
         .map(|node| node.id)
         .collect();
     assert!(!folded.is_empty());
-    dock.store(&mut project, true);
+    dock.store(&mut project, true, &server.reference);
     dock.activate(&mut ui, &mut ctx, &project, &mut server);
     assert_eq!(
         dock.doc
@@ -1209,7 +1210,7 @@ fn folding_shrinks_the_shown_branch() {
     if let Ok(path) = std::env::var("ELDIRON_FOLDED_SNAPSHOT") {
         set_folded(&mut dock, true);
         dock.tidy_branch();
-        dock.store(&mut project, true);
+        dock.store(&mut project, true, &server.reference);
         let mut pixels = vec![0; 1200 * 650 * 4];
         ui.draw(&mut pixels, &mut ctx);
         dock.render(&mut ui, &mut ctx);
@@ -1303,6 +1304,7 @@ fn connect(dock: &mut NodesDock, from: GraphId, key: &str, to: GraphId) {
 
 #[test]
 fn copy_and_paste_work_on_one_branch() {
+    let reference = CreatorReference::default();
     let (mut dock, mut ui, mut ctx, mut project, _server) = live_dock();
 
     // Two branches, each a trigger plus one action.
@@ -1319,7 +1321,7 @@ fn copy_and_paste_work_on_one_branch() {
 
     // Copy only what is shown.
     dock.set_branch(Some(first));
-    assert!(dock.copy_branch(&mut project));
+    assert!(dock.copy_branch(&mut project, &reference));
     let clipboard = dock.clipboard.clone().expect("clipboard");
     let copied: Vec<_> = clipboard.nodes.iter().map(|node| node.id).collect();
     assert!(copied.contains(&first) && copied.contains(&first_say));
@@ -1334,7 +1336,7 @@ fn copy_and_paste_work_on_one_branch() {
     );
 
     // Pasting lands it as its own branch, with new ids, and shows it.
-    assert!(dock.paste_branch(&mut ui, &mut ctx, &mut project));
+    assert!(dock.paste_branch(&mut ui, &mut ctx, &mut project, &reference));
     assert_eq!(dock.doc.nodes.len(), 2);
     assert_eq!(dock.doc.connections.len(), 1);
     assert_eq!(dock.branch_items().len(), 3, "a third branch appears");
@@ -1374,6 +1376,7 @@ fn a_new_trigger_node_creates_and_focuses_its_branch() {
 
 #[test]
 fn the_conversation_editor_edits_a_talk_node() {
+    let reference = CreatorReference::default();
     let (mut dock, mut ui, mut ctx, mut project, mut server) = live_dock();
     add(&mut dock, "talk");
     let talk = dock.editor.selected.expect("talk node");
@@ -1417,7 +1420,7 @@ fn the_conversation_editor_edits_a_talk_node() {
         overlay.input(GraphTextInput::SelectAll);
         overlay.paste("Well met, traveller.");
     }
-    dock.close_conversation(&mut project, true);
+    dock.close_conversation(&mut project, true, &reference);
 
     // The node carries one conversation document holding the edit.
     let node = dock.doc.nodes.iter().find(|node| node.id == talk).unwrap();
@@ -1428,7 +1431,7 @@ fn the_conversation_editor_edits_a_talk_node() {
     assert_eq!(written.steps[0].name, "start");
 
     // The document survives saving and reopening the dock.
-    dock.store(&mut project, true);
+    dock.store(&mut project, true, &reference);
     dock.activate(&mut ui, &mut ctx, &project, &mut server);
     let node = dock.doc.nodes.iter().find(|node| node.id == talk).unwrap();
     let reopened = NodesDock::conversation_of(node).expect("conversation");
@@ -1513,6 +1516,7 @@ fn set_conversation(dock: &mut NodesDock, talk: GraphId, choices_per_step: &[usi
 /// row can never close the editor.
 #[test]
 fn a_small_dock_scrolls_and_edits_every_conversation_field() {
+    let reference = CreatorReference::default();
     let (mut dock, mut ui, mut ctx, mut project, mut server) = live_dock();
     ui.get_render_view(VIEW)
         .unwrap()
@@ -1613,7 +1617,7 @@ fn a_small_dock_scrolls_and_edits_every_conversation_field() {
     }
 
     // Committing writes the edit and the graph keeps its node.
-    dock.close_conversation(&mut project, true);
+    dock.close_conversation(&mut project, true, &reference);
     assert_eq!(dock.doc.nodes.len(), 1, "the node survives the edit");
     let node = dock.doc.nodes.iter().find(|node| node.id == talk).unwrap();
     let written = NodesDock::conversation_of(node).expect("conversation");
@@ -1744,6 +1748,7 @@ fn a_long_step_list_scrolls_on_the_left() {
 /// conversation and redo brings the edit back, so a mistake is recoverable.
 #[test]
 fn a_conversation_edit_is_undoable() {
+    let reference = CreatorReference::default();
     let (mut dock, mut ui, mut ctx, mut project, mut server) = live_dock();
     ui.get_render_view(VIEW)
         .unwrap()
@@ -1751,7 +1756,7 @@ fn a_conversation_edit_is_undoable() {
     add(&mut dock, "talk");
     let talk = dock.editor.selected.expect("talk node");
     set_conversation(&mut dock, talk, &[3]);
-    dock.store(&mut project, true);
+    dock.store(&mut project, true, &reference);
     let before = dock.doc.clone();
 
     let view_id = ui.get_render_view(VIEW).unwrap().id().clone();
@@ -1776,7 +1781,7 @@ fn a_conversation_edit_is_undoable() {
     let overlay = dock.text_overlay.as_mut().expect("the field opens");
     overlay.input(GraphTextInput::SelectAll);
     overlay.paste("self.flag");
-    dock.close_conversation(&mut project, true);
+    dock.close_conversation(&mut project, true, &reference);
 
     assert_ne!(dock.doc, before, "the edit landed");
     assert!(dock.supports_undo());
@@ -1942,17 +1947,18 @@ fn entity_configuration_uses_a_separate_catalog_and_preserves_player_selection_d
 
 #[test]
 fn branch_documents_keep_unconnected_nodes_and_history_isolated() {
+    let reference = CreatorReference::default();
     let (mut dock, mut ui, mut ctx, mut project, mut server) = live_dock();
     add(&mut dock, "event");
     let first = dock.active_branch.unwrap();
     add(&mut dock, "say");
     let detached = dock.editor.selected.unwrap();
-    dock.finish(&mut project);
+    dock.finish(&mut project, &reference);
     add(&mut dock, "on_event");
     let second = dock.active_branch.unwrap();
-    dock.finish(&mut project);
+    dock.finish(&mut project, &reference);
     add(&mut dock, "say");
-    dock.finish(&mut project);
+    dock.finish(&mut project, &reference);
     dock.undo(&mut ui, &mut ctx, &mut project, &mut server);
     assert_eq!(dock.doc.nodes.len(), 1);
     assert_eq!(dock.active_branch, Some(second));
@@ -1997,13 +2003,14 @@ fn legacy_graph_is_split_into_branch_documents() {
 
 #[test]
 fn cutting_a_wire_supports_undo() {
+    let reference = CreatorReference::default();
     let (mut dock, mut ui, mut ctx, mut project, mut server) = live_dock();
     add(&mut dock, "event");
     let root = dock.active_branch.unwrap();
     add(&mut dock, "say");
     let action = dock.editor.selected.unwrap();
     connect(&mut dock, root, "out", action);
-    dock.finish(&mut project);
+    dock.finish(&mut project, &reference);
     let wire = dock.doc.connections[0].clone();
     let curve = connection_curve(&dock.doc, &wire, &dock.editor.viewport).unwrap();
     let middle = bezier(curve, 0.5);
@@ -2088,7 +2095,7 @@ fn rules_branches_edit_compile_undo_and_restore_without_behavior_storage() {
         .find(|cells| cells[0] == GraphControlValue::Text("cooldown".into()))
         .unwrap();
     cooldown[2] = GraphControlValue::Text("0.75".into());
-    dock.finish(&mut project);
+    dock.finish(&mut project, &server.reference);
     assert_eq!(
         project
             .rules
@@ -2164,11 +2171,11 @@ fn invalid_rules_drafts_survive_reopening_and_remain_recoverable() {
     dock.set_branch(Some(root));
     // Removing only the root is an invalid draft, not permission to lose its children.
     dock.doc.nodes.retain(|n| n.id != root);
-    dock.store(&mut project, true);
+    dock.store(&mut project, true, &server.reference);
     assert!(project.rules.current.compile().is_err());
     let saved = project.rules.current.clone();
     dock.activate(&mut ui, &mut ctx, &project, &mut server);
-    dock.store(&mut project, false);
+    dock.store(&mut project, false, &server.reference);
     let normalize = |mut graph: shared::rulesets::graph::RulesGraph| {
         graph.branches = graph.branches.into_iter().map(without_positions).collect();
         graph
@@ -2198,14 +2205,14 @@ fn rules_can_start_empty_add_a_definition_and_remove_the_last_branch() {
     assert!(project.rules.current.compile().unwrap().is_empty());
     add(&mut dock, "rules_definition");
     dock.doc.nodes[0].rows[0].value = GraphControlValue::Text("/chassis/scout".into());
-    dock.finish(&mut project);
+    dock.finish(&mut project, &server.reference);
     assert!(
         project.rules.current.compile().unwrap()["chassis"]
             .get("scout")
             .is_some()
     );
     assert!(dock.remove_branch());
-    dock.finish(&mut project);
+    dock.finish(&mut project, &server.reference);
     assert!(project.rules.current.compile().unwrap().is_empty());
     assert!(project.rules.restore_checkpoint());
     assert!(!project.rules.current.compile().unwrap().is_empty());
@@ -2314,7 +2321,7 @@ fn rules_key_deletion_and_wire_changes_are_undoable() {
         })
         .unwrap();
     dock.set_branch(Some(root));
-    dock.finish(&mut project);
+    dock.finish(&mut project, &server.reference);
     let baseline = project.rules.current.compile().unwrap();
     let node = dock.doc.nodes.iter_mut().find(|n| n.id == root).unwrap();
     let metrics = GraphMetrics::STANDARD;
@@ -2339,7 +2346,7 @@ fn rules_key_deletion_and_wire_changes_are_undoable() {
             },
         )
         .unwrap();
-    dock.finish(&mut project);
+    dock.finish(&mut project, &server.reference);
     assert!(project.rules.current.compile().is_err());
     dock.undo(&mut ui, &mut ctx, &mut project, &mut server);
     assert_eq!(project.rules.current.compile().unwrap(), baseline);
@@ -2376,10 +2383,10 @@ fn particle_rules_branches_preview_edit_save_undo_and_restore() {
     assert!(node_available(server.pc, "particle_color"));
     dock.update_particle_preview();
     assert!(GraphAssets::image(&dock.tiles, "rules_particle_preview").is_some());
-    dock.finish(&mut project); // Persist the initial automatic layout first.
+    dock.finish(&mut project, &server.reference); // Persist the initial automatic layout first.
     let unchanged = project.rules.current.clone();
     dock.rules_error = Some("Unchanged navigation must not republish the rules".into());
-    dock.store(&mut project, false);
+    dock.store(&mut project, false, &server.reference);
     assert!(project.rules.current == unchanged);
     assert_eq!(
         dock.rules_error.as_deref(),
@@ -2411,7 +2418,7 @@ fn particle_rules_branches_preview_edit_save_undo_and_restore() {
         "rate",
         shared::graph_authoring::number(200., 0., 500., 1.),
     );
-    dock.finish(&mut project);
+    dock.finish(&mut project, &server.reference);
     assert_eq!(
         project.rules.current.compile().unwrap()["fx"]["presets"]["fire_burst"]["emitter"]["rate"]
             .as_float(),
@@ -2429,8 +2436,8 @@ fn particle_rules_branches_preview_edit_save_undo_and_restore() {
         .current
         .restore_definition(&project.rules.original, "/fx/presets/fire_burst")
         .unwrap();
-    assert!(dock.copy_branch(&mut project));
-    assert!(dock.paste_branch(&mut ui, &mut ctx, &mut project));
+    assert!(dock.copy_branch(&mut project, &server.reference));
+    assert!(dock.paste_branch(&mut ui, &mut ctx, &mut project, &server.reference));
     assert_ne!(dock.active_branch, Some(root));
     assert!(project.rules.current.compile().is_err()); // The copy needs its own identity.
     let copied_root = dock
@@ -2444,7 +2451,7 @@ fn particle_rules_branches_preview_edit_save_undo_and_restore() {
         "path",
         GraphControlValue::Text("/fx/presets/custom_burst".into()),
     );
-    dock.finish(&mut project);
+    dock.finish(&mut project, &server.reference);
     assert!(dock.rules_error.is_none());
     assert_eq!(project.rules.current.compile().unwrap()["fx"]["presets"]["custom_burst"]["emitter"]["rate"].as_float(),Some(140.));
 }
@@ -2480,13 +2487,15 @@ fn control_touchpad_and_wheel_zoom_nodes_around_pointer() {
 
 #[test]
 fn authoring_nodes_and_preview_snapshots_do_not_require_raster_or_world_renderers() {
+    let reference = CreatorReference::default();
     fn assert_shared<T: Send + Sync>() {}
     assert_shared::<tiles::TileControls>();
     assert_shared::<live::LiveEvents>();
     assert_shared::<GraphDefinitions>();
     let isolated = std::env::var_os("ELDIRON_NATIVE_NODES_ISOLATED").is_some();
     if isolated {
-        assert!(crate::editor::reference_runtime().is_none());
+        assert!(!reference.initialized());
+        // No global reference owner exists; data-only APIs receive no service.
         // Scene preparation is application-owned; this data API receives no jobs.
     }
     let mut dock = NodesDock::new();
@@ -2494,7 +2503,7 @@ fn authoring_nodes_and_preview_snapshots_do_not_require_raster_or_world_renderer
     let mut project = Project::default();
     dock.owner = Some("behavior/world".into());
     add(&mut dock, "event");
-    dock.store(&mut project, true);
+    dock.store(&mut project, true, &reference);
     assert!(project.node_graphs.contains_key("behavior/world"));
     dock.refresh_live(&project, &ServerContext::default());
     assert!(dock.resources.is_none());
@@ -2522,7 +2531,8 @@ fn authoring_nodes_and_preview_snapshots_do_not_require_raster_or_world_renderer
     );
     assert!(dock.resources.is_none());
     if isolated {
-        assert!(crate::editor::reference_runtime().is_none());
+        assert!(!reference.initialized());
+        // No global reference owner exists; data-only APIs receive no service.
         // Scene preparation is application-owned; this data API receives no jobs.
     }
 }

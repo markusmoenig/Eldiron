@@ -1,6 +1,6 @@
 use crate::hud::{Hud, HudMode};
 use crate::{
-    editor::{RUSTERIX, UNDOMANAGER},
+    editor::{UNDOMANAGER},
     prelude::*,
 };
 use MapEvent::*;
@@ -140,17 +140,17 @@ impl Tool for EntityTool {
                         .entry(selected_id)
                         .and_modify(|entry| entry.1 = to)
                         .or_insert((from, to));
-                    RUSTERIX.write().unwrap().set_dirty();
+                    server_ctx.reference.write().set_dirty();
                 }
             }
             MapClicked(coord) => {
                 if self.hud.clicked(coord.x, coord.y, map, ui, ctx, server_ctx) {
-                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                    server_ctx.reference.write().set_dirty();
                     return None;
                 }
 
                 if (server_ctx.game_mode || server_ctx.game_input_mode)
-                    && self.handle_game_click(coord, map)
+                    && self.handle_game_click(coord, map, &server_ctx.reference)
                 {
                     return None;
                 }
@@ -220,12 +220,12 @@ impl Tool for EntityTool {
                         TheId::named("Map Selection Changed"),
                         TheValue::Empty,
                     ));
-                    RUSTERIX.write().unwrap().set_dirty();
+                    server_ctx.reference.write().set_dirty();
                 }
             }
             MapUp(coord) => {
                 if (server_ctx.game_mode || server_ctx.game_input_mode)
-                    && self.handle_game_up(coord, map)
+                    && self.handle_game_up(coord, map, &server_ctx.reference)
                 {
                     return None;
                 }
@@ -322,8 +322,7 @@ impl Tool for EntityTool {
                                 if let Err(message) = Self::commit_item_surface_placement(
                                     map,
                                     id,
-                                    state.last_support_surface,
-                                ) {
+                                    state.last_support_surface, &server_ctx.reference) {
                                     if let Some(start) =
                                         server_ctx.moved_items.get(&id).map(|(from, _)| *from)
                                     {
@@ -383,7 +382,7 @@ impl Tool for EntityTool {
                         let support_surface = placement
                             .and_then(|sample| sample.support_surface)
                             .and_then(|sample| {
-                                Self::support_surface_sample_at_world_xz(map, sample, drag_pos)
+                                Self::support_surface_sample_at_world_xz(map, sample, drag_pos, &server_ctx.reference)
                             });
                         if let Some(surface) = support_surface {
                             drag_pos =
@@ -595,7 +594,7 @@ impl EntityTool {
             TheId::named("Map Selection Changed"),
             TheValue::Empty,
         ));
-        update_region(ctx);
+        update_region(ctx, &server_ctx.reference);
     }
 
     fn remove_selected_item_instance(
@@ -629,7 +628,7 @@ impl EntityTool {
             TheId::named("Map Selection Changed"),
             TheValue::Empty,
         ));
-        update_region(ctx);
+        update_region(ctx, &server_ctx.reference);
     }
 
     /// Convert screen coords to map space without snapping so clicking doesn't move things
@@ -663,7 +662,7 @@ impl EntityTool {
             let (base, paint_surface_id) = if let Some(view) = &self.view_input {
                 (view.base, view.paint_geo)
             } else {
-                let mut rusterix = RUSTERIX.write().unwrap();
+                let mut rusterix = server_ctx.reference.write();
                 rusterix.scene_handler.vm.set_active_vm(0);
                 let base = rusterix.scene_handler.vm.pick_geo_id_at_uv(
                     dim.width as u32,
@@ -681,7 +680,7 @@ impl EntityTool {
                 (base, paint)
             };
             if let Some((geo_id, hit, _)) = base {
-                let rusterix = RUSTERIX.read().unwrap(); // CPU asset catalogue only
+                let rusterix = server_ctx.reference.read(); // CPU asset catalogue only
                 let rendered_object_id = match geo_id {
                     scenevm::GeoId::GeometryObject(object_id) => Some(object_id),
                     _ => None,
@@ -811,8 +810,8 @@ impl EntityTool {
         map: &Map,
         sample: SupportSurfaceSample,
         world_xz: Vec2<f32>,
-    ) -> Option<SupportSurfaceSample> {
-        let rusterix = RUSTERIX.read().unwrap();
+     reference: &CreatorReference) -> Option<SupportSurfaceSample> {
+        let rusterix = reference.read();
         let instance = map
             .block_prop_instances
             .iter()
@@ -872,6 +871,7 @@ impl EntityTool {
         map: &mut Map,
         item_creator_id: Uuid,
         sample: Option<SupportSurfaceSample>,
+        reference: &CreatorReference,
     ) -> Result<(), String> {
         let occupant = rusterix::BlockPropOccupant::ItemInstance(item_creator_id);
         let Some(sample) = sample else {
@@ -880,7 +880,7 @@ impl EntityTool {
             return Ok(());
         };
 
-        let rusterix = RUSTERIX.read().unwrap();
+        let rusterix = reference.read();
         let instance = map
             .block_prop_instances
             .iter()
@@ -967,7 +967,7 @@ impl EntityTool {
                 local_transform,
             });
         {
-            let mut rusterix = RUSTERIX.write().unwrap();
+            let mut rusterix = reference.write();
             rusterix.scene_handler.mark_dynamics_dirty();
             rusterix.set_dirty();
         }
@@ -1147,7 +1147,7 @@ impl EntityTool {
                 map,
                 Vec2::new(dim.width as f32, dim.height as f32),
             );
-            let mut runtime = RUSTERIX.write().unwrap();
+            let mut runtime = server_ctx.reference.write();
             let runtime = &mut *runtime;
             let sprites = runtime.scene_handler.isometric_avatars(
                 map,
@@ -1185,7 +1185,7 @@ impl EntityTool {
         let geo_id = if let Some(view) = &self.view_input {
             view.dynamic.map(|(geo, _, _)| geo)?
         } else {
-            let mut rusterix = RUSTERIX.write().unwrap();
+            let mut rusterix = server_ctx.reference.write();
             rusterix.scene_handler.vm.set_active_vm(0);
             rusterix
                 .scene_handler
@@ -1313,8 +1313,8 @@ impl EntityTool {
         }
     }
 
-    fn handle_game_click(&self, coord: Vec2<i32>, map: &mut Map) -> bool {
-        let mut rusterix = RUSTERIX.write().unwrap();
+    fn handle_game_click(&self, coord: Vec2<i32>, map: &mut Map, reference: &CreatorReference) -> bool {
+        let mut rusterix = reference.write();
         let is_running = rusterix.server.state == rusterix::ServerState::Running;
 
         if is_running {
@@ -1326,8 +1326,8 @@ impl EntityTool {
         false
     }
 
-    fn handle_game_up(&self, coord: Vec2<i32>, map: &mut Map) -> bool {
-        let mut rusterix = RUSTERIX.write().unwrap();
+    fn handle_game_up(&self, coord: Vec2<i32>, map: &mut Map, reference: &CreatorReference) -> bool {
+        let mut rusterix = reference.write();
         let is_running = rusterix.server.state == rusterix::ServerState::Running;
 
         if is_running {
@@ -1400,6 +1400,6 @@ pub(crate) fn select_placed_content(
         TheId::named("Map Selection Changed"),
         TheValue::Empty,
     ));
-    RUSTERIX.write().unwrap().set_overlay_dirty();
+    server_ctx.reference.write().set_overlay_dirty();
     true
 }

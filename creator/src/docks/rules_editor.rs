@@ -1255,7 +1255,7 @@ impl Dock for RulesEditor {
             self.form(ui, project);
             self.dirty = true;
             self.set_undo_state_to_ui(ctx);
-            if let Err(error) = crate::docks::nodes::sync_live_rules(project) {
+            if let Err(error) = crate::docks::nodes::sync_live_rules(project, &_server.reference) {
                 ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
             }
         }
@@ -1274,7 +1274,7 @@ impl Dock for RulesEditor {
             self.form(ui, project);
             self.dirty = true;
             self.set_undo_state_to_ui(ctx);
-            if let Err(error) = crate::docks::nodes::sync_live_rules(project) {
+            if let Err(error) = crate::docks::nodes::sync_live_rules(project, &_server.reference) {
                 ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
             }
         }
@@ -1416,7 +1416,7 @@ impl Dock for RulesEditor {
                     self.dirty = true;
                     self.set_undo_state_to_ui(ctx);
                 }
-                if let Err(error) = crate::docks::nodes::sync_live_rules(project) {
+                if let Err(error) = crate::docks::nodes::sync_live_rules(project, &_server.reference) {
                     ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
                 }
                 return true;
@@ -1449,7 +1449,7 @@ impl Dock for RulesEditor {
                     self.set_undo_state_to_ui(ctx);
                 }
                 self.form(ui, project);
-                if let Err(error) = crate::docks::nodes::sync_live_rules(project) {
+                if let Err(error) = crate::docks::nodes::sync_live_rules(project, &_server.reference) {
                     ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
                 }
                 return true;
@@ -1509,7 +1509,7 @@ impl Dock for RulesEditor {
                 if let Some(widget) = ui.get_widget(&format!("{FIELD}{index}")) {
                     widget.set_value(TheValue::Text(display_value));
                 }
-                if let Err(error) = crate::docks::nodes::sync_live_rules(project) {
+                if let Err(error) = crate::docks::nodes::sync_live_rules(project, &_server.reference) {
                     ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
                 }
                 return true;
@@ -1540,7 +1540,7 @@ impl Dock for RulesEditor {
                     self.dirty = true;
                     self.set_undo_state_to_ui(ctx);
                 }
-                if let Err(error) = crate::docks::nodes::sync_live_rules(project) {
+                if let Err(error) = crate::docks::nodes::sync_live_rules(project, &_server.reference) {
                     ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
                 }
                 return true;
@@ -1578,7 +1578,7 @@ impl Dock for RulesEditor {
                     self.set_undo_state_to_ui(ctx);
                 }
                 self.form(ui, project);
-                if let Err(error) = crate::docks::nodes::sync_live_rules(project) {
+                if let Err(error) = crate::docks::nodes::sync_live_rules(project, &_server.reference) {
                     ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
                 }
                 return true;
@@ -1648,7 +1648,7 @@ impl Dock for RulesEditor {
                             {
                                 self.form(ui, project);
                             }
-                            if let Err(error) = crate::docks::nodes::sync_live_rules(project) {
+                            if let Err(error) = crate::docks::nodes::sync_live_rules(project, &_server.reference) {
                                 ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
                             }
                             return true;
@@ -2076,7 +2076,7 @@ impl Dock for RulesEditor {
                     self.set_undo_state_to_ui(ctx);
                 }
                 self.dirty = true;
-                if let Err(error) = crate::docks::nodes::sync_live_rules(project) {
+                if let Err(error) = crate::docks::nodes::sync_live_rules(project, &_server.reference) {
                     ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
                 }
                 return true;

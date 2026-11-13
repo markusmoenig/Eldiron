@@ -1,5 +1,4 @@
 use crate::docks::data_undo::*;
-use crate::editor::RUSTERIX;
 use crate::prelude::*;
 use rusterix::PixelSource;
 use rusterix::avatar_builder::AvatarRuntimeBuilder;
@@ -644,7 +643,7 @@ impl Dock for DataDock {
 
         self.sync_settings_navigation(ui, ctx, server_ctx.pc.is_project_settings());
         self.sync_material_resolution(ui, ctx, project);
-        self.validate_project_documents(project);
+        self.validate_project_documents(project, &server_ctx.reference);
 
         // Store initial state for undo
         if let Some(edit) = ui.get_text_area_edit("DockDataEditor") {
@@ -726,7 +725,7 @@ impl Dock for DataDock {
                                 self.prev_state = Some(after);
                             }
                             project.config = config;
-                            let mut rusterix = RUSTERIX.write().unwrap();
+                            let mut rusterix = server_ctx.reference.write();
                             rusterix.assets.config = project.config.clone();
                             rusterix
                                 .scene_handler
@@ -784,7 +783,7 @@ impl Dock for DataDock {
                                         TheValue::Empty,
                                     ));
 
-                                    RUSTERIX.write().unwrap().set_dirty();
+                                    server_ctx.reference.write().set_dirty();
 
                                     ctx.ui.send(TheEvent::Custom(
                                         TheId::named("Render SceneManager Map"),
@@ -840,7 +839,7 @@ impl Dock for DataDock {
                     } else if server_ctx.pc.is_project_settings() {
                         if let Some(code) = value.to_string() {
                             project.config = code;
-                            let mut rusterix = RUSTERIX.write().unwrap();
+                            let mut rusterix = server_ctx.reference.write();
                             rusterix.assets.config = project.config.clone();
                             rusterix
                                 .scene_handler
@@ -856,7 +855,7 @@ impl Dock for DataDock {
                         if let Some(code) = value.to_string() {
                             project.audio_fx = code;
                             redraw = true;
-                            let mut rusterix = RUSTERIX.write().unwrap();
+                            let mut rusterix = server_ctx.reference.write();
                             rusterix.assets.audio_fx_src = project.audio_fx.clone();
                             rusterix.load_audio_assets();
                         }
@@ -872,7 +871,7 @@ impl Dock for DataDock {
                         }
                     }
 
-                    self.validate_project_documents(project);
+                    self.validate_project_documents(project, &server_ctx.reference);
                     self.sync_material_resolution(ui, ctx, project);
                 }
             }
@@ -1644,7 +1643,7 @@ impl DataDock {
         self.set_undo_state_to_ui(ctx);
     }
 
-    fn validate_project_documents(&mut self, project: &Project) {
+    fn validate_project_documents(&mut self, project: &Project, reference: &CreatorReference) {
         let Some(entity_key) = self.current_entity else {
             return;
         };
@@ -1687,7 +1686,7 @@ impl DataDock {
             chunk.push('\n');
         }
 
-        let mut rusterix = RUSTERIX.write().unwrap();
+        let mut rusterix = reference.write();
         rusterix.server.log.push_str(&chunk);
         rusterix.server.log_changed = true;
     }
@@ -1972,7 +1971,7 @@ impl DataDock {
                                     TheValue::Empty,
                                 ));
 
-                                RUSTERIX.write().unwrap().set_dirty();
+                                server_ctx.reference.write().set_dirty();
 
                                 ctx.ui.send(TheEvent::Custom(
                                     TheId::named("Render SceneManager Map"),
@@ -2018,7 +2017,7 @@ impl DataDock {
                 let state = edit.get_state();
                 let text = state.rows.join("\n");
                 project.config = text;
-                let mut rusterix = RUSTERIX.write().unwrap();
+                let mut rusterix = server_ctx.reference.write();
                 rusterix.assets.config = project.config.clone();
                 rusterix
                     .scene_handler
@@ -2051,7 +2050,7 @@ impl DataDock {
             }
         }
 
-        self.validate_project_documents(project);
+        self.validate_project_documents(project, &server_ctx.reference);
     }
 }
 
@@ -2166,7 +2165,7 @@ mod material_resolution_tests {
                 &mut server
             ));
             assert_eq!(appearance_pixel_setting(&project.config, key), value);
-            assert_eq!(RUSTERIX.read().unwrap().assets.config, project.config);
+            assert_eq!(server.reference.read().assets.config, project.config);
             dock.undo(&mut ui, &mut ctx, &mut project, &mut server);
             assert_eq!(project.config, before);
             dock.redo(&mut ui, &mut ctx, &mut project, &mut server);

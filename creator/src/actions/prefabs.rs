@@ -1,4 +1,4 @@
-use crate::editor::{RUSTERIX, UNDOMANAGER};
+use crate::editor::{UNDOMANAGER};
 use crate::prelude::*;
 
 #[derive(Clone, Copy)]
@@ -25,9 +25,7 @@ impl PrefabAction {
 
     fn selected_project_prefab(server_ctx: &ServerContext) -> Option<Uuid> {
         let id = server_ctx.curr_block_asset_id?;
-        RUSTERIX
-            .read()
-            .unwrap()
+        server_ctx.reference.read()
             .assets
             .block_props
             .contains_key(&id)
@@ -57,7 +55,7 @@ impl PrefabAction {
         server_ctx: &ServerContext,
     ) {
         {
-            let mut rusterix = RUSTERIX.write().unwrap();
+            let mut rusterix = server_ctx.reference.write();
             rusterix.set_block_props(project.block_props.clone());
         }
         server_ctx.jobs.scene_mut()

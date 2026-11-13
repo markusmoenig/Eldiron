@@ -8861,3 +8861,110 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   narrow explicit services, keeping canonical GPU context/session ownership and
   declared reference adapters visible. M0–M9 Goal remains ACTIVE; physical host,
   remaining adapters, release performance/resource/platform gates still open.
+
+
+### Creator reference engine ownership migration (active, 2026-11-14)
+
+- Scene-job checkpoint893769c0 contains39 files, excluding unrelated networking
+  concept. Following M5 next ownership boundary:475 textual RUSTERIX references
+  across78 files at inventory (includes imports/tests/comments).
+- Added lazy application-local CreatorReference to CreatorContext, initially
+  RefCell then retained owned parking_lot guards equivalent to the prior browser
+  adapter. Owned guards permit disjoint CPU context edits without falsely holding
+  a borrow of the complete authoring context. No renderer/device is constructed
+  merely to create an authoring context. CPU-only helpers query existing services.
+  parking_lot arc_lock was already locked/used on WASM, now shared across hosts.
+- Removed global declaration; first338 production references migrated through
+  existing explicit Creator context. Remaining helpers receive narrow reference
+  service borrows, including palette/incremental/Prefab save/undo, geometry
+  replacement, asset icons, reference picking/HUD, rules and preview updates.
+  NO claim that reference renderers/CPU adapters themselves are retired.
+- First integration found syntax/import issues from parameter wiring, fixed;
+  second integration180 errors (164 missing new explicit arguments,13 complete-
+  context borrow conflicts,3 remaining existing-only global probes). Wiring these
+  boundaries through callers and using owned guards; third check running under
+  /private/tmp/eldiron-owned-reference-check-3.{json,log}. Reference graph/live
+  probes must be non-initializing and tests must inspect their own context.
+- Work is intentionally uncommitted until all changed feature paths compile and
+  scoped/assembled native, actual browser and Swift/document checks pass.
+
+- Parameter wiring exposed a tool-script bug: compiler byte offsets were applied
+  as Python character offsets in UTF-8 sources. A cleanup regex then matched
+  unrelated local variables named reference. Repaired those source edits against
+  the pre-batch HEAD (only the task's edits; no user/concurrent edits discarded),
+  corrected UTF-8 position conversion/function signatures with array parameters,
+  removed accidental changes in material_editor.rs and row_inputs.rs, and reran
+  checks. No failed build was accepted or checkpointed. Existing production
+  renderer/asset algorithms are unchanged; all injected service arguments remain
+  visible in the diff. Integration9 native library PASSED9.04s.
+- Reference owner uses main-thread OnceCell plus Arc-owned scoped lock guards;
+  no process/thread-local reference state remains. Deleted browser reference_state
+  adapter. Existing-only graph/live/Prefab projections use non-initializing owner
+  queries. Explicit narrow services now flow through Dock save barriers and
+  shared-CPU pixel tools separately. Tests under conversion: scoped job assertions
+  also inspect actual reference owners; Prefab fixture owns a persistent reference
+  service. Existing assembled context test checks independent initialization.
+- Native test build and independent reference check running with owned-reference
+  prefix logs. Do not commit before their diagnostics and functional evidence.
+
+- Independent reference Creator compile PASSED59.21s. Native test build first
+ 96 diagnostics: missed test service arguments, early server declarations, one
+  fake Dock trait signature, reference test closures borrowing complete contexts.
+  Fixed fixtures to keep the same owner, moved declarations before their use,
+  supplied explicit closure parameters and corrected fake save barrier signature.
+  Second test build5 missing/early helper references; fixed. Third build PASSED
+ 23.08s, executable target/debug/deps/eldiron_creator-fcd49d153be5a6b9.
+- Focused actual-owner checks PASS:12 Prefab/1 ignored2.07s, scoped Prefab Undo
+ 1/0.32s, complete node editor module91pass/2ignored44.92s with isolated no-world
+  probes. No node graph bitmap or reference initialization regression. Full
+  assembled Metal plus remaining authoring/unit checks started; node/Prefab cases
+  already run are skipped in the latter to avoid repeating unchanged validation.
+- Browser release PASSED41.65s/package98,031,988B; actual staticlib PASSED44.53s,
+  linked Swift test build PASS. Real browser startup/navigation/documents/Play and
+  linked Swift runtime checks pending. Canonical reference owner retirement does
+  NOT yet retire SceneVM::new's compatibility GLOBAL_GPU when the reference
+  facade is initialized on native. Explicit device injection/CPU facade separation
+  is a next M5 boundary, not accepted as solved by this ownership migration.
+
+- Final assembled native Metal PASSED1/135.02s; linked Swift CAMetalLayer/handle/
+  document/PNG host PASSED. Remaining Creator ordinary tests PASSED516/217.76s,
+ 104 explicitly ignored,107 already-run cases filtered. Together focused91 node,
+ 12 Prefab,1 scoped Undo and516 remaining = ALL620 non-ignored Creator tests pass
+  on this native-host build, plus the assembled ignored Metal workflow. No broad
+  ordinary suite repeated after these results. Logs owned-reference-{assembled-
+  metal,other-unit-tests,swift-host-runtime}.log under /private/tmp.
+- Browser actual boot doc41b1d222-1770-42d5-97d4-6beeffdc189c, idle loss gen1→2,
+  same camera/doc, devices2/normal color copies/Canvas2D/root/readback0/errors[].
+  First navigation/Play behavior passed but its archive comparison FAILED due
+  stale OPFS proof data: the harness read an existing nonempty file or retained
+  handle before the CURRENT save finished. This is a verification-harness bug,
+  not accepted as authored compatibility. Previous camera/jobs Play archive
+  equality claims from this helper are SUPERSEDED, because they did not guarantee
+  freshly committed bytes. Their other behavioral checks remain separate evidence.
+- Corrected browser harness clears the proof handle before each SaveAs and uses
+  UNIQUE task filenames, waiting for that handle's nonzero committed file. Loaded
+  original3DStarter through actual chooser into NEW doc e2688ef9-ef10-48ee-aa9d-
+ 82dac1148b15 and repeated affected navigation/Play/save proof. Camera5.01486969/
+ 0.30367547→5.15655327/0.79169720; release stops, in-flight loss gen4→5 retires
+  gesture, Play runtime85ab6517-512d-4dea-b2bd-010f9dbefbeb survives gen5→6,
+  ticks8→9, Stop/save unchanged authoring position. CURRENT committed before/after
+  archives BYTE-IDENTICAL1,448,888B SHA256
+  b788ff4a8f794ff82ffcdc4aeacbf85634a6e0484e5683a3fb3661409c1d7902;
+  independently parsed WHOLE JSON equal, zero changed top-level keys.122 frames,
+  devices6/generation6, root/readback/normal copies/Canvas2D0/errors[].
+- Corrected fresh-file save/open/save then PASSED full authored JSON equality
+  (1,448,921/1,468,987B compressed archives; whole parsed content equal), NEW
+  document9f3bbd2e-7fd6-455f-86c3-57eb245beb6f, generation/devices6 retained,
+ 130 frames/root/readback/color copies/Canvas2D0/errors[]. Final logs
+  owned-reference-browser-navigation-verified.log and
+  owned-reference-reopen-verified.log. Archives owned-reference-browser-{before,
+  after}.eldiron and owned-reference-reopen-{before,after}.eldiron under
+  /private/tmp contain CURRENT committed bytes. Earlier failed proof is not used.
+- No RUSTERIX symbol/static/thread-local owner remains in Creator source. The
+  aggregate is application-owned with explicit narrow helper borrows. CPU-only
+  authoring paths remain lazy; global GPU lookup inside initialized reference
+  renderer remains declared next work. All113 touched-file changes reviewed for
+  parameter/owner scope; git diff --check clean. Unrelated networking concept
+  untouched and excluded. Ready for local ownership checkpoint; continue M5
+  explicit device injection/CPU facade separation, other application globals and
+  remaining viewport adapters, then outstanding full M0–M9 acceptance. Goal ACTIVE.
