@@ -367,10 +367,7 @@ impl Host {
 impl ProceduralMaterialEditor {
     pub(crate) fn enable_gpu_preview(&mut self) {
         self.native.enabled = true;
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            self.worker = None;
-        }
+        self.worker = None;
         self.native.worker_generation = None;
         self.native.asset_job_pending = true;
     }
@@ -447,14 +444,10 @@ impl ProceduralMaterialEditor {
             && ui
                 .get_stack_layout(crate::geometry_editor::STACK)
                 .is_none_or(|stack| stack.index() == 0);
-        #[cfg(not(target_arch = "wasm32"))]
         if ((graph_visible && self.tile.is_some()) || self.native.needs_asset_worker)
             && self.native.worker_generation != Some(images.context().generation())
         {
-            self.worker = Some(gpu::Worker::new_asset_bakes(
-                images.context().device.clone(),
-                images.context().queue.clone(),
-            ));
+            self.worker = Some(gpu::Worker::new_asset_bakes(images.context().clone()));
             self.native.worker_generation = Some(images.context().generation());
             self.native.asset_job_pending = true;
             self.requested.clear();
@@ -933,7 +926,7 @@ mod tests {
         let asset = starter(id).unwrap();
         let bundle = asset.save().unwrap();
         let operation = asset.root.project.materials[0].rows[0].tiles[0].id.clone();
-        let worker = gpu::Worker::new_asset_bakes(gpu.device.clone(), gpu.queue.clone());
+        let worker = gpu::Worker::new_asset_bakes(gpu.clone());
         worker.send(gpu::Job {
             pixels_per_tile: 16,
             tile: id,
@@ -985,5 +978,70 @@ mod tests {
             !reference.thumbnails.is_empty(),
             "independent CPU reference thumbnails remain available"
         );
+        // Keep the existing authored animation/page policy while replacing its
+        // blocking readback implementation with the shared cooperative engine.
+        let legacy = gpu::Worker::reference_asset_bakes(gpu.device.clone(), gpu.queue.clone());
+        for (mode, frames) in [("raw", 2), ("repeat", 2), ("seamless", 1)] {
+            let mut asset = asset.clone();
+            asset.root.project.materials[0].tiling.mode =
+                denrim_materials::periodic::Mode::parse(mode).unwrap();
+            asset.root.project.materials[0].tiling.period = [2., 1.];
+            asset.root.project.materials[0].animation.frames = frames;
+            super::super::composition::surface_pages::apply(
+                &mut asset,
+                Some(&rusterix::TileUvPages {
+                    origin: [-1, -1],
+                    size: [2, 1],
+                    axes: [[1., 0., 0.], [0., 0., 1.]],
+                    units_per_page: 1,
+                    animation_frames: 1,
+                    repeat_period: [0.; 2],
+                }),
+            );
+            let bundle = asset.save().unwrap();
+            for worker in [&worker, &legacy] {
+                assert!(worker.send(gpu::Job {
+                    pixels_per_tile: 16,
+                    tile: id,
+                    revision: 8,
+                    bundle: bundle.clone(),
+                    continuous: true,
+                    selection: None,
+                    preview_aspect: 1.
+                }));
+            }
+            let native = worker
+                .results
+                .recv_timeout(std::time::Duration::from_secs(30))
+                .unwrap()
+                .frame
+                .unwrap();
+            let reference = legacy
+                .results
+                .recv_timeout(std::time::Duration::from_secs(30))
+                .unwrap()
+                .frame
+                .unwrap();
+            assert_eq!(native.tile, reference.tile, "{mode} base tile");
+            assert_eq!(native.images, reference.images, "{mode} source maps");
+            assert_eq!(
+                native.animation_images, reference.animation_images,
+                "{mode} animation"
+            );
+            let native = native.surface_pages.unwrap();
+            let reference = reference.surface_pages.unwrap();
+            assert_eq!(native.layout, reference.layout, "{mode} page domains");
+            assert_eq!(
+                native.textures, reference.textures,
+                "{mode} serialized page pixels/materials"
+            );
+        }
+        let transfers = gpu.transfers();
+        assert!(transfers.asset_bake_readback_requests > 0);
+        assert_eq!(
+            transfers.readback_bytes, transfers.asset_bake_readback_bytes,
+            "all color reads are labeled explicit CPU asset production"
+        );
     }
+
 }

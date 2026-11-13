@@ -12,42 +12,9 @@ use std::{
 pub(super) const THUMBNAIL_SIZE: usize = 64;
 const RETAINED_THUMBNAIL_PIPELINES: usize = 16;
 
-pub(super) struct Job {
-    pub pixels_per_tile: u32,
-    pub tile: theframework::prelude::Uuid,
-    pub revision: u64,
-    pub bundle: String,
-    pub continuous: bool,
-    pub selection: Option<PreviewSelection>,
-    pub preview_aspect: f32,
-}
-pub(super) struct Completed {
-    pub pixels_per_tile: u32,
-    pub tile: theframework::prelude::Uuid,
-    pub bundle: String,
-    pub revision: u64,
-    pub frame: Result<Frame, String>,
-}
-pub(super) struct Frame {
-    pub size: usize,
-    pub animation_images: Vec<[Vec<u8>; 5]>,
-    pub animation_selections: Vec<Vec<u8>>,
-    pub images: [Vec<u8>; 5],
-    pub tile: rusterix::Texture,
-    pub warnings: Vec<String>,
-    pub selection: Option<(PreviewSelection, Vec<u8>)>,
-    pub continuous: bool,
-    /// Unit-domain RGBA thumbnails for every authored operation, keyed by its
-    /// stable identity. They do not depend on minimap selection or output wires.
-    pub thumbnails: Vec<(String, Vec<u8>)>,
-    pub surface_pages: Option<std::sync::Arc<SurfacePages>>,
-}
-
-pub(super) struct SurfacePages {
-    pub layout: rusterix::TileUvPages,
-    pub textures: Vec<rusterix::Texture>,
-}
-
+pub(super) use super::bake_types::*;
+pub(crate) use super::bake_pixels::preview_images;
+use super::bake_pixels::{bake, bake_rect};
 #[derive(Default)]
 struct OperationThumbnail {
     bundle: Option<String>,
@@ -152,20 +119,80 @@ impl ThumbnailCache {
         images
     }
 }
+enum JobSender {
+    Reference(mpsc::Sender<Job>),
+    #[cfg(feature = "native-render")]
+    Assets(mpsc::SyncSender<Job>),
+}
 pub(super) struct Worker {
-    jobs: mpsc::Sender<Job>,
+    jobs: JobSender,
     pub results: mpsc::Receiver<Completed>,
     submitted: std::sync::atomic::AtomicU64,
+    canceled: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
 }
 impl Worker {
+    #[cfg(test)]
+    pub(super) fn reference_asset_bakes(device: wgpu::Device, queue: wgpu::Queue) -> Self {
+        Self::with_purpose(device, queue, true)
+    }
     pub fn new(device: wgpu::Device, queue: wgpu::Queue) -> Self {
         Self::with_purpose(device, queue, false)
     }
     /// Native display has its own GPU outputs. This worker returns authored
     /// tile/surface-page assets; interactive graph thumbnails stay on the GPU.
     #[cfg(feature = "native-render")]
-    pub(super) fn new_asset_bakes(device: wgpu::Device, queue: wgpu::Queue) -> Self {
-        Self::with_purpose(device, queue, true)
+    pub(super) fn new_asset_bakes(context: std::sync::Arc<renderkit::GpuContext>) -> Self {
+        let (jobs, rx) = mpsc::sync_channel::<Job>(64);
+        let (tx, results) = mpsc::sync_channel(2);
+        let canceled = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let cancel = canceled.clone();
+        std::thread::Builder::new()
+            .name("MaterialZ asset bake".into())
+            .spawn(move || {
+                let mut baker = super::asset_bake::Baker::new(context, cancel.clone());
+                let mut pending = std::collections::VecDeque::<Job>::new();
+                while !cancel.load(std::sync::atomic::Ordering::Acquire) {
+                    if pending.is_empty() {
+                        match rx.recv() {
+                            Ok(job) => pending.push_back(job),
+                            Err(_) => break,
+                        }
+                    }
+                    while pending.len() < 64 {
+                        match rx.try_recv() {
+                            Ok(next) => {
+                                pending.retain(|job| job.tile != next.tile);
+                                pending.push_back(next);
+                            }
+                            Err(_) => break,
+                        }
+                    }
+                    if cancel.load(std::sync::atomic::Ordering::Acquire) {
+                        break;
+                    }
+                    let job = pending.pop_front().unwrap();
+                    let frame = pollster::block_on(baker.bake(&job));
+                    if tx
+                        .send(Completed {
+                            pixels_per_tile: job.pixels_per_tile,
+                            tile: job.tile,
+                            bundle: job.bundle,
+                            revision: job.revision,
+                            frame,
+                        })
+                        .is_err()
+                    {
+                        break;
+                    }
+                }
+            })
+            .expect("Material asset worker");
+        Self {
+            jobs: JobSender::Assets(jobs),
+            results,
+            submitted: std::sync::atomic::AtomicU64::new(0),
+            canceled: Some(canceled),
+        }
     }
     fn with_purpose(device: wgpu::Device, queue: wgpu::Queue, asset_bakes: bool) -> Self {
         let (jobs, rx) = mpsc::channel::<Job>();
@@ -472,16 +499,29 @@ impl Worker {
                 }
             })
             .expect("Material preview worker");
-        Self { jobs, results, submitted: std::sync::atomic::AtomicU64::new(0) }
+        Self { jobs:JobSender::Reference(jobs), results, submitted: std::sync::atomic::AtomicU64::new(0), canceled:None }
     }
-    pub fn send(&self, job: Job) {
-        if self.jobs.send(job).is_ok() {
+    pub fn send(&self, job: Job) -> bool {
+        let accepted = match &self.jobs {
+            JobSender::Reference(sender) => sender.send(job).is_ok(),
+            #[cfg(feature = "native-render")]
+            JobSender::Assets(sender) => sender.try_send(job).is_ok(),
+        };
+        if accepted {
             self.submitted.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            true
+        } else {
+            false
         }
     }
     #[cfg(test)]
     pub(super) fn submitted_jobs(&self) -> u64 {
         self.submitted.load(std::sync::atomic::Ordering::Relaxed)
+    }
+}
+impl Drop for Worker {
+    fn drop(&mut self) {
+        if let Some(canceled) = &self.canceled { canceled.store(true,std::sync::atomic::Ordering::Release); }
     }
 }
 
@@ -738,69 +778,6 @@ fn readback_maps<const N: usize>(
         buffer.unmap();
     }
     Ok(result)
-}
-fn srgb(v: f32) -> u8 {
-    let v = v.max(0.);
-    let encoded = if v <= 0.0031308 {
-        v * 12.92
-    } else {
-        1.055 * v.powf(1. / 2.4) - 0.055
-    };
-    (encoded.clamp(0., 1.) * 255.).round() as u8
-}
-fn unit(v: f32) -> u8 {
-    (v.clamp(0., 1.) * 255.).round() as u8
-}
-pub(crate) fn preview_images<const N: usize>(maps: &[Vec<[f32; 4]>; N]) -> [Vec<u8>; N] {
-    std::array::from_fn(|channel| {
-        maps[channel]
-            .iter()
-            .enumerate()
-            .flat_map(|(i, value)| {
-                if channel == 0 {
-                    [
-                        srgb(value[0]),
-                        srgb(value[1]),
-                        srgb(value[2]),
-                        unit(maps[1][i][0]),
-                    ]
-                } else if channel == 4 {
-                    [srgb(value[0]), srgb(value[1]), srgb(value[2]), 255]
-                } else if channel == 6 {
-                    [unit(value[0]), unit(value[1]), unit(value[2]), 255]
-                } else {
-                    let v = unit(value[0]);
-                    [v, v, v, 255]
-                }
-            })
-            .collect()
-    })
-}
-/// Eldiron stores R/M/O/E as four 4-bit scalars. Full precision MZ outputs
-/// remain available in the editor; emission hue/HDR cannot fit this tile cache.
-/// Opacity belongs to RGBA alpha exactly once; material opacity stays 1 because
-/// SceneVM multiplies the two during shading.
-fn bake(maps: &Maps, size: usize) -> rusterix::Texture {
-    bake_rect(maps, [size; 2])
-}
-fn bake_rect(maps: &Maps, size: [usize; 2]) -> rusterix::Texture {
-    let rgba = preview_images(maps)[0].clone();
-    let mut texture = rusterix::Texture::alloc(size[0], size[1]);
-    texture.data = rgba;
-    for y in 0..size[1] {
-        for x in 0..size[0] {
-            let i = y * size[0] + x;
-            texture.set_materials(
-                x as u32,
-                y as u32,
-                maps[2][i][0],
-                maps[3][i][0],
-                1.,
-                maps[4][i][0].max(maps[4][i][1]).max(maps[4][i][2]),
-            );
-        }
-    }
-    texture
 }
 
 #[cfg(test)]

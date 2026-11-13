@@ -1381,7 +1381,7 @@ pub struct ProceduralMaterialEditor {
     composition_navigation: Option<(bool,bool)>,
     composition_choices: Vec<Uuid>,
     map_binding: Option<shared::material_composition::MapMaterialBinding>,
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"),feature = "native-render"))]
     worker: Option<gpu::Worker>,
     #[cfg(feature = "native-render")]
     native: native_host::Host,
@@ -1394,6 +1394,12 @@ impl ProceduralMaterialEditor {
         { self.native.enabled }
         #[cfg(not(feature = "native-render"))]
         { false }
+    }
+    fn model_source_pending(&self, tile: Uuid) -> bool {
+        #[cfg(not(target_arch = "wasm32"))]
+        { self.model_sources.pending(tile) }
+        #[cfg(target_arch = "wasm32")]
+        { let _ = tile; false }
     }
     fn status(_ui: &mut TheUI, ctx: &mut TheContext, text: impl Into<String>) {
         ctx.ui
@@ -1515,7 +1521,7 @@ impl ProceduralMaterialEditor {
             self.model_sources = Default::default();
         }
         self.requested.clear();
-        #[cfg(all(feature = "native-render",not(target_arch = "wasm32")))]
+        #[cfg(feature = "native-render")]
         if self.native.enabled {
             self.worker = None;
             self.native.reset_bake_domain();
@@ -2279,7 +2285,7 @@ impl ProceduralMaterialEditor {
             self.preview_dirty = true;
             changed = true;
         }
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(any(not(target_arch = "wasm32"),feature = "native-render"))]
         {
             // A fully baked map needs no material compiler/preview worker.
             // Initialize it only for editing or for an actual stale bake.
@@ -2305,6 +2311,7 @@ impl ProceduralMaterialEditor {
                 });
             #[cfg(feature = "native-render")]
             { self.native.needs_asset_worker = needs_worker; }
+            #[cfg(not(target_arch = "wasm32"))]
             if !self.native_preview_enabled() && self.worker.is_none() && needs_worker {
                 if let Some((device, queue)) =
                     RUSTERIX.read().unwrap().scene_handler.vm.gpu_context()
@@ -2411,12 +2418,11 @@ impl ProceduralMaterialEditor {
                     }
                     let key = self.bake_keys[id];
                     if project.tiles.contains_key(id)
-                        && !self.model_sources.pending(*id)
+                        && !self.model_source_pending(*id)
                         && project.procedural_material_cache_keys.get(id) != Some(&key)
                         && self.requested.get(id) != Some(&key)
                     {
-                        self.requested.insert(*id, key);
-                        worker.send(gpu::Job {
+                        if worker.send(gpu::Job {
                             pixels_per_tile: pixel_density,
                             tile: *id,
                             revision: 0,
@@ -2424,7 +2430,9 @@ impl ProceduralMaterialEditor {
                             continuous: false,
                             selection: None,
                             preview_aspect,
-                        });
+                        }) {
+                            self.requested.insert(*id, key);
+                        }
                     }
                 }
             }
@@ -2475,7 +2483,7 @@ impl ProceduralMaterialEditor {
                     }
                     self.asset = Some(asset);
                     Self::status(ui, ctx, "Compiling material…");
-                    #[cfg(not(target_arch = "wasm32"))]
+                    #[cfg(any(not(target_arch = "wasm32"),feature = "native-render"))]
                     {
                         if let Some(worker) = &self.worker {
                             self.requested
@@ -2483,7 +2491,7 @@ impl ProceduralMaterialEditor {
                             self.preview_request = false;
                             #[cfg(feature = "native-render")]
                             { self.native.asset_job_pending = false; }
-                            worker.send(gpu::Job {
+                            let accepted = worker.send(gpu::Job {
                                 pixels_per_tile: pixel_density,
                                 tile,
                                 revision: self.revision,
@@ -2499,17 +2507,16 @@ impl ProceduralMaterialEditor {
                                 },
                                 preview_aspect,
                             });
+                            if !accepted {
+                                self.requested.remove(&tile);
+                                #[cfg(feature = "native-render")]
+                                { self.native.asset_job_pending = true; }
+                            }
                         } else if !self.native_preview_enabled() {
                             self.bundle = None;
                             Self::status(ui, ctx, "Waiting for the renderer's GPU device…");
                         }
                     }
-                    #[cfg(target_arch = "wasm32")]
-                    Self::status(
-                        ui,
-                        ctx,
-                        "Material authoring GPU preview is currently available in desktop Creator.",
-                    );
                 }
                 Err(e) => {
                     self.asset = None;
@@ -2529,11 +2536,10 @@ impl ProceduralMaterialEditor {
             self.preview_dirty = true;
             changed = true;
         }
-        #[cfg(all(feature = "native-render",not(target_arch = "wasm32")))]
+        #[cfg(feature = "native-render")]
         if self.native.enabled && self.native.asset_job_pending {
             if let Some(worker) = &self.worker {
-                self.requested.insert(tile, pixel_style::bake_key(bundle, pixel_density));
-                worker.send(gpu::Job {
+                if worker.send(gpu::Job {
                     pixels_per_tile: pixel_density,
                     tile,
                     revision: self.revision,
@@ -2541,8 +2547,10 @@ impl ProceduralMaterialEditor {
                     continuous: self.native.continuous,
                     selection: None,
                     preview_aspect,
-                });
-                self.native.asset_job_pending = false;
+                }) {
+                    self.requested.insert(tile, pixel_style::bake_key(bundle, pixel_density));
+                    self.native.asset_job_pending = false;
+                }
             }
         }
         if self.preview_request {
@@ -2734,18 +2742,12 @@ fn draw_preview_with_colors(
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) mod gpu;
 #[cfg(target_arch = "wasm32")]
-mod gpu {
-    pub struct Frame {
-        pub tile: rusterix::Texture,
-        pub size: usize,
-        pub animation_images: Vec<[Vec<u8>; 5]>,
-        pub animation_selections: Vec<Vec<u8>>,
-        pub images: [Vec<u8>; 5],
-        pub thumbnails: Vec<(String, Vec<u8>)>,
-        pub selection: Option<(super::PreviewSelection, Vec<u8>)>,
-        pub continuous: bool,
-    }
-}
+#[path = "procedural_material/browser_bakes.rs"]
+mod gpu;
+mod bake_types;
+mod bake_pixels;
+#[cfg(feature = "native-render")]
+mod asset_bake;
 
 #[cfg(test)]
 mod tests {

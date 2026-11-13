@@ -8189,3 +8189,149 @@ M8 browser Creator assembled checkpoint verified (partial milestone):
  compile checks after browser adapters/idle-loss integration, not physical native
  wrapper runtime revalidation. Native creator assembled Metal124.49s and foreign
  idle-loss Metal0.41s remain the actual integration runs for this batch.
+
+
+M5/M8 shared asynchronous MaterialZ CPU asset-bake batch (in progress):
+- Checkpoint8304e9a6 committed the verified browser Creator/idle-fault/scoped
+  navigation work; unrelated networking-mmo-concept.md remains untracked.
+- Identified remaining browser functional gap: actual Make Proc displayed its
+  GPU material but retained placeholder serialized CPU tile artwork because
+  WASM skipped the native-only asset worker and result installation.
+- Extracted shared bake_types.rs and bake_pixels.rs preserving existing CPU
+  result fields and exact color/alpha/RMOE quantization. Added asset_bake.rs:
+  injected-context async MaterialZ initialization/compile, snapped sample grid,
+  animation, raw surface-page blocks and repeat/seamless patterns use common
+  native/browser code. Explicit float-map readback uses GPU callbacks/oneshots;
+  native worker may wait its device, browser never pollster/Wait/recv blocks.
+- Native canonical asset worker now calls this common engine. Legacy CPU preview
+  worker stays isolated as reference; its old asset-bake path is test-only oracle.
+  Existing native_material_asset_worker_keeps_bake_pixels_and_omits_display_maps
+  real Metal passed1/1.90s with base-tile byte equality and no transient selection
+  or graph-card CPU maps. Extended same test with animation/raw/repeat/seamless
+  page and encoded pixels comparisons; final build currently running. Native
+  initial build44.28s; logs /private/tmp/eldiron-material-asset-async-native-*.
+- Browser browser_bakes.rs uses one cooperative actor, at most64 queued unique
+  tile jobs with source replacement; rejected admissions are retried by owner.
+  Results retain existing tile/bundle/revision validation. Worker reset on tab/
+  device replacement aborts its future, clears queue, drops receiver/context;
+  no stale callback owns a document/controller. Background result installation
+  now shares native policy and scene refresh. Interactive previews remain on
+  native_preview.rs and never use these CPU results for display.
+- Added separately labeled asset_bake_readback_bytes/requests inside total
+  readback/capture counters, plus browser attributes. Prior untracked native
+  bakes must now be accounted in assertions; do not hide them or claim total
+  colorReads0 during explicit CPU asset generation. Normal-presentation reads
+  and asset production must be distinguished in new browser verification.
+- Shared direct futures dependency uses already pinned lockfile version only;
+  no dependency version change. WASM focused check passed8.73s after correcting
+  inner Worker re-export visibility. Reference desktop check passed35.10s.
+- Final optimized browser packaging pipeline asset-bake-package.log running;
+  final native extended parity build asset-parity-final-build.log running.
+  Need inspect all results, fix any regression, run actual browser material edit/
+  bake/save/reopen, device/document cancellation and explicit readback labels,
+  then existing assembled native integration. No asset acceptance from compile.
+
+
+M5/M8 shared asset-bake assembled evidence:
+- Extended EXISTING native asset-worker Metal check passed1/2.07s. Compared
+ common engine vs retained legacy reference for raw/animated2/repeat/seamless:
+ base tile, all five source maps, animation images, page layout, exact serialized
+ page pixels/materials all equal. Explicit readback totals equal labeled asset
+ bytes. /private/tmp/eldiron-material-asset-parity-final-metal.log.
+- Existing assembled native Creator integration passed1/126.22s after common
+ worker cutover, covering views/tools/documents/Play/runtime, picking/receipts,
+ device resources and source assertions. No full-suite repeat or new fixture
+ suite added. /private/tmp/eldiron-material-asset-assembled-metal.log.
+- Optimized browser bundle97,354,488B built79s and packaged. Stopped only task
+ Chrome9250 and started clean task Chrome9251/profile
+ /private/tmp/eldiron-creator-asset-bake-9251, Metal125%. Fresh instrumentation
+ separates GPUCommandEncoder label `MaterialZ explicit asset bake` from all
+ presentation color copies. Original browser/user processes untouched.
+- Actual new browser document06a267b2-139a-4549-a44c-20b582673a41 booted and idle
+ recovered gen1→2 without input,2→3 presentations, all color reads0. Then real
+ empty-slot/Make Proc created tile9bbc6e64-5621-48f3-a16d-1d670d210af9, produced
+ actual16x16 CPU asset with51 unique RGBA colors (placeholder was constant128).
+ Pixel SHA256 bdc10d494cb83307dbbeeaef2381f3f46f324c97a45d9298c7fb7e8228d7929b.
+ Saved archive has108 authored materials AND108 cache keys, including new tile.
+ Exactly1 explicit7168-byte float-map readback; JS observes2 RGBA asset copies
+ (Color/Emission), zero presentation copies/Canvas2D/rootCPU/GPU/browser errors.
+ /private/tmp/eldiron-browser-creator-asset-bake-save.log.
+- Device destroy while material active recovered gen2→3, same doc,27→40 frames;
+ rebake labeled7168B in new generation. Before/after OPFS archive bytes IDENTICAL;
+ /private/tmp/eldiron-browser-creator-baked-{before,after}-loss.eldiron.
+ Save reuses one real OPFS file handle (picker counter1).
+- Actual cancellation check holds five real GPUBuffer.mapAsync completions for
+ explicit bake while independent GPU material display continues. Load original
+ 3DStarter through real input/File.arrayBuffer while bake is pending, changing
+ doc→85bc4668-4d54-4880-b591-96a485fd85e7. Release delayed callbacks. New save
+ correctly requests its own file handle and has107 materials/107 cache keys,
+ NO canceled tile. No error/stale mutations. Reopen actual baked archive through
+ same production byte-load path→7d85859a-86e5-4dd2-a553-deb6074cf857, save again:
+ WHOLE project JSON equals original baked source; exact tile hash retained.
+ /private/tmp/eldiron-browser-creator-pending-bake-documents.log and
+ creator-{after-canceled-bake,reopened-baked}.eldiron under /private/tmp.
+- Tightened counter snapshot implementation afterward: asset bytes/requests are
+ independent atomic partitions, total/readback subset sampled consistently so
+ native background submission cannot temporarily look like unclassified color
+ readback. Final native focused rebuild counter-final-build.log running; WASM
+ final compile pending. Rendering/asset algorithm unchanged since passed runs.
+- Next finish final counter check, tighten small code/compatibility checks,
+ checkpoint this batch. Still open: browser clipboard/image and uncommon CPU
+ workers, renderer globals/adapters, measured memory/atlas/batching/startup/
+ release baselines and physical platform matrix. Full Goal remains active.
+
+- Final queue/resource review tightened canonical native asset inbox to64 channel
+  entries plus at most64 coalesced pending entries; browser already caps64 unique
+  pending jobs. Both now retain at most2 completed CPU results plus one producer
+  result waiting for admission. Native sync_channel blocks only its worker;
+  browser uses try_send + CPU oneshot resume on owner drain, never blocks JS.
+  Full input admissions remain retryable by document owner; source replacement/
+  cancellation stays addressed. This bounds result accumulation while hosts stop
+  updating, not a measured GPU/CPU memory-budget acceptance. Legacy reference
+  worker remains unbounded and isolated for M7 reference/adapter retirement.
+- Counter partition checks compiled native42.57s/WASM24.10s. Small ownership/helper
+  cleanup and bounded queues compiled native22.61s/WASM12.14s. Final result-channel
+  backpressure native build backpressure-build.log and optimized browser pipeline
+  creator-asset-backpressure-package.log running; inspect before claiming passed.
+
+
+M5/M8 final bounded asset-bake checkpoint evidence:
+- Final native bounded-result/source-map parity check passed1/1.78s after
+ consistent counter partitions and queue changes. Build22.56s. Logs:
+ material-asset-backpressure-{build,metal}.log under /private/tmp/eldiron-.
+ Staticlib compatibility check passed22.04s (material-asset-staticlib-final.log).
+ Final reference desktop check running (material-asset-reference-final.log).
+- Final optimized browser build74s/package97,347,959B. Replaced ONLY task-owned
+ Chrome9251 page via CDP, not the user's browser. Fresh page default CSS height
+ was914; actual Emulation resize to1600x858/DPR1.25 exercised host resize before
+ Make Proc. New doc90acffd3-69a9-4316-a524-6e5cd9c82d36 boots3→4 frames/gen1→2
+ with reads0 and unchanged original camera. Then final bounded browser actor
+ delivers1 actual7168B explicit bake/2 RGBA asset copies; zero presentation
+ copies, Canvas2D, root CPU bytes, GPU/browser errors. Logs:
+ browser-creator-{asset-backpressure-bootstrap,backpressure-make}.log.
+- Final real OPFS save/recovery gen2→3,24→38 frames, same doc and clean; one
+ retained file picker. Pending five real maps canceled on document switch after
+ gen4, new doc4f138532-7277-4f9f-95d6-f28ea18793e3 remains107/107 definitions/
+ cache keys with no late custom tile. Reopen actual baked archive as
+ 88677d91-c2da-4ed2-beee-21f730674dd0:108/108, WHOLE JSON equal and complete
+ before/after-device archives byte-identical. Final custom tile
+ 6d1001e3-e5f6-44fb-be62-0bddc08def30 retains pixel SHA256
+ bdc10d494cb83307dbbeeaef2381f3f46f324c97a45d9298c7fb7e8228d7929b.
+ Logs browser-creator-asset-backpressure-{save,documents}.log; matching temporary
+ .eldiron paths overwrite previous temporary checks and now contain final data.
+- Source review for next batch: active tile editor uses native arboard directly;
+ WASM image clipboard is explicitly unavailable. Existing native Cut ignores
+ set_image failure and clears selected pixels afterward. Replace this with
+ addressed asynchronous image requests, staged source/selection and confirmed
+ write before cut; retain source on failure/owner change. Reuse shared core
+ ImageAsset and host clipboard ownership rather than browser Canvas2D or a new
+ raster UI path. Canonical graph/text clipboard already has scoped shared
+ requests; legacy overlay fallback must be classified/retired separately.
+- Full Goal remains ACTIVE. No M0–M9 gate marked complete; all previously listed
+ architecture/global retirement, budgets/release comparisons and unavailable
+ physical host/platform checks still apply. Preserve networking-mmo-concept.md.
+
+- Final reference desktop feature compatibility check passed18.12s after bounded
+  sender/result changes (material-asset-reference-final.log); final staged diff
+  passes whitespace checks. This closes the checks for this implementation batch,
+  while the full M0–M9 objective and recorded acceptance gaps remain active.

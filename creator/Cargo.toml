@@ -40,6 +40,7 @@ denrim-materials.workspace = true
 wgpu = "29.0.3"
 half = "2"
 pollster = "0.4"
+futures = "0.3"
 rusterix.workspace = true
 scenevm = { path = "../crates/scenevm", version = "0.96.0", default-features = false, features = ["gpu"] }
 

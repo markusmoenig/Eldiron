@@ -188,6 +188,9 @@ impl GpuApplication for BrowserCreator {
                 "data-eldiron-readback-bytes",
                 &images.context().transfers().readback_bytes.to_string(),
             );
+            let transfers = images.context().transfers();
+            let _ = root.set_attribute("data-eldiron-asset-bake-readback-bytes", &transfers.asset_bake_readback_bytes.to_string());
+            let _ = root.set_attribute("data-eldiron-asset-bake-readback-requests", &transfers.asset_bake_readback_requests.to_string());
             let _ = root.set_attribute(
                 "data-eldiron-gpu-generation",
                 &images.context().generation().to_string(),

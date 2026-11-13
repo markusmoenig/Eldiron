@@ -1328,6 +1328,7 @@ dependencies = [
  "eldiron-shared",
  "eldiron_scepter",
  "fontdue",
+ "futures",
  "half",
  "i18n-embed",
  "i18n-embed-fl",

@@ -10,6 +10,9 @@ pub struct TransferCounters {
     pub capture_requests: u64,
     /// Four-byte producer status metadata; excluded from color capture bytes.
     pub status_readback_bytes: u64,
+    /// Explicit editable/exportable asset production, also included in readback_bytes.
+    pub asset_bake_readback_bytes: u64,
+    pub asset_bake_readback_requests: u64,
 }
 #[derive(Default)]
 struct Counters {
@@ -17,6 +20,8 @@ struct Counters {
     readback: AtomicU64,
     captures: AtomicU64,
     status: AtomicU64,
+    asset_bytes: AtomicU64,
+    asset_requests: AtomicU64,
 }
 static NEXT_DEVICE: AtomicU64 = AtomicU64::new(1);
 /// A device domain. Creating a replacement context invalidates old GPU resources.
@@ -102,11 +107,17 @@ impl GpuContext {
         .await
     }
     pub fn transfers(&self) -> TransferCounters {
+        // Sample the asset partition once so the total and its labeled subset
+        // remain consistent while a native worker submits another bake.
+        let asset_bytes = self.counters.asset_bytes.load(Ordering::Relaxed);
+        let asset_requests = self.counters.asset_requests.load(Ordering::Relaxed);
         TransferCounters {
             uploaded_bytes: self.counters.uploaded.load(Ordering::Relaxed),
-            readback_bytes: self.counters.readback.load(Ordering::Relaxed),
-            capture_requests: self.counters.captures.load(Ordering::Relaxed),
+            readback_bytes: self.counters.readback.load(Ordering::Relaxed) + asset_bytes,
+            capture_requests: self.counters.captures.load(Ordering::Relaxed) + asset_requests,
             status_readback_bytes: self.counters.status.load(Ordering::Relaxed),
+            asset_bake_readback_bytes: asset_bytes,
+            asset_bake_readback_requests: asset_requests,
         }
     }
     pub(crate) fn record_status_readback(&self) {
@@ -120,6 +131,13 @@ impl GpuContext {
     pub fn record_capture(&self, bytes: u64) {
         self.counters.readback.fetch_add(bytes, Ordering::Relaxed);
         self.counters.captures.fetch_add(1, Ordering::Relaxed);
+    }
+    /// Label a CPU asset bake independently from viewport/export captures.
+    pub fn record_asset_bake(&self, bytes: u64) {
+        self.counters
+            .asset_bytes
+            .fetch_add(bytes, Ordering::Relaxed);
+        self.counters.asset_requests.fetch_add(1, Ordering::Relaxed);
     }
     /// Wake a host even when no redraw or simulation update is scheduled. This
     /// registers no thread or event loop and retains the listener only weakly.
