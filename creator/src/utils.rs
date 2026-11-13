@@ -1,4 +1,4 @@
-use crate::editor::{DOCKMANAGER, PALETTE, };
+use crate::editor::{DOCKMANAGER};
 use crate::prelude::*;
 use rusterix::{PixelSource, Value, ValueContainer, pixel_to_vec4};
 use std::str::FromStr;
@@ -250,7 +250,7 @@ pub fn set_code(
 /// Returns the currently active source
 pub fn get_source(_ui: &mut TheUI, server_ctx: &ServerContext) -> Option<PixelSource> {
     if DOCKMANAGER.read().unwrap().dock == "Palette" {
-        let palette = PALETTE.read().unwrap();
+        let palette = server_ctx.reference.authoring_palette();
         if palette.get_current_color().is_some() {
             return Some(PixelSource::PaletteIndex(palette.current_index));
         }

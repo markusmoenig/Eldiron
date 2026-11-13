@@ -110,6 +110,9 @@ pub(crate) fn check(gpu: &Arc<GpuContext>, renderer: &mut PaintRenderer) {
         } else {
             MapCamera::TwoD
         };
+        if mode == 2 {
+            check_reference_cache(gpu, &project, &server, &assets);
+        }
         assets.config = if mode == 1 {
             "[renderer]\nbackend_2d='compute'".into()
         } else {
@@ -274,15 +277,13 @@ pub(crate) fn check(gpu: &Arc<GpuContext>, renderer: &mut PaintRenderer) {
             .unwrap();
         assert!(delta <= 1, "minimap mode {mode}: source max delta {delta}");
         eprintln!("Native minimap mode={mode}: source max delta={delta}");
-        let saved = *MINIMAPBOX.read().unwrap();
-        *MINIMAPBOX.write().unwrap() = frame.bbox;
         draw_camera_marker(
             &project.regions[0].map,
             Some(&project.regions[0]),
             &mut reference,
             &server,
+            frame.bbox,
         );
-        *MINIMAPBOX.write().unwrap() = saved;
         // The composited oracle includes marker placement through fractional DPI.
         let mut paint = PaintList::default();
         paint.ops.push(PaintOp::DisplayCompositing(
@@ -983,10 +984,7 @@ fn check_screens(gpu: &Arc<GpuContext>, renderer: &mut PaintRenderer) {
                 eprintln!("Native screen explicit occlusion: max delta={delta}");
             }
 
-            let old = *MINIMAPBOX.read().unwrap();
-            *MINIMAPBOX.write().unwrap() = bounds;
-            draw_camera_marker(original, None, &mut reference, &server);
-            *MINIMAPBOX.write().unwrap() = old;
+            draw_camera_marker(original, None, &mut reference, &server, bounds);
             let mut paint = PaintList::default();
             paint.ops.push(PaintOp::DisplayCompositing(
                 theframework::paint::DisplayCompositing::LegacyOpaque,
@@ -1087,4 +1085,43 @@ fn check_screens(gpu: &Arc<GpuContext>, renderer: &mut PaintRenderer) {
         }
         assert_eq!(saved, serde_json::to_value(&project).unwrap());
     }
+}
+
+/// Exercise the retained CPU adapter with the same populated iso source as the
+/// GPU checkpoint. A cache hit cannot borrow another application's pixels/bounds.
+fn check_reference_cache(
+    gpu: &Arc<GpuContext>,
+    project: &Project,
+    server: &ServerContext,
+    assets: &rusterix::Assets,
+) {
+    server.reference.bind_context(gpu.clone());
+    server.reference.write().set_tiles(assets.tiles.clone(), true);
+    let authored = serde_json::to_value(project).unwrap();
+    let mut first = TheRGBABuffer::new(TheDim::sized(143, 83));
+    draw_minimap(project, &mut first, server, true);
+    let key = server.reference.minimap().key;
+    let bbox = server.reference.minimap().bbox;
+    assert!(!server.reference.minimap().image.pixels().is_empty());
+    let second = ServerContext::new();
+    second.reference.minimap_mut().bbox = Vec4::new(100., 200., 300., 400.);
+    second.reference.minimap_mut().key = key.wrapping_add(1);
+    assert!(!second.reference.initialized());
+    let before = gpu.transfers().readback_bytes;
+    let mut hit = TheRGBABuffer::new(TheDim::sized(143, 83));
+    hit.fill([255, 0, 255, 255]);
+    draw_minimap(project, &mut hit, server, false);
+    assert_eq!(hit.pixels(), first.pixels(), "cache hit retains this app's pixels and markers");
+    assert_eq!(server.reference.minimap().key, key);
+    assert_eq!(server.reference.minimap().bbox, bbox);
+    assert_eq!(gpu.transfers().readback_bytes, before, "reference cache hits do not render/read back again");
+    server.reference.clear_minimap();
+    assert!(server.reference.minimap().image.pixels().is_empty());
+    assert_eq!(second.reference.minimap().key, key.wrapping_add(1));
+    let mut rebuilt = TheRGBABuffer::new(TheDim::sized(143, 83));
+    draw_minimap(project, &mut rebuilt, server, false);
+    assert_eq!(rebuilt.pixels(), first.pixels());
+    assert_eq!(serde_json::to_value(project).unwrap(), authored);
+    assert!(!second.reference.initialized());
+    eprintln!("Application-owned reference minimap cache/isolation/clear passed");
 }

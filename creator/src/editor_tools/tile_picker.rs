@@ -122,7 +122,7 @@ impl TilePickerTool {
             UNDOMANAGER.write().unwrap().add_undo(undo, ctx);
         }
 
-        apply_palette(ui, ctx, server_ctx, project);
+        apply_palette(ui, ctx, server_ctx, project, reference);
 
         if let Some(palette_picker) = ui.get_palette_picker("Palette Picker") {
             palette_picker.set_palette(project.palette.clone());

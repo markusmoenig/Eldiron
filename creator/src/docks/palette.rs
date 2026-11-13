@@ -983,7 +983,7 @@ impl Dock for PaletteDock {
                             ),
                             ctx,
                         );
-                        apply_palette(ui, ctx, server_ctx, project);
+                        apply_palette(ui, ctx, &mut server_ctx.shared, project, &server_ctx.reference);
                         refresh_palette_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                         self.sync_widgets(ui, ctx, project);
                     }
@@ -1019,7 +1019,7 @@ impl Dock for PaletteDock {
                     Self::make_opaque(&mut project.palette.colors[from]);
                     Self::make_opaque(&mut project.palette.colors[to]);
                     project.palette.current_index = to as u16;
-                    apply_palette(ui, ctx, server_ctx, project);
+                    apply_palette(ui, ctx, &mut server_ctx.shared, project, &server_ctx.reference);
                     refresh_palette_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                     self.sync_widgets(ui, ctx, project);
                     UNDOMANAGER
@@ -1034,7 +1034,7 @@ impl Dock for PaletteDock {
             {
                 project.palette.current_index = *index;
                 project.ensure_palette_materials_len();
-                apply_palette(ui, ctx, server_ctx, project);
+                apply_palette(ui, ctx, &mut server_ctx.shared, project, &server_ctx.reference);
                 self.sync_widgets(ui, ctx, project);
                 true
             }
@@ -1048,7 +1048,7 @@ impl Dock for PaletteDock {
                     let prev = project.palette.clone();
                     let prev_materials = project.palette_materials.clone();
                     project.palette[index] = Some(color);
-                    apply_palette(ui, ctx, server_ctx, project);
+                    apply_palette(ui, ctx, &mut server_ctx.shared, project, &server_ctx.reference);
                     refresh_palette_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                     self.sync_widgets(ui, ctx, project);
                     UNDOMANAGER
@@ -1116,7 +1116,7 @@ impl Dock for PaletteDock {
                             *material = PaletteMaterial::default();
                         }
                         project.palette.current_index = index as u16;
-                        apply_palette(ui, ctx, server_ctx, project);
+                        apply_palette(ui, ctx, &mut server_ctx.shared, project, &server_ctx.reference);
                         refresh_palette_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                         self.sync_widgets(ui, ctx, project);
                         UNDOMANAGER
@@ -1139,7 +1139,7 @@ impl Dock for PaletteDock {
                             *dst_material = src_material;
                         }
                         project.palette.current_index = index as u16;
-                        apply_palette(ui, ctx, server_ctx, project);
+                        apply_palette(ui, ctx, &mut server_ctx.shared, project, &server_ctx.reference);
                         refresh_palette_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                         self.sync_widgets(ui, ctx, project);
                         UNDOMANAGER
@@ -1173,7 +1173,7 @@ impl Dock for PaletteDock {
                     if project.palette.current_index as usize == index {
                         project.palette.current_index = index.saturating_sub(1) as u16;
                     }
-                    apply_palette(ui, ctx, server_ctx, project);
+                    apply_palette(ui, ctx, &mut server_ctx.shared, project, &server_ctx.reference);
                     refresh_palette_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                     self.sync_widgets(ui, ctx, project);
                     UNDOMANAGER

@@ -189,8 +189,6 @@ pub static TOOLLIST: LazyLock<RwLock<ToolList>> =
 pub static ACTIONLIST: LazyLock<RwLock<ActionList>> =
     LazyLock::new(|| RwLock::new(ActionList::default()));
 // pub static PANELS: LazyLock<RwLock<Panels>> = LazyLock::new(|| RwLock::new(Panels::new()));
-pub static PALETTE: LazyLock<RwLock<ThePalette>> =
-    LazyLock::new(|| RwLock::new(ThePalette::default()));
 
 const COMPACT_NAVIGATION_ICON_PATHS: [(&str, &str); 8] = [
     (
@@ -4952,6 +4950,7 @@ impl Editor {
         }
         self.server_ctx.sidebar_mode = SidebarMode::Region;
         self.server_ctx.camera.reset_for_project_switch();
+        self.server_ctx.reference.clear_minimap();
         self.play_session = None;
         #[cfg(feature = "native-render")]
         self.native_viewport.clear_world_speech();
@@ -5475,7 +5474,7 @@ impl Editor {
         *update_server_icons = true;
         *redraw = true;
 
-        *PALETTE.write().unwrap() = self.documents.project.palette.clone();
+        self.server_ctx.reference.publish_palette(&self.documents.project.palette);
         {
             let mut rusterix = self.server_ctx.reference.write();
             rusterix.assets.palette = self.documents.project.palette.clone();
@@ -12551,7 +12550,7 @@ mod tests {
         let initial_look_at_3d = editor.documents.project.regions[0].editing_look_at_3d;
         let initial_scale_3d = editor.server_ctx.camera.iso_camera.scale;
         let is_3d = std::env::var("ELDIRON_BENCH_VIEW").is_ok_and(|v| v == "3d");
-        let minimap_cache_key = *crate::minimap::MINIMAPCACHEKEY.read().unwrap();
+        let minimap_cache_key = editor.server_ctx.reference.minimap().key;
         let map_changed = editor.documents.project.regions[0].map.changed;
         let frames = std::env::var("ELDIRON_BENCH_FRAMES")
             .ok()
@@ -12665,7 +12664,7 @@ mod tests {
                     editor.update_ui(&mut ui, &mut ctx);
                     *update.last_mut().unwrap() += marker_start.elapsed().as_secs_f64() * 1000.;
                     assert_eq!(
-                        *crate::minimap::MINIMAPCACHEKEY.read().unwrap(),
+                        editor.server_ctx.reference.minimap().key,
                         minimap_cache_key
                     );
                     assert_eq!(editor.documents.project.regions[0].map.changed, map_changed);

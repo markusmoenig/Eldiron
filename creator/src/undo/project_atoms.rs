@@ -1101,7 +1101,7 @@ impl ProjectUndoAtom {
             }
             PaletteSwitch(old, _) => {
                 old.apply(project);
-                apply_palette(ui, ctx, server_ctx, project);
+                apply_palette(ui, ctx, &mut server_ctx.shared, project, &server_ctx.reference);
                 crate::undo::project_helper::refresh_palette_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Palette Changed"),
@@ -1114,7 +1114,7 @@ impl ProjectUndoAtom {
                 project.palette.current_index = sel;
                 project.palette_materials = old_materials.clone();
                 project.ensure_palette_materials_len();
-                apply_palette(ui, ctx, server_ctx, project);
+                apply_palette(ui, ctx, &mut server_ctx.shared, project, &server_ctx.reference);
                 crate::undo::project_helper::refresh_palette_runtime(project, &server_ctx.jobs, &server_ctx.reference);
             }
             TileEdit(old, _new) => {
@@ -1946,7 +1946,7 @@ impl ProjectUndoAtom {
             }
             PaletteSwitch(_, new) => {
                 new.apply(project);
-                apply_palette(ui, ctx, server_ctx, project);
+                apply_palette(ui, ctx, &mut server_ctx.shared, project, &server_ctx.reference);
                 crate::undo::project_helper::refresh_palette_runtime(project, &server_ctx.jobs, &server_ctx.reference);
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Palette Changed"),
@@ -1959,7 +1959,7 @@ impl ProjectUndoAtom {
                 project.palette.current_index = sel;
                 project.palette_materials = new_materials.clone();
                 project.ensure_palette_materials_len();
-                apply_palette(ui, ctx, server_ctx, project);
+                apply_palette(ui, ctx, &mut server_ctx.shared, project, &server_ctx.reference);
                 crate::undo::project_helper::refresh_palette_runtime(project, &server_ctx.jobs, &server_ctx.reference);
             }
             TileEdit(_old, new) => {

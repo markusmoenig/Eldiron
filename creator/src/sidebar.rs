@@ -1,5 +1,5 @@
 use crate::editor::{
-    ACTIONLIST, DOCKMANAGER, PALETTE,
+    ACTIONLIST, DOCKMANAGER,
     TOOLLIST, UNDOMANAGER,
 };
 use crate::minimap::{draw_minimap, draw_minimap_context_label, minimap_bbox_for_map};
@@ -862,7 +862,7 @@ impl Sidebar {
                         );
                     } else if id.uuid == server_ctx.tree_palette_id {
                         server_ctx.sidebar_mode = SidebarMode::Palette;
-                        apply_palette(ui, ctx, server_ctx, project);
+                        apply_palette(ui, ctx, &mut server_ctx.shared, project, &server_ctx.reference);
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Update Action List"),
                             TheValue::Empty,
@@ -879,7 +879,7 @@ impl Sidebar {
                     server_ctx.item_region_override = *index == 1;
                 } else if id.name == "Palette Item" {
                     project.palette.current_index = *index as u16;
-                    apply_palette(ui, ctx, server_ctx, project);
+                    apply_palette(ui, ctx, &mut server_ctx.shared, project, &server_ctx.reference);
                 } else if id.name == "Avatar Perspective Count" {
                     let new_count = match index {
                         0 => AvatarPerspectiveCount::One,
@@ -1010,7 +1010,7 @@ impl Sidebar {
                                     TheValue::Empty,
                                 ));
 
-                                apply_palette(ui, ctx, server_ctx, project);
+                                apply_palette(ui, ctx, &mut server_ctx.shared, project, &server_ctx.reference);
                                 if matches!(event, TheEvent::RenderViewUp(_, _)) {
                                     if let Some((prev, prev_materials)) =
                                         self.pending_palette_drag_undo.take()
@@ -1067,7 +1067,7 @@ impl Sidebar {
                         {
                             let fallback_position = || {
                                 let bbox = if map.camera == MapCamera::TwoDIso {
-                                    *crate::minimap::MINIMAPBOX.read().unwrap()
+                                    server_ctx.reference.minimap().bbox
                                 } else { bbox };
                                 #[cfg(feature = "native-render")]
                                 let bbox = native_bbox.unwrap_or(bbox);
@@ -1406,8 +1406,8 @@ impl Sidebar {
             TheEvent::PaletteIndexChanged(id, index) => {
                 if id.name == "Palette Picker" {
                     project.palette.current_index = *index;
-                    apply_palette(ui, ctx, server_ctx, project);
-                    *PALETTE.write().unwrap() = project.palette.clone();
+                    apply_palette(ui, ctx, &mut server_ctx.shared, project, &server_ctx.reference);
+                    server_ctx.reference.publish_palette(&project.palette);
                     ctx.ui.send(TheEvent::Custom(
                         TheId::named("Soft Update Minimap"),
                         TheValue::Empty,
@@ -1979,7 +1979,7 @@ impl Sidebar {
                                 );
                                 UNDOMANAGER.write().unwrap().add_undo(undo, ctx);
 
-                                apply_palette(ui, ctx, server_ctx, project);
+                                apply_palette(ui, ctx, &mut server_ctx.shared, project, &server_ctx.reference);
                                 ctx.ui.send(TheEvent::Custom(
                                     TheId::named("Soft Update Minimap"),
                                     TheValue::Empty,
@@ -2678,7 +2678,7 @@ impl Sidebar {
                         );
                         UNDOMANAGER.write().unwrap().add_undo(undo, ctx);
 
-                        apply_palette(ui, ctx, server_ctx, project);
+                        apply_palette(ui, ctx, &mut server_ctx.shared, project, &server_ctx.reference);
 
                         if let Some(palette_picker) = ui.get_palette_picker("Palette Picker") {
                             palette_picker.set_palette(project.palette.clone());
@@ -3899,7 +3899,7 @@ impl Sidebar {
         self.apply_screens(ui, ctx, server_ctx, project);
         self.apply_assets(ui, ctx, server_ctx, project);
 
-        apply_palette(ui, ctx, server_ctx, project);
+        apply_palette(ui, ctx, &mut server_ctx.shared, project, &server_ctx.reference);
         self.apply_screen(ui, ctx, None);
         self.apply_avatars(ui, ctx, server_ctx, project);
 

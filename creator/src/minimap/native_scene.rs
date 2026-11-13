@@ -1,5 +1,5 @@
 //! Region overview ownership. CPU snapshots enter here; only GPU handles leave.
-//! Navigation uses an immutable, actually presented map/projection, never MINIMAPBOX.
+//! Navigation uses an immutable, actually presented map/projection, independent of the reference CPU cache.
 use super::*;
 use eldiron_presentation::{SceneViews, ViewId, ViewImage};
 use rusterix::scene_build_index::SceneBuildSnapshot;

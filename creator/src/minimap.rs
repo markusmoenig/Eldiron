@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 use std::collections::hash_map::DefaultHasher;
 use vek::Vec2;
 
-use crate::editor::{ACTIONLIST, DOCKMANAGER, PALETTE, };
+use crate::editor::{ACTIONLIST, DOCKMANAGER};
 use std::hash::{Hash, Hasher};
 
 #[cfg(feature = "native-ui")]
@@ -15,12 +15,6 @@ pub(crate) mod native_geometry;
 pub(crate) mod native_scene;
 #[cfg(feature = "native-render")]
 pub(crate) mod native_palette;
-
-pub static MINIMAPBUFFER: LazyLock<RwLock<TheRGBABuffer>> =
-    LazyLock::new(|| RwLock::new(TheRGBABuffer::default()));
-
-pub static MINIMAPBOX: LazyLock<RwLock<Vec4<f32>>> = LazyLock::new(|| RwLock::new(Vec4::one()));
-pub static MINIMAPCACHEKEY: LazyLock<RwLock<u64>> = LazyLock::new(|| RwLock::new(0));
 
 fn palette_minimap_active(server_ctx: &ServerContext) -> bool {
     server_ctx.palette_tool_active && DOCKMANAGER.read().unwrap().dock == "Palette"
@@ -529,8 +523,9 @@ fn draw_minimap_overlays(
     region_marker: Option<&Region>,
     buffer: &mut TheRGBABuffer,
     server_ctx: &ServerContext,
+    bbox: Vec4<f32>,
 ) {
-    draw_camera_marker(map, region_marker, buffer, server_ctx);
+    draw_camera_marker(map, region_marker, buffer, server_ctx, bbox);
 }
 
 pub fn draw_camera_marker(
@@ -538,6 +533,7 @@ pub fn draw_camera_marker(
     region: Option<&Region>,
     buffer: &mut TheRGBABuffer,
     server_ctx: &ServerContext,
+    bbox: Vec4<f32>,
 ) {
     let camera_pos = if server_ctx.editor_view_mode == EditorViewMode::D2 || region.is_none() {
         // In 2D (region/screen/profile), marker follows the current map view center.
@@ -550,7 +546,6 @@ pub fn draw_camera_marker(
     };
 
     let dim = *buffer.dim();
-    let bbox = *MINIMAPBOX.read().unwrap();
 
     let pos = minimap_world_to_pixel_on_map(
         camera_pos,
@@ -652,7 +647,7 @@ pub fn draw_minimap(
     if palette_minimap_active(server_ctx) {
         buffer.render_hsl_hue_waveform();
 
-        if let Some(color) = PALETTE.read().unwrap().get_current_color() {
+        if let Some(color) = server_ctx.reference.authoring_palette().get_current_color() {
             if let Some(pos) = buffer.find_closest_color_position(color.to_u8_array_3()) {
                 let w = 4;
                 buffer.draw_rect_outline(
@@ -682,7 +677,7 @@ pub fn draw_minimap(
             let dim = *buffer.dim();
             let bbox =
                 bbox_with_render_aspect(bbox, Vec2::new(dim.width as f32, dim.height as f32));
-            *MINIMAPBOX.write().unwrap() = bbox;
+            server_ctx.reference.minimap_mut().bbox = bbox;
             draw_action_minimap_preview(buffer, bbox, &segments);
         }
         return;
@@ -704,9 +699,9 @@ pub fn draw_minimap(
 
     let mut hard = hard;
     if !hard {
-        let cached_key = *MINIMAPCACHEKEY.read().unwrap();
-        let cached = MINIMAPBUFFER.read().unwrap();
-        let cached_dim = *cached.dim();
+        let cached = server_ctx.reference.minimap();
+        let cached_key = cached.key;
+        let cached_dim = *cached.image.dim();
         let dim = *buffer.dim();
         if cached_key != cache_key
             || cached_dim.width != dim.width
@@ -717,14 +712,16 @@ pub fn draw_minimap(
     }
 
     if !hard {
-        buffer.copy_into(0, 0, &MINIMAPBUFFER.read().unwrap());
+        buffer.copy_into(0, 0, &server_ctx.reference.minimap().image);
         if let Some(map) = map {
             let region_marker = if server_ctx.get_map_context() == MapContext::Region {
                 project.get_region(&server_ctx.curr_region)
             } else {
                 None
             };
-            draw_minimap_overlays(map, region_marker, buffer, server_ctx);
+            draw_minimap_overlays(
+                map, region_marker, buffer, server_ctx, server_ctx.reference.minimap().bbox,
+            );
         }
         return;
     }
@@ -750,7 +747,7 @@ pub fn draw_minimap(
         } else {
             bbox
         };
-        *MINIMAPBOX.write().unwrap() = bbox;
+        server_ctx.reference.minimap_mut().bbox = bbox;
 
         let scale_x = width / bbox.z;
         let scale_y = height / bbox.w;
@@ -822,19 +819,18 @@ pub fn draw_minimap(
                 );
         }
 
-        MINIMAPBUFFER
-            .write()
-            .unwrap()
-            .resize(buffer.dim().width, buffer.dim().height);
-
-        MINIMAPBUFFER.write().unwrap().copy_into(0, 0, buffer);
-        *MINIMAPCACHEKEY.write().unwrap() = cache_key;
+        {
+            let mut cached = server_ctx.reference.minimap_mut();
+            cached.image.resize(buffer.dim().width, buffer.dim().height);
+            cached.image.copy_into(0, 0, buffer);
+            cached.key = cache_key;
+        }
         let region_marker = if server_ctx.get_map_context() == MapContext::Region {
             project.get_region(&server_ctx.curr_region)
         } else {
             None
         };
-        draw_minimap_overlays(map, region_marker, buffer, server_ctx);
+        draw_minimap_overlays(map, region_marker, buffer, server_ctx, bbox);
     }
 }
 

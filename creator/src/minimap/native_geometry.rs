@@ -527,10 +527,7 @@ pub(crate) fn reference_cases() -> Vec<(&'static str, Arc<dyn RenderViewPaintSou
             reference.fill([42, 42, 42, 255]);
             let author = &project.regions[0];
             draw_geometry_minimap(&author.map, &mut reference, source.bbox);
-            let old_bbox = *MINIMAPBOX.read().unwrap();
-            *MINIMAPBOX.write().unwrap() = source.bbox;
-            draw_camera_marker(&author.map, Some(author), &mut reference, &server);
-            *MINIMAPBOX.write().unwrap() = old_bbox;
+            draw_camera_marker(&author.map, Some(author), &mut reference, &server, source.bbox);
             cases.push((
                 "geometry minimap",
                 Arc::new(Body(source)) as Arc<dyn RenderViewPaintSource>,

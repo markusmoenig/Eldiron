@@ -2,17 +2,44 @@
 //! reference renderers. Canonical native views own their explicit GPU context.
 //! Lazy construction preserves data-only tools. Owned scoped guards let a caller
 //! update disjoint CPU authoring state without borrowing the complete context.
+use super::reference_minimap::ReferenceMinimap;
 use parking_lot::{ArcRwLockReadGuard, ArcRwLockWriteGuard, RawRwLock, RwLock};
 use rusterix::Rusterix;
-use std::{cell::OnceCell, sync::Arc};
+use std::{
+    cell::{OnceCell, Ref, RefCell, RefMut},
+    sync::Arc,
+};
+use theframework::prelude::ThePalette;
 
 #[derive(Default)]
 pub struct CreatorReference {
     source: OnceCell<Arc<RwLock<Rusterix>>>,
+    minimap: RefCell<ReferenceMinimap>,
+    authoring_palette: RefCell<ThePalette>,
     #[cfg(feature = "native-render")]
     context: std::cell::RefCell<Option<Arc<renderkit::GpuContext>>>,
 }
 impl CreatorReference {
+    /// Compatibility selection snapshot for map-only Tool/Action APIs.
+    /// Project palette data remains authored; reading this never creates a GPU.
+    pub(crate) fn authoring_palette(&self) -> Ref<'_, ThePalette> {
+        self.authoring_palette.borrow()
+    }
+    pub(crate) fn publish_palette(&self, palette: &ThePalette) {
+        self.authoring_palette.borrow_mut().clone_from(palette);
+    }
+
+    /// These CPU cache borrows never initialize the compatibility engine/GPU.
+    pub(crate) fn minimap(&self) -> Ref<'_, ReferenceMinimap> {
+        self.minimap.borrow()
+    }
+    pub(crate) fn minimap_mut(&self) -> RefMut<'_, ReferenceMinimap> {
+        self.minimap.borrow_mut()
+    }
+    pub(crate) fn clear_minimap(&self) {
+        *self.minimap.borrow_mut() = ReferenceMinimap::default();
+    }
+
     fn source(&self) -> Arc<RwLock<Rusterix>> {
         self.source
             .get_or_init(|| {

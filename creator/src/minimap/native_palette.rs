@@ -231,25 +231,20 @@ pub(crate) fn reference_cases() -> Vec<(&'static str, Arc<dyn RenderViewPaintSou
 {
     use crate::{
         dockmanager::DockManagerState,
-        editor::{DOCKMANAGER, PALETTE},
+        editor::DOCKMANAGER,
         sidebar::Sidebar,
     };
-    struct Restore(String, DockManagerState, ThePalette);
+    struct Restore(String, DockManagerState);
     impl Drop for Restore {
         fn drop(&mut self) {
             let mut manager = DOCKMANAGER.write().unwrap();
             manager.dock = self.0.clone();
             manager.state = self.1;
-            *PALETTE.write().unwrap() = self.2.clone();
         }
     }
     let _restore = {
         let mut manager = DOCKMANAGER.write().unwrap();
-        let saved = Restore(
-            manager.dock.clone(),
-            manager.state,
-            PALETTE.read().unwrap().clone(),
-        );
+        let saved = Restore(manager.dock.clone(), manager.state);
         manager.dock = "Palette".into();
         manager.state = DockManagerState::Editor;
         saved

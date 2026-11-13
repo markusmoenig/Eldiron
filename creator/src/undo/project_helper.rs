@@ -1,4 +1,4 @@
-use crate::editor::{DOCKMANAGER, PALETTE, TOOLLIST};
+use crate::editor::{DOCKMANAGER, TOOLLIST};
 use crate::prelude::*;
 use rusterix::material_library::MATERIAL_PRESET_NAMES;
 use theframework::prelude::*;
@@ -981,7 +981,7 @@ pub fn palette_status_text(
 }
 
 pub fn refresh_palette_runtime(project: &Project, jobs: &CreatorJobs, reference: &CreatorReference) {
-    *PALETTE.write().unwrap() = project.palette.clone();
+    reference.publish_palette(&project.palette);
     let (tile_list, tile_indices) = {
         let mut rusterix = reference.write();
         rusterix.assets.palette = project.palette.clone();
@@ -1009,6 +1009,7 @@ pub fn apply_palette(
     ctx: &mut TheContext,
     server_ctx: &mut shared::context::ServerContext,
     project: &mut Project,
+    reference: &CreatorReference,
 ) {
     if project.palette.current_index as usize >= project.palette.colors.len() {
         project.palette.current_index = project.palette.colors.len().saturating_sub(1) as u16;
@@ -1016,7 +1017,7 @@ pub fn apply_palette(
     project.ensure_palette_materials_len();
     // UI refresh is read-only for colors, including transparent/unused slots.
     // Rewriting Some(transparent) to None invalidates every saved material bake.
-    *PALETTE.write().unwrap() = project.palette.clone();
+    reference.publish_palette(&project.palette);
 
     if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
         if let Some(palette_node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_palette_id) {
@@ -1795,12 +1796,17 @@ mod palette_refresh_tests {
         let colors = serde_json::to_string(&project.palette.colors).unwrap();
         let mut ui = TheUI::new();
         let mut ctx = TheContext::new(100, 100, 1.);
+        let mut server = ServerContext::default();
         apply_palette(
-            &mut ui,
-            &mut ctx,
-            &mut ServerContext::default(),
-            &mut project,
+            &mut ui, &mut ctx, &mut server.shared, &mut project, &server.reference,
         );
+        let other = CreatorReference::default();
+        let mut other_palette = project.palette.clone();
+        other_palette.current_index = 7;
+        other.publish_palette(&other_palette);
+        assert_eq!(*server.reference.authoring_palette(), project.palette);
+        assert_eq!(other.authoring_palette().current_index, 7);
+        assert!(!server.reference.initialized() && !other.initialized());
         assert_eq!(
             serde_json::to_string(&project.palette.colors).unwrap(),
             colors

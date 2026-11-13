@@ -228,7 +228,7 @@ impl PaletteSwitchController {
                             ),
                             ctx,
                         );
-                        crate::undo::project_helper::apply_palette(ui, ctx, server, project);
+                        crate::undo::project_helper::apply_palette(ui, ctx, &mut server.shared, project, &server.reference);
                         crate::undo::project_helper::refresh_palette_runtime(project, &server.jobs, &server.reference);
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Palette Changed"),

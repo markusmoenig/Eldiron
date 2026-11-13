@@ -2150,6 +2150,12 @@ impl Editor {
         let initial_scale = self.server_ctx.camera.iso_camera.scale;
         self.server_ctx.camera.move_action = Some(CustomMoveAction::Forward);
         let mut independent = CreatorContext::new();
+        let minimap_key = self.server_ctx.reference.minimap().key;
+        independent.reference.minimap_mut().key = u64::MAX;
+        assert_eq!(self.server_ctx.reference.minimap().key, minimap_key);
+        assert!(independent.reference.minimap().image.pixels().is_empty());
+        independent.reference.clear_minimap();
+        assert_eq!(independent.reference.minimap().key, 0);
         let target_fps = self.server_ctx.config.target_fps;
         let sidebar_mode = self.server_ctx.sidebar_mode;
         independent.sidebar_mode = SidebarMode::Palette;

@@ -2,6 +2,7 @@
 //! CPU context through explicit borrows; they never own the editor's camera.
 mod jobs;
 mod reference;
+mod reference_minimap;
 pub use jobs::CreatorJobs;
 pub use reference::CreatorReference;
 
