@@ -5616,3 +5616,70 @@ by these measurements and remains unresolved; do not declare every editor state
 efficient. The integrated GPU checkpoint was also running during part of the
 conversation and is now finished, but no causal attribution of the user's100%
 reading to that checkpoint is established.
+
+## 2026-11-13 — Creator Xcode host now uses Rust WGPU presentation
+
+The user confirmed Activity Monitor settled to3% while idle and explicitly asked
+to continue the port. No further idle investigation was required for that state.
+The separate loaded3DStarter bounded probe did not reach three presentations:
+its10s smoke deadline expired after1; no loaded-project idle CPU result was
+collected. Evidence: `/private/tmp/eldiron-native-idle-loaded-3d.log`. Keep that
+startup/performance case open; do not generalize empty-view success to it.
+
+Implemented a common `theframework::platform::ForeignApplicationHost<A>` over
+`GpuApplication`/`GpuPresenter`: application-owned CPU state, requested update
+deadlines, dirty-only presentation, successful-presentation acknowledgements,
+resize/DPI, suspend/resume and injected presenter replacement. Faster native
+callbacks cannot multiply simulation polling or manufacture redraws.
+
+Replaced Creator's staticlib CPU APP/CTX/UI/draw facade with a main-thread native
+application host. `staticlib` enables native-render, without enabling Winit.
+Swift passes its retained CAMetalLayer; Rust creates/configures/presents the WGPU
+surface through the same native Creator used by Winit. Retired `rust_draw` and
+the Swift CPU texture/upload/Metal-copy shader classes from source and Xcode
+build phases. Existing menu actions now reach the same native document/Play/UI
+commands; Edit commands and addressed clipboard completions use common input.
+Corrected the bridge's stale special-key constants and added key-up releases.
+
+The Swift wrapper keeps MTKView paused and supplies timed callbacks without
+acquiring a drawable. It retains the backing layer through Rust teardown, routes
+logical coordinates once, forwards focus/minimization/background lifecycle, and
+recovers a lost WGPU presenter. The Xcode library lookup now uses
+ELDIRON_RUST_LIB_DIR with matching macOS/device/simulator target defaults, replacing
+the old rustapi archive reference. See `Xcode/Eldiron/README.md`.
+
+Evidence:
+- Native Creator staticlib check passed24.72s; actual debug library build41.19s,
+  final build19.42s, native-link dependency build19.24s. Logs:
+  `/private/tmp/eldiron-native-creator-apple-check.log`,
+  `eldiron-native-creator-apple-build.log`,
+  `eldiron-native-creator-apple-final-build.log`,
+  `eldiron-native-creator-apple-link-deps.log`.
+- macOS Swift adapter/controller/AppDelegate typecheck passed; iOS simulator SDK
+  Swift adapter/controller typecheck passed. Rust staticlib iOS simulator check
+  passed41.95s. Logs: `eldiron-native-creator-swift-full-check.log`,
+  `eldiron-native-creator-ios-swift-check.log`,
+  `eldiron-native-creator-ios-rust-check.log` under `/private/tmp`.
+- Linked and ran the actual Swift/static-library detached-layer executable:
+  `Native Creator CAMetalLayer presentation/lifecycle passed`, exit0. It asserts
+  actual presentations, zero root CPU bytes, zero readback, DPI mapping,
+  suspend/resume, duplicate-init rejection and presenter replacement.
+  `/private/tmp/eldiron-native-creator-layer-check.log` and
+  `eldiron-native-creator-swift-link.log`. This is not physical-window evidence.
+- Full unsigned macOS Xcode app build **succeeded** with the debug Rust library,
+  arm64 and MACOSX_DEPLOYMENT_TARGET26.1:
+  `/private/tmp/eldiron-native-creator-xcode-build.log`.
+- Then opened that exact Xcode app via computer use and physically observed the
+  native GPU Creator chrome, Tiles picker and New Project chooser. Initial launch
+  selection timed out; retry after inventory succeeded. Closed the verification
+  app normally afterward; no project was edited or discarded. Physical startup
+  rendering is verified, not full physical editing/Play/IME acceptance.
+
+No new general regression suite was added or rerun for routine edits. The single
+combined Swift/layer check covers this new host boundary. The prior assembled
+Creator root check passed90.16s before this host addition. Serialized project
+code is unchanged. Hidden Collision Probe and concurrent networking concept are
+preserved. M9 and the full M0–M9 Goal remain active: native text responder adoption,
+full physical Xcode/mobile workflows, wrapper/session multiwindow ownership,
+browser/platform acceptance and remaining Creator storage/bitmap retirement
+remain open.

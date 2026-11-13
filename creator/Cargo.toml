@@ -105,4 +105,4 @@ native-host = ["native-render", "theframework/platform-winit", "theframework/des
 native-render = ["native-ui", "theframework/render-wgpu", "dep:renderkit", "dep:eldiron-presentation"]
 log = ["theframework/log"]
 self-update = ["dep:self_update"]
-staticlib = []
+staticlib = ["native-render", "theframework/desktop-dialogs"]

@@ -17,20 +17,36 @@
 
 #define GAME_TICK_IN_MS 250
 
+// Keep physical key identities aligned with Rust's Creator constants.
 #define KEY_ESCAPE 0
 #define KEY_RETURN 1
 #define KEY_DELETE 2
-#define KEY_UP 3
-#define KEY_RIGHT 4
-#define KEY_DOWN 5
-#define KEY_LEFT 6
-#define KEY_SPACE 7
-#define KEY_TAB 8
+#define KEY_HOME 3
+#define KEY_END 4
+#define KEY_UP 5
+#define KEY_RIGHT 6
+#define KEY_DOWN 7
+#define KEY_LEFT 8
+#define KEY_SPACE 9
+#define KEY_TAB 10
 
-void rust_init();
-void rust_resize(uint32_t width, uint32_t height, float scale_factor);
-void rust_draw(uint8_t *pixels, uint32_t width, uint32_t height, uintptr_t anim_counter);
-void rust_update();
+// Main-thread calls. Retain CAMetalLayer until rust_shutdown/replacement returns.
+// Dimensions are physical pixels; pointer coordinates are logical points.
+// Swift never acquires or presents this layer's drawables.
+bool rust_init(void *layer, uint32_t width, uint32_t height, float density);
+void rust_shutdown(void);
+int32_t rust_render(void);
+bool rust_replace_layer(void *layer);
+void rust_resize(uint32_t width, uint32_t height, float density);
+void rust_suspend(void);
+void rust_resume(void);
+void rust_focus(bool focused);
+char *rust_take_requests(void);
+char *rust_host_state(void);
+void rust_free_string(char *text);
+void rust_clipboard_complete(uint64_t request, bool write, bool success, const char *text);
+void rust_edit_command(uint32_t command);
+void rust_dropped_file(const char *path);
 void rust_new();
 void rust_play();
 void rust_pause();
@@ -64,6 +80,7 @@ bool rust_pinch(float delta);
 bool rust_key_down(const char *);
 bool rust_key_up(const char *);
 bool rust_special_key_down(uint32_t key);
+bool rust_special_key_up(uint32_t key);
 bool rust_key_modifier_changed(bool, bool, bool, bool);
 
 void rust_open();
@@ -86,10 +103,5 @@ void rust_show_help_sidebar();
 void rust_undo();
 void rust_redo();
 bool rust_has_changes(void);
-
-const char * rust_cut();
-const char * rust_copy();
-const char * rust_paste(const char *);
-
 
 #endif /* Header_h */

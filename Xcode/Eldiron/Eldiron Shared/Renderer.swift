@@ -1,287 +1,148 @@
-//
-//  Renderer.swift
-//  Xcode2Rust Shared
-//
-//  Created by Markus Moenig on 16/10/22.
-//
-
-import Metal
+// Swift owns the view/layer and platform services. Rust owns WGPU presentation.
 import MetalKit
-import simd
+import QuartzCore
 
-class Renderer: NSObject, MTKViewDelegate {
+final class Renderer: NSObject, MTKViewDelegate {
+    unowned let view: RMTKView
+    private var timer: Timer?
+    private var observers: [NSObjectProtocol] = []
+    private var ready = false
+    private var failed = false
+    private var hasChanges = false
+    // Outlive Rust's surface, including while the NSView/UIView is torn down.
+    private var backingLayer: CAMetalLayer?
 
-    let view                                    : RMTKView
-    var device                                  : MTLDevice!
-
-    var texture                                 : Texture2D? = nil
-    var metalStates                             : MetalStates!
-
-    var viewportSize                            : vector_uint2
-
-    var screenWidth                             : Float = 0
-    var screenHeight                            : Float = 0
-
-    var nearestSampler                          : MTLSamplerState!
-    var linearSampler                           : MTLSamplerState!
-
-    var scaleFactor                             : Float
-
-    var cmdQueue                                : MTLCommandQueue? = nil
-    var cmdBuffer                               : MTLCommandBuffer? = nil
-    var scissorRect                             : MTLScissorRect? = nil
-
-    var fps                                     : UInt32 = 0
-    var hasChanges                              : Bool = false
-
-    var anim_counter                            : UInt = 0
-    var last_time                               : Double = 0
-    var time_counter                            : Double = 0
+    private var density: Float {
+        #if os(macOS)
+        return Float(view.window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 1)
+        #else
+        return Float(view.traitCollection.displayScale)
+        #endif
+    }
 
     init(metalKitView: RMTKView) {
-        self.view = metalKitView
-        self.device = metalKitView.device
-
-        rust_init()
-
-        #if os(OSX)
-        scaleFactor = Float(NSScreen.main!.backingScaleFactor)
-        #else
-        scaleFactor = Float(UIScreen.main.scale)
-        #endif
-
-        var descriptor = MTLSamplerDescriptor()
-        descriptor.minFilter = .nearest
-        descriptor.magFilter = .nearest
-        nearestSampler = device.makeSamplerState(descriptor: descriptor)
-
-        descriptor = MTLSamplerDescriptor()
-        descriptor.minFilter = .linear
-        descriptor.magFilter = .linear
-        linearSampler = device.makeSamplerState(descriptor: descriptor)
-
-        viewportSize = vector_uint2( 0, 0 )
-
-        view.platformInit()
-
+        view = metalKitView
         super.init()
-
-        metalStates = MetalStates(self)
-        checkTexture()
-        rust_resize(UInt32(max(1, Int(screenWidth))), UInt32(max(1, Int(screenHeight))), scaleFactor)
-        checkFramerate()
-    }
-
-    @discardableResult func checkTexture() -> Bool
-    {
-        if texture == nil || texture!.texture.width != Int(view.frame.width) || texture!.texture.height != Int(view.frame.height) {
-
-            if texture == nil {
-                texture = Texture2D(self)
-            } else {
-                texture?.allocateTexture(width: Int(view.frame.width), height: Int(view.frame.height))
-            }
-
-            viewportSize.x = UInt32(texture!.width)
-            viewportSize.y = UInt32(texture!.height)
-
-            screenWidth = Float(texture!.width)
-            screenHeight = Float(texture!.height)
-            rust_resize(UInt32(texture!.width), UInt32(texture!.height), scaleFactor)
-
-            scissorRect = MTLScissorRect(x: 0, y: 0, width: texture!.texture.width, height: texture!.texture.height)
-
-            return true
-        }
-        return false
-    }
-
-    func draw(in view: MTKView) {
-        checkFramerate()
-        #if os(OSX)
-        let currentHasChanges = rust_has_changes()
-        if currentHasChanges != hasChanges {
-            hasChanges = currentHasChanges
-            self.view.window?.isDocumentEdited = currentHasChanges
-        }
-        #endif
-
-        checkTexture()
-        rust_resize(UInt32(max(1, Int(texture?.width ?? Float(view.frame.width)))),
-                    UInt32(max(1, Int(texture?.height ?? Float(view.frame.height)))),
-                    scaleFactor)
-        rust_update()
-        //print(screenWidth, screenHeight)
-        guard let drawable = view.currentDrawable else {
-            return
-        }
-
-        if last_time == 0 {
-            last_time = Double(Date().timeIntervalSince1970)
-        } else {
-            let curr_time = Double(Date().timeIntervalSince1970)
-            time_counter += (curr_time - last_time)
-
-            if time_counter > Double(GAME_TICK_IN_MS) / 1000 {
-                time_counter -= Double(GAME_TICK_IN_MS) / 1000
-                anim_counter += 1
-            }
-            last_time = curr_time
-        }
-
-//        #if DEBUG
-//        let startTime = Double(Date().timeIntervalSince1970)
-//        #endif
-
-        startDrawing()
-
-        let count =  Int(texture!.width) *  Int(texture!.height) * 4
-        let result = texture?.buffer?.contents().bindMemory(to: UInt8.self, capacity: count)
-        rust_draw(result!, UInt32(texture!.width), UInt32(texture!.height), anim_counter)
-
-        let renderPassDescriptor = view.currentRenderPassDescriptor
-        renderPassDescriptor?.colorAttachments[0].loadAction = .clear
-        let renderEncoder = cmdBuffer?.makeRenderCommandEncoder(descriptor: renderPassDescriptor!)
-
-        drawTexture(renderEncoder: renderEncoder!)
-        renderEncoder?.endEncoding()
-
-        cmdBuffer?.present(drawable)
-
-        stopDrawing()
-
-//        #if DEBUG
-        //print("Draw Time: ", (Double(Date().timeIntervalSince1970) - startTime) * 1000)
-//        #endif
-    }
-
-    func startDrawing()
-    {
-        if cmdQueue == nil {
-            cmdQueue = view.device!.makeCommandQueue()
-        }
-        cmdBuffer = cmdQueue!.makeCommandBuffer()
-    }
-
-    func stopDrawing(deleteQueue: Bool = false)
-    {
-        cmdBuffer?.commit()
-
-        if deleteQueue {
-            self.cmdQueue = nil
-        }
-        self.cmdBuffer = nil
-    }
-
-    /// Checks the framerate and applies it
-    func checkFramerate() {
-        let fps = max(UInt32(1), rust_target_fps())
-
-        if self.fps != fps {
-            view.enableSetNeedsDisplay = false
-            view.isPaused = false
-            view.preferredFramesPerSecond = Int(fps)
-            self.fps = fps
-        }
-    }
-
-    /// Called after a user event function returns true
-    func needsUpdate() {
-        // Force one immediate frame, independent of the current preferredFramesPerSecond cadence.
-        let wasPaused = view.isPaused
-        let wasNeedsDisplay = view.enableSetNeedsDisplay
+        // MTKView's drawable loop must never compete with WGPU.
         view.isPaused = true
-        view.enableSetNeedsDisplay = true
-        updateOnce()
-        view.draw()
-        view.isPaused = wasPaused
-        view.enableSetNeedsDisplay = wasNeedsDisplay
-        checkFramerate()
+        view.enableSetNeedsDisplay = false
+        view.framebufferOnly = false
+        view.platformInit()
+        guard let layer = view.layer as? CAMetalLayer else { return }
+        backingLayer = layer
+        let size = physicalSize()
+        ready = rust_init(Unmanaged.passUnretained(layer).toOpaque(), size.0, size.1, density)
+        guard ready else { NSLog("Could not initialize native Creator WGPU surface"); return }
+        observeLifecycle()
+        let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in self?.tick() }
+        self.timer = timer
+        RunLoop.main.add(timer, forMode: .common)
     }
 
-    /// Updates the frame once
-    func updateOnce() {
-        #if os(OSX)
-        let nsrect : NSRect = NSRect(x:0, y: 0, width: self.view.frame.width, height: self.view.frame.height)
-        self.view.setNeedsDisplay(nsrect)
-        #else
-        self.view.setNeedsDisplay()
+    deinit {
+        timer?.invalidate()
+        observers.forEach { NotificationCenter.default.removeObserver($0) }
+        if ready { rust_shutdown() }
+    }
+
+    private func physicalSize() -> (UInt32, UInt32) {
+        let scale = CGFloat(density)
+        return (UInt32(max(0, (view.bounds.width * scale).rounded())),
+                UInt32(max(0, (view.bounds.height * scale).rounded())))
+    }
+
+    private func tick() {
+        guard ready && !failed else { return }
+        let size = physicalSize()
+        rust_resize(size.0, size.1, density)
+        let result = rust_render()
+        if result == -2, let layer = view.layer as? CAMetalLayer {
+            failed = !rust_replace_layer(Unmanaged.passUnretained(layer).toOpaque())
+            if !failed { backingLayer = layer }
+        } else if result < 0 {
+            failed = true
+            NSLog("Native Creator presentation failed")
+        }
+        serviceRequests()
+        #if os(macOS)
+        let changed = rust_has_changes()
+        if hasChanges != changed {
+            hasChanges = changed
+            view.window?.isDocumentEdited = changed
+        }
         #endif
     }
 
-    func drawTexture(renderEncoder: MTLRenderCommandEncoder)
-    {
-        let width : Float = Float(view.drawableSize.width)
-        let height: Float = Float(view.drawableSize.height)
-
-        var settings = TextureUniform()
-        settings.screenSize.x = width
-        settings.screenSize.y = height
-        settings.pos.x = 0
-        settings.pos.y = 0
-        settings.size.x = 1.0
-        settings.size.y = 1.0
-        settings.globalAlpha = 1
-
-        let rect = MMRect( 0, 0, width, height, scale: 1.0 )
-        let vertexData = createVertexDataFullscreen(width: width, height: height)
-
-        var drawableViewportSize = vector_uint2(UInt32(width), UInt32(height))
-        renderEncoder.setVertexBytes(vertexData, length: vertexData.count * MemoryLayout<Float>.stride, index: 0)
-        renderEncoder.setVertexBytes(&drawableViewportSize, length: MemoryLayout<vector_uint2>.stride, index: 1)
-
-        renderEncoder.setFragmentBytes(&settings, length: MemoryLayout<TextureUniform>.stride, index: 0)
-        renderEncoder.setFragmentTexture(texture?.texture, index: 1)
-        renderEncoder.setFragmentSamplerState(nearestSampler, index: 2)
-
-        renderEncoder.setRenderPipelineState(metalStates.getState(state: .CopyTexture))
-        renderEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 6)
+    private func observeLifecycle() {
+        let center = NotificationCenter.default
+        #if os(macOS)
+        for (name, focused) in [(NSWindow.didBecomeKeyNotification, true), (NSWindow.didResignKeyNotification, false)] {
+            observers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
+                guard let self, let window = note.object as? NSWindow, window === self.view.window else { return }
+                rust_focus(focused)
+            })
+        }
+        for (name, active) in [(NSWindow.didMiniaturizeNotification, false), (NSWindow.didDeminiaturizeNotification, true)] {
+            observers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
+                guard let self, let window = note.object as? NSWindow, window === self.view.window else { return }
+                if active { rust_resume() } else { rust_suspend() }
+            })
+        }
+        #else
+        observers.append(center.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { _ in rust_suspend() })
+        observers.append(center.addObserver(forName: UIApplication.willEnterForegroundNotification, object: nil, queue: .main) { _ in rust_resume() })
+        #endif
     }
 
-    /// Creates vertex data for fullscreen quad
-    func createVertexDataFullscreen(width: Float, height: Float) -> [Float]
-    {
-        let left: Float  = -width / 2.0
-        let right: Float = width / 2.0
-        let top: Float = height / 2.0
-        let bottom: Float = -height / 2.0
-
-        let quadVertices: [Float] = [
-            right, bottom, 1.0, 0.0,
-            left, bottom, 0.0, 0.0,
-            left, top, 0.0, 1.0,
-
-            right, bottom, 1.0, 0.0,
-            left, top, 0.0, 1.0,
-            right, top, 1.0, 1.0,
-        ]
-
-        return quadVertices
+    private func serviceRequests() {
+        guard let source = rust_take_requests() else { return }
+        defer { rust_free_string(source) }
+        guard let data = String(cString: source).data(using: .utf8),
+              let requests = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return }
+        for request in requests {
+            let id = (request["request"] as? NSNumber)?.uint64Value
+            switch request["kind"] as? String {
+            case "title":
+                #if os(macOS)
+                view.window?.title = request["title"] as? String ?? "Eldiron Creator"
+                #endif
+            case "error": NSLog("Creator: %@", request["message"] as? String ?? "Unknown error")
+            case "exit":
+                #if os(macOS)
+                NSApp.terminate(nil)
+                #else
+                rust_suspend()
+                #endif
+            case "read":
+                guard let id else { continue }
+                #if os(macOS)
+                let text = NSPasteboard.general.string(forType: .string)
+                #else
+                let text = UIPasteboard.general.string
+                #endif
+                if let text { text.withCString { rust_clipboard_complete(id, false, true, $0) } }
+                else { rust_clipboard_complete(id, false, false, nil) }
+            case "write":
+                guard let text = request["text"] as? String else { continue }
+                #if os(macOS)
+                NSPasteboard.general.clearContents()
+                let success = NSPasteboard.general.setString(text, forType: .string)
+                #else
+                UIPasteboard.general.string = text
+                let success = true
+                #endif
+                if let id { rust_clipboard_complete(id, true, success, nil) }
+            default: break
+            }
+        }
     }
 
-    /// Creates vertex data for the given rectangle
-    func createVertexData(texture: Texture2D, rect: MMRect) -> [Float]
-    {
-        let left: Float  = -texture.width / 2.0 + rect.x
-        let right: Float = left + rect.width//self.width / 2 - x
-
-        let top: Float = texture.height / 2.0 - rect.y
-        let bottom: Float = top - rect.height
-
-        let quadVertices: [Float] = [
-            right, bottom, 1.0, 0.0,
-            left, bottom, 0.0, 0.0,
-            left, top, 0.0, 1.0,
-
-            right, bottom, 1.0, 0.0,
-            left, top, 0.0, 1.0,
-            right, top, 1.0, 1.0,
-        ]
-
-        return quadVertices
-    }
-
+    func draw(in view: MTKView) { tick() }
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
-        rust_resize(UInt32(max(1, Int(size.width))), UInt32(max(1, Int(size.height))), scaleFactor)
+        guard ready else { return }
+        let size = physicalSize()
+        rust_resize(size.0, size.1, density)
     }
+    func needsUpdate() { tick() }
+    func updateOnce() { tick() }
 }

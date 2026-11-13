@@ -7,13 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		DD219B832975298400E978F5 /* libeldiron_creator.a in Frameworks */ = {isa = PBXBuildFile; fileRef = DD219B7229741B3800E978F5 /* libeldiron_creator.a */; };
 		DD219B8529752AE300E978F5 /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DD219B8429752AE300E978F5 /* AudioToolbox.framework */; };
 		DD219B8729752B1100E978F5 /* CoreAudio.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DD219B8629752B1100E978F5 /* CoreAudio.framework */; };
 		DD219B89297672ED00E978F5 /* Keycodes.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD219B88297672ED00E978F5 /* Keycodes.swift */; };
 		DD219B8A297672ED00E978F5 /* Keycodes.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD219B88297672ED00E978F5 /* Keycodes.swift */; };
 		DD219B8B297672ED00E978F5 /* Keycodes.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD219B88297672ED00E978F5 /* Keycodes.swift */; };
-		DD28F9342978E5A80003766F /* librustapi_ios.a in Frameworks */ = {isa = PBXBuildFile; fileRef = DD8662772978DC85003878C0 /* librustapi_ios.a */; };
 		DD28F9362978F1670003766F /* File.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD28F9352978F1670003766F /* File.swift */; };
 		DD28F9372978F1670003766F /* File.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD28F9352978F1670003766F /* File.swift */; };
 		DD28F9382978F1670003766F /* File.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD28F9352978F1670003766F /* File.swift */; };
@@ -23,15 +21,9 @@
 		DD5B0371290E84B3003F7C12 /* RMKTView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5B036C290E834C003F7C12 /* RMKTView.swift */; };
 		DD5B0372290E84B6003F7C12 /* Math.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5B036E290E83E3003F7C12 /* Math.swift */; };
 		DD5B0373290E84B7003F7C12 /* Math.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5B036E290E83E3003F7C12 /* Math.swift */; };
-		DD5B0375290E8A17003F7C12 /* Texture2D.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5B0374290E8A17003F7C12 /* Texture2D.swift */; };
-		DD5B0376290E8A17003F7C12 /* Texture2D.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5B0374290E8A17003F7C12 /* Texture2D.swift */; };
-		DD5B0377290E8A17003F7C12 /* Texture2D.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5B0374290E8A17003F7C12 /* Texture2D.swift */; };
 		DD5B0379290E8F8D003F7C12 /* Utils.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5B0378290E8F8D003F7C12 /* Utils.swift */; };
 		DD5B037A290E8F8D003F7C12 /* Utils.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5B0378290E8F8D003F7C12 /* Utils.swift */; };
 		DD5B037B290E8F8D003F7C12 /* Utils.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5B0378290E8F8D003F7C12 /* Utils.swift */; };
-		DD5B037D290E90B3003F7C12 /* MetalStates.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5B037C290E90B3003F7C12 /* MetalStates.swift */; };
-		DD5B037E290E90B3003F7C12 /* MetalStates.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5B037C290E90B3003F7C12 /* MetalStates.swift */; };
-		DD5B037F290E90B3003F7C12 /* MetalStates.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5B037C290E90B3003F7C12 /* MetalStates.swift */; };
 		DD5FD10528FBD15B00853829 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5FD10428FBD15B00853829 /* AppDelegate.swift */; };
 		DD5FD10728FBD15B00853829 /* GameViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5FD10628FBD15B00853829 /* GameViewController.swift */; };
 		DD5FD10A28FBD15B00853829 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = DD5FD10828FBD15B00853829 /* Main.storyboard */; };
@@ -43,9 +35,6 @@
 		DD5FD12528FBD15C00853829 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5FD12428FBD15C00853829 /* AppDelegate.swift */; };
 		DD5FD12728FBD15C00853829 /* GameViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5FD12628FBD15C00853829 /* GameViewController.swift */; };
 		DD5FD12A28FBD15C00853829 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = DD5FD12828FBD15C00853829 /* Main.storyboard */; };
-		DD5FD12C28FBD15C00853829 /* Metal.metal in Sources */ = {isa = PBXBuildFile; fileRef = DD5FD0F928FBD15A00853829 /* Metal.metal */; };
-		DD5FD12D28FBD15C00853829 /* Metal.metal in Sources */ = {isa = PBXBuildFile; fileRef = DD5FD0F928FBD15A00853829 /* Metal.metal */; };
-		DD5FD12E28FBD15C00853829 /* Metal.metal in Sources */ = {isa = PBXBuildFile; fileRef = DD5FD0F928FBD15A00853829 /* Metal.metal */; };
 		DD5FD12F28FBD15C00853829 /* Renderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5FD0FA28FBD15A00853829 /* Renderer.swift */; };
 		DD5FD13028FBD15C00853829 /* Renderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5FD0FA28FBD15A00853829 /* Renderer.swift */; };
 		DD5FD13128FBD15C00853829 /* Renderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5FD0FA28FBD15A00853829 /* Renderer.swift */; };
@@ -64,9 +53,6 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		DD219B7229741B3800E978F5 /* libeldiron_creator.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libeldiron_creator.a; path = ../../target/release/libeldiron_creator.a; sourceTree = "<group>"; };
-		DD219B7429741BF800E978F5 /* librustapi.d */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.dtrace; name = librustapi.d; path = ../../target/release/librustapi.d; sourceTree = "<group>"; };
-		DD219B7529741C3900E978F5 /* librustapi.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = librustapi.a; sourceTree = "<group>"; };
 		DD219B8429752AE300E978F5 /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = System/Library/Frameworks/AudioToolbox.framework; sourceTree = SDKROOT; };
 		DD219B8629752B1100E978F5 /* CoreAudio.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreAudio.framework; path = System/Library/Frameworks/CoreAudio.framework; sourceTree = SDKROOT; };
 		DD219B88297672ED00E978F5 /* Keycodes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Keycodes.swift; sourceTree = "<group>"; };
@@ -74,11 +60,7 @@
 		DD2AC08A2978E0300037996A /* Eldiron iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Eldiron iOS.entitlements"; sourceTree = "<group>"; };
 		DD5B036C290E834C003F7C12 /* RMKTView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RMKTView.swift; sourceTree = "<group>"; };
 		DD5B036E290E83E3003F7C12 /* Math.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Math.swift; sourceTree = "<group>"; };
-		DD5B0374290E8A17003F7C12 /* Texture2D.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Texture2D.swift; sourceTree = "<group>"; };
 		DD5B0378290E8F8D003F7C12 /* Utils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Utils.swift; sourceTree = "<group>"; };
-		DD5B037C290E90B3003F7C12 /* MetalStates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalStates.swift; sourceTree = "<group>"; };
-		DD5B0381290F68D2003F7C12 /* librustapi.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = librustapi.a; path = rustapi/libs_ios/librustapi.a; sourceTree = "<group>"; };
-		DD5FD0F928FBD15A00853829 /* Metal.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Metal.metal; sourceTree = "<group>"; };
 		DD5FD0FA28FBD15A00853829 /* Renderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Renderer.swift; sourceTree = "<group>"; };
 		DD5FD0FB28FBD15A00853829 /* Metal.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Metal.h; sourceTree = "<group>"; };
 		DD5FD0FC28FBD15B00853829 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -98,19 +80,11 @@
 		DD5FD12928FBD15C00853829 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		DD5FD12B28FBD15C00853829 /* Eldiron_macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Eldiron_macOS.entitlements; sourceTree = "<group>"; };
 		DD7BD2702E27AC30008519DA /* libffi.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libffi.tbd; path = usr/lib/libffi.tbd; sourceTree = SDKROOT; };
-		DD8662772978DC85003878C0 /* librustapi_ios.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = librustapi_ios.a; sourceTree = "<group>"; };
-		DD8662792978DE20003878C0 /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS16.2.sdk/System/Library/Frameworks/AudioToolbox.framework; sourceTree = DEVELOPER_DIR; };
-		DD86627A2978DE20003878C0 /* CoreAudio.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreAudio.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS16.2.sdk/System/Library/Frameworks/CoreAudio.framework; sourceTree = DEVELOPER_DIR; };
+		DD8662792978DE20003878C0 /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = System/Library/Frameworks/AudioToolbox.framework; sourceTree = SDKROOT; };
+		DD86627A2978DE20003878C0 /* CoreAudio.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreAudio.framework; path = System/Library/Frameworks/CoreAudio.framework; sourceTree = SDKROOT; };
 		DD8FB2B42BD396C7008D2A3C /* SystemConfiguration.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SystemConfiguration.framework; path = System/Library/Frameworks/SystemConfiguration.framework; sourceTree = SDKROOT; };
-		DD976A99290E62C2007131BA /* librustapi.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = librustapi.a; path = "rust-api/target/release/librustapi.a"; sourceTree = "<group>"; };
 		DD976A9B290E65DA007131BA /* Bridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Bridge.h; sourceTree = "<group>"; };
-		DD976A9C290E6732007131BA /* librustapi.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = librustapi.dylib; path = "rust-api/target/release/librustapi.dylib"; sourceTree = "<group>"; };
 		DD976AA1290E67CC007131BA /* libs */ = {isa = PBXFileReference; lastKnownFileType = folder; name = libs; path = "rust-api/libs"; sourceTree = "<group>"; };
-		DD976AA2290E6802007131BA /* librustapi.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = librustapi.a; path = "rust-api/libs/librustapi.a"; sourceTree = "<group>"; };
-		DD976AA3290E729C007131BA /* librustapi.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = librustapi.a; path = rustapi/libs/librustapi.a; sourceTree = "<group>"; };
-		DDAB9557290F6A9800B79AB8 /* librustapi.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = librustapi.a; path = rustapi/target/universal/release/librustapi.a; sourceTree = "<group>"; };
-		DDAB9559290F6AC900B79AB8 /* librustapiios.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = librustapiios.a; path = rustapi/libs_ios/librustapiios.a; sourceTree = "<group>"; };
-		DDAB955B290F6B6D00B79AB8 /* librustapiios.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = librustapiios.a; path = rustapi/libs/librustapiios.a; sourceTree = "<group>"; };
 		DDB2401F2CF5A8E600425D2F /* Carbon.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Carbon.framework; path = System/Library/Frameworks/Carbon.framework; sourceTree = SDKROOT; };
 		DDFD01852D6990B700CEFB70 /* libz.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libz.tbd; path = usr/lib/libz.tbd; sourceTree = SDKROOT; };
 		DDFD01862D6990CA00CEFB70 /* libz.1.2.8.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libz.1.2.8.tbd; path = usr/lib/libz.1.2.8.tbd; sourceTree = SDKROOT; };
@@ -123,7 +97,6 @@
 			files = (
 				DD86627C2978DE20003878C0 /* CoreAudio.framework in Frameworks */,
 				DD86627B2978DE20003878C0 /* AudioToolbox.framework in Frameworks */,
-				DD28F9342978E5A80003766F /* librustapi_ios.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -140,7 +113,6 @@
 			files = (
 				DD219B8729752B1100E978F5 /* CoreAudio.framework in Frameworks */,
 				DDFD01872D69925400CEFB70 /* libz.tbd in Frameworks */,
-				DD219B832975298400E978F5 /* libeldiron_creator.a in Frameworks */,
 				DD8FB2B52BD396C7008D2A3C /* SystemConfiguration.framework in Frameworks */,
 				DDB240202CF5A8E600425D2F /* Carbon.framework in Frameworks */,
 				DD219B8529752AE300E978F5 /* AudioToolbox.framework in Frameworks */,
@@ -167,13 +139,10 @@
 			isa = PBXGroup;
 			children = (
 				DD5FD0FA28FBD15A00853829 /* Renderer.swift */,
-				DD5B037C290E90B3003F7C12 /* MetalStates.swift */,
 				DD976A9B290E65DA007131BA /* Bridge.h */,
-				DD5FD0F928FBD15A00853829 /* Metal.metal */,
 				DD5FD0FB28FBD15A00853829 /* Metal.h */,
 				DD5B036C290E834C003F7C12 /* RMKTView.swift */,
 				DD5B036E290E83E3003F7C12 /* Math.swift */,
-				DD5B0374290E8A17003F7C12 /* Texture2D.swift */,
 				DD5B0378290E8F8D003F7C12 /* Utils.swift */,
 				DD219B88297672ED00E978F5 /* Keycodes.swift */,
 				DD5FD0FC28FBD15B00853829 /* Assets.xcassets */,
@@ -236,21 +205,9 @@
 				DD8FB2B42BD396C7008D2A3C /* SystemConfiguration.framework */,
 				DD8662792978DE20003878C0 /* AudioToolbox.framework */,
 				DD86627A2978DE20003878C0 /* CoreAudio.framework */,
-				DD8662772978DC85003878C0 /* librustapi_ios.a */,
 				DD219B8629752B1100E978F5 /* CoreAudio.framework */,
 				DD219B8429752AE300E978F5 /* AudioToolbox.framework */,
-				DD219B7529741C3900E978F5 /* librustapi.a */,
-				DD219B7429741BF800E978F5 /* librustapi.d */,
-				DD219B7229741B3800E978F5 /* libeldiron_creator.a */,
-				DDAB9559290F6AC900B79AB8 /* librustapiios.a */,
-				DDAB955B290F6B6D00B79AB8 /* librustapiios.a */,
-				DD976AA2290E6802007131BA /* librustapi.a */,
-				DD976AA3290E729C007131BA /* librustapi.a */,
-				DD5B0381290F68D2003F7C12 /* librustapi.a */,
-				DDAB9557290F6A9800B79AB8 /* librustapi.a */,
 				DD976AA1290E67CC007131BA /* libs */,
-				DD976A9C290E6732007131BA /* librustapi.dylib */,
-				DD976A99290E62C2007131BA /* librustapi.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -392,13 +349,10 @@
 			files = (
 				DD219B89297672ED00E978F5 /* Keycodes.swift in Sources */,
 				DD5FD12F28FBD15C00853829 /* Renderer.swift in Sources */,
-				DD5FD12C28FBD15C00853829 /* Metal.metal in Sources */,
 				DD5FD10728FBD15B00853829 /* GameViewController.swift in Sources */,
 				DD5B036D290E834C003F7C12 /* RMKTView.swift in Sources */,
 				DD5FD10528FBD15B00853829 /* AppDelegate.swift in Sources */,
 				DD5B036F290E83E3003F7C12 /* Math.swift in Sources */,
-				DD5B037D290E90B3003F7C12 /* MetalStates.swift in Sources */,
-				DD5B0375290E8A17003F7C12 /* Texture2D.swift in Sources */,
 				DD28F9362978F1670003766F /* File.swift in Sources */,
 				DD5B0379290E8F8D003F7C12 /* Utils.swift in Sources */,
 			);
@@ -410,13 +364,10 @@
 			files = (
 				DD219B8A297672ED00E978F5 /* Keycodes.swift in Sources */,
 				DD5FD13028FBD15C00853829 /* Renderer.swift in Sources */,
-				DD5FD12D28FBD15C00853829 /* Metal.metal in Sources */,
 				DD5FD11728FBD15B00853829 /* GameViewController.swift in Sources */,
 				DD5B0370290E84B3003F7C12 /* RMKTView.swift in Sources */,
 				DD5FD11528FBD15B00853829 /* AppDelegate.swift in Sources */,
 				DD5B0372290E84B6003F7C12 /* Math.swift in Sources */,
-				DD5B037E290E90B3003F7C12 /* MetalStates.swift in Sources */,
-				DD5B0376290E8A17003F7C12 /* Texture2D.swift in Sources */,
 				DD28F9372978F1670003766F /* File.swift in Sources */,
 				DD5B037A290E8F8D003F7C12 /* Utils.swift in Sources */,
 			);
@@ -428,13 +379,10 @@
 			files = (
 				DD219B8B297672ED00E978F5 /* Keycodes.swift in Sources */,
 				DD5FD13128FBD15C00853829 /* Renderer.swift in Sources */,
-				DD5FD12E28FBD15C00853829 /* Metal.metal in Sources */,
 				DD5FD12728FBD15C00853829 /* GameViewController.swift in Sources */,
 				DD5B0371290E84B3003F7C12 /* RMKTView.swift in Sources */,
 				DD5FD12528FBD15C00853829 /* AppDelegate.swift in Sources */,
 				DD5B0373290E84B7003F7C12 /* Math.swift in Sources */,
-				DD5B037F290E90B3003F7C12 /* MetalStates.swift in Sources */,
-				DD5B0377290E8A17003F7C12 /* Texture2D.swift in Sources */,
 				DD28F9382978F1670003766F /* File.swift in Sources */,
 				DD5B037B290E8F8D003F7C12 /* Utils.swift in Sources */,
 			);
@@ -489,6 +437,50 @@
 		DD5FD13828FBD15C00853829 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ELDIRON_RUST_LIB_DIR = "$(SRCROOT)/../../target/aarch64-apple-darwin/release";
+				"ELDIRON_RUST_LIB_DIR[sdk=iphoneos*]" = "$(SRCROOT)/../../target/aarch64-apple-ios/release";
+				"ELDIRON_RUST_LIB_DIR[sdk=iphonesimulator*]" = "$(SRCROOT)/../../target/aarch64-apple-ios-sim/release";
+				LIBRARY_SEARCH_PATHS = ("$(inherited)", "$(ELDIRON_RUST_LIB_DIR)");
+				"OTHER_LDFLAGS[sdk=macosx*]" = (
+					"$(inherited)",
+					"-framework",
+					"AppKit",
+					"-lSystem",
+					"-lc",
+					"-lm",
+				);
+				"OTHER_LDFLAGS[sdk=iphone*]" = (
+					"$(inherited)",
+					"-framework",
+					"UIKit",
+					"-framework",
+					"AVFAudio",
+					"-lSystem",
+					"-lc",
+					"-lm",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-leldiron_creator",
+					"-framework",
+					"CoreGraphics",
+					"-framework",
+					"CoreText",
+					"-framework",
+					"QuartzCore",
+					"-framework",
+					"Metal",
+					"-framework",
+					"AudioToolbox",
+					"-framework",
+					"CoreAudio",
+					"-framework",
+					"Foundation",
+					"-framework",
+					"CoreFoundation",
+					"-liconv",
+					"-lobjc",
+				);
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -550,6 +542,50 @@
 		DD5FD13928FBD15C00853829 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ELDIRON_RUST_LIB_DIR = "$(SRCROOT)/../../target/aarch64-apple-darwin/release";
+				"ELDIRON_RUST_LIB_DIR[sdk=iphoneos*]" = "$(SRCROOT)/../../target/aarch64-apple-ios/release";
+				"ELDIRON_RUST_LIB_DIR[sdk=iphonesimulator*]" = "$(SRCROOT)/../../target/aarch64-apple-ios-sim/release";
+				LIBRARY_SEARCH_PATHS = ("$(inherited)", "$(ELDIRON_RUST_LIB_DIR)");
+				"OTHER_LDFLAGS[sdk=macosx*]" = (
+					"$(inherited)",
+					"-framework",
+					"AppKit",
+					"-lSystem",
+					"-lc",
+					"-lm",
+				);
+				"OTHER_LDFLAGS[sdk=iphone*]" = (
+					"$(inherited)",
+					"-framework",
+					"UIKit",
+					"-framework",
+					"AVFAudio",
+					"-lSystem",
+					"-lc",
+					"-lm",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-leldiron_creator",
+					"-framework",
+					"CoreGraphics",
+					"-framework",
+					"CoreText",
+					"-framework",
+					"QuartzCore",
+					"-framework",
+					"Metal",
+					"-framework",
+					"AudioToolbox",
+					"-framework",
+					"CoreAudio",
+					"-framework",
+					"Foundation",
+					"-framework",
+					"CoreFoundation",
+					"-liconv",
+					"-lobjc",
+				);
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -627,7 +663,7 @@
 				);
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
-					"$(PROJECT_DIR)",
+					"$(ELDIRON_RUST_LIB_DIR)",
 				);
 				MARKETING_VERSION = 0.75;
 				OTHER_CODE_SIGN_FLAGS = "";
@@ -669,7 +705,7 @@
 				);
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
-					"$(PROJECT_DIR)",
+					"$(ELDIRON_RUST_LIB_DIR)",
 				);
 				MARKETING_VERSION = 0.75;
 				OTHER_CODE_SIGN_FLAGS = "";
@@ -770,7 +806,7 @@
 				);
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
-					"$(PROJECT_DIR)/../../target/release",
+					"$(ELDIRON_RUST_LIB_DIR)",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12.3;
 				MARKETING_VERSION = 0.95.0;
@@ -810,7 +846,7 @@
 				);
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
-					"$(PROJECT_DIR)/../../target/release",
+					"$(ELDIRON_RUST_LIB_DIR)",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12.3;
 				MARKETING_VERSION = 0.95.0;

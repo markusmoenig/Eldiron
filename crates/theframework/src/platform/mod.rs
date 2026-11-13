@@ -5,6 +5,8 @@ mod input;
 pub use ime::ImeSession;
 #[cfg(feature = "render-wgpu")]
 mod session;
+#[cfg(feature = "render-wgpu")]
+mod foreign;
 #[cfg(all(feature = "render-wgpu", feature = "ui"))]
 mod ui;
 #[cfg(feature = "platform-winit")]
@@ -12,5 +14,7 @@ pub mod winit;
 pub use input::*;
 #[cfg(feature = "render-wgpu")]
 pub use session::*;
+#[cfg(feature = "render-wgpu")]
+pub use foreign::*;
 #[cfg(all(feature = "render-wgpu", feature = "ui"))]
 pub use ui::*;

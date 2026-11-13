@@ -64,12 +64,9 @@ public class RMTKView       : MTKView
 
     func setMousePos(_ event: NSEvent)
     {
-        var location = event.locationInWindow
-        location.y = location.y - CGFloat(frame.height)
-        location = convert(location, from: nil)
-
+        let location = convert(event.locationInWindow, from: nil)
         mousePos.x = Float(location.x)
-        mousePos.y = -Float(location.y)
+        mousePos.y = Float(isFlipped ? location.y : bounds.height - location.y)
     }
 
     override public func keyDown(with event: NSEvent)
@@ -127,14 +124,24 @@ public class RMTKView       : MTKView
         keysDown.append(Float(event.keyCode))
     }
 
-    override public func keyUp(with event: NSEvent)
-    {
-        if let c = event.characters {
-            if rust_key_up(c) {
-                renderer.needsUpdate()
-            }
+    override public func keyUp(with event: NSEvent) {
+        let special: UInt32?
+        switch event.keyCode {
+        case Keycode.escape: special = UInt32(KEY_ESCAPE)
+        case Keycode.returnKey: special = UInt32(KEY_RETURN)
+        case Keycode.delete, Keycode.forwardDelete: special = UInt32(KEY_DELETE)
+        case Keycode.space: special = UInt32(KEY_SPACE)
+        case Keycode.tab: special = UInt32(KEY_TAB)
+        case Keycode.upArrow: special = UInt32(KEY_UP)
+        case Keycode.rightArrow: special = UInt32(KEY_RIGHT)
+        case Keycode.downArrow: special = UInt32(KEY_DOWN)
+        case Keycode.leftArrow: special = UInt32(KEY_LEFT)
+        default: special = nil
         }
-        keysDown.removeAll{$0 == Float(event.keyCode)}
+        if let special { _ = rust_special_key_up(special) }
+        else if let text = event.characters { _ = rust_key_up(text) }
+        keysDown.removeAll { $0 == Float(event.keyCode) }
+        renderer.needsUpdate()
     }
 
     override public func mouseDown(with event: NSEvent) {
