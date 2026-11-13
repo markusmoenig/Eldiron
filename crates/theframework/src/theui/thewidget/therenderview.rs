@@ -71,6 +71,15 @@ impl TheWidget for TheRenderView {
             }
             p.list.ops.push(PaintOp::PopClip);
         } else if self.has_content {
+            if std::env::var_os("ELDIRON_NATIVE_IDLE_PROBE_MS").is_some() {
+                eprintln!(
+                    "Native idle raster view: {} {}x{} dirty={}",
+                    self.id.name,
+                    self.render_buffer.pixel_width(),
+                    self.render_buffer.pixel_height(),
+                    self.is_dirty
+                );
+            }
             p.copied_framebuffer(
                 &format!("renderview:{}", self.id.uuid),
                 &self.render_buffer,

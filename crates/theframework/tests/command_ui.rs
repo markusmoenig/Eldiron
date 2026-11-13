@@ -44,7 +44,21 @@ fn ui_emits_text_and_image_commands_without_a_renderer_or_window() {
     button.set_icon_name("headless".into());
     layout.widgets().push(Box::new(label));
     layout.widgets().push(Box::new(button));
-    ui.canvas.set_layout(layout);
+    let mut visible = TheCanvas::new();
+    visible.set_layout(layout);
+    let mut hidden = TheCanvas::new();
+    let mut hidden_text = TheText::new(TheId::named("hidden-pane"));
+    hidden_text.set_text("Pending until this pane is shown".into());
+    hidden.set_widget(hidden_text);
+    let mut vertical = TheSharedVLayout::new(TheId::named("collapsed-vertical"));
+    vertical.add_canvas(visible);
+    vertical.add_canvas(hidden);
+    let mut visible = TheCanvas::new();
+    visible.set_layout(vertical);
+    let mut horizontal = TheSharedHLayout::new(TheId::named("collapsed-horizontal"));
+    horizontal.add_canvas(visible);
+    horizontal.add_canvas(TheCanvas::new());
+    ui.canvas.set_layout(horizontal);
     let mut resources = RecordingImages::default();
     let list = ui.paint_commands(&mut ctx, &mut resources).unwrap();
     list.validate().unwrap();
@@ -56,6 +70,10 @@ fn ui_emits_text_and_image_commands_without_a_renderer_or_window() {
     assert!(list.ops.iter().any(|v| matches!(v, PaintOp::Image { .. })));
     assert_eq!(resources.handles.len(), 1);
     assert!(ui.canvas.buffer.pixels().is_empty());
+    assert!(
+        !ui.needs_paint(&ctx),
+        "successful native painting must acknowledge layout dirtiness"
+    );
 }
 
 fn paint_widget(

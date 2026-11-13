@@ -113,13 +113,16 @@ impl TheLayout for TheSharedHLayout {
     }
 
     fn needs_redraw(&mut self) -> bool {
-        for canvas in &mut self.canvas {
-            if canvas.needs_redraw() {
-                return true;
+        if self.canvas.len() < 2 {
+            return false;
+        }
+        match self.mode {
+            TheSharedHLayoutMode::Left => self.canvas[0].needs_redraw(),
+            TheSharedHLayoutMode::Right => self.canvas[1].needs_redraw(),
+            TheSharedHLayoutMode::Shared => {
+                self.canvas[0].needs_redraw() || self.canvas[1].needs_redraw()
             }
         }
-
-        false
     }
 
     fn get_layout_at_coord(&mut self, coord: Vec2<i32>) -> Option<TheId> {

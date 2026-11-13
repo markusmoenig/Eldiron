@@ -8825,6 +8825,7 @@ impl TheTrait for Editor {
 
         // Get build results from the scene manager if any
         while let Some(result) = SCENEMANAGER.write().unwrap().receive() {
+            redraw = true;
             match result {
                 SceneManagerResult::Startup => {
                     println!("Scene manager has started up.");
@@ -9359,6 +9360,7 @@ impl TheTrait for Editor {
                 self.native_display_owns_viewport()
                     || self.native_world_owns_viewport()
                     || self.native_play_owns_viewport()
+                    || self.native_empty_viewport()
                     // Text Play uses the native TextView in the visible stack.
                     // Its hidden PolyView must not render/read back a world.
                     || (self.native_viewport.enabled
@@ -10072,7 +10074,14 @@ impl TheTrait for Editor {
             //     }
             // }
 
-            redraw = true;
+            #[cfg(feature = "native-render")]
+            {
+                redraw |= !native_display || self.native_scene_tick_redraw(is_running, tick_update);
+            }
+            #[cfg(not(feature = "native-render"))]
+            {
+                redraw = true;
+            }
         }
 
         profile.lap("scene");

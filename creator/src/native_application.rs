@@ -15,6 +15,11 @@ pub struct NativeCreatorApplication {
     presentations: u64,
     start_services: bool,
     startup: Option<Instant>,
+    idle_probe: Option<IdleProbe>,
+}
+struct IdleProbe {
+    duration: Duration,
+    started: Option<(Instant, u64)>,
 }
 impl NativeCreatorApplication {
     pub fn new(args: Vec<String>, smoke: bool) -> Self {
@@ -25,6 +30,14 @@ impl NativeCreatorApplication {
         let mut editor = Editor::new();
         editor.enable_native_views();
         profile.lap("native_editor_construct");
+        let idle_probe = smoke
+            .then(|| std::env::var("ELDIRON_NATIVE_IDLE_PROBE_MS").ok())
+            .flatten()
+            .and_then(|value| value.parse::<u64>().ok())
+            .map(|ms| IdleProbe {
+                duration: Duration::from_millis(ms.clamp(1000, 60_000)),
+                started: None,
+            });
         Self {
             editor,
             args,
@@ -34,6 +47,7 @@ impl NativeCreatorApplication {
             presentations: 0,
             start_services: true,
             startup,
+            idle_probe,
         }
     }
 
@@ -167,6 +181,18 @@ impl UiApplication for NativeCreatorApplication {
         }
     }
     fn update(&mut self, ui: &mut UiSession, elapsed: Duration) -> FrameRequest {
+        if let Some(probe) = &self.idle_probe
+            && let Some((start, presentations)) = probe.started
+            && start.elapsed() >= probe.duration
+        {
+            eprintln!(
+                "Creator native idle probe: {} additional presentations in {:.2}s",
+                self.presentations - presentations,
+                start.elapsed().as_secs_f64()
+            );
+            ui.requests.push(HostRequest::Exit);
+            return FrameRequest::idle();
+        }
         if self
             .deadline
             .is_some_and(|deadline| Instant::now() >= deadline)
@@ -189,6 +215,9 @@ impl UiApplication for NativeCreatorApplication {
             ui.context.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
         }
         redraw |= self.editor.native_views_waiting();
+        // A smoke run deliberately needs three presentation acknowledgements;
+        // a normal static editor must not redraw merely to satisfy this probe.
+        redraw |= self.smoke && self.presentations < 3;
         FrameRequest {
             redraw,
             wake_after: Some(Duration::from_secs_f64(
@@ -252,6 +281,20 @@ impl UiApplication for NativeCreatorApplication {
             );
         }
         if self.smoke && self.presentations >= 3 {
+            if let Some(probe) = &mut self.idle_probe {
+                if probe.started.is_none() {
+                    probe.started = Some((Instant::now(), self.presentations));
+                    eprintln!("Creator native idle probe started after 3 surface presentations");
+                    eprintln!(
+                        "Native idle owners: empty={} world={} display={} play={}",
+                        self.editor.native_empty_viewport(),
+                        self.editor.native_world_owns_viewport(),
+                        self.editor.native_display_owns_viewport(),
+                        self.editor.native_play_owns_viewport()
+                    );
+                }
+                return;
+            }
             eprintln!(
                 "Creator native smoke passed: {} successful surface presentations",
                 self.presentations
@@ -315,6 +358,14 @@ mod tests {
             app.session.ui.canvas.buffer.pixels().is_empty(),
             "the Creator root cannot allocate a legacy display framebuffer"
         );
+        assert!(
+            !app.session
+                .ui
+                .get_render_view("PolyView")
+                .unwrap()
+                .has_cpu_display_storage(),
+            "an unselected native map cannot allocate and upload a blank viewport bitmap"
+        );
         let output = GpuImage::new(&gpu, ImageDescriptor::rgba(1200, 800)).unwrap();
         let mut renderer = PaintRenderer::new(gpu.clone()).unwrap();
         renderer
@@ -346,6 +397,17 @@ mod tests {
             .unwrap();
         assert_eq!(gpu.transfers(), before);
         assert_eq!(renderer.glyphs.rasterizations, glyphs);
+        let mut dirty_widgets = Vec::new();
+        app.session.ui.canvas.visit_visible_widgets(&mut |widget| {
+            if widget.needs_redraw() {
+                dirty_widgets.push(widget.id().name.clone());
+            }
+        });
+        assert!(
+            !app.session.ui.needs_paint(&app.session.context),
+            "the assembled native root must acknowledge a successful static paint; dirty widgets={dirty_widgets:?}, relayout={}, redraw_all={}",
+            app.session.context.ui.relayout, app.session.context.ui.redraw_all
+        );
         assert_eq!(
             serde_json::to_value(&app.application.editor.project_for_native_test()).unwrap(),
             authored

@@ -621,6 +621,11 @@ fn isometric_input(
     })
 }
 impl Editor {
+    pub(super) fn native_world_waiting(&self) -> bool {
+        self.native_world_owns_viewport()
+            && self.native_viewport.world.presented.as_ref().is_none_or(|frame| !frame.ready)
+    }
+
     fn bind_native_world(&mut self, next: Option<Binding>, ui: &mut TheUI, ctx: &mut TheContext) {
         // Paint's surface cache and selection plane belong to the down-camera.
         // Navigation cannot reinterpret them using a newly presented camera.

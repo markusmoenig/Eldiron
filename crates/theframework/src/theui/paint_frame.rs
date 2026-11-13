@@ -4,16 +4,29 @@ use crate::paint::{PaintList, PaintOp, Rect};
 
 impl TheUI {
     pub fn needs_paint(&mut self, ctx: &TheContext) -> bool {
-        self.paint_font_revision != ctx.text.font_revision()
-            || self.is_dirty
-            || ctx.ui.redraw_all
-            || ctx.ui.relayout
-            || self.canvas.needs_redraw()
-            || self.dialog.as_mut().is_some_and(|c| c.needs_redraw())
-            || self
-                .popover
-                .as_mut()
-                .is_some_and(|p| p.canvas.needs_redraw())
+        let reason = if self.paint_font_revision != ctx.text.font_revision() {
+            Some("fonts")
+        } else if self.is_dirty {
+            Some("UI")
+        } else if ctx.ui.redraw_all {
+            Some("redraw_all")
+        } else if ctx.ui.relayout {
+            Some("relayout")
+        } else if self.canvas.needs_redraw() {
+            Some("canvas")
+        } else if self.dialog.as_mut().is_some_and(|c| c.needs_redraw()) {
+            Some("dialog")
+        } else if self.popover.as_mut().is_some_and(|p| p.canvas.needs_redraw()) {
+            Some("popover")
+        } else {
+            None
+        };
+        if let Some(reason) = reason
+            && std::env::var_os("ELDIRON_PROFILE_INVALIDATION").is_some()
+        {
+            eprintln!("UI paint requested by {reason}");
+        }
+        reason.is_some()
     }
 
     pub fn prepare_paint_layout(&mut self, ctx: &mut TheContext) {

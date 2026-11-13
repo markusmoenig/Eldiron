@@ -134,6 +134,7 @@ impl TheCanvas {
             }
         }
         painter.list.ops.push(PaintOp::PopClip);
+        self.layout_dirty = false;
         Ok(())
     }
 
@@ -706,6 +707,9 @@ impl TheCanvas {
     /// Returns true if any widget or layout attached to this canvas (or its children) needs a redraw.
     pub fn needs_redraw(&mut self) -> bool {
         if self.layout_dirty {
+            if std::env::var_os("ELDIRON_PROFILE_INVALIDATION").is_some() {
+                eprintln!("Dirty canvas layout {:?}", self.dim);
+            }
             return true;
         }
         if self.center.is_none() {
@@ -717,6 +721,9 @@ impl TheCanvas {
 
             if let Some(layout) = &mut self.layout {
                 if layout.needs_redraw() {
+                    if std::env::var_os("ELDIRON_PROFILE_INVALIDATION").is_some() {
+                        eprintln!("Dirty layout {}", layout.id().name);
+                    }
                     return true;
                 }
             }

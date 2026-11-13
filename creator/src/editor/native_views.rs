@@ -77,6 +77,26 @@ impl NativeViewTokens {
     }
 }
 impl Editor {
+    /// An unselected/deleted map has no image producer. Keep the native view
+    /// empty instead of opting into a viewport-sized CPU bitmap every tick.
+    pub(crate) fn native_empty_viewport(&self) -> bool {
+        self.native_viewport.enabled
+            && !self.server_ctx.game_mode
+            && !self.native_display_owns_viewport()
+            && self.project.get_map(&self.server_ctx).is_none()
+    }
+
+    pub(crate) fn native_scene_tick_redraw(&self, running: bool, tick: bool) -> bool {
+        running
+            || self.authoring_is_interacting()
+            || self.geometry_editor.wants_realtime()
+            || (tick
+                && self.native_world_owns_viewport()
+                && (self.server_ctx.editor_view_mode == EditorViewMode::D2
+                    || (self.server_ctx.pc.is_prefab()
+                        && self.server_ctx.curr_map_tool_type == MapToolType::Effects)))
+    }
+
     pub(crate) fn enable_native_views(&mut self) {
         self.native_viewport.enabled = true;
         TOOLLIST.write().unwrap().enable_native_display();
@@ -128,6 +148,11 @@ impl Editor {
         let display = self.prepare_native_display_viewport(ui, ctx, images)?;
         let world = self.prepare_native_world_viewport(ui, ctx, images)?;
         let play = self.prepare_native_play_viewport(ui, ctx, images.registry)?;
+        if self.native_empty_viewport()
+            && let Some(view) = crate::utils::map_editor_render_view(ui, &self.server_ctx)
+        {
+            view.set_image_handle(None);
+        }
         let mut tokens = NativeViewTokens::previews(geometry, appearance, material);
         tokens.display = display;
         tokens.world = world;
@@ -138,6 +163,7 @@ impl Editor {
         self.geometry_editor.gpu_preview_waiting()
             || self.appearance_workspace.gpu_preview_waiting()
             || self.procedural_material.gpu_preview_waiting()
+            || self.native_world_waiting()
     }
     pub(crate) fn presented_native_views(
         &mut self,

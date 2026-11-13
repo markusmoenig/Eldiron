@@ -5,7 +5,7 @@ Started: 2026-11-11 (Asia/Bangkok). Overall Goal: active; full M0–M9 scope rem
 ## Baseline and isolation
 
 - Original checkout: `/Users/markusmoenig/Eldiron`, master at `f8d880110366e8638305493ac7c4bc6c58b9313d`.
-- Implementation checkout: `/Users/markusmoenig/.codex/worktrees/native-wgpu-rewrite/Eldiron`, branch `codex/native-wgpu-rewrite`.
+- Implementation checkout: `/Users/markusmoenig/Eldiron/notes/native-wgpu-rewrite-worktree`, branch `codex/native-wgpu-rewrite`. The previous `/Users/markusmoenig/.codex/worktrees/native-wgpu-rewrite/Eldiron` path remains a link to it.
 - Tracked source was clean at startup; the untracked approved rewrite and networking concept documents were copied into this checkout. Original files are untouched.
 - Baseline: `cargo check --locked --offline -p eldiron-creator -p eldiron-client -p eldiron-client-wgpu -p eldiron-client-terminal` passed, 26.18 s. Log: `/private/tmp/eldiron-wgpu-baseline-check.log`.
 - Toolchain: rustc/cargo 1.99, Xcode installed. Installed targets include native arm64/x86_64 macOS, iOS/device/simulator, wasm32, x86_64 Windows GNU, Android arm64. Runtime/platform validation is not implied by target installation.
@@ -5460,3 +5460,159 @@ speedup. The optimized binary is
 A temporary copied-binary bundle `/private/tmp/EldironNativeRelease.app` is prepared
 for visual inspection; app selection through the earlier symlink bundle timed out.
 No physical visual/input or full startup project/DPI matrix is claimed yet.
+
+## 2026-11-13 — Idle CPU regression investigation (active)
+
+Latest user steering: continue automatically without routine permission questions;
+GPU startup must not carry legacy CPU presentation, and native idle CPU around
+130% is unacceptable. Prioritize this regression before further broad migration.
+
+To avoid repeated source-edit approval checks, moved the same clean isolated Git
+worktree (HEAD eb7edfdc) with `git worktree move` into the already writable,
+Git-ignored `/Users/markusmoenig/Eldiron/notes/native-wgpu-rewrite-worktree`.
+The former worktree path is retained as a link. Branch/history and the unrelated
+untracked networking concept were preserved. No original source files, ignore
+rules or permission settings were changed. Normal source edits/builds now work
+without escalation. Process sampling and physical GUI launches still require the
+platform's automatic tool checks.
+
+Physical inspection of `/private/tmp/EldironNativeRelease.app` succeeded: observed
+the actual Creator window/chrome and Cmd+N opening its native New Project chooser.
+A later Tab/Return creation attempt timed out in computer use; no completed 3D
+workflow is claimed from that attempt. Computer-use completion was recorded.
+The old temporary debug process and copied release app were left intact to
+preserve any documents; their running executables do not hot-reload source fixes.
+
+Reproduced real CPU use with ps: PID 80234 (debug temporary native app) **133.5%**,
+PID 81832 (copied optimized temporary app) **131.3%**. Sampled the busiest process
+for 3 seconds: `/private/tmp/eldiron-native-idle-before.sample.txt`. Main-thread
+samples are dominated by native root painting, RenderView.copied_framebuffer,
+UiImageCache upload and `linear_premultiplied_pixels`. This is concrete evidence
+of repeated CPU bitmap conversion/upload, not a theory about GPU device setup.
+
+Implemented so far (uncommitted):
+- Native empty map contexts claim a cleared RenderView and avoid the regular
+  viewport-sized CPU buffer writer.
+- Native stopped-view timer cadence no longer unconditionally requests root
+  painting; real input, runtime animation, existing 2D/FX ticks, previews and
+  pending world-build acknowledgements retain their redraw paths. SceneManager
+  results explicitly request redraw. A normal static app does not need three
+  presentations merely because the smoke probe does.
+- NativeWorld waiting state explicitly keeps incomplete scene publication moving.
+- Added optional ELDIRON_NATIVE_IDLE_PROBE_MS to the existing --smoke route: after
+  three acknowledged presentations it reports additional frames during a bounded
+  idle interval and exits from update, without manufacturing idle frames.
+- **Found a second concrete framework bug:** TheCanvas.paint did not clear
+  layout_dirty, so needs_paint stayed true indefinitely after successful GPU
+  painting. It now acknowledges that flag after successful child/layout painting.
+  The existing command_ui case now checks this; no new suite was added.
+- Existing assembled Creator startup assertion now also rejects CPU storage in
+  its unselected PolyView. Temporary probe-only RenderView source-name and native
+  owner diagnostics remain in source while identifying the upload producer.
+
+The empty-view/timer change alone did **not** fix idle CPU: optimized probe PID
+82737 measured **130.65%** over 3.016 s (3.94 CPU seconds), and 109 additional
+presentations over 9.03 s. Evidence: `/private/tmp/eldiron-native-idle-after.log`
+and `/private/tmp/eldiron-native-idle-after-cpu.json`. These results precede the
+TheCanvas dirty acknowledgement fix. Do not claim CPU reduction yet.
+
+Focused native check passed **29.51 s**,
+`/private/tmp/eldiron-native-idle-check.log`. Optimized builds before the canvas
+fix passed **1m19s** (`eldiron-native-idle-release-build.log`) and **2m47s**
+(`eldiron-native-idle-source-build.log`). The latter includes probe-only source
+name diagnostics but not the canvas acknowledgement fix. Source changed after
+those builds and needs rebuilding/verification.
+
+Platform state changed again: current ioreg reports
+**CGSSessionScreenIsLocked=Yes**, CGSSessionOnConsoleKey=Yes. The last physical
+probe (`/private/tmp/eldiron-native-idle-source.log`) timed out with **0 successful
+surface presentations**. A prior normal-sandbox launch also could not access
+AppKit XPC services and was terminated before an editor initialized. None of those
+runs are passing physical evidence. Continue available offscreen/integration work;
+repeat actual steady CPU sampling only when a surface can present. The current
+command_ui dirty acknowledgement check is running; next run the existing assembled
+Creator GPU checkpoint, inspect dirty-state failures, then rebuild the optimized
+native executable and measure steady CPU/presentation counts when available.
+Full M0–M9 remains active and all acceptance gates remain open.
+
+### Continued physical verification and remaining idle invalidation
+
+The desktop became available. The first rebuilt optimized binary passed its
+build (1m43s, `/private/tmp/eldiron-native-idle-fixed-release-build.log`). On the
+user's restart request, closed the old copied app normally, confirmed no native
+Creator process remained, replaced the temporary bundle's executable, and launched
+the rebuilt app. Observed its real window/New Project chooser through computer
+use. No force kill or document discard was used.
+
+The assembled dirty-state trace identified another persistent invalidator:
+`TheSharedVLayout` included its hidden splitter in Top/Bottom modes; the unpainted
+splitter never acknowledged its initial dirty flag. It now checks splitter state
+only in Shared mode. `TheSharedHLayout` likewise checks only visible panes.
+The existing command_ui contract now nests collapsed vertical/horizontal panes
+with dirty hidden content and verifies successful painting clears root demand;
+passed **1 test, 0.31s**, build5.43s
+(`/private/tmp/eldiron-native-collapsed-idle-contract.log`).
+
+The physically restarted intermediate app PID84161 measured **64.37%** over
+3.014s (1.94 CPU seconds); the user observed approximately44%. This remains an
+idle regression, not a passing performance result. Actual sample:
+`/private/tmp/eldiron-native-idle-fixed-live.sample.txt`; measurement:
+`/private/tmp/eldiron-native-idle-fixed-live-cpu.json`.
+
+A bounded physical invalidation probe then showed **17 additional presentations
+in4.01s**. MiniMap was dirty/uploaded each time; empty native world ownership was
+correct. The Tiles dock unconditionally opted into animated minimap ticks even
+with no tile preview. It now requests these ticks only while a tile is being
+previewed; animated hover previews remain enabled. Evidence:
+`/private/tmp/eldiron-native-idle-fixed-invalidation.log`. This fix is rebuilding
+for a further physical measurement; no final CPU improvement is claimed yet.
+
+The debug assembled checkpoint initially failed before the assertions because
+RustEmbed's cached compile-time canonical asset path predates the worktree move:
+the old path is now a directory symlink, so the dynamic debug asset lookup rejects
+the newly canonicalized shader path and returns no header (`tile_of_px` missing).
+Changing the runtime working directory did not fix it. Invalidated only the source
+mtimes of the embedded-asset crates to regenerate their derives at the real new
+path; no asset/source content changed. Debug rebuild/checkpoint is pending. The
+optimized binary embeds its assets and the physical presentations above succeeded.
+
+### Final idle fix: actual low CPU verified, visible app restarted
+
+The no-preview animation fix optimized build passed **1m06s**:
+`/private/tmp/eldiron-native-idle-no-empty-animation-build.log`. A self-exiting
+physical native probe measured **2.32% CPU** (0.07CPU seconds/3.013s) and just
+**2 additional presentations over9.03s**, with MiniMap and tile-board sources
+unchanged. Probe exited0. Evidence:
+`/private/tmp/eldiron-native-idle-no-empty-animation-cpu.json` and
+`/private/tmp/eldiron-native-idle-no-empty-animation.log`.
+
+Closed the intermediate visible app normally, copied that exact optimized binary
+into `/private/tmp/EldironNativeRelease.app`, and relaunched it through computer
+use; observed the native Creator window. The exact visible process **PID84521**
+then measured **2.99% CPU** (0.09CPU seconds/3.013s), recorded in
+`/private/tmp/eldiron-native-idle-final-live-cpu.json`. User confirmation remains
+separate from these measurements. These are empty startup-view idle results;
+active editing, loaded-project idle, animation and Play performance are separate
+acceptance cases. Do not generalize this result to the entire M0–M9 matrix.
+
+After regenerating the debug embedded-asset derives, test compilation passed
+**1m05s** (`eldiron-native-idle-relocated-embed-root-build.log`). The existing
+assembled Metal Creator checkpoint is now running beyond its startup/shader phase
+(`eldiron-native-idle-relocated-embed-root-metal.log`); terminal result pending.
+
+Terminal result: the existing assembled Metal Creator checkpoint **passed1,
+90.16s**. This includes static root acknowledgement, no blank PolyView bitmap,
+existing world/tool/Paint/Play/text/input/recovery coverage and image captures;
+no new broad CPU suite was run. The latest source-only changes after the verified
+binary builds format the new diagnostic/assertion spans without behavior changes.
+
+The user subsequently reported Activity Monitor100%. Immediately checked the
+exact visible process: ps3.0%, later2.7%; a3s sample shows the main thread almost
+entirely waiting on the AppKit event loop, with bounded editor polling rather than
+frame submission. Evidence: `/private/tmp/eldiron-native-idle-user-100.sample.txt`.
+Then inspected Activity Monitor itself through computer use: **Eldiron Native GPU,
+PID84521, 3.0% CPU**. The reported100% spike has **not** been reproduced or explained
+by these measurements and remains unresolved; do not declare every editor state
+efficient. The integrated GPU checkpoint was also running during part of the
+conversation and is now finished, but no causal attribution of the user's100%
+reading to that checkpoint is established.

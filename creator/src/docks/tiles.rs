@@ -1189,7 +1189,9 @@ impl Dock for TilesDock {
     }
 
     fn supports_minimap_animation(&self) -> bool {
-        true
+        // With no tile preview, the minimap is the stopped map's cached image.
+        // Rebuilding it on every animation tick needlessly invalidates the root.
+        self.tile_hover_source.is_some()
     }
 }
 

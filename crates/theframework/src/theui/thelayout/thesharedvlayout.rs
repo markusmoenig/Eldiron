@@ -276,13 +276,13 @@ impl TheLayout for TheSharedVLayout {
             return self.is_dirty;
         }
 
-        let splitter_dirty = self.widgets.iter_mut().any(|widget| widget.needs_redraw());
-
         match self.mode {
-            TheSharedVLayoutMode::Top => self.canvas[0].needs_redraw() || splitter_dirty,
-            TheSharedVLayoutMode::Bottom => self.canvas[1].needs_redraw() || splitter_dirty,
+            TheSharedVLayoutMode::Top => self.canvas[0].needs_redraw(),
+            TheSharedVLayoutMode::Bottom => self.canvas[1].needs_redraw(),
             TheSharedVLayoutMode::Shared => {
-                self.canvas[0].needs_redraw() || self.canvas[1].needs_redraw() || splitter_dirty
+                self.canvas[0].needs_redraw()
+                    || self.canvas[1].needs_redraw()
+                    || self.widgets.iter_mut().any(|widget| widget.needs_redraw())
             }
         }
     }
