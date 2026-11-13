@@ -209,6 +209,7 @@ fn markers(frame: &ToolOverlayFrame) -> Vec<theframework::paint::FrameReceipt> {
             Part::Commands(_) => None,
             Part::Hud(frame) => Some(frame.token.receipt()),
             Part::Props(frame) => Some(frame.receipt()),
+            Part::Terrain(frame) => Some(frame.receipt()),
         })
         .collect()
 }

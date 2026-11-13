@@ -88,6 +88,11 @@ enum Command {
         to: [i32; 2],
         color: RGBA,
     },
+    SampledLine {
+        from: [f32; 2],
+        to: [f32; 2],
+        color: RGBA,
+    },
     Outline(BoxRect, RGBA),
     Text {
         position: (usize, usize),
@@ -146,6 +151,9 @@ impl EditorOverlay {
             to: [x1, y1],
             color,
         });
+    }
+    pub(crate) fn sampled_line(&mut self, from: [f32; 2], to: [f32; 2], color: RGBA) {
+        self.commands.push(Command::SampledLine { from, to, color });
     }
     pub(crate) fn horizontal_line(&mut self, x0: i32, x1: i32, y: i32, color: RGBA) {
         self.line(x0, y, x1, y, color);
@@ -239,6 +247,11 @@ impl EditorOverlay {
                     }
                 }
                 Command::SignedOutline(rect, color) => buffer.draw_rect_outline(rect, color),
+                Command::SampledLine { from, to, color } => {
+                    rusterix::isometric::line(
+                        buffer, Vec2::new(from[0], from[1]), Vec2::new(to[0], to[1]), *color,
+                    );
+                }
                 Command::PixelLine { from, to, color } => {
                     buffer.draw_line(from[0], from[1], to[0], to[1], *color)
                 }
@@ -387,6 +400,11 @@ impl EditorOverlay {
                         color: color.map(|v| v as f32 / 255.),
                     });
                 }
+                Command::SampledLine { from, to, color } => list.ops.push(PaintOp::SampledLine {
+                    from: *from,
+                    to: *to,
+                    color: color.map(|v| v as f32 / 255.),
+                }),
                 Command::PixelLine { from, to, color } => list.ops.push(PaintOp::PixelLine {
                     from: from.map(|v| v as f32),
                     to: to.map(|v| v as f32),

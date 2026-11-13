@@ -25,7 +25,7 @@ Started: 2026-11-11 (Asia/Bangkok). Overall Goal: active; full M0–M9 scope rem
 - M2: in progress. Paint/Swash/Parley pipeline and native/foreign hosts work; batching, resource lifetime budgets and full text/input parity remain.
 - M3: in progress. Every active built-in TheWidget implementation now has a command paint path, including procedural controls and the legacy node canvas. Complex Creator integration, full widget catalog parity and legacy adapter retirement remain.
 - M4: in progress. CPU schema/identity extraction, shared `GameSession`, CPU startup preparation, message/party/world-target policies and terminal adoption are implemented and tested. Per-session routing, local players, world values, runtime IDs and region context ownership now pass controlled overlapping-session and parallel assembled-player regressions. Graphical/Creator adoption and remaining bitmap/value data extraction remain; this evidence does not establish full simultaneous Creator Play workflows.
-- M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Immutable ordinary editor-view preparation, exact reference/native view outputs and retained CPU chunk publication are now available through SceneViews. Common HUD, paint/props panels, profile displays and ViewCube now have retained command frames, guarded input and actual GPU composition/reconstruction evidence. Six standard tools additionally emit ordered typed overlay aggregates with exact presented-frame and detail-profile source guards. Full-viewport profile editing is now connected to the actual native Creator root with document/widget binding, presentation-gated input and inline commit/cancel; ordinary stopped top-down, sprite-isometric and 3D region rendering and the six standard tool overlays now use the same native application owner and real tool dispatch. Orbit/orthographic/first-person views include depth-aware guides, retained ViewCube and explicit tool query snapshots; surface paint uses the view-owned GPU scene. Other world modes and Play remain on their explicit migration adapters. Application/global/document/Play ownership, main world/tool/HUD integration, remaining producers, full visual/workflow/performance acceptance and canonical retirement remain.
+- M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Immutable ordinary editor-view preparation, exact reference/native view outputs and retained CPU chunk publication are now available through SceneViews. Common HUD, paint/props panels, profile displays and ViewCube now have retained command frames, guarded input and actual GPU composition/reconstruction evidence. Six standard tools additionally emit ordered typed overlay aggregates with exact presented-frame and detail-profile source guards. Full-viewport profile editing is now connected to the actual native Creator root with document/widget binding, presentation-gated input and inline commit/cancel; ordinary stopped top-down, sprite-isometric and 3D region rendering and the six standard tool overlays now use the same native application owner and real tool dispatch. Orbit/orthographic/first-person views include depth-aware guides, retained ViewCube and explicit tool query snapshots; surface paint uses the view-owned GPU scene. The Terrain tool now also uses retained native controls and GPU brush guides with real sculpt/cancel integration. Other contexts/tools and Play remain on their explicit migration adapters. Application/global/document/Play ownership, main world/tool/HUD integration, remaining producers, full visual/workflow/performance acceptance and canonical retirement remain.
 - M6: in progress. Independent GPU game views, common player/input/camera components, authored screen paint, private world descriptions, view-owned speech, acknowledged-frame world pointer gestures, relative first-person mouse look, default/world-intent cursors, world/UI item drag previews and acknowledged authored inventory/equipment pointer/keyboard gestures are implemented. Application-owned audio is integrated into the common player with cancellable CPU preparation jobs. The native container HUD now includes acknowledged paint/input, real server transfers, scrolling, GPU recovery and navigation lifetime. Floating inventory/equipment, action catalogue/spellbook and preferences now use typed native HUD owners, retained text/source resources and acknowledged input. Acknowledged UI-origin tooltips now use retained text and host deadlines. UI-origin Drop cursors and acknowledged drag/assignment highlighting now have GPU and authoritative transfer evidence. Native isometric source production, shared CPU source publication, game-view outputs and acknowledged input receipts now have GPU/CPU and shipped-source device-reconstruction evidence. Browser worker hosting, remaining game-mode/HUD policy parity, performance acceptance remain. Canonical native desktop launchers now share the common application/host; see launcher verification below.
 - M7/M8/M9: Retirement and platform/full acceptance pending. Canonical desktop clients share one common player; the Xcode client now uses it through the retained ABI over a Rust-created CAMetalLayer surface. Native/ARM64 simulator app bundles link, and real Swift/static-library and registered-scene layer checks pass. Browser bootstrap, native text/platform parity, Creator wrapper and complete physical/release acceptance remain; this is not complete application/platform parity.
 
@@ -4442,3 +4442,88 @@ complete. Current source/session/global CPU bridges still exist. The next useful
 work is to adopt the remaining real tools, then converge Play/runtime ownership;
 continue using focused compile checks and the existing assembled checkpoint for
 coherent integration changes rather than adding per-change fixture suites.
+
+
+### Main Creator Terrain tool and gesture lifetime (2026-11-13)
+
+Adopted the real Terrain controller on the native world owner. Continued using
+focused compilation and the existing assembled Creator check; no new standalone
+fixture suite or broad platform matrix was added.
+
+- Added typed retained Terrain control frames in
+  `creator/src/tools/terrain_overlay.rs`, including mode, radius and strength
+  source snapshots and the original labels/layout/clickable row gaps. The
+  aggregate retains the typed frame until its actual root receipts are
+  acknowledged. Preparation alone cannot activate controls. Commands revalidate
+  document/widget/tool/view/source ownership before modifying the controller.
+- Terrain brush outlines use the existing shared terrain geometry and GPU
+  capped-DDA commands in 2D; the previously extracted depth-aware scene guides
+  handle the 3D branch. Panel text uses the common Swash/Parley paint path.
+  Tiny viewports omit the panel instead of keeping hidden controls active.
+- Added a passive aggregate path for tools with their own typed controls. The
+  standard-HUD requirement was not faked for Terrain. Terrain parameter keys use
+  the acknowledged panel source and preserve the hover/active stroke rather than
+  waiting on unrelated streamed world geometry. Other tools remain explicit
+  adapters until their full producers/controllers are connected.
+- Native scene/input ownership now lives in the centralized ToolList adapter
+  flag supplied by the viewport, independently of standard-HUD availability.
+  Legacy picking/guide upload and action-HUD interception stay dormant while
+  this owner is active. Individual HUD/Props adapter flags remain only for their
+  reference input interceptors until retirement.
+- Source/material/style refreshes invalidate fresh picks and panel authority but
+  preserve a gesture in the same document/tool/view transform. This matters when
+  the first terrain dab publishes its neutral material. Structural/context
+  changes cancel only a gesture whose original document/map/controller is still
+  current; cancellation uses the original projection and preserves the user's
+  current camera/navigation settings. Cube tracking resets on incompatible
+  capture handoff.
+- Focus loss, suspension and device replacement cancel an owned authoring draft
+  through the ordinary controller/undo/source-update bridge before revoking
+  presentation authority. A different document/controller never receives that
+  cancellation.
+- Captured mouse-up no longer waits for a new pick. `WorldGesture` retains its
+  last accepted pointer position and immutable CPU query. Release completes once
+  through the complete existing ToolList dispatcher, preserving undo grouping,
+  surface rebuilds and moved-entity updates. This fixed a real failed return to
+  top-down mode: a source refresh had blocked mouse-up and left a gesture open
+  for the subsequent camera barrier. This path commits the last accepted model
+  position; it does not invent a new target from an unavailable scene.
+
+Verification:
+
+- Native integration compilation passed, 8.16 s:
+  `/private/tmp/eldiron-native-terrain-integration-check.log`.
+- Existing assembled
+  `native_creator_application_paints_the_root_ui_without_a_root_framebuffer`
+  GPU check passed **1**, 18.86 s:
+  `/private/tmp/eldiron-native-terrain-root-release.log`. It retains the earlier
+  camera/profile/root/Swash/DDA tests and now checks native Terrain activation,
+  pre-presentation control rejection, acknowledged radius change, actual authored
+  sculpt data, survival through material/source refresh, a parameter shortcut
+  after draft publication, focus-loss rollback, and no further sculpting after
+  cancellation. This runtime Terrain case uses top-down mode; Terrain-specific
+  3D/isometric visuals and complete workflow parity remain unverified.
+- An earlier subset passed, 18.16 s:
+  `/private/tmp/eldiron-native-terrain-root-verified.log`. The later
+  `/private/tmp/eldiron-native-terrain-root-complete.log` failed the real camera
+  return/release case and is superseded by the release fix/run above.
+  `/private/tmp/eldiron-native-terrain-root{,-final}.log` are compilation failures
+  from an existing receipt helper missing the new enum arm; that helper was
+  updated without adding a test suite.
+- Reference/native builds before the final release change passed (8.48/8.30 s),
+  `/private/tmp/eldiron-native-terrain-{reference,final}-check.log`. The final
+  source builds also passed: reference 8.97 s,
+  `/private/tmp/eldiron-native-terrain-reference-final.log`; native 8.61 s,
+  `/private/tmp/eldiron-native-terrain-native-final.log`.
+
+No M0–M9 milestone or overall completion is claimed. Remaining work still includes
+Rect/composition controls/tile previews, Paint, Effects/collision and other tool
+producers, Prefab/custom contexts, Play/common runtime ownership, asynchronous
+source/document ownership and renderer-global retirement, unavailable fresh-click
+resolution/retry, full capture/modal/navigation/concurrent-edit workflows, all
+mode/DPI/paint/source-item visuals, resource/idle/release performance, browser and
+Apple Creator wrappers and physical/platform acceptance. The existing locked-Mac
+and simulator-runtime validation blockers remain external acceptance limitations,
+not reasons to stop other implementation. Continue with the remaining tool
+families and application/session convergence; batch broad verification at major
+integration/final gates.

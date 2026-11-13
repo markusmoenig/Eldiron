@@ -19,6 +19,7 @@ pub struct ToolOverlayInputState {
 }
 enum Action {
     Hud(HudAction),
+    Terrain(terrain_overlay::Action),
     Props {
         rect: TheDim,
         action: props_overlay::Action,
@@ -99,6 +100,13 @@ impl ToolOverlayCommand {
         }
         let mut effects = ToolOverlayEffects::empty();
         match &self.action {
+            Action::Terrain(action) => {
+                if !tool.apply_terrain_overlay(*action, map, server, ctx) {
+                    return None;
+                }
+                effects.redraw = true;
+                effects.overlay_dirty = true;
+            }
             Action::Hud(action) => {
                 let HudEffects {
                     scene_dirty,
@@ -203,7 +211,13 @@ impl ToolOverlayInputState {
             MapEvent::MapClicked(at) | MapEvent::MapHover(at) => Some(*at),
             _ => None,
         };
-        if point.is_none() && key.is_none() {
+        let terrain_key = match event {
+            MapEvent::MapKey(key) if focused && frame.is_some_and(|frame| frame.has_terrain()) => {
+                terrain_overlay::shortcut(*key)
+            }
+            _ => None,
+        };
+        if point.is_none() && key.is_none() && terrain_key.is_none() {
             return ToolOverlayRoute::Outside { redraw: false };
         }
         if matches!(event, MapEvent::MapClicked(_)) {
@@ -215,7 +229,19 @@ impl ToolOverlayInputState {
         if !frame.input_current(tool, target, map, server) {
             return ToolOverlayRoute::Unavailable;
         }
-        if let Some(action) = key {
+        if let Some(action) = terrain_key {
+            return ToolOverlayRoute::Consumed {
+                redraw: true,
+                command: Some(ToolOverlayCommand {
+                    target,
+                    frame: frame.clone(),
+                    action: Action::Terrain(action),
+                }),
+            };
+        }
+        if let Some(action) = key
+            && frame.has_hud()
+        {
             return ToolOverlayRoute::Consumed {
                 redraw: true,
                 command: Some(ToolOverlayCommand {
@@ -225,7 +251,9 @@ impl ToolOverlayInputState {
                 }),
             };
         }
-        let at = point.unwrap();
+        let Some(at) = point else {
+            return ToolOverlayRoute::Outside { redraw: false };
+        };
         if at.x < 0 || at.y < 0 || at.x as usize >= target.size.0 || at.y as usize >= target.size.1
         {
             return ToolOverlayRoute::Outside { redraw: false };
@@ -237,6 +265,31 @@ impl ToolOverlayInputState {
         let clicked = matches!(event, MapEvent::MapClicked(_));
         // Reverse painter order: an interactive foreground part wins over the HUD.
         for part in frame.parts.iter().rev() {
+            if let Part::Terrain(panel) = part
+                && panel.bounds.contains(at)
+            {
+                if clicked {
+                    self.capture = Some(target);
+                }
+                let action = if clicked {
+                    panel
+                        .buttons
+                        .iter()
+                        .find(|(rect, _)| rect.contains(at))
+                        .map(|(_, action)| *action)
+                        .unwrap_or(terrain_overlay::Action::ClearHover)
+                } else {
+                    terrain_overlay::Action::ClearHover
+                };
+                return ToolOverlayRoute::Consumed {
+                    redraw: true,
+                    command: Some(ToolOverlayCommand {
+                        target,
+                        frame: frame.clone(),
+                        action: Action::Terrain(action),
+                    }),
+                };
+            }
             if let Part::Props(props) = part
                 && props.bounds.contains(at)
             {
@@ -263,7 +316,7 @@ impl ToolOverlayInputState {
             }
         }
         let Some(hud) = tool.overlay_hud() else {
-            return ToolOverlayRoute::Unavailable;
+            return ToolOverlayRoute::Outside { redraw };
         };
         match hud.hit_test(target.hud_scope(), target.size, at, map, server) {
             HudHit::Unavailable => ToolOverlayRoute::Unavailable,

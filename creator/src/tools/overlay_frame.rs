@@ -61,6 +61,7 @@ pub struct ToolOverlayInputs<'a> {
 enum Part {
     Commands(EditorOverlay),
     Hud(HudFrame),
+    Terrain(terrain_overlay::Frame),
     Props(PanelFrame<props_overlay::PropsSource, props_overlay::Action>),
 }
 /// Opaque typed aggregate; its source identities and frozen hit metadata remain
@@ -176,6 +177,74 @@ impl ToolOverlayFrame {
             parts,
         })
     }
+    pub(crate) fn passive<T: Tool + ?Sized>(
+        tool: &T,
+        input: ToolOverlayInputs<'_>,
+        commands: EditorOverlay,
+    ) -> Option<Self> {
+        if tool.id().uuid != input.target.tool || !input.target.valid(input.hud.server) {
+            return None;
+        }
+        Some(Self {
+            target: input.target,
+            selection: SelectionSource::new(tool, input.hud.map, input.hud.server),
+            parts: vec![Part::Commands(commands)],
+        })
+    }
+    pub(crate) fn push_terrain(&mut self, frame: Option<terrain_overlay::Frame>) {
+        if let Some(frame) = frame {
+            self.parts.push(Part::Terrain(frame));
+        }
+    }
+    fn has_terrain(&self) -> bool {
+        self.parts
+            .iter()
+            .any(|part| matches!(part, Part::Terrain(_)))
+    }
+    fn has_hud(&self) -> bool {
+        self.parts.iter().any(|part| matches!(part, Part::Hud(_)))
+    }
+    pub(crate) fn terrain_current(
+        &self,
+        panel: &terrain_overlay::TerrainPanel,
+        source: &terrain_overlay::Source,
+        target: ToolOverlayTarget,
+        command: bool,
+    ) -> bool {
+        self.parts
+            .iter()
+            .find_map(|part| {
+                if let Part::Terrain(frame) = part {
+                    Some(if command {
+                        panel.command_current(frame, target, source)
+                    } else {
+                        panel.current(frame, target, source)
+                    })
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(!terrain_overlay::TerrainPanel::visible(target.size))
+    }
+    #[cfg(feature = "native-ui")]
+    pub(crate) fn presented_terrain(
+        &self,
+        panel: &mut terrain_overlay::TerrainPanel,
+        source: &terrain_overlay::Source,
+        receipts: &[theframework::paint::FrameReceipt],
+        target: ToolOverlayTarget,
+    ) -> bool {
+        self.parts
+            .iter()
+            .find_map(|part| {
+                if let Part::Terrain(frame) = part {
+                    Some(panel.presented(frame, receipts, target, source))
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(!terrain_overlay::TerrainPanel::visible(target.size))
+    }
     pub(crate) fn push_props(
         &mut self,
         frame: PanelFrame<props_overlay::PropsSource, props_overlay::Action>,
@@ -188,6 +257,7 @@ impl ToolOverlayFrame {
         self.parts.iter().map(|part| match part {
             Part::Commands(commands) => commands,
             Part::Hud(frame) => frame.commands(),
+            Part::Terrain(frame) => &frame.commands,
             Part::Props(frame) => &frame.commands,
         })
     }
@@ -348,6 +418,7 @@ impl ToolOverlayFrame {
             let next = match part {
                 Part::Commands(commands) => commands.paint(text, images, density)?,
                 Part::Hud(frame) => frame.paint(text, images, density)?,
+                Part::Terrain(frame) => frame.paint(text, images, density)?,
                 Part::Props(frame) => frame.paint(text, images, density)?,
             };
             list.ops.extend(next.ops);

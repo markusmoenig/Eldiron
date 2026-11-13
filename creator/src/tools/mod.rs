@@ -20,6 +20,7 @@ pub mod rect;
 // pub mod render;
 pub mod sector;
 pub mod terrain;
+pub mod terrain_overlay;
 pub mod tile_picker;
 // pub mod tileset;
 pub mod effects;
@@ -181,6 +182,15 @@ pub trait Tool: Send + Sync {
     ) -> bool {
         self.overlay_hud()
             .is_some_and(|hud| frame.hud_command_source_current(hud, target, map, server))
+    }
+    fn apply_terrain_overlay(
+        &mut self,
+        _action: terrain_overlay::Action,
+        _map: &Map,
+        _server: &mut ServerContext,
+        _ctx: &mut TheContext,
+    ) -> bool {
+        false
     }
     fn show_overlay_popup(
         &mut self,

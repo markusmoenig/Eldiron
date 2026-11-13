@@ -27,6 +27,7 @@ pub struct TerrainTool {
     hover: Option<Vec2<f32>>,
     stroke: Option<Stroke>,
     panel_down: bool,
+    native_panel: super::terrain_overlay::TerrainPanel,
 }
 
 impl TerrainTool {
@@ -131,6 +132,43 @@ impl TerrainTool {
         }
     }
 
+    fn overlay_source(&self, server: &ServerContext) -> super::terrain_overlay::Source {
+        super::terrain_overlay::Source {
+            mode: self.mode,
+            radius: self.radius.to_bits(),
+            strength: self.strength.to_bits(),
+            view: server.editor_view_mode,
+        }
+    }
+    fn prepare_brush_outline(
+        &self,
+        map: &Map,
+        server: &ServerContext,
+        size: (usize, usize),
+    ) -> crate::editor_overlay::EditorOverlay {
+        let mut commands = crate::editor_overlay::EditorOverlay::new(size);
+        if server.editor_view_mode == EditorViewMode::D2
+            && let Some(center) = self.hover
+        {
+            let size = Vec2::new(size.0 as f32, size.1 as f32);
+            let project = |p: Vec3<f32>| {
+                if map.camera == MapCamera::TwoDIso {
+                    rusterix::isometric::Projection::editor(map, size)
+                        .screen(Vec2::new(p.x, p.z), p.y)
+                } else {
+                    Vec2::new(p.x, p.z) * map.grid_size
+                        + size * 0.5
+                        + Vec2::new(map.offset.x, -map.offset.y)
+                }
+            };
+            for pair in Self::outline(map, center, self.radius).windows(2) {
+                let a = project(pair[0]);
+                let b = project(pair[1]);
+                commands.sampled_line([a.x, a.y], [b.x, b.y], [235, 205, 135, 240]);
+            }
+        }
+        commands
+    }
     fn ensure_ground(map: &mut Map, server: &ServerContext) {
         if map.properties.contains("default_terrain_tile") {
             return;
@@ -273,6 +311,7 @@ impl Tool for TerrainTool {
             hover: None,
             stroke: None,
             panel_down: false,
+            native_panel: Default::default(),
         }
     }
     fn id(&self) -> TheId {
@@ -341,7 +380,7 @@ impl Tool for TerrainTool {
     ) -> Option<ProjectUndoAtom> {
         match event {
             MapEvent::MapClicked(at) => {
-                if Self::panel().contains(at) {
+                if !self.native_panel.native && Self::panel().contains(at) {
                     self.panel_down = true;
                     self.panel_click(at);
                     self.set_hover(None, map, server, ctx);
@@ -392,7 +431,7 @@ impl Tool for TerrainTool {
                 self.set_hover(Some(p), map, server, ctx);
             }
             MapEvent::MapHover(at) => {
-                let p = if Self::panel().contains(at) {
+                let p = if !self.native_panel.native && Self::panel().contains(at) {
                     None
                 } else {
                     Self::pointer(ui, server, map, at)
@@ -450,6 +489,93 @@ impl Tool for TerrainTool {
         false
     }
 
+    fn set_native_overlay_input(&mut self, native: bool) {
+        self.native_panel.native = native;
+    }
+    fn prepare_overlay(&mut self, input: ToolOverlayInputs<'_>) -> Option<ToolOverlayFrame> {
+        let source = self.overlay_source(input.hud.server);
+        let commands =
+            self.prepare_brush_outline(input.hud.map, input.hud.server, input.target.size);
+        let mut frame = ToolOverlayFrame::passive(self, input, commands)?;
+        frame.push_terrain(self.native_panel.prepare(input.target, source));
+        Some(frame)
+    }
+    fn invalidate_overlay(&mut self) {
+        self.native_panel.invalidate();
+    }
+    fn overlay_input_current(
+        &mut self,
+        frame: &ToolOverlayFrame,
+        target: ToolOverlayTarget,
+        _map: &Map,
+        server: &ServerContext,
+    ) -> bool {
+        frame.terrain_current(
+            &self.native_panel,
+            &self.overlay_source(server),
+            target,
+            false,
+        )
+    }
+    fn overlay_command_source_current(
+        &mut self,
+        frame: &ToolOverlayFrame,
+        target: ToolOverlayTarget,
+        _map: &Map,
+        server: &ServerContext,
+    ) -> bool {
+        frame.terrain_current(
+            &self.native_panel,
+            &self.overlay_source(server),
+            target,
+            true,
+        )
+    }
+    fn apply_terrain_overlay(
+        &mut self,
+        action: super::terrain_overlay::Action,
+        map: &Map,
+        server: &mut ServerContext,
+        ctx: &mut TheContext,
+    ) -> bool {
+        use super::terrain_overlay::Action;
+        match action {
+            Action::Mode(mode) => self.mode = mode,
+            Action::Radius(delta) => self.radius = (self.radius + delta).clamp(0.5, 16.),
+            Action::Strength(delta) => self.strength = (self.strength + delta).clamp(0.25, 4.),
+            Action::ClearHover => {}
+            Action::Key(key) => {
+                match key {
+                    '1' => self.mode = SculptMode::Raise,
+                    '2' => self.mode = SculptMode::Lower,
+                    '3' => self.mode = SculptMode::Smooth,
+                    '[' => self.radius = (self.radius - 0.5).max(0.5),
+                    ']' => self.radius = (self.radius + 0.5).min(16.),
+                    _ => return false,
+                }
+                self.set_hover(self.hover, map, server, ctx);
+                return true;
+            }
+        }
+        self.set_hover(None, map, server, ctx);
+        true
+    }
+    #[cfg(feature = "native-ui")]
+    fn presented_overlay(
+        &mut self,
+        frame: &ToolOverlayFrame,
+        receipts: &[theframework::paint::FrameReceipt],
+        target: ToolOverlayTarget,
+        _map: &Map,
+        server: &mut ServerContext,
+    ) -> bool {
+        let source = self.overlay_source(server);
+        let accepted = frame.presented_terrain(&mut self.native_panel, &source, receipts, target);
+        if !accepted {
+            self.invalidate_overlay();
+        }
+        accepted
+    }
     fn draw_hud(
         &mut self,
         buffer: &mut TheRGBABuffer,

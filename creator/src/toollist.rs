@@ -55,6 +55,7 @@ pub struct ToolList {
     prefab_preview_wire_rgb: [f32; 3],
     prefab_grid_rgb: [f32; 3],
     box_select_armed: bool,
+    pub(crate) native_world_input: bool,
     editor_display_session: Option<EditorDisplaySession>,
     #[cfg(feature = "native-ui")]
     native_display_mode: bool,
@@ -618,7 +619,7 @@ impl ToolList {
         server_ctx: &ServerContext,
         coord: Vec2<i32>,
     ) -> Option<crate::viewcube::ViewCubeFace> {
-        if self.game_tools[self.curr_game_tool].uses_native_overlay_input() {
+        if self.native_world_input {
             return None;
         }
         if server_ctx.editor_view_mode != EditorViewMode::Orbit {
@@ -754,6 +755,19 @@ impl ToolList {
     }
 
     #[allow(clippy::too_many_arguments)]
+    /// End a viewport-owned authoring gesture through the ordinary controller
+    /// and undo/source-update path before its presentation scope disappears.
+    pub(crate) fn cancel_native_world_gesture(
+        &mut self, ui: &mut TheUI, ctx: &mut TheContext,
+        project: &mut Project, server: &mut ServerContext,
+    ) {
+        let undo = self.current_tool_map_event(MapEvent::MapEscape,ui,ctx,project,server);
+        self.update_map_context(ui,ctx,project,server,undo);
+        #[cfg(target_os="macos")]
+        { self.macos_primary_orbit_drag = None; }
+        crate::editor::EDITCAMERA.write().unwrap().reset_mouse_tracking();
+        ctx.ui.redraw_all = true;
+    }
     fn current_tool_map_event(
         &mut self,
         map_event: MapEvent,
@@ -2041,6 +2055,7 @@ impl ToolList {
             prefab_preview_wire_rgb: [83.0 / 255.0, 151.0 / 255.0, 207.0 / 255.0],
             prefab_grid_rgb: [57.0 / 255.0, 75.0 / 255.0, 105.0 / 255.0],
             box_select_armed: false,
+            native_world_input: false,
             editor_display_session: None,
             #[cfg(feature = "native-ui")]
             native_display_mode: false,
@@ -3547,7 +3562,7 @@ impl ToolList {
                         {
                             return true;
                         }
-                        let native_overlay = self.get_current_tool().uses_native_overlay_input();
+                        let native_overlay = self.native_world_input;
                         if !native_overlay
                             && self.handle_action_hud_icon_click(ui, ctx, project, server_ctx, *coord)
                         {
@@ -4785,7 +4800,7 @@ impl ToolList {
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) {
-        if self.game_tools[self.curr_game_tool].uses_native_overlay_input() {
+        if self.native_world_input {
             return;
         }
         if server_ctx.editor_view_mode == EditorViewMode::D2 {
@@ -4816,7 +4831,7 @@ impl ToolList {
         project: &Project,
         server_ctx: &ServerContext,
     ) {
-        if self.game_tools[self.curr_game_tool].uses_native_overlay_input() {
+        if self.native_world_input {
             return;
         }
         if server_ctx.editor_view_mode == EditorViewMode::D2 {
@@ -4963,7 +4978,7 @@ impl ToolList {
     ) -> Option<(GeoId, Vec3<f32>)> {
         // The native viewport has already queried its acknowledged, private
         // scene before this controller dispatch. Never repick on the adapter VM.
-        if self.get_current_tool().uses_native_overlay_input() {
+        if self.native_world_input {
             return server_ctx.geo_hit.map(|geo| (geo, server_ctx.geo_hit_pos));
         }
         if !self.should_refresh_3d_hover_pick() {

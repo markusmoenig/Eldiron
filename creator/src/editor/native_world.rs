@@ -42,6 +42,18 @@ struct Binding {
     style: HudStyle,
 }
 impl Binding {
+    fn capture_compatible(&self, next: &Self) -> bool {
+        self.document == next.document
+            && self.view == next.view
+            && self.tool == next.tool
+            && self.context == next.context
+            && self.map == next.map
+            && self.mode == next.mode
+            && self.camera == next.camera
+            && self.size == next.size
+            && self.density == next.density
+            && self.guide_properties == next.guide_properties
+    }
     fn target(&self, epoch: u64) -> ToolOverlayTarget {
         ToolOverlayTarget {
             document: self.document,
@@ -277,12 +289,17 @@ pub(crate) struct NativeWorld {
     receipt_owner: u64,
     presented: Option<Arc<NativeWorldFrame>>,
     overlay_input: ToolOverlayInputState,
-    world_capture: Option<Binding>,
+    world_capture: Option<WorldGesture>,
     cube: ViewCubeFrames,
     cube_capture: Option<CubeCapture>,
     events: std::collections::VecDeque<ScopedToolOverlayEvent>,
     published: Option<(TheId, Arc<PaintList>)>,
     gpu: Option<WorldGpu>,
+}
+struct WorldGesture {
+    binding: Binding,
+    point: Vec2<i32>,
+    query: Option<crate::tools::ToolViewInput>,
 }
 struct CubeCapture {
     binding: Binding,
@@ -313,14 +330,36 @@ impl NativeWorld {
         if self.binding == next {
             return;
         }
+        // Source/material/style refreshes revoke fresh picking, but do not
+        // abandon a draft owned by the same document/tool/view transform.
+        let capture = self.world_capture.take().and_then(|mut owner| {
+            next.as_ref()
+                .filter(|next| owner.binding.capture_compatible(next))
+                .map(|next| {
+                    owner.binding = next.clone();
+                    owner
+                })
+        });
+        let had_cube_capture = self.cube_capture.is_some();
+        let cube_capture = self.cube_capture.take().and_then(|mut owner| {
+            next.as_ref()
+                .filter(|next| owner.binding.capture_compatible(next))
+                .map(|next| {
+                    owner.binding = next.clone();
+                    owner
+                })
+        });
+        if had_cube_capture && cube_capture.is_none() {
+            EDITCAMERA.write().unwrap().reset_mouse_tracking();
+        }
         self.invalidate(ui);
         self.binding = next;
+        self.world_capture = capture;
+        self.cube_capture = cube_capture;
         if self.binding.is_some() {
-            TOOLLIST
-                .write()
-                .unwrap()
-                .get_current_tool()
-                .set_native_overlay_input(true);
+            let mut tools = TOOLLIST.write().unwrap();
+            tools.native_world_input = true;
+            tools.get_current_tool().set_native_overlay_input(true);
         }
     }
     pub(super) fn invalidate(&mut self, ui: &mut TheUI) {
@@ -332,6 +371,7 @@ impl NativeWorld {
         }
         if self.binding.take().is_some() {
             let mut tools = TOOLLIST.write().unwrap();
+            tools.native_world_input = false;
             for tool in &mut tools.game_tools {
                 tool.set_native_overlay_input(false);
                 tool.set_view_input(None);
@@ -469,6 +509,71 @@ fn isometric_input(
     })
 }
 impl Editor {
+    fn bind_native_world(&mut self, next: Option<Binding>, ui: &mut TheUI, ctx: &mut TheContext) {
+        if self
+            .native_viewport
+            .world
+            .world_capture
+            .as_ref()
+            .is_some_and(|owner| {
+                next.as_ref()
+                    .is_none_or(|next| !owner.binding.capture_compatible(next))
+            })
+        {
+            self.cancel_native_world_gesture(ui, ctx);
+        }
+        self.native_viewport.world.bind(next, ui);
+    }
+    pub(crate) fn cancel_native_world_gesture(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+        let Some(gesture) = self.native_viewport.world.world_capture.take() else {
+            return;
+        };
+        let owner = gesture.binding;
+        if self
+            .sessions
+            .get(self.active_session)
+            .is_none_or(|session| session.id != owner.document)
+            || self.server_ctx.pc != owner.context
+            || self
+                .project
+                .get_map(&self.server_ctx)
+                .is_none_or(|map| map.id != owner.map)
+        {
+            return;
+        }
+        let mut tools = TOOLLIST.write().unwrap();
+        if tools.get_current_tool().id().uuid != owner.tool {
+            return;
+        }
+        tools.get_current_tool().set_view_input(gesture.query);
+        // Cancel through the gesture's original projection. Camera switches
+        // may already have updated the current view before this barrier runs.
+        let mode = self.server_ctx.editor_view_mode;
+        let navigation = self
+            .project
+            .get_map(&self.server_ctx)
+            .map(|map| (map.camera, map.offset, map.grid_size, map.subdivisions));
+        self.server_ctx.editor_view_mode = owner.mode;
+        if let Some(map) = self.project.get_map_mut(&self.server_ctx) {
+            map.camera = owner.camera;
+        }
+        tools.cancel_native_world_gesture(ui, ctx, &mut self.project, &mut self.server_ctx);
+        self.server_ctx.editor_view_mode = mode;
+        let mut projection_changed = false;
+        if let (Some((camera, offset, grid, subdivisions)), Some(map)) =
+            (navigation, self.project.get_map_mut(&self.server_ctx))
+        {
+            projection_changed = map.camera != camera;
+            map.camera = camera;
+            map.offset = offset;
+            map.grid_size = grid;
+            map.subdivisions = subdivisions;
+        }
+        drop(tools);
+        if projection_changed {
+            crate::utils::scenemanager_render_map(&self.project, &self.server_ctx);
+        }
+    }
     pub(crate) fn invalidate_native_world_viewport(&mut self, ui: &mut TheUI) {
         self.native_viewport.world.invalidate(ui);
     }
@@ -511,6 +616,7 @@ impl Editor {
                         | "tool.entity"
                         | "tool.geometry"
                         | "tool.blocks"
+                        | "tool.terrain"
                 )
             )
         {
@@ -595,7 +701,7 @@ impl Editor {
         images: &mut UiFrameImages<'_>,
     ) -> Result<Option<Arc<NativeWorldFrame>>, String> {
         let next = self.native_world_binding(ui, ctx);
-        self.native_viewport.world.bind(next.clone(), ui);
+        self.bind_native_world(next.clone(), ui, ctx);
         let Some(binding) = next else {
             return Ok(None);
         };
@@ -1000,7 +1106,7 @@ impl Editor {
         ctx: &mut TheContext,
     ) {
         let next = self.native_world_binding(ui, ctx);
-        self.native_viewport.world.bind(next.clone(), ui);
+        self.bind_native_world(next.clone(), ui, ctx);
         let current_camera = next.as_ref().and_then(|binding| {
             self.native_world_camera()
                 .map(|camera| CameraStamp::new(camera.as_ref(), binding.size))
@@ -1067,11 +1173,11 @@ impl Editor {
     pub(crate) fn take_native_world_event(
         &mut self,
         ui: &mut TheUI,
-        ctx: &TheContext,
+        ctx: &mut TheContext,
     ) -> Option<TheEvent> {
         while let Some(event) = self.native_viewport.world.events.pop_front() {
             let next = self.native_world_binding(ui, ctx);
-            self.native_viewport.world.bind(next.clone(), ui);
+            self.bind_native_world(next.clone(), ui, ctx);
             let Some(binding) = next else {
                 continue;
             };
@@ -1115,7 +1221,7 @@ impl Editor {
             return false;
         }
         let next = self.native_world_binding(ui, ctx);
-        self.native_viewport.world.bind(next.clone(), ui);
+        self.bind_native_world(next.clone(), ui, ctx);
         let Some(binding) = next else {
             return false;
         };
@@ -1221,6 +1327,28 @@ impl Editor {
                 }
             }
         }
+        if matches!(input, MapEvent::MapUp(_))
+            && world
+                .world_capture
+                .as_ref()
+                .is_some_and(|owner| owner.binding == binding)
+        {
+            let gesture = world.world_capture.take().unwrap();
+            let mut tools = TOOLLIST.write().unwrap();
+            tools.get_current_tool().set_view_input(gesture.query);
+            // Use the complete existing tool dispatcher for undo grouping,
+            // surface rebuilding, moved entities and navigation release.
+            let redraw = tools.handle_event(
+                &TheEvent::RenderViewUp(binding.view.clone(), gesture.point),
+                ui,
+                ctx,
+                &mut self.project,
+                &mut self.server_ctx,
+            );
+            ctx.ui.redraw_all |= redraw;
+            return true;
+        }
+        let mut accepted_query = None;
         let frame = world.presented.clone();
         let target = binding.target(world.epoch);
         let Some(map) = self.project.get_map_mut(&self.server_ctx) else {
@@ -1269,7 +1397,10 @@ impl Editor {
             MapEvent::MapDragged(_) | MapEvent::MapUp(_) | MapEvent::MapEscape
         );
         if continuation
-            && world.world_capture.as_ref() == Some(&binding)
+            && world
+                .world_capture
+                .as_ref()
+                .is_some_and(|owner| owner.binding == binding)
             && binding.mode != EditorViewMode::D2
         {
             if let Some(at) = pointer {
@@ -1287,6 +1418,7 @@ impl Editor {
                     });
                 if let Some((pick, input)) = query {
                     apply_pick(pick, map, &mut self.server_ctx);
+                    accepted_query = Some(input.clone());
                     tool.set_view_input(Some(input));
                 } else {
                     ctx.ui.redraw_all = true;
@@ -1295,7 +1427,10 @@ impl Editor {
             }
         }
         if continuation
-            && world.world_capture.as_ref() == Some(&binding)
+            && world
+                .world_capture
+                .as_ref()
+                .is_some_and(|owner| owner.binding == binding)
             && binding.camera == MapCamera::TwoDIso
         {
             if let Some(at) = pointer {
@@ -1306,6 +1441,7 @@ impl Editor {
                     ctx.ui.redraw_all = true;
                     return true;
                 };
+                accepted_query = Some(query.clone());
                 TOOLLIST
                     .write()
                     .unwrap()
@@ -1313,8 +1449,19 @@ impl Editor {
                     .set_view_input(Some(query));
             }
         }
-        if continuation && world.world_capture.as_ref() == Some(&binding) {
-            if matches!(input, MapEvent::MapUp(_) | MapEvent::MapEscape) {
+        if continuation
+            && world
+                .world_capture
+                .as_ref()
+                .is_some_and(|owner| owner.binding == binding)
+        {
+            if let MapEvent::MapDragged(at) = input
+                && let Some(owner) = &mut world.world_capture
+            {
+                owner.point = at;
+                owner.query = accepted_query;
+            }
+            if matches!(input, MapEvent::MapEscape) {
                 world.world_capture = None;
             }
             return false;
@@ -1365,6 +1512,7 @@ impl Editor {
                     return true;
                 };
                 apply_pick(pick, map, &mut self.server_ctx);
+                accepted_query = Some(input.clone());
                 TOOLLIST
                     .write()
                     .unwrap()
@@ -1372,7 +1520,11 @@ impl Editor {
                     .set_view_input(Some(input));
             }
             if matches!(input, MapEvent::MapClicked(_)) {
-                world.world_capture = Some(binding);
+                world.world_capture = Some(WorldGesture {
+                    binding,
+                    point: pointer.unwrap(),
+                    query: accepted_query,
+                });
             }
             return false;
         }
@@ -1385,6 +1537,7 @@ impl Editor {
                     ctx.ui.redraw_all = true;
                     return true;
                 };
+                accepted_query = Some(query.clone());
                 TOOLLIST
                     .write()
                     .unwrap()
@@ -1417,7 +1570,11 @@ impl Editor {
                     self.server_ctx
                         .local_to_map_grid(size, position, map, map.subdivisions),
                 );
-            world.world_capture = Some(binding);
+            world.world_capture = Some(WorldGesture {
+                binding,
+                point: at,
+                query: accepted_query,
+            });
         }
         false
     }
@@ -1425,6 +1582,30 @@ impl Editor {
 
 #[cfg(test)]
 impl Editor {
+    pub(crate) fn native_world_debug_for_test(&self) -> String {
+        let map = self.project.get_map(&self.server_ctx).unwrap();
+        let frame = self.native_viewport.world.presented.as_ref();
+        let builds = SCENEMANAGER.read().unwrap();
+        format!(
+            "frame={} ready={} current_map={} pending={} projection={}",
+            frame.is_some(),
+            frame.is_some_and(|f| f.ready),
+            frame.is_some_and(|f| f.stamp == SourceStamp::new(map)),
+            builds.has_pending_geometry(),
+            builds.source_matches(map.id, map.camera)
+        )
+    }
+    pub(crate) fn native_terrain_radius_for_test(&self) -> f32 {
+        self.server_ctx.terrain_brush_radius
+    }
+    pub(crate) fn native_terrain_points_for_test(&self) -> Option<rusterix::Value> {
+        self.project
+            .get_map(&self.server_ctx)
+            .unwrap()
+            .properties
+            .get("terrain_sculpt")
+            .cloned()
+    }
     pub(crate) fn native_world_has_ray_for_test(&self) -> bool {
         self.server_ctx.hover_ray_origin_3d.is_some() && self.server_ctx.hover_ray_dir_3d.is_some()
     }

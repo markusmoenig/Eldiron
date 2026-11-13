@@ -82,6 +82,8 @@ impl UiApplication for NativeCreatorApplication {
         match event {
             InputEvent::Focus(false) => {
                 let response = ui.input(event);
+                self.editor
+                    .cancel_native_world_gesture(&mut ui.ui, &mut ui.context);
                 self.editor.invalidate_native_display_viewport(&mut ui.ui);
                 self.editor.invalidate_native_world_viewport(&mut ui.ui);
                 InputResponse {
@@ -187,12 +189,16 @@ impl UiApplication for NativeCreatorApplication {
     }
     fn gpu_recreated(&mut self, ui: &mut UiSession, _: &mut UiFrameImages<'_>) -> Result<()> {
         self.pending = None;
+        self.editor
+            .cancel_native_world_gesture(&mut ui.ui, &mut ui.context);
         self.editor.invalidate_native_views(&mut ui.ui);
         Ok(())
     }
     fn suspended(&mut self, ui: &mut UiSession) {
         self.pending = None;
         ui.input(&InputEvent::Focus(false));
+        self.editor
+            .cancel_native_world_gesture(&mut ui.ui, &mut ui.context);
         self.editor.mouse_leave(&mut ui.context);
         self.editor.invalidate_native_views(&mut ui.ui);
     }
@@ -642,7 +648,8 @@ mod tests {
                     &mut app.session.ui,
                     &mut app.session.context
                 ),
-                "an acknowledged native camera {camera_index} query reaches the existing tool dispatcher"
+                "an acknowledged native camera {camera_index} query reaches the existing tool dispatcher: {}",
+                app.application.editor.native_world_debug_for_test()
             );
             if matches!(camera_index, 2 | 3 | 4) {
                 assert!(app.application.editor.native_world_has_ray_for_test());
@@ -675,6 +682,124 @@ mod tests {
                     .send(TheEvent::RenderViewUp(world_view.clone(), at));
             }
         }
+        app.session.context.ui.send(TheEvent::Custom(
+            TheId::named("Set Tool"),
+            TheValue::Text("tool.terrain".into()),
+        ));
+        app.update(&mut host, Duration::from_millis(16));
+        let terrain = app.frame(&mut host, &mut replacement).unwrap();
+        assert!(app.application.pending.as_ref().unwrap().world_for_test());
+        let radius = app.application.editor.native_terrain_radius_for_test();
+        let increase = TheEvent::RenderViewClicked(world_view.clone(), Vec2::new(215, 80));
+        assert!(app.application.editor.handle_native_world_input(
+            &increase,
+            &mut app.session.ui,
+            &mut app.session.context
+        ));
+        assert_eq!(
+            app.application.editor.native_terrain_radius_for_test(),
+            radius,
+            "preparing terrain controls cannot activate them"
+        );
+        renderer
+            .render(
+                &terrain,
+                &replacement,
+                &output.view,
+                output.descriptor.format,
+                (1200, 800),
+                1.,
+                [0.; 4],
+            )
+            .unwrap();
+        app.presented(&mut host);
+        assert!(app.application.editor.handle_native_world_input(
+            &increase,
+            &mut app.session.ui,
+            &mut app.session.context
+        ));
+        assert_eq!(
+            app.application.editor.native_terrain_radius_for_test(),
+            radius + 0.5
+        );
+        app.session.context.ui.send(TheEvent::RenderViewUp(
+            world_view.clone(),
+            Vec2::new(215, 80),
+        ));
+        app.update(&mut host, Duration::from_millis(16));
+        let terrain = app.frame(&mut host, &mut replacement).unwrap();
+        renderer
+            .render(
+                &terrain,
+                &replacement,
+                &output.view,
+                output.descriptor.format,
+                (1200, 800),
+                1.,
+                [0.; 4],
+            )
+            .unwrap();
+        app.presented(&mut host);
+        let original = app.application.editor.native_terrain_points_for_test();
+        let dim = *app
+            .session
+            .ui
+            .get_render_view(&world_view.name)
+            .unwrap()
+            .dim();
+        let sculpt = Vec2::new(dim.width / 2 + 80, dim.height / 2 + 40);
+        app.session
+            .context
+            .ui
+            .send(TheEvent::RenderViewClicked(world_view.clone(), sculpt));
+        app.update(&mut host, Duration::from_millis(16));
+        assert_ne!(
+            app.application.editor.native_terrain_points_for_test(),
+            original,
+            "the actual terrain brush changes authored sculpt data"
+        );
+        // Material publication on an initially unpainted map changes asset
+        // revisions during the stroke; the draft must survive that next frame.
+        let sculpt_frame = app.frame(&mut host, &mut replacement).unwrap();
+        renderer
+            .render(
+                &sculpt_frame,
+                &replacement,
+                &output.view,
+                output.descriptor.format,
+                (1200, 800),
+                1.,
+                [0.; 4],
+            )
+            .unwrap();
+        app.presented(&mut host);
+        assert_ne!(
+            app.application.editor.native_terrain_points_for_test(),
+            original,
+            "asset refresh cannot abandon the owned sculpt draft"
+        );
+        assert!(app.application.editor.handle_native_world_input(
+            &TheEvent::KeyDown(TheValue::Char(']')),
+            &mut app.session.ui,
+            &mut app.session.context
+        ));
+        assert_eq!(
+            app.application.editor.native_terrain_radius_for_test(),
+            radius + 1.,
+            "acknowledged terrain shortcuts remain usable during streamed source work"
+        );
+        app.input(&InputEvent::Focus(false), &mut host);
+        assert_eq!(
+            app.application.editor.native_terrain_points_for_test(),
+            original,
+            "focus loss cancels the owned terrain draft"
+        );
+        app.update(&mut host, Duration::from_millis(100));
+        assert_eq!(
+            app.application.editor.native_terrain_points_for_test(),
+            original,
+            "a cancelled terrain stroke cannot continue sculpting"
+        );
         // Check the new sampler within this assembled checkpoint. The reference
         // uses the existing independent CPU DDA, including duplicate blending.
         use theframework::paint::{DisplayCompositing, PaintOp};
