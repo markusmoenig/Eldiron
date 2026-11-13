@@ -10062,3 +10062,107 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   Next useful implementation: migrate active custom Screen/Character/Item2D
   main viewport sources (D2PreviewBuilder + shared Overview2D renderer and guide
   layers) with clip/source/paste/input scoping; inspect live caller context first.
+
+## 2026-11-14 — Custom Screen/Character/Item2D main viewports (active)
+
+- Parent/detail batch committed534f7741. Concurrent networking concept untouched.
+- Active custom-map legacy path uses D2PreviewBuilder's CPU base Rasterizer plus
+  SceneVM guide readback/composition. Reusing the existing injected-device
+  Overview2D renderer for the ordered base and SceneVM compute guide layer only;
+  composite both as GPU images. Match actor(-5,-5,10,10) and project-configured
+  screen clip bounds, MapMini occlusion, existing tool/HUD/input/paste dispatch.
+- New custom Description is capture identity (clip/context), separate from visual
+  content hash. Live drag geometry can change before map.changed increments;
+  hash retained CPU map data for this transitional visual cache/fresh-down guard,
+  without invalidating a captured gesture. No serialized field/schema change.
+- Custom publications/paste retain immutable empty CPU source tokens and are
+  ready without hidden unused chunk-builder work. Dedicated2D base assets retain
+  bounded existing Overview2D source cache; per-view target/imports clear on
+  scope/device changes. No new shader, device initialization, CPU destination
+  framebuffer or normal readback added.2D sprite-iso custom context and legacy
+  surface adapter remain outside this initial custom producer.
+- First compile failed only on using private Rusterix fingerprint helper/wrong
+  hasher and nonexistent Mat3::scaling_2d. Replaced with local serialized-map hash
+  and established explicit scale matrix. Compile2 pending; source-level pipeline
+  is not yet acceptance evidence. Next: constructor compile/focused content+clip
+  checks, actual custom viewport fixture/reference pixels/input/paste/recovery.
+- Binding now declines hidden map widgets; waiting uses active binding so a
+  hidden code/settings view cannot continually request world presentations.
+  Verify assembled workflows after this scheduling refinement. Full Goal active.
+
+- Custom compile2 PASS23.13s; compile3 (three real context fixtures) passes.
+  Final shape description now includes the preview builder's dynamic2D records
+  as well as static sectors/lines; these must not be dropped from the base.
+  Visual content hashing is kept outside Binding identity so drags retain
+  capture. First custom contract fixtures compare composed GPU base+guide RGB
+  to an independently injected explicit legacy custom render, then exercise
+  the existing paste/undo/cancel workflow in Screen/Character/Item contexts.
+- Fixtures restore project/assets/history/context/config/internal clipboard;
+  captures/reference readback are explicit test evidence only. Compile4 after
+  full primitive-description wiring pending; no custom GPU/visual pass claimed.
+
+- Caller audit correction: Shared ServerContext::get_map_context deliberately
+  returns Screen for screen contexts and Region otherwise. Character/Item custom
+  map branches in the legacy renderer are dormant; their selection maps to the
+  region preview (or an appearance/code dock). Do NOT change that shared policy
+  or activate a new actor-map UX as part of rendering migration. CPU fixture's
+  actor-clip unwrap correctly failed; now it asserts no custom producer for that
+  current role. First GPU context is Screen only. Active actor region-preview
+  ownership must be audited separately, preserving current view selection.
+
+- Corrected independent reference setup: initialize guide layers and build the
+  editor atlas on its explicitly injected device. The original maxRGBdelta255
+  was an incomplete test reference, not accepted parity evidence. Corrected run2
+  fails at maxRGBdelta42/23.45s; inspected matching geometry/guides expose the
+  actual overview gray clear versus legacy custom black clear. Added caller RGB
+  clear policy to existing Overview2D renderer, preserving its42 default and
+  opaque alpha/f32 shader contract. Custom Screen requests black.
+- Custom CPU content/clip/context test now PASS1/.00s. Initial short --exact
+  filter selected0; corrected unique filter executed the named case. Build5
+  passed; build6 PASS25.37s. Follow-up cache audit found custom base omitted the
+  animation clock. Added scene.animation_frame to its visual cache identity and
+  pass the owning client clock into the CPU description; actual two-phase tile
+  fixture checks RGB reference and changed output without any authored map edit.
+  Build7/full assembled validation pending. No custom acceptance claimed yet.
+
+- Build7 PASS23.19s; run3 exposed grid
+  policy mismatch maxRGBdelta27/23.53s, not geometry/source pixels. Native custom
+  description now respects use_editor_canvas exactly like legacy draw_custom_d2;
+  that filtered canvas policy is also in the scene cache identity.
+- Build9 PASS22.84s; run4 initial and animated referenceRGB both exact0 but the
+  changed-output assertion failed because the real update pump could advance the
+  animation clock during expensive reference capture. Changed fixture to set
+  deterministic phase0/1 after update, and replaced vector assert_ne (which
+  dumped megabytes on failure) with a compact boolean assertion. Build10
+  PASS24.43s. Run5 phases0/1/2 all maxRGBdelta0, including changed actual animation
+  and canvas output with unchanged authored data. Full surrounding test pending.
+- Browser release PASS41.43s/package98,283,534B. Reference check PASS; proper
+  staticlib feature archive PASS21.11s. Current browser bootstrap and Swift host
+  runtime pending. No OS clipboard/physical-window acceptance implied.
+
+- Final custom contract CPU PASS1/.00s; full assembled native Metal run5
+  PASS1/147.65s, all three custom referenceRGB deltas0 and changed clock/canvas
+  output verified. Actual Screen paste/commit/undo/redo/cancel passes in that
+  surrounding root workflow; no normal viewport readback or CPU display storage.
+  Existing normal source DPI checks remain maxdelta1. Durable inspected capture
+  native-custom-screen.png7235B SHA775e02588b0a52ff13042291e8e654ffe9d897c97a54a15029f626c6ae8fbe3c.
+- Swift current staticlib link/runtime PASS actual CAMetalLayer/handle/document/
+  controlled PNG transactions. Browser first bootstrap produced no result before
+  connection closure; compact Runtime.evaluate timed out. Restarted ONLY owned
+  headless Chrome9267, verified its profile/arguments first; new root46991.
+  Retrying with bounded per-command tracing. Browser Screen acceptance is not
+  established, despite successful shared browser release build.
+- Next caller migration audit: legacy renderer chooses Region by get_map_context,
+  not pc.is_region. Character/Item selections retain curr_region and use Tiles/
+  authoring dock; their code/data/rigging roles replace the viewport. Native
+  ownership currently excludes those visible region-preview roles. Adopt the
+  existing region selection policy, parent3D scope/config, hidden-widget guard,
+  and actual context/serialization checks after this custom checkpoint.
+
+- Browser bounded trace reproduces Runtime.evaluate timeout after navigation.
+  Verified owned renderer47007 is busy on its main thread; sample1s shows JIT/
+  WASM frames but has no Rust symbols, so CPU attribution is unproven. GPU
+  process47001 idle in sampled process inventory. Recording rather than claiming
+  browser parity. Short CDP CPU profile underway for Rust/WASM attribution.
+  Native Screen adapter scope and all available native/Swift checks are ready
+  for a checkpoint; full M0–M9 objective remains ACTIVE and incomplete.

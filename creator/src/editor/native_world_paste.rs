@@ -39,6 +39,7 @@ impl Stamp {
 struct Key {
     document: Uuid,
     mode: EditorViewMode,
+    custom: bool,
     context: ProjectContext,
     runtime: Option<Uuid>,
     config: String,
@@ -50,12 +51,14 @@ pub(super) struct Preview {
     key: Key,
     pub map: Arc<Map>,
     source: Option<crate::scene_source::Source>,
+    empty: Arc<SceneBuildSnapshot>,
     pub ignored: Arc<FxHashSet<scenevm::GeoId>>,
 }
 impl Preview {
     pub(super) fn matches(&self, binding: &Binding, authored: &Map) -> bool {
         self.key.document == binding.document
             && self.key.mode == binding.mode
+            && self.key.custom == binding.custom.is_some()
             && self.key.context == binding.context
             && self.key.runtime == binding.runtime
             && self.key.config == binding.geometry_config
@@ -67,7 +70,10 @@ impl Preview {
         self.source.as_ref().is_none_or(|source| source.ready())
     }
     pub(super) fn snapshot(&self) -> Option<Arc<SceneBuildSnapshot>> {
-        self.source.as_ref().map(|source| source.snapshot())
+        self.source
+            .as_ref()
+            .map(|source| source.snapshot())
+            .or_else(|| self.key.custom.then(|| self.empty.clone()))
     }
     pub(super) fn billboards(&self) -> FxHashMap<scenevm::GeoId, rusterix::BillboardMetadata> {
         self.source
@@ -97,6 +103,7 @@ impl Editor {
         let key = Key {
             document: self.documents.active_id().expect("paste document"),
             mode: self.server_ctx.editor_view_mode,
+            custom: custom::Description::current(authored, &self.server_ctx).is_some(),
             context: self.server_ctx.pc,
             runtime: self
                 .play_session
@@ -140,12 +147,13 @@ impl Editor {
                     .iter()
                     .map(|v| scenevm::GeoId::GeometryObject(v.id)),
             );
-            // Only the sprite-isometric producer bypasses CPU publication. A
+            // Dedicated custom/isometric producers bypass CPU publication. A
             // 3D editor camera still needs its ordinary filtered scene source.
             let mut geometry = map.clone();
             self.project_native_world_geometry(&mut geometry);
-            let source =
-                (key.mode != EditorViewMode::D2 || map.camera != MapCamera::TwoDIso).then(|| {
+            let source = (!key.custom
+                && (key.mode != EditorViewMode::D2 || map.camera != MapCamera::TwoDIso))
+                .then(|| {
                     let source_key = crate::scene_source::SourceKey {
                         document: key.document,
                         map: map.id,
@@ -163,6 +171,7 @@ impl Editor {
                 map: Arc::new(map),
                 source,
                 ignored: Arc::new(ignored),
+                empty: rusterix::scene_build_index::SceneBuildIndex::default().snapshot(),
             });
         }
         changed

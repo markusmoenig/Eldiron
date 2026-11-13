@@ -866,6 +866,7 @@ mod tests {
                     .send(TheEvent::RenderViewUp(world_view.clone(), at));
             }
         }
+        check_native_custom_contexts(&mut app, &mut host, &mut replacement, &gpu, &mut renderer, &output);
         check_native_visibility(&mut app, &mut host, &mut replacement, &gpu, &mut renderer);
         app.session.context.ui.send(TheEvent::Custom(
             TheId::named("Set Tool"),
@@ -2998,6 +2999,133 @@ mod tests {
         app.application.editor.check_host_save_conflict_for_test(&mut app.session.ui, &mut app.session.context);
         app.update(host, Duration::from_millis(16));
         assert_eq!(gpu.transfers().readback_bytes, before, "document transfers use CPU source bytes, never scene color capture");
+    }
+
+    fn check_native_custom_contexts(
+        app: &mut UiApplicationAdapter<NativeCreatorApplication>,
+        host: &mut HostContext,
+        images: &mut ImageRegistry,
+        gpu: &Arc<GpuContext>,
+        renderer: &mut PaintRenderer,
+        output: &Arc<GpuImage>,
+    ) {
+        for (kind, name) in [(0, "screen")] {
+            let fixture = app.application.editor.begin_native_custom_for_test(
+                kind,
+                &mut app.session.ui,
+                &mut app.session.context,
+            );
+            let mut previous_pixels = None;
+            for phase in 0..3 {
+                let mut phase_pending = true;
+                let before = gpu.transfers().readback_bytes;
+                let deadline = Instant::now() + Duration::from_secs(10);
+                let (plan, size) = loop {
+                    app.update(host, Duration::from_millis(16));
+                    if phase_pending {
+                        // Set the controlled clock after the real update pump;
+                        // wall time during reference capture may advance ticks.
+                        app.application.editor.set_native_custom_phase_for_test(phase);
+                        phase_pending = false;
+                    }
+                    let paint = app.frame(host, images).unwrap();
+                    assert!(
+                        app.application.pending.as_ref().unwrap().world_for_test(),
+                        "{name} must use native publication"
+                    );
+                    renderer
+                        .render(
+                            &paint,
+                            images,
+                            &output.view,
+                            output.descriptor.format,
+                            (1200, 800),
+                            1.,
+                            [0.; 4],
+                        )
+                        .unwrap();
+                    app.presented(host);
+                    if let Some(plan) = app.application.editor.native_custom_plan_for_test(&fixture)
+                    {
+                        break plan;
+                    }
+                    assert!(
+                        Instant::now() < deadline,
+                        "custom {name} never became ready"
+                    );
+                };
+                assert_eq!(gpu.transfers().readback_bytes, before);
+                assert!(
+                    !app.application
+                        .editor
+                        .native_world_has_cpu_storage_for_test()
+                );
+                let target = GpuImage::new(gpu, ImageDescriptor::rgba(size.0, size.1)).unwrap();
+                renderer
+                    .render(
+                        &plan,
+                        images,
+                        &target.view,
+                        target.descriptor.format,
+                        size,
+                        1.,
+                        [0.; 4],
+                    )
+                    .unwrap();
+                let mut capture = ReadbackTicket::capture(gpu, target).unwrap();
+                gpu.device
+                    .poll(wgpu::PollType::Wait {
+                        submission_index: None,
+                        timeout: Some(Duration::from_secs(30)),
+                    })
+                    .unwrap();
+                let pixels = capture.try_finish(gpu).unwrap().unwrap();
+                let reference = app
+                    .application
+                    .editor
+                    .native_custom_reference_for_test(gpu, size);
+                let delta = pixels
+                    .pixels()
+                    .chunks_exact(4)
+                    .zip(reference.chunks_exact(4))
+                    .flat_map(|(a, b)| (0..3).map(move |i| a[i].abs_diff(b[i])))
+                    .max()
+                    .unwrap();
+                eprintln!("Custom {name} phase {phase}: max reference delta={delta}");
+                for (suffix, data) in [
+                    ("native", pixels.pixels()),
+                    ("reference", reference.as_slice()),
+                ] {
+                    let file = std::fs::File::create(format!(
+                        "/private/tmp/eldiron-native-custom-{name}-{suffix}.png"
+                    ))
+                    .unwrap();
+                    let mut encoder = png::Encoder::new(file, size.0, size.1);
+                    encoder.set_color(png::ColorType::Rgba);
+                    encoder.set_depth(png::BitDepth::Eight);
+                    encoder
+                        .write_header()
+                        .unwrap()
+                        .write_image_data(data)
+                        .unwrap();
+                }
+                assert!(delta <= 1, "custom {name} must preserve reference RGB");
+                if let Some(previous) = previous_pixels {
+                    assert!(
+                        pixels.pixels() != previous,
+                        "custom animation/canvas changes must invalidate their GPU output without a map edit"
+                    );
+                }
+                previous_pixels = Some(pixels.pixels().to_vec());
+            }
+            check_native_paste(app, host, images, gpu, renderer, output);
+            app.application.editor.finish_native_custom_for_test(
+                fixture,
+                &mut app.session.ui,
+                &mut app.session.context,
+            );
+            app.update(host, Duration::from_millis(16));
+        }
     }
 
     fn check_native_surface_detail(

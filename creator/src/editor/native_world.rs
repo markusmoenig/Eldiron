@@ -13,6 +13,8 @@ mod visibility;
 mod speech;
 #[path = "native_world_scope.rs"]
 mod scope;
+#[path = "native_world_custom.rs"]
+mod custom;
 use crate::editor_overlay::panel::PanelScope;
 use crate::editor_overlay::procedural_gpu::GpuIcons;
 use crate::hud::{Hud, HudInputs, HudStyle};
@@ -56,6 +58,7 @@ struct Binding {
     runtime: Option<Uuid>,
     paste: Option<paste::Stamp>,
     detail: scope::DetailScope,
+    custom: Option<custom::Description>,
     view: TheId,
     tool: Uuid,
     context: ProjectContext,
@@ -76,6 +79,7 @@ impl Binding {
             && self.runtime == next.runtime
             && self.paste.is_some() == next.paste.is_some()
             && self.detail == next.detail
+            && self.custom == next.custom
             && self.view == next.view
             && self.tool == next.tool
             && self.context == next.context
@@ -186,6 +190,7 @@ impl PartialEq for GameInputFrame {
 }
 #[derive(PartialEq)]
 struct SceneInputKey {
+    custom_content: Option<u64>,
     paste: Option<paste::Stamp>,
     terrain_paint: Option<u64>,
     camera: Option<CameraStamp>,
@@ -223,6 +228,7 @@ struct WorldGpu {
     icons: GpuIcons,
     images: UiImageCache,
     last_root_images: PaintList,
+    custom: custom::Gpu,
 }
 impl WorldGpu {
     fn new(images: &renderkit::ImageRegistry) -> Result<Self, String> {
@@ -245,6 +251,7 @@ impl WorldGpu {
                 .map_err(|e| e.to_string())?,
             images: UiImageCache::default(),
             last_root_images: PaintList::default(),
+            custom: Default::default(),
         })
     }
     fn query(
@@ -352,6 +359,7 @@ pub(super) struct NativeWorldFrame {
     binding: Binding,
     target: ToolOverlayTarget,
     stamp: SourceStamp,
+    custom_content: Option<u64>,
     source: Arc<SceneBuildSnapshot>,
     ready: bool,
     camera: Option<CameraStamp>,
@@ -440,6 +448,7 @@ impl NativeWorld {
         frame.ready
             && frame.camera == *camera
             && frame.stamp == SourceStamp::new(map)
+            && frame.custom_content == frame.binding.custom.as_ref().map(|_| custom::content(map))
             && if let Some(targets) = &frame.isometric {
                 self.gpu
                     .as_ref()
@@ -680,6 +689,7 @@ fn isometric_input(
 impl Editor {
     pub(super) fn native_world_waiting(&self) -> bool {
         self.native_world_owns_viewport()
+            && self.native_viewport.world.binding.is_some()
             && self.native_viewport.world.presented.as_ref().is_none_or(|frame| !frame.ready)
     }
 
@@ -783,7 +793,6 @@ impl Editor {
             || self.native_display_owns_viewport()
             || self.server_ctx.game_mode
             || self.server_ctx.text_game_mode
-            || !(self.server_ctx.pc.is_region() || self.server_ctx.pc.is_prefab())
             || self.server_ctx.world_mode
             || self.server_ctx.profile_view.is_some()
             || (self.server_ctx.editing_surface.is_some()
@@ -794,6 +803,8 @@ impl Editor {
         let Some(map) = scope::map(&self.documents.project, &self.server_ctx) else {
             return false;
         };
+        if !(self.server_ctx.pc.is_region() || self.server_ctx.pc.is_prefab()
+            || custom::Description::current(map, &self.server_ctx).is_some()) { return false; }
         if self.server_ctx.editor_view_mode == EditorViewMode::D2 {
             if !matches!(map.camera, MapCamera::TwoD | MapCamera::TwoDIso) {
                 return false;
@@ -876,6 +887,7 @@ impl Editor {
             return None;
         }
         let view = view.id().clone();
+        if self.native_hidden_viewport(ui, &view.name) { return None; }
         let slots = slots(map, &self.server_ctx);
         let bridge = self.server_ctx.reference.read();
         let assets = self.play_session.as_ref().map(|play| play.assets(&bridge.assets)).unwrap_or(&bridge.assets);
@@ -884,6 +896,7 @@ impl Editor {
             runtime: self.play_session.as_ref().map(|session| session.pump().session_id()),
             paste: paste::Stamp::current(&self.server_ctx),
             detail: scope::DetailScope::current(&self.server_ctx),
+            custom: custom::Description::current(map, &self.server_ctx),
             view,
             tool,
             context: self.server_ctx.pc,
@@ -1007,6 +1020,7 @@ impl Editor {
         let map = scope::map(&self.documents.project, &self.server_ctx)
             .ok_or("missing native world map")?;
         let authored_stamp = SourceStamp::new(map);
+        let custom_content = binding.custom.as_ref().map(|_| custom::content(map));
         let paste = self
             .native_viewport
             .world
@@ -1064,6 +1078,7 @@ impl Editor {
             // Reopened/copied documents may reuse map IDs and local revisions.
             // Neither atlas residency nor builder caches can cross that lifetime.
             gpu.scope = Some(scope);
+            gpu.custom.clear(images.registry);
             gpu.scenes
                 .remove(gpu.view, images.registry)
                 .map_err(|e| e.to_string())?;
@@ -1115,6 +1130,7 @@ impl Editor {
             gpu.scene_key = None;
         }
         let key = SceneInputKey {
+            custom_content: binding.custom.as_ref().map(|_| custom::content(map)),
             paste: binding.paste.clone(),
             camera: camera_stamp.clone(),
             stamp: SourceStamp::new(map),
@@ -1132,7 +1148,9 @@ impl Editor {
             grid: self.server_ctx.show_editor_grid,
             hour: bridge.client.server_time.to_f32().to_bits(),
             animation: bridge.client.animation_frame,
-            canvas: bridge.client.editor_canvas_colors,
+            canvas: bridge.client.editor_canvas_colors.filter(|_| {
+                binding.custom.is_none() || bridge.client.use_editor_canvas
+            }),
             build: self.build_values.clone(),
             runtime: bridge.render_state_for_view_from(
                 self.play_session
@@ -1160,6 +1178,9 @@ impl Editor {
                     .invalidate_isometric_geometry(gpu.view)
                     .map_err(|e| e.to_string())?;
                 gpu.projection_paste = binding.paste.clone();
+            }
+            if binding.custom.is_none() && gpu.custom.image.is_some() {
+                gpu.custom.clear(images.registry);
             }
             let source_changed = gpu
                 .scenes
@@ -1296,9 +1317,12 @@ impl Editor {
                         .editor_view_2d(map, (binding.size.0 as u32, binding.size.1 as u32));
                     if let rusterix::editor_view::EditorViewFrame::D2(frame) = &mut description {
                         frame.draw_grid = self.server_ctx.show_editor_grid;
-                        frame.canvas_colors = bridge.client.editor_canvas_colors;
+                        frame.canvas_colors = key.canvas;
                     }
-                    scene.settings.backend_2d = rusterix::render_settings::RendererBackend::Raster;
+                    scene.settings.backend_2d = if binding.custom.is_some() {
+                        rusterix::render_settings::RendererBackend::Compute
+                    } else { rusterix::render_settings::RendererBackend::Raster };
+                    gpu.guides.set_clip_rect(binding.custom.as_ref().map(|custom| custom.clip()));
                     gpu.guides.set_properties(&self.build_values);
                     gpu.guides
                         .set_map_tool_type(self.server_ctx.curr_map_tool_type);
@@ -1306,6 +1330,10 @@ impl Editor {
                         .set_map_hover_info(self.server_ctx.hover, self.server_ctx.hover_cursor);
                     gpu.guides.draw_grid = self.server_ctx.show_editor_grid;
                     gpu.guides.show_entity_markers = true;
+                    if binding.custom.is_some() {
+                        gpu.guide_scene = gpu.guides.build(map, assets,
+                            Vec2::new(binding.size.0 as f32, binding.size.1 as f32), &self.build_values);
+                    }
                     gpu.guides.build_entities_items(
                         map,
                         assets,
@@ -1313,7 +1341,7 @@ impl Editor {
                         Vec2::new(binding.size.0 as f32, binding.size.1 as f32),
                         &None,
                         scene,
-                        false,
+                        binding.custom.is_some(),
                     );
                     scene.build_dynamics_2d(
                         map,
@@ -1321,11 +1349,22 @@ impl Editor {
                         assets,
                         &Default::default(),
                     );
+                    if let Some(custom) = &binding.custom {
+                        gpu.guide_scene.animation_frame = bridge.client.animation_frame;
+                        gpu.custom.prepare(custom, key.custom_content.unwrap(), map, assets,
+                            &binding, &gpu.guide_scene, images.registry)?;
+                    }
                     description
                 };
                 gpu.scenes
                     .prepare_editor(gpu.view, &description, images.registry)
                     .map_err(|e| e.to_string())?;
+                if binding.custom.is_some() {
+                    // The custom base is already a GPU image. Only the shared
+                    // guide layer is composited above it, as in the reference.
+                    gpu.scenes.scene_mut(gpu.view).map_err(|e| e.to_string())?
+                        .vm.set_layer_enabled(0, false);
+                }
             }
             gpu.scenes
                 .render(gpu.view, map.changed as u64, images.registry)
@@ -1387,6 +1426,9 @@ impl Editor {
         );
         drop(tools);
         let mut list = PaintList::default();
+        if let Some(image) = gpu.custom.image {
+            list.ops.push(PaintOp::SpriteImage { image, origin: [0., 0.], scale: [1., 1.], tint: [1.; 4] });
+        }
         if binding.mode == EditorViewMode::D2 {
             // Use the same stable logical-pixel lookup as guides/visibility.
             // Interpolated normalized nearest UVs can drift to a neighboring
@@ -1404,7 +1446,7 @@ impl Editor {
                 Sampling::Nearest,
             );
         }
-        if binding.mode == EditorViewMode::D2 && map.camera == MapCamera::TwoD {
+        if binding.mode == EditorViewMode::D2 && map.camera == MapCamera::TwoD && binding.custom.is_none() {
             let settings = &gpu.scenes.scene(gpu.view).map_err(|e| e.to_string())?.settings;
             if let Some(mask) = visibility::paint(map, assets, binding.size, settings) {
                 list.ops.push(mask);
@@ -1497,6 +1539,7 @@ impl Editor {
             binding,
             target,
             stamp: authored_stamp,
+            custom_content,
             source,
             ready,
             camera: camera_stamp,

@@ -298,6 +298,30 @@ impl Overview2DRenderer {
         revision: u64,
         occlusion_regions: &[(rusterix::BBox, f32)],
     ) -> Result<Arc<GpuImage>> {
+        self.render_with_background(
+            scene,
+            assets,
+            size,
+            transform,
+            namespace,
+            revision,
+            occlusion_regions,
+            [42; 3],
+        )
+    }
+    /// Render an opaque base with the caller's canvas clear. Custom authoring
+    /// maps use black, matching the legacy rasterizer's initially empty RGB.
+    pub fn render_with_background(
+        &mut self,
+        scene: &Scene,
+        assets: &Assets,
+        size: (u32, u32),
+        transform: Mat3<f32>,
+        namespace: Uuid,
+        revision: u64,
+        occlusion_regions: &[(rusterix::BBox, f32)],
+        background: [u8; 3],
+    ) -> Result<Arc<GpuImage>> {
         if self.context.is_lost() {
             return Err(RenderError("overview device lost".into()));
         }
@@ -361,7 +385,12 @@ impl Overview2DRenderer {
                 transform[(0, 0)],
                 transform[(0, 0)],
             ],
-            background: [42, 42, 42, 255],
+            background: [
+                background[0] as u32,
+                background[1] as u32,
+                background[2] as u32,
+                255,
+            ],
         };
         let clear_params = self.buffer(
             "overview clear params",

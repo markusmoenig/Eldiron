@@ -12,6 +12,7 @@ struct Key {
     changed: u32,
     camera: MapCamera,
     three_d: bool,
+    custom: bool,
     config: String,
     assets: AssetKey,
 }
@@ -24,6 +25,7 @@ impl Key {
             && self.changed == other.changed
             && self.camera == other.camera
             && self.three_d == other.three_d
+            && self.custom == other.custom
             && self.config == other.config
             && self.same_catalog(&other.assets)
     }
@@ -38,7 +40,7 @@ impl Key {
 }
 pub(super) struct Publication {
     key: Key,
-    source: Option<crate::scene_source::Source>,
+    pub(super) source: Option<crate::scene_source::Source>,
     empty: Arc<SceneBuildSnapshot>,
 }
 impl Publication {
@@ -50,6 +52,7 @@ impl Publication {
             && self.key.changed == map.changed
             && self.key.camera == map.camera
             && self.key.three_d == (binding.mode != EditorViewMode::D2)
+            && self.key.custom == binding.custom.is_some()
             && self.key.config == binding.geometry_config
             && self.key.same_catalog(&binding.assets)
     }
@@ -130,6 +133,7 @@ impl Editor {
             changed: map.changed,
             camera: map.camera,
             three_d: self.server_ctx.editor_view_mode != EditorViewMode::D2,
+            custom: custom::Description::current(map, &self.server_ctx).is_some(),
             config: self.native_world_geometry_config(),
             assets: self.native_world_asset_key(assets),
         };
@@ -138,9 +142,9 @@ impl Editor {
             .as_ref()
             .is_none_or(|old| !old.key.same_source(&key));
         if changed {
-            let source = if !key.three_d && map.camera == MapCamera::TwoDIso {
-                // Isometric geometry has a direct GPU producer, with no hidden
-                // chunk-builder dependency just to make its view ready.
+            let source = if key.custom || (!key.three_d && map.camera == MapCamera::TwoDIso) {
+                // Custom 2D and isometric geometry have direct GPU producers;
+                // readiness must not depend on an unused hidden chunk builder.
                 None
             } else {
                 let mut projection = map.clone();
