@@ -1089,6 +1089,59 @@ impl PaintRenderer {
                         ));
                     }
                 }
+                PaintOp::PixelRects { rects, color } => {
+                    if transform.inverse().is_some() {
+                        let mut vertices = Vec::new();
+                        let mut indices = Vec::new();
+                        for rect in rects.iter() {
+                            let rect = Rect::new(
+                                rect.x.round(),
+                                rect.y.round(),
+                                rect.width.round(),
+                                rect.height.round(),
+                            );
+                            if rect.width <= 0. || rect.height <= 0. {
+                                continue;
+                            }
+                            let (mut next, next_indices) =
+                                mesh::quad(rect, Rect::default(), transform, density);
+                            if next
+                                .iter()
+                                .any(|v| v.position.iter().any(|v| !v.is_finite()))
+                            {
+                                return Err(RenderError(
+                                    "nonfinite pixel rectangle transform".into(),
+                                ));
+                            }
+                            for v in &mut next {
+                                v.color = [rect.x, rect.y, rect.width, rect.height];
+                            }
+                            let offset = u32::try_from(vertices.len()).map_err(|_| {
+                                RenderError("pixel rectangle batch is too large".into())
+                            })?;
+                            indices.extend(next_indices.into_iter().map(|i| i + offset));
+                            vertices.extend(next);
+                        }
+                        if !indices.is_empty() {
+                            let mut geometry = self.geometry(&vertices, &indices);
+                            geometry.colored = false;
+                            let [a, b, c, d, _, _] = transform.0;
+                            draws.push(self.draw_with_effects(
+                                geometry,
+                                &Brush::Solid(*color),
+                                None,
+                                size,
+                                level,
+                                0,
+                                None,
+                                Some(ImageEffect::Sprite {
+                                    scale: [1., 1.],
+                                    basis: [a * density, b * density, c * density, d * density],
+                                }),
+                            ));
+                        }
+                    }
+                }
                 PaintOp::SpriteImage {
                     image,
                     origin,

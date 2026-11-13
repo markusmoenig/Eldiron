@@ -337,6 +337,13 @@ pub enum PaintOp {
         to: Point,
         color: Color,
     },
+    /// Ordered same-color logical-pixel rectangles in one draw. Origin and
+    /// extent round before the transform; physical-center coverage is independent
+    /// of MSAA. Overlapping primitives retain repeated alpha blending.
+    PixelRects {
+        rects: Arc<[Rect]>,
+        color: Color,
+    },
     /// Source-pixel scaled sprite. Origin and output extent round in logical
     /// pixels; source lookup uses floor(destination_pixel / scale), preserving
     /// source scale independently of the rounded extent. Alpha is quantized to
@@ -531,6 +538,17 @@ impl PaintList {
                         || tint.iter().any(|x| !x.is_finite())
                     {
                         return Err("nonfinite image mesh data");
+                    }
+                }
+                PaintOp::PixelRects { rects, color } => {
+                    if color.iter().any(|v| !v.is_finite())
+                        || rects.iter().any(|rect| {
+                            [rect.x, rect.y, rect.width, rect.height]
+                                .iter()
+                                .any(|v| !v.is_finite())
+                        })
+                    {
+                        return Err("nonfinite pixel rectangles");
                     }
                 }
                 PaintOp::SpriteImage {

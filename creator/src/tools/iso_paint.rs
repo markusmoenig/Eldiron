@@ -131,6 +131,57 @@ pub struct IsoPaintTool {
 }
 
 impl IsoPaintTool {
+    fn prepare_terrain_guides(
+        &self,
+        commands: &mut crate::editor_overlay::EditorOverlay,
+        map: &Map,
+        server: &ServerContext,
+        size: (usize, usize),
+    ) {
+        if server.editor_view_mode != EditorViewMode::D2 || map.camera != MapCamera::TwoDIso {
+            return;
+        }
+        let projection =
+            rusterix::isometric::Projection::editor(map, Vec2::new(size.0 as f32, size.1 as f32));
+        if let Some(center) = self.terrain_hover {
+            let points = super::terrain::TerrainTool::outline(map, center, self.terrain_radius);
+            for pair in points.windows(2) {
+                let a = projection.screen(Vec2::new(pair[0].x, pair[0].z), pair[0].y);
+                let b = projection.screen(Vec2::new(pair[1].x, pair[1].z), pair[1].y);
+                commands.sampled_line([a.x, a.y], [b.x, b.y], [235, 205, 135, 240]);
+            }
+        }
+        if let (Some(start), Some(end)) = (self.terrain_selection_start, self.terrain_hover) {
+            let surface = rusterix::chunkbuilder::terrain_surface::TerrainSurface::cached(map);
+            let corners = [
+                start,
+                Vec2::new(end.x, start.y),
+                end,
+                Vec2::new(start.x, end.y),
+            ];
+            let project = |q| {
+                projection.screen(
+                    q,
+                    surface.as_ref().and_then(|s| s.height_at(q)).unwrap_or(0.),
+                )
+            };
+            for i in 0..4 {
+                let a = corners[i];
+                let b = corners[(i + 1) % 4];
+                let steps = ((b - a).magnitude() * 8.).ceil().clamp(1., 2048.) as usize;
+                let mut previous = project(a);
+                for k in 1..=steps {
+                    let next = project(a + (b - a) * (k as f32 / steps as f32));
+                    commands.sampled_line(
+                        [previous.x, previous.y],
+                        [next.x, next.y],
+                        [135, 205, 235, 240],
+                    );
+                    previous = next;
+                }
+            }
+        }
+    }
     fn terrain_stamp_dabs(
         &mut self,
         map: &Map,
@@ -1251,6 +1302,79 @@ impl Tool for IsoPaintTool {
         self.id.clone()
     }
 
+    fn sync_overlay_sources(&mut self, project: &Project, server: &ServerContext) {
+        self.overlay.sync(project, server);
+    }
+    fn overlay_paint(&mut self) -> Option<&mut super::paint_overlay::PaintOverlay> {
+        Some(&mut self.overlay)
+    }
+    fn set_native_overlay_input(&mut self, native: bool) {
+        self.overlay.set_native_input(native);
+    }
+    fn clear_paint_overlay_hover(&mut self, server: &mut ServerContext) {
+        self.terrain_hover = None;
+        server.iso_paint_hover_screen = None;
+    }
+    fn prepare_overlay(&mut self, input: ToolOverlayInputs<'_>) -> Option<ToolOverlayFrame> {
+        let mut commands = crate::editor_overlay::EditorOverlay::new(input.target.size);
+        if let Some(controls) = self.overlay.controls() {
+            super::paint_preview::prepare(
+                &mut commands,
+                controls,
+                input.hud.server.iso_paint_hover_screen,
+                input.hud.server.iso_paint_selection_rect,
+            );
+        }
+        self.prepare_terrain_guides(
+            &mut commands,
+            input.hud.map,
+            input.hud.server,
+            input.target.size,
+        );
+        let mut frame = ToolOverlayFrame::passive(self, input, commands)?;
+        frame.push_paint(self.overlay.prepare_frame(
+            input.target.panel_scope(),
+            input.target.size,
+            input.style.colors,
+        ));
+        Some(frame)
+    }
+    fn invalidate_overlay(&mut self) {
+        self.overlay.invalidate_frame();
+    }
+    fn overlay_input_current(
+        &mut self,
+        frame: &ToolOverlayFrame,
+        target: ToolOverlayTarget,
+        _map: &Map,
+        _server: &ServerContext,
+    ) -> bool {
+        frame.paint_panel_current(&self.overlay, target, false)
+    }
+    fn overlay_command_source_current(
+        &mut self,
+        frame: &ToolOverlayFrame,
+        target: ToolOverlayTarget,
+        _map: &Map,
+        _server: &ServerContext,
+    ) -> bool {
+        frame.paint_panel_current(&self.overlay, target, true)
+    }
+    #[cfg(feature = "native-ui")]
+    fn presented_overlay(
+        &mut self,
+        frame: &ToolOverlayFrame,
+        receipts: &[theframework::paint::FrameReceipt],
+        target: ToolOverlayTarget,
+        _map: &Map,
+        _server: &mut ServerContext,
+    ) -> bool {
+        let accepted = frame.presented_paint_panel(&mut self.overlay, target, receipts);
+        if !accepted {
+            self.invalidate_overlay();
+        }
+        accepted
+    }
     fn info(&self) -> String {
         fl!("tool_iso_paint")
     }

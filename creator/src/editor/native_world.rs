@@ -134,6 +134,7 @@ impl CameraStamp {
 }
 #[derive(PartialEq)]
 struct SceneInputKey {
+    terrain_paint: Option<u64>,
     camera: Option<CameraStamp>,
     stamp: SourceStamp,
     size: (usize, usize),
@@ -606,20 +607,24 @@ impl Editor {
             }
         }
         let tools = TOOLLIST.read().unwrap();
+        let terrain_paint = tools.current_game_tool_command_id() == Some("tool.iso_paint")
+            && self.server_ctx.editor_view_mode == EditorViewMode::D2
+            && map.camera == MapCamera::TwoDIso;
         if tools.editor_mode
-            || !matches!(
-                tools.current_game_tool_command_id(),
-                Some(
-                    "tool.vertex"
-                        | "tool.linedef"
-                        | "tool.sector"
-                        | "tool.entity"
-                        | "tool.geometry"
-                        | "tool.blocks"
-                        | "tool.terrain"
-                        | "tool.rect"
-                )
-            )
+            || !(terrain_paint
+                || matches!(
+                    tools.current_game_tool_command_id(),
+                    Some(
+                        "tool.vertex"
+                            | "tool.linedef"
+                            | "tool.sector"
+                            | "tool.entity"
+                            | "tool.geometry"
+                            | "tool.blocks"
+                            | "tool.terrain"
+                            | "tool.rect"
+                    )
+                ))
         {
             return false;
         }
@@ -688,6 +693,27 @@ impl Editor {
         region.iso_paint.ensure_baked_paint_current();
         moving
     }
+    /// Publish editable paint sources after authoring dispatch, before immutable
+    /// scene preparation. This replaces the skipped reference draw-time bridge.
+    pub(crate) fn publish_native_world_paint_sources(&mut self) {
+        if !self.native_world_owns_viewport() {
+            return;
+        }
+        let Some(region) = self.project.get_region_ctx_mut(&mut self.server_ctx) else {
+            return;
+        };
+        if self.server_ctx.editor_view_mode == EditorViewMode::D2
+            && region.map.camera == MapCamera::TwoDIso
+        {
+            shared::iso_paint_terrain::sync(
+                &mut RUSTERIX.write().unwrap().assets,
+                region.map.id,
+                &mut region.iso_paint,
+            );
+        } else {
+            region.iso_paint.ensure_baked_paint_current();
+        }
+    }
     fn native_world_camera(&self) -> Option<Box<dyn D3Camera>> {
         let region = self.project.get_region_ctx(&self.server_ctx)?;
         EDITCAMERA
@@ -701,6 +727,11 @@ impl Editor {
         ctx: &mut TheContext,
         images: &mut UiFrameImages<'_>,
     ) -> Result<Option<Arc<NativeWorldFrame>>, String> {
+        TOOLLIST
+            .write()
+            .unwrap()
+            .get_current_tool()
+            .sync_overlay_sources(&self.project, &self.server_ctx);
         let next = self.native_world_binding(ui, ctx);
         self.bind_native_world(next.clone(), ui, ctx);
         let Some(binding) = next else {
@@ -804,6 +835,7 @@ impl Editor {
             canvas: bridge.client.editor_canvas_colors,
             build: self.build_values.clone(),
             runtime: bridge.render_state_for_view(map, true),
+            terrain_paint: bridge.assets.terrain_paint.get(&map.id).map(|p| p.key),
         };
         // The existing 3D guides include transient gizmos/ghosts beyond the 2D
         // key. Prepare them on requested frames until their owner revisions are
@@ -1106,6 +1138,11 @@ impl Editor {
         ui: &mut TheUI,
         ctx: &mut TheContext,
     ) {
+        TOOLLIST
+            .write()
+            .unwrap()
+            .get_current_tool()
+            .sync_overlay_sources(&self.project, &self.server_ctx);
         let next = self.native_world_binding(ui, ctx);
         self.bind_native_world(next.clone(), ui, ctx);
         let current_camera = next.as_ref().and_then(|binding| {
@@ -1177,6 +1214,11 @@ impl Editor {
         ctx: &mut TheContext,
     ) -> Option<TheEvent> {
         while let Some(event) = self.native_viewport.world.events.pop_front() {
+            TOOLLIST
+                .write()
+                .unwrap()
+                .get_current_tool()
+                .sync_overlay_sources(&self.project, &self.server_ctx);
             let next = self.native_world_binding(ui, ctx);
             self.bind_native_world(next.clone(), ui, ctx);
             let Some(binding) = next else {
@@ -1221,6 +1263,11 @@ impl Editor {
         ) {
             return false;
         }
+        TOOLLIST
+            .write()
+            .unwrap()
+            .get_current_tool()
+            .sync_overlay_sources(&self.project, &self.server_ctx);
         let next = self.native_world_binding(ui, ctx);
         self.bind_native_world(next.clone(), ui, ctx);
         let Some(binding) = next else {
@@ -1596,6 +1643,40 @@ impl Editor {
             builds.source_matches(map.id, map.camera)
         )
     }
+    pub(crate) fn native_paint_state_for_test(&self) -> (f32, usize, Option<u64>) {
+        let region = self
+            .project
+            .get_region(&self.server_ctx.curr_region)
+            .unwrap();
+        (
+            region.iso_paint.active_opacity,
+            region
+                .iso_paint
+                .chunks
+                .values()
+                .map(|c| c.strokes.len() + c.stamps.len())
+                .sum(),
+            RUSTERIX
+                .read()
+                .unwrap()
+                .assets
+                .terrain_paint
+                .get(&region.map.id)
+                .map(|p| p.key),
+        )
+    }
+    pub(crate) fn native_paint_point_for_test(&self, size: (i32, i32)) -> Vec2<i32> {
+        let map = self.project.get_map(&self.server_ctx).unwrap();
+        let bounds = map.sectors.last().unwrap().bounding_box(map);
+        let point = (bounds.min + bounds.max) * 0.5;
+        assert!(
+            rusterix::isometric::flat_terrain_contains(map, point),
+            "Paint test target is authored ground"
+        );
+        rusterix::isometric::Projection::editor(map, Vec2::new(size.0 as f32, size.1 as f32))
+            .screen(point, 0.)
+            .map(|v| v.round() as i32)
+    }
     pub(crate) fn native_rect_source_for_test(&mut self) {
         let mut tile = rusterix::Tile::default();
         tile.id = Uuid::new_v4();
@@ -1610,6 +1691,7 @@ impl Editor {
             directions: 1,
             frames_per_direction: 1,
             bitmap: true,
+            ground: true,
             ..Default::default()
         });
         self.server_ctx.curr_tile_source = Some(rusterix::TileSource::SingleTile(tile.id));

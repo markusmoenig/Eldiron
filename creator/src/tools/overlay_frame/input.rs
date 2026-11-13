@@ -21,6 +21,10 @@ enum Action {
     Hud(HudAction),
     Terrain(terrain_overlay::Action),
     Rect(rect_overlay::Action),
+    Paint {
+        rect: TheDim,
+        action: Option<paint_overlay::Action>,
+    },
     Props {
         rect: TheDim,
         action: props_overlay::Action,
@@ -101,6 +105,28 @@ impl ToolOverlayCommand {
         }
         let mut effects = ToolOverlayEffects::empty();
         match &self.action {
+            Action::Paint { rect, action } => {
+                tool.clear_paint_overlay_hover(server);
+                effects.redraw = true;
+                if let Some(action) = action {
+                    if let Some(event) = paint_overlay::PaintOverlay::action_event(action) {
+                        effects.events.push(ScopedToolOverlayEvent {
+                            target,
+                            frame: self.frame.clone(),
+                            event: Some(event),
+                            authoring: true,
+                        });
+                    } else {
+                        tool.overlay_paint()?.dispatch_action(
+                            *rect,
+                            action.clone(),
+                            ui,
+                            ctx,
+                            server,
+                        );
+                    }
+                }
+            }
             Action::Rect(action) => {
                 let events = tool.apply_rect_overlay(*action, map, server)?;
                 effects.scene_dirty = true;
@@ -297,6 +323,30 @@ impl ToolOverlayInputState {
         let clicked = matches!(event, MapEvent::MapClicked(_));
         // Reverse painter order: an interactive foreground part wins over the HUD.
         for part in frame.parts.iter().rev() {
+            if let Part::Paint(panel) = part
+                && panel.bounds.contains(at)
+            {
+                if clicked {
+                    self.capture = Some(target);
+                }
+                let (rect, action) = panel
+                    .buttons
+                    .iter()
+                    .find(|(r, _)| r.contains(at))
+                    .map(|(r, a)| (*r, Some(a.clone())))
+                    .unwrap_or((panel.bounds, None));
+                return ToolOverlayRoute::Consumed {
+                    redraw: true,
+                    command: Some(ToolOverlayCommand {
+                        target,
+                        frame: frame.clone(),
+                        action: Action::Paint {
+                            rect,
+                            action: if clicked { action } else { None },
+                        },
+                    }),
+                };
+            }
             if let Part::Rect(panel) = part
                 && let Some((_, action)) = panel.buttons.iter().find(|(rect, _)| rect.contains(at))
             {

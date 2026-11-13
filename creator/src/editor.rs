@@ -2037,91 +2037,28 @@ impl Editor {
         }
     }
 
-    fn iso_paint_preview_color(layer: &IsoPaintLayer) -> [u8; 4] {
-        match layer.active_operation.as_str() {
-            "erase" => [242, 92, 84, 230],
-            "pick" => [87, 186, 255, 230],
-            _ => {
-                let mut color = layer.active_color;
-                color[3] = 230;
-                color
-            }
-        }
-    }
-
     fn draw_iso_paint_preview(
         buffer: &mut TheRGBABuffer,
         layer: &IsoPaintLayer,
         hover: Option<Vec2<i32>>,
         selection_rect: Option<[[i32; 2]; 4]>,
     ) {
-        if !layer.visible && layer.active_operation != "select"
-            || layer.active_operation == "pick" && hover.is_none()
-        {
-            return;
-        }
-        let dim = *buffer.dim();
-        if dim.width <= 0 || dim.height <= 0 {
-            return;
-        }
-
-        if layer.active_operation == "select" {
-            let Some(outline) = selection_rect else {
-                return;
-            };
-            let pixels = buffer.pixels_mut();
-            let width = dim.width as usize;
-            let height = dim.height as usize;
-            let color = [42, 174, 255, 230];
-            for edge in 0..4 {
-                let a = outline[edge];
-                let b = outline[(edge + 1) % 4];
-                let dx = b[0] - a[0];
-                let dy = b[1] - a[1];
-                let steps = dx.abs().max(dy.abs()).max(1);
-                for step in 0..=steps {
-                    let t = step as f32 / steps as f32;
-                    let x = (a[0] as f32 + dx as f32 * t).round() as i32;
-                    let y = (a[1] as f32 + dy as f32 * t).round() as i32;
-                    Self::iso_paint_blend_pixel(pixels, width, height, x, y, color);
-                    Self::iso_paint_blend_pixel(pixels, width, height, x + 1, y, color);
-                }
-            }
-            return;
-        }
-
-        let Some(hover) = hover else {
-            return;
-        };
-
-        let radius = (layer.active_size * 2.0).round().clamp(3.0, 96.0) as i32;
-        let outer = radius + 2;
-        let radius_sq = radius * radius;
-        let inner_sq = (radius - 2).max(1).pow(2);
-        let shadow_sq = outer * outer;
-        let color = Self::iso_paint_preview_color(layer);
-        let fill = [color[0], color[1], color[2], 38];
-        let shadow = [8, 10, 12, 145];
+        let width = buffer.dim().width.max(0) as usize;
+        let height = buffer.dim().height.max(0) as usize;
         let pixels = buffer.pixels_mut();
-        let width = dim.width as usize;
-        let height = dim.height as usize;
-
-        for oy in -outer..=outer {
-            for ox in -outer..=outer {
-                let d = ox * ox + oy * oy;
-                let x = hover.x + ox;
-                let y = hover.y + oy;
-                if d <= shadow_sq && d > radius_sq {
-                    Self::iso_paint_blend_pixel(pixels, width, height, x, y, shadow);
-                } else if d <= radius_sq && d >= inner_sq {
-                    Self::iso_paint_blend_pixel(pixels, width, height, x, y, color);
-                } else if d < inner_sq && layer.active_operation != "pick" {
-                    Self::iso_paint_blend_pixel(pixels, width, height, x, y, fill);
+        crate::tools::paint_preview::spans(
+            &crate::tools::paint_preview::Source::layer(layer),
+            hover,
+            selection_rect,
+            &mut |rect, color| {
+                for y in rect.y..rect.y.saturating_add(rect.height) {
+                    for x in rect.x..rect.x.saturating_add(rect.width) {
+                        Self::iso_paint_blend_pixel(pixels, width, height, x, y, color);
+                    }
                 }
-            }
-        }
+            },
+        );
     }
-
     fn iso_paint_project_world(
         point: [f32; 3],
         view: Mat4<f32>,

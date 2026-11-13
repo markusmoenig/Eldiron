@@ -22,6 +22,7 @@ pub mod sector;
 pub mod terrain;
 pub mod terrain_overlay;
 pub mod rect_overlay;
+pub(crate) mod paint_preview;
 pub mod tile_picker;
 // pub mod tileset;
 pub mod effects;
@@ -128,6 +129,9 @@ pub trait Tool: Send + Sync {
 
     /// The viewport supplies checked CPU queries immediately before dispatch.
     fn set_view_input(&mut self, _input: Option<ToolViewInput>) {}
+    fn sync_overlay_sources(&mut self, _project: &Project, _server: &ServerContext) {}
+    fn overlay_paint(&mut self) -> Option<&mut paint_overlay::PaintOverlay> { None }
+    fn clear_paint_overlay_hover(&mut self, _server: &mut ServerContext) {}
     fn view_rectangle_query(
         &self,
         _point: Vec2<i32>,

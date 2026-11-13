@@ -21,12 +21,17 @@ pub struct Controls {
     pub jitter: f32,
     pub material: u8,
     pub colors: Vec<[u8; 4]>,
+    pub color: [u8; 4],
     pub palette: ThePalette,
     pub visible: bool,
 }
 impl Controls {
-    pub fn read(project: &mut Project, server: &ServerContext) -> Option<Self> {
-        let paint = super::paint_picker::layer(project, server)?;
+    pub fn read(project: &Project, server: &ServerContext) -> Option<Self> {
+        let paint = if let ProjectContext::Prefab(id) = server.pc {
+            project.block_prop_paint.get(&id)?
+        } else {
+            &project.get_region(&server.curr_region)?.iso_paint
+        };
         let source = paint.active_source;
         let mut controls = Self {
             title: String::new(),
@@ -43,6 +48,7 @@ impl Controls {
             jitter: paint.active_stamp_size_jitter,
             material: paint.active_material_id.min(59),
             colors: paint.active_palette_colors.clone(),
+            color: paint.active_color,
             palette: ThePalette::default(),
             visible: paint.visible,
         };
@@ -76,6 +82,7 @@ pub struct PaintOverlay {
     controls: Option<Controls>,
     frames: PanelFrames<Option<Controls>, Action>,
     reference_context: Option<ProjectContext>,
+    native_input: bool,
     last_size: (usize, usize),
     bounds: TheDim,
     down: bool,
@@ -84,13 +91,57 @@ impl PaintOverlay {
     pub fn is_active(&self) -> bool {
         self.controls.is_some()
     }
-    pub fn sync(&mut self, project: &mut Project, server: &ServerContext) {
+    pub fn sync(&mut self, project: &Project, server: &ServerContext) {
         let next = Controls::read(project, server);
         if self.controls != next || self.reference_context != Some(server.pc) {
             self.frames.invalidate();
         }
         self.controls = next;
         self.reference_context = Some(server.pc);
+    }
+    pub(crate) fn visible(&self, size: (usize, usize)) -> bool {
+        self.controls.is_some() && size.0 >= 340 && size.1 >= 260
+    }
+    pub(crate) fn controls(&self) -> Option<&Controls> {
+        self.controls.as_ref()
+    }
+    pub(crate) fn set_native_input(&mut self, native: bool) {
+        if self.native_input != native {
+            self.invalidate_frame();
+            self.native_input = native;
+        }
+    }
+    pub(crate) fn current(
+        &self,
+        frame: &PanelFrame<Option<Controls>, Action>,
+        scope: PanelScope,
+        size: (usize, usize),
+        command: bool,
+    ) -> bool {
+        if command {
+            self.frames
+                .command_source_current(frame, scope, size, &self.controls)
+        } else {
+            self.frames.is_presented_frame(frame)
+                && self.frames.input_current(scope, size, &self.controls)
+        }
+    }
+    pub(crate) fn action_event(action: &Action) -> Option<TheEvent> {
+        match action {
+            Action::Mode(index) => Some(TheEvent::IndexChanged(
+                TheId::named(super::paint_picker::MODE),
+                *index,
+            )),
+            Action::Number(key, value) => Some(TheEvent::ValueChanged(
+                TheId::named(&format!("Paint Overlay {key}")),
+                TheValue::Float(*value),
+            )),
+            Action::Command(key) => Some(TheEvent::Custom(
+                TheId::named("Paint Overlay Command"),
+                TheValue::Text((*key).into()),
+            )),
+            _ => None,
+        }
     }
     fn step(
         frame: &mut PanelBuilder<Action>,
@@ -439,6 +490,9 @@ impl PaintOverlay {
         ctx: &mut TheContext,
         server: &ServerContext,
     ) -> bool {
+        if self.native_input {
+            return false;
+        }
         let size = crate::utils::map_editor_render_view(ui, server)
             .map(|view| {
                 (
@@ -511,7 +565,7 @@ impl PaintOverlay {
             }
         }
     }
-    fn dispatch_action(
+    pub(crate) fn dispatch_action(
         &self,
         rect: TheDim,
         action: Action,

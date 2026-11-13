@@ -128,6 +128,7 @@ impl UiApplication for NativeCreatorApplication {
         redraw |= self.editor.advance_native_world_camera(&mut ui.context);
         redraw |= self.editor.update_ui(&mut ui.ui, &mut ui.context);
         redraw |= self.editor.update(&mut ui.context);
+        self.editor.publish_native_world_paint_sources();
         redraw |= self.editor.native_views_waiting();
         FrameRequest {
             redraw,
@@ -975,6 +976,145 @@ mod tests {
             app.application.editor.native_rect_state_for_test().2 > before.2,
             "the actual Rect controller commits authored placement"
         );
+        app.session.context.ui.send(TheEvent::Custom(
+            TheId::named("Set Tool"),
+            TheValue::Text("tool.iso_paint".into()),
+        ));
+        app.update(&mut host, Duration::from_millis(16));
+        // Deliver activation's queued source/picker refresh before acknowledging
+        // its controls, then exercise input through the actual editor event loop.
+        app.update(&mut host, Duration::from_millis(16));
+        let paint = app.frame(&mut host, &mut replacement).unwrap();
+        assert!(
+            app.application.pending.as_ref().unwrap().world_for_test(),
+            "isometric Paint uses the native world owner"
+        );
+        let dim = *app
+            .session
+            .ui
+            .get_render_view(&world_view.name)
+            .unwrap()
+            .dim();
+        assert!(
+            dim.width >= 340 && dim.height >= 260,
+            "Paint panel check requires its visible layout: {:?}",
+            dim
+        );
+        let inner = 504.min(dim.width - 16) - 16;
+        let minus =
+            TheEvent::RenderViewClicked(world_view.clone(), Vec2::new(16 + inner - 58 + 12, 118));
+        let original = app.application.editor.native_paint_state_for_test();
+        assert!(app.application.editor.handle_native_world_input(
+            &minus,
+            &mut app.session.ui,
+            &mut app.session.context
+        ));
+        assert_eq!(
+            app.application.editor.native_paint_state_for_test().0,
+            original.0
+        );
+        renderer
+            .render(
+                &paint,
+                &replacement,
+                &output.view,
+                output.descriptor.format,
+                (1200, 800),
+                1.,
+                [0.; 4],
+            )
+            .unwrap();
+        app.presented(&mut host);
+        app.session.context.ui.send(minus.clone());
+        app.session.context.ui.send(TheEvent::RenderViewUp(
+            world_view.clone(),
+            Vec2::new(16 + inner - 58 + 12, 118),
+        ));
+        app.update(&mut host, Duration::from_millis(16));
+        assert!(
+            (app.application.editor.native_paint_state_for_test().0
+                - (original.0 - 0.05).clamp(0., 1.))
+            .abs()
+                < 0.00001,
+            "Paint controls reach the full editor dispatcher"
+        );
+        let paint = app.frame(&mut host, &mut replacement).unwrap();
+        renderer
+            .render(
+                &paint,
+                &replacement,
+                &output.view,
+                output.descriptor.format,
+                (1200, 800),
+                1.,
+                [0.; 4],
+            )
+            .unwrap();
+        app.presented(&mut host);
+        let at = app
+            .application
+            .editor
+            .native_paint_point_for_test((dim.width, dim.height));
+        assert!(
+            at.y > 260,
+            "the authored ground point is outside the Paint panel"
+        );
+        app.session
+            .context
+            .ui
+            .send(TheEvent::RenderViewHoverChanged(world_view.clone(), at));
+        app.update(&mut host, Duration::from_millis(16));
+        let paint = app.frame(&mut host, &mut replacement).unwrap();
+        assert!(
+            paint
+                .ops
+                .iter()
+                .any(|op| matches!(op, theframework::paint::PaintOp::PixelRects { .. })),
+            "Paint feedback emits GPU logical-pixel spans"
+        );
+        renderer
+            .render(
+                &paint,
+                &replacement,
+                &output.view,
+                output.descriptor.format,
+                (1200, 800),
+                1.,
+                [0.; 4],
+            )
+            .unwrap();
+        app.presented(&mut host);
+        app.session
+            .context
+            .ui
+            .send(TheEvent::RenderViewClicked(world_view.clone(), at));
+        app.session
+            .context
+            .ui
+            .send(TheEvent::RenderViewUp(world_view.clone(), at));
+        app.update(&mut host, Duration::from_millis(16));
+        let authored = app.application.editor.native_paint_state_for_test();
+        assert!(
+            authored.1 > original.1,
+            "native input commits an actual Paint stroke"
+        );
+        assert_ne!(
+            authored.2, original.2,
+            "the editable paint source is published before frame preparation"
+        );
+        let paint = app.frame(&mut host, &mut replacement).unwrap();
+        renderer
+            .render(
+                &paint,
+                &replacement,
+                &output.view,
+                output.descriptor.format,
+                (1200, 800),
+                1.,
+                [0.; 4],
+            )
+            .unwrap();
+        app.presented(&mut host);
         // Check the new sampler within this assembled checkpoint. The reference
         // uses the existing independent CPU DDA, including duplicate blending.
         use theframework::paint::{DisplayCompositing, PaintOp};

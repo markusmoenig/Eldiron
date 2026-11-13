@@ -29,6 +29,7 @@ fn fixture(kind: usize) -> PaintOverlay {
         jitter: 0.2,
         material: 17,
         colors: spec.colors.clone(),
+        color: [80,120,180,255],
         spec: Some(spec),
         palette: ThePalette::default(),
         visible: kind != 3,

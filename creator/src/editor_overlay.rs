@@ -82,6 +82,7 @@ enum Command {
     },
     Rect(BoxRect, RGBA),
     SignedRect(TheDim, RGBA),
+    PixelRects(Vec<TheDim>, RGBA),
     SignedOutline(TheDim, RGBA),
     PixelLine {
         from: [i32; 2],
@@ -147,6 +148,11 @@ impl EditorOverlay {
     }
     pub(crate) fn triangle(&mut self, points: [[f32; 2]; 3], color: RGBA) {
         self.commands.push(Command::Triangle { points, color });
+    }
+    pub(crate) fn pixel_rects(&mut self, rects: Vec<TheDim>, color: RGBA) {
+        if !rects.is_empty() {
+            self.commands.push(Command::PixelRects(rects, color));
+        }
     }
     pub(crate) fn signed_rect(&mut self, rect: TheDim, color: RGBA) {
         self.commands.push(Command::SignedRect(rect, color));
@@ -377,6 +383,11 @@ impl EditorOverlay {
                 } => {
                     draw_reference_sprite(buffer, image, *origin, *scale, *opacity);
                 }
+                Command::PixelRects(rects, color) => {
+                    for rect in rects {
+                        draw_reference_pixel_rect(buffer, *rect, *color);
+                    }
+                }
                 Command::Image { rect, image } => draw_reference_image(
                     buffer,
                     ctx,
@@ -434,6 +445,14 @@ impl EditorOverlay {
                         color: color.map(|v| v as f32 / 255.),
                     });
                 }
+                Command::PixelRects(rects, color) => list.ops.push(PaintOp::PixelRects {
+                    rects: rects
+                        .iter()
+                        .map(|r| Rect::new(r.x as f32, r.y as f32, r.width as f32, r.height as f32))
+                        .collect::<Vec<_>>()
+                        .into(),
+                    color: color.map(|v| v as f32 / 255.),
+                }),
                 Command::SampledLine { from, to, color } => list.ops.push(PaintOp::SampledLine {
                     from: *from,
                     to: *to,
@@ -723,6 +742,29 @@ impl EditorOverlay {
             Command::Image { image, .. } | Command::Sprite { image, .. } => Some(&image.source),
             _ => None,
         })
+    }
+}
+fn draw_reference_pixel_rect(buffer: &mut TheRGBABuffer, rect: TheDim, color: RGBA) {
+    let width = buffer.dim().width.max(0) as usize;
+    let height = buffer.dim().height.max(0) as usize;
+    let pixels = buffer.pixels_mut();
+    let alpha = color[3] as u32;
+    if alpha == 0 {
+        return;
+    }
+    for y in rect.y.max(0)..rect.y.saturating_add(rect.height).min(height as i32) {
+        for x in rect.x.max(0)..rect.x.saturating_add(rect.width).min(width as i32) {
+            let i = (y as usize * width + x as usize) * 4;
+            let old = pixels[i + 3] as u32;
+            let next = (alpha + old * (255 - alpha) / 255).min(255);
+            for k in 0..3 {
+                pixels[i + k] = ((color[k] as u32 * alpha * 255
+                    + pixels[i + k] as u32 * old * (255 - alpha))
+                    / (next * 255))
+                    .min(255) as u8;
+            }
+            pixels[i + 3] = next as u8;
+        }
     }
 }
 // Explicit reference adapter only. Native preparation retains the source and

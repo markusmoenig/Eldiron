@@ -63,6 +63,7 @@ enum Part {
     Hud(HudFrame),
     Terrain(terrain_overlay::Frame),
     Rect(rect_overlay::Frame),
+    Paint(PanelFrame<Option<paint_overlay::Controls>, paint_overlay::Action>),
     Props(PanelFrame<props_overlay::PropsSource, props_overlay::Action>),
 }
 /// Opaque typed aggregate; its source identities and frozen hit metadata remain
@@ -192,6 +193,49 @@ impl ToolOverlayFrame {
             parts: vec![Part::Commands(commands)],
         })
     }
+    pub(crate) fn push_paint(
+        &mut self,
+        frame: PanelFrame<Option<paint_overlay::Controls>, paint_overlay::Action>,
+    ) {
+        if !frame.commands.is_empty() {
+            self.parts.push(Part::Paint(frame));
+        }
+    }
+    pub(crate) fn paint_panel_current(
+        &self,
+        panel: &paint_overlay::PaintOverlay,
+        target: ToolOverlayTarget,
+        command: bool,
+    ) -> bool {
+        self.parts
+            .iter()
+            .find_map(|p| {
+                if let Part::Paint(frame) = p {
+                    Some(panel.current(frame, target.panel_scope(), target.size, command))
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(!panel.visible(target.size))
+    }
+    #[cfg(feature = "native-ui")]
+    pub(crate) fn presented_paint_panel(
+        &self,
+        panel: &mut paint_overlay::PaintOverlay,
+        target: ToolOverlayTarget,
+        receipts: &[theframework::paint::FrameReceipt],
+    ) -> bool {
+        self.parts
+            .iter()
+            .find_map(|p| {
+                if let Part::Paint(frame) = p {
+                    Some(panel.presented_paint(frame, receipts, target.panel_scope(), target.size))
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(!panel.visible(target.size))
+    }
     pub(crate) fn prepend_commands(&mut self, commands: EditorOverlay) {
         self.parts.insert(0, Part::Commands(commands));
     }
@@ -308,6 +352,7 @@ impl ToolOverlayFrame {
             Part::Hud(frame) => frame.commands(),
             Part::Terrain(frame) => &frame.commands,
             Part::Rect(frame) => &frame.commands,
+            Part::Paint(frame) => &frame.commands,
             Part::Props(frame) => &frame.commands,
         })
     }
@@ -470,6 +515,7 @@ impl ToolOverlayFrame {
                 Part::Hud(frame) => frame.paint(text, images, density)?,
                 Part::Terrain(frame) => frame.paint(text, images, density)?,
                 Part::Rect(frame) => frame.paint(text, images, density)?,
+                Part::Paint(frame) => frame.paint(text, images, density)?,
                 Part::Props(frame) => frame.paint(text, images, density)?,
             };
             list.ops.extend(next.ops);

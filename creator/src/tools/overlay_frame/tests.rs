@@ -211,6 +211,7 @@ fn markers(frame: &ToolOverlayFrame) -> Vec<theframework::paint::FrameReceipt> {
             Part::Props(frame) => Some(frame.receipt()),
             Part::Terrain(frame) => Some(frame.receipt()),
             Part::Rect(frame) => Some(frame.receipt()),
+            Part::Paint(frame) => Some(frame.receipt()),
         })
         .collect()
 }
