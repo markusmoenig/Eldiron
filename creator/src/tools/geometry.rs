@@ -241,26 +241,26 @@ fn snap_vertex_drag_target(
     if let Some(axis) = axis {
         Vec3::new(
             if axis.x.abs() > 0.5 {
-                ServerContext::snap_scalar(target.x, subdivisions)
+                shared::context::ServerContext::snap_scalar(target.x, subdivisions)
             } else {
                 start.x
             },
             if axis.y.abs() > 0.5 {
-                ServerContext::snap_scalar(target.y, subdivisions)
+                shared::context::ServerContext::snap_scalar(target.y, subdivisions)
             } else {
                 start.y
             },
             if axis.z.abs() > 0.5 {
-                ServerContext::snap_scalar(target.z, subdivisions)
+                shared::context::ServerContext::snap_scalar(target.z, subdivisions)
             } else {
                 start.z
             },
         )
     } else {
         Vec3::new(
-            ServerContext::snap_scalar(target.x, subdivisions),
+            shared::context::ServerContext::snap_scalar(target.x, subdivisions),
             start.y,
-            ServerContext::snap_scalar(target.z, subdivisions),
+            shared::context::ServerContext::snap_scalar(target.z, subdivisions),
         )
     }
 }
@@ -277,8 +277,8 @@ fn snap_translated_transform_target(
     delta: Vec3<f32>,
     subdivisions: f32,
 ) -> [[f32; 4]; 4] {
-    transform[3][0] = ServerContext::snap_scalar(transform[3][0] + delta.x, subdivisions);
-    transform[3][2] = ServerContext::snap_scalar(transform[3][2] + delta.z, subdivisions);
+    transform[3][0] = shared::context::ServerContext::snap_scalar(transform[3][0] + delta.x, subdivisions);
+    transform[3][2] = shared::context::ServerContext::snap_scalar(transform[3][2] + delta.z, subdivisions);
     transform
 }
 
@@ -469,7 +469,7 @@ fn resize_selected_geometry(map: &mut Map, delta_size: Vec3<f32>) -> bool {
     }
 
     let selected = map.selected_geometry_objects.clone();
-    let min_size = ServerContext::edit_grid_step(map.subdivisions).max(0.05);
+    let min_size = shared::context::ServerContext::edit_grid_step(map.subdivisions).max(0.05);
     let snap = |value: f32| (value / min_size).round() * min_size;
     let mut changed = false;
     for object in &mut map.geometry_objects {
@@ -1380,7 +1380,7 @@ fn normalize_geometry_faces_for_object(map: &mut Map, object_id: Uuid) -> bool {
         return false;
     };
 
-    let epsilon = ServerContext::edit_grid_step(map.subdivisions) * 0.001;
+    let epsilon = shared::context::ServerContext::edit_grid_step(map.subdivisions) * 0.001;
     let old_faces = object.faces.clone();
     let mut faces = Vec::with_capacity(old_faces.len());
     let mut changed = false;
@@ -3102,7 +3102,7 @@ impl Tool for GeometryTool {
                     else {
                         return None;
                     };
-                    let step = ServerContext::edit_grid_step(map.subdivisions);
+                    let step = shared::context::ServerContext::edit_grid_step(map.subdivisions);
                     let bounds = geometry_bounds(&object.vertices);
                     let selected_indices = match gizmo_kind {
                         GizmoDragKind::Move => {
@@ -3457,7 +3457,7 @@ impl Tool for GeometryTool {
                         return None;
                     };
                     let raw_amount = (hit - anchor).dot(axis);
-                    let step = ServerContext::edit_grid_step(map.subdivisions);
+                    let step = shared::context::ServerContext::edit_grid_step(map.subdivisions);
                     let amount = snap_drag_amount(raw_amount, step);
                     if amount.abs() > 0.0 {
                         next_axis_anchor = Some(anchor + axis * amount);
@@ -3500,7 +3500,7 @@ impl Tool for GeometryTool {
                         .collect()
                 };
 
-                let step = ServerContext::edit_grid_step(map.subdivisions);
+                let step = shared::context::ServerContext::edit_grid_step(map.subdivisions);
                 let drag_delta = delta;
                 if let Some(GizmoDragKind::Resize { component, .. }) = drag.gizmo_kind {
                     let Some((min, max)) = geometry_bounds(&drag.start_vertices) else {
@@ -3704,7 +3704,7 @@ impl Tool for GeometryTool {
                     if drag.vertex_indices.is_some()
                         && !matches!(drag.gizmo_kind, Some(GizmoDragKind::Resize { .. }))
                     {
-                        let step = ServerContext::edit_grid_step(map.subdivisions);
+                        let step = shared::context::ServerContext::edit_grid_step(map.subdivisions);
                         let mut topology_changed =
                             auto_merge_overlapping_selected_geometry_vertices(
                                 map,
@@ -3785,7 +3785,7 @@ impl Tool for GeometryTool {
                 ))
             }
             MapKey(key) => {
-                let step = ServerContext::edit_grid_step(map.subdivisions);
+                let step = shared::context::ServerContext::edit_grid_step(map.subdivisions);
                 if !map.selected_block_prop_instances.is_empty() && matches!(key, 'r' | 'R') {
                     let old_map = map.clone();
                     let selected = map.selected_block_prop_instances.clone();

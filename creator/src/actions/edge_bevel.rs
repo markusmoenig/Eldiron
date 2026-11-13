@@ -72,7 +72,7 @@ impl Action for EdgeBevel {
     }
 
     fn load_params(&mut self, map: &Map) {
-        let step = ServerContext::edit_grid_step(map.subdivisions);
+        let step = shared::context::ServerContext::edit_grid_step(map.subdivisions);
         self.nodeui.set_f32_value(WIDTH_ID, (step * 0.1).max(0.001));
     }
 

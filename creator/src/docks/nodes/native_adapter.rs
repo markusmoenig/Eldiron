@@ -1170,7 +1170,8 @@ mod tests {
     fn assert_no_world_owners() {
         assert!(crate::editor::reference_runtime().is_none());
         assert!(std::sync::LazyLock::get(&crate::editor::SCENEMANAGER).is_none());
-        assert!(std::sync::LazyLock::get(&crate::editor::EDITCAMERA).is_none());
+
+        // Authoring cameras are CPU values owned by each Creator context.
     }
     #[test]
     fn native_nodes_dock_keyboard_undo_keeps_the_captured_source_after_owner_activation() {

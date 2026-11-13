@@ -85,13 +85,13 @@ impl Editor {
                 owner.pointer = *position;
                 if delta.x.is_finite() && delta.y.is_finite() {
                     if next.context.is_prefab() || next.mode == EditorViewMode::Orbit {
-                        EDITCAMERA.write().unwrap().mouse_delta_orbit(delta);
+                        self.server_ctx.camera.mouse_delta_orbit(delta);
                     } else if let Some(region) = self
                         .documents
                         .project
                         .get_region_mut(&self.server_ctx.curr_region)
                     {
-                        EDITCAMERA.write().unwrap().pan_3d_by_delta_f32(
+                        self.server_ctx.camera.pan_3d_by_delta_f32(
                             region,
                             &self.server_ctx,
                             delta,
@@ -141,7 +141,7 @@ impl Editor {
     }
     #[cfg(target_arch = "wasm32")]
     pub(crate) fn native_view_diagnostics(&self) -> serde_json::Value {
-        let camera = EDITCAMERA.read().unwrap();
+        let camera = &self.server_ctx.camera;
         let region = self
             .documents
             .project

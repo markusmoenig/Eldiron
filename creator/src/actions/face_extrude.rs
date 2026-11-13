@@ -55,7 +55,7 @@ impl Action for FaceExtrude {
     }
 
     fn load_params(&mut self, map: &Map) {
-        let step = ServerContext::edit_grid_step(map.subdivisions);
+        let step = shared::context::ServerContext::edit_grid_step(map.subdivisions);
         self.nodeui.set_f32_value("actionFaceExtrudeAmount", step);
     }
 
@@ -69,7 +69,7 @@ impl Action for FaceExtrude {
         let amount = self
             .nodeui
             .get_f32_value("actionFaceExtrudeAmount")
-            .unwrap_or_else(|| ServerContext::edit_grid_step(map.subdivisions));
+            .unwrap_or_else(|| shared::context::ServerContext::edit_grid_step(map.subdivisions));
         let prev = map.clone();
         if !extrude_selected_geometry_faces(map, amount) {
             return None;

@@ -689,7 +689,7 @@ impl Tool for VertexTool {
                                         original_vertex.x - drag_delta.x,
                                         original_vertex.y - drag_delta.y,
                                     );
-                                    let grid_step = ServerContext::edit_grid_step(map.subdivisions);
+                                    let grid_step = shared::context::ServerContext::edit_grid_step(map.subdivisions);
                                     let snapped_pos = Vec2::new(
                                         (new_pos.x / grid_step).round() * grid_step,
                                         (new_pos.y / grid_step).round() * grid_step,
@@ -753,7 +753,7 @@ impl Tool for VertexTool {
                                         let start_uv = surface.world_to_uv(click_intersection);
                                         let current_uv = surface.world_to_uv(current_pos);
                                         let drag_delta_uv = current_uv - start_uv;
-                                        let step = ServerContext::edit_grid_step(map.subdivisions);
+                                        let step = shared::context::ServerContext::edit_grid_step(map.subdivisions);
 
                                         for vertex_id in
                                             &self.rectangle_undo_map.selected_vertices.clone()
@@ -885,7 +885,7 @@ impl Tool for VertexTool {
 
                                                 // Snap to grid
                                                 let subdivisions =
-                                                    ServerContext::edit_grid_step(map.subdivisions);
+                                                    shared::context::ServerContext::edit_grid_step(map.subdivisions);
                                                 let snapped_x =
                                                     (new_x / subdivisions).round() * subdivisions;
                                                 let snapped_y =

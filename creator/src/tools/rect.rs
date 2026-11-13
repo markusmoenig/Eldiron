@@ -738,8 +738,8 @@ impl Tool for RectTool {
                     [223, 226, 209, 200],
                 );
             } else {
-                let a = ServerContext::map_grid_to_local(screen_size, top_left, map);
-                let b = ServerContext::map_grid_to_local(screen_size, bottom_right, map);
+                let a = shared::context::ServerContext::map_grid_to_local(screen_size, top_left, map);
+                let b = shared::context::ServerContext::map_grid_to_local(screen_size, bottom_right, map);
                 let min_x = a.x.min(b.x).round() as i32;
                 let min_y = a.y.min(b.y).round() as i32;
                 let max_x = a.x.max(b.x).round() as i32;
@@ -1124,7 +1124,7 @@ mod tests {
         server.curr_tile_id = Some(ground_id);
         server.curr_tile_source = Some(TileSource::SingleTile(ground_id));
         let click =
-            ServerContext::map_grid_to_local(Vec2::new(1000., 700.), Vec2::new(2.5, 6.5), map)
+            shared::context::ServerContext::map_grid_to_local(Vec2::new(1000., 700.), Vec2::new(2.5, 6.5), map)
                 .map(|v| v.round() as i32);
         tool.map_event(MapHover(click), &mut ui, &mut ctx, map, &mut server);
         tool.map_event(MapClicked(click), &mut ui, &mut ctx, map, &mut server);
@@ -1324,7 +1324,7 @@ mod tests {
         server.editor_view_mode = EditorViewMode::D2;
         let mut tool = RectTool::new();
         let screen = |p| {
-            let p = ServerContext::map_grid_to_local(Vec2::new(400., 400.), p, &map);
+            let p = shared::context::ServerContext::map_grid_to_local(Vec2::new(400., 400.), p, &map);
             Vec2::new(p.x.round() as i32, p.y.round() as i32)
         };
         let first_click = screen(Vec2::new(0.5, 0.5));
@@ -1555,8 +1555,8 @@ impl RectTool {
                 commands.sampled_line([a.x, a.y], [b.x, b.y], color)
             });
         } else {
-            let a = ServerContext::map_grid_to_local(size, a, map);
-            let b = ServerContext::map_grid_to_local(size, b, map);
+            let a = shared::context::ServerContext::map_grid_to_local(size, a, map);
+            let b = shared::context::ServerContext::map_grid_to_local(size, b, map);
             commands.signed_outline(
                 &TheDim::new(
                     a.x.min(b.x).round() as i32,
@@ -1800,8 +1800,8 @@ impl RectTool {
                         [210, 176, 92, 255],
                     );
                 } else {
-                    let a = ServerContext::map_grid_to_local(size, a, map);
-                    let b = ServerContext::map_grid_to_local(size, b, map);
+                    let a = shared::context::ServerContext::map_grid_to_local(size, a, map);
+                    let b = shared::context::ServerContext::map_grid_to_local(size, b, map);
                     buffer.draw_rect_outline(
                         &TheDim::new(
                             a.x.min(b.x).round() as i32,

@@ -446,7 +446,12 @@ impl NativeWorld {
                 })
             }
     }
-    fn bind(&mut self, next: Option<Binding>, ui: &mut TheUI) {
+    fn bind(
+        &mut self,
+        next: Option<Binding>,
+        ui: &mut TheUI,
+        camera: &mut EditCamera,
+    ) {
         if self.binding == next {
             return;
         }
@@ -477,9 +482,9 @@ impl NativeWorld {
                 })
         });
         if had_cube_capture && cube_capture.is_none() {
-            EDITCAMERA.write().unwrap().reset_mouse_tracking();
+            camera.reset_mouse_tracking();
         }
-        self.invalidate(ui);
+        self.invalidate(ui, camera);
         self.binding = next;
         self.world_capture = capture;
         self.retry_click = retry;
@@ -491,7 +496,7 @@ impl NativeWorld {
             tools.get_current_tool().set_native_overlay_input(true);
         }
     }
-    pub(super) fn invalidate(&mut self, ui: &mut TheUI) {
+    pub(super) fn invalidate(&mut self, ui: &mut TheUI, camera: &mut EditCamera) {
         if let Some((id, list)) = self.published.take()
             && let Some(view) = ui.get_render_view(&id.name)
             && view.id().uuid == id.uuid
@@ -518,12 +523,12 @@ impl NativeWorld {
         self.retry_click = None;
         self.cube.invalidate();
         if self.cube_capture.take().is_some() {
-            EDITCAMERA.write().unwrap().reset_mouse_tracking();
+            camera.reset_mouse_tracking();
         }
         self.events.clear();
     }
-    pub(super) fn device_reset(&mut self, ui: &mut TheUI) {
-        self.invalidate(ui);
+    pub(super) fn device_reset(&mut self, ui: &mut TheUI, camera: &mut EditCamera) {
+        self.invalidate(ui, camera);
         // The replaced host registry owns old handles and teardown.
         self.gpu = None;
     }
@@ -612,8 +617,11 @@ fn apply_pick(pick: EditorPick, map: &Map, server: &mut ServerContext) {
         }
     }
 }
-fn snap_cube(face: crate::viewcube::ViewCubeFace, ctx: &mut TheContext) {
-    let mut camera = EDITCAMERA.write().unwrap();
+fn snap_cube(
+    face: crate::viewcube::ViewCubeFace,
+    ctx: &mut TheContext,
+    camera: &mut EditCamera,
+) {
     crate::viewcube::ViewCube::snap_camera(&mut camera.orbit_camera, face);
     camera.reset_mouse_tracking();
     ctx.ui.send(TheEvent::SetStatusText(
@@ -683,7 +691,7 @@ impl Editor {
         {
             self.cancel_native_world_gesture(ui, ctx);
         }
-        self.native_viewport.world.bind(next, ui);
+        self.native_viewport.world.bind(next, ui, &mut self.server_ctx.camera);
     }
     pub(crate) fn cancel_native_world_gesture(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
         self.native_viewport.world.relative_navigation = None;
@@ -749,7 +757,7 @@ impl Editor {
         }
     }
     pub(crate) fn invalidate_native_world_viewport(&mut self, ui: &mut TheUI) {
-        self.native_viewport.world.invalidate(ui);
+        self.native_viewport.world.invalidate(ui, &mut self.server_ctx.camera);
     }
     pub(crate) fn native_world_owns_viewport(&self) -> bool {
         if !self.native_viewport.enabled
@@ -904,9 +912,9 @@ impl Editor {
         let Some(region) = self.documents.project.get_region_ctx_mut(&mut self.server_ctx) else {
             return false;
         };
-        let mut camera = EDITCAMERA.write().unwrap();
-        let moving = self.server_ctx.editor_fly_nav_active || camera.move_action.is_some();
-        camera.update_action(region, &mut self.server_ctx, ctx.get_time());
+        let camera = &mut self.server_ctx.camera;
+        let moving = self.server_ctx.shared.editor_fly_nav_active || camera.move_action.is_some();
+        camera.update_action(region, &mut self.server_ctx.shared, ctx.get_time());
         region.iso_paint.ensure_baked_paint_current();
         moving
     }
@@ -951,13 +959,11 @@ impl Editor {
     fn native_world_camera(&self) -> Option<Box<dyn D3Camera>> {
         if self.server_ctx.pc.is_prefab() {
             return (self.server_ctx.editor_view_mode != EditorViewMode::D2).then(|| {
-                Box::new(EDITCAMERA.read().unwrap().orbit_camera.clone()) as Box<dyn D3Camera>
+                Box::new(self.server_ctx.camera.orbit_camera.clone()) as Box<dyn D3Camera>
             });
         }
         let region = self.documents.project.get_region_ctx(&self.server_ctx)?;
-        EDITCAMERA
-            .read()
-            .unwrap()
+        self.server_ctx.camera
             .camera_for_view(region, &self.server_ctx)
     }
     pub(super) fn prepare_native_world_viewport(
@@ -1407,7 +1413,7 @@ impl Editor {
         let cube = if binding.mode == EditorViewMode::Orbit {
             world.cube.prepare(
                 binding.cube_target(world.epoch),
-                &EDITCAMERA.read().unwrap().orbit_camera,
+                &self.server_ctx.camera.orbit_camera,
             )
         } else {
             world.cube.invalidate();
@@ -1505,7 +1511,7 @@ impl Editor {
                 cube,
                 &frame.receipts,
                 frame.binding.cube_target(world.epoch),
-                &EDITCAMERA.read().unwrap().orbit_camera,
+                &self.server_ctx.camera.orbit_camera,
             ) {
                 ctx.ui.redraw_all = true;
                 return;
@@ -1787,7 +1793,7 @@ impl Editor {
                             capture.orbiting = true;
                         }
                         if capture.orbiting {
-                            let mut camera = EDITCAMERA.write().unwrap();
+                            let camera = &mut self.server_ctx.camera;
                             #[cfg(target_os = "macos")]
                             camera.mouse_dragged_viewcube_macos_primary(&at);
                             #[cfg(not(target_os = "macos"))]
@@ -1798,9 +1804,9 @@ impl Editor {
                     }
                     MapEvent::MapUp(_) | MapEvent::MapEscape => {
                         let capture = world.cube_capture.take().unwrap();
-                        EDITCAMERA.write().unwrap().reset_mouse_tracking();
+                        self.server_ctx.camera.reset_mouse_tracking();
                         if matches!(input, MapEvent::MapUp(_)) && !capture.orbiting {
-                            snap_cube(capture.face, ctx);
+                            snap_cube(capture.face, ctx, &mut self.server_ctx.camera);
                         }
                         return true;
                     }
@@ -1814,7 +1820,7 @@ impl Editor {
             {
                 let pick = world.cube.pick(
                     binding.cube_target(world.epoch),
-                    &EDITCAMERA.read().unwrap().orbit_camera,
+                    &self.server_ctx.camera.orbit_camera,
                     at,
                 );
                 match pick {
@@ -1825,8 +1831,8 @@ impl Editor {
                     CubePick::Face(face) => {
                         #[cfg(target_os = "macos")]
                         {
-                            EDITCAMERA.write().unwrap().reset_mouse_tracking();
-                            EDITCAMERA.write().unwrap().mouse_dragged_orbit(&at);
+                            self.server_ctx.camera.reset_mouse_tracking();
+                            self.server_ctx.camera.mouse_dragged_orbit(&at);
                             world.cube_capture = Some(CubeCapture {
                                 binding: binding.clone(),
                                 origin: at,
@@ -1835,7 +1841,7 @@ impl Editor {
                             });
                         }
                         #[cfg(not(target_os = "macos"))]
-                        snap_cube(face, ctx);
+                        snap_cube(face, ctx, &mut self.server_ctx.camera);
                         return true;
                     }
                     CubePick::Outside => {}
@@ -2100,6 +2106,25 @@ impl Editor {
 
 #[cfg(test)]
 impl Editor {
+    pub(crate) fn authoring_camera_for_test(&mut self) -> &mut EditCamera {
+        &mut self.server_ctx.camera
+    }
+    pub(crate) fn check_camera_ownership_for_test(&mut self) {
+        // Resetting another CPU authoring context cannot cancel this owner.
+        let initial_scale = self.server_ctx.camera.iso_camera.scale;
+        self.server_ctx.camera.move_action = Some(CustomMoveAction::Forward);
+        let mut independent = CreatorContext::new();
+        independent.camera.iso_camera.scale = initial_scale + 7.;
+        independent.camera.move_action = Some(CustomMoveAction::Backward);
+        independent.camera.reset_for_project_switch();
+        assert_eq!(self.server_ctx.camera.iso_camera.scale, initial_scale);
+        assert!(matches!(
+            self.server_ctx.camera.move_action,
+            Some(CustomMoveAction::Forward)
+        ));
+        assert!(independent.camera.move_action.is_none());
+        self.server_ctx.camera.reset_for_project_switch();
+    }
     pub(crate) fn stage_native_paste_for_test(
         &mut self,
         ui: &mut TheUI,

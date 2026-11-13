@@ -19,7 +19,7 @@ impl ToolList {
                 server_ctx,
             )
         } else {
-            ServerContext::edit_grid_step(map.subdivisions).max(0.01)
+            shared::context::ServerContext::edit_grid_step(map.subdivisions).max(0.01)
         };
         let grid_bbox = map.bbox().expanded(Vec2::new(16.0, 16.0));
         let span = (grid_bbox.max.x - grid_bbox.min.x)
@@ -242,7 +242,7 @@ impl ToolList {
                     server_ctx,
                 )
             } else {
-                ServerContext::edit_grid_step(map.subdivisions)
+                shared::context::ServerContext::edit_grid_step(map.subdivisions)
             };
             let grid_base_y = if block_grid_active {
                 server_ctx.block_grid_level as f32 * server_ctx.block_grid_cell_size.max(0.05)

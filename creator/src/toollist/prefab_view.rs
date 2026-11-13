@@ -68,7 +68,7 @@ impl ToolList {
         // A region's pending camera anchor is not a Prefab camera command.
         // Leave it with that region instead of applying or discarding it here.
         {
-            let mut camera = crate::editor::EDITCAMERA.write().unwrap();
+            let camera = &mut server.camera;
             camera.move_action = None;
             camera.reset_mouse_tracking();
         }

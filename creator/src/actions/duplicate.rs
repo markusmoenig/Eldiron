@@ -157,7 +157,7 @@ impl Action for Duplicate {
     }
 
     fn load_params(&mut self, map: &Map) {
-        let step = ServerContext::edit_grid_step(map.subdivisions);
+        let step = shared::context::ServerContext::edit_grid_step(map.subdivisions);
         if Self::geometry_only_selection(map) {
             if let Some(offset) = Self::last_geometry_offset() {
                 self.nodeui.set_f32_value("actionDuplicateX", offset.x);

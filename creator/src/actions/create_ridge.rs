@@ -506,10 +506,10 @@ fn selected_shape(nodeui: &TheNodeUI) -> RidgeShape {
 fn selected_dimensions(nodeui: &TheNodeUI, map: &Map) -> (f32, f32) {
     let width = nodeui
         .get_f32_value("actionCreateRidgeWidth")
-        .unwrap_or_else(|| ServerContext::edit_grid_step(map.subdivisions) * 0.12);
+        .unwrap_or_else(|| shared::context::ServerContext::edit_grid_step(map.subdivisions) * 0.12);
     let height = nodeui
         .get_f32_value("actionCreateRidgeHeight")
-        .unwrap_or_else(|| ServerContext::edit_grid_step(map.subdivisions) * 0.08);
+        .unwrap_or_else(|| shared::context::ServerContext::edit_grid_step(map.subdivisions) * 0.08);
     (width, height)
 }
 
@@ -541,7 +541,7 @@ fn apply_surface_relief(
 }
 
 fn load_default_dimensions(nodeui: &mut TheNodeUI, map: &Map) {
-    let step = ServerContext::edit_grid_step(map.subdivisions);
+    let step = shared::context::ServerContext::edit_grid_step(map.subdivisions);
     nodeui.set_f32_value("actionCreateRidgeWidth", (step * 0.12).max(0.01));
     nodeui.set_f32_value("actionCreateRidgeHeight", (step * 0.08).max(0.01));
 }

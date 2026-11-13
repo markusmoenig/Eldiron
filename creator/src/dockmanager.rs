@@ -476,16 +476,14 @@ impl DockManager {
             if let Some((center, distance)) =
                 crate::block_props::prefab_editor_camera_frame(project)
             {
-                let mut camera = crate::editor::EDITCAMERA.write().unwrap();
+                let camera = &mut server_ctx.camera;
                 self.prefab_return_orbit =
                     Some((camera.orbit_camera.center, camera.orbit_camera.distance));
                 camera.orbit_camera.center = center;
                 camera.orbit_camera.distance = distance;
             }
             {
-                let camera = crate::editor::EDITCAMERA
-                    .read()
-                    .unwrap()
+                let camera = server_ctx.camera
                     .orbit_camera
                     .clone();
                 let mut rusterix = crate::editor::RUSTERIX.write().unwrap();
@@ -691,7 +689,7 @@ impl DockManager {
         // used to leave `server_ctx.pc` pointing at the hidden PrefabView.
         if let Some((pc, view_mode, region_id)) = self.prefab_return_context.take() {
             if let Some((center, distance)) = self.prefab_return_orbit.take() {
-                let mut camera = crate::editor::EDITCAMERA.write().unwrap();
+                let camera = &mut server_ctx.camera;
                 camera.orbit_camera.center = center;
                 camera.orbit_camera.distance = distance;
             }

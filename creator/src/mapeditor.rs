@@ -1,4 +1,4 @@
-use crate::editor::{EDITCAMERA, RUSTERIX, SIDEBARMODE, UNDOMANAGER};
+use crate::editor::{RUSTERIX, SIDEBARMODE, UNDOMANAGER};
 use crate::prelude::*;
 use rusterix::Value;
 use vek::{Vec2, Vec3};
@@ -357,7 +357,7 @@ impl MapEditor {
             return pos;
         }
         if let Some((min, max)) = Self::selected_geometry_bbox_xz(map) {
-            let step = ServerContext::edit_grid_step(map.subdivisions).max(0.01);
+            let step = shared::context::ServerContext::edit_grid_step(map.subdivisions).max(0.01);
             return Vec2::new(max.x + step, min.y);
         }
         Vec2::zero()
@@ -778,10 +778,8 @@ impl MapEditor {
                             } else {
                                 if server_ctx.editor_view_mode != EditorViewMode::D2 {
                                     if ui.ctrl || ui.logo {
-                                        EDITCAMERA
-                                            .write()
-                                            .unwrap()
-                                            .scroll_by(coord.y as f32, server_ctx);
+                                        server_ctx.camera
+                                            .scroll_by(coord.y as f32, &mut server_ctx.shared);
                                     } else if server_ctx.editor_view_mode == EditorViewMode::FirstP
                                         && (precise_trackpad_scroll || ui.shift)
                                     {
@@ -808,9 +806,7 @@ impl MapEditor {
                                                 pan_delta
                                             };
                                             if server_ctx.pc.is_prefab() {
-                                                EDITCAMERA
-                                                    .write()
-                                                    .unwrap()
+                                                server_ctx.camera
                                                     .pan_prefab_by_delta(pan_delta, view_size);
                                             } else if let Some(region) =
                                                 project.get_region_mut(&server_ctx.curr_region)
@@ -819,33 +815,27 @@ impl MapEditor {
                                                     && server_ctx.editor_view_mode
                                                         == EditorViewMode::Orbit
                                                 {
-                                                    EDITCAMERA
-                                                        .read()
-                                                        .unwrap()
+                                                    server_ctx.camera
                                                         .pan_orbit_screen_by_delta(
                                                             region, pan_delta, view_size,
                                                         );
                                                 } else {
-                                                    EDITCAMERA.read().unwrap().pan_3d_by_delta_f32(
+                                                    server_ctx.camera.pan_3d_by_delta_f32(
                                                         region, server_ctx, pan_delta, view_size,
                                                     );
                                                 }
                                             }
                                         }
                                     } else if ui.alt {
-                                        EDITCAMERA
-                                            .write()
-                                            .unwrap()
-                                            .rotate(coord.map(|v| v as f32), server_ctx);
+                                        server_ctx.camera
+                                            .rotate(coord.map(|v| v as f32), &mut server_ctx.shared);
                                     } else {
-                                        EDITCAMERA
-                                            .write()
-                                            .unwrap()
-                                            .scroll_by(coord.y as f32, server_ctx);
+                                        server_ctx.camera
+                                            .scroll_by(coord.y as f32, &mut server_ctx.shared);
                                     }
                                     if server_ctx.pc.is_prefab() {
                                         let camera =
-                                            EDITCAMERA.read().unwrap().orbit_camera.clone();
+                                            server_ctx.camera.orbit_camera.clone();
                                         RUSTERIX
                                             .write()
                                             .unwrap()
@@ -891,12 +881,10 @@ impl MapEditor {
                 {
                     // NSEvent magnification is a small relative value. Scale it
                     // into the same useful range as the established wheel zoom.
-                    EDITCAMERA
-                        .write()
-                        .unwrap()
-                        .scroll_by(*delta * 20.0, server_ctx);
+                    server_ctx.camera
+                        .scroll_by(*delta * 20.0, &mut server_ctx.shared);
                     if server_ctx.pc.is_prefab() {
-                        let camera = EDITCAMERA.read().unwrap().orbit_camera.clone();
+                        let camera = server_ctx.camera.orbit_camera.clone();
                         RUSTERIX
                             .write()
                             .unwrap()
@@ -931,7 +919,7 @@ impl MapEditor {
                     if let Some(value) = value.to_i32() {
                         if let Some(map) = project.get_map_mut(server_ctx) {
                             map.subdivisions =
-                                (1.0 / ServerContext::edit_grid_step(value as f32)).round();
+                                (1.0 / shared::context::ServerContext::edit_grid_step(value as f32)).round();
                         }
                     }
                 }

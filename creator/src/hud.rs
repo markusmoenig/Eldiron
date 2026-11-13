@@ -282,7 +282,7 @@ impl Hud {
     }
 
     fn active_grid_subdivision(subdivisions: f32) -> usize {
-        let step = ServerContext::edit_grid_step(subdivisions);
+        let step = shared::context::ServerContext::edit_grid_step(subdivisions);
         ((1.0 / step).round() as usize).clamp(1, 32)
     }
 

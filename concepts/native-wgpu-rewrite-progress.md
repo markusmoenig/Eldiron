@@ -8669,3 +8669,92 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   narrow shared-server context APIs, tools/actions and per-document reset policy.
   Other RUSTERIX/SCENEMANAGER/tool/dock globals and remaining adapters/budgets/
   full-platform gates remain open. No M0–M9 completion claim.
+
+
+### Creator camera ownership migration (active, uncommitted)
+
+- Input checkpoint1d400a66 contains10 files/286 insertions, preserving unrelated
+  networking concept. Continue full Goal.
+- Added CreatorContext owning the existing shared CPU context plus EditCamera;
+  removed EDITCAMERA static and replaced its96 references with explicit owner
+  field access. Native world bind/invalidate/device reset and ViewCube snapping
+  now take a narrow camera borrow rather than accessing a global.
+- Transitional Creator prelude ServerContext spelling aliases CreatorContext
+  while controller signatures migrate (162 source files contained the spelling
+  at this checkpoint). Shared CPU APIs retain shared::context::ServerContext;
+  EditCamera's policies explicitly borrow that narrow context. CPU static grid
+  helpers are referenced explicitly from shared; pixel-tool trait implementations
+  retain their shared-only context. This does not move camera state into shared
+  or serialize a new value. Existing per-map saved camera values/reset behavior
+  must be verified; owner migration is NOT yet acceptance.
+- First native check failed74 diagnostics, primarily wrong shared root export,
+  static methods not inherited through Deref, four pixel-tool trait type mismatches,
+  plus explicit camera/context borrow splits still required. Fixed root paths,
+  narrowed pixel-tool imports, static CPU helper references and a server variable.
+  Second check running: /private/tmp/eldiron-owned-camera-check-2.log. Need resolve
+  borrow/type failures, preserve all source behavior, add owner independence to
+  existing camera/workflow coverage, compile native/reference/browser/staticlib,
+  run focused then assembled integration/actual browser navigation/document tests.
+- No EDITCAMERA references remain in Creator source, but uncompiled source is
+  not a verified retirement. Do not checkpoint this owner batch until it builds
+  and the actual camera/tools/serialization workflows pass. Other globals and
+  all remaining M0–M9 acceptance remain open.
+
+- Camera native compile now PASS9.17s (owned-camera-check-4.log). Second check
+  reduced74→23 diagnostics, then explicit shared/camera disjoint borrows reduced
+  to one pan call; all fixed without interior mutability or new global storage.
+  apply_palette and pixel editor tools retain narrow shared CPU contexts; static
+  snapping/grid helpers explicitly call shared context algorithms. Additional
+  Deref field splitting keeps entity/item drag undo semantics unchanged.
+- Extended EXISTING assembled Creator test with two CPU authoring contexts:
+  changing/resetting another context cannot steer or cancel this application's
+  camera/fly movement. Existing actual ViewCube/paint-camera/reset/document cases
+  now inspect the owner directly. Native test build underway; compiler checks
+  are not functional acceptance. Need inspect test-only type/borrow diagnostics,
+  then focused camera path/full assembled integration as appropriate, reference/
+  WASM/staticlib boundary builds and actual browser/document camera workflows.
+
+- Test-only compile caught14 issues after native production compile: one free
+  documentation-capture function needed capture.editor ownership; NativeApp's
+  tests could not read private Editor context directly; new test helper types
+  were out of scope. Fixed with narrow cfg(test) Editor camera access/independence
+  helpers, preserving production field privacy; no public context exposure added.
+  Native test build PASSED22.71s (owned-camera-native-build.log). Initial build
+  invocation reused the previous batch's build-log filenames; camera logs copied
+  under owned-camera prefix and subsequent builds use a dedicated script. Input
+  batch's assembled/Swift/browser runtime evidence files remain distinct.
+- Full owned-camera assembled Metal workflow now running. Independent reference
+  and staticlib builds and optimized browser packaging are running/queued, using
+  stable source after borrow fixes. No functional/camera ownership acceptance yet.
+  Keep the explicit transitional context type spelling ledger; do not perform a
+  noisy162-file annotation rename while ownership tests are pending.
+
+- Owned-camera full assembled Metal PASSED1/134.41s, including new CPU-context
+  independence, actual Vertex/ViewCube/3D Paint draft cancellation, source/DPI,
+  document and Play cases. Reference compile9.63s, actual staticlib49.43s and
+  optimized browser42.22s/package98,006,960B passed. Real Swift linked host also
+  PASSED its surface/handle/document/PNG transactions and destroy/recreate check
+  against this staticlib (owned-camera-swift-host-{link,runtime}.log).
+- Actual browser unmodified3DStarter doc1e9c2df2-a8a5-4172-b774-a53c9f0a049f:
+  bootstrap idle loss gen1→2 retained exact initial camera; hover stable, accepted
+  right-drag moves5.01486969/0.30367547→5.15655327/0.79169720; release stops motion.
+  In-flight gesture device loss gen2→3 retires capture, preserves position. Real
+  Play sessionfe92532c-d2c6-4d05-95ec-7c916ab6613c gen3→4 retains session/ticks8→9;
+  Stop/Save leaves authoring camera unchanged. Two actual OPFS saves before/after
+  Play are byte-identical1,448,880B SHA256
+  2e8d1c37e428f0d92b6c85fef972f9d54c7887ecb28d5c520d4b03f8f9953891;
+  parsed WHOLE project.json equal too. Unsaved CJK rename then canceled unload
+  preserves dirty original document.60 presentations/devices4 exactly/gen4,
+  root/readback/normal color copies/Canvas2D0/errors[]. Logs owned-camera-browser-
+  {bootstrap,navigation}.log; archives owned-camera-browser-{before,after}.eldiron
+  under /private/tmp. Controlled task browser/OPFS; no physical window acceptance.
+- Camera source has zero EDITCAMERA references/static locks. NativeWorld receives
+  explicit camera borrows for invalidation, recovery and cube operations. Kept
+  the declared source-compatibility Creator ServerContext alias during staged
+  controller conversion;162-file spelling inventory above is an M5 ledger item,
+  not evidence that all context/global ownership migration is complete. Final
+  formatting touched only new helper methods/module, no full editor/world format.
+- Camera batch ready for local checkpoint. Next inventory remaining RUSTERIX/
+  SCENEMANAGER and application tool/dock ownership; continue retiring canonical
+  renderer/CPU display adapters, then full source/workflow/resource/release/platform
+  acceptance. Full Goal remains ACTIVE, all unverified platform gates stay open.

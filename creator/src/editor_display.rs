@@ -269,7 +269,7 @@ impl EditorDisplaySession {
 
     fn effective_grid_step(&self) -> f32 {
         self.grid_subdivisions
-            .map(ServerContext::edit_grid_step)
+            .map(shared::context::ServerContext::edit_grid_step)
             .unwrap_or_else(|| self.profile().grid_step)
             .max(0.0001)
     }

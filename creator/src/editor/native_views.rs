@@ -276,7 +276,7 @@ impl Editor {
         self.sidebar.minimap_palette.invalidate(ui);
         self.native_viewport.play.invalidate(ui);
         self.invalidate_native_display_viewport(ui);
-        self.native_viewport.world.device_reset(ui);
+        self.native_viewport.world.device_reset(ui, &mut self.server_ctx.camera);
         self.geometry_editor.invalidate_gpu_preview(ui);
         self.appearance_workspace.invalidate_gpu_preview(ui);
         self.procedural_material.invalidate_gpu_preview(ui);

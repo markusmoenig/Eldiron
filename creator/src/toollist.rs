@@ -585,7 +585,7 @@ impl ToolList {
                 .map(|region| region.editing_position_3d)
         };
         let camera = {
-            let mut edit_camera = crate::editor::EDITCAMERA.write().unwrap();
+            let edit_camera = &mut server_ctx.camera;
             crate::viewcube::ViewCube::snap_camera(&mut edit_camera.orbit_camera, face);
             edit_camera.reset_mouse_tracking();
             let mut camera = edit_camera.orbit_camera.clone();
@@ -627,7 +627,7 @@ impl ToolList {
         }
         let dim = crate::utils::map_editor_render_view(ui, server_ctx)
             .map(|render_view| *render_view.dim())?;
-        let edit_camera = crate::editor::EDITCAMERA.read().unwrap();
+        let edit_camera = &server_ctx.camera;
         crate::viewcube::ViewCube::hit_test(coord, dim, &edit_camera.orbit_camera)
     }
 
@@ -765,7 +765,7 @@ impl ToolList {
         self.update_map_context(ui,ctx,project,server,undo);
         #[cfg(target_os="macos")]
         { self.macos_primary_orbit_drag = None; }
-        crate::editor::EDITCAMERA.write().unwrap().reset_mouse_tracking();
+        server.camera.reset_mouse_tracking();
         ctx.ui.redraw_all = true;
     }
     fn current_tool_map_event(
@@ -2561,9 +2561,7 @@ impl ToolList {
         self.game_tools[self.curr_game_tool].draw_hud(buffer, map, ctx, server_ctx, assets);
         crate::hud::Hud::draw_shortcut_guidance(buffer, map, ctx, server_ctx);
         if server_ctx.editor_view_mode == EditorViewMode::Orbit {
-            let camera = crate::editor::EDITCAMERA
-                .read()
-                .unwrap()
+            let camera = server_ctx.camera
                 .orbit_camera
                 .clone();
             crate::viewcube::ViewCube::draw(buffer, ctx, &camera);
@@ -2725,7 +2723,7 @@ impl ToolList {
                             );
                             if prev_mode == EditorViewMode::Iso {
                                 let iso_scale =
-                                    crate::editor::EDITCAMERA.read().unwrap().iso_camera.scale();
+                                    server_ctx.camera.iso_camera.scale();
                                 server_ctx
                                     .store_edit_view_iso_scale_for_map(region.map.id, iso_scale);
                             }
@@ -2734,9 +2732,7 @@ impl ToolList {
                                     region.editing_position_iso_3d =
                                         Some(region.editing_position_3d);
                                     region.editing_look_at_iso_3d = Some(region.editing_look_at_3d);
-                                    let iso_scale = crate::editor::EDITCAMERA
-                                        .read()
-                                        .unwrap()
+                                    let iso_scale = server_ctx.camera
                                         .iso_camera
                                         .scale();
                                     region.editing_iso_scale = Some(iso_scale);
@@ -2747,9 +2743,7 @@ impl ToolList {
                                     region.editing_look_at_orbit_3d =
                                         Some(region.editing_look_at_3d);
                                     region.editing_orbit_distance = Some(
-                                        crate::editor::EDITCAMERA
-                                            .read()
-                                            .unwrap()
+                                        server_ctx.camera
                                             .orbit_camera
                                             .distance,
                                     );
@@ -2773,7 +2767,7 @@ impl ToolList {
                     if new_mode != EditorViewMode::FirstP {
                         server_ctx.editor_fly_nav_active = false;
                         server_ctx.editor_fly_nav_space_down = false;
-                        let mut edit_camera = crate::editor::EDITCAMERA.write().unwrap();
+                        let edit_camera = &mut server_ctx.camera;
                         edit_camera.move_action = None;
                         edit_camera.reset_mouse_tracking();
                     }
@@ -2823,18 +2817,14 @@ impl ToolList {
                                 && let Some(iso_scale) =
                                     server_ctx.load_edit_view_iso_scale_for_map(region.map.id)
                             {
-                                crate::editor::EDITCAMERA
-                                    .write()
-                                    .unwrap()
+                                server_ctx.camera
                                     .iso_camera
                                     .set_parameter_f32("scale", iso_scale);
                             }
                             if new_mode == EditorViewMode::Orbit
                                 && let Some(distance) = region.editing_orbit_distance
                             {
-                                crate::editor::EDITCAMERA
-                                    .write()
-                                    .unwrap()
+                                server_ctx.camera
                                     .orbit_camera
                                     .set_parameter_f32("distance", distance);
                             }
@@ -2849,9 +2839,7 @@ impl ToolList {
                                         region.editing_look_at_3d = look;
                                     }
                                     if let Some(iso_scale) = region.editing_iso_scale {
-                                        crate::editor::EDITCAMERA
-                                            .write()
-                                            .unwrap()
+                                        server_ctx.camera
                                             .iso_camera
                                             .set_parameter_f32("scale", iso_scale);
                                     }
@@ -2865,9 +2853,7 @@ impl ToolList {
                                         region.editing_look_at_3d = look;
                                     }
                                     if let Some(distance) = region.editing_orbit_distance {
-                                        crate::editor::EDITCAMERA
-                                            .write()
-                                            .unwrap()
+                                        server_ctx.camera
                                             .orbit_camera
                                             .set_parameter_f32("distance", distance);
                                     }
@@ -2938,7 +2924,7 @@ impl ToolList {
                         _ => None,
                     };
                     if let Some(action) = action {
-                        crate::editor::EDITCAMERA.write().unwrap().move_action = Some(action);
+                        server_ctx.camera.move_action = Some(action);
                         ctx.ui.redraw_all = true;
                         return true;
                     }
@@ -3439,9 +3425,7 @@ impl ToolList {
                             server_ctx.editor_fly_nav_space_down = true;
                             server_ctx.editor_fly_nav_mouse_down = false;
                             server_ctx.editor_fly_nav_active = !server_ctx.editor_fly_nav_active;
-                            crate::editor::EDITCAMERA
-                                .write()
-                                .unwrap()
+                            server_ctx.camera
                                 .reset_mouse_tracking();
                             ctx.ui.send(TheEvent::SetStatusText(
                                 TheId::empty(),
@@ -3495,7 +3479,7 @@ impl ToolList {
                                     server_ctx.editor_fly_nav_active = false;
                                     server_ctx.editor_fly_nav_mouse_down = false;
                                     server_ctx.editor_fly_nav_space_down = false;
-                                    crate::editor::EDITCAMERA.write().unwrap().move_action = None;
+                                    server_ctx.camera.move_action = None;
                                     ctx.ui.send(TheEvent::SetStatusText(
                                         TheId::empty(),
                                         fl!("status_firstp_fly_nav_off"),
@@ -3544,7 +3528,7 @@ impl ToolList {
                     && !server_ctx.game_input_mode
                     && matches!(c.to_ascii_lowercase(), 'w' | 'a' | 's' | 'd')
                 {
-                    crate::editor::EDITCAMERA.write().unwrap().move_action = None;
+                    server_ctx.camera.move_action = None;
                     ctx.ui.redraw_all = true;
                     return true;
                 }
@@ -3574,9 +3558,7 @@ impl ToolList {
                                     from_viewcube: true,
                                     orbiting: false,
                                 });
-                                crate::editor::EDITCAMERA
-                                    .write()
-                                    .unwrap()
+                                server_ctx.camera
                                     .mouse_dragged_orbit(coord);
                                 return true;
                             }
@@ -3709,9 +3691,7 @@ impl ToolList {
                                 from_viewcube: false,
                                 orbiting: false,
                             });
-                            crate::editor::EDITCAMERA
-                                .write()
-                                .unwrap()
+                            server_ctx.camera
                                 .mouse_dragged_orbit(coord);
                         }
 
@@ -3758,9 +3738,7 @@ impl ToolList {
                     && !server_ctx.game_input_mode
                     && server_ctx.editor_view_mode != EditorViewMode::D2
                 {
-                    crate::editor::EDITCAMERA
-                        .write()
-                        .unwrap()
+                    server_ctx.camera
                         .reset_mouse_tracking();
 
                     if server_ctx.editor_view_mode == EditorViewMode::FirstP {
@@ -3768,9 +3746,7 @@ impl ToolList {
                         server_ctx.editor_fly_nav_mouse_down = true;
                         server_ctx.editor_fly_nav_space_down = false;
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                            crate::editor::EDITCAMERA
-                                .write()
-                                .unwrap()
+                            server_ctx.camera
                                 .mouse_dragged_firstp(region, coord);
                         }
                         ctx.ui.send(TheEvent::SetStatusText(
@@ -3791,9 +3767,7 @@ impl ToolList {
                     {
                         if server_ctx.editor_fly_nav_mouse_down {
                             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                                crate::editor::EDITCAMERA
-                                    .write()
-                                    .unwrap()
+                                server_ctx.camera
                                     .mouse_dragged_firstp(region, coord);
                             }
                         } else if let Some(view_size) =
@@ -3802,9 +3776,7 @@ impl ToolList {
                                 Vec2::new(dim.width, dim.height)
                             })
                         {
-                            crate::editor::EDITCAMERA
-                                .write()
-                                .unwrap()
+                            server_ctx.camera
                                 .set_fly_pointer(coord, view_size);
                         }
                         crate::editor::RUSTERIX.write().unwrap().set_dirty();
@@ -3826,13 +3798,13 @@ impl ToolList {
 
                         if navigation.orbiting {
                             let prefab_camera = {
-                                let mut edit_camera = crate::editor::EDITCAMERA.write().unwrap();
+                                let edit_camera = &mut server_ctx.camera;
                                 if navigation.from_viewcube {
                                     edit_camera.mouse_dragged_viewcube_macos_primary(coord);
                                 } else {
                                     edit_camera.mouse_dragged_orbit_macos_primary(coord);
                                 }
-                                server_ctx
+                                server_ctx.shared
                                     .pc
                                     .is_prefab()
                                     .then(|| edit_camera.orbit_camera.clone())
@@ -3872,9 +3844,9 @@ impl ToolList {
 
                         if orbit_drag {
                             let prefab_camera = {
-                                let mut edit_camera = crate::editor::EDITCAMERA.write().unwrap();
+                                let edit_camera = &mut server_ctx.camera;
                                 edit_camera.mouse_dragged_orbit(coord);
-                                server_ctx
+                                server_ctx.shared
                                     .pc
                                     .is_prefab()
                                     .then(|| edit_camera.orbit_camera.clone())
@@ -3899,8 +3871,7 @@ impl ToolList {
                             let dim = *render_view.dim();
                             if server_ctx.pc.is_prefab() {
                                 let camera = {
-                                    let mut edit_camera =
-                                        crate::editor::EDITCAMERA.write().unwrap();
+                                    let edit_camera = &mut server_ctx.camera;
                                     edit_camera
                                         .mouse_dragged_pan_prefab(coord, Vec2::new(dim.x, dim.y));
                                     edit_camera.orbit_camera.clone()
@@ -3917,12 +3888,10 @@ impl ToolList {
                             } else if let Some(region) =
                                 project.get_region_mut(&server_ctx.curr_region)
                             {
-                                crate::editor::EDITCAMERA
-                                    .write()
-                                    .unwrap()
+                                server_ctx.camera
                                     .mouse_dragged_pan_3d(
                                         region,
-                                        server_ctx,
+                                        &server_ctx.shared,
                                         coord,
                                         Vec2::new(dim.x, dim.y),
                                     );
@@ -3990,9 +3959,7 @@ impl ToolList {
                             server_ctx.editor_fly_nav_active = false;
                             server_ctx.editor_fly_nav_mouse_down = false;
                             server_ctx.editor_fly_nav_space_down = false;
-                            crate::editor::EDITCAMERA
-                                .write()
-                                .unwrap()
+                            server_ctx.camera
                                 .reset_mouse_tracking();
                             ctx.ui.send(TheEvent::SetStatusText(
                                 TheId::empty(),
@@ -4005,9 +3972,7 @@ impl ToolList {
                     }
                     #[cfg(target_os = "macos")]
                     if let Some(navigation) = self.macos_primary_orbit_drag.take() {
-                        crate::editor::EDITCAMERA
-                            .write()
-                            .unwrap()
+                        server_ctx.camera
                             .reset_mouse_tracking();
                         if navigation.from_viewcube {
                             if !navigation.orbiting {
@@ -4023,9 +3988,7 @@ impl ToolList {
                         }
                     }
                     if server_ctx.editor_view_mode != EditorViewMode::D2 {
-                        crate::editor::EDITCAMERA
-                            .write()
-                            .unwrap()
+                        server_ctx.camera
                             .reset_mouse_tracking();
                     }
 
@@ -4060,30 +4023,30 @@ impl ToolList {
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                             let mut move_atoms: Vec<ProjectUndoAtom> = Vec::new();
 
-                            for (id, (from, to)) in server_ctx.moved_entities.drain() {
+                            for (id, (from, to)) in server_ctx.shared.moved_entities.drain() {
                                 if from != to {
                                     if let Some(instance) = region.characters.get_mut(&id) {
                                         instance.position = to;
                                     }
                                     move_atoms.push(ProjectUndoAtom::MoveRegionCharacterInstance(
-                                        server_ctx.curr_region,
+                                        server_ctx.shared.curr_region,
                                         id,
                                         from,
                                         to,
                                     ));
                                 }
                             }
-                            for (id, (from, to)) in server_ctx.moved_items.drain() {
+                            for (id, (from, to)) in server_ctx.shared.moved_items.drain() {
                                 if from != to {
                                     if let Some(instance) = region.items.get_mut(&id) {
                                         instance.position = to;
                                     }
-                                    let (old_surface, new_surface) = server_ctx
+                                    let (old_surface, new_surface) = server_ctx.shared
                                         .moved_item_surface_placements
                                         .remove(&id)
                                         .unwrap_or((None, None));
                                     move_atoms.push(ProjectUndoAtom::MoveRegionItemInstance(
-                                        server_ctx.curr_region,
+                                        server_ctx.shared.curr_region,
                                         id,
                                         from,
                                         to,
@@ -4092,7 +4055,7 @@ impl ToolList {
                                     ));
                                 }
                             }
-                            server_ctx.moved_item_surface_placements.clear();
+                            server_ctx.shared.moved_item_surface_placements.clear();
 
                             for atom in move_atoms {
                                 UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
@@ -4119,9 +4082,7 @@ impl ToolList {
                                     Vec2::new(dim.width, dim.height)
                                 })
                         {
-                            crate::editor::EDITCAMERA
-                                .write()
-                                .unwrap()
+                            server_ctx.camera
                                 .set_fly_pointer(coord, view_size);
                             crate::editor::RUSTERIX.write().unwrap().set_dirty();
                             ctx.ui.redraw_all = true;
@@ -4186,7 +4147,7 @@ impl ToolList {
             //     if id.name == "PolyView" {
             //         if server_ctx.editor_view_mode == EditorViewMode::Iso {
             //             if ui.ctrl || ui.logo {
-            //                 EDITCAMERA.write().unwrap().scroll_by(coord.y as f32);
+            //                 server_ctx.camera.scroll_by(coord.y as f32);
             //             }
             //         }
             //     }

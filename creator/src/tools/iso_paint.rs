@@ -1683,7 +1683,7 @@ impl Tool for IsoPaintTool {
                         .as_ref()
                         .and_then(|buffer| self.selection_projection(buffer, coord, &region.map));
                     self.selection_grid_step =
-                        ServerContext::edit_grid_step(region.map.subdivisions).max(0.01);
+                        shared::context::ServerContext::edit_grid_step(region.map.subdivisions).max(0.01);
                     let selection_grid_step = self.selection_grid_step;
                     self.selection_move_bounds = self
                         .paint_surface_cache

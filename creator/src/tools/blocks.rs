@@ -47,7 +47,7 @@ enum SupportedPropPlacement {
 
 impl BlockTool {
     fn sizing_step(map: &Map) -> f32 {
-        ServerContext::edit_grid_step(map.subdivisions).max(0.01)
+        shared::context::ServerContext::edit_grid_step(map.subdivisions).max(0.01)
     }
 
     fn stepped_size(value: f32, step: f32, direction: f32, minimum: f32) -> f32 {

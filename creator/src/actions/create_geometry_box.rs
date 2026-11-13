@@ -332,7 +332,7 @@ impl CreateGeometryBox {
         server_ctx: &mut ServerContext,
         size: Vec3<f32>,
     ) -> Option<(Vec3<f32>, Vec3<f32>)> {
-        let step = ServerContext::edit_grid_step(map.subdivisions);
+        let step = shared::context::ServerContext::edit_grid_step(map.subdivisions);
         if !map.selected_geometry_vertices.is_empty() {
             let (anchor, normal, face_min, face_max) = Self::selected_edge_face_anchor(map)?;
             let size = Self::size_for_anchor(size, step, normal, face_min, face_max, true);
@@ -411,7 +411,7 @@ impl Action for CreateGeometryUnitBox {
         } else if let Some((anchor, normal, _, _)) = CreateGeometryBox::selected_face_anchor(map) {
             CreateGeometryBox::unit_box_bounds_from_face_anchor(anchor, normal)
         } else {
-            let step = ServerContext::edit_grid_step(map.subdivisions);
+            let step = shared::context::ServerContext::edit_grid_step(map.subdivisions);
             let position = CreateGeometryBox::viewport_center_position(ui, server_ctx)
                 .or(map.curr_grid_pos_3d)
                 .unwrap_or(server_ctx.geo_hit_pos);
@@ -520,7 +520,7 @@ impl Action for CreateGeometryBox {
     }
 
     fn load_params(&mut self, map: &Map) {
-        let step = ServerContext::edit_grid_step(map.subdivisions);
+        let step = shared::context::ServerContext::edit_grid_step(map.subdivisions);
         let size = Self::size_for_params(map, step);
         self.nodeui.set_f32_value("actionGeometryWidth", size.x);
         self.nodeui.set_f32_value("actionGeometryHeight", size.y);
@@ -535,7 +535,7 @@ impl Action for CreateGeometryBox {
         server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
         let prev = map.clone();
-        let step = ServerContext::edit_grid_step(map.subdivisions);
+        let step = shared::context::ServerContext::edit_grid_step(map.subdivisions);
         let mut size = Vec3::new(
             self.nodeui
                 .get_f32_value("actionGeometryWidth")

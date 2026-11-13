@@ -682,7 +682,8 @@ mod tests {
             if std::env::var_os("ELDIRON_NATIVE_NODE_SOURCE_ISOLATED").is_some() {
                 assert!(crate::editor::reference_runtime().is_none());
                 assert!(std::sync::LazyLock::get(&crate::editor::SCENEMANAGER).is_none());
-                assert!(std::sync::LazyLock::get(&crate::editor::EDITCAMERA).is_none());
+
+                // Authoring cameras are CPU values owned by each Creator context.
             }
         }
     }

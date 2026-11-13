@@ -404,7 +404,7 @@ impl Action for CutStairs {
     }
 
     fn load_params(&mut self, map: &Map) {
-        let step = ServerContext::edit_grid_step(map.subdivisions);
+        let step = shared::context::ServerContext::edit_grid_step(map.subdivisions);
         self.nodeui
             .set_f32_value("actionCutStairsStepHeight", step.max(0.01));
         self.nodeui.set_f32_value("actionCutStairsLanding", 0.0);
@@ -420,7 +420,7 @@ impl Action for CutStairs {
         let step_height = self
             .nodeui
             .get_f32_value("actionCutStairsStepHeight")
-            .unwrap_or_else(|| ServerContext::edit_grid_step(map.subdivisions))
+            .unwrap_or_else(|| shared::context::ServerContext::edit_grid_step(map.subdivisions))
             .max(0.01);
         let landing = self
             .nodeui

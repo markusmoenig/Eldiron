@@ -18,6 +18,7 @@ mod reference_state;
 mod scene_source;
 pub mod docks;
 pub mod editcamera;
+pub mod creator_context;
 pub mod editor;
 #[cfg(feature = "native-render")]
 pub mod native_application;
@@ -69,6 +70,8 @@ pub mod prelude {
     pub use ::serde::{Deserialize, Serialize};
 
     pub use shared::prelude::*;
+    // Transitional controller spelling; the owner is now Creator-specific.
+    pub use crate::creator_context::{CreatorContext, CreatorContext as ServerContext};
     pub use std::sync::{LazyLock, RwLock};
     pub use theframework::prelude::*;
 

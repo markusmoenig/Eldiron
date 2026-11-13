@@ -2574,7 +2574,7 @@ pub fn surface_prefab_preview_instance(
     }
     if asset.placement.mode == rusterix::BlockPropPlacementMode::AnySurface && normal.y.abs() > 0.72
     {
-        let step = ServerContext::edit_grid_step(map.subdivisions).max(0.01);
+        let step = shared::context::ServerContext::edit_grid_step(map.subdivisions).max(0.01);
         hit.x = (hit.x / step).round() * step;
         hit.z = (hit.z / step).round() * step;
     }
@@ -2909,7 +2909,7 @@ pub fn block_tool_horizontal_grid_step(
         && block_asset(asset_id).is_none()
         && (prefab_assets.contains_key(&asset_id) || server_ctx.block_recipe_template.is_some())
     {
-        return ServerContext::edit_grid_step(map.subdivisions).max(0.01);
+        return shared::context::ServerContext::edit_grid_step(map.subdivisions).max(0.01);
     }
 
     server_ctx.block_grid_cell_size.max(0.05)

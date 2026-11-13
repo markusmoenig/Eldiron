@@ -1009,7 +1009,7 @@ pub fn refresh_palette_runtime(project: &Project) {
 pub fn apply_palette(
     ui: &mut TheUI,
     ctx: &mut TheContext,
-    server_ctx: &mut ServerContext,
+    server_ctx: &mut shared::context::ServerContext,
     project: &mut Project,
 ) {
     if project.palette.current_index as usize >= project.palette.colors.len() {

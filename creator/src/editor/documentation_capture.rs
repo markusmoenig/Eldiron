@@ -330,7 +330,7 @@ fn capture_3d(capture: &mut Capture, root: &std::path::Path) {
         let center = (lo + hi) * 0.5;
         region.editing_position_3d = center;
         region.editing_look_at_3d = center;
-        EDITCAMERA.write().unwrap().iso_camera.scale = ((hi.x - lo.x + hi.z - lo.z) * 0.4).max(4.);
+        capture.editor.server_ctx.camera.iso_camera.scale = ((hi.x - lo.x + hi.z - lo.z) * 0.4).max(4.);
     }
     capture.save("3d-editor");
     capture.tool("tool.iso_paint");

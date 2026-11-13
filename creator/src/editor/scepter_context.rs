@@ -47,7 +47,7 @@ impl Editor {
         // while acquiring another. Tool operations take these locks in the
         // opposite order when switching cameras.
         let camera_parameters = {
-            let cameras = EDITCAMERA.read().unwrap();
+            let cameras = &self.server_ctx.camera;
             json!({"iso_scale":cameras.iso_camera.scale,"iso_azimuth":cameras.iso_camera.azimuth_deg,"iso_elevation":cameras.iso_camera.elevation_deg,"orbit_distance":cameras.orbit_camera.distance})
         };
         let viewport = ui.get_widget("PolyView").map(|w| {
@@ -367,7 +367,7 @@ impl Editor {
             );
         } else {
             use rusterix::D3Camera;
-            let mut cameras = EDITCAMERA.write().unwrap();
+            let cameras = &mut self.server_ctx.camera;
             if let Some(scale) = c.scale {
                 cameras.iso_camera.set_parameter_f32("scale", scale);
                 cameras.orbit_camera.set_parameter_f32("distance", scale);
@@ -392,7 +392,7 @@ impl Editor {
                 EditorViewMode::Iso => {
                     region.editing_position_iso_3d = Some(region.editing_position_3d);
                     region.editing_look_at_iso_3d = Some(region.editing_look_at_3d);
-                    let scale = EDITCAMERA.read().unwrap().iso_camera.scale;
+                    let scale = self.server_ctx.camera.iso_camera.scale;
                     region.editing_iso_scale = Some(scale);
                     self.server_ctx
                         .store_edit_view_iso_scale_for_map(region.map.id, scale);
@@ -401,7 +401,7 @@ impl Editor {
                     region.editing_position_orbit_3d = Some(region.editing_position_3d);
                     region.editing_look_at_orbit_3d = Some(region.editing_look_at_3d);
                     region.editing_orbit_distance =
-                        Some(EDITCAMERA.read().unwrap().orbit_camera.distance);
+                        Some(self.server_ctx.camera.orbit_camera.distance);
                 }
                 EditorViewMode::FirstP => {
                     region.editing_position_firstp_3d = Some(region.editing_position_3d);
@@ -429,7 +429,7 @@ impl Editor {
             return Err("editor_view requires the current map region".into());
         }
         let r = &self.documents.project.regions[i];
-        let cameras = EDITCAMERA.read().unwrap();
+        let cameras = &self.server_ctx.camera;
         let d = ui
             .get_widget("PolyView")
             .map(|w| w.dim().clone())

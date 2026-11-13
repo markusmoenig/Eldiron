@@ -369,6 +369,7 @@ mod tests {
         // External services are unrelated to offscreen UI verification.
         application.start_services = false;
         let mut app = UiApplicationAdapter::new(application);
+        app.application.editor.check_camera_ownership_for_test();
         let mut host = HostContext::new((1200, 800));
         app.initialize(&mut host, &mut registry).unwrap();
         let authored =
@@ -736,9 +737,7 @@ mod tests {
                 .dim();
             let cube_point = Vec2::new(dim.width - 52, 102);
             let cube_click = TheEvent::RenderViewClicked(world_view.clone(), cube_point);
-            let pose = crate::editor::EDITCAMERA
-                .read()
-                .unwrap()
+            let pose = app.application.editor.authoring_camera_for_test()
                 .orbit_camera
                 .as_scenevm_camera();
             if camera_index == 2 {
@@ -748,9 +747,7 @@ mod tests {
                     &mut app.session.context
                 ));
                 assert_eq!(
-                    crate::editor::EDITCAMERA
-                        .read()
-                        .unwrap()
+                    app.application.editor.authoring_camera_for_test()
                         .orbit_camera
                         .as_scenevm_camera()
                         .forward,
@@ -784,9 +781,7 @@ mod tests {
                     &mut app.session.context
                 ));
                 assert_ne!(
-                    crate::editor::EDITCAMERA
-                        .read()
-                        .unwrap()
+                    app.application.editor.authoring_camera_for_test()
                         .orbit_camera
                         .as_scenevm_camera()
                         .forward,
@@ -1445,9 +1440,7 @@ mod tests {
             .send(TheEvent::RenderViewClicked(world_view.clone(), at));
         app.update(&mut host, Duration::from_millis(16));
         assert!(app.application.editor.native_paint_state_for_test().1 > original);
-        crate::editor::EDITCAMERA
-            .write()
-            .unwrap()
+        app.application.editor.authoring_camera_for_test()
             .iso_camera
             .zoom(1.);
         let paint = app.frame(&mut host, &mut replacement).unwrap();

@@ -27,7 +27,7 @@ fn iso_geometry_tools_create_edit_and_name_goto_areas() {
         }
         let size = Vec2::new(1000., 700.);
         let screen = |map: &Map, point| {
-            ServerContext::map_grid_to_local(size, point, map).map(|v| v.round() as i32)
+            shared::context::ServerContext::map_grid_to_local(size, point, map).map(|v| v.round() as i32)
         };
         let mut ctx = TheContext::new(1000, 700, 1.);
         let mut ui = TheUI::new();

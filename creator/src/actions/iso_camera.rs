@@ -1,6 +1,5 @@
 use rusterix::D3Camera;
 
-use crate::editor::EDITCAMERA;
 use crate::prelude::*;
 
 pub struct IsoCamera {
@@ -88,21 +87,15 @@ impl Action for IsoCamera {
 
         let scale = self.nodeui.get_f32_value("actionIsoScale").unwrap_or(4.0);
 
-        EDITCAMERA
-            .write()
-            .unwrap()
+        server_ctx.camera
             .iso_camera
             .set_parameter_f32("azimuth_deg", azimuth);
 
-        EDITCAMERA
-            .write()
-            .unwrap()
+        server_ctx.camera
             .iso_camera
             .set_parameter_f32("elevation_deg", elevation);
 
-        EDITCAMERA
-            .write()
-            .unwrap()
+        server_ctx.camera
             .iso_camera
             .set_parameter_f32("scale", scale);
 

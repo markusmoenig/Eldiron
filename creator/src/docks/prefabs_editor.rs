@@ -2614,7 +2614,7 @@ impl Dock for PrefabsEditorDock {
                             } else {
                                 Some(
                                     rusterix::D3Camera::basis_vectors(
-                                        &crate::editor::EDITCAMERA.read().unwrap().orbit_camera,
+                                        &server_ctx.camera.orbit_camera,
                                     )
                                     .0,
                                 )

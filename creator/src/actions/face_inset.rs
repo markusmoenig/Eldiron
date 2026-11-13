@@ -55,7 +55,7 @@ impl Action for FaceInset {
     }
 
     fn load_params(&mut self, map: &Map) {
-        let step = ServerContext::edit_grid_step(map.subdivisions);
+        let step = shared::context::ServerContext::edit_grid_step(map.subdivisions);
         self.nodeui
             .set_f32_value("actionFaceInsetAmount", (step * 0.5).max(0.01));
     }
@@ -70,7 +70,7 @@ impl Action for FaceInset {
         let amount = self
             .nodeui
             .get_f32_value("actionFaceInsetAmount")
-            .unwrap_or_else(|| ServerContext::edit_grid_step(map.subdivisions) * 0.5)
+            .unwrap_or_else(|| shared::context::ServerContext::edit_grid_step(map.subdivisions) * 0.5)
             .max(0.01);
         let prev = map.clone();
         if !inset_selected_geometry_faces(map, amount) {

@@ -383,8 +383,6 @@ pub static CONFIGEDITOR: LazyLock<RwLock<ConfigEditor>> =
     LazyLock::new(|| RwLock::new(ConfigEditor::new()));
 pub static CONFIG: LazyLock<RwLock<toml::Table>> =
     LazyLock::new(|| RwLock::new(toml::Table::default()));
-pub static EDITCAMERA: LazyLock<RwLock<EditCamera>> =
-    LazyLock::new(|| RwLock::new(EditCamera::new()));
 pub static SCENEMANAGER: LazyLock<RwLock<SceneManager>> =
     LazyLock::new(|| RwLock::new(SceneManager::default()));
 pub static DOCKMANAGER: LazyLock<RwLock<DockManager>> =
@@ -4811,13 +4809,13 @@ impl Editor {
                 EditorViewMode::Iso => {
                     region.editing_position_iso_3d = Some(region.editing_position_3d);
                     region.editing_look_at_iso_3d = Some(region.editing_look_at_3d);
-                    region.editing_iso_scale = Some(EDITCAMERA.read().unwrap().iso_camera.scale);
+                    region.editing_iso_scale = Some(self.server_ctx.camera.iso_camera.scale);
                 }
                 EditorViewMode::Orbit => {
                     region.editing_position_orbit_3d = Some(region.editing_position_3d);
                     region.editing_look_at_orbit_3d = Some(region.editing_look_at_3d);
                     region.editing_orbit_distance =
-                        Some(EDITCAMERA.read().unwrap().orbit_camera.distance);
+                        Some(self.server_ctx.camera.orbit_camera.distance);
                 }
                 EditorViewMode::FirstP => {
                     region.editing_position_firstp_3d = Some(region.editing_position_3d);
@@ -4970,7 +4968,7 @@ impl Editor {
             tools.reset_for_project_switch(ctx);
         }
         *SIDEBARMODE.write().unwrap() = SidebarMode::Region;
-        EDITCAMERA.write().unwrap().reset_for_project_switch();
+        self.server_ctx.camera.reset_for_project_switch();
         self.play_session = None;
         self.sync_active_session_from_editor();
         DOCKMANAGER.write().unwrap().reset_for_project_switch();
@@ -8483,11 +8481,11 @@ impl TheTrait for Editor {
         project_strip_layout.set_background_color(None);
         project_strip_layout.set_margin(Vec4::new(4, 1, 5, 1));
         project_strip_layout.set_padding(2);
-        EDITCAMERA.write().unwrap().setup_toolbar(
+        self.server_ctx.camera.setup_toolbar(
             &mut project_strip_layout,
             ctx,
             &mut self.documents.project,
-            &mut self.server_ctx,
+            &mut self.server_ctx.shared,
         );
 
         let (dock_is_normal, dock_is_available) = {
@@ -9538,7 +9536,7 @@ impl TheTrait for Editor {
                             && self.server_ctx.editor_view_mode != EditorViewMode::D2
                         {
                             rusterix.client.set_camera_d3(Box::new(
-                                EDITCAMERA.read().unwrap().orbit_camera.clone(),
+                                self.server_ctx.camera.orbit_camera.clone(),
                             ));
                             let asset_id = match self.server_ctx.pc {
                                 ProjectContext::Prefab(asset_id) => Some(asset_id),
@@ -9662,20 +9660,20 @@ impl TheTrait for Editor {
                                         player.position.z + orientation.y,
                                     );
                                 } else {
-                                    EDITCAMERA.write().unwrap().update_action(
+                                    self.server_ctx.camera.update_action(
                                         region,
-                                        &mut self.server_ctx,
+                                        &mut self.server_ctx.shared,
                                         ctx.get_time(),
                                     );
                                 }
-                                EDITCAMERA.write().unwrap().update_camera(
+                                self.server_ctx.camera.update_camera(
                                     region,
-                                    &mut self.server_ctx,
+                                    &mut self.server_ctx.shared,
                                     rusterix,
                                 );
                                 if self.server_ctx.editor_view_mode == EditorViewMode::FirstP
                                     && (self.server_ctx.editor_fly_nav_active
-                                        || EDITCAMERA.read().unwrap().move_action.is_some())
+                                        || self.server_ctx.camera.move_action.is_some())
                                 {
                                     ctx.ui.redraw_all = true;
                                 }
@@ -10847,7 +10845,7 @@ impl TheTrait for Editor {
                             self.cancel_native_play_input(ui);
                             self.cancel_native_world_gesture(ui, ctx);
                             self.invalidate_native_world_viewport(ui);
-                            let mut camera = EDITCAMERA.write().unwrap();
+                            let camera = &mut self.server_ctx.camera;
                             camera.move_action = None;
                             camera.reset_mouse_tracking();
                             self.server_ctx.editor_fly_nav_active = false;
@@ -11337,7 +11335,7 @@ impl TheTrait for Editor {
                         self.server_ctx.editor_fly_nav_mouse_down = false;
                         self.server_ctx.editor_fly_nav_space_down = false;
                         {
-                            let mut edit_camera = EDITCAMERA.write().unwrap();
+                            let edit_camera = &mut self.server_ctx.camera;
                             edit_camera.move_action = None;
                             edit_camera.reset_mouse_tracking();
                         }
@@ -11798,16 +11796,14 @@ impl TheTrait for Editor {
             && self.server_ctx.editor_fly_nav_active
             && self.server_ctx.editor_fly_nav_mouse_down
         {
-            EDITCAMERA
-                .write()
-                .unwrap()
+            self.server_ctx.camera
                 .mouse_delta_firstp(region, delta);
             handled = true;
         } else if self.server_ctx.editor_view_mode == EditorViewMode::Orbit {
-            EDITCAMERA.write().unwrap().mouse_delta_orbit(delta);
+            self.server_ctx.camera.mouse_delta_orbit(delta);
             handled = true;
         } else if self.server_ctx.editor_view_mode == EditorViewMode::Iso {
-            EDITCAMERA.write().unwrap().pan_3d_by_delta_f32(
+            self.server_ctx.camera.pan_3d_by_delta_f32(
                 region,
                 &self.server_ctx,
                 delta,
@@ -12163,7 +12159,7 @@ mod tests {
                     let span = hi - lo;
                     region.editing_position_3d = center;
                     region.editing_look_at_3d = center;
-                    EDITCAMERA.write().unwrap().iso_camera.scale =
+                    editor.server_ctx.camera.iso_camera.scale =
                         ((span.x + span.z) * 0.45 + span.y * 0.5).max(4.);
                 }
                 if std::env::var_os("ELDIRON_BENCH_FOCUS_PLAYER").is_some() {
@@ -12178,7 +12174,7 @@ mod tests {
                         .expect("The focused 3D benchmark needs a player placement");
                     region.editing_position_3d = player.position;
                     region.editing_look_at_3d = player.position;
-                    EDITCAMERA.write().unwrap().iso_camera.scale = 6.;
+                    editor.server_ctx.camera.iso_camera.scale = 6.;
                 }
             }
             editor.update_tracker = crate::misc::UpdateTracker::new();
@@ -12564,7 +12560,7 @@ mod tests {
         let initial_offset = editor.documents.project.regions[0].map.offset;
         let initial_position_3d = editor.documents.project.regions[0].editing_position_3d;
         let initial_look_at_3d = editor.documents.project.regions[0].editing_look_at_3d;
-        let initial_scale_3d = EDITCAMERA.read().unwrap().iso_camera.scale;
+        let initial_scale_3d = editor.server_ctx.camera.iso_camera.scale;
         let is_3d = std::env::var("ELDIRON_BENCH_VIEW").is_ok_and(|v| v == "3d");
         let minimap_cache_key = *crate::minimap::MINIMAPCACHEKEY.read().unwrap();
         let map_changed = editor.documents.project.regions[0].map.changed;
@@ -12591,7 +12587,7 @@ mod tests {
                     let shift = if mode == "pan" { i as f32 * 0.05 } else { 0. };
                     region.editing_position_3d = initial_position_3d + Vec3::new(shift, 0., 0.);
                     region.editing_look_at_3d = initial_look_at_3d + Vec3::new(shift, 0., 0.);
-                    EDITCAMERA.write().unwrap().iso_camera.scale = if mode == "zoom" {
+                    editor.server_ctx.camera.iso_camera.scale = if mode == "zoom" {
                         initial_scale_3d / (1. + i as f32 * 0.01)
                     } else {
                         initial_scale_3d
