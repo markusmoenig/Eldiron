@@ -50,8 +50,35 @@ impl TileTabSpec {
     }
 }
 
+struct TileBoardLayout {
+    cell: i32,
+    width: i32,
+    height: i32,
+    board_cols: i32,
+    offset: Vec2<i32>,
+    total_rows: i32,
+    visible_rows: i32,
+    occupied: FxHashSet<(i32, i32)>,
+    placements: Vec<TileBoardPlacement>,
+}
+
+#[cfg(feature = "native-ui")]
+mod native_board;
+
+#[cfg(all(test, feature = "native-ui"))]
+pub(crate) fn native_reference_cases_for_test() -> Vec<(
+    &'static str,
+    std::sync::Arc<dyn theframework::theui::thewidget::therenderview::RenderViewPaintSource>,
+    TheRGBABuffer,
+)> {
+    native_board::reference_cases()
+}
+
 pub struct TilesDock {
     iso_mode: bool,
+    #[cfg(feature = "native-ui")]
+    native_images: native_board::Images,
+    #[cfg(any(not(feature = "native-ui"), test))]
     bitmap_previews: std::sync::Mutex<std::collections::HashMap<Uuid,rusterix::Texture>>,
     widget_prefix: &'static str,
     pub filter: String,
@@ -86,6 +113,9 @@ impl Dock for TilesDock {
     {
         Self {
             iso_mode: false,
+            #[cfg(feature = "native-ui")]
+            native_images: Default::default(),
+            #[cfg(any(not(feature = "native-ui"), test))]
             bitmap_previews: Default::default(),
             widget_prefix: "",
             filter: String::new(),
@@ -1113,12 +1143,14 @@ impl Dock for TilesDock {
                         }
                     }
                 } else if id.name == "Update Tilepicker Textures" {
+                    #[cfg(any(not(feature = "native-ui"), test))]
                     self.bitmap_previews.lock().unwrap().clear();
                     // Baking updates pixels, not board layout, selection, filters
                     // or sidebar context. Keep those stable while images arrive.
                     self.render_views(ui, ctx, project);
                     redraw = true;
                 } else if id.name == "Update Tilepicker" {
+                    #[cfg(any(not(feature = "native-ui"), test))]
                     self.bitmap_previews.lock().unwrap().clear();
                     self.curr_tile = server_ctx.curr_tile_id;
                     self.curr_source = server_ctx.curr_tile_source;
@@ -1689,6 +1721,7 @@ impl TilesDock {
         out
     }
 
+    #[cfg(any(not(feature = "native-ui"), test))]
     fn clip_rect(
         buffer: &TheRGBABuffer,
         rect: Vec4<i32>,
@@ -1724,34 +1757,38 @@ impl TilesDock {
                 continue;
             }
 
-            *render_view.render_buffer_mut() =
-                TheRGBABuffer::new(TheDim::new(0, 0, dim.width, dim.height));
-            let buffer = render_view.render_buffer_mut();
-            buffer.fill(BLACK);
-            self.placements[tab] = self.draw_tab(buffer, ctx, project, tab);
-            render_view.set_needs_redraw(true);
+            #[cfg(feature = "native-ui")]
+            if cfg!(not(test)) || ctx.ui.command_paint {
+                let source = self.native_board(project, tab, Vec2::new(dim.width, dim.height));
+                render_view.set_paint_source(Some(std::sync::Arc::new(source)));
+                continue;
+            }
+
+            #[cfg(any(not(feature = "native-ui"), test))]
+            {
+                *render_view.render_buffer_mut() =
+                    TheRGBABuffer::new(TheDim::new(0, 0, dim.width, dim.height));
+                let buffer = render_view.render_buffer_mut();
+                buffer.fill(BLACK);
+                self.placements[tab] = self.draw_tab(buffer, ctx, project, tab);
+                render_view.set_needs_redraw(true);
+            }
         }
         ctx.ui.redraw_all = true;
     }
 
-    fn draw_tab(
-        &mut self,
-        buffer: &mut TheRGBABuffer,
-        ctx: &mut TheContext,
-        project: &Project,
-        tab: usize,
-    ) -> Vec<TileBoardPlacement> {
+    fn layout_tab(&mut self, project: &Project, tab: usize, size: Vec2<i32>) -> TileBoardLayout {
         let cell = ((TILE_CELL_BASE as f32) * self.zoom) as i32;
         let cell = cell.max(TILE_CELL_BASE);
-        let width = buffer.dim().width.max(cell);
-        let height = buffer.dim().height.max(cell);
+        let width = size.x.max(cell);
+        let height = size.y.max(cell);
         let board_cols = project
             .tile_board_cols
             .max(TILE_BOARD_COLS + TILE_BOARD_EXTRA_COLS);
         let pack_cols = (board_cols - TILE_BOARD_EXTRA_COLS).max(1);
 
         let entries = self.entries_for_tab(project, tab);
-        let mut placements = self.layout_entries(
+        let placements = self.layout_entries(
             &entries,
             pack_cols,
             board_cols,
@@ -1772,7 +1809,6 @@ impl TilesDock {
         self.tab_offset[tab].y = self.tab_offset[tab].y.min((board_height - height).max(0));
 
         let offset = self.tab_offset[tab];
-        let stride = buffer.stride();
         let total_rows = board_rows.max(1);
         let visible_rows = ((height + offset.y) / cell + 2).max(1);
         let mut occupied: FxHashSet<(i32, i32)> = FxHashSet::default();
@@ -1792,6 +1828,21 @@ impl TilesDock {
                 }
             }
         }
+
+        TileBoardLayout { cell, width, height, board_cols, offset, total_rows, visible_rows, occupied, placements }
+    }
+
+    #[cfg(any(not(feature = "native-ui"), test))]
+    fn draw_tab(
+        &mut self,
+        buffer: &mut TheRGBABuffer,
+        ctx: &mut TheContext,
+        project: &Project,
+        tab: usize,
+    ) -> Vec<TileBoardPlacement> {
+        let TileBoardLayout { cell, width, height, board_cols, offset, total_rows, visible_rows, occupied, mut placements } =
+            self.layout_tab(project, tab, Vec2::new(buffer.dim().width, buffer.dim().height));
+        let stride = buffer.stride();
 
         for row in 0..visible_rows.max(total_rows) {
             for col in 0..board_cols {
@@ -2000,6 +2051,7 @@ impl TilesDock {
         placements
     }
 
+    #[cfg(any(not(feature = "native-ui"), test))]
     fn draw_entry(
         &self,
         buffer: &mut TheRGBABuffer,
@@ -2012,6 +2064,7 @@ impl TilesDock {
         self.draw_source_alpha(buffer, ctx, project, tab, rect, source, 1.0);
     }
 
+    #[cfg(any(not(feature = "native-ui"), test))]
     fn draw_source_alpha(
         &self,
         buffer: &mut TheRGBABuffer,
@@ -2052,6 +2105,7 @@ impl TilesDock {
         }
     }
 
+    #[cfg(any(not(feature = "native-ui"), test))]
     fn draw_tile_into_rect_alpha(
         &self,
         buffer: &mut TheRGBABuffer,

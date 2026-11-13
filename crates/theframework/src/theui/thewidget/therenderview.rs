@@ -7,6 +7,17 @@ enum NativeContent {
     Cleared,
     Image(crate::paint::ImageHandle),
     Commands(std::sync::Arc<crate::paint::PaintList>),
+    Source(std::sync::Arc<dyn RenderViewPaintSource>),
+}
+
+/// Immutable UI content with source images resolved by the host's resource
+/// service. Implementations emit view-local paint; they own no GPU or surface.
+#[cfg(feature = "text")]
+pub trait RenderViewPaintSource: Send + Sync {
+    fn paint(
+        &self,
+        painter: &mut crate::theui::paint::WidgetPainter<'_>,
+    ) -> crate::theui::paint::UiPaintResult;
 }
 
 pub struct TheRenderView {
@@ -66,6 +77,13 @@ impl TheWidget for TheRenderView {
                         .ops
                         .push(PaintOp::PushTransform(Transform::translate(r.x, r.y)));
                     p.list.ops.extend(list.ops.iter().cloned());
+                    p.list.ops.push(PaintOp::PopTransform);
+                }
+                NativeContent::Source(source) => {
+                    p.list
+                        .ops
+                        .push(PaintOp::PushTransform(Transform::translate(r.x, r.y)));
+                    source.paint(p)?;
                     p.list.ops.push(PaintOp::PopTransform);
                 }
             }
@@ -404,6 +422,8 @@ impl TheWidget for TheRenderView {
 
 pub trait TheRenderViewTrait: TheWidget {
     #[cfg(feature = "text")]
+    fn set_paint_source(&mut self, source: Option<std::sync::Arc<dyn RenderViewPaintSource>>);
+    #[cfg(feature = "text")]
     /// Publish a shared GPU image, or clear all view content with `None`.
     /// This releases the former CPU viewport cache. The application owns image
     /// residency and republishes handles after device/resource replacement.
@@ -430,6 +450,19 @@ pub trait TheRenderViewTrait: TheWidget {
 }
 
 impl TheRenderViewTrait for TheRenderView {
+    #[cfg(feature = "text")]
+    fn set_paint_source(&mut self, source: Option<std::sync::Arc<dyn RenderViewPaintSource>>) {
+        if matches!((&self.native_content, &source),
+            (Some(NativeContent::Source(current)), Some(next)) if std::sync::Arc::ptr_eq(current, next))
+            || (matches!(self.native_content, Some(NativeContent::Cleared)) && source.is_none())
+        {
+            return;
+        }
+        self.native_content = Some(source.map_or(NativeContent::Cleared, NativeContent::Source));
+        self.render_buffer = TheRGBABuffer::empty();
+        self.has_content = false;
+        self.is_dirty = true;
+    }
     #[cfg(feature = "text")]
     fn set_image_handle(&mut self, image: Option<crate::paint::ImageHandle>) {
         if matches!((&self.native_content, image),

@@ -5800,3 +5800,72 @@ Verification:
 
 Full M0–M9 Goal remains active; continue remaining module/runtime/bitmap and
 platform acceptance work without routine milestone approval.
+
+## 2026-11-13 — GPU tile-picker board integration (verified checkpoint)
+
+Replaced the native TilesDock board bitmap producer, including its embedded
+Prefab/Paint picker, with immutable source-image paint. Added the backend-neutral
+RenderViewPaintSource publication: view-local clipped paint can resolve source
+assets through the existing host image service, without owning a device/window.
+Publishing it releases the RenderView's CPU display storage.
+
+The tile board shares its original packing/offset/placement model between
+reference and GPU emission. Native output uses batched pixel rectangles and
+GPU sprite blits for assets, alpha-cropped bitmap thumbnails, selection/hover
+outlines and drag ghosts. Only immutable original/cropped asset bytes are cached;
+weak CPU caches release retired versions and the existing host registry governs
+GPU budgets, frame pins and device reconstruction. Asset-content hashes are
+computed when publishing a changed board, not during painting.
+
+Production native-ui builds exclude the board's CPU display writer/drawing
+helpers and old bitmap-preview cache entirely. The reference build and explicit
+test oracle retain them. A fixed-time particle thumbnail remains a bounded CPU
+source bake (up to512px), then uses the same GPU blit; the animated minimap is
+still an unconverted display producer. This does not complete all M4 retirement.
+
+Available evidence:
+- Native board source check passed10.20s:
+  `/private/tmp/eldiron-native-tile-board-source-check.log`.
+- First assembled root build50.14s and actual Metal checkpoint **passed1,87.50s**:
+  `/private/tmp/eldiron-native-tile-board-root-build.log` and
+  `eldiron-native-tile-board-root-metal.log`. Existing normal/Prefab picker cases
+  now assert absence of CPU display storage. Other tools/Play/recovery remain in
+  the same combined checkpoint.
+- Reference Creator check passed22.11s:
+  `/private/tmp/eldiron-tile-board-reference-check.log`.
+- Before/after1200x800 startup capture is byte-identical (SHA256
+  38ec0ea862d25127bd1347ea08182d53b27ce2c7c38d74113ce139e9ac3718dc).
+  Artifacts: `/private/tmp/eldiron-native-tile-board-before.png`,
+  `eldiron-native-tile-board-after.png`, `eldiron-native-tile-board-parity.json`.
+  **This startup fixture has an unpopulated board**: it proves unchanged chrome,
+  not populated tile-content parity. That limitation was explicitly corrected
+  in commentary after visually inspecting the capture.
+
+Extended the same existing Creator checkpoint with populated source cases,
+using its independent original CPU draw_tab oracle and the actual GPU compositor.
+Cases include transparency, bitmap cropping, offsets/clipping, selected/hovered
+assets, reserved slots and drag ghost alpha. No separate suite/test count added.
+Final fixture build passed23.54s
+(`/private/tmp/eldiron-native-tile-board-final-build.log`). The initial populated
+comparison and correction are recorded below; no failure was counted as a pass.
+
+Populated comparison follow-up:
+- Production native check (CPU board code excluded) passed25.21s:
+  `/private/tmp/eldiron-native-tile-board-production-check.log`.
+- First populated comparison failed after88.92s with max channel delta64.
+  Inspection of TheDraw2D::mix_color and RenderView's copied-framebuffer importer
+  found the oracle was comparing raw CPU alpha: the old display discarded that
+  channel and presented the board opaque. Corrected only reference alpha to255;
+  kept RGB unchanged and the one-level tolerance. This was an oracle presentation
+  interpretation correction, not permission to hide a color/layout error.
+- Added test-only ELDIRON_NATIVE_TILE_BOARD_ONLY to execute this existing
+  checkpoint's populated cases quickly during diagnosis. With the corrected
+  oracle, **passed1,0.68s**, both populated and clipped/ghost cases max delta1.
+  `/private/tmp/eldiron-native-tile-board-focused-metal.log`. This focused run is
+  not an assembled-workflow pass. Build28.03s:
+  `eldiron-native-tile-board-opacity-build.log`.
+- Final complete Creator checkpoint ran with that diagnostic environment
+  explicitly unset: **passed1,87.22s**. Both populated comparisons report max
+  channel delta1. `/private/tmp/eldiron-native-tile-board-final-metal.log`.
+- `git diff --check` passed. This verifies the tile-board integration, not the
+  remaining minimap producers or the full M0–M9 acceptance matrix.

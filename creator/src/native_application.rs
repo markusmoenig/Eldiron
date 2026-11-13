@@ -341,6 +341,12 @@ mod tests {
     #[ignore = "requires actual native GPU; exercises the assembled Creator UI"]
     fn native_creator_application_paints_the_root_ui_without_a_root_framebuffer() {
         let gpu = pollster::block_on(GpuContext::headless()).unwrap();
+        if std::env::var_os("ELDIRON_NATIVE_TILE_BOARD_ONLY").is_some() {
+            let mut renderer = PaintRenderer::new(gpu.clone()).unwrap();
+            let mut context = TheContext::new(230, 140, 1.);
+            check_tile_board_sources(&gpu, &mut renderer, &mut context);
+            return;
+        }
         let mut registry = ImageRegistry::new(gpu.clone());
         let mut application =
             NativeCreatorApplication::new(vec!["eldiron-creator-native".into()], false);
@@ -365,6 +371,14 @@ mod tests {
                 .unwrap()
                 .has_cpu_display_storage(),
             "an unselected native map cannot allocate and upload a blank viewport bitmap"
+        );
+        assert!(
+            !app.session
+                .ui
+                .get_render_view("Tiles Dock View 0")
+                .unwrap()
+                .has_cpu_display_storage(),
+            "the native tile picker must retain source assets instead of a viewport bitmap"
         );
         let output = GpuImage::new(&gpu, ImageDescriptor::rgba(1200, 800)).unwrap();
         let mut renderer = PaintRenderer::new(gpu.clone()).unwrap();
@@ -1445,6 +1459,12 @@ mod tests {
                                   registry: &mut ImageRegistry| {
             app.update(host, Duration::from_millis(16));
             let frame = app.frame(host, registry).unwrap();
+            if let Some(picker) = app.session.ui.get_render_view("Prefab Editor Tiles Dock View 0") {
+                assert!(
+                    !picker.has_cpu_display_storage(),
+                    "Prefab's normal tile picker cannot restore the old bitmap Paint dock"
+                );
+            }
             assert!(
                 app.application.pending.as_ref().unwrap().world_for_test(),
                 "Prefab uses its own native SceneView"
@@ -2748,5 +2768,67 @@ mod tests {
                 }
             }
         }
+        check_tile_board_sources(&gpu, &mut renderer, &mut app.session.context);
     }
+    fn check_tile_board_sources(
+        gpu: &std::sync::Arc<GpuContext>,
+        renderer: &mut PaintRenderer,
+        context: &mut TheContext,
+    ) {
+        use theframework::paint::{DisplayCompositing, PaintOp};
+        // Check populated picker assets through the actual GPU compositor in
+        // this same assembled checkpoint, including crop/alpha/drag semantics.
+        for (label, source, reference) in crate::docks::tiles::native_reference_cases_for_test() {
+            let size = (reference.dim().width as u32, reference.dim().height as u32);
+            let mut images = theframework::render_wgpu::UiImages::new(gpu.clone());
+            let mut paint = PaintList::default();
+            paint.ops.push(PaintOp::DisplayCompositing(
+                DisplayCompositing::LegacyOpaque,
+            ));
+            let mut style = TheClassicStyle::new();
+            let mut painter = theframework::theui::paint::WidgetPainter {
+                list: &mut paint,
+                text: &mut context.text,
+                images: &mut images,
+                ui: &context.ui,
+                theme: style.theme().as_mut(),
+            };
+            source.paint(&mut painter).unwrap();
+            images.finish_frame(&paint).unwrap();
+            let target = GpuImage::new(&gpu, ImageDescriptor::rgba(size.0, size.1)).unwrap();
+            renderer
+                .render(
+                    &paint,
+                    &images.registry,
+                    &target.view,
+                    target.descriptor.format,
+                    size,
+                    1.,
+                    [0.; 4],
+                )
+                .unwrap();
+            let mut capture = ReadbackTicket::capture(&gpu, target).unwrap();
+            gpu.device
+                .poll(wgpu::PollType::Wait {
+                    submission_index: None,
+                    timeout: Some(Duration::from_secs(30)),
+                })
+                .unwrap();
+            let pixels = capture.try_finish(&gpu).unwrap().unwrap();
+            let delta = pixels
+                .pixels()
+                .iter()
+                .zip(reference.pixels())
+                .map(|(a, b)| a.abs_diff(*b))
+                .max()
+                .unwrap_or(0);
+            assert!(
+                delta <= 1,
+                "{label} tile board differs from the CPU reference: max channel delta={delta}"
+            );
+            eprintln!("Native tile board {label}: max reference delta={delta}");
+            images.clear();
+        }
+    }
+
 }
