@@ -1936,6 +1936,13 @@ mod tests {
                 "Creator shared clock/output did not advance: {state:?}"
             );
         }
+        app.application.editor.tag_native_console_actor_for_test();
+        app.session.context.ui.send(TheEvent::Custom(
+            TheId::named("Console Feedback Action"), TheValue::Text("list chars".into()),
+        ));
+        app.update(&mut host, Duration::from_millis(16));
+        assert!(app.application.editor.native_console_text_for_test().contains("Console session actor"));
+        let old_console_link = app.application.editor.native_console_runtime_link_for_test().unwrap();
         app.session.context.ui.send(TheEvent::StateChanged(
             TheId::named("Pause"),
             TheWidgetState::Clicked,
@@ -2684,6 +2691,10 @@ mod tests {
         app.update(&mut host, Duration::from_millis(16));
         let restarted = app.application.editor.native_play_stats_for_test().unwrap();
         assert_ne!(restarted.1, initial.1, "restarting revokes the prior runtime identity");
+        let before_stale_console = app.application.editor.native_console_text_for_test();
+        app.session.context.ui.send(TheEvent::Custom(TheId::named("Console Feedback Action"), old_console_link));
+        app.update(&mut host, Duration::from_millis(16));
+        assert_eq!(app.application.editor.native_console_text_for_test(), before_stale_console, "old runtime actor links cannot target a restarted session");
         // Project replacement stops the original runtime before projecting or
         // saving the new document, and preserves current authored edits.
         app.application

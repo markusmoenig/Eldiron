@@ -164,6 +164,11 @@ impl Sidebar {
         changed
     }
 
+    #[cfg(test)]
+    pub(crate) fn console_text_for_test(&self) -> String { self.console.text_for_test() }
+    #[cfg(test)]
+    pub(crate) fn console_runtime_link_for_test(&self) -> Option<TheValue> { self.console.runtime_link_for_test() }
+
     pub fn reset_for_project_switch(&mut self) {
         #[cfg(feature = "native-ui")]
         {
@@ -724,13 +729,26 @@ impl Sidebar {
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
+        self.handle_event_with_runtime(event, ui, ctx, project, server_ctx, None)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn handle_event_with_runtime(
+        &mut self,
+        event: &TheEvent,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        server_ctx: &mut ServerContext,
+        runtime: Option<eldiron_runtime::RegionInspection<'_>>,
+    ) -> bool {
         if self.tileset_creator.event(event,ui,ctx,project,server_ctx){return true;}
         if crate::item_appearance::handle_event(event, project, ctx) {
             return true;
         }
         let mut redraw = self
             .console
-            .handle_event(event, ui, ctx, project, server_ctx);
+            .handle_event_with_runtime(event, ui, ctx, project, server_ctx, runtime);
         redraw |= self.debug.handle_event(event, ui, ctx, project, server_ctx);
         redraw |= self.help.handle_event(event, ui, ctx, project, server_ctx);
 
@@ -764,7 +782,7 @@ impl Sidebar {
                     }
                     request => self
                         .console
-                        .execute_local_request(&request, project, server_ctx, ctx),
+                        .execute_local_request(&request, project, server_ctx, ctx, runtime),
                 };
 
                 match result {

@@ -24,7 +24,7 @@ Started: 2026-11-11 (Asia/Bangkok). Overall Goal: active; full M0–M9 scope rem
 - M1: in progress. Shared GPU context, scene output leases, explicit captures, native/foreign surface presentation and independent normal/isometric game-view lifecycle/recovery work; main Creator/auxiliary view adoption and full resource/platform acceptance remain.
 - M2: in progress. Paint/Swash/Parley pipeline and native/foreign hosts work; batching, resource lifetime budgets and full text/input parity remain.
 - M3: in progress. Every active built-in TheWidget implementation now has a command paint path, including procedural controls and the legacy node canvas. Complex Creator integration, full widget catalog parity and legacy adapter retirement remain.
-- M4: in progress. CPU schema/identity extraction, shared `GameSession`, CPU startup preparation, message/party/world-target policies and terminal adoption are implemented and tested. Per-session routing, local players, world values, runtime IDs and region context ownership now pass controlled overlapping-session and parallel assembled-player regressions. Graphical clients adopt GameSession; Creator shares its clock/output pump and runtime-owned PlayerInput. Text Play state is now Editor-owned and uses explicit CPU runtime borrows. Canonical Creator Play now owns a separate runtime Project projection; startup/warmup, entities/generated geometry and time no longer mutate authored Documents. Full Creator server/assets storage ownership and remaining bitmap/value data extraction remain; this evidence does not establish full simultaneous Creator Play workflows.
+- M4: in progress. CPU schema/identity extraction, shared `GameSession`, CPU startup preparation, message/party/world-target policies and terminal adoption are implemented and tested. Per-session routing, local players, world values, runtime IDs and region context ownership now pass controlled overlapping-session and parallel assembled-player regressions. Graphical clients adopt GameSession; Creator shares its clock/output pump and runtime-owned PlayerInput. Text Play state is now Editor-owned and uses explicit CPU runtime borrows. Canonical Creator Play now owns a separate runtime Project projection; startup/warmup, entities/generated geometry and time no longer mutate authored Documents. The Console also consumes explicit addressed CPU inspections and rejects stale runtime actor links/history without reading the global server or authored entity fallbacks. Full Creator server/assets storage ownership and remaining bitmap/value data extraction remain; this evidence does not establish full simultaneous Creator Play workflows.
 - M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Immutable ordinary editor-view preparation, exact reference/native view outputs and retained CPU chunk publication are now available through SceneViews. Common HUD, paint/props panels, profile displays and ViewCube now have retained command frames, guarded input and actual GPU composition/reconstruction evidence. Six standard tools additionally emit ordered typed overlay aggregates with exact presented-frame and detail-profile source guards. Full-viewport profile editing is now connected to the actual native Creator root with document/widget binding, presentation-gated input and inline commit/cancel; ordinary stopped top-down, sprite-isometric and 3D region rendering and the six standard tool overlays now use the same native application owner and real tool dispatch. Orbit/orthographic/first-person views include depth-aware guides, retained ViewCube and explicit tool query snapshots; surface paint uses the view-owned GPU scene. The Terrain tool now also uses retained native controls and GPU brush guides with real sculpt/cancel integration. Rect now also uses presentation-gated composition/rotation controls, shared source sprite previews blitted on the GPU, terrain-conforming perimeters, and view-owned 3D queries; actual isometric placement and fractional-DPI sprite sampling pass in the assembled checkpoint. Isometric terrain Paint now also uses retained native controls, batched GPU brush feedback, update-phase editable source publication and the existing authoring/undo dispatch. Native 3D Paint now also consumes dedicated scene-owned paint-coordinate queries and explicit authoring surface captures, with camera-scoped drafts and GPU composition; full Paint workflow/platform parity remains unverified. The isolated Prefab viewport now also uses native top-down/isometric/3D outputs, live effects with hierarchy-aware owned drags, and actual 3D Paint authoring on its asset-owned layer. Paint now shares the normal tile picker; its settings live only in the viewport overlay. The canonical Creator Play toolbar now owns the same CPU clock/output pump as GameSession, and its live authoring viewport keeps its own native SceneView. The authored Game-tool viewport now also uses the common GameScreenController/SceneViews/Swash presentation; authoring GameInput now also shares runtime controls while retaining the native scene in supported contexts. Region geometry, ordinary scene and sprite-isometric minimaps now have owned GPU outputs and presentation-scoped navigation; palette and rig previews also have retained native sources and acknowledged palette input. Authored screen minimaps now also use a GPU-only ordered 2D overview producer with compatible source sampling and acknowledged screen-scoped navigation. Parent-region minimaps during Prefab/profile/detail editing also have independent native source production and presented-parent navigation without modifying the isolated editor map. Remaining uncommon contexts/tools retain explicit migration adapters. Application/global/document/Play ownership, main world/tool/HUD integration, remaining producers, full visual/workflow/performance acceptance and canonical retirement remain.
 - M6: in progress. Independent GPU game views, common player/input/camera components, authored screen paint, private world descriptions, view-owned speech, acknowledged-frame world pointer gestures, relative first-person mouse look, default/world-intent cursors, world/UI item drag previews and acknowledged authored inventory/equipment pointer/keyboard gestures are implemented. Application-owned audio is integrated into the common player with cancellable CPU preparation jobs. The native container HUD now includes acknowledged paint/input, real server transfers, scrolling, GPU recovery and navigation lifetime. Floating inventory/equipment, action catalogue/spellbook and preferences now use typed native HUD owners, retained text/source resources and acknowledged input. Acknowledged UI-origin tooltips now use retained text and host deadlines. UI-origin Drop cursors and acknowledged drag/assignment highlighting now have GPU and authoritative transfer evidence. Native isometric source production, shared CPU source publication, game-view outputs and acknowledged input receipts now have GPU/CPU and shipped-source device-reconstruction evidence. Browser worker hosting, remaining game-mode/HUD policy parity, performance acceptance remain. Canonical native desktop launchers now share the common application/host; see launcher verification below.
 - M7/M8/M9: Retirement and platform/full acceptance pending. Canonical desktop clients share one common player; the Xcode client now uses it through the retained ABI over a Rust-created CAMetalLayer surface. Native/ARM64 simulator app bundles link, and real Swift/static-library and registered-scene layer checks pass. Browser bootstrap, native text/platform parity, Creator wrapper and complete physical/release acceptance remain; this is not complete application/platform parity.
@@ -6719,3 +6719,81 @@ Physical-host revalidation afterf57b9bbc:
 - This blocks current physical macOS window/IME/workflow evidence until manual
   unlock. Prior actual Metal/headless checks remain valid for their narrower
   scope. Other code/validation work continues; this is not a whole-goal impasse.
+
+Creator CPU inspection ownership batch (2026-11-13, afterd1918e74):
+- Checkout revalidated clean except unrelated networking concept, preserved.
+- Auditing the remaining global-server readers exposed a real Console issue:
+  it queried Server with authoring Region.id although routing expects Map.id,
+  then fell back to authored region.map entities/items. After Play projection
+  separation those can be stale authored data. Console must consume the owned
+  runtime's addressed immutable projection before server storage can move.
+- Added graphics-free RegionInspection to the shared SessionPump/GameSession
+  read-model boundary: borrowed runtime map, authoring region identity, runtime
+  incarnation, tick stamp, state and time. It borrows neither Assets nor mutable
+  Server and cannot tick or drain outputs. Region identity is separate from a
+  generated runtime map ID. Existing RuntimeView addressed test now proves
+  server/assets may change while a CPU inspection remains borrowed and stable.
+- Editor injects the matching Play-region inspection into Sidebar's event
+  dispatch after releasing the short facade read lock. Console no longer imports
+  RUSTERIX, touches a renderer/server or falls back to authored runtime state.
+  This avoids holding an asset/server lock while Console editor actions run.
+  Legacy/sidebar-only callers remain explicit no-runtime command adapters.
+- Numeric actor focus/history are scoped to session and map. Runtime-produced
+  feedback links carry typed session/map identity; old history links are rejected
+  across restart instead of selecting a new actor with the same numerical ID.
+  General editor command links and command text keep their existing protocol.
+- Extended existing Console query/history test and existing RuntimeView test,
+  plus actual toolbar Play/Console dispatch and stale actor-link replay within
+  the assembled Creator checkpoint. No new standalone suite or serde changes.
+- First native production check passed10.98s (six existing Creator warnings);
+  initial assembled build passed24.98s. CPU Console module passed4,0.36s before
+  final link-scope additions; CPU addressed runtime inspection test passed1.
+  Logs: /private/tmp/eldiron-native-runtime-inspection-{check,build,console-tests}.log
+  and /private/tmp/eldiron-runtime-region-inspection-test.log. Final scope-aware
+  build, CPU module rerun and actual Metal integration pending.
+- This removes a global-server consumer and supplies a real runtime read model.
+  Creator's server/assets/audio storage still remains on the explicit facade
+  adapter; it is not full GameSession storage cutover or M0-M9 completion.
+  Physical desktop validation remains blocked by the previously verified lock.
+
+Runtime inspection integration checkpoint verified:
+- Final scope-aware assembled build passed22.06s:
+  /private/tmp/eldiron-native-runtime-inspection-final-build.log.
+- Final existing Console module tests **passed4,0.34s**:
+  /private/tmp/eldiron-native-runtime-inspection-console-final-tests.log.
+  They cover generated-map versus authoring-region identities, explicit session
+  data only, no authored fallback, selected-region guards, reused actor IDs,
+  history focus and typed old-link rejection after restart.
+- Existing CPU addressed-view test **passed1,0.14s**:
+  /private/tmp/eldiron-runtime-region-inspection-test.log. Its inspection borrow
+  does not retain mutable server/assets; snapshots do not issue ticks.
+- Final native production check passed10.54s (six existing Creator warnings);
+  reference Creator check passed8.81s (48 existing warnings):
+  /private/tmp/eldiron-runtime-inspection-{native,reference}-final-check.log.
+- All11 dependency checks passed:
+  /private/tmp/eldiron-runtime-inspection-boundaries-final-check.log.
+- Full assembled actual Metal Creator checkpoint **passed1,95.82s**:
+  /private/tmp/eldiron-native-runtime-inspection-root-metal.log. Actual Console
+  request dispatch reads the tagged runtime actor and rejects a feedback link
+  after real Stop/restart with the same map/actor IDs. Prior authoring-map/time
+  isolation, Stop/Undo/Redo/tab save, parent/screen minimap, source, tool, scene,
+  palette/rig and fractional-DPI checks retain their established budgets.
+- git diff --check passed. Project serialization and unrelated networking
+  concept are unchanged. No physical/platform/performance gate is claimed.
+
+Next substantive ownership work:
+1. Move the canonical Creator Play server/assets/current-map lifetime into the
+   shared GameSession owner. Current global facade lending is still explicit
+   in CreatorPlaySession.advance/text/native_play and Editor toolbar/update.
+   Do not substitute CPU/VM swaps, duplicate authoritative servers, snapshot
+   restoration or serializer filtering for the real storage move.
+2. Preserve live authoring asset/rules edits and the explicit runtime-projection
+   policy. Remaining state readers include MapEditor scroll/zoom, toolbar icons,
+   native world/input and legacy Game/Entity input adapters. Rules publishing
+   still goes through docks/nodes::sync_live_rules and the facade. Route them
+   through the actual owner or a scoped command/read-model boundary. Console
+   inspection is now converted and should not regain a global fallback.
+3. Reference/tooling hosts must keep explicitly classified adapters until their
+   own retirement checks pass. The locked desktop blocks physical checks only;
+   code, available CPU/GPU and remaining platform implementation work continue.
+   Complete M0-M9 objective stays active, not achieved.

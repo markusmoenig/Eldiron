@@ -500,6 +500,17 @@ impl Editor {
             "status".into(),
         ));
     }
+    pub(crate) fn native_console_text_for_test(&self) -> String { self.sidebar.console_text_for_test() }
+    pub(crate) fn native_console_runtime_link_for_test(&self) -> Option<TheValue> { self.sidebar.console_runtime_link_for_test() }
+    pub(crate) fn tag_native_console_actor_for_test(&mut self) {
+        let play = self.play_session.as_mut().unwrap();
+        let mut bridge = RUSTERIX.write().unwrap();
+        let map = &mut play.project.regions[0].map;
+        let id = bridge.server.region_id_map[&map.id];
+        let actor = bridge.server.entities.get_mut(&id).unwrap().first_mut().unwrap();
+        actor.attributes.set("name", Value::Str("Console session actor".into()));
+        bridge.server.apply_entities_items(map);
+    }
     pub(crate) fn native_play_saved_map_for_test(
         &self,
         index: usize,

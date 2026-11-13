@@ -16,7 +16,7 @@ use rusterix::{Assets, EntityAction, Server, ServerState};
 pub use shared::project::Project;
 use std::time::Duration;
 use theframework_core::{TheTime, Uuid};
-pub use view::{FontSource, RuntimeView, ScreenSource};
+pub use view::{FontSource, RegionInspection, RuntimeView, ScreenSource};
 
 #[derive(Clone, Copy, Debug)]
 pub struct SessionOptions {

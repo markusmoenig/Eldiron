@@ -1,6 +1,7 @@
 use crate::actionscript::{EDITOR_ACTION_FUNCTION, EDITOR_TOOL_FUNCTION, EditorActionRequest};
-use crate::editor::{ACTIONLIST, RUSTERIX, TOOLLIST};
+use crate::editor::{ACTIONLIST, TOOLLIST};
 use crate::prelude::*;
+use eldiron_runtime::RegionInspection;
 use rusterix::{
     Entity, Item, Value,
     server::ServerState,
@@ -153,12 +154,14 @@ pub struct ConsoleDock {
     pending_requests: Vec<ConsoleRequest>,
     history: Vec<ConsoleHistoryEntry>,
     history_index: usize,
+    runtime_scope: Option<(Uuid, Uuid)>,
 }
 
 #[derive(Clone)]
 struct ConsoleHistoryEntry {
     document: TheFeedbackDocument,
     focus: ConsoleFocus,
+    runtime_scope: Option<(Uuid, Uuid)>,
 }
 
 #[derive(Clone)]
@@ -195,6 +198,7 @@ impl ConsoleDock {
         ConsoleHistoryEntry {
             document: self.document.clone(),
             focus: self.focus,
+            runtime_scope: self.runtime_scope,
         }
     }
 
@@ -241,7 +245,11 @@ impl ConsoleDock {
         self.history_index = target as usize;
         let entry = self.history[self.history_index].clone();
         self.document = entry.document;
-        self.focus = entry.focus;
+        self.focus = if entry.runtime_scope == self.runtime_scope {
+            entry.focus
+        } else {
+            ConsoleFocus::Root
+        };
         self.pending_requests.clear();
         self.sync_output(ui, ctx);
         if let Some(output) = ui.get_text_view(CONSOLE_OUTPUT) {
@@ -262,7 +270,12 @@ impl ConsoleDock {
         }
     }
 
-    fn prompt(&self, project: &Project, server_ctx: &ServerContext) -> String {
+    fn prompt(
+        &self,
+        project: &Project,
+        server_ctx: &ServerContext,
+        runtime: Option<RegionInspection<'_>>,
+    ) -> String {
         let region_name = project
             .get_region_ctx(server_ctx)
             .map(|region| region.name.clone())
@@ -270,7 +283,7 @@ impl ConsoleDock {
         match self.focus {
             ConsoleFocus::Root => region_name,
             ConsoleFocus::Entity(id) => {
-                let name = Self::runtime_snapshot(project, server_ctx)
+                let name = Self::runtime_snapshot(project, server_ctx, runtime)
                     .ok()
                     .and_then(|(entities, _)| {
                         entities
@@ -282,7 +295,7 @@ impl ConsoleDock {
                 format!("{} / {}", region_name, name)
             }
             ConsoleFocus::Item(id) => {
-                let name = Self::runtime_snapshot(project, server_ctx)
+                let name = Self::runtime_snapshot(project, server_ctx, runtime)
                     .ok()
                     .and_then(|(_, items)| {
                         items
@@ -650,47 +663,103 @@ impl ConsoleDock {
         ])
     }
 
+    #[cfg(test)]
+    pub(crate) fn text_for_test(&self) -> String {
+        self.document.plain_text()
+    }
+    #[cfg(test)]
+    pub(crate) fn runtime_link_for_test(&self) -> Option<TheValue> {
+        self.document.blocks.iter().find_map(|block| {
+            let TheFeedbackBlock::List { items, .. } = block else {
+                return None;
+            };
+            items.iter().flatten().find_map(|span| {
+                span.interaction
+                    .as_ref()
+                    .filter(|link| matches!(link.value, TheValue::List(_)))
+                    .map(|link| link.value.clone())
+            })
+        })
+    }
+    fn scope_runtime_links(document: &mut TheFeedbackDocument, scope: (Uuid, Uuid)) {
+        let interaction = |interaction: &mut Option<TheFeedbackInteraction>| {
+            if let Some(interaction) = interaction
+                && interaction.id.name == CONSOLE_FEEDBACK_ACTION
+            {
+                interaction.value = TheValue::List(vec![
+                    TheValue::Id(scope.0),
+                    TheValue::Id(scope.1),
+                    interaction.value.clone(),
+                ]);
+            }
+        };
+        let spans = |spans: &mut Vec<TheFeedbackSpan>| {
+            for span in spans {
+                interaction(&mut span.interaction);
+            }
+        };
+        for block in &mut document.blocks {
+            match block {
+                TheFeedbackBlock::Heading { spans: values, .. }
+                | TheFeedbackBlock::Paragraph(values)
+                | TheFeedbackBlock::Notice { spans: values, .. } => spans(values),
+                TheFeedbackBlock::CommandList { entries, .. } => {
+                    for entry in entries {
+                        interaction(&mut entry.interaction);
+                    }
+                }
+                TheFeedbackBlock::KeyValueList { entries, .. } => {
+                    for entry in entries {
+                        spans(&mut entry.value);
+                    }
+                }
+                TheFeedbackBlock::List { items, .. } => {
+                    for item in items {
+                        spans(item);
+                    }
+                }
+                TheFeedbackBlock::Code { .. } | TheFeedbackBlock::Divider => (),
+            }
+        }
+    }
+
+    fn bind_runtime(&mut self, runtime: Option<RegionInspection<'_>>) {
+        let scope = runtime.map(|runtime| (runtime.session_id, runtime.map.id));
+        if self.runtime_scope != scope {
+            self.runtime_scope = scope;
+            self.focus = ConsoleFocus::Root;
+        }
+    }
     fn runtime_snapshot(
         project: &Project,
         server_ctx: &ServerContext,
+        runtime: Option<RegionInspection<'_>>,
     ) -> Result<(Vec<RuntimeEntity>, Vec<RuntimeItem>), String> {
-        let rusterix = RUSTERIX.read().unwrap();
-        if rusterix.server.state != ServerState::Running {
-            return Err("Game is not running.".to_string());
+        let runtime = runtime
+            .filter(|runtime| runtime.state == ServerState::Running)
+            .ok_or("Game is not running.")?;
+        let region_id = project.get_region_ctx(server_ctx).map(|region| region.id);
+        if region_id != Some(runtime.region_id) {
+            return Err("Runtime region is no longer selected.".into());
         }
-
-        let mut runtime_entities = Vec::new();
-        let mut runtime_items = Vec::new();
-
-        let (entities, items) = rusterix.server.get_entities_items(&server_ctx.curr_region);
-        if let Some(entities) = entities {
-            for entity in entities {
-                runtime_entities.push(RuntimeEntity {
-                    entity: entity.clone(),
-                });
-            }
-        }
-        if let Some(items) = items {
-            for item in items {
-                runtime_items.push(RuntimeItem { item: item.clone() });
-            }
-        }
-
-        if runtime_entities.is_empty()
-            && runtime_items.is_empty()
-            && let Some(region) = project.get_region_ctx(server_ctx)
-        {
-            for entity in &region.map.entities {
-                runtime_entities.push(RuntimeEntity {
-                    entity: entity.clone(),
-                });
-            }
-            for item in &region.map.items {
-                runtime_items.push(RuntimeItem { item: item.clone() });
-            }
-        }
-
-        Ok((runtime_entities, runtime_items))
+        // Transient state comes only from the addressed session, never from
+        // authored entities or whichever game map happens to be on screen.
+        Ok((
+            runtime
+                .map
+                .entities
+                .iter()
+                .cloned()
+                .map(|entity| RuntimeEntity { entity })
+                .collect(),
+            runtime
+                .map
+                .items
+                .iter()
+                .cloned()
+                .map(|item| RuntimeItem { item })
+                .collect(),
+        ))
     }
 
     fn focus_label(&self, entities: &[RuntimeEntity], items: &[RuntimeItem]) -> String {
@@ -1022,7 +1091,9 @@ impl ConsoleDock {
         project: &Project,
         server_ctx: &ServerContext,
         ctx: &mut TheContext,
+        runtime: Option<RegionInspection<'_>>,
     ) -> Result<TheFeedbackDocument, String> {
+        self.bind_runtime(runtime);
         match request {
             ConsoleRequest::Help => Ok(Self::help()),
             ConsoleRequest::ListActions {
@@ -1043,9 +1114,9 @@ impl ConsoleDock {
                 Err("Editor request was not dispatched by the sidebar.".to_string())
             }
             request => {
-                let (entities, items) = Self::runtime_snapshot(project, server_ctx)?;
+                let (entities, items) = Self::runtime_snapshot(project, server_ctx, runtime)?;
                 let focusable_items = Self::collect_focusable_items(&entities, &items);
-                match request {
+                let mut document = match request {
                     ConsoleRequest::List(ConsoleListScope::Characters) => {
                         Ok(Self::list_characters(&entities))
                     }
@@ -1212,7 +1283,9 @@ impl ConsoleDock {
                         Ok(self.list_root(&entities, &items))
                     }
                     _ => unreachable!("non-runtime console request handled above"),
-                }
+                }?;
+                Self::scope_runtime_links(&mut document, self.runtime_scope.unwrap());
+                Ok(document)
             }
         }
     }
@@ -1240,6 +1313,85 @@ impl ConsoleDock {
     }
 }
 
+impl ConsoleDock {
+    pub(crate) fn handle_event_with_runtime(
+        &mut self,
+        event: &TheEvent,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        server_ctx: &mut ServerContext,
+        runtime: Option<RegionInspection<'_>>,
+    ) -> bool {
+        self.bind_runtime(runtime);
+        if let TheEvent::StateChanged(id, TheWidgetState::Clicked) = event {
+            if id.name == CONSOLE_BACK {
+                self.navigate_history(-1, ui, ctx);
+                self.clear_input(ui);
+                return true;
+            }
+            if id.name == CONSOLE_FORWARD {
+                self.navigate_history(1, ui, ctx);
+                self.clear_input(ui);
+                return true;
+            }
+        }
+
+        let submitted_command = match event {
+            TheEvent::Custom(id, value) if id.name == CONSOLE_FEEDBACK_ACTION => Some(value),
+            TheEvent::ValueChanged(id, value) if id.name == CONSOLE_INPUT => Some(value),
+            _ => None,
+        };
+        if let Some(value) = submitted_command {
+            let command = if let TheValue::List(values) = value {
+                let [TheValue::Id(session), TheValue::Id(map), command] = values.as_slice() else {
+                    return false;
+                };
+                if self.runtime_scope != Some((*session, *map)) {
+                    return false;
+                }
+                command.to_string().unwrap_or_default()
+            } else {
+                value.to_string().unwrap_or_default()
+            };
+            let command = command.trim().to_string();
+            if command.is_empty() {
+                self.set_input(ui, ctx, "");
+                return false;
+            }
+
+            let prompt = self.prompt(project, server_ctx, runtime);
+            let mut output = TheFeedbackDocument::new(vec![TheFeedbackBlock::Paragraph(vec![
+                TheFeedbackSpan::new(format!("{prompt}  ›  "), TheFeedbackRole::Muted),
+                TheFeedbackSpan::new(command.clone(), TheFeedbackRole::Command),
+            ])]);
+            match Self::parse_command(&command) {
+                Ok(requests) => {
+                    self.pending_requests = requests;
+                    self.set_output(output, ui, ctx);
+                    self.record_history(ui, ctx);
+                }
+                Err(error) => {
+                    self.pending_requests.clear();
+                    output.extend(Self::error_document(error));
+                    self.set_output(output, ui, ctx);
+                    self.record_history(ui, ctx);
+                }
+            }
+            self.clear_input(ui);
+            if let Some(focus_id) = Self::console_input_id(ui) {
+                ctx.ui.focus = Some(focus_id.clone());
+                ctx.ui.keyboard_focus = Some(focus_id.clone());
+                ctx.ui.send(TheEvent::GainedFocus(focus_id));
+                ui.process_events(ctx);
+            }
+            return true;
+        }
+
+        false
+    }
+}
+
 impl Dock for ConsoleDock {
     fn new() -> Self
     where
@@ -1250,8 +1402,10 @@ impl Dock for ConsoleDock {
             history: vec![ConsoleHistoryEntry {
                 document: document.clone(),
                 focus: ConsoleFocus::Root,
+                runtime_scope: None,
             }],
             history_index: 0,
+            runtime_scope: None,
             document,
             focus: ConsoleFocus::Root,
             pending_requests: Vec::new(),
@@ -1333,61 +1487,7 @@ impl Dock for ConsoleDock {
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
-        if let TheEvent::StateChanged(id, TheWidgetState::Clicked) = event {
-            if id.name == CONSOLE_BACK {
-                self.navigate_history(-1, ui, ctx);
-                self.clear_input(ui);
-                return true;
-            }
-            if id.name == CONSOLE_FORWARD {
-                self.navigate_history(1, ui, ctx);
-                self.clear_input(ui);
-                return true;
-            }
-        }
-
-        let submitted_command = match event {
-            TheEvent::Custom(id, value) if id.name == CONSOLE_FEEDBACK_ACTION => Some(value),
-            TheEvent::ValueChanged(id, value) if id.name == CONSOLE_INPUT => Some(value),
-            _ => None,
-        };
-        if let Some(value) = submitted_command {
-            let command = value.to_string().unwrap_or_default();
-            let command = command.trim().to_string();
-            if command.is_empty() {
-                self.set_input(ui, ctx, "");
-                return false;
-            }
-
-            let prompt = self.prompt(project, server_ctx);
-            let mut output = TheFeedbackDocument::new(vec![TheFeedbackBlock::Paragraph(vec![
-                TheFeedbackSpan::new(format!("{prompt}  ›  "), TheFeedbackRole::Muted),
-                TheFeedbackSpan::new(command.clone(), TheFeedbackRole::Command),
-            ])]);
-            match Self::parse_command(&command) {
-                Ok(requests) => {
-                    self.pending_requests = requests;
-                    self.set_output(output, ui, ctx);
-                    self.record_history(ui, ctx);
-                }
-                Err(error) => {
-                    self.pending_requests.clear();
-                    output.extend(Self::error_document(error));
-                    self.set_output(output, ui, ctx);
-                    self.record_history(ui, ctx);
-                }
-            }
-            self.clear_input(ui);
-            if let Some(focus_id) = Self::console_input_id(ui) {
-                ctx.ui.focus = Some(focus_id.clone());
-                ctx.ui.keyboard_focus = Some(focus_id.clone());
-                ctx.ui.send(TheEvent::GainedFocus(focus_id));
-                ui.process_events(ctx);
-            }
-            return true;
-        }
-
-        false
+        self.handle_event_with_runtime(event, ui, ctx, project, server_ctx, None)
     }
 
     fn supports_actions(&self) -> bool {
@@ -1450,6 +1550,109 @@ mod tests {
             vec![ConsoleRequest::Focus("Old Smuggler".to_string())]
         );
         assert!(ConsoleDock::parse_command("rules overview").is_err());
+        let authored = Project::default();
+        let region = authored.regions[0].id;
+        let mut runtime = authored.clone();
+        // Generated maps retain their authoring region identity; numerical
+        // actors come from the session projection, never authored templates.
+        runtime.regions[0].map.id = Uuid::new_v4();
+        let map_id = runtime.regions[0].map.id;
+        let mut actor = Entity::new();
+        actor.id = 7;
+        actor
+            .attributes
+            .set("name", Value::Str("Session chamber actor".into()));
+        runtime.regions[0].map.entities = vec![actor];
+        let mut session = eldiron_runtime::GameSession::new(runtime.clone());
+        session.server.state = ServerState::Running;
+        let view = session.inspect_region(&map_id).unwrap();
+        assert_eq!(view.region_id, region);
+        let mut selection = ServerContext::new();
+        selection.curr_region = region;
+        let mut ctx = TheContext::new(640, 480, 1.);
+        let mut ui = TheUI::new();
+        let mut dock = ConsoleDock::new();
+        let feedback = dock
+            .execute_local_request(
+                &ConsoleRequest::List(ConsoleListScope::Characters),
+                &authored,
+                &selection,
+                &mut ctx,
+                Some(view),
+            )
+            .unwrap();
+        let list = feedback.plain_text();
+        let stale_link = match &feedback.blocks[0] {
+            TheFeedbackBlock::List { items, .. } => {
+                items[0][0].interaction.as_ref().unwrap().value.clone()
+            }
+            _ => panic!("runtime character list"),
+        };
+        assert!(list.contains("Session chamber actor"));
+        assert!(
+            dock.execute_local_request(
+                &ConsoleRequest::Show,
+                &authored,
+                &selection,
+                &mut ctx,
+                None
+            )
+            .is_err()
+        );
+        dock.execute_local_request(
+            &ConsoleRequest::Focus("7".into()),
+            &authored,
+            &selection,
+            &mut ctx,
+            Some(view),
+        )
+        .unwrap();
+        assert_eq!(dock.focus, ConsoleFocus::Entity(7));
+        dock.history.push(dock.history_entry());
+        dock.history_index = 0;
+        // A second incarnation deliberately reuses every persisted ID and
+        // actor ID. Restoring old history cannot focus that other actor.
+        let mut replacement = eldiron_runtime::GameSession::new(runtime);
+        replacement.server.state = ServerState::Running;
+        dock.bind_runtime(replacement.inspect_region(&map_id));
+        assert_eq!(dock.focus, ConsoleFocus::Root);
+        dock.navigate_history(1, &mut ui, &mut ctx);
+        assert_eq!(dock.focus, ConsoleFocus::Root);
+        let click = TheEvent::Custom(TheId::named(CONSOLE_FEEDBACK_ACTION), stale_link);
+        assert!(!dock.handle_event_with_runtime(
+            &click,
+            &mut ui,
+            &mut ctx,
+            &mut authored.clone(),
+            &mut selection,
+            replacement.inspect_region(&map_id)
+        ));
+        assert!(dock.take_pending_requests().is_empty());
+        assert!(dock.handle_event_with_runtime(
+            &click,
+            &mut ui,
+            &mut ctx,
+            &mut authored.clone(),
+            &mut selection,
+            Some(view)
+        ));
+        assert_eq!(
+            dock.take_pending_requests(),
+            vec![ConsoleRequest::Focus("7".into())]
+        );
+        selection.curr_region = Uuid::new_v4();
+        assert!(
+            dock.execute_local_request(
+                &ConsoleRequest::Show,
+                &authored,
+                &selection,
+                &mut ctx,
+                Some(view)
+            )
+            .is_err()
+        );
+        assert_eq!(session.tick_sequence(), 0);
+        assert_eq!(replacement.tick_sequence(), 0);
     }
 
     #[test]

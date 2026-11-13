@@ -16,6 +16,20 @@ pub struct ScreenSource<'a> {
     pub responsive: bool,
 }
 
+/// CPU inspection of an addressed region. This does not borrow Assets or the
+/// mutable server, so an authoring controller can inspect a session while its
+/// unrelated asset/edit services remain available. No ticking or output drain.
+#[derive(Clone, Copy)]
+pub struct RegionInspection<'a> {
+    pub session_id: theframework_core::Uuid,
+    pub tick_sequence: u64,
+    /// Authoring region identity, independent of a generated runtime map ID.
+    pub region_id: theframework_core::Uuid,
+    pub map: &'a Map,
+    pub state: ServerState,
+    pub time: TheTime,
+}
+
 /// A graphical/text consumer borrows this snapshot without owning a server,
 /// advancing time or draining addressed outputs. Render settings are plain CPU data.
 pub struct RuntimeView<'a> {
@@ -73,6 +87,23 @@ impl RuntimeView<'_> {
     }
 }
 impl crate::SessionPump {
+    pub fn inspect_region<'a>(
+        &self,
+        project: &'a Project,
+        server: &rusterix::Server,
+        id: &theframework_core::Uuid,
+    ) -> Option<RegionInspection<'a>> {
+        let region = project.regions.iter().find(|r| &r.map.id == id)?;
+        let map = &region.map;
+        Some(RegionInspection {
+            session_id: self.session_id(),
+            tick_sequence: self.tick_sequence(),
+            region_id: region.id,
+            map,
+            state: server.state,
+            time: server.get_time(id).unwrap_or(project.time),
+        })
+    }
     /// Addressed output consumers borrow the matching region's CPU state.
     /// Off-screen audio/dialog delivery must not resolve entity IDs in whichever
     /// map happens to be visible in the current game screen.
@@ -124,6 +155,9 @@ impl crate::SessionPump {
 }
 
 impl GameSession {
+    pub fn inspect_region(&self, id: &theframework_core::Uuid) -> Option<RegionInspection<'_>> {
+        self.pump.inspect_region(&self.project, &self.server, id)
+    }
     pub fn view_region(&self, id: &theframework_core::Uuid) -> Option<RuntimeView<'_>> {
         self.pump
             .view_region(&self.project, &self.server, &self.assets, id)
@@ -167,6 +201,19 @@ mod tests {
         assert_eq!(live.map.unwrap().id, first);
         assert_eq!(live.time, before);
         assert_eq!(live.session_id, session.view().session_id);
+        let inspection = session
+            .pump
+            .inspect_region(&session.project, &session.server, &first)
+            .unwrap();
+        // The addressed map borrow does not retain server/assets. Editing an
+        // unrelated asset or changing server state cannot rewrite that snapshot.
+        session.assets.config = "unrelated authoring edit".into();
+        session.server.state = ServerState::Paused;
+        assert_eq!(inspection.map.id, first);
+        assert_eq!(inspection.region_id, session.project.regions[0].id);
+        assert!(inspection.state == ServerState::Off);
+        assert_eq!(inspection.tick_sequence, 0);
+        assert_eq!(inspection.time, before);
         assert!(
             session
                 .view_region(&theframework_core::Uuid::new_v4())

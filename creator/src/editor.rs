@@ -10076,9 +10076,15 @@ impl TheTrait for Editor {
                     );
                 }
             }
-            if self
-                .sidebar
-                .handle_event(&event, ui, ctx, &mut self.documents.project, &mut self.server_ctx)
+            let inspection = self.play_session.as_ref()
+                .filter(|play| self.documents.active_id() == Some(play.document))
+                .and_then(|play| {
+                    let region = play.project.get_region_ctx(&self.server_ctx)?;
+                    play.pump.inspect_region(&play.project, &RUSTERIX.read().unwrap().server, &region.map.id)
+                });
+            if self.sidebar.handle_event_with_runtime(
+                &event, ui, ctx, &mut self.documents.project, &mut self.server_ctx, inspection,
+            )
             {
                 redraw = true;
             }
