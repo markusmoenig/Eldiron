@@ -7,6 +7,8 @@ mod paste;
 mod source;
 #[path = "native_world_navigation.rs"]
 mod navigation;
+#[path = "native_world_visibility.rs"]
+mod visibility;
 use crate::editor_overlay::panel::PanelScope;
 use crate::editor_overlay::procedural_gpu::GpuIcons;
 use crate::hud::{Hud, HudInputs, HudStyle};
@@ -818,7 +820,7 @@ impl Editor {
         }
         let bridge = self.server_ctx.reference.read();
         // The shared CPU pump publishes live actors into a separate projection.
-        // Speech/visibility, orthographic bakes and the remaining custom
+        // Speech, orthographic bakes and the remaining custom
         // contexts still have explicit migration adapters.
         let owned_play = self.play_session.as_ref().is_some_and(|play| {
             self.documents.active_id() == Some(play.document)
@@ -826,9 +828,6 @@ impl Editor {
         (bridge.server.state == rusterix::ServerState::Off || owned_play)
             && bridge.client.messages_to_draw.is_empty()
             && !bridge.orthographic_bake.is_rendering()
-            && (self.server_ctx.editor_view_mode != EditorViewMode::D2
-                || bridge.scene_handler.settings.visibility_range_2d <= 0.
-                || bridge.scene_handler.settings.visibility_alpha_2d <= 0.)
     }
     pub(super) fn native_world_gesture_active(&self) -> bool {
         self.native_viewport.world.world_capture.is_some()
@@ -1375,11 +1374,29 @@ impl Editor {
         );
         drop(tools);
         let mut list = PaintList::default();
-        list.image(
-            output.image,
-            Rect::new(0., 0., binding.size.0 as f32, binding.size.1 as f32),
-            Sampling::Nearest,
-        );
+        if binding.mode == EditorViewMode::D2 {
+            // Use the same stable logical-pixel lookup as guides/visibility.
+            // Interpolated normalized nearest UVs can drift to a neighboring
+            // texel at exact boundaries under fractional host density.
+            list.ops.push(PaintOp::SpriteImage {
+                image: output.image,
+                origin: [0., 0.],
+                scale: [1., 1.],
+                tint: [1.; 4],
+            });
+        } else {
+            list.image(
+                output.image,
+                Rect::new(0., 0., binding.size.0 as f32, binding.size.1 as f32),
+                Sampling::Nearest,
+            );
+        }
+        if binding.mode == EditorViewMode::D2 && map.camera == MapCamera::TwoD {
+            let settings = &gpu.scenes.scene(gpu.view).map_err(|e| e.to_string())?.settings;
+            if let Some(mask) = visibility::paint(map, assets, binding.size, settings) {
+                list.ops.push(mask);
+            }
+        }
         if isometric.is_some() {
             gpu.guides.set_properties(&self.build_values);
             gpu.guides
@@ -2435,6 +2452,10 @@ impl Editor {
     pub(crate) fn native_world_has_ray_for_test(&self) -> bool {
         self.server_ctx.hover_ray_origin_3d.is_some() && self.server_ctx.hover_ray_dir_3d.is_some()
     }
+
+
+
+
     pub(crate) fn native_world_has_cpu_storage_for_test(&self) -> bool {
         let gpu = self
             .native_viewport

@@ -9045,3 +9045,127 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   remove guards or hide visible unmigrated views. Retire these and remaining app
   globals, then resource/performance/full platform gates. Goal remains ACTIVE;
   no M0–M9 completion claim. Concurrent networking concept untouched.
+
+
+### Native 2D visibility display migration (active, 2026-11-14)
+
+- Explicit GPU checkpoint77ce0dc5 contains10 files; all previous evidence/gates
+  retained. Next visible fallback: active visibility_range_2d/visibility_alpha_2d
+  made native_world_owns_viewport false and normal editor rendering captured color.
+- Extracted exact old ordered LOS/range cell coverage into CPU VisibilityView2D;
+  legacy CPU reference composition consumes it unchanged. Native world emits one
+  existing PixelRects GPU batch with the same integer floor/ceil bounds, ordering
+  and repeated blends where fractional cell edges overlap. No whole-frame CPU
+  image, GPU readback or CPU root composition. Native normal TwoD uses this;
+  TwoDIso preserves its old behavior (legacy returned before visibility masking).
+- Native compile foundation PASS19.97s. Added to the EXISTING assembled workflow:
+  enable real visibility on the actual world, verify native ownership/no readback,
+  compare its actual published base+mask paint at1/1.25/1.5/1.75/2 density against
+  CPU reference blend, assert authored data unchanged. This is unverified, not
+  accepted from guard removal alone. Build/run pending with native-visibility logs.
+- CPU coverage currently recomputed for active visibility on a requested frame;
+  cache/budget/performance acceptance remains open. Preserve mapmini blocking tile
+  semantics and actual reference image behavior before optimizing coverage.
+
+- Visibility test compilation passed41.03s, then22.33s after correcting the mask
+  to consume PREPARED effective SceneHandler settings (including runtime overrides),
+  rather than stale bridge base settings. Final assembled helper37.07s adds a real
+  config edit/fractional43.5 grid/offset, waits source ready, submits/acknowledges
+  actual root plus source-only pixel comparison; restores exact original source.
+- First assembled run FAILED15.89s:100% DPI maxdelta1,125% maxdelta225. Gate
+  remains FAILED, no acceptance/checkpoint. Investigate scaled source sampling vs
+  pixel-mask coverage, retaining strict<=1 tolerance. Added failure-only diagnostic
+  actual base/masked/expected captures and first mismatched coordinates; rebuilding
+  native-visibility diagnostics next. No source/counter/platform pass inferred.
+
+- Diagnostic assembled run also FAILED15.51s, confirmed the primary discrepancy
+  already exists in the UNMASKED scaled base image: e.g physical197,0 at125%
+  mapped to logical158,0, logical baseRGB45/39/34 but actual scaled base32/30/28;
+  mask correctly produced20/19/18 from its actual base. This is normalized nearest
+  UV interpolation selecting an adjacent source texel at exact fractional-DPI
+  boundaries, independently of visibility geometry. Failure-only PNGs under
+  /private/tmp/eldiron-native-visibility-{base-logical,base-physical,masked-physical,
+  expected-physical}.png and coordinates in assembled-metal-2.log.
+- Native 2D scene blit now uses the EXISTING SpriteImage operation at1:1 logical
+  source scale, same explicit inverse-basis/texelLoad lookup as PixelRects and
+  sampled guides. It still consumes a GPU image handle, no pixels/readback/device
+  creation. 3D presentation unchanged. Rebuild and strict five-density comparison
+  pending; no tolerance relaxed and no visibility acceptance yet.
+
+- Stable-source SpriteImage rebuild PASS22.80s. Third assembled run now passes
+  visibility pixels at ALL five densities1/1.25/1.5/1.75/2: MAX DELTA1 each,
+  strict threshold unchanged. Actual root is rendered/acknowledged with active
+  config visibility, source ready, no normal readback/CPU target storage. Rest of
+  assembled workflow still running (assembled-metal-3.log), not yet full PASS.
+- Kept the new work modular: CPU coverage client/visibility.rs, native paint and
+  scoped comparison helpers editor/native_world_visibility.rs, existing assembled
+  integration helper native_visibility_check.rs. native_world and native_application
+  only wire these modules into their existing owning flow. Sixth test build checks
+  module boundaries; no algorithm change from passing pixel comparison. Platform
+  feature/browser/staticlib checks still pending, batch UNCOMMITTED.
+
+- Full third native assembled Metal workflow PASSED1/133.56s after stable 2D
+  source sampling. All five visibility densities maxdelta1, source unchanged,
+  actual root acknowledged/no ordinary color readback; rest of world/tools/
+  terrain/painting/documents/Play/source/DPI/device recovery also passed.
+- Module extraction initially hit E0583 for native test helper's default relative
+  module path; fixed explicit path attribute (matching existing native_documents).
+  Seventh build PASS1m12s INCLUDING cargo build-lock wait. Its stdout/stderr were
+  accidentally mixed by a redirect, preserved as build-7-raw.log and normalized
+  into build-7.json/build-7.log after inspecting successful compiler completion.
+- Browser release PASS1m22s/package97,983,861B; actual staticlib PASS45.43s.
+  Reference compile PASS18.51s before native-only module extraction; no regular
+  reference algorithm changed afterward. Linked Swift compiling/actual browser
+  Visibility2D startup running; need active-mask/source/DPR/recovery evidence.
+
+- Browser fixture preparation first incorrectly wrapped legacy project JSON in an
+  archive without required manifest.json; browser correctly REJECTED it before
+  display. Preserved invalid-fixture log, corrected disposable fixture to supported
+  legacy JSON. Actual active Visibility2D then PASSED boot/idle loss gen1→2:
+  doc2e3e204b-c4e3-47a6-8a7a-a7a97d75d151, mode2d/worldtrue,15 frames,
+  devices2/root/readback/asset readback/normal copies/Canvas2D0/errors[].
+- Linked Swift CAMetalLayer/handle/document/PNG runtime PASS. Browser real second
+  loss and fresh before/recovered saves produced two1,448,908B archives. Subsequent
+  CDP-only1.5 DPR assertion FAILED: JS DPR1.5000000596 but canvas2002x1073 at
+  CSS1602x858, still snapped to this profile's actual1.25 device-pixel box. This is
+  the SAME CDP metrics/device-pixel ResizeObserver limitation already recorded at
+  lines7128–7162, not new proof of production sizing failure. Do not modify host
+  sizing to force emulation agreement. Physical monitor transition gate stays OPEN.
+- Continue independent actual CSS resize/recovery/save checks on real1.25 profile;
+  investigate a fresh task Chrome with REAL --force-device-scale-factor=1.5 for
+ 1.5 startup evidence. Do not relabel CDP transition as passed. All source/canvas
+  state/image assertions still required before this visibility checkpoint.
+
+- Final real1.25 browser visibility CSS/recovery workflow PASS. Same doc
+ 2e3e204b-c4e3-47a6-8a7a-a7a97d75d151 survives another actual loss gen3→4;
+  CSS1280x760 yields actual canvas1600x950/DPR1.25.608 frames/devices4/gen4,
+  root/readback/asset readback/normal copies/Canvas2D0/errors[]. Three CURRENT
+  committed archives before/recovered/resized BYTE IDENTICAL1,448,908B SHA256
+ 0251e75841490d839e6cdd792d4d738d98abec1308cad9ea9483f2d4392010da;
+  WHOLE parsed JSON equal, TwoD/grid43.5/offset0.25,-0.5 retained. Actual GPU-
+  completed screenshot visually inspected (grid, visibility circle/cells, Player
+  marker, controls/tiles). Logs browser-services-css.log and browser-125.png under
+  /private/tmp with native-visibility prefix. No CDP DPR transition pass claimed.
+- Real1.5 startup independently PASS in task-only Chrome9267/profile
+  /private/tmp/eldiron-visibility-density-9267, launched with actual
+  --force-device-scale-factor=1.5 (same validated Metal flags as taskChrome9251).
+  Canvas2400x1287/CSS1600x858, doc130c5166-0fd9-4cfa-99e9-1111dbf57ab2;
+  actual idle device loss gen1→2 retains source/doc,7 frames/devices2, normal
+  readback/color copies/Canvas2D0/errors[]. GPU-completed POST-RECOVERY capture
+  visually inspected and copied to durable evidence
+  native-wgpu-evidence/browser-creator-visibility-150.png. Startup and recovery
+  verified; physical monitor transitions/OS IME remain unverified.
+- Actual visibility save/open/save PASS: NEW docedbd943c-6962-4cd9-9145-
+ 97dba7839f55, generation/devices4,1142 frames/root/readback/normal copies/
+  Canvas2D0/errors[]. Whole authored JSON EXACTLY EQUAL after reopen; compressed
+  archives1,448,908/1,468,960B. Fresh task files/cleared proof handles used.
+  Logs native-visibility-reopen.log, archives native-visibility-reopen-{before,
+  after}.eldiron under /private/tmp. All available functional/feature checks for
+  this batch pass; retained physical/platform/performance gates stay OPEN.
+- Visibility fallback retired for native world TwoD; TwoDIso preserves old mask-
+  bypass semantics. CPU reference compositor remains explicitly named for old
+  reference client/game-widget adapters (M6/M7) and the test oracle. Coverage
+  caching/resource/time budgets still pending; no hidden framebuffer fallback
+  introduced to pass imagery. Local checkpoint this batch, then continue speech/
+  effects/tile-picker/other viewport and application ownership migration. Full
+  M0–M9 Goal ACTIVE. Concurrent networking concept untouched/excluded.

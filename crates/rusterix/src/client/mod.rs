@@ -1,3 +1,4 @@
+pub mod visibility;
 pub mod action;
 pub mod content;
 pub mod screen_model;
@@ -57,7 +58,8 @@ use std::sync::{Arc, Mutex};
 use theframework::prelude::*;
 use toml::*;
 
-pub(crate) fn apply_2d_visibility_mask(
+/// Explicit CPU reference compositor; native presentation emits pixel rectangles.
+pub fn apply_2d_visibility_mask(
     pixels: &mut [u8],
     width: usize,
     height: usize,
@@ -78,53 +80,32 @@ pub(crate) fn apply_2d_visibility_mask(
         return;
     }
 
-    let start_x = top_left.x.floor() as i32 - 1;
-    let start_y = top_left.y.floor() as i32 - 1;
-    let end_x = (top_left.x + width as f32 / grid_size).ceil() as i32 + 1;
-    let end_y = (top_left.y + height as f32 / grid_size).ceil() as i32 + 1;
-    let from_tile = player_pos.map(|v| v.floor() as i32);
-
-    for tile_y in start_y..end_y {
-        for tile_x in start_x..end_x {
-            let center = Vec2::new(tile_x as f32 + 0.5, tile_y as f32 + 0.5);
-            let to_tile = Vec2::new(tile_x, tile_y);
-            if (center - player_pos).magnitude() <= visibility_range_2d
-                && mapmini.is_tile_visible(from_tile, to_tile)
-            {
-                continue;
-            }
-
-            let x0 = (((tile_x as f32) - top_left.x) * grid_size).floor() as i32;
-            let y0 = (((tile_y as f32) - top_left.y) * grid_size).floor() as i32;
-            let x1 = ((((tile_x + 1) as f32) - top_left.x) * grid_size).ceil() as i32;
-            let y1 = ((((tile_y + 1) as f32) - top_left.y) * grid_size).ceil() as i32;
-
-            let x0 = x0.clamp(0, width as i32) as usize;
-            let y0 = y0.clamp(0, height as i32) as usize;
-            let x1 = x1.clamp(0, width as i32) as usize;
-            let y1 = y1.clamp(0, height as i32) as usize;
-
-            if x0 >= x1 || y0 >= y1 {
-                continue;
-            }
-
-            for y in y0..y1 {
-                let row = y * width * 4;
-                for x in x0..x1 {
-                    let idx = row + x * 4;
-                    pixels[idx] = ((pixels[idx] as f32 * (1.0 - visibility_alpha_2d))
-                        + (fill[0] as f32 * visibility_alpha_2d))
-                        .round() as u8;
-                    pixels[idx + 1] = ((pixels[idx + 1] as f32 * (1.0 - visibility_alpha_2d))
-                        + (fill[1] as f32 * visibility_alpha_2d))
-                        .round() as u8;
-                    pixels[idx + 2] = ((pixels[idx + 2] as f32 * (1.0 - visibility_alpha_2d))
-                        + (fill[2] as f32 * visibility_alpha_2d))
-                        .round() as u8;
-                }
+    visibility::VisibilityView2D {
+        size: (width as u32, height as u32),
+        grid_size,
+        top_left,
+        player_pos,
+        range: visibility_range_2d,
+    }
+    .visit_hidden_rects(mapmini, |[x0, y0, rect_width, rect_height]| {
+        let (x0, y0) = (x0 as usize, y0 as usize);
+        let (x1, y1) = (x0 + rect_width as usize, y0 + rect_height as usize);
+        for y in y0..y1 {
+            let row = y * width * 4;
+            for x in x0..x1 {
+                let idx = row + x * 4;
+                pixels[idx] = ((pixels[idx] as f32 * (1.0 - visibility_alpha_2d))
+                    + (fill[0] as f32 * visibility_alpha_2d))
+                    .round() as u8;
+                pixels[idx + 1] = ((pixels[idx + 1] as f32 * (1.0 - visibility_alpha_2d))
+                    + (fill[1] as f32 * visibility_alpha_2d))
+                    .round() as u8;
+                pixels[idx + 2] = ((pixels[idx + 2] as f32 * (1.0 - visibility_alpha_2d))
+                    + (fill[2] as f32 * visibility_alpha_2d))
+                    .round() as u8;
             }
         }
-    }
+    });
 }
 
 #[derive(Clone, Copy, Debug)]

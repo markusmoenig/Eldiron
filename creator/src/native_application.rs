@@ -8,6 +8,9 @@ use theframework::{paint::PaintList, platform::*, prelude::*, render_wgpu::UiFra
 
 #[path = "native_documents.rs"]
 mod documents;
+#[cfg(test)]
+#[path = "native_visibility_check.rs"]
+mod visibility_check;
 
 pub struct NativeCreatorApplication {
     editor: Editor,
@@ -353,6 +356,7 @@ impl UiApplication for NativeCreatorApplication {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::visibility_check::check_native_visibility;
     use renderkit::{GpuContext, GpuImage, ImageDescriptor, ImageRegistry, ReadbackTicket, wgpu};
     use rusterix::D3Camera;
     use std::sync::Arc;
@@ -856,6 +860,7 @@ mod tests {
                     .send(TheEvent::RenderViewUp(world_view.clone(), at));
             }
         }
+        check_native_visibility(&mut app, &mut host, &mut replacement, &gpu, &mut renderer);
         app.session.context.ui.send(TheEvent::Custom(
             TheId::named("Set Tool"),
             TheValue::Text("tool.terrain".into()),
@@ -2935,6 +2940,7 @@ mod tests {
         app.update(host, Duration::from_millis(16));
         assert_eq!(gpu.transfers().readback_bytes, before, "document transfers use CPU source bytes, never scene color capture");
     }
+
     fn check_native_paste(
         app: &mut UiApplicationAdapter<NativeCreatorApplication>,
         host: &mut HostContext,
