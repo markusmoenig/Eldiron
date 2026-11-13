@@ -79,7 +79,9 @@ impl UiApplication for NativeCreatorApplication {
         Ok(())
     }
     fn raw_input(&mut self, event: &InputEvent, ui: &mut UiSession) -> Option<InputResponse> {
-        let response = self.editor.native_play_raw_input(event, ui);
+        ui.ui.prepare_paint_layout(&mut ui.context);
+        let response = self.editor.native_game_input_raw(event, ui)
+            .or_else(|| self.editor.native_play_raw_input(event, ui));
         if response.is_some() && matches!(event, InputEvent::Modifiers(_) | InputEvent::Focus(_)) {
             ui.input(event);
         }
@@ -168,6 +170,7 @@ impl UiApplication for NativeCreatorApplication {
         redraw |= self.editor.update_ui(&mut ui.ui, &mut ui.context);
         redraw |= self.editor.update(&mut ui.context);
         self.editor.publish_native_world_paint_sources();
+        self.editor.sync_native_game_input(&mut ui.ui, &ui.context);
         if let Err(error) = self.editor.sync_native_play(&mut ui.ui, &mut ui.context, elapsed) {
             ui.context.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
         }
@@ -232,6 +235,7 @@ impl UiApplication for NativeCreatorApplication {
     }
     fn gpu_recreated(&mut self, ui: &mut UiSession, images: &mut UiFrameImages<'_>) -> Result<()> {
         self.pending = None;
+        self.editor.cancel_native_play_input(&mut ui.ui);
         self.editor.reset_native_play_gpu(images.registry).map_err(RenderError)?;
         self.editor
             .cancel_native_world_gesture(&mut ui.ui, &mut ui.context);
@@ -1833,6 +1837,257 @@ mod tests {
             resumed.2, 0,
             "the existing Resume policy clears pending presentation messages"
         );
+        // Real authoring GameInput stays on its acknowledged GPU scene and
+        // borrows the same CPU control owner as the full Game tool.
+        let toggle = *app.session.ui.get_widget("GameInput").unwrap().dim();
+        let toggle_at = [
+            (toggle.x + toggle.width / 2) as f32,
+            (toggle.y + toggle.height / 2) as f32,
+        ];
+        app.input(
+            &InputEvent::PointerButton {
+                button: PointerButton::Primary,
+                pressed: true,
+                position: toggle_at,
+            },
+            &mut host,
+        );
+        app.input(
+            &InputEvent::PointerButton {
+                button: PointerButton::Primary,
+                pressed: false,
+                position: toggle_at,
+            },
+            &mut host,
+        );
+        app.update(&mut host, Duration::from_millis(16));
+        let world_view = app
+            .session
+            .ui
+            .get_render_view("PolyView")
+            .unwrap()
+            .id()
+            .clone();
+        app.session.context.ui.set_focus(&world_view);
+        let key = |physical, logical, pressed| InputEvent::Key {
+            physical,
+            logical,
+            pressed,
+            repeat: false,
+        };
+        let w = |pressed| {
+            key(
+                PhysicalKey::Letter(b'W'),
+                LogicalKey::Character("w".into()),
+                pressed,
+            )
+        };
+        let up = |pressed| key(PhysicalKey::Up, LogicalKey::Named(TheKeyCode::Up), pressed);
+        let before_input = app
+            .application
+            .editor
+            .native_runtime_input_for_test()
+            .unwrap();
+        app.input(&w(true), &mut host);
+        assert_eq!(
+            app.application
+                .editor
+                .native_runtime_input_for_test()
+                .unwrap(),
+            before_input,
+            "GameInput cannot start movement before presentation"
+        );
+        let before = gpu.transfers();
+        let frame = app.frame(&mut host, &mut replacement).unwrap();
+        assert!(app.application.pending.as_ref().unwrap().world_for_test());
+        assert!(!app.application.pending.as_ref().unwrap().play_for_test());
+        assert!(
+            !app.application
+                .editor
+                .native_world_has_cpu_storage_for_test()
+        );
+        assert!(
+            !app.session
+                .ui
+                .get_render_view("PolyView")
+                .unwrap()
+                .has_cpu_display_storage()
+        );
+        renderer
+            .render(
+                &frame,
+                &replacement,
+                &output.view,
+                output.descriptor.format,
+                (1600, 1000),
+                1.,
+                [0.; 4],
+            )
+            .unwrap();
+        app.presented(&mut host);
+        app.input(&w(true), &mut host);
+        app.input(&up(true), &mut host);
+        let accepted = app
+            .application
+            .editor
+            .native_runtime_input_for_test()
+            .unwrap();
+        assert_eq!(accepted.0, initial.1);
+        assert_eq!(accepted.1.held_controls, 2);
+        assert_eq!(
+            accepted.1.submitted_actions,
+            before_input.1.submitted_actions + 1,
+            "aliased press sends one changed movement state"
+        );
+        app.input(&w(false), &mut host);
+        assert_eq!(
+            app.application
+                .editor
+                .native_runtime_input_for_test()
+                .unwrap()
+                .1
+                .held_controls,
+            1
+        );
+        app.input(&up(false), &mut host);
+        assert_eq!(
+            app.application
+                .editor
+                .native_runtime_input_for_test()
+                .unwrap()
+                .1
+                .held_controls,
+            0
+        );
+        app.input(&w(true), &mut host);
+        app.gpu_recreated(&mut host, &mut replacement).unwrap();
+        assert_eq!(
+            app.application
+                .editor
+                .native_runtime_input_for_test()
+                .unwrap()
+                .1
+                .held_controls,
+            0,
+            "GPU recovery cancels accepted controls without replacing their CPU owner"
+        );
+        assert_eq!(
+            app.application
+                .editor
+                .native_runtime_input_for_test()
+                .unwrap()
+                .0,
+            initial.1
+        );
+        let frame = app.frame(&mut host, &mut replacement).unwrap();
+        renderer
+            .render(
+                &frame,
+                &replacement,
+                &output.view,
+                output.descriptor.format,
+                (1600, 1000),
+                1.,
+                [0.; 4],
+            )
+            .unwrap();
+        app.presented(&mut host);
+        app.input(&w(true), &mut host);
+        assert_eq!(
+            app.application
+                .editor
+                .native_runtime_input_for_test()
+                .unwrap()
+                .1
+                .held_controls,
+            1
+        );
+        app.input(&InputEvent::Focus(false), &mut host);
+        assert_eq!(
+            app.application
+                .editor
+                .native_runtime_input_for_test()
+                .unwrap()
+                .1
+                .held_controls,
+            0
+        );
+        // Focus belongs to the host, not whichever presentation mode was open
+        // when the event arrived. A background mode switch cannot accept keys.
+        app.session.context.ui.send(TheEvent::Custom(
+            TheId::named("Set Tool"),
+            TheValue::Text("tool.game".into()),
+        ));
+        app.update(&mut host, Duration::from_millis(16));
+        app.update(&mut host, Duration::from_millis(16));
+        let background = app.frame(&mut host, &mut replacement).unwrap();
+        renderer
+            .render(
+                &background,
+                &replacement,
+                &output.view,
+                output.descriptor.format,
+                (1600, 1000),
+                1.,
+                [0.; 4],
+            )
+            .unwrap();
+        app.presented(&mut host);
+        app.session.context.ui.set_focus(&world_view);
+        app.input(&w(true), &mut host);
+        assert_eq!(
+            app.application
+                .editor
+                .native_runtime_input_for_test()
+                .unwrap()
+                .1
+                .held_controls,
+            0,
+            "a background Game tool cannot acquire movement"
+        );
+        app.input(&InputEvent::Focus(true), &mut host);
+        app.session.context.ui.send(TheEvent::Custom(
+            TheId::named("Set Tool"),
+            TheValue::Text("tool.geometry".into()),
+        ));
+        app.update(&mut host, Duration::from_millis(16));
+        app.update(&mut host, Duration::from_millis(16));
+        let foreground = app.frame(&mut host, &mut replacement).unwrap();
+        renderer
+            .render(
+                &foreground,
+                &replacement,
+                &output.view,
+                output.descriptor.format,
+                (1600, 1000),
+                1.,
+                [0.; 4],
+            )
+            .unwrap();
+        app.presented(&mut host);
+        assert_eq!(
+            gpu.transfers().readback_bytes,
+            before.readback_bytes,
+            "authoring GameInput performs no color readback"
+        );
+        app.input(
+            &InputEvent::PointerButton {
+                button: PointerButton::Primary,
+                pressed: true,
+                position: toggle_at,
+            },
+            &mut host,
+        );
+        app.input(
+            &InputEvent::PointerButton {
+                button: PointerButton::Primary,
+                pressed: false,
+                position: toggle_at,
+            },
+            &mut host,
+        );
+        app.update(&mut host, Duration::from_millis(16));
+        assert!(!app.application.editor.native_game_input_claim_for_test());
         // The real Game tool must use the same authored-screen controller as
         // the common player, with independent GPU scenes and text ownership.
         app.session.context.ui.send(TheEvent::Custom(

@@ -684,6 +684,8 @@ pub struct ServerContext {
 
     /// Game input mode
     pub game_input_mode: bool,
+    /// Ephemeral ownership claim for native authoring keyboard routing.
+    pub native_game_input: bool,
 
     /// First-person editor fly navigation mode. When enabled, PolyView mouse
     /// movement controls look direction and WASD controls movement.
@@ -854,6 +856,7 @@ impl ServerContext {
             collision_probe_dragging: false,
 
             game_input_mode: false,
+            native_game_input: false,
             editor_fly_nav_active: false,
             editor_fly_nav_mouse_down: false,
             editor_fly_nav_space_down: false,

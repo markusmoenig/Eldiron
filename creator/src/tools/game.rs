@@ -120,7 +120,7 @@ impl Tool for GameTool {
         _server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
         #[cfg(feature = "native-render")]
-        if ctx.ui.command_paint && _server_ctx.game_mode {
+        if ctx.ui.command_paint && (_server_ctx.game_mode || _server_ctx.native_game_input) {
             return None;
         }
         match map_event {
@@ -172,7 +172,7 @@ impl Tool for GameTool {
         server_ctx: &mut ServerContext,
     ) -> bool {
         #[cfg(feature = "native-render")]
-        if ctx.ui.command_paint && server_ctx.game_mode {
+        if ctx.ui.command_paint && (server_ctx.game_mode || server_ctx.native_game_input) {
             return false;
         }
         #[allow(clippy::single_match)]

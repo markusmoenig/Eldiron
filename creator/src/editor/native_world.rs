@@ -147,6 +147,24 @@ impl CameraStamp {
         )
     }
 }
+/// Opaque acknowledged authoring-view input scope; asset refreshes do not
+/// replace the CPU held-key owner, while camera/document/layout changes revoke it.
+#[derive(Clone)]
+pub(super) struct GameInputFrame {
+    binding: Binding,
+    camera: Option<CameraStamp>,
+}
+impl GameInputFrame {
+    pub(super) fn owns_runtime(&self, runtime: Uuid) -> bool { self.binding.runtime == Some(runtime) }
+    pub(super) fn view(&self) -> &TheId {
+        &self.binding.view
+    }
+}
+impl PartialEq for GameInputFrame {
+    fn eq(&self, other: &Self) -> bool {
+        self.binding.capture_compatible(&other.binding) && self.camera == other.camera
+    }
+}
 #[derive(PartialEq)]
 struct SceneInputKey {
     terrain_paint: Option<u64>,
@@ -708,7 +726,6 @@ impl Editor {
         if !self.native_viewport.enabled
             || self.native_display_owns_viewport()
             || self.server_ctx.game_mode
-            || self.server_ctx.game_input_mode
             || self.server_ctx.text_game_mode
             || !(self.server_ctx.pc.is_region() || self.server_ctx.pc.is_prefab())
             || self.server_ctx.world_mode
@@ -763,8 +780,8 @@ impl Editor {
         }
         let bridge = RUSTERIX.read().unwrap();
         // The shared CPU pump publishes live actors into the authoring map.
-        // Game-screen mode, speech/visibility, orthographic bakes and the
-        // remaining custom contexts still have explicit migration adapters.
+        // Speech/visibility, orthographic bakes and the remaining custom
+        // contexts still have explicit migration adapters.
         let owned_play = self.play_session.as_ref().is_some_and(|play| {
             self.sessions
                 .get(self.active_session)
@@ -776,6 +793,24 @@ impl Editor {
             && (self.server_ctx.editor_view_mode != EditorViewMode::D2
                 || bridge.scene_handler.settings.visibility_range_2d <= 0.
                 || bridge.scene_handler.settings.visibility_alpha_2d <= 0.)
+    }
+    pub(super) fn native_world_gesture_active(&self) -> bool {
+        self.native_viewport.world.world_capture.is_some()
+    }
+    pub(super) fn native_game_input_frame(
+        &self,
+        ui: &mut TheUI,
+        ctx: &TheContext,
+    ) -> Option<GameInputFrame> {
+        let binding = self.native_world_binding(ui, ctx)?;
+        let camera = self
+            .native_world_camera()
+            .map(|camera| CameraStamp::new(camera.as_ref(), binding.size));
+        let frame = self.native_viewport.world.presented.as_ref()?;
+        if !frame.ready || !frame.binding.capture_compatible(&binding) || frame.camera != camera {
+            return None;
+        }
+        Some(GameInputFrame { binding, camera })
     }
     fn native_world_binding(&self, ui: &mut TheUI, ctx: &TheContext) -> Option<Binding> {
         if !self.native_world_owns_viewport() || crate::geometry_editor::is_visible(ui) {
@@ -837,6 +872,7 @@ impl Editor {
     /// receives an immutable camera snapshot and never advances navigation.
     pub(crate) fn advance_native_world_camera(&mut self, ctx: &mut TheContext) -> bool {
         if !self.native_world_owns_viewport()
+            || self.server_ctx.game_input_mode
             || self.server_ctx.editor_view_mode == EditorViewMode::D2
             || self.server_ctx.pc.is_prefab()
         {
@@ -1505,6 +1541,16 @@ impl Editor {
         if !self.native_viewport.enabled {
             return false;
         }
+        if self.server_ctx.native_game_input {
+            if matches!(event, TheEvent::KeyCodeDown(TheValue::KeyCode(TheKeyCode::Escape))) {
+                self.cancel_native_world_gesture(ui,ctx);
+                ctx.ui.redraw_all=true;
+                return true;
+            }
+            if matches!(event, TheEvent::KeyDown(_) | TheEvent::KeyUp(_) | TheEvent::KeyCodeDown(_) | TheEvent::KeyCodeUp(_)) {
+                return true;
+            }
+        }
         for tool in &mut TOOLLIST.write().unwrap().game_tools {
             tool.set_view_input(None);
         }
@@ -1673,7 +1719,9 @@ impl Editor {
             }
         }
         if let MapEvent::MapClicked(at) = input {
-            if TOOLLIST.read().unwrap().viewcube_navigation_enabled() {
+            if !self.server_ctx.game_input_mode
+                && TOOLLIST.read().unwrap().viewcube_navigation_enabled()
+            {
                 let pick = world.cube.pick(
                     binding.cube_target(world.epoch),
                     &EDITCAMERA.read().unwrap().orbit_camera,

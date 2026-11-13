@@ -10779,7 +10779,21 @@ impl TheTrait for Editor {
                         ctx.ui.redraw_all = true;
                         redraw = true;
                     } else if id.name == "GameInput" {
+                        #[cfg(feature = "native-render")]
+                        if self.server_ctx.game_input_mode != (state == TheWidgetState::Clicked) {
+                            self.cancel_native_play_input(ui);
+                            self.cancel_native_world_gesture(ui, ctx);
+                            self.invalidate_native_world_viewport(ui);
+                            let mut camera = EDITCAMERA.write().unwrap();
+                            camera.move_action = None;
+                            camera.reset_mouse_tracking();
+                            self.server_ctx.editor_fly_nav_active = false;
+                        }
                         self.server_ctx.game_input_mode = state == TheWidgetState::Clicked;
+                        #[cfg(feature = "native-render")]
+                        {
+                            self.server_ctx.native_game_input = self.native_game_input_owns_viewport();
+                        }
                     } else if matches!(
                         id.name.as_str(),
                         "New Project 2D" | "New Project 2D Iso" | "New Project 3D"
@@ -11177,9 +11191,12 @@ impl TheTrait for Editor {
                                     3,
                                 );
                                 self.play_session = self.sessions.get(self.active_session).map(|document| {
+                                    let tick_ms = CONFIGEDITOR.read().unwrap().game_tick_ms.max(1) as u64;
+                                    let runtime = RUSTERIX.read().unwrap();
                                     CreatorPlaySession::new(
-                                        document.id,
-                                        CONFIGEDITOR.read().unwrap().game_tick_ms.max(1) as u64,
+                                        document.id, tick_ms,
+                                        runtime.client.player_input_snapshot(),
+                                        runtime.client.local_player_requested(),
                                     )
                                 });
                                 ctx.ui.send(TheEvent::SetStatusText(

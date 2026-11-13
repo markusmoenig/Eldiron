@@ -108,9 +108,7 @@ pub struct PlayerInputStats {
 pub struct PlayerSession {
     pub runtime: GameSession,
     pub settings: PlayerSettings,
-    controls: PlayerControls,
-    pending_actions: VecDeque<EntityAction>,
-    submitted_actions: u64,
+    input: PlayerInput,
 }
 impl PlayerSession {
     pub fn new(project: Project, debug: bool) -> Result<Self, String> {
@@ -126,9 +124,7 @@ impl PlayerSession {
         Ok(Self {
             runtime,
             settings,
-            controls: PlayerControls::default(),
-            pending_actions: VecDeque::new(),
-            submitted_actions: 0,
+            input: PlayerInput::default(),
         })
     }
     pub fn auto_start(&mut self, showing_game: bool) -> Result<PlayerTransition, String> {
@@ -150,7 +146,7 @@ impl PlayerSession {
     ) -> Result<Option<PlayerStartInfo>, String> {
         let player = self.runtime.start_player(options)?;
         if let Some(info) = &player {
-            self.controls.configure(info, &self.runtime.assets);
+            self.input.controls.configure(info, &self.runtime.assets);
         }
         Ok(player)
     }
@@ -201,25 +197,80 @@ impl PlayerSession {
     }
     pub fn advance(&mut self, elapsed: Duration) -> SessionUpdate {
         let update = self.runtime.advance(elapsed);
-        if self.runtime.server.has_local_player() {
-            for action in self.pending_actions.drain(..) {
-                self.runtime.action(action);
-            }
-        }
+        self.input.flush(&mut self.runtime.server);
         update
     }
     /// Keep startup input until the region acknowledges local registration.
     /// Consecutive movement states collapse so a release during startup cannot
     /// later replay stale held movement. One-shot commands retain order.
     pub fn submit_action(&mut self, action: EntityAction) -> Result<(), String> {
-        if !self.runtime.has_started_player() {
+        let requested = self.runtime.has_started_player();
+        self.input
+            .submit_action(&mut self.runtime.server, requested, action)
+    }
+    pub fn input_stats(&self) -> PlayerInputStats {
+        self.input.input_stats()
+    }
+    pub fn pending_action_count(&self) -> usize {
+        self.input.pending_action_count()
+    }
+    pub fn shortcut_labels_for_binding(&self, binding: &ClientCommandBinding) -> Vec<String> {
+        self.input.controls.shortcut_labels_for_binding(binding)
+    }
+    pub fn binding_for_key(&self, key: &str) -> Option<ClientCommandBinding> {
+        self.input.controls.binding_for_key(key)
+    }
+    pub fn control_key(&mut self, key: &str, pressed: bool) -> Option<EntityAction> {
+        self.input.controls.control_key(key, pressed)
+    }
+    pub fn cancel_controls(&mut self) -> EntityAction {
+        self.input.controls.cancel_controls()
+    }
+    pub fn set_isometric_controls(&mut self, isometric: bool) -> Option<EntityAction> {
+        self.input.controls.set_isometric_controls(isometric)
+    }
+}
+
+/// Runtime-owned accepted physical controls and startup action queue.
+/// Renderers borrow this owner; hiding/recreating a view cannot replace it.
+#[derive(Default)]
+pub struct PlayerInput {
+    pub controls: PlayerControls,
+    pending_actions: VecDeque<EntityAction>,
+    // One bounded stop slot remains available when ordered startup commands
+    // fill the queue. A release must never leave an earlier movement active.
+    pending_stop: bool,
+    submitted_actions: u64,
+}
+impl PlayerInput {
+    pub fn from_controls(controls: ClientAction) -> Self {
+        Self {
+            controls: controls.into(),
+            ..Default::default()
+        }
+    }
+    pub fn flush(&mut self, server: &mut rusterix::Server) {
+        if server.has_local_player() {
+            for action in self.pending_actions.drain(..) {
+                server.local_player_action(action);
+            }
+            if std::mem::take(&mut self.pending_stop) {
+                server.local_player_action(EntityAction::Off);
+            }
+        }
+    }
+    pub fn submit_action(
+        &mut self,
+        server: &mut rusterix::Server,
+        requested: bool,
+        action: EntityAction,
+    ) -> Result<(), String> {
+        if !requested {
             return Ok(());
         }
-        if self.runtime.server.has_local_player() {
-            for pending in self.pending_actions.drain(..) {
-                self.runtime.action(pending);
-            }
-            self.runtime.action(action);
+        if server.has_local_player() {
+            self.flush(server);
+            server.local_player_action(action);
             self.submitted_actions = self.submitted_actions.saturating_add(1);
             return Ok(());
         }
@@ -228,6 +279,11 @@ impl PlayerSession {
             self.pending_actions.pop_back();
         }
         if self.pending_actions.len() >= 256 {
+            if action == EntityAction::Off {
+                self.pending_stop = true;
+                self.submitted_actions = self.submitted_actions.saturating_add(1);
+                return Ok(());
+            }
             return Err(
                 "Player registration has not completed; startup input queue is full".into(),
             );
@@ -239,27 +295,12 @@ impl PlayerSession {
     pub fn input_stats(&self) -> PlayerInputStats {
         PlayerInputStats {
             submitted_actions: self.submitted_actions,
-            pending_actions: self.pending_actions.len(),
+            pending_actions: self.pending_action_count(),
             held_controls: self.controls.held_count(),
         }
     }
     pub fn pending_action_count(&self) -> usize {
-        self.pending_actions.len()
-    }
-    pub fn shortcut_labels_for_binding(&self, binding: &ClientCommandBinding) -> Vec<String> {
-        self.controls.shortcut_labels_for_binding(binding)
-    }
-    pub fn binding_for_key(&self, key: &str) -> Option<ClientCommandBinding> {
-        self.controls.binding_for_key(key)
-    }
-    pub fn control_key(&mut self, key: &str, pressed: bool) -> Option<EntityAction> {
-        self.controls.control_key(key, pressed)
-    }
-    pub fn cancel_controls(&mut self) -> EntityAction {
-        self.controls.cancel_controls()
-    }
-    pub fn set_isometric_controls(&mut self, isometric: bool) -> Option<EntityAction> {
-        self.controls.set_isometric_controls(isometric)
+        self.pending_actions.len() + usize::from(self.pending_stop)
     }
 }
 
@@ -401,11 +442,9 @@ fn control_focus_release_keeps_bindings_and_does_not_emit_ui_or_intent_commands(
     let mut state = PlayerSession {
         runtime: GameSession::new(Project::new()),
         settings: PlayerSettings::parse("").unwrap(),
-        controls: PlayerControls::default(),
-        pending_actions: VecDeque::new(),
-        submitted_actions: 0,
+        input: PlayerInput::default(),
     };
-    state.controls.set_input_data(
+    state.input.controls.set_input_data(
         "[input]\nw='forward'\na='strafe_left'\ni='ui.inventory'\nf='intent.attack'",
     );
     assert_eq!(
@@ -434,6 +473,40 @@ fn control_focus_release_keeps_bindings_and_does_not_emit_ui_or_intent_commands(
         state.binding_for_key("i"),
         Some(ClientCommandBinding::Ui(_))
     ));
+    for index in 0..256 {
+        state
+            .input
+            .submit_action(
+                &mut state.runtime.server,
+                true,
+                EntityAction::LookYaw(index as f32),
+            )
+            .unwrap();
+    }
+    assert!(
+        state
+            .input
+            .submit_action(&mut state.runtime.server, true, EntityAction::LookYaw(999.))
+            .is_err()
+    );
+    state
+        .input
+        .submit_action(&mut state.runtime.server, true, EntityAction::Off)
+        .unwrap();
+    assert!(
+        state.input.pending_stop,
+        "saturated startup input retains an authoritative stop"
+    );
+    assert_eq!(state.input.pending_action_count(), 257);
+    assert_eq!(state.input.pending_actions.len(), 256);
+    assert_eq!(
+        state.input.pending_actions.front(),
+        Some(&EntityAction::LookYaw(0.))
+    );
+    assert_eq!(
+        state.input.pending_actions.back(),
+        Some(&EntityAction::LookYaw(255.))
+    );
 }
 
 #[cfg(test)]
@@ -468,7 +541,10 @@ fn real_starter_defers_menu_registration_and_starts_once_with_shared_runtime() {
     state.submit_action(EntityAction::Off).unwrap();
     state.submit_action(EntityAction::LookYaw(0.5)).unwrap();
     assert_eq!(state.pending_action_count(), 2);
-    assert_eq!(state.pending_actions.front(), Some(&EntityAction::Off));
+    assert_eq!(
+        state.input.pending_actions.front(),
+        Some(&EntityAction::Off)
+    );
 
     assert!(
         state
@@ -518,11 +594,10 @@ fn physical_control_aliases_keep_other_sources_held_and_restore_remaining_press_
     let mut state = PlayerSession {
         runtime: GameSession::new(Project::new()),
         settings: PlayerSettings::parse("").unwrap(),
-        controls: PlayerControls::default(),
-        pending_actions: VecDeque::new(),
-        submitted_actions: 0,
+        input: PlayerInput::default(),
     };
     state
+        .input
         .controls
         .set_input_data("[input]\nw='forward'\nup='forward'\ns='backward'\na='left'\nspace='none'");
     assert_eq!(state.control_key("w", true), Some(EntityAction::Forward));

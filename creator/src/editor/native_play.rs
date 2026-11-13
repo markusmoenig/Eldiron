@@ -8,11 +8,10 @@ use eldiron_presentation::{
 };
 use eldiron_runtime::{PlayerControls, PlayerSettings, RegionEvents, RuntimeView};
 use rusterix::{
-    EntityAction, ServerState,
+    ServerState,
     client::{command::ClientCommandBinding, screen_model::ScreenLayout},
 };
 use std::{
-    collections::VecDeque,
     hash::{Hash, Hasher},
     sync::{
         Arc,
@@ -61,9 +60,6 @@ struct PlayScreen {
     screen: GameScreenController,
     fonts: GameFonts,
     settings: PlayerSettings,
-    controls: PlayerControls,
-    requested: bool,
-    pending: VecDeque<EntityAction>,
     retired: Vec<ViewId>,
     key: u64,
     revision: ContentRevision,
@@ -71,12 +67,7 @@ struct PlayScreen {
     clipboard: Option<(ScreenTextTarget, u64)>,
 }
 impl PlayScreen {
-    fn new(
-        world: &RuntimeView<'_>,
-        input: rusterix::input_action::ClientAction,
-        requested: bool,
-        selected: &str,
-    ) -> Result<Self, String> {
+    fn new(world: &RuntimeView<'_>, selected: &str) -> Result<Self, String> {
         let settings = PlayerSettings::parse(world.config())?;
         let layout = ScreenLayout {
             screen_responsive: true,
@@ -107,9 +98,6 @@ impl PlayScreen {
             screen,
             fonts: GameFonts::default(),
             settings,
-            controls: input.into(),
-            requested,
-            pending: VecDeque::new(),
             retired: Vec::new(),
             key: 0,
             revision: ContentRevision(1),
@@ -149,41 +137,7 @@ impl PlayScreen {
         self.capture = None;
         Ok(())
     }
-    fn submit(
-        &mut self,
-        server: &mut rusterix::Server,
-        action: EntityAction,
-    ) -> Result<(), String> {
-        if !self.requested || (server.state != ServerState::Running && action != EntityAction::Off)
-        {
-            return Ok(());
-        }
-        if server.has_local_player() {
-            for action in self.pending.drain(..) {
-                server.local_player_action(action);
-            }
-            server.local_player_action(action);
-        } else {
-            if eldiron_runtime::is_movement_state(&action)
-                && self
-                    .pending
-                    .back()
-                    .is_some_and(eldiron_runtime::is_movement_state)
-            {
-                self.pending.pop_back();
-            }
-            if self.pending.len() >= 256 {
-                return Err(
-                    "Player registration has not completed; startup input queue is full".into(),
-                );
-            }
-            self.pending.push_back(action);
-        }
-        Ok(())
-    }
-    fn cancel(&mut self, server: &mut rusterix::Server) {
-        let stop = self.controls.cancel_controls();
-        let _ = self.submit(server, stop);
+    fn cancel(&mut self) {
         self.screen.invalidate_world_input();
         self.clipboard = None;
         self.capture = None;
@@ -201,7 +155,6 @@ pub(crate) struct NativePlay {
     serial: u64,
     pointer_capture: bool,
     modifiers: Modifiers,
-    focused: Option<bool>,
     input_blocked: bool,
 }
 impl NativePlay {
@@ -213,10 +166,10 @@ impl NativePlay {
             view.clear_paint_list(&list);
         }
     }
-    fn unbind(&mut self, ui: &mut TheUI, server: &mut rusterix::Server) {
+    fn unbind(&mut self, ui: &mut TheUI) {
         self.clear_paint(ui);
         if let Some(screen) = &mut self.screen {
-            screen.cancel(server);
+            screen.cancel();
         }
         self.binding = None;
         self.presented = None;
@@ -239,8 +192,7 @@ impl NativePlay {
         &mut self,
         binding: Option<PlayBinding>,
         world: &RuntimeView<'_>,
-        input: rusterix::input_action::ClientAction,
-        requested: bool,
+        wanted: bool,
         selected: &str,
     ) -> Result<bool, String> {
         if self
@@ -252,13 +204,16 @@ impl NativePlay {
             self.presented = None;
             self.pointer_capture = false;
         }
-        let created = self.screen.is_none() && binding.is_some();
+        let created = self.screen.is_none() && wanted;
         if created {
-            self.screen = Some(PlayScreen::new(world, input, requested, selected)?);
+            self.screen = Some(PlayScreen::new(world, selected)?);
         }
         if self.binding != binding {
             if let Some(screen) = &mut self.screen {
                 screen.screen.invalidate_world_input();
+                if binding.is_none() {
+                    screen.screen.focus_text(&mut screen.fonts, None);
+                }
             }
             self.presented = None;
             self.pointer_capture = false;
@@ -271,14 +226,16 @@ impl NativePlay {
         world: &RuntimeView<'_>,
         ticks: u64,
         elapsed: std::time::Duration,
-    ) -> Result<(), String> {
+        controls: &PlayerControls,
+    ) -> Result<bool, String> {
         let Some(owner) = &mut self.screen else {
-            return Ok(());
+            return Ok(false);
         };
         if owner.session != world.session_id {
-            return Ok(());
+            return Ok(false);
         }
         let key = content_key(world)?;
+        let replaced = owner.key != 0 && owner.key != key;
         if owner.key != key {
             let settings = PlayerSettings::parse(world.config())?;
             let old_layout = owner.screen.elements.layout;
@@ -333,15 +290,12 @@ impl NativePlay {
                 .into_iter()
                 .filter_map(|command| {
                     let binding = rusterix::input_binding::parse_client_command(&command)?;
-                    Some((
-                        command,
-                        owner.controls.shortcut_labels_for_binding(&binding),
-                    ))
+                    Some((command, controls.shortcut_labels_for_binding(&binding)))
                 })
                 .collect();
             owner.screen.set_tooltip_shortcuts(labels);
         }
-        Ok(())
+        Ok(replaced)
     }
     pub(crate) fn receive(&mut self, world: &RuntimeView<'_>, events: &RegionEvents) {
         if let Some(owner) = &mut self.screen
@@ -501,60 +455,57 @@ impl Editor {
         elapsed: std::time::Duration,
     ) -> Result<(), String> {
         let binding = self.native_play_binding(ui, ctx);
-        let mut bridge = RUSTERIX.write().unwrap();
+        let wanted = binding.is_some() || self.native_game_input_owns_viewport();
         let blocked = ui.dialog.is_some() || ui.popover.is_some() || ui.context_menu.is_some();
+        let mut bridge = RUSTERIX.write().unwrap();
+        let Some(play) = self.play_session.as_mut().filter(|s| {
+            self.sessions
+                .get(self.active_session)
+                .is_some_and(|d| d.id == s.document)
+        }) else {
+            self.native_viewport.play.unbind(ui);
+            self.native_viewport.play.screen = None;
+            return Ok(());
+        };
         let lost_focus = binding.as_ref().is_some_and(|binding| {
             ctx.ui
                 .focus
                 .as_ref()
                 .is_none_or(|id| id.uuid != binding.view.uuid)
-        }) && self
-            .native_viewport
-            .play
-            .screen
-            .as_ref()
-            .is_some_and(|owner| owner.controls.held_count() > 0);
-        if self.native_viewport.play.binding != binding
-            || self.native_viewport.play.input_blocked != blocked
-            || lost_focus
-        {
-            if let Some(owner) = &mut self.native_viewport.play.screen {
-                owner.cancel(&mut bridge.server);
+        }) && play.input.controls.held_count() > 0;
+        let owner = &mut self.native_viewport.play;
+        if owner.binding != binding || owner.input_blocked != blocked || lost_focus {
+            // A retired view cannot send its cancellation into a new runtime,
+            // even when the next document reuses the same serialized map IDs.
+            let same_runtime = owner
+                .binding
+                .as_ref()
+                .is_none_or(|old| old.runtime == play.pump.session_id());
+            if same_runtime {
+                play.cancel_input(&mut bridge.server);
             }
-            self.native_viewport.play.pointer_capture = false;
+            if let Some(screen) = &mut owner.screen {
+                screen.cancel();
+            }
+            owner.pointer_capture = false;
         }
-        if blocked != self.native_viewport.play.input_blocked {
-            self.native_viewport.play.presented = None;
-            self.native_viewport.play.serial = self
-                .native_viewport
-                .play
-                .serial
-                .checked_add(1)
-                .expect("Play serial exhausted");
+        if blocked != owner.input_blocked {
+            owner.presented = None;
+            owner.serial = owner.serial.checked_add(1).expect("Play serial exhausted");
         }
-        self.native_viewport.play.input_blocked = blocked;
-        let Some(play) = self.play_session.as_ref().filter(|s| {
-            self.sessions
-                .get(self.active_session)
-                .is_some_and(|d| d.id == s.document)
-        }) else {
-            self.native_viewport.play.unbind(ui, &mut bridge.server);
-            self.native_viewport.play.screen = None;
-            return Ok(());
-        };
+        owner.input_blocked = blocked;
         let world = play.pump.view(
             &self.project,
             &bridge.server,
             &bridge.assets,
             &bridge.client.current_map,
         );
-        let input = bridge.client.player_input_snapshot();
-        let requested = bridge.client.local_player_requested();
-        let selected = bridge.client.current_screen_name();
-        let created =
-            self.native_viewport
-                .play
-                .sync(binding.clone(), &world, input, requested, selected)?;
+        let created = owner.sync(
+            binding.clone(),
+            &world,
+            wanted,
+            bridge.client.current_screen_name(),
+        )?;
         if created {
             let outputs = RegionEvents {
                 messages: std::mem::take(&mut self.pending_game_messages),
@@ -562,27 +513,20 @@ impl Editor {
                 choices: std::mem::take(&mut self.pending_game_choices),
                 ..Default::default()
             };
-            self.native_viewport.play.receive(&world, &outputs);
+            owner.receive(&world, &outputs);
         } else if binding.is_some() {
             self.pending_game_messages.clear();
             self.pending_game_says.clear();
             self.pending_game_choices.clear();
         }
-        self.native_viewport
-            .play
-            .advance(&world, play.pump.tick_sequence(), elapsed)?;
-        let owner = &mut self.native_viewport.play;
-
-        if let Some(owner) = &mut owner.screen {
-            let isometric=world.map.and_then(|m|m.entities.iter().find(|e|e.is_player())).is_some_and(|e|matches!(e.attributes.get("player_camera"),Some(Value::PlayerCamera(camera)) if camera.is_isometric_2d()));
-            if let Some(action) = owner.controls.set_isometric_controls(isometric) {
-                owner.submit(&mut bridge.server, action)?;
-            }
-            if bridge.server.state == ServerState::Running && bridge.server.has_local_player() {
-                for action in owner.pending.drain(..) {
-                    bridge.server.local_player_action(action);
-                }
-            }
+        let replaced = owner.advance(
+            &world,
+            play.pump.tick_sequence(),
+            elapsed,
+            &play.input.controls,
+        )?;
+        if replaced {
+            play.cancel_input(&mut bridge.server);
         }
         Ok(())
     }
@@ -678,20 +622,23 @@ impl Editor {
     pub(crate) fn cancel_native_play_input(&mut self, ui: &mut TheUI) {
         let mut bridge = RUSTERIX.write().unwrap();
         let owner = &mut self.native_viewport.play;
+        if let Some(play) = &mut self.play_session {
+            play.cancel_input(&mut bridge.server);
+        }
         if let Some(screen) = &mut owner.screen {
-            screen.cancel(&mut bridge.server);
+            screen.cancel();
         }
         owner.invalidate(ui);
     }
 }
 struct PlayRuntime<'a> {
-    pump: &'a eldiron_runtime::SessionPump,
+    play: &'a mut CreatorPlaySession,
     project: &'a Project,
     bridge: &'a mut rusterix::Rusterix,
 }
 impl PlayRuntime<'_> {
     fn world(&self) -> RuntimeView<'_> {
-        self.pump.view(
+        self.play.pump.view(
             self.project,
             &self.bridge.server,
             &self.bridge.assets,
@@ -711,7 +658,9 @@ impl NativePlay {
                 continue;
             }
             match effect {
-                ScreenEffect::Action(action) => owner.submit(&mut runtime.bridge.server, action)?,
+                ScreenEffect::Action(action) => runtime
+                    .play
+                    .submit_action(&mut runtime.bridge.server, action)?,
                 ScreenEffect::Command(ClientCommandBinding::Screen(command)) => {
                     let name = command
                         .trim()
@@ -720,12 +669,14 @@ impl NativePlay {
                         .filter(|s| !s.is_empty())
                         .ok_or("Invalid screen navigation command")?;
                     owner.navigate(&runtime.world(), name)?;
-                    let stop = owner.controls.cancel_controls();
-                    owner.submit(&mut runtime.bridge.server, stop)?;
+                    let stop = runtime.play.input.controls.cancel_controls();
+                    runtime
+                        .play
+                        .submit_action(&mut runtime.bridge.server, stop)?;
                     self.presented = None;
                 }
                 ScreenEffect::Command(ClientCommandBinding::Game(command)) => {
-                    if owner.requested {
+                    if runtime.play.requested {
                         continue;
                     }
                     let class = if command == "start" {
@@ -762,14 +713,16 @@ impl NativePlay {
                             entrance: true,
                         },
                     )?;
-                    owner
+                    runtime
+                        .play
+                        .input
                         .controls
                         .configure(&prepared.info, &runtime.bridge.assets);
                     runtime
                         .bridge
                         .server
                         .process_client_commands(vec![prepared.command]);
-                    owner.requested = true;
+                    runtime.play.requested = true;
                     if !owner.settings.play_screen.is_empty() {
                         let name = owner.settings.play_screen.clone();
                         owner.navigate(&runtime.world(), &name)?;
@@ -800,9 +753,6 @@ impl NativePlay {
         };
         if matches!(event, InputEvent::Focus(true)) {
             owner.screen.resume_world_input();
-        }
-        if let InputEvent::Focus(focused) = event {
-            self.focused = Some(*focused);
         }
         if matches!(event, InputEvent::Focus(false)) {
             self.presented = None;
@@ -837,8 +787,10 @@ impl NativePlay {
         result.cancel_controls |= world.cancel_controls;
         result.effects.extend(world.effects);
         if result.cancel_controls {
-            let stop = owner.controls.cancel_controls();
-            owner.submit(&mut runtime.bridge.server, stop)?;
+            let stop = runtime.play.input.controls.cancel_controls();
+            runtime
+                .play
+                .submit_action(&mut runtime.bridge.server, stop)?;
         }
         if let Some(response) = &result.text
             && let (Some(target), Some(clipboard)) = (response.target, &response.editor.clipboard)
@@ -869,9 +821,11 @@ impl NativePlay {
             repeat: false,
         } = event
             && let Some(key) = binding_key(*physical, logical)
-            && let Some(action) = owner.controls.control_key(&key, false)
+            && let Some(action) = runtime.play.input.controls.control_key(&key, false)
         {
-            owner.submit(&mut runtime.bridge.server, action)?;
+            runtime
+                .play
+                .submit_action(&mut runtime.bridge.server, action)?;
             input.consumed = true;
             input.redraw = true;
         }
@@ -888,13 +842,15 @@ impl NativePlay {
                 repeat,
             } = event
                 && let Some(key) = binding_key(*physical, logical)
-                && let Some(binding) = owner.controls.binding_for_key(&key)
+                && let Some(binding) = runtime.play.input.controls.binding_for_key(&key)
             {
                 input.consumed = true;
                 if *pressed && !*repeat {
                     if matches!(binding, ClientCommandBinding::Control(_)) {
-                        if let Some(action) = owner.controls.control_key(&key, true) {
-                            owner.submit(&mut runtime.bridge.server, action)?;
+                        if let Some(action) = runtime.play.input.controls.control_key(&key, true) {
+                            runtime
+                                .play
+                                .submit_action(&mut runtime.bridge.server, action)?;
                         }
                     } else {
                         let effects = owner
@@ -910,8 +866,10 @@ impl NativePlay {
         let owner = self.screen.as_mut().unwrap();
         let capture = owner.screen.control_capture();
         if capture != owner.capture && !result.cancel_controls {
-            let stop = owner.controls.cancel_controls();
-            owner.submit(&mut runtime.bridge.server, stop)?;
+            let stop = runtime.play.input.controls.cancel_controls();
+            runtime
+                .play
+                .submit_action(&mut runtime.bridge.server, stop)?;
         }
         owner.capture = capture;
         Ok(input)
@@ -926,6 +884,29 @@ impl Editor {
         session: &mut UiSession,
     ) -> Option<InputResponse> {
         let binding = self.native_play_binding(&mut session.ui, &session.context)?;
+        // A physical release belongs to its accepted CPU owner, even while
+        // a newer screen/layout has not been presented or a dialog took focus.
+        if let InputEvent::Key {
+            physical,
+            logical,
+            pressed: false,
+            repeat: false,
+        } = event
+            && let Some(key) = binding_key(*physical, logical)
+            && let Some(play) = &mut self.play_session
+            && let Some(action) = play.input.controls.control_key(&key, false)
+        {
+            if let Err(error) = play.submit_action(&mut RUSTERIX.write().unwrap().server, action) {
+                session
+                    .context
+                    .ui
+                    .send(TheEvent::SetStatusText(TheId::empty(), error));
+            }
+            return Some(InputResponse {
+                consumed: true,
+                redraw: true,
+            });
+        }
         let inside = match event {
             InputEvent::PointerMoved { position } | InputEvent::PointerButton { position, .. } => {
                 Some(binding.contains(*position))
@@ -980,7 +961,7 @@ impl Editor {
             InputEvent::Focus(_) | InputEvent::Modifiers(_) | InputEvent::Clipboard { .. }
         );
         if (self.native_viewport.play.presented.as_ref() != Some(&binding)
-            || self.native_viewport.play.focused == Some(false))
+            || self.native_viewport.window_focused == Some(false))
             && !control_event
         {
             return Some(InputResponse {
@@ -1000,9 +981,9 @@ impl Editor {
             self.native_viewport.play.pointer_capture = false;
         }
         let mut bridge = RUSTERIX.write().unwrap();
-        let play = self.play_session.as_ref()?;
+        let play = self.play_session.as_mut()?;
         let mut runtime = PlayRuntime {
-            pump: &play.pump,
+            play,
             project: &self.project,
             bridge: &mut bridge,
         };
@@ -1037,7 +1018,7 @@ impl Editor {
         ctx: &TheContext,
     ) -> Option<theframework::paint::Transform> {
         let binding = self.native_play_binding(ui, ctx)?;
-        if self.native_viewport.play.focused == Some(false)
+        if self.native_viewport.window_focused == Some(false)
             || self.native_viewport.play.input_blocked
             || ui.context_menu.is_some()
             || ui.dialog.is_some()
@@ -1055,6 +1036,28 @@ impl Editor {
         mapping.offset[0] += binding.rect[0] as f32;
         mapping.offset[1] += binding.rect[1] as f32;
         Some(mapping.transform())
+    }
+    pub(crate) fn activate_native_play_binding(
+        &mut self,
+        binding: ClientCommandBinding,
+    ) -> Result<(), String> {
+        let play = self
+            .play_session
+            .as_mut()
+            .ok_or("No running Creator Play session")?;
+        let mut bridge = RUSTERIX.write().unwrap();
+        let mut runtime = PlayRuntime {
+            play,
+            project: &self.project,
+            bridge: &mut bridge,
+        };
+        let owner = &mut self.native_viewport.play;
+        let screen = owner
+            .screen
+            .as_mut()
+            .ok_or("Prepare the Play command controller before input")?;
+        let activation = screen.screen.activate_binding(&runtime.world(), binding)?;
+        owner.apply(&mut runtime, activation.effects)
     }
     pub(crate) fn native_play_text_input(
         &mut self,
@@ -1105,7 +1108,7 @@ impl Editor {
         let views = owner.screen.view_images();
         Some((
             owner.session,
-            owner.controls.held_count(),
+            self.play_session.as_ref()?.input.controls.held_count(),
             views.len(),
             views
                 .values()

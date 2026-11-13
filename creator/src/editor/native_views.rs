@@ -6,6 +6,8 @@ mod viewport;
 mod world;
 #[path = "native_play.rs"]
 mod play;
+#[path = "native_game_input.rs"]
+mod game_input;
 use play::NativePlayFrame;
 use viewport::NativeDisplayFrame;
 pub(crate) use viewport::NativeViewport;

@@ -24,8 +24,8 @@ Started: 2026-11-11 (Asia/Bangkok). Overall Goal: active; full M0–M9 scope rem
 - M1: in progress. Shared GPU context, scene output leases, explicit captures, native/foreign surface presentation and independent normal/isometric game-view lifecycle/recovery work; main Creator/auxiliary view adoption and full resource/platform acceptance remain.
 - M2: in progress. Paint/Swash/Parley pipeline and native/foreign hosts work; batching, resource lifetime budgets and full text/input parity remain.
 - M3: in progress. Every active built-in TheWidget implementation now has a command paint path, including procedural controls and the legacy node canvas. Complex Creator integration, full widget catalog parity and legacy adapter retirement remain.
-- M4: in progress. CPU schema/identity extraction, shared `GameSession`, CPU startup preparation, message/party/world-target policies and terminal adoption are implemented and tested. Per-session routing, local players, world values, runtime IDs and region context ownership now pass controlled overlapping-session and parallel assembled-player regressions. Graphical/Creator adoption and remaining bitmap/value data extraction remain; this evidence does not establish full simultaneous Creator Play workflows.
-- M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Immutable ordinary editor-view preparation, exact reference/native view outputs and retained CPU chunk publication are now available through SceneViews. Common HUD, paint/props panels, profile displays and ViewCube now have retained command frames, guarded input and actual GPU composition/reconstruction evidence. Six standard tools additionally emit ordered typed overlay aggregates with exact presented-frame and detail-profile source guards. Full-viewport profile editing is now connected to the actual native Creator root with document/widget binding, presentation-gated input and inline commit/cancel; ordinary stopped top-down, sprite-isometric and 3D region rendering and the six standard tool overlays now use the same native application owner and real tool dispatch. Orbit/orthographic/first-person views include depth-aware guides, retained ViewCube and explicit tool query snapshots; surface paint uses the view-owned GPU scene. The Terrain tool now also uses retained native controls and GPU brush guides with real sculpt/cancel integration. Rect now also uses presentation-gated composition/rotation controls, shared source sprite previews blitted on the GPU, terrain-conforming perimeters, and view-owned 3D queries; actual isometric placement and fractional-DPI sprite sampling pass in the assembled checkpoint. Isometric terrain Paint now also uses retained native controls, batched GPU brush feedback, update-phase editable source publication and the existing authoring/undo dispatch. Native 3D Paint now also consumes dedicated scene-owned paint-coordinate queries and explicit authoring surface captures, with camera-scoped drafts and GPU composition; full Paint workflow/platform parity remains unverified. The isolated Prefab viewport now also uses native top-down/isometric/3D outputs, live effects with hierarchy-aware owned drags, and actual 3D Paint authoring on its asset-owned layer. Paint now shares the normal tile picker; its settings live only in the viewport overlay. The canonical Creator Play toolbar now owns the same CPU clock/output pump as GameSession, and its live authoring viewport keeps its own native SceneView. The authored Game-tool viewport now also uses the common GameScreenController/SceneViews/Swash presentation; authoring GameInput and remaining contexts/tools retain explicit migration adapters. Application/global/document/Play ownership, main world/tool/HUD integration, remaining producers, full visual/workflow/performance acceptance and canonical retirement remain.
+- M4: in progress. CPU schema/identity extraction, shared `GameSession`, CPU startup preparation, message/party/world-target policies and terminal adoption are implemented and tested. Per-session routing, local players, world values, runtime IDs and region context ownership now pass controlled overlapping-session and parallel assembled-player regressions. Graphical clients adopt GameSession; Creator shares its clock/output pump and runtime-owned PlayerInput. Full Creator storage ownership and remaining bitmap/value data extraction remain; this evidence does not establish full simultaneous Creator Play workflows.
+- M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Immutable ordinary editor-view preparation, exact reference/native view outputs and retained CPU chunk publication are now available through SceneViews. Common HUD, paint/props panels, profile displays and ViewCube now have retained command frames, guarded input and actual GPU composition/reconstruction evidence. Six standard tools additionally emit ordered typed overlay aggregates with exact presented-frame and detail-profile source guards. Full-viewport profile editing is now connected to the actual native Creator root with document/widget binding, presentation-gated input and inline commit/cancel; ordinary stopped top-down, sprite-isometric and 3D region rendering and the six standard tool overlays now use the same native application owner and real tool dispatch. Orbit/orthographic/first-person views include depth-aware guides, retained ViewCube and explicit tool query snapshots; surface paint uses the view-owned GPU scene. The Terrain tool now also uses retained native controls and GPU brush guides with real sculpt/cancel integration. Rect now also uses presentation-gated composition/rotation controls, shared source sprite previews blitted on the GPU, terrain-conforming perimeters, and view-owned 3D queries; actual isometric placement and fractional-DPI sprite sampling pass in the assembled checkpoint. Isometric terrain Paint now also uses retained native controls, batched GPU brush feedback, update-phase editable source publication and the existing authoring/undo dispatch. Native 3D Paint now also consumes dedicated scene-owned paint-coordinate queries and explicit authoring surface captures, with camera-scoped drafts and GPU composition; full Paint workflow/platform parity remains unverified. The isolated Prefab viewport now also uses native top-down/isometric/3D outputs, live effects with hierarchy-aware owned drags, and actual 3D Paint authoring on its asset-owned layer. Paint now shares the normal tile picker; its settings live only in the viewport overlay. The canonical Creator Play toolbar now owns the same CPU clock/output pump as GameSession, and its live authoring viewport keeps its own native SceneView. The authored Game-tool viewport now also uses the common GameScreenController/SceneViews/Swash presentation; authoring GameInput now also shares runtime controls while retaining the native scene in supported contexts. Remaining contexts/tools retain explicit migration adapters. Application/global/document/Play ownership, main world/tool/HUD integration, remaining producers, full visual/workflow/performance acceptance and canonical retirement remain.
 - M6: in progress. Independent GPU game views, common player/input/camera components, authored screen paint, private world descriptions, view-owned speech, acknowledged-frame world pointer gestures, relative first-person mouse look, default/world-intent cursors, world/UI item drag previews and acknowledged authored inventory/equipment pointer/keyboard gestures are implemented. Application-owned audio is integrated into the common player with cancellable CPU preparation jobs. The native container HUD now includes acknowledged paint/input, real server transfers, scrolling, GPU recovery and navigation lifetime. Floating inventory/equipment, action catalogue/spellbook and preferences now use typed native HUD owners, retained text/source resources and acknowledged input. Acknowledged UI-origin tooltips now use retained text and host deadlines. UI-origin Drop cursors and acknowledged drag/assignment highlighting now have GPU and authoritative transfer evidence. Native isometric source production, shared CPU source publication, game-view outputs and acknowledged input receipts now have GPU/CPU and shipped-source device-reconstruction evidence. Browser worker hosting, remaining game-mode/HUD policy parity, performance acceptance remain. Canonical native desktop launchers now share the common application/host; see launcher verification below.
 - M7/M8/M9: Retirement and platform/full acceptance pending. Canonical desktop clients share one common player; the Xcode client now uses it through the retained ABI over a Rust-created CAMetalLayer surface. Native/ARM64 simulator app bundles link, and real Swift/static-library and registered-scene layer checks pass. Browser bootstrap, native text/platform parity, Creator wrapper and complete physical/release acceptance remain; this is not complete application/platform parity.
 
@@ -5197,3 +5197,102 @@ policy parity, save/reopen and other authoring contexts, resource/performance/
 release, browser and Apple/physical acceptance. The CPU controller integrations
 and target compilations do not prove these gates. All M0–M9 remain in progress;
 keep the overall Goal active and preserve the unrelated networking concept.
+
+
+### CPU-owned input and native authoring GameInput (2026-11-13)
+
+Moved accepted controls out of the graphics presenter and connected the actual
+GameInput toolbar mode to the native authoring viewport.
+
+- Added CPU PlayerInput in eldiron-runtime, owning held physical keys, the
+  bounded startup action queue and submission diagnostics. The common
+  PlayerSession and CreatorPlaySession use this same queue/reducer; neither
+  native screen creation nor GPU recreation constructs a replacement input
+  owner. Consecutive movement states still coalesce, discrete actions keep order,
+  accepted startup actions count once, and queue flush does not recount them.
+- Creator captures the configured input bindings/local-player-request state once
+  when attaching Play. Player-camera control conventions and pending action
+  flushes now run in CPU update, independent of whether the Game tool is visible.
+  Native Play borrows this owner explicitly for commands. The old presenter-owned
+  controls/request flag/startup queue were removed.
+- In supported native authoring contexts, GameInput no longer forces a CPU
+  viewport. It retains the same private SceneView and source queries; keyboard
+  gameplay is scoped to the acknowledged document/runtime/widget/camera/layout
+  and actual viewport focus. Pointer authoring stays with the existing tool.
+  An unacknowledged scene cannot acquire movement. Alias releases, modifiers,
+  composed-text suppression, focus/modal/context-menu changes, mode switching,
+  resize/camera invalidation and GPU replacement cannot leave stale held input.
+- The native GameInput path resolves non-control bindings through the same common
+  screen command controller, retained without a GPU game screen while authoring.
+  The legacy Game-tool event handler is disabled only for an explicitly claimed
+  native input scope. Unsupported authoring contexts keep their migration adapter.
+  ServerContext's added claim is ephemeral; it is not serialized project data.
+- Host window focus now belongs to the native viewport owner across both modes,
+  so switching tools while unfocused cannot acquire gameplay input. Full Game
+  physical releases return to the accepted CPU owner even if a newer layout has
+  not been acknowledged; replacing authored screen content also cancels old
+  control state. GPU recovery cancels controls without resetting runtime/time.
+- GameInput respects the previous editor navigation restriction, and Escape can
+  still cancel a native authoring draft. Before raw input, layout is brought up
+  to date so root bounds do not come from a pre-resize widget tree.
+
+Existing CPU/runtime tests passed **12** (7 unit/policy, 4 local, 1 isolation):
+`/private/tmp/eldiron-runtime-input-owner-tests.log`; 23.28 s, 41.79 s and 30.07 s
+respectively. These include the unchanged startup queue, alias and registration
+policies through their new owner. No new test suite was added.
+
+The existing assembled Creator GPU checkpoint passed **1**, **90.18 s** (41.42 s
+build), `/private/tmp/eldiron-native-authoring-game-input-root.log`. It clicks the
+real GameInput button, rejects movement before presentation, renders and
+acknowledges the native authoring root without CPU display storage/readback,
+verifies W/Up aliases submit only one changed movement state, releases them in
+order, and checks focus loss/GPU recovery with the runtime ID retained.
+
+The completed scope checkpoint passed **1**, **90.47 s** (21.69 s build),
+`/private/tmp/eldiron-native-runtime-input-scopes-root.log`. It additionally
+switches into the full Game tool while unfocused, renders it, and proves a key
+cannot acquire movement in that background mode. The same run retains actual
+Prefab/paint/door authoring, corrected normal Paint picker, native Game screen
+text, Game-tool hide/reopen/recovery and Play/pause/resume/Stop/restart/document
+restoration. Normal presentation still performs no color readback; explicit
+painting/capture requests remain counted separately.
+
+An initial native compile caught an incorrect immutable-context call to the
+legacy focus helper. The final input scope inspects the focused widget through
+its read-only capabilities instead. Focus scope and presentation guards were
+not weakened. Focused compile before the integrated runs passed **8.88 s**,
+`/private/tmp/eldiron-native-game-input-check-final.log`.
+Reference Creator/common graphical client/terminal compatibility compile passed
+**19.81 s**, `/private/tmp/eldiron-shared-runtime-input-reference-check.log`.
+Final focused native compile passed **9.86 s**,
+`/private/tmp/eldiron-native-input-owner-final-check.log`, including the
+runtime-incarnation cancellation guards and queue stop headroom below.
+`git diff --check` passed. No unchanged broad platform matrix was rerun.
+
+Startup saturation audit found that an ordered queue full of discrete commands
+could reject a later Stop. PlayerInput now keeps 256 ordered action entries plus
+one reserved stop bit, flushed after those entries; discrete order is retained
+and the total pending count is bounded at 257. Creator input failure clears held
+keys and schedules this authoritative stop. The existing control policy check was
+extended with saturation/order/headroom assertions. Final runtime checks passed
+**12**, `/private/tmp/eldiron-runtime-input-stop-headroom-tests.log`: units
+24.61 s, local 40.69 s, isolation 31.64 s (1.33 s build). No new suite was added.
+
+Retired view cancellation also checks the ephemeral runtime identity before
+sending Off, so reusing serialized document/map IDs cannot send an old input
+scope's cancellation into the next runtime. Ordinary integrated behavior remains
+covered by the passing scope checkpoint; the complete adversarial concurrency,
+queue flush and source-edit matrix remains an acceptance requirement.
+
+Physical gate rechecked this turn with ioreg: CGSSessionScreenIsLocked=Yes.
+Desktop surface/workflow validation remains blocked by the locked Mac; the GPU
+checks above are offscreen evidence. The previously documented simulator runtime
+mismatch and unverified browser/other physical targets are not completion proof.
+
+Remaining: Creator's complete GameSession Server/Assets/project/startup/audio
+ownership, renderer/global retirement and simultaneous application/document
+isolation; remaining authoring adapters and the complete GameInput/camera/DPI/
+modal/Scepter/command/source-edit matrix; full visual/save-reopen/resource/
+performance/release/browser/Apple acceptance. No M0–M9 gate or overall completion
+is claimed. Preserve the hidden Collision Probe and unrelated networking concept;
+keep the full Goal active.
