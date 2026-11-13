@@ -597,6 +597,12 @@ impl MapEditor {
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
+        let native_view_owned = crate::editor::TOOLLIST.read().unwrap().native_world_input;
+        if native_view_owned
+            && let Some(translated) = crate::utils::native_prefab_view_event(event, server_ctx, ui)
+        {
+            return self.handle_event(&translated, ui, ctx, project, server_ctx);
+        }
         let mut redraw = false;
 
         match event {

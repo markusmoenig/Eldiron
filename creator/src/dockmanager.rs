@@ -297,6 +297,29 @@ impl DockManager {
         redraw
     }
 
+    pub(crate) fn prepare_native_view_input(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        server: &mut ServerContext,
+    ) -> bool {
+        self.editor_docks
+            .get_mut("Prefabs")
+            .is_some_and(|dock| dock.prepare_native_view_input(ui, ctx, project, server))
+    }
+    pub(crate) fn cancel_native_view_gesture(
+        &mut self,
+        owner: ProjectContext,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        server: &mut ServerContext,
+    ) -> bool {
+        self.editor_docks
+            .get_mut("Prefabs")
+            .is_some_and(|dock| dock.cancel_native_view_gesture(owner, ui, ctx, project, server))
+    }
     /// Commit every project-owned authoring view, including hidden editor docks.
     /// Keep applying independent drafts if one view reports a validation error.
     pub fn commit_pending_edits(

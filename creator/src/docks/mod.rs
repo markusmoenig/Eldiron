@@ -93,6 +93,25 @@ pub trait Dock: Send + Sync {
         false
     }
 
+    fn prepare_native_view_input(
+        &mut self,
+        _ui: &mut TheUI,
+        _ctx: &mut TheContext,
+        _project: &mut Project,
+        _server: &mut ServerContext,
+    ) -> bool {
+        false
+    }
+    fn cancel_native_view_gesture(
+        &mut self,
+        _owner: ProjectContext,
+        _ui: &mut TheUI,
+        _ctx: &mut TheContext,
+        _project: &mut Project,
+        _server: &mut ServerContext,
+    ) -> bool {
+        false
+    }
     /// Apply completed background work owned by this dock. This is polled by
     /// Creator independently of UI event routing so a worker result cannot be
     /// lost when the visible tool/dock changes while it is rendering.

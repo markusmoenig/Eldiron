@@ -2036,10 +2036,12 @@ impl ToolList {
             return;
         }
 
-        let Some(region) = project.get_region_ctx(server_ctx) else {
-            return;
+        let map = if server_ctx.pc.is_prefab() {
+            project.prefab_editor_map.as_ref()
+        } else {
+            project.get_region_ctx(server_ctx).map(|region| &region.map)
         };
-        let map = &region.map;
+        let Some(map) = map else { return; };
 
         if scene.vm.vm_layer_count() < 4 {
             scene.clear_overlay();

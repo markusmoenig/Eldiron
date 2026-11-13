@@ -4710,3 +4710,89 @@ adoption is the next application integration priority.
 Current GPU-rendered Creator startup capture (refreshed by the assembled check):
 `/private/tmp/eldiron-native-creator-startup.png`. This is an offscreen renderer
 capture, not physical-window presentation evidence.
+
+### Native Prefab viewport and dock-owned effects (2026-11-13)
+
+Adopted the active Prefab editor's ordinary 3D viewport in the native Creator.
+The actual isolated Prefab map and `PrefabView` widget now publish through an
+independent SceneView on the host device. Scene/resource history is reset on
+(document session, project context, map) changes; region and Prefab owners cannot
+reuse each other's geometry/atlas/paint history. Prefab cameras retain the
+existing editor's orbit-camera behavior. The temporary map's source camera
+metadata remains the builder's metadata rather than being mistaken for the
+presentation camera.
+
+- Prefab geometry guides/ghosts now read the isolated source map. Prefab paint
+  uses its asset-owned layer and native GPU upload cache. Effects and Tiles
+  presentation tools contribute a passive retained overlay without inventing a
+  clickable HUD. Native picking includes the real effects gizmos. The private
+  scene installs authored particle sprites when configuring its source atlas.
+- `Assets::block_props_revision` is a runtime-only catalog revision. Changed
+  Prefab effects/material sources revoke stale published input and refresh the
+  owning scene. No serialized Project/map/attachment schema changed. A catalog
+  refresh currently uses full scene configuration; selective atlas invalidation
+  remains a performance refinement.
+- Native Prefab pointer/navigation events are translated synchronously for the
+  established controller names while preserving the actual widget UUID. The
+  original dock sees its real `PrefabView` event. Its reference-only queued
+  PolyView aliases are suppressed under native ownership; late aliases cannot
+  author against the Prefab. Reference translation is retained outside that
+  owner. Navigation drops the ToolList read guard before recursive dispatch.
+- Captured release reaches both the tool dispatcher and the Prefab effects
+  transaction; the latter executes even when the former reports redraw. Focus,
+  lifecycle and Escape cancellation route to the original asset's draft before
+  considering a newly active map/tool. Document-session identity still blocks
+  cancellation from touching a replacement document.
+- Effects drags retain the original/working attachment rather than a whole
+  down-time Project snapshot. Drag writes and cancellation compare the owned
+  position/direction against the last working value. Cancellation restores only
+  that field, preserving unrelated current edits. Release derives its existing
+  project-undo snapshot from the current project with only the owned field
+  restored. This improves in-gesture concurrency; the broader project-snapshot
+  undo/concurrent-edit acceptance gate remains open.
+- Closing an editor-only door preview changes the temporary source map. Native
+  down is withheld until that source is presented; accepted-click replay/retry
+  remains unfinished rather than authoring against unseen geometry.
+
+Verification: the existing assembled Creator GPU check passed **1**, 30.82 s
+(38.50 s test build), `/private/tmp/eldiron-native-prefab-root-settled.log`.
+It retains the previous controls/profile/world/camera/Terrain/Rect/Paint cases
+and opens the actual Prefabs dock with geometry authored earlier in that run.
+It queries the actual displayed effect move handle and checks movement, commit
+on release, focus-loss rollback, preservation of an unrelated Prefab name edit,
+no region-content mutation and zero color readback for these frames/queries.
+A projected neighborhood replaces a slow full-viewport test handle search;
+no hit, authoring geometry or pick result is injected. The earlier
+`eldiron-native-prefab-root.log` failed when its second down used a frame before
+the asynchronous source refresh was ready (72.76 s including the slow search).
+The passing version waits for the current real builder/presentation before
+starting each new gesture; no input/source guard was weakened. No extra fixture
+suite or broad platform matrix was introduced.
+
+Reference Creator compilation passed, 18.04 s,
+`/private/tmp/eldiron-native-prefab-reference.log`. The assembled run also proves
+native test compilation; `git diff --check` passed at this checkpoint.
+
+New actual offscreen WGPU capture:
+`/private/tmp/eldiron-native-creator-prefab.png` (1600 x 1000), showing the assembled
+Prefab viewport, authored geometry, grid, view cube and real effects controls.
+The small purple/white markers are editor move/direction handles. Their existing
+Raster3D opacity policy uses Bayer coverage; the pattern is not sufficient
+proof of missing particle resources. Physical presentation, effects animation,
+transformed-part coordinate behavior and complete visual parity are not proved
+by this capture.
+
+Next: finish Prefab viewport mode isolation and 2D adoption after verifying its
+actual controller/source behavior; cover Geometry/Paint/Tiles/Palette and door
+preview workflows. In particular the shared view-switch controller still
+addresses region camera anchors through `get_region_ctx` even in Prefab context:
+extract its Prefab branch so changing the editor projection cannot mutate the
+background region. Native Prefab D2 remains an explicit adapter for now. Then
+adopt other custom contexts and Creator Play/common session convergence and
+retire remaining renderer-global/reference callers. Collision Probe stays hidden
+as intended by the existing ToolList registration. Complete workflow/modal/
+concurrency/undo, visual/DPI/text, resource/idle/performance/release/dependency,
+browser, physical desktop and Apple host acceptance gates remain open. The
+locked-Mac and incompatible simulator runtime are external acceptance blockers,
+not blockers for available implementation. No M0–M9 or overall completion is
+claimed.

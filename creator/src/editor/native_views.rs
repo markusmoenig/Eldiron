@@ -225,6 +225,67 @@ impl Editor {
         ctx.ui.redraw_all = true;
         id
     }
+    pub(crate) fn begin_native_prefab_for_test(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+    ) -> (TheId, Uuid) {
+        // Reuse the geometry actually authored earlier in this assembled run.
+        let geometry = self.project.regions[0].map.geometry_objects.clone();
+        assert!(!geometry.is_empty());
+        let mut min = Vec3::broadcast(f32::INFINITY);
+        let mut max = Vec3::broadcast(f32::NEG_INFINITY);
+        for object in &geometry {
+            for vertex in &object.vertices {
+                let point = object.transform_point(*vertex);
+                min = min.map2(point, f32::min);
+                max = max.map2(point, f32::max);
+            }
+        }
+        let mut asset = rusterix::BlockPropAsset::new_authored("Native Prefab", geometry);
+        let origin = Vec3::new((min.x + max.x) * 0.5, max.y + 0.5, (min.z + max.z) * 0.5);
+        let attachment = rusterix::BlockPropAttachment {
+            position: origin.into_array(),
+            ..Default::default()
+        };
+        let attachment_id = attachment.id;
+        asset.parts[0].attachments.push(attachment);
+        asset
+            .particle_effects
+            .push(rusterix::BlockPropParticleEffect {
+                id: Uuid::new_v4(),
+                name: "Native particles".into(),
+                part_id: asset.parts[0].id,
+                attachment_id,
+                enabled: true,
+                emitter: Default::default(),
+            });
+        let id = asset.id;
+        self.server_ctx.curr_block_asset_id = Some(id);
+        self.server_ctx.curr_block_asset_name = Some(asset.name.clone());
+        self.project.block_props.insert(id, asset);
+        crate::block_props::sync_existing_prefab_presentations(&self.project);
+        let mut docks = DOCKMANAGER.write().unwrap();
+        docks.set_dock(
+            "Prefabs".into(),
+            ui,
+            ctx,
+            &self.project,
+            &mut self.server_ctx,
+        );
+        docks.edit_maximize(ui, ctx, &mut self.project, &mut self.server_ctx);
+        let view = ui.get_render_view("PrefabView").unwrap().id().clone();
+        ctx.ui.set_focus(&view);
+        (view, id)
+    }
+    pub(crate) fn native_prefab_effect_for_test(&self, id: Uuid) -> ([f32; 3], String) {
+        let asset = &self.project.block_props[&id];
+        (asset.parts[0].attachments[0].position, asset.name.clone())
+    }
+    pub(crate) fn rename_native_prefab_for_test(&mut self, id: Uuid, name: &str) {
+        self.project.block_props.get_mut(&id).unwrap().name = name.into();
+        crate::block_props::sync_existing_prefab_presentations(&self.project);
+    }
     pub(crate) fn native_world_vertices_for_test(&self) -> usize {
         self.project
             .get_map(&self.server_ctx)

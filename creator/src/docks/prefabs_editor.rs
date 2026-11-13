@@ -89,7 +89,9 @@ struct PrefabEffectDrag {
     direction_handle: bool,
     origin: Vec3<f32>,
     plane_normal: Vec3<f32>,
-    before: Box<Project>,
+    asset_id: Uuid,
+    before: rusterix::BlockPropAttachment,
+    working: rusterix::BlockPropAttachment,
     changed: bool,
 }
 
@@ -130,6 +132,29 @@ pub struct PrefabsEditorDock {
 }
 
 impl PrefabsEditorDock {
+    fn restore_owned_effect_field(drag: &PrefabEffectDrag, project: &mut Project) -> bool {
+        let Some(asset) = project.block_props.get_mut(&drag.asset_id) else {
+            return false;
+        };
+        let Some(attachment) = Self::effect_attachment_mut(asset, drag.effect_id) else {
+            return false;
+        };
+        if attachment.id != drag.working.id {
+            return false;
+        }
+        if drag.direction_handle {
+            if attachment.direction != drag.working.direction {
+                return false;
+            }
+            attachment.direction = drag.before.direction;
+        } else {
+            if attachment.position != drag.working.position {
+                return false;
+            }
+            attachment.position = drag.before.position;
+        }
+        true
+    }
     fn effect_id_for_gizmo(asset: &rusterix::BlockPropAsset, gizmo: u32) -> Option<(Uuid, bool)> {
         let (index, direction) = if (0xEFFE_0000..0xEFFF_0000).contains(&gizmo) {
             ((gizmo - 0xEFFE_0000) as usize, false)
@@ -2414,6 +2439,55 @@ impl Dock for PrefabsEditorDock {
         self.door_preview_open = false;
     }
 
+    fn prepare_native_view_input(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        server: &mut ServerContext,
+    ) -> bool {
+        let Some(asset) = Self::active_asset_id(server) else {
+            return false;
+        };
+        if !self.close_door_preview(project, asset, server) {
+            return false;
+        }
+        self.sync_part_tree(ui, ctx, project, asset);
+        true
+    }
+    fn cancel_native_view_gesture(
+        &mut self,
+        owner: ProjectContext,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        server: &mut ServerContext,
+    ) -> bool {
+        let ProjectContext::Prefab(asset) = owner else {
+            return false;
+        };
+        if self
+            .effect_drag
+            .as_ref()
+            .is_none_or(|drag| drag.asset_id != asset)
+        {
+            return false;
+        }
+        let drag = self.effect_drag.take().unwrap();
+        let restored = Self::restore_owned_effect_field(&drag, project);
+        if restored {
+            Self::sync_prefab_runtime(project);
+            if Self::active_asset_id(server) == Some(asset) {
+                self.sync_effect_editor(ui, ctx, project, asset);
+            }
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Update Geometry Overlay 3D"),
+                TheValue::Empty,
+            ));
+        }
+        ctx.ui.redraw_all = true;
+        true
+    }
     fn handle_event(
         &mut self,
         event: &TheEvent,
@@ -2518,7 +2592,9 @@ impl Dock for PrefabsEditorDock {
                             direction_handle,
                             origin,
                             plane_normal,
-                            before: Box::new(project.clone()),
+                            asset_id,
+                            before: attachment.clone(),
+                            working: attachment.clone(),
                             changed: false,
                         });
                         self.sync_effect_editor(ui, ctx, project, asset_id);
@@ -2535,6 +2611,12 @@ impl Dock for PrefabsEditorDock {
                             Self::ray_drag_point(server_ctx, drag.origin, drag.plane_normal)
                         && let Some(asset) = project.block_props.get_mut(&asset_id)
                         && let Some(attachment) = Self::effect_attachment_mut(asset, drag.effect_id)
+                        && attachment.id == drag.working.id
+                        && if drag.direction_handle {
+                            attachment.direction == drag.working.direction
+                        } else {
+                            attachment.position == drag.working.position
+                        }
                     {
                         if drag.direction_handle {
                             if let Some(direction) = (point - drag.origin).try_normalized() {
@@ -2546,9 +2628,12 @@ impl Dock for PrefabsEditorDock {
                             drag.origin = point;
                             drag.changed = true;
                         }
+                        drag.working = attachment.clone();
                         Self::sync_prefab_runtime(project);
                         self.sync_effect_editor(ui, ctx, project, asset_id);
-                        if let Some(translated) = Self::translated_view_event(event) {
+                        if !TOOLLIST.read().unwrap().native_world_input
+                            && let Some(translated) = Self::translated_view_event(event)
+                        {
                             ctx.ui.send(translated);
                         }
                         ctx.ui.send(TheEvent::Custom(
@@ -2561,7 +2646,10 @@ impl Dock for PrefabsEditorDock {
                 TheEvent::RenderViewUp(id, _) if id.name == PREFAB_VIEW => {
                     if let Some(drag) = self.effect_drag.take() {
                         if drag.changed {
-                            Self::push_project_undo(*drag.before, project, ctx);
+                            let mut before = project.clone();
+                            if Self::restore_owned_effect_field(&drag, &mut before) {
+                                Self::push_project_undo(before, project, ctx);
+                            }
                         }
                         return true;
                     }
@@ -2570,6 +2658,9 @@ impl Dock for PrefabsEditorDock {
             }
         }
         if let Some(event) = Self::translated_view_event(event) {
+            if TOOLLIST.read().unwrap().native_world_input {
+                return true;
+            }
             if self.close_door_preview(project, asset_id, server_ctx) {
                 self.sync_part_tree(ui, ctx, project, asset_id);
             }

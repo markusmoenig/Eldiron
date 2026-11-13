@@ -89,6 +89,7 @@ pub struct Assets {
 
     pub tiles: IndexMap<Uuid, Tile>,
     pub block_props: IndexMap<Uuid, BlockPropAsset>,
+    pub block_props_revision: u64,
     pub materials: FxHashMap<Uuid, Tile>,
     pub textures: FxHashMap<String, Texture>,
     /// Resolved ruleset MZ PBR maps shared by sprites and native meshes.
@@ -362,6 +363,7 @@ impl Assets {
             project_item_icon_keys: FxHashSet::default(),
             tiles: IndexMap::default(),
             block_props: IndexMap::default(),
+            block_props_revision: 0,
             textures: FxHashMap::default(),
             ruleset_materials: FxHashMap::default(),
             procedural_material_keys: FxHashMap::default(),
@@ -537,9 +539,14 @@ impl Assets {
     }
 
     pub fn set_block_props(&mut self, block_props: IndexMap<Uuid, BlockPropAsset>) {
-        self.block_props = block_props;
+        if self.block_props != block_props {
+            self.block_props_revision = self
+                .block_props_revision
+                .checked_add(1)
+                .expect("Prefab source revision exhausted");
+            self.block_props = block_props;
+        }
     }
-
     /// Install changed tiles while preserving stable lookup indices and all
     /// engine-owned palette/synthetic entries.
     pub fn sync_tile_textures(&mut self, updates: IndexMap<Uuid, Tile>) {

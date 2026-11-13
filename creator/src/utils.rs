@@ -26,6 +26,37 @@ pub fn map_editor_render_view<'a>(
     ui.get_render_view(map_editor_render_view_name(server_ctx))
 }
 
+pub(crate) fn native_prefab_view_event(
+    event: &TheEvent,
+    server: &ServerContext,
+    ui: &mut TheUI,
+) -> Option<TheEvent> {
+    if !server.pc.is_prefab() {
+        return None;
+    }
+    let mut translated = event.clone();
+    let id = match &mut translated {
+        TheEvent::RenderViewClicked(id, _)
+        | TheEvent::RenderViewDragged(id, _)
+        | TheEvent::RenderViewHoverChanged(id, _)
+        | TheEvent::RenderViewUp(id, _)
+        | TheEvent::RenderViewLostHover(id)
+        | TheEvent::RenderViewScrollBy(id, _)
+        | TheEvent::RenderViewPreciseScrollBy(id, _)
+        | TheEvent::RenderViewZoomBy(id, _)
+        | TheEvent::RenderViewContext(id, _) => id,
+        _ => return None,
+    };
+    if id.name != "PrefabView"
+        || ui
+            .get_render_view("PrefabView")
+            .is_none_or(|view| view.id().uuid != id.uuid)
+    {
+        return None;
+    }
+    id.name = "PolyView".into();
+    Some(translated)
+}
 pub fn default_preview_rigging_toml() -> String {
     if let Some(bytes) = crate::Embedded::get("toml/preview_rigging.toml")
         && let Ok(source) = std::str::from_utf8(bytes.data.as_ref())

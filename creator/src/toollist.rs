@@ -2579,6 +2579,23 @@ impl ToolList {
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
+        if self.native_world_input
+            && let Some(translated) = crate::utils::native_prefab_view_event(event, server_ctx, ui)
+        {
+            let redraw = self.handle_event(&translated, ui, ctx, project, server_ctx);
+            if let Some(view) = ui.get_render_view("PrefabView") {
+                let id = view.id().clone();
+                if ctx
+                    .ui
+                    .focus
+                    .as_ref()
+                    .is_some_and(|focus| focus.uuid == id.uuid && focus.name == "PolyView")
+                {
+                    ctx.ui.set_focus(&id);
+                }
+            }
+            return redraw;
+        }
         self.sync_props_availability(ui, ctx, project, server_ctx);
         if !self.editor_mode
             && self.current_game_tool_is("tool.blocks")

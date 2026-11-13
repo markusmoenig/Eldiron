@@ -19,6 +19,7 @@ use theframework::render_wgpu::{UiFrameImages, UiImageCache};
 #[derive(Clone, PartialEq)]
 struct AssetKey {
     tiles: u64,
+    prefabs: u64,
     config: String,
     palette: ThePalette,
     material: u64,
@@ -159,7 +160,7 @@ struct SceneInputKey {
 }
 struct WorldGpu {
     registry: u64,
-    document: Option<Uuid>,
+    scope: Option<(Uuid, ProjectContext, Uuid)>,
     scenes: SceneViews,
     view: ViewId,
     configured: Option<AssetKey>,
@@ -179,7 +180,7 @@ impl WorldGpu {
         scenes.create(view, (0, 0)).map_err(|e| e.to_string())?;
         Ok(Self {
             registry: images.owner_id(),
-            document: None,
+            scope: None,
             scenes,
             view,
             configured: None,
@@ -210,7 +211,10 @@ impl WorldGpu {
             ],
             matches!(
                 server.curr_map_tool_type,
-                MapToolType::Vertex | MapToolType::Linedef | MapToolType::Sector
+                MapToolType::Vertex
+                    | MapToolType::Linedef
+                    | MapToolType::Sector
+                    | MapToolType::Effects
             ),
             server.curr_map_tool_type != MapToolType::Sector,
         )?;
@@ -582,7 +586,19 @@ impl Editor {
             .sessions
             .get(self.active_session)
             .is_none_or(|session| session.id != owner.document)
-            || self.server_ctx.pc != owner.context
+        {
+            return;
+        }
+        if owner.context.is_prefab() {
+            DOCKMANAGER.write().unwrap().cancel_native_view_gesture(
+                owner.context,
+                ui,
+                ctx,
+                &mut self.project,
+                &mut self.server_ctx,
+            );
+        }
+        if self.server_ctx.pc != owner.context
             || self
                 .project
                 .get_map(&self.server_ctx)
@@ -633,7 +649,7 @@ impl Editor {
             || self.server_ctx.game_mode
             || self.server_ctx.game_input_mode
             || self.server_ctx.text_game_mode
-            || !self.server_ctx.pc.is_region()
+            || !(self.server_ctx.pc.is_region() || self.server_ctx.pc.is_prefab())
             || self.server_ctx.world_mode
             || self.server_ctx.profile_view.is_some()
             || self.server_ctx.editing_surface.is_some()
@@ -644,6 +660,12 @@ impl Editor {
         let Some(map) = self.project.get_map(&self.server_ctx) else {
             return false;
         };
+        // The existing Prefab canvas opens in orbit. Its 2D controller metrics
+        // still use the reference translation adapter until extracted.
+        if self.server_ctx.pc.is_prefab() && self.server_ctx.editor_view_mode == EditorViewMode::D2
+        {
+            return false;
+        }
         if self.server_ctx.editor_view_mode == EditorViewMode::D2 {
             if !matches!(map.camera, MapCamera::TwoD | MapCamera::TwoDIso) {
                 return false;
@@ -669,7 +691,17 @@ impl Editor {
                         | "tool.terrain"
                         | "tool.rect"
                         | "tool.iso_paint"
+                        | "tool.effects"
+                        | "tool.tile_picker"
                 )
+            )
+        {
+            return false;
+        }
+        if !self.server_ctx.pc.is_prefab()
+            && matches!(
+                tools.current_game_tool_command_id(),
+                Some("tool.effects" | "tool.tile_picker")
             )
         {
             return false;
@@ -714,6 +746,7 @@ impl Editor {
             slots,
             assets: AssetKey {
                 tiles: bridge.assets.tiles_revision,
+                prefabs: bridge.assets.block_props_revision,
                 config: bridge.assets.config.clone(),
                 palette: bridge.assets.palette.clone(),
                 material: self.project.procedural_materials.revision(),
@@ -727,6 +760,7 @@ impl Editor {
     pub(crate) fn advance_native_world_camera(&mut self, ctx: &mut TheContext) -> bool {
         if !self.native_world_owns_viewport()
             || self.server_ctx.editor_view_mode == EditorViewMode::D2
+            || self.server_ctx.pc.is_prefab()
         {
             return false;
         }
@@ -745,6 +779,12 @@ impl Editor {
         if !self.native_world_owns_viewport() {
             return;
         }
+        if let ProjectContext::Prefab(id) = self.server_ctx.pc {
+            if let Some(paint) = self.project.block_prop_paint.get_mut(&id) {
+                paint.ensure_baked_paint_current();
+            }
+            return;
+        }
         let Some(region) = self.project.get_region_ctx_mut(&mut self.server_ctx) else {
             return;
         };
@@ -761,6 +801,11 @@ impl Editor {
         }
     }
     fn native_world_camera(&self) -> Option<Box<dyn D3Camera>> {
+        if self.server_ctx.pc.is_prefab() {
+            return (self.server_ctx.editor_view_mode != EditorViewMode::D2).then(|| {
+                Box::new(EDITCAMERA.read().unwrap().orbit_camera.clone()) as Box<dyn D3Camera>
+            });
+        }
         let region = self.project.get_region_ctx(&self.server_ctx)?;
         EDITCAMERA
             .read()
@@ -826,10 +871,11 @@ impl Editor {
         }
         let target = binding.target(world.epoch);
         let gpu = world.gpu.as_mut().unwrap();
-        if gpu.document != Some(binding.document) {
+        let scope = (binding.document, binding.context, binding.map);
+        if gpu.scope != Some(scope) {
             // Reopened/copied documents may reuse map IDs and local revisions.
             // Neither atlas residency nor builder caches can cross that lifetime.
-            gpu.document = Some(binding.document);
+            gpu.scope = Some(scope);
             gpu.scenes
                 .remove(gpu.view, images.registry)
                 .map_err(|e| e.to_string())?;
@@ -852,7 +898,7 @@ impl Editor {
             true
         } else {
             let builds = SCENEMANAGER.read().unwrap();
-            !builds.has_pending_geometry() && builds.source_matches(map.id, map.camera)
+            !builds.has_pending_geometry() && builds.source_matches(map.id, binding.camera)
         };
         if gpu.configured.as_ref() != Some(&binding.assets) {
             gpu.scenes
@@ -941,17 +987,31 @@ impl Editor {
                         camera.as_ref(),
                         scene,
                     );
-                    let region = self
-                        .project
-                        .get_region_ctx(&self.server_ctx)
-                        .ok_or("native 3D region removed")?;
-                    let mut paint = region.iso_paint.clone();
-                    crate::block_props::merge_prefab_paint_for_map(
-                        &mut paint,
-                        map,
-                        &bridge.assets.block_props,
-                        &self.project.block_prop_paint,
-                    );
+                    let (paint_owner, paint_context, mut paint) =
+                        if let ProjectContext::Prefab(id) = self.server_ctx.pc {
+                            (
+                                id,
+                                2,
+                                self.project
+                                    .block_prop_paint
+                                    .get(&id)
+                                    .cloned()
+                                    .unwrap_or_default(),
+                            )
+                        } else {
+                            let region = self
+                                .project
+                                .get_region_ctx(&self.server_ctx)
+                                .ok_or("native 3D region removed")?;
+                            let mut paint = region.iso_paint.clone();
+                            crate::block_props::merge_prefab_paint_for_map(
+                                &mut paint,
+                                map,
+                                &bridge.assets.block_props,
+                                &self.project.block_prop_paint,
+                            );
+                            (region.id, 0, paint)
+                        };
                     paint.selection_visible =
                         self.server_ctx.curr_map_tool_type == MapToolType::IsoPaint;
                     let has_paint = (paint.visible
@@ -966,8 +1026,8 @@ impl Editor {
                         });
                         IsoPaintRenderer::upload_overlay_cached(
                             &mut gpu.paint,
-                            region.id,
-                            0,
+                            paint_owner,
+                            paint_context,
                             &mut paint,
                             &mut scene.vm,
                             camera_frame,
@@ -1346,7 +1406,7 @@ impl Editor {
         };
         if let Some(id) = id {
             if id.name != binding.view.name {
-                return false;
+                return binding.context.is_prefab() && id.name == "PolyView";
             }
             if id.uuid != binding.view.uuid {
                 return true;
@@ -1355,6 +1415,41 @@ impl Editor {
         let current_camera = self
             .native_world_camera()
             .map(|camera| CameraStamp::new(camera.as_ref(), binding.size));
+        if matches!(input, MapEvent::MapEscape)
+            && self.native_viewport.world.world_capture.is_some()
+        {
+            self.cancel_native_world_gesture(ui, ctx);
+            ctx.ui.redraw_all = true;
+            return true;
+        }
+        if binding.context.is_prefab()
+            && matches!(input, MapEvent::MapClicked(_))
+            && self
+                .native_viewport
+                .world
+                .presented
+                .as_ref()
+                .is_some_and(|frame| {
+                    frame.binding == binding
+                        && frame.ready
+                        && frame.camera == current_camera
+                        && self
+                            .project
+                            .get_map(&self.server_ctx)
+                            .is_some_and(|map| frame.stamp == SourceStamp::new(map))
+                })
+            && DOCKMANAGER.write().unwrap().prepare_native_view_input(
+                ui,
+                ctx,
+                &mut self.project,
+                &mut self.server_ctx,
+            )
+        {
+            let next = self.native_world_binding(ui, ctx);
+            self.bind_native_world(next, ui, ctx);
+            ctx.ui.redraw_all = true;
+            return true;
+        }
         let world = &mut self.native_viewport.world;
         if matches!(input, MapEvent::MapClicked(_)) {
             world.world_capture = None;
@@ -1440,6 +1535,19 @@ impl Editor {
                 &mut self.server_ctx,
             );
             tools.get_current_tool().set_view_input(None);
+            drop(tools);
+            let dock_redraw = if binding.context.is_prefab() {
+                DOCKMANAGER.write().unwrap().handle_event(
+                    &TheEvent::RenderViewUp(binding.view.clone(), gesture.point),
+                    ui,
+                    ctx,
+                    &mut self.project,
+                    &mut self.server_ctx,
+                )
+            } else {
+                false
+            };
+            let redraw = redraw || dock_redraw;
             ctx.ui.redraw_all |= redraw;
             return true;
         }
@@ -1526,6 +1634,7 @@ impl Editor {
                 .world_capture
                 .as_ref()
                 .is_some_and(|owner| owner.binding == binding)
+            && binding.mode == EditorViewMode::D2
             && binding.camera == MapCamera::TwoDIso
         {
             if let Some(at) = pointer {
@@ -1574,7 +1683,7 @@ impl Editor {
                 } else {
                     let builds = SCENEMANAGER.read().unwrap();
                     !builds.has_pending_geometry()
-                        && builds.source_matches(map.id, map.camera)
+                        && builds.source_matches(map.id, binding.camera)
                         && Arc::ptr_eq(
                             &frame.source,
                             &RUSTERIX
@@ -1699,6 +1808,57 @@ impl Editor {
             builds.has_pending_geometry(),
             builds.source_matches(map.id, map.camera)
         )
+    }
+    pub(crate) fn native_world_ready_for_test(&self) -> bool {
+        self.native_viewport
+            .world
+            .presented
+            .as_ref()
+            .is_some_and(|frame| {
+                frame.ready
+                    && self
+                        .project
+                        .get_map(&self.server_ctx)
+                        .is_some_and(|map| frame.stamp == SourceStamp::new(map))
+            })
+    }
+    pub(crate) fn native_prefab_handle_for_test(&mut self) -> Option<Vec2<i32>> {
+        let asset = self
+            .project
+            .block_props
+            .get(&self.server_ctx.curr_block_asset_id?)?;
+        let origin = Vec3::from(asset.parts.first()?.attachments.first()?.position);
+        let camera = self.native_world_camera()?;
+        let world = &mut self.native_viewport.world;
+        let frame = world.presented.clone()?;
+        let size = frame.binding.size;
+        let clip = camera.projection_matrix(size.0 as f32, size.1 as f32)
+            * camera.view_matrix_for_surface(size.0 as f32, size.1 as f32)
+            * Vec4::new(origin.x, origin.y, origin.z, 1.);
+        let center = Vec2::new(
+            ((clip.x / clip.w + 1.) * 0.5 * size.0 as f32) as i32,
+            ((1. - clip.y / clip.w) * 0.5 * size.1 as f32) as i32,
+        );
+        let gpu = world.gpu.as_mut()?;
+        // Confirm the real marker near its projected position, avoiding a full
+        // viewport scan. This still obtains every hit from the displayed scene.
+        for y in center.y - 16..=center.y + 16 {
+            for x in center.x - 16..=center.x + 16 {
+                if x < 0 || y < 0 || x >= size.0 as i32 || y >= size.1 as i32 {
+                    continue;
+                }
+                let uv = [x as f32 / size.0 as f32, y as f32 / size.1 as f32];
+                if gpu
+                    .scenes
+                    .pick_editor(frame.output, uv, true, true)?
+                    .gizmo
+                    .is_some_and(|(id, _, _)| id == scenevm::GeoId::Gizmo(0xEFFE_0000))
+                {
+                    return Some(Vec2::new(x, y));
+                }
+            }
+        }
+        None
     }
     pub(crate) fn native_paint_3d_target_for_test(&mut self) -> Option<Vec2<i32>> {
         let world = &mut self.native_viewport.world;

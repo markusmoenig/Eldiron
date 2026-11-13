@@ -1294,6 +1294,155 @@ mod tests {
             )
             .unwrap();
         app.presented(&mut host);
+        // Adopt the actual Prefabs dock, viewport and its dock-owned effects
+        // transaction in this same assembled Creator checkpoint.
+        let regions =
+            serde_json::to_value(&app.application.editor.project_for_native_test().regions)
+                .unwrap();
+        let (prefab_view, prefab) = app
+            .application
+            .editor
+            .begin_native_prefab_for_test(&mut app.session.ui, &mut app.session.context);
+        let mut present_prefab = |app: &mut UiApplicationAdapter<NativeCreatorApplication>,
+                                  host: &mut HostContext,
+                                  registry: &mut ImageRegistry| {
+            app.update(host, Duration::from_millis(16));
+            let frame = app.frame(host, registry).unwrap();
+            assert!(
+                app.application.pending.as_ref().unwrap().world_for_test(),
+                "Prefab uses its own native SceneView"
+            );
+            renderer
+                .render(
+                    &frame,
+                    registry,
+                    &output.view,
+                    output.descriptor.format,
+                    (1600, 1000),
+                    1.,
+                    [0.; 4],
+                )
+                .unwrap();
+            app.presented(host);
+        };
+        let mut settle_prefab = |app: &mut UiApplicationAdapter<NativeCreatorApplication>,
+                                 host: &mut HostContext,
+                                 registry: &mut ImageRegistry| {
+            let deadline = Instant::now() + Duration::from_secs(5);
+            loop {
+                present_prefab(app, host, registry);
+                if app.application.editor.native_world_ready_for_test() {
+                    break;
+                }
+                assert!(
+                    Instant::now() < deadline,
+                    "Prefab builder: {}",
+                    app.application.editor.native_world_debug_for_test()
+                );
+                std::thread::sleep(Duration::from_millis(2));
+            }
+        };
+        settle_prefab(&mut app, &mut host, &mut replacement);
+        let at = app
+            .application
+            .editor
+            .native_prefab_handle_for_test()
+            .expect("actual Prefab effect move handle");
+        let original = app.application.editor.native_prefab_effect_for_test(prefab);
+        let before = gpu.transfers();
+        app.session
+            .context
+            .ui
+            .send(TheEvent::RenderViewClicked(prefab_view.clone(), at));
+        app.session.context.ui.send(TheEvent::RenderViewDragged(
+            prefab_view.clone(),
+            at + Vec2::new(24, 12),
+        ));
+        app.update(&mut host, Duration::from_millis(16));
+        assert_ne!(
+            app.application
+                .editor
+                .native_prefab_effect_for_test(prefab)
+                .0,
+            original.0,
+            "actual effect drag changes its attachment"
+        );
+        app.application
+            .editor
+            .rename_native_prefab_for_test(prefab, "Concurrent Prefab name");
+        settle_prefab(&mut app, &mut host, &mut replacement);
+        app.input(&InputEvent::Focus(false), &mut host);
+        assert_eq!(
+            app.application.editor.native_prefab_effect_for_test(prefab),
+            (original.0, "Concurrent Prefab name".into()),
+            "focus cancellation restores only the owned position"
+        );
+        app.input(&InputEvent::Focus(true), &mut host);
+        settle_prefab(&mut app, &mut host, &mut replacement);
+        let at = app
+            .application
+            .editor
+            .native_prefab_handle_for_test()
+            .unwrap();
+        app.session
+            .context
+            .ui
+            .send(TheEvent::RenderViewClicked(prefab_view.clone(), at));
+        app.session.context.ui.send(TheEvent::RenderViewDragged(
+            prefab_view.clone(),
+            at + Vec2::new(20, 8),
+        ));
+        app.session.context.ui.send(TheEvent::RenderViewUp(
+            prefab_view.clone(),
+            at + Vec2::new(20, 8),
+        ));
+        app.update(&mut host, Duration::from_millis(16));
+        let committed = app.application.editor.native_prefab_effect_for_test(prefab);
+        assert_ne!(
+            committed.0, original.0,
+            "release commits the effect gesture"
+        );
+        app.input(&InputEvent::Focus(false), &mut host);
+        assert_eq!(
+            app.application.editor.native_prefab_effect_for_test(prefab),
+            committed,
+            "released effects cannot be cancelled again"
+        );
+        app.input(&InputEvent::Focus(true), &mut host);
+        settle_prefab(&mut app, &mut host, &mut replacement);
+        assert_eq!(
+            serde_json::to_value(&app.application.editor.project_for_native_test().regions)
+                .unwrap(),
+            regions,
+            "Prefab authoring cannot change region content"
+        );
+        assert_eq!(
+            gpu.transfers().readback_bytes,
+            before.readback_bytes,
+            "Prefab rendering and effect queries perform no color readback"
+        );
+        drop(settle_prefab);
+        drop(present_prefab);
+        let mut capture = ReadbackTicket::capture(&gpu, output.clone()).unwrap();
+        gpu.device
+            .poll(wgpu::PollType::Wait {
+                submission_index: None,
+                timeout: Some(Duration::from_secs(30)),
+            })
+            .unwrap();
+        let image = capture.try_finish(&gpu).unwrap().unwrap();
+        let mut encoder = png::Encoder::new(
+            std::fs::File::create("/private/tmp/eldiron-native-creator-prefab.png").unwrap(),
+            1600,
+            1000,
+        );
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        encoder
+            .write_header()
+            .unwrap()
+            .write_image_data(image.pixels())
+            .unwrap();
         // Check the new sampler within this assembled checkpoint. The reference
         // uses the existing independent CPU DDA, including duplicate blending.
         use theframework::paint::{DisplayCompositing, PaintOp};

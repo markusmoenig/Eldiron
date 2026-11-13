@@ -32,6 +32,7 @@ impl SceneViews {
         scene.vm.set_active_vm(0);
         scene.vm.execute(scenevm::Atom::SetSource2D(source.into()));
         scene.build_atlas(&assets.tiles, editor);
+        scene.sync_prefab_particle_sprites(&assets.block_props);
         scene.vm.execute(scenevm::Atom::SetPalette(
             assets
                 .palette
