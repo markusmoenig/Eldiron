@@ -850,15 +850,13 @@ impl Editor {
         }
         let bridge = self.server_ctx.reference.read();
         // The shared CPU pump publishes live actors into a separate projection.
-        // Orthographic bakes and the remaining custom
-        // contexts still have explicit migration adapters.
+        // Native orthographic bakes own a separate frozen producer scene.
         let owned_play = self.play_session.as_ref().is_some_and(|play| {
             self.documents.active_id() == Some(play.document)
         });
         (bridge.server.state == rusterix::ServerState::Off || owned_play)
             && (owned_play || bridge.client.messages_to_draw.is_empty())
-            && !self.native_viewport.world.bake_jobs.uses_adapter(
-                self.documents.active_id(), self.server_ctx.bake.read().active_request())
+
     }
     pub(super) fn native_world_gesture_active(&self) -> bool {
         self.native_viewport.world.world_capture.is_some()

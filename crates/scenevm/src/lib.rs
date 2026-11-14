@@ -64,7 +64,7 @@ pub mod prelude {
         chunk::Chunk,
         core::{
             Atom, GeoId, LayerBlendMode, LineStrip2D, OrganicBillboardInstance,
-            OrganicBillboardSprite, PaintSurfaceBuffer, PaintSurfacePixel, PaletteRemap2DMode,
+            OrganicBillboardSprite, PagedBillboardSprite, PaintSurfaceBuffer, PaintSurfacePixel, PaletteRemap2DMode,
             Raster3DPaintGpuStroke, Raster3DPaintGpuSurface, RenderMode, VMDebugStats,
             legacy_raster3d_paint_surface_id, legacy_raster3d_paint_surface_uv,
             pack_raster3d_paint_geo_id,
@@ -123,7 +123,7 @@ pub use crate::{
     camera3d::{Camera3D, CameraKind},
     chunk::Chunk,
     core::{
-        Atom, GeoId, LayerBlendMode, LineStrip2D, OrganicBillboardInstance, OrganicBillboardSprite,
+        Atom, GeoId, LayerBlendMode, LineStrip2D, OrganicBillboardInstance, OrganicBillboardSprite, PagedBillboardSprite,
         PaintSurfaceBuffer, PaintSurfacePixel, PaletteRemap2DMode, Raster3DPaintGpuStroke,
         Raster3DPaintGpuSurface, Raster3DSurfacePaintEntry, RenderMode, VMDebugStats,
         pack_raster3d_paint_geo_id,

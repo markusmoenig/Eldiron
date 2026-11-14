@@ -253,7 +253,7 @@ struct OrganicPrimaryHit {
     hit: bool,
     t: f32,
     color: vec3<f32>,
-    _pad0: f32,
+    ready: bool,
 };
 
 fn organic_word(index: u32) -> u32 {
@@ -265,47 +265,71 @@ fn organic_f32(index: u32) -> f32 {
     return bitcast<f32>(organic_word(index));
 }
 
-fn sample_organic_sprite(sprite_index: u32, uv: vec2<f32>) -> vec4<f32> {
-    if (sprite_index >= organic_word(1u)) { return vec4<f32>(0.0); }
+fn sample_organic_sprite(sprite_index: u32, uv: vec2<f32>) -> SurfacePaintSample {
+    let empty = SurfacePaintSample(vec4<f32>(0.0), vec4<u32>(0u), true);
+    if (sprite_index >= organic_word(1u)) { return empty; }
     let meta_base = organic_word(4u) + sprite_index * 4u;
     let pixel_offset = organic_word(meta_base + 0u);
     let width = max(organic_word(meta_base + 1u), 1u);
     let height = max(organic_word(meta_base + 2u), 1u);
     let x = min(u32(floor(clamp(uv.x, 0.0, 0.9999) * f32(width))), width - 1u);
     let y = min(u32(floor(clamp(uv.y, 0.0, 0.9999) * f32(height))), height - 1u);
-    return sd_unpack_rgba8(organic_word(organic_word(5u) + pixel_offset + y * width + x));
+    let source_flags = organic_word(meta_base + 3u);
+    if ((source_flags & 0x80000000u) != 0u) {
+        let pixel = y * width + x;
+        let mask = organic_word(organic_word(5u) + (source_flags & 0x7fffffffu) + pixel / 32u);
+        if ((mask & (1u << (pixel % 32u))) == 0u) { return empty; }
+        // This reserved source namespace is private to the frozen catalogue.
+        // Quarter-pixel centers exactly preserve the existing integer texel.
+        return sample_surface_paint_nearest((vec2<f32>(f32(x), f32(y)) + vec2<f32>(0.25)) / 32.0,
+            vec4<u32>(0xfffffffeu, pixel_offset, 0u, 0u));
+    }
+    return SurfacePaintSample(sd_unpack_rgba8(organic_word(organic_word(5u) + pixel_offset + y * width + x)), vec4<u32>(0u), true);
 }
 
 // Generated vegetation and paint stamps are camera-facing sprites in the online renderer.
 // Trace them for the primary camera ray without multiplying the AO and shadow-ray workload.
 fn trace_organic_primary(ro: vec3<f32>, rd: vec3<f32>, tmax: f32) -> OrganicPrimaryHit {
-    var result = OrganicPrimaryHit(false, tmax, vec3<f32>(0.0), 0.0);
-    if ((U.vm_flags & VM_FLAG_ORGANIC_VISIBLE) == 0u) { return result; }
+    let empty = OrganicPrimaryHit(false, tmax, vec3<f32>(0.0), true);
+    if ((U.vm_flags & VM_FLAG_ORGANIC_VISIBLE) == 0u) { return empty; }
     let instance_count = organic_word(2u);
     let right_dir = normalize(U.cam_right.xyz);
     let up_dir = normalize(U.cam_up.xyz);
     let normal = normalize(cross(right_dir, up_dir));
     let denom = dot(normal, rd);
-    if (abs(denom) < 1e-5) { return result; }
-    for (var instance_index = 0u; instance_index < instance_count; instance_index = instance_index + 1u) {
-        let base = organic_word(3u) + instance_index * 8u;
-        let center = vec3<f32>(organic_f32(base), organic_f32(base + 1u), organic_f32(base + 2u));
-        let t = dot(center - ro, normal) / denom;
-        if (t <= 0.0 || t >= result.t) { continue; }
-        let half_width = max(organic_f32(base + 3u) * 0.5, 0.0005);
-        let half_height = max(organic_f32(base + 4u) * 0.5, 0.0005);
-        let rel = (ro + rd * t) - center;
-        let u = dot(rel, right_dir) / half_width;
-        let v = dot(rel, up_dir) / half_height;
-        if (abs(u) > 1.0 || abs(v) > 1.0) { continue; }
-        let texel = sample_organic_sprite(
-            organic_word(base + 5u),
-            vec2<f32>(u * 0.5 + 0.5, 0.5 - v * 0.5)
-        );
-        if (texel.a <= BILLBOARD_ALPHA_CUTOFF) { continue; }
-        result = OrganicPrimaryHit(true, t, texel.rgb, 0.0);
+    if (abs(denom) < 1e-5) { return empty; }
+    var after_t = -1.0;
+    var after_index = 0u;
+    // Resolve front to back. A missing nearest source must not consume
+    // provisional farther billboard pages merely because of instance order.
+    for (var layer = 0u; layer < instance_count; layer = layer + 1u) {
+        var nearest_t = tmax;
+        var nearest_index = 0xffffffffu;
+        var nearest_uv = vec2<f32>(0.0);
+        for (var index = 0u; index < instance_count; index = index + 1u) {
+            let base = organic_word(3u) + index * 8u;
+            let center = vec3<f32>(organic_f32(base), organic_f32(base + 1u), organic_f32(base + 2u));
+            let t = dot(center - ro, normal) / denom;
+            if (t <= 0.0 || t >= nearest_t || t < after_t || (t == after_t && index <= after_index)) { continue; }
+            let half_width = max(organic_f32(base + 3u) * 0.5, 0.0005);
+            let half_height = max(organic_f32(base + 4u) * 0.5, 0.0005);
+            let rel = (ro + rd * t) - center;
+            let u = dot(rel, right_dir) / half_width;
+            let v = dot(rel, up_dir) / half_height;
+            if (abs(u) > 1.0 || abs(v) > 1.0) { continue; }
+            nearest_t = t;
+            nearest_index = index;
+            nearest_uv = vec2<f32>(u * 0.5 + 0.5, 0.5 - v * 0.5);
+        }
+        if (nearest_index == 0xffffffffu) { return empty; }
+        let base = organic_word(3u) + nearest_index * 8u;
+        let texel = sample_organic_sprite(organic_word(base + 5u), nearest_uv);
+        if (!texel.ready) { return OrganicPrimaryHit(false, tmax, vec3<f32>(0.0), false); }
+        if (texel.overlay.a > BILLBOARD_ALPHA_CUTOFF) { return OrganicPrimaryHit(true, nearest_t, texel.overlay.rgb, true); }
+        after_t = nearest_t;
+        after_index = nearest_index;
     }
-    return result;
+    return empty;
 }
 
 // ===== Unified Hit System =====
@@ -1252,6 +1276,7 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
     }
 
     let organic_hit = trace_organic_primary(ro, rd, select(1e6, fog_distance, has_surface));
+    if (!organic_hit.ready) { return; }
     if (organic_hit.hit) {
         final_color = organic_hit.color;
         fog_distance = organic_hit.t;

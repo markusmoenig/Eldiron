@@ -34,7 +34,6 @@ struct Job {
 pub(super) struct Jobs {
     generation: Option<u64>,
     active: Option<Job>,
-    legacy: Option<Key>,
 }
 impl Jobs {
     #[cfg(any(target_arch = "wasm32", feature = "staticlib"))]
@@ -49,6 +48,7 @@ impl Jobs {
                 "document": job.key.document, "map": job.key.source.map, "request": job.key.request,
                 "preparing": !job.source.ready() || job.paint.as_ref().is_some_and(|paint| !paint.ready()), "gpu": job.gpu.is_some(),
                 "pending": job.gpu.as_ref().is_some_and(|gpu| gpu.has_pending_capture()),
+                "source_pending": job.gpu.as_ref().is_some_and(|gpu| gpu.has_pending_source()),
                 "paint_subdivisions": job.gpu.as_ref().map(|gpu| gpu.paint_subdivisions()),
                 "paint_pages": job.gpu.as_ref().and_then(|gpu| gpu.paint_residency_usage()).map(|usage| serde_json::json!({
                     "gpu_plane_bytes": usage.gpu_plane_bytes, "capacity": usage.capacity,
@@ -56,16 +56,7 @@ impl Jobs {
                     "page_uploads": usage.page_uploads, "uploaded_bytes": usage.uploaded_bytes,
                 })),
             })),
-            "adapter": self.legacy.is_some() && controller.is_rendering(),
-        })
-    }
-    pub(super) fn uses_adapter(
-        &self,
-        document: Option<Uuid>,
-        request: Option<(Uuid, Uuid)>,
-    ) -> bool {
-        self.legacy.as_ref().is_some_and(|key| {
-            document == Some(key.document) && request == Some((key.source.map, key.request))
+            "adapter": false,
         })
     }
 }
@@ -125,7 +116,6 @@ impl Editor {
     }
     pub(crate) fn cancel_native_bake_job(&mut self) {
         self.native_viewport.world.bake_jobs.active = None;
-        self.native_viewport.world.bake_jobs.legacy = None;
         if self.server_ctx.bake.initialized() {
             self.server_ctx.bake.write().cancel_work();
         }
@@ -146,10 +136,6 @@ impl Editor {
         self.native_viewport.enabled
             && self.server_ctx.bake.initialized()
             && self.server_ctx.bake.read().is_rendering()
-            && !self.native_viewport.world.bake_jobs.uses_adapter(
-                self.documents.active_id(),
-                self.server_ctx.bake.read().active_request(),
-            )
     }
     /// Runs before viewport selection, including the retained reference adapter.
     pub(crate) fn update_native_bake(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
@@ -179,22 +165,10 @@ impl Editor {
                     self.server_ctx.shared.background_progress = None;
                 }
                 jobs.active = None;
-                jobs.legacy = None;
             }
             self.native_viewport.world.bake_jobs = jobs;
             return;
         };
-        if let Some(old) = jobs.legacy.as_ref().filter(|old| *old != &key) {
-            if request.is_some_and(|(_, request)| request == old.request) {
-                self.server_ctx.bake.write().cancel_work();
-                self.server_ctx.shared.background_progress = None;
-                jobs.legacy = None;
-                self.native_viewport.world.bake_jobs = jobs;
-                ctx.ui.redraw_all = true;
-                return;
-            }
-            jobs.legacy = None;
-        }
         if jobs.active.as_ref().is_some_and(|old| old.key != key) {
             let old = jobs.active.take().unwrap();
             if request.is_none_or(|(_, request)| request == old.key.request) {
@@ -246,7 +220,7 @@ impl Editor {
             self.server_ctx.shared.background_progress = None;
         }
         if let Some((map, _)) = request {
-            if jobs.active.is_none() && jobs.legacy.is_none() {
+            if jobs.active.is_none() {
                 let bridge = self.server_ctx.reference.read();
                 let region = self.documents.project.get_region(&key.region).unwrap();
                 let mut projection = region.map.clone();
@@ -370,25 +344,17 @@ impl Editor {
                         )
                         .map_err(|error| error.to_string())
                 })();
-                if job.paint.as_ref().is_some_and(|paint| paint.above_budget()) {
-                    // Only genuine distinct sprite/instance storage still
-                    // uses this adapter. Virtual raster scratch is bounded.
-                    // No GPU bake sample was started or published during prep.
-                    jobs.legacy = Some(job.key.clone());
-                    jobs.active = None;
-                } else {
-                    match result {
-                        Ok(BakeAdvance::Retired) => {
-                            jobs.active = None;
-                        }
-                        Ok(_) => (),
-                        Err(error) => {
-                            self.server_ctx.bake.write().fail(error.clone());
-                            self.server_ctx.shared.background_progress = None;
-                            jobs.active = None;
-                            ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
-                            ctx.ui.redraw_all = true;
-                        }
+                match result {
+                    Ok(BakeAdvance::Retired) => {
+                        jobs.active = None;
+                    }
+                    Ok(_) => (),
+                    Err(error) => {
+                        self.server_ctx.bake.write().fail(error.clone());
+                        self.server_ctx.shared.background_progress = None;
+                        jobs.active = None;
+                        ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
+                        ctx.ui.redraw_all = true;
                     }
                 }
             }

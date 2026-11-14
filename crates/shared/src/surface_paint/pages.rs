@@ -4,6 +4,10 @@
 //! separately so indirect rays can distinguish absent keys from unloaded pages.
 use super::Builder;
 mod preparation;
+mod generated;
+mod stamps;
+pub use generated::PaintPagePixels;
+pub use stamps::StampPageIndexBuilder;
 use crate::iso_paint::{ISO_PAINT_BAKE_VERSION, ISO_PAINT_BAKED_CHUNK_SIZE, IsoPaintLayer};
 pub use preparation::PaintPageIndexBuilder;
 use scenevm::{GeoId, Raster3DSurfacePaintEntry};
@@ -26,6 +30,7 @@ pub struct PaintPageSource {
 /// pages are evicted. A fault receipt names this slot, never a resident slot.
 pub struct PaintPageIndex {
     pages: Vec<PaintPageSource>,
+    generated: generated::GeneratedPages,
     entries: Vec<Raster3DSurfacePaintEntry>,
     sources_by_slot: Vec<Option<usize>>,
     alpha_geo_ids: Vec<GeoId>,
@@ -77,6 +82,18 @@ impl PaintPageIndex {
     pub fn page(&self, slot: u32) -> Option<&PaintPageSource> {
         let source = self.sources_by_slot.get(slot as usize)?.as_ref()?;
         self.pages.get(*source)
+    }
+    /// Metadata access alone does not materialize generated stamp pixels.
+    /// Pending is a CPU source job, never an absent or transparent source page.
+    pub fn poll_pixels(&self, slot: u32) -> Result<Option<PaintPagePixels>, String> {
+        let source = *self.sources_by_slot.get(slot as usize).and_then(Option::as_ref)
+            .ok_or("Absent paint source slot")?;
+        if self.generated.contains(source) { return self.generated.poll(source); }
+        let page = &self.pages[source];
+        if page.color.len() != PLANE_BYTES || page.material.len() != PLANE_BYTES {
+            return Err("Authored source page has invalid plane dimensions".into());
+        }
+        Ok(Some(PaintPagePixels { color: page.color.clone(), material: page.material.clone() }))
     }
     pub fn slot(&self, geo: [u32; 4], origin: [i32; 2]) -> Option<u32> {
         let mut slot =

@@ -112,6 +112,8 @@ struct Samples {
     dim: TheDim,
     bounds: Bounds,
     size: [u32; 2],
+    region_origin: [u32; 2],
+    region_size: [u32; 2],
     rgba: Vec<u8>,
 }
 impl Samples {
@@ -142,7 +144,18 @@ impl Samples {
                 return None;
             }
         }
-        Some((sample[1] as usize * self.size[0] as usize + sample[0] as usize) * 4)
+        if !(0..2).all(|axis| {
+            sample[axis] >= u64::from(self.region_origin[axis])
+                && sample[axis] < u64::from(self.region_origin[axis] + self.region_size[axis])
+        }) {
+            return None;
+        }
+        Some(
+            ((sample[1] as usize - self.region_origin[1] as usize) * self.region_size[0] as usize
+                + sample[0] as usize
+                - self.region_origin[0] as usize)
+                * 4,
+        )
     }
 }
 impl Target for Samples {
@@ -164,6 +177,8 @@ impl Target for Samples {
             dim: self.dim,
             bounds: self.bounds,
             size: self.size,
+            region_origin: self.region_origin,
+            region_size: self.region_size,
             rgba: vec![0; self.rgba.len()],
         }
     }
@@ -180,75 +195,196 @@ impl Target for Samples {
     }
 }
 
+/// Alpha-only samples share the exact coordinate mapping and integer source-
+/// over formula. They retain one cutoff bit per sprite texel, not RGBA pixels.
+struct AlphaSamples {
+    mapping: Samples,
+    alpha: Vec<u8>,
+}
+impl Target for AlphaSamples {
+    fn dim(&self) -> &TheDim {
+        &self.mapping.dim
+    }
+    fn blend(&mut self, x: i32, y: i32, color: [u8; 4]) {
+        if let Some(offset) = self.mapping.index(x, y) {
+            let alpha = &mut self.alpha[offset / 4];
+            *alpha = (u32::from(color[3]) + u32::from(*alpha) * (255 - u32::from(color[3])) / 255)
+                .min(255) as u8;
+        }
+    }
+    fn replace(&mut self, x: i32, y: i32, color: [u8; 4]) {
+        if let Some(offset) = self.mapping.index(x, y) {
+            self.alpha[offset / 4] = color[3];
+        }
+    }
+    fn blank(&self) -> Self {
+        Self {
+            mapping: self.mapping.blank(),
+            alpha: vec![0; self.alpha.len()],
+        }
+    }
+    fn material_mask(&mut self, source: Self, _: [u8; 3]) {
+        for (source, target) in source.alpha.into_iter().zip(&mut self.alpha) {
+            if source > 0 {
+                *target = source;
+            }
+        }
+    }
+}
+
 pub(super) struct NativeSprite {
     pub sprite: scenevm::OrganicBillboardSprite,
     pub min: [i32; 2],
     pub max: [i32; 2],
     pub anchor: [i32; 2],
 }
-/// Two deterministic passes use constant coverage metadata and at most256x256
-/// RGBA samples (plus one equally bounded material scratch image). No temporary
-/// allocation depends on the original canvas area.
+/// Retained current stamp input and exact original crop. No sprite pixels are
+/// retained; a residency owner requests only a bounded output rectangle.
+#[derive(Clone)]
+pub struct StampRecipe {
+    pub(super) stamp: std::sync::Arc<IsoPaintStamp>,
+    dim: TheDim,
+    bounds: Bounds,
+    output: [u32; 2],
+    anchor: [i32; 2],
+    alpha_mask: std::sync::OnceLock<std::sync::Arc<[u32]>>,
+}
+impl StampRecipe {
+    pub fn prepare(stamp: std::sync::Arc<IsoPaintStamp>) -> Result<Option<Self>, String> {
+        if !stamp.size.is_finite() {
+            return Err("Stamp size must be finite".into());
+        }
+        let size = stamp.size.max(0.01);
+        let side = (size * 24.).ceil().max(16.) as f64 + 4.;
+        let above = (size * 34.).ceil().max(24.) as f64 + 4.;
+        let below = (size * 14.).ceil().max(12.) as f64 + 4.;
+        // Leave signed-coordinate headroom for every shipped procedural kernel's
+        // offsets/products. Invalid coordinates are errors, not a legacy handoff.
+        let limit = (i32::MAX / 64) as f64;
+        if ![side, above, below]
+            .into_iter()
+            .all(|v| v.is_finite() && v <= limit)
+        {
+            return Err("Stamp dimensions exceed the procedural coordinate range".into());
+        }
+        let anchor = [side as i32, above as i32];
+        let dim = TheDim::sized(side as i32 * 2 + 1, above as i32 + below as i32 + 1);
+        let mut coverage = Coverage {
+            dim,
+            bounds: Bounds::empty(),
+        };
+        IsoPaintRenderer::draw_iso_paint_stamp_shape(
+            &mut coverage,
+            &stamp,
+            None,
+            anchor,
+            None,
+            None,
+            size,
+        );
+        if !coverage.bounds.present() {
+            return Ok(None);
+        }
+        let crop = coverage.bounds.size();
+        let output = [crop[0].min(256), crop[1].min(256)];
+
+        Ok(Some(Self {
+            stamp,
+            dim,
+            bounds: coverage.bounds,
+            output,
+            anchor,
+            alpha_mask: Default::default(),
+        }))
+    }
+    pub fn size(&self) -> [u32; 2] {
+        self.output
+    }
+    pub fn alpha_mask(&self) -> std::sync::Arc<[u32]> {
+        self.alpha_mask
+            .get_or_init(|| {
+                let pixels = self.output[0] as usize * self.output[1] as usize;
+                let mut target = AlphaSamples {
+                    mapping: Samples {
+                        dim: self.dim,
+                        bounds: self.bounds,
+                        size: self.output,
+                        region_origin: [0; 2],
+                        region_size: self.output,
+                        rgba: Vec::new(),
+                    },
+                    alpha: vec![0; pixels],
+                };
+                IsoPaintRenderer::draw_iso_paint_stamp_shape(
+                    &mut target,
+                    &self.stamp,
+                    None,
+                    self.anchor,
+                    None,
+                    None,
+                    self.stamp.size.max(0.01),
+                );
+                let mut mask = vec![0u32; pixels.div_ceil(32)];
+                for (index, alpha) in target.alpha.into_iter().enumerate() {
+                    // Exactly the integer-alpha threshold of the shared compute
+                    // kernel's BILLBOARD_ALPHA_CUTOFF=0.08 (20/255 < .08 < 21/255).
+                    if alpha >= 21 {
+                        mask[index / 32] |= 1 << (index % 32);
+                    }
+                }
+                mask.into()
+            })
+            .clone()
+    }
+    pub fn crop(&self) -> ([i32; 2], [i32; 2], [i32; 2]) {
+        (self.bounds.min, self.bounds.max, self.anchor)
+    }
+    /// Original sprite coordinates, with transparent padding at partial edge
+    /// pages. Allocation is bounded independently of original canvas size.
+    pub fn raster(&self, origin: [u32; 2], size: [u32; 2]) -> Result<Vec<u8>, String> {
+        if !(0..2).all(|axis| {
+            size[axis] > 0
+                && size[axis] <= 256
+                && origin[axis] < self.output[axis]
+                && origin[axis].checked_add(size[axis]).is_some()
+        }) {
+            return Err("Invalid stamp source rectangle".into());
+        }
+        let mut samples = Samples {
+            dim: self.dim,
+            bounds: self.bounds,
+            size: self.output,
+            region_origin: origin,
+            region_size: size,
+            rgba: vec![0; size[0] as usize * size[1] as usize * 4],
+        };
+        IsoPaintRenderer::draw_iso_paint_stamp_shape(
+            &mut samples,
+            &self.stamp,
+            None,
+            self.anchor,
+            None,
+            None,
+            self.stamp.size.max(0.01),
+        );
+        Ok(samples.rgba)
+    }
+}
+
+/// Synchronous small-sprite convenience API. Paged producers retain the recipe
+/// and generate only selected64px rectangles instead of this complete sprite.
 pub(super) fn native_sprite(stamp: &IsoPaintStamp) -> Result<Option<NativeSprite>, String> {
-    if !stamp.size.is_finite() {
-        return Err("Stamp size must be finite".into());
-    }
-    let size = stamp.size.max(0.01);
-    let side = (size * 24.).ceil().max(16.) as f64 + 4.;
-    let above = (size * 34.).ceil().max(24.) as f64 + 4.;
-    let below = (size * 14.).ceil().max(12.) as f64 + 4.;
-    // Leave signed-coordinate headroom for every shipped procedural kernel's
-    // offsets/products. Invalid coordinates are errors, not a legacy handoff.
-    let limit = (i32::MAX / 64) as f64;
-    if ![side, above, below]
-        .into_iter()
-        .all(|v| v.is_finite() && v <= limit)
-    {
-        return Err("Stamp dimensions exceed the procedural coordinate range".into());
-    }
-    let anchor = [side as i32, above as i32];
-    let dim = TheDim::sized(side as i32 * 2 + 1, above as i32 + below as i32 + 1);
-    let mut coverage = Coverage {
-        dim,
-        bounds: Bounds::empty(),
-    };
-    IsoPaintRenderer::draw_iso_paint_stamp_shape(
-        &mut coverage,
-        stamp,
-        None,
-        anchor,
-        None,
-        None,
-        size,
-    );
-    if !coverage.bounds.present() {
+    let Some(recipe) = StampRecipe::prepare(std::sync::Arc::new(stamp.clone()))? else {
         return Ok(None);
-    }
-    let crop = coverage.bounds.size();
-    let output = [crop[0].min(256), crop[1].min(256)];
-    let mut samples = Samples {
-        dim,
-        bounds: coverage.bounds,
-        size: output,
-        rgba: vec![0; output[0] as usize * output[1] as usize * 4],
     };
-    IsoPaintRenderer::draw_iso_paint_stamp_shape(
-        &mut samples,
-        stamp,
-        None,
-        anchor,
-        None,
-        None,
-        size,
-    );
     Ok(Some(NativeSprite {
         sprite: scenevm::OrganicBillboardSprite {
-            width: output[0],
-            height: output[1],
-            rgba: samples.rgba,
+            width: recipe.output[0],
+            height: recipe.output[1],
+            rgba: recipe.raster([0; 2], recipe.output)?,
         },
-        min: coverage.bounds.min,
-        max: coverage.bounds.max,
-        anchor,
+        min: recipe.bounds.min,
+        max: recipe.bounds.max,
+        anchor: recipe.anchor,
     }))
 }

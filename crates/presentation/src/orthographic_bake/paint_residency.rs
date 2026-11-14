@@ -9,6 +9,7 @@ const PAGE: u32 = 64;
 const PAGE_BYTES: u64 = 64 * 64 * 4 * 2;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PaintPageRequest {
+    Pending,
     Resident,
     Loaded,
     WorkingSetFull,
@@ -86,10 +87,11 @@ impl PaintPageResidency {
         if self.context.is_lost() {
             return Err(RenderError("paint residency device lost".into()));
         }
-        let page = self
-            .source
-            .page(source_slot)
-            .ok_or_else(|| RenderError("paint dependency names an absent source key".into()))?;
+        if self.source.page(source_slot).is_none() {
+            return Err(RenderError(
+                "paint dependency names an absent source key".into(),
+            ));
+        }
         if self.residents.contains_key(&source_slot) {
             self.pinned.insert(source_slot);
             return Ok(PaintPageRequest::Resident);
@@ -100,6 +102,9 @@ impl PaintPageResidency {
                 .position(|old| old.is_some_and(|old| !self.pinned.contains(&old)))
         }) else {
             return Ok(PaintPageRequest::WorkingSetFull);
+        };
+        let Some(page) = self.source.poll_pixels(source_slot).map_err(RenderError)? else {
+            return Ok(PaintPageRequest::Pending);
         };
         let columns = self.size[0] / PAGE;
         let origin = wgpu::Origin3d {

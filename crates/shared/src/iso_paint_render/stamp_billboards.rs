@@ -1,5 +1,7 @@
 //! Cooperative CPU original stamp preparation, independent of GPU publication.
 use super::*;
+mod catalog;
+pub use catalog::{StampCatalog, StampCatalogBuilder};
 use crate::iso_paint::{IsoPaintChunk, IsoPaintLayer, IsoPaintStamp};
 use scenevm::{OrganicBillboardInstance, OrganicBillboardSprite};
 

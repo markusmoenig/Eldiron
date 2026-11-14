@@ -14,6 +14,7 @@ mod raster3d;
 mod raster_mesh;
 mod surface_gpu;
 mod paint_pages;
+mod organic;
 
 use crate::{
     Camera3D, CameraKind, Chunk, Light, LightType, Poly2D, Poly3D, Texture,
@@ -22,13 +23,14 @@ use crate::{
         normalize_material_frame,
     },
     core::{
-        Atom, GeoId, LayerBlendMode, OrganicBillboardInstance, OrganicBillboardSprite,
+        Atom, GeoId, LayerBlendMode, OrganicBillboardInstance, OrganicBillboardSprite, PagedBillboardSprite,
         PaintSurfaceBuffer, PaintSurfacePixel, PaletteRemap2DMode, Raster3DSurfacePaintEntry,
         RenderMode, VMDebugStats,
     },
     dynamic::{DynamicKind, DynamicObject},
 };
 use bytemuck::{Pod, Zeroable};
+use std::sync::Arc;
 use raster3d::record_raster3d_debug_timing;
 pub use raster3d::{
     Line3DPod, PaintSurfaceUniforms, PaintSurfaceVertPod, Raster3DUniforms, Vert3DPod,
@@ -554,6 +556,7 @@ struct DynamicAvatarData {
 #[derive(Clone, Debug, Default)]
 struct OrganicBillboardData {
     sprites: Vec<OrganicBillboardSprite>,
+    paged_sprites: Vec<PagedBillboardSprite>,
     instances: Vec<OrganicBillboardInstance>,
     dirty: bool,
 }
@@ -672,6 +675,8 @@ pub struct VMGpu {
     pub material_table_ssbo_size: usize,
     pub compute3d_aux_ssbo: Option<wgpu::Buffer>,
     pub compute3d_aux_ssbo_size: usize,
+    compute3d_aux_surface: Option<Arc<[Raster3DSurfacePaintEntry]>>,
+    compute3d_aux_organic: Option<Arc<[u32]>>,
     pub raster3d_paint_color_tex: Option<wgpu::Texture>,
     pub raster3d_paint_color_view: Option<wgpu::TextureView>,
     pub raster3d_paint_material_tex: Option<wgpu::Texture>,
@@ -3781,6 +3786,7 @@ pub struct VM {
     cached_tile_emissive_content_version: u64,
     tile_gpu_dirty: bool,
     cached_scene_data_hash: u64,
+    cached_organic_words: Option<Arc<[u32]>>,
     irradiance_grid_dirty: bool,
     cached_irradiance_grid_data: Vec<[f32; 4]>,
     cached_irradiance_input_hash: Option<u64>,
@@ -5098,158 +5104,6 @@ impl VM {
         self.cached_scene_data_hash = scene_data_hash;
     }
 
-    fn build_organic_billboard_words(&self) -> Vec<u32> {
-        let chunk_sprite_count: usize = self
-            .chunks_map
-            .values()
-            .map(|chunk| chunk.organic_billboard_sprites.len())
-            .sum();
-        let chunk_instance_count: usize = self
-            .chunks_map
-            .values()
-            .map(|chunk| chunk.organic_billboard_instances.len())
-            .sum();
-        let sprite_count = (self.organic_billboards.sprites.len()
-            + chunk_sprite_count
-            + self.paint_billboards.sprites.len())
-        .min(u32::MAX as usize) as u32;
-        let instance_count = (self.organic_billboards.instances.len()
-            + chunk_instance_count
-            + self.paint_billboards.instances.len())
-        .min(u32::MAX as usize) as u32;
-        let instance_offset_words = 8u32;
-        let sprite_meta_offset_words = instance_offset_words + instance_count * 8;
-        let pixel_offset_words = sprite_meta_offset_words + sprite_count * 4;
-        let mut words = vec![
-            0x4F42_494Cu32,
-            sprite_count,
-            instance_count,
-            instance_offset_words,
-            sprite_meta_offset_words,
-            pixel_offset_words,
-            0,
-            0,
-        ];
-
-        let mut sprite_base = self.organic_billboards.sprites.len() as u32;
-        for instance in self.organic_billboards.instances.iter() {
-            words.extend_from_slice(&[
-                instance.center[0].to_bits(),
-                instance.center[1].to_bits(),
-                instance.center[2].to_bits(),
-                instance.width.to_bits(),
-                instance.height.to_bits(),
-                instance.sprite_index,
-                instance.flags,
-                0,
-            ]);
-        }
-        for chunk in self.chunks_map.values() {
-            for instance in &chunk.organic_billboard_instances {
-                words.extend_from_slice(&[
-                    instance.center[0].to_bits(),
-                    instance.center[1].to_bits(),
-                    instance.center[2].to_bits(),
-                    instance.width.to_bits(),
-                    instance.height.to_bits(),
-                    sprite_base.saturating_add(instance.sprite_index),
-                    instance.flags,
-                    0,
-                ]);
-            }
-            sprite_base = sprite_base.saturating_add(chunk.organic_billboard_sprites.len() as u32);
-        }
-        for instance in &self.paint_billboards.instances {
-            words.extend_from_slice(&[
-                instance.center[0].to_bits(),
-                instance.center[1].to_bits(),
-                instance.center[2].to_bits(),
-                instance.width.to_bits(),
-                instance.height.to_bits(),
-                sprite_base.saturating_add(instance.sprite_index),
-                instance.flags,
-                0,
-            ]);
-        }
-
-        let mut pixel_words = Vec::new();
-        for sprite in &self.organic_billboards.sprites {
-            let offset_pixels = pixel_words.len() as u32;
-            words.extend_from_slice(&[offset_pixels, sprite.width, sprite.height, 0]);
-            for px in sprite.rgba.chunks_exact(4) {
-                pixel_words.push(u32::from_le_bytes([px[0], px[1], px[2], px[3]]));
-            }
-        }
-        for chunk in self.chunks_map.values() {
-            for sprite in &chunk.organic_billboard_sprites {
-                let offset_pixels = pixel_words.len() as u32;
-                words.extend_from_slice(&[offset_pixels, sprite.width, sprite.height, 0]);
-                for px in sprite.rgba.chunks_exact(4) {
-                    pixel_words.push(u32::from_le_bytes([px[0], px[1], px[2], px[3]]));
-                }
-            }
-        }
-        for sprite in &self.paint_billboards.sprites {
-            let offset_pixels = pixel_words.len() as u32;
-            words.extend_from_slice(&[offset_pixels, sprite.width, sprite.height, 0]);
-            for px in sprite.rgba.chunks_exact(4) {
-                pixel_words.push(u32::from_le_bytes([px[0], px[1], px[2], px[3]]));
-            }
-        }
-        words.extend_from_slice(&pixel_words);
-
-        if words.is_empty() {
-            words.push(0);
-        }
-        words
-    }
-
-    fn upload_organic_billboard_ssbo(&mut self, device: &wgpu::Device, _queue: &wgpu::Queue) {
-        use wgpu::util::DeviceExt;
-
-        let organic_words = self.build_organic_billboard_words();
-        let organic_bytes: &[u8] = bytemuck::cast_slice(&organic_words);
-        let organic_byte_len = organic_bytes.len().max(std::mem::size_of::<u32>());
-        let instance_count =
-            self.organic_billboards
-                .instances
-                .len()
-                .saturating_add(
-                    self.chunks_map
-                        .values()
-                        .map(|chunk| chunk.organic_billboard_instances.len())
-                        .sum::<usize>(),
-                )
-                .saturating_add(self.paint_billboards.instances.len()) as u32;
-        let needs_recreate = if let Some(g) = self.gpu.as_ref() {
-            self.organic_billboards.dirty
-                || self.paint_billboards.dirty
-                || g.organic_billboard_ssbo.is_none()
-                || g.organic_billboard_ssbo_size != organic_byte_len
-        } else {
-            true
-        };
-
-        if !needs_recreate {
-            if let Some(g) = self.gpu.as_mut() {
-                g.organic_billboard_count = instance_count;
-            }
-            return;
-        }
-
-        let g = self.gpu.as_mut().unwrap();
-        g.organic_billboard_ssbo = Some(device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("vm-organic-billboards"),
-                contents: organic_bytes,
-                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-            },
-        ));
-        g.organic_billboard_ssbo_size = organic_byte_len;
-        g.organic_billboard_count = instance_count;
-        self.organic_billboards.dirty = false;
-        self.paint_billboards.dirty = false;
-    }
 
     #[inline]
     fn mark_irradiance_grid_dirty(&mut self) {
@@ -5258,6 +5112,7 @@ impl VM {
 
     #[inline]
     pub fn mark_all_geometry_dirty(&mut self) {
+        self.invalidate_organic_source();
         #[cfg(not(target_arch = "wasm32"))]
         {
             self.irradiance_epoch = self.irradiance_epoch.wrapping_add(1);
@@ -5651,70 +5506,6 @@ impl VM {
         self.raster3d_paint_overlay_dirty = false;
     }
 
-    fn upload_compute3d_aux_ssbo(
-        &mut self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-    ) -> crate::SceneVMResult<()> {
-        use wgpu::util::DeviceExt;
-
-        let dummy_surface_entry = Raster3DSurfacePaintEntry::zeroed();
-        let surface_entries = self
-            .paint_entries()
-            .filter(|entries| !entries.is_empty())
-            .unwrap_or(std::slice::from_ref(&dummy_surface_entry));
-        let organic_words = self.build_organic_billboard_words();
-
-        // Atomic status prefix, followed by the unchanged metadata header.
-        // Header offsets are relative to the WGSL data array after the prefix.
-        let surface_offset = 4u32;
-        let surface_words: &[u32] = bytemuck::cast_slice(surface_entries);
-        let organic_offset = surface_offset + surface_words.len() as u32;
-        let word_len = 5usize
-            .checked_add(surface_words.len())
-            .and_then(|len| len.checked_add(organic_words.len()))
-            .ok_or_else(|| {
-                crate::SceneVMError::BufferAllocationFailed("compute metadata size overflow".into())
-            })?;
-        let byte_len = word_len.checked_mul(size_of::<u32>()).ok_or_else(|| {
-            crate::SceneVMError::BufferAllocationFailed("compute metadata size overflow".into())
-        })?;
-        if byte_len as u64 > u64::from(device.limits().max_storage_buffer_binding_size)
-            || byte_len as u64 > device.limits().max_buffer_size
-        {
-            return Err(crate::SceneVMError::BufferAllocationFailed(
-                "compute paint/organic metadata exceeds device binding limit".into(),
-            ));
-        }
-        let mut words = Vec::with_capacity(word_len);
-        words.extend_from_slice(&[
-            u32::MAX,
-            surface_offset,
-            surface_entries.len() as u32,
-            organic_offset,
-            organic_words.len() as u32,
-        ]);
-        words.extend_from_slice(surface_words);
-        words.extend_from_slice(&organic_words);
-
-        let bytes: &[u8] = bytemuck::cast_slice(&words);
-        let g = self.gpu.as_mut().unwrap();
-        if g.compute3d_aux_ssbo.is_none() || g.compute3d_aux_ssbo_size != byte_len {
-            g.compute3d_aux_ssbo = Some(device.create_buffer_init(
-                &wgpu::util::BufferInitDescriptor {
-                    label: Some("vm-compute3d-aux"),
-                    contents: bytes,
-                    usage: wgpu::BufferUsages::STORAGE
-                        | wgpu::BufferUsages::COPY_DST
-                        | wgpu::BufferUsages::COPY_SRC,
-                },
-            ));
-            g.compute3d_aux_ssbo_size = byte_len;
-        } else if let Some(buffer) = g.compute3d_aux_ssbo.as_ref() {
-            queue.write_buffer(buffer, 0, bytes);
-        }
-        Ok(())
-    }
 
     /// Capture the last submitted compute pass's dependency prefix only when
     /// the authored key table contains unloaded pages. Full resident sources
@@ -5911,6 +5702,7 @@ impl VM {
             cached_tile_emissive_content_version: u64::MAX,
             tile_gpu_dirty: true,
             cached_scene_data_hash: 0,
+            cached_organic_words: None,
             irradiance_grid_dirty: true,
             cached_irradiance_grid_data: Self::disabled_irradiance_grid_data(),
             cached_irradiance_input_hash: None,
@@ -6348,7 +6140,7 @@ impl VM {
                 self.chunks_map.entry(id).or_insert_with(Chunk::default);
                 self.accel_dirty = true;
                 self.line3d_dirty = true;
-                self.organic_billboards.dirty = true;
+                self.invalidate_organic_source();
                 self.mark_2d_dirty();
             }
             Atom::AddChunk { id, mut chunk } => {
@@ -6357,7 +6149,7 @@ impl VM {
                 self.chunks_map.insert(id, chunk);
                 self.accel_dirty = true;
                 self.line3d_dirty = true;
-                self.organic_billboards.dirty = true;
+                self.invalidate_organic_source();
                 self.mark_2d_dirty();
             }
             Atom::RemoveChunk { id } => {
@@ -6368,7 +6160,7 @@ impl VM {
                 }
                 self.accel_dirty = true;
                 self.line3d_dirty = true;
-                self.organic_billboards.dirty = true;
+                self.invalidate_organic_source();
                 self.mark_2d_dirty();
             }
             Atom::RemoveChunkAt { origin } => {
@@ -6386,7 +6178,7 @@ impl VM {
                 }
                 self.accel_dirty = true;
                 self.line3d_dirty = true;
-                self.organic_billboards.dirty = true;
+                self.invalidate_organic_source();
                 self.mark_2d_dirty();
             }
             Atom::SetCurrentChunk { id } => {
@@ -6466,6 +6258,7 @@ impl VM {
                     dirty: true,
                     ..OrganicBillboardData::default()
                 };
+                self.invalidate_organic_source();
             }
             Atom::ClearTiles => {
                 // Clear tile-related state and atlas pixels; keep scene/chunks
@@ -6479,6 +6272,7 @@ impl VM {
                     dirty: true,
                     ..OrganicBillboardData::default()
                 };
+                self.invalidate_organic_source();
             }
             Atom::ClearGeometry => {
                 // Remove all chunks and unset current chunk; keep tiles/atlas/state
@@ -6494,6 +6288,7 @@ impl VM {
                     dirty: true,
                     ..OrganicBillboardData::default()
                 };
+                self.invalidate_organic_source();
             }
             Atom::SetBackground(v) => {
                 self.background = v;
@@ -6625,15 +6420,32 @@ impl VM {
                     .collect();
                 self.organic_billboards = OrganicBillboardData {
                     sprites: sanitized_sprites,
+                    paged_sprites: Vec::new(),
                     instances: sanitized_instances,
                     dirty: true,
                 };
+                self.invalidate_organic_source();
             }
             Atom::ClearOrganicBillboards => {
                 self.organic_billboards = OrganicBillboardData {
                     dirty: true,
                     ..OrganicBillboardData::default()
                 };
+                self.invalidate_organic_source();
+            }
+            Atom::SetPagedPaintBillboards { sprites, instances } => {
+                // Reject as a set: filtering would shift stable source indices.
+                if sprites.iter().any(|sprite| sprite.width == 0 || sprite.height == 0
+                    || sprite.width > 256 || sprite.height > 256
+                    || sprite.alpha_mask.len() != (sprite.width as usize * sprite.height as usize).div_ceil(32))
+                    || instances.iter().any(|instance| instance.sprite_index as usize >= sprites.len()
+                        || !instance.width.is_finite() || instance.width <= 0.
+                        || !instance.height.is_finite() || instance.height <= 0.
+                        || !instance.center.iter().all(|value| value.is_finite())) { return; }
+                self.paint_billboards = OrganicBillboardData {
+                    sprites: Vec::new(), paged_sprites: sprites, instances, dirty: true,
+                };
+                self.invalidate_organic_source();
             }
             Atom::SetPaintBillboards { sprites, instances } => {
                 let sanitized_sprites: Vec<OrganicBillboardSprite> = sprites
@@ -6661,15 +6473,18 @@ impl VM {
                     .collect();
                 self.paint_billboards = OrganicBillboardData {
                     sprites: sanitized_sprites,
+                    paged_sprites: Vec::new(),
                     instances: sanitized_instances,
                     dirty: true,
                 };
+                self.invalidate_organic_source();
             }
             Atom::ClearPaintBillboards => {
                 self.paint_billboards = OrganicBillboardData {
                     dirty: true,
                     ..OrganicBillboardData::default()
                 };
+                self.invalidate_organic_source();
             }
             Atom::RemoveAvatarBillboardData { id } => {
                 self.dynamic_avatar_data.remove(&id);
@@ -6950,6 +6765,8 @@ impl VM {
             material_table_ssbo_size: 0,
             compute3d_aux_ssbo: None,
             compute3d_aux_ssbo_size: 0,
+            compute3d_aux_surface: None,
+            compute3d_aux_organic: None,
             raster3d_paint_color_tex: None,
             raster3d_paint_color_view: None,
             raster3d_paint_material_tex: None,

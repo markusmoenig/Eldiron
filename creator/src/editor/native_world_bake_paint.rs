@@ -58,7 +58,7 @@ impl Editor {
             self.server_ctx.shared.pc,
             self.server_ctx.bake.read().status(),
             jobs.active.is_some(),
-            jobs.legacy.is_some(),
+            false,
             jobs.active.as_ref().map(|job| job.source.ready())
         );
     }
@@ -476,20 +476,15 @@ impl Snapshot {
 /// Frozen paint progresses independently of viewport visibility. The GPU scene
 /// is created only after all original keys and alpha owners have been validated.
 pub(super) struct Preparation(State);
-use shared::iso_paint_render::stamp_billboards::{StampBillboardError, StampBillboardPreparation};
+use shared::iso_paint_render::stamp_billboards::StampCatalogBuilder;
+use shared::surface_paint::pages::{PaintPageIndex, PaintPageIndexBuilder, StampPageIndexBuilder};
 enum State {
     Frozen(Option<Snapshot>),
-    Building(shared::surface_paint::pages::PaintPageIndexBuilder),
-    Ready(
-        std::sync::Arc<shared::surface_paint::pages::PaintPageIndex>,
-        IsoPaintLayer,
-    ),
-    Billboards(
-        std::sync::Arc<shared::surface_paint::pages::PaintPageIndex>,
-        StampBillboardPreparation,
-    ),
-    Prepared(std::sync::Arc<shared::surface_paint::pages::PaintPageIndex>),
-    AboveBudget,
+    Building(PaintPageIndexBuilder),
+    Ready(PaintPageIndex, IsoPaintLayer, u64),
+    Billboards(PaintPageIndex, StampCatalogBuilder, u64),
+    Indexing(StampPageIndexBuilder),
+    Prepared(std::sync::Arc<PaintPageIndex>),
 }
 impl Preparation {
     pub(super) fn ready(&self) -> bool {
@@ -499,7 +494,7 @@ impl Preparation {
         if let State::Frozen(snapshot) = &mut self.0 {
             let limit = u64::from(context.device.limits().max_storage_buffer_binding_size)
                 .saturating_sub(20);
-            self.0 = State::Building(shared::surface_paint::pages::PaintPageIndexBuilder::new(
+            self.0 = State::Building(PaintPageIndexBuilder::new(
                 snapshot
                     .take()
                     .ok_or("Frozen paint source already consumed")?
@@ -513,58 +508,61 @@ impl Preparation {
             }
             let State::Building(builder) = std::mem::replace(&mut self.0, State::Frozen(None))
             else {
-                unreachable!();
+                unreachable!()
             };
             let (index, stamps) = builder.finish()?;
-            self.0 = State::Ready(std::sync::Arc::new(index), stamps);
+            let limit = u64::from(context.device.limits().max_storage_buffer_binding_size)
+                .saturating_sub(20);
+            self.0 = State::Ready(index, stamps, limit);
         }
         Ok(!matches!(self.0, State::Frozen(..) | State::Building(..)))
-    }
-    pub(super) fn above_budget(&self) -> bool {
-        matches!(self.0, State::AboveBudget)
     }
     pub(super) fn upload_page_sources(
         &mut self,
         scene: &mut rusterix::SceneHandler,
         camera: scenevm::Camera3D,
         viewport: (u32, u32),
-    ) -> Result<Option<std::sync::Arc<shared::surface_paint::pages::PaintPageIndex>>, String> {
+    ) -> Result<Option<std::sync::Arc<PaintPageIndex>>, String> {
         if matches!(self.0, State::Ready(..)) {
-            let State::Ready(index, stamps) = std::mem::replace(&mut self.0, State::Frozen(None))
+            let State::Ready(index, stamps, limit) =
+                std::mem::replace(&mut self.0, State::Frozen(None))
             else {
                 unreachable!()
             };
             self.0 = State::Billboards(
                 index,
-                StampBillboardPreparation::new(stamps, camera, viewport.1, 64 * 1024 * 1024),
+                StampCatalogBuilder::new(stamps, camera, viewport.1, limit),
+                limit,
             );
         }
-        if let State::Billboards(_, builder) = &mut self.0 {
-            match builder.advance(&scene.vm, 2) {
-                Ok(false) => return Ok(None),
-                Ok(true) => (),
-                Err(
-                    StampBillboardError::SourceBudget { .. },
-                ) => {
-                    self.0 = State::AboveBudget;
-                    return Ok(None);
-                }
-                Err(error) => return Err(error.to_string()),
+        if let State::Billboards(_, builder, _) = &mut self.0 {
+            if !builder.advance(&scene.vm, 2)? {
+                return Ok(None);
             }
-            let State::Billboards(index, builder) =
+            let State::Billboards(index, builder, limit) =
                 std::mem::replace(&mut self.0, State::Frozen(None))
             else {
                 unreachable!()
             };
-            builder
-                .finish()
-                .map_err(|e| e.to_string())?
-                .upload(&mut scene.vm);
-            self.0 = State::Prepared(index);
+            scene.vm.set_active_vm(0);
+            let recipes = builder.finish()?.install(&mut scene.vm);
+            let limit = limit
+                .checked_sub(scene.vm.active_vm().compute_organic_source_bytes())
+                .ok_or("Billboard placement metadata exceeds the compute binding limit")?;
+            self.0 = State::Indexing(StampPageIndexBuilder::new(index, recipes, limit)?);
+        }
+        if let State::Indexing(builder) = &mut self.0 {
+            if !builder.advance(16)? {
+                return Ok(None);
+            }
+            let State::Indexing(builder) = std::mem::replace(&mut self.0, State::Frozen(None))
+            else {
+                unreachable!()
+            };
+            self.0 = State::Prepared(std::sync::Arc::new(builder.finish()?));
         }
         match &self.0 {
             State::Prepared(source) => Ok(Some(source.clone())),
-            State::AboveBudget => Ok(None),
             _ => Err("Paint source preparation is incomplete".into()),
         }
     }

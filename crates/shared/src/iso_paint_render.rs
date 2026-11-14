@@ -1,5 +1,6 @@
 pub mod stamp_billboards;
 mod stamp_raster;
+pub use stamp_raster::StampRecipe;
 use crate::iso_paint::ISO_PAINT_NO_SURFACE_DEPTH;
 use crate::iso_paint_brush::{self, IsoPaintBrushSample};
 use crate::prelude::*;

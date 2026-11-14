@@ -34,6 +34,11 @@ enum Channel {
     Depth,
 }
 enum Pending {
+    Source {
+        work: OrthographicBakeWork,
+        channel: Channel,
+        index: u32,
+    },
     Paint {
         work: OrthographicBakeWork,
         channel: Channel,
@@ -156,7 +161,13 @@ impl OrthographicBakeJob {
         self.scene.vm.set_layer_compute3d_bake_output(0, 0);
     }
     pub fn has_pending_capture(&self) -> bool {
-        self.pending.is_some()
+        matches!(
+            self.pending,
+            Some(Pending::Paint { .. } | Pending::Color { .. } | Pending::Depth { .. })
+        )
+    }
+    pub fn has_pending_source(&self) -> bool {
+        matches!(self.pending, Some(Pending::Source { .. }))
     }
     pub fn device_generation(&self) -> u64 {
         self.context.generation()
@@ -231,6 +242,7 @@ impl OrthographicBakeJob {
         if let Some(mut pending) = self.pending.take() {
             let work = match &pending {
                 Pending::Paint { work, .. }
+                | Pending::Source { work, .. }
                 | Pending::Color { work, .. }
                 | Pending::Depth { work, .. } => *work,
             };
@@ -239,6 +251,9 @@ impl OrthographicBakeJob {
                 return Ok(BakeAdvance::Retired);
             }
             match &mut pending {
+                Pending::Source { channel, index, .. } => {
+                    self.resolve_source(work, *channel, *index)?
+                }
                 Pending::Paint {
                     channel,
                     image,
@@ -258,36 +273,7 @@ impl OrthographicBakeJob {
                                 ));
                             }
                         }
-                        let Some(pages) = self.paint_pages.as_mut() else {
-                            return Err(RenderError(format!(
-                                "Bake paint entry {index} is not resident; sample withheld"
-                            )));
-                        };
-                        match pages.request(index)? {
-                            PaintPageRequest::Loaded => {
-                                self.scene
-                                    .vm
-                                    .set_paint_page_binding(&self.context, pages.binding()?)?;
-                                self.replay = Some((work, *channel));
-                            }
-                            PaintPageRequest::WorkingSetFull => {
-                                let regions = self.regions.as_mut().ok_or_else(|| {
-                                    RenderError("paint pressure has no private region owner".into())
-                                })?;
-                                if !regions.split() {
-                                    return Err(RenderError("single-pixel paint dependency working set exceeds resident capacity; sample withheld".into()));
-                                }
-                                self.subdivisions += 1;
-                                pages.begin_dispatch();
-                                self.replay = Some((work, *channel));
-                            }
-                            PaintPageRequest::Resident => {
-                                return Err(RenderError(
-                                    "paint dependency receipt names an already resident source"
-                                        .into(),
-                                ));
-                            }
-                        }
+                        self.resolve_source(work, *channel, index)?;
                     }
                 },
                 Pending::Color {
@@ -477,6 +463,50 @@ impl OrthographicBakeJob {
                 channel,
                 ticket: ReadbackTicket::capture_asset(&self.context, image)?,
             });
+        }
+        Ok(())
+    }
+    fn resolve_source(
+        &mut self,
+        work: OrthographicBakeWork,
+        channel: Channel,
+        index: u32,
+    ) -> Result<()> {
+        let pages = self.paint_pages.as_mut().ok_or_else(|| {
+            RenderError(format!(
+                "Bake source entry {index} is not resident; sample withheld"
+            ))
+        })?;
+        match pages.request(index)? {
+            PaintPageRequest::Pending => {
+                self.pending = Some(Pending::Source {
+                    work,
+                    channel,
+                    index,
+                })
+            }
+            PaintPageRequest::Loaded => {
+                self.scene
+                    .vm
+                    .set_paint_page_binding(&self.context, pages.binding()?)?;
+                self.replay = Some((work, channel));
+            }
+            PaintPageRequest::WorkingSetFull => {
+                let regions = self.regions.as_mut().ok_or_else(|| {
+                    RenderError("paint pressure has no private region owner".into())
+                })?;
+                if !regions.split() {
+                    return Err(RenderError("single-pixel paint/stamp dependency working set exceeds resident capacity; sample withheld".into()));
+                }
+                self.subdivisions += 1;
+                pages.begin_dispatch();
+                self.replay = Some((work, channel));
+            }
+            PaintPageRequest::Resident => {
+                return Err(RenderError(
+                    "dependency receipt names an already resident source".into(),
+                ));
+            }
         }
         Ok(())
     }

@@ -323,6 +323,17 @@ pub struct OrganicBillboardSprite {
     pub rgba: Vec<u8>,
 }
 
+/// Private compute-producer source identity. Pixel storage belongs to the
+/// producer's complete page catalogue, not the scene metadata buffer.
+#[derive(Debug, Clone)]
+pub struct PagedBillboardSprite {
+    pub width: u32,
+    pub height: u32,
+    pub source_id: u32,
+    pub alpha_mask: std::sync::Arc<[u32]>,
+}
+pub const PAGED_STAMP_GEO: u32 = 0xffff_fffe;
+
 #[derive(Debug, Clone, Copy)]
 pub struct OrganicBillboardInstance {
     pub center: [f32; 3],
@@ -488,6 +499,12 @@ pub enum Atom {
         instances: Vec<OrganicBillboardInstance>,
     },
     ClearOrganicBillboards,
+    /// Only for a producer which owns compute page residency/replay. This is
+    /// not a displayed raster scene's source API.
+    SetPagedPaintBillboards {
+        sprites: Vec<PagedBillboardSprite>,
+        instances: Vec<OrganicBillboardInstance>,
+    },
     SetPaintBillboards {
         sprites: Vec<OrganicBillboardSprite>,
         instances: Vec<OrganicBillboardInstance>,

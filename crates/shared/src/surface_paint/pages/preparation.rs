@@ -36,6 +36,7 @@ impl PaintPageIndexBuilder {
         }
         let mut index = PaintPageIndex {
             pages: Vec::new(),
+            generated: Default::default(),
             entries: Vec::new(),
             sources_by_slot: Vec::new(),
             alpha_geo_ids: Vec::new(),

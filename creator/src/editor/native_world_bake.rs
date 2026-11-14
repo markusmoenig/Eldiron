@@ -621,14 +621,6 @@ impl Editor {
             "bake cannot modify authored geometry/selection"
         );
         let bake = self.server_ctx.bake.read();
-        assert!(
-            !self
-                .native_viewport
-                .world
-                .bake_jobs
-                .uses_adapter(self.documents.active_id(), bake.active_request()),
-            "controlled progressive fixture unexpectedly selected its adapter"
-        );
         if bake.is_rendering() {
             assert_eq!(
                 &map.orthographic_bake, old,

@@ -353,7 +353,6 @@ fn run_hidden_linked_paint(large: bool, oversized: bool, stamps: bool) {
         editor.update_native_bake(&mut ui, &mut ctx);
         editor.prepare_native_bake(&mut ctx, &images);
         if let Some(job) = &editor.native_viewport.world.bake_jobs.active {
-            assert!(editor.native_viewport.world.bake_jobs.legacy.is_none());
             if job.source.ready() && job.gpu.is_none() {
                 preparation_yields += 1;
                 assert_eq!(
@@ -524,7 +523,6 @@ fn oversized_stamp_raster_enters_native_owner_without_partial_publication() {
         }
     }
     assert!(editor.native_viewport.world.bake_jobs.active.as_ref().is_some_and(|job| job.gpu.is_some()));
-    assert!(!editor.native_viewport.world.bake_jobs.uses_adapter(editor.documents.active_id(), request));
     assert_eq!(editor.server_ctx.bake.read().active_request(), request);
     assert_eq!(gpu.transfers().readback_bytes, before.readback_bytes);
     assert_eq!(editor.documents.project.regions[0].iso_paint, authored);
