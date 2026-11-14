@@ -66,11 +66,15 @@ impl Action for RenderOrthographicBake {
             .unwrap_or(32)
             .clamp(1, 256) as u32;
         let progress = {
-            let mut rusterix = server_ctx.reference.write();
-            rusterix.set_dirty();
-            rusterix.request_orthographic_bake(map.id, samples);
-            rusterix.orthographic_bake.progress_text()
+            let mut bake = server_ctx.bake.write();
+            bake.request_render(map.id, samples);
+            bake.progress_text()
         };
+        // Preserve the CPU reference adapter's build invalidation without
+        // constructing a renderer for data-only action consumers.
+        if let Some(mut reference) = server_ctx.reference.existing_mut() {
+            reference.set_dirty();
+        }
         server_ctx.background_progress = progress;
         ctx.ui.redraw_all = true;
         ctx.ui.send(TheEvent::SetStatusText(
@@ -140,9 +144,7 @@ impl Action for ToggleOrthographicBakeVisibility {
         ctx: &mut TheContext,
         _server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
-        let status = match _server_ctx.reference.write()
-            .toggle_orthographic_bake_visibility()
-        {
+        let status = match _server_ctx.bake.write().toggle_visibility() {
             Some(true) => fl!("status_bake_visible"),
             Some(false) => fl!("status_bake_hidden"),
             None => fl!("status_bake_missing"),
@@ -212,7 +214,10 @@ impl Action for ClearOrthographicBake {
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
-        server_ctx.reference.write().clear_orthographic_bake();
+        let before = map.clone();
+        // This action edits the map synchronously. No delayed persisted clear
+        // may erase a subsequent undo or a different document's bake.
+        *server_ctx.bake.write() = rusterix::OrthographicBakeController::default();
         map.orthographic_bake = None;
         map.changed = map.changed.wrapping_add(1);
         server_ctx.background_progress = None;
@@ -221,7 +226,11 @@ impl Action for ClearOrthographicBake {
             TheId::empty(),
             fl!("status_bake_cleared"),
         ));
-        None
+        Some(ProjectUndoAtom::MapEdit(
+            server_ctx.pc,
+            Box::new(before),
+            Box::new(map.clone()),
+        ))
     }
 
     fn params(&self) -> TheNodeUI {
@@ -252,5 +261,86 @@ mod tests {
 
         server_ctx.editor_view_mode = EditorViewMode::Orbit;
         assert!(!bake_applicable(&server_ctx));
+    }
+
+    #[test]
+    fn bake_actions_own_transient_state_without_creating_a_reference_renderer() {
+        let mut first = ServerContext::default();
+        let second = ServerContext::default();
+        let mut map = Map::new();
+        let mut ui = TheUI::new();
+        let mut ctx = TheContext::new(64, 64, 1.);
+        let authored = serde_json::to_vec(&map).unwrap();
+        assert!(!first.bake.initialized());
+        assert!(!second.bake.initialized());
+        assert!(!first.reference.initialized());
+        RenderOrthographicBake::new().apply(&mut map, &mut ui, &mut ctx, &mut first);
+        assert_eq!(
+            *first.bake.read().status(),
+            rusterix::OrthographicBakeStatus::Requested
+        );
+        assert_eq!(
+            *second.bake.read().status(),
+            rusterix::OrthographicBakeStatus::Missing
+        );
+        assert_eq!(serde_json::to_vec(&map).unwrap(), authored);
+        let camera = scenevm::Camera3D::iso();
+        {
+            let mut bake = first.bake.write();
+            let work = bake
+                .prepare_work(map.id, 1, 1, camera, Some((0., 1., 0., 1.)))
+                .unwrap()
+                .unwrap();
+            assert_eq!(
+                *bake.status(),
+                rusterix::OrthographicBakeStatus::Rendering {
+                    sample: 0,
+                    total: 32
+                }
+            );
+            bake.preview_current_tile(
+                &[32, 40, 48, 255].repeat((work.tile_size * work.tile_size) as usize),
+            )
+            .unwrap();
+            assert!(bake.presentation_source(map.id, &camera).is_some());
+        }
+        ToggleOrthographicBakeVisibility::new().apply(&mut map, &mut ui, &mut ctx, &mut first);
+        assert!(
+            first
+                .bake
+                .read()
+                .presentation_source(map.id, &camera)
+                .is_none()
+        );
+        ToggleOrthographicBakeVisibility::new().apply(&mut map, &mut ui, &mut ctx, &mut first);
+        assert!(
+            first
+                .bake
+                .read()
+                .presentation_source(map.id, &camera)
+                .is_some()
+        );
+        let clear = ClearOrthographicBake::new()
+            .apply(&mut map, &mut ui, &mut ctx, &mut first)
+            .unwrap();
+        assert!(matches!(clear, ProjectUndoAtom::MapEdit(_, _, _)));
+        assert_eq!(
+            *first.bake.read().status(),
+            rusterix::OrthographicBakeStatus::Missing
+        );
+        assert!(first.bake.write().take_persisted_update().is_none());
+        assert_eq!(map.changed, 1);
+        RenderOrthographicBake::new().apply(&mut map, &mut ui, &mut ctx, &mut first);
+        first.reset_bake_for_project_switch();
+        assert_eq!(
+            *first.bake.read().status(),
+            rusterix::OrthographicBakeStatus::Missing
+        );
+        assert!(
+            first.bake.write().take_persisted_update().is_none(),
+            "switch cannot clear the next document"
+        );
+        assert!(!first.reference.initialized());
+        assert!(!second.reference.initialized());
     }
 }

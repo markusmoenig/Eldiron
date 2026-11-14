@@ -10511,3 +10511,159 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   bake commands/controller ownership out of the compatibility render facade,
   scope work to a document/map, classify progressive asset captures separately,
   and preserve request/toggle/clear/save behavior before removing its adapter.
+
+## 2026-11-14 — Creator bake ownership/adoption (active)
+
+- GPU surface/depth component committedb3dd0da8. Complete Goal still active.
+- CreatorContext now owns its lazy CPU bake controller; render/toggle/clear
+  actions access it without constructing the compatibility renderer. Existing
+  compatibility build invalidation is retained only when that facade exists.
+- Extracted the existing Rusterix bake/reference methods into
+  rusterix/reference_bake.rs, preserving standalone entry points. Added an
+  explicit borrowed-controller adapter for Creator's remaining CPU viewport;
+  its standalone wrapper lends/restores its own CPU controller. No VM swapping.
+  Multiline controller accesses and the two distinct Prefab/Region draw sites
+  were audited/corrected before compilation. Native check PASS24.07s.
+- Creator's legacy progress/persisted-update path and native rendering guard now
+  consult the same application-owned state. Project deactivation discards
+  transient state without emitting a persisted clear into the next document.
+  Added actual action/preview/toggle/clear/default32sample/app-isolation and
+  project-reset CPU fixture; build/verification collecting.
+- Persisted GPU viewport and progressive asset-work adoption still pending.
+  Map switch during an in-flight legacy bake, scoped pending publication, fast
+  encoded identity and source/decode/paging budgets remain explicit gates; do
+  not equate this ownership extraction with full bake workflow completion.
+
+- Ownership test build PASS46.33s; actual bake action/controller fixture PASS2/
+  .44s. Default32 samples, preview visibility, clear, application isolation,
+  no reference initialization and reset-without-next-document-clear verified.
+- Wired persisted bake GPU composition into the owned world viewport. Dynamic
+  scene retains acknowledged cached static geometry for tools/picking; ordered
+  display uses the composed bake+dynamic image. CPU controller/source publication
+  and GPU source/overlay caches have separate lifetimes. Scope/atlas changes and
+  hidden/incompatible bakes retire their GPU resources.
+- Lighting/background resolution now shared CPU policy, so GPU and reference
+  resolve current sun and editor canvas consistently. Bakes above64MiB total
+  source channels conservatively retain their explicit adapter until paging is
+  implemented; progressive requests also retain their adapter. Those are still
+  normal-frame retirement gates, not completed migration.
+- Native adoption check PASS21.76s; assembled build PASS44.01s. Extended existing
+  application fixture with a controlled floor and two actual textured items,
+  a persisted color/depth/G-buffer tile, actual visibility actions, legacy3
+  no-depth and camera pan; compare full viewport RGB to injected reference and
+  require zero normal readback/no CPU display/surface staging. Actual 3D paste/
+  undo/cancel integration follows. Full assembled run collecting; no persisted
+  viewport acceptance claimed before those results.
+
+- First persisted assembled run RED26.23s, phase0delta117 in310/383731 pixels,
+  confined to the left item footprint/grid lines; baked base and all other
+  pixels exact0. Captured pairs inspected. Added opt-in reference diagnostics;
+  debug buildPASS27.76s/runRED27.29s confirms reference dynamic surface has
+  zero valid pixels, while baked depth is finite. No parity gate accepted.
+- Reference fixture had published actors through SceneHandler before the
+  facade's first projection-specific atlas flush. Rusterix::build_dynamics_3d
+  deliberately flushes that atlas first; directly calling SceneHandler bypassed
+  the required order and the subsequent first draw erased its actors. Corrected
+  the fixture to that existing facade method and copied immutable billboard
+  inputs. Production GPU composition unchanged pending corrected oracle.
+  Only the new check_native_bake test helper was formatted in the monolith.
+
+- Corrected reference atlas ordering yields13,944 valid dynamic pixels with
+  real Item(71)/(72) and correctdepth19.7156; visible bake phase0 now exactRGB0.
+  Run then RED29.21s at hidden-bake phase1 maxdelta20 acrossbackground.
+- Diagnosed shared policy placement: legacy Editor set use_editor_canvas=true
+  for authoring only inside the CPU viewport draw. Native views bypassed that
+  assignment; their 3D scene already used authoring canvas colors, while the
+  copied reference flag and new bake background saw false. Moved this single
+  existing CPU policy assignment before viewport producer selection so both
+  consume the same authoring/game policy. No flag/camera serialization change.
+  Rebuilding and checking all native bake phases and surrounding custom matrix;
+  no hidden/reveal or overall persisted acceptance yet.
+
+- Final metadata/policy test build PASS29.10s. Corrected persisted phases0/1/2/
+  3/4 all exactRGB0: actual visible/hidden/revealed, legacy3 and camera pan;
+  actual3D paste sequence proceeds into the surrounding custom/camera matrix,
+  whose compared phases remain exact0 so far. Full assembly collecting.
+- Added baked-source identity only to the existing opt-in browser diagnostics,
+  stamped in the acknowledged NativeWorldFrame. Exported controlled raw project
+  for real browser/foreign-layer proof; no document field/host ABI addition.
+  Controller borrow now ends before later HUD/text preparation. Browser release,
+  compatibility check and staticlib archive are collecting on stable source.
+
+- All5 persisted and17 custom phases exactRGB0, visibility sourceDPI<=1, but
+  final assembly RED159.53s later in live speech mode: an old assertion compared
+  total readback bytes (156119844→156578596), a458752B increase. It did not log
+  the already-separated explicit asset partition. This is not an accepted full
+  assembly pass; do not assume the cause without the partition evidence.
+- Updated the two adjacent live-authoring/speech guards to require unchanged
+  normal bytes AND normal request count, subtracting only existing labeled
+  asset-bake counters, and log complete before/after counters on any total
+  increase. This enforces the plan's explicit-request distinction rather than
+  banning independent asset work. Rebuild/full assembly pending.
+- Browser release PASS98s/package98,294,606B; compatibility check PASS24.93s;
+  staticlib archive PASS79s. Actual baked browser startup/recovery collecting.
+
+- Actual browser persisted bake/shown→visibility hidden→revealed→device recovery
+  PASS doc eb5564a5-a06e-43dd-b74a-f5352122692e, correct acknowledged baked flags,
+  gen3/3devices, root/normal readback/color copies/Canvas2D0/errors[]. Existing
+  independent MaterialZ asset copies6 are labeled separately. Four fresh archive
+  project.json payloads byte-identical27,764,503B,
+  SHAcc18ef3bc1e39d9f65e094c5afe8e882d95399d013b5ad8ca8576bceb77cbdca;
+  cameraThreeDIso/version5/tilecount1 retained. Raw initial fixture has no solid
+  geometry objects; its GPU display proof is valid, but not static picking proof.
+- Strengthened native fixture with an actual solid floor object and a filtered
+  acknowledged static pick in every phase. This avoids accepting a guide-only
+  floor/ray fallback as retained-geometry picking. Build/run collecting.
+- Browser actual Clear RED: map.changed1→2, bakeSome→None in fresh archive,
+  but dirtyfalse and Ctrl+Z did not restore it. Clear previously relied on the
+  CPU draw's pending publication to mark dirty; GPU-owned drawing bypasses it.
+  Clear now returns the ordinary MapEdit undo atom and resets transient controller
+  state without emitting a delayed persisted clear (which could erase undo).
+  Focused/native/browser clear-save-undo/redo verification pending; no Clear
+  lifecycle acceptance from the red run. Browser production rebuild required.
+
+- Solid/history CPU fixture PASS2/.57s; full native assembled PASS1/227.61s.
+  All5 bake phases exact0 with actual retained-floor picks, all17 custom phases
+  exact0, source/visibilityDPI<=1 and document/Play/clipboard/device checks pass.
+  Normal byte/request partitions unchanged. The previous total-only delta did
+  not recur in the two logged intervals, so its original attribution remains
+  unproven; no normal transfer was masked by the corrected assertions.
+- Clear-history browser release PASS/package98,348,969B; staticlib PASS30.02s.
+  Added backward-compatible Apple state diagnostics for the existing labeled
+  asset partition and acknowledged view source, reusing browser's CPU-only
+  diagnostics. This permits a concrete foreign-layer baked-project check without
+  conflating independent asset captures with viewport readback. Compile/link and
+  browser clear/save/undo/redo/recovery checks collecting; no new Swift pass yet.
+
+- Final compatibility check PASS12.03s; diagnostic staticlib PASS48.36s; rebuilt
+  browser package98,348,969B. Actual solid-project browser Clear/history/recovery
+  PASS doc4043fd58-fc2a-4786-a314-c641e1dd7a6a, map
+  aeaa310a-c12f-44ac-a90e-e46198e505af, acknowledged baked true→false→true→false→
+  true across Clear/undo/redo/undo. Every edit dirtytrue, every fresh Save clean;
+  device recovery gen3/3devices retains the correct ready baked source. Root/
+  normal readback/color copies/Canvas2D0, errors[]; independent MaterialZcopies6.
+- Six independently decoded fresh browser archives retain ThreeDIso and actual
+  solid object1. Clear/redo omit the optional bake field, undo restores version5/
+  tile1. Restored/recovered project.json byte-identical27,767,457B,
+  SHAf17b375795d2fd85890dd17b2efe1c6aeeeff9092718cf6a9fc45372b0eb8690.
+  Baseline/undo/restored authored content identical after excluding only normal
+  map.changed history revisions1/3/5. Initial inspection script expected a null
+  field and stopped on serde's omitted optional field; corrected inspection,
+  with no product source change, verifies the actual serialized representation.
+- Actual Swift linked shared staticlib PASS. Controlled baked project loads into
+  supplied CAMetalLayer, source ready/baked with correct map, suspend produces no
+  presentations, resize150→125% resumes, replacement layer presents same source,
+  fresh Save PASS. Root/normal readback0. Before/after fresh archive project.json
+  byte-identical27,770,237B, SHA612ac5f1543108e82881bacede9852e5762ac398c1e1e307861cad7efb388c0d,
+  ThreeDIso/version5/tile1/solid1 retained. No physical window/IME/iOS claim.
+- Inspected and retained captures in native-wgpu-evidence: native-persisted-bake
+  .png100,094B SHAe66a62b943841572847f97a32e68ebdc7971b8ab82887491430a7a156ab9ab81;
+  native-persisted-bake-hidden.png385,366B
+  SHAbaba119f2be6fd2daaf6853dd9463ba66057d7834e54ebe1bff7b8d647ac8747;
+  browser-persisted-bake-recovered-150.png318,745B
+  SHA10397c38af5b722a306251cf0f2649338e5ed348eb8a088ba24830ac9c321528.
+- Persisted bounded bake adoption ready for checkpoint. Progressive bake work,
+  document/map-scoped publication, paged source/decode budgets, normal adapter
+  retirement and remaining M0–M9 acceptance gates remain OPEN. Next coherent work:
+  adopt explicit progressive asset scheduling/capture while keeping displayed
+  viewport GPU-owned, including cancellation across map/document/device changes.

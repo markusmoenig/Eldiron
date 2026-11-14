@@ -15,6 +15,8 @@ mod speech;
 mod scope;
 #[path = "native_world_custom.rs"]
 mod custom;
+#[path = "native_world_bake.rs"]
+mod bake;
 use crate::editor_overlay::panel::PanelScope;
 use crate::editor_overlay::procedural_gpu::GpuIcons;
 use crate::hud::{Hud, HudInputs, HudStyle};
@@ -230,6 +232,7 @@ struct WorldGpu {
     images: UiImageCache,
     last_root_images: PaintList,
     custom: custom::Gpu,
+    bake: bake::Gpu,
 }
 impl WorldGpu {
     fn new(images: &renderkit::ImageRegistry) -> Result<Self, String> {
@@ -253,6 +256,7 @@ impl WorldGpu {
             images: UiImageCache::default(),
             last_root_images: PaintList::default(),
             custom: Default::default(),
+            bake: Default::default(),
         })
     }
     fn query(
@@ -365,6 +369,7 @@ pub(super) struct NativeWorldFrame {
     ready: bool,
     camera: Option<CameraStamp>,
     output: ViewImage,
+    baked: bool,
     paste_ignored: Option<Arc<FxHashSet<scenevm::GeoId>>>,
     cube: Option<CubeFrame>,
     isometric: Option<Arc<eldiron_presentation::isometric::IsometricWorldTargets>>,
@@ -804,12 +809,11 @@ impl Editor {
         };
         if !(scope::uses_region(&self.server_ctx) || self.server_ctx.pc.is_prefab() || self.server_ctx.pc.is_screen()
             || custom::Description::current(map, &self.server_ctx).is_some()) { return false; }
-        if self.server_ctx.editor_view_mode != EditorViewMode::D2 {
-            // Persisted/live orthographic bakes retain their explicit adapter
-            // until its progressive output and bake lifecycle are adopted.
-            if map.orthographic_bake.is_some() {
-                return false;
-            }
+        if self.server_ctx.editor_view_mode != EditorViewMode::D2
+            && map.orthographic_bake.as_ref().is_some_and(|asset| !bake::supported(asset)) {
+            // Above-budget visible sets still need a paged producer. Keep their
+            // explicit adapter until that acceptance gate is satisfied.
+            return false;
         }
         let tools = self.server_ctx.tools.read();
         if tools.editor_mode
@@ -849,7 +853,7 @@ impl Editor {
         });
         (bridge.server.state == rusterix::ServerState::Off || owned_play)
             && (owned_play || bridge.client.messages_to_draw.is_empty())
-            && !bridge.orthographic_bake.is_rendering()
+            && !self.server_ctx.bake.read().is_rendering()
     }
     pub(super) fn native_world_gesture_active(&self) -> bool {
         self.native_viewport.world.world_capture.is_some()
@@ -1077,6 +1081,7 @@ impl Editor {
             // Neither atlas residency nor builder caches can cross that lifetime.
             gpu.scope = Some(scope);
             gpu.custom.clear(images.registry);
+            gpu.bake.clear(images.registry);
             gpu.scenes
                 .remove(gpu.view, images.registry)
                 .map_err(|e| e.to_string())?;
@@ -1101,6 +1106,15 @@ impl Editor {
             .as_ref()
             .map(|play| play.assets(&bridge.assets))
             .unwrap_or(&bridge.assets);
+        let bake_camera = camera.as_ref().map(|camera| camera.as_scenevm_camera_for_surface(
+            binding.size.0 as f32, binding.size.1 as f32));
+        let mut bake_owner = bake_camera.as_ref().map(|_| self.server_ctx.bake.write());
+        if let Some(bake) = bake_owner.as_mut() {
+            bake.sync_persisted_asset(map.id, map.orthographic_bake.as_ref());
+        }
+        let bake_source = bake_owner.as_ref().zip(bake_camera.as_ref())
+            .and_then(|(bake, camera)| bake.presentation_source(map.id, camera));
+        let baked = bake_source.is_some();
         let authored_source = world.source.as_ref().filter(|source| source.matches(&binding, authored_map));
         let source = paste_source.unwrap_or_else(|| {
             authored_source.map(|source| source.snapshot()).unwrap_or_else(|| {
@@ -1308,9 +1322,9 @@ impl Editor {
                             camera: camera_frame,
                             overlay_camera: camera_frame,
                             canvas_colors: bridge.client.editor_canvas_colors,
-                            neutral_background: true,
-                            static_geometry: true,
-                            transparent_background: false,
+                            neutral_background: !baked,
+                            static_geometry: !baked,
+                            transparent_background: baked,
                         },
                     )
                 } else {
@@ -1380,6 +1394,15 @@ impl Editor {
             .scenes
             .output(gpu.view)
             .ok_or("native world has no visible output")?;
+        let world_image = if let Some(source) = &bake_source {
+            gpu.bake.compose(source, bake_camera.as_ref().unwrap(), output,
+                &mut gpu.scenes, &bridge.client, images.registry)?
+        } else {
+            gpu.bake.clear(images.registry);
+            output.image
+        };
+        drop(bake_source);
+        drop(bake_owner);
         let isometric = gpu.scenes.isometric_targets(output);
         let material_slots = binding.slots.as_ref().map(|slots| {
             slots
@@ -1438,14 +1461,14 @@ impl Editor {
             // Interpolated normalized nearest UVs can drift to a neighboring
             // texel at exact boundaries under fractional host density.
             list.ops.push(PaintOp::SpriteImage {
-                image: output.image,
+                image: world_image,
                 origin: [0., 0.],
                 scale: [1., 1.],
                 tint: [1.; 4],
             });
         } else {
             list.image(
-                output.image,
+                world_image,
                 Rect::new(0., 0., binding.size.0 as f32, binding.size.1 as f32),
                 Sampling::Nearest,
             );
@@ -1548,6 +1571,7 @@ impl Editor {
             ready,
             camera: camera_stamp,
             output,
+            baked,
             paste_ignored,
             cube,
             isometric,

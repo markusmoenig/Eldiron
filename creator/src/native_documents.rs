@@ -8,7 +8,7 @@ impl NativeCreatorApplication {
     pub(crate) fn host_has_document(&self, document: Uuid) -> bool {
         self.editor.has_document(document)
     }
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(any(target_arch = "wasm32", feature = "staticlib"))]
     pub(crate) fn host_view_diagnostics(&self) -> serde_json::Value {
         self.editor.native_view_diagnostics()
     }

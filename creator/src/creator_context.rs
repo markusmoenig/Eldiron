@@ -1,7 +1,7 @@
 //! Creator-owned authoring services. Shared runtime/project helpers receive the
 //! CPU context through explicit borrows; they never own the editor's camera.
 mod controllers;
-pub use controllers::{CreatorActions, CreatorDocks, CreatorTools};
+pub use controllers::{CreatorActions, CreatorBake, CreatorDocks, CreatorTools};
 mod history;
 mod jobs;
 pub use history::CreatorHistory;
@@ -24,6 +24,7 @@ pub struct CreatorContext {
     pub docks: CreatorDocks,
     pub sidebar_mode: SidebarMode,
     pub jobs: CreatorJobs,
+    pub bake: CreatorBake,
     pub reference: CreatorReference,
 }
 impl Default for CreatorContext {
@@ -44,7 +45,15 @@ impl CreatorContext {
             docks: CreatorDocks::default(),
             sidebar_mode: SidebarMode::Region,
             jobs: CreatorJobs::default(),
+            bake: CreatorBake::default(),
             reference: CreatorReference::default(),
+        }
+    }
+    pub(crate) fn reset_bake_for_project_switch(&self) {
+        if self.bake.initialized() {
+            // Discard transient work without publishing a clear into the next
+            // document, whose persisted map IDs may match the outgoing project.
+            *self.bake.write() = rusterix::OrthographicBakeController::default();
         }
     }
 }

@@ -11,7 +11,7 @@ pub(super) struct WorldSpeech {
     fonts: Option<GameFonts>,
 }
 impl WorldSpeech {
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(any(target_arch = "wasm32", feature = "staticlib"))]
     pub(super) fn diagnostics(&self) -> serde_json::Value {
         serde_json::json!({
             "messages": self.overlay.messages().len(),

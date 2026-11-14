@@ -6,6 +6,7 @@ use std::{cell::OnceCell, sync::Arc};
 pub type CreatorActions = CreatorController<crate::actionlist::ActionList>;
 pub type CreatorTools = CreatorController<crate::toollist::ToolList>;
 pub type CreatorDocks = CreatorController<crate::dockmanager::DockManager>;
+pub type CreatorBake = CreatorController<rusterix::OrthographicBakeController>;
 
 pub struct CreatorController<T> {
     active: OnceCell<Arc<RwLock<T>>>,

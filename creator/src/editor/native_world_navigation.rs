@@ -230,7 +230,7 @@ impl Editor {
         }
         self.mouse_motion(delta[0], delta[1], &mut session.context)
     }
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(any(target_arch = "wasm32", feature = "staticlib"))]
     pub(crate) fn native_view_diagnostics(&self) -> serde_json::Value {
         let camera = &self.server_ctx.camera;
         let region = self
@@ -252,6 +252,7 @@ impl Editor {
                     "map": frame.binding.map,
                     "ready": frame.ready,
                     "custom": frame.binding.custom.is_some(),
+                    "baked": frame.baked,
                 })),
             },
             "paste": {

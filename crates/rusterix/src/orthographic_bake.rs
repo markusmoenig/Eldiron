@@ -20,6 +20,28 @@ pub struct OrthographicBakeLighting {
     pub sun_intensity: f32,
     pub sun_enabled: bool,
 }
+impl OrthographicBakeLighting {
+    pub fn from_settings(settings: &crate::render_settings::RenderSettings) -> Self {
+        Self {
+            sun_direction: Vec3::from(settings.sun_direction).normalized(),
+            sun_color: Vec3::new(settings.sun_color[0].powf(2.2),
+                settings.sun_color[1].powf(2.2), settings.sun_color[2].powf(2.2)),
+            sun_intensity: settings.sun_intensity,
+            sun_enabled: settings.sun_enabled,
+        }
+    }
+}
+
+pub fn background_color(settings: &crate::render_settings::RenderSettings,
+    neutral: bool, canvas: Option<[u8; 4]>) -> [u8; 4] {
+    if neutral && let Some(canvas) = canvas { return canvas; }
+    let linear = if neutral { [0.018; 3] } else { settings.sky_color.map(|v| v.powf(2.2)) };
+    let encode = |value: f32| {
+        let mapped = value.max(0.) / (value.max(0.) + 1.);
+        (mapped.powf(1. / 2.2) * 255.).round().clamp(0., 255.) as u8
+    };
+    [encode(linear[0]), encode(linear[1]), encode(linear[2]), 255]
+}
 
 #[derive(Clone, Debug, Default)]
 struct DecodedBakeTile {

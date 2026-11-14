@@ -4939,6 +4939,7 @@ impl Editor {
         self.server_ctx.sidebar_mode = SidebarMode::Region;
         self.server_ctx.camera.reset_for_project_switch();
         self.server_ctx.reference.clear_minimap();
+        self.server_ctx.reset_bake_for_project_switch();
         self.play_session = None;
         #[cfg(feature = "native-render")]
         self.native_viewport.clear_world_speech();
@@ -9326,6 +9327,10 @@ impl TheTrait for Editor {
                 );
             }
 
+            // This is shared authoring/presentation policy, including GPU-owned
+            // views that bypass the CPU viewport adapter below.
+            self.server_ctx.reference.write().client.use_editor_canvas = !running_game_mode;
+
             // Draw the regular region canvas or the isolated Prefab canvas.
             // They intentionally have distinct widget identities so editor
             // state and visual content cannot leak between them.
@@ -9388,7 +9393,6 @@ impl TheTrait for Editor {
                     }
 
                     let rusterix = &mut self.server_ctx.reference.write();
-                    rusterix.client.use_editor_canvas = !running_game_mode;
                     rusterix.client.builder_d2.draw_grid = self.server_ctx.show_editor_grid;
 
                     if running_game_mode {
@@ -9733,16 +9737,18 @@ impl TheTrait for Editor {
                                     self.iso_paint_render_cache = Default::default();
                                 }
                                 profile.lap("camera_paint");
-                                rusterix.draw_d3_with_editor_background(
+                                let mut bake = self.server_ctx.bake.write();
+                                rusterix.draw_d3_with_bake_controller(
                                     map,
                                     render_view.render_buffer_mut().pixels_mut(),
                                     dim.width as usize,
                                     dim.height as usize,
                                     editor_neutral_background,
+                                    &mut bake,
                                 );
                                 profile.lap("scene_draw_3d");
                                 if let Some(persisted) =
-                                    rusterix.take_orthographic_bake_persisted_update()
+                                    bake.take_persisted_update()
                                 {
                                     region.map.orthographic_bake = persisted;
                                     region.map.changed = region.map.changed.wrapping_add(1);
@@ -9750,8 +9756,8 @@ impl TheTrait for Editor {
                                         self.documents.sessions[self.documents.active_session].dirty = true;
                                     }
                                 }
-                                let bake_rendering = rusterix.orthographic_bake.is_rendering();
-                                let bake_progress = rusterix.orthographic_bake.progress_text();
+                                let bake_rendering = bake.is_rendering();
+                                let bake_progress = bake.progress_text();
                                 if bake_progress.is_some()
                                     || self.server_ctx.background_progress.as_deref().is_some_and(
                                         |text| {

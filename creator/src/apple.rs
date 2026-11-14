@@ -407,6 +407,7 @@ pub extern "C" fn rust_host_state() -> *mut c_char {
             "selection": selection,
             "area": [s.area.x,s.area.y,s.area.width,s.area.height],
         }));
+        let transfers = app.presenter.context().transfers();
         let state = serde_json::json!({
             "presentations": app.presentations(),
             "updates": app.updates(),
@@ -414,7 +415,11 @@ pub extern "C" fn rust_host_state() -> *mut c_char {
             "logical_size": app.host.logical_size,
             "density": app.host.density,
             "root_cpu_bytes": app.application.session.ui.canvas.buffer.pixels().len(),
-            "readback_bytes": app.presenter.context().transfers().readback_bytes,
+            "readback_bytes": transfers.readback_bytes,
+            "asset_bake_readback_bytes": transfers.asset_bake_readback_bytes,
+            "asset_bake_readback_requests": transfers.asset_bake_readback_requests,
+            "normal_readback_bytes": transfers.readback_bytes - transfers.asset_bake_readback_bytes,
+            "view": app.application.application.host_view_diagnostics(),
             "text_input": input,
             "focused_widget": app.application.session.context.ui.focus.as_ref().map(|id| id.name.as_str()),
         });

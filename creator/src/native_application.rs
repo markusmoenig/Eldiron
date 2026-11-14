@@ -866,6 +866,7 @@ mod tests {
                     .send(TheEvent::RenderViewUp(world_view.clone(), at));
             }
         }
+        check_native_bake(&mut app, &mut host, &mut replacement, &gpu, &mut renderer, &output);
         check_native_custom_contexts(&mut app, &mut host, &mut replacement, &gpu, &mut renderer, &output);
         check_native_region_contexts(&mut app, &mut host, &mut replacement, &gpu, &mut renderer, &output);
         check_native_visibility(&mut app, &mut host, &mut replacement, &gpu, &mut renderer);
@@ -1944,11 +1945,7 @@ mod tests {
                 )
                 .unwrap();
             app.presented(&mut host);
-            assert_eq!(
-                gpu.transfers().readback_bytes,
-                before.readback_bytes,
-                "live authoring presentation performs no color readback"
-            );
+            assert_no_viewport_readback(before, &gpu);
             assert!(
                 !app.application
                     .editor
@@ -2037,7 +2034,7 @@ mod tests {
                 renderer.render(&frame, &replacement, &output.view, output.descriptor.format,
                     (1600, 1000), 1., [0.; 4]).unwrap();
                 app.presented(&mut host);
-                assert_eq!(gpu.transfers().readback_bytes, before.readback_bytes);
+                assert_no_viewport_readback(before, &gpu);
                 assert!(!app.application.editor.native_world_has_cpu_storage_for_test());
                 if app.application.editor.native_world_ready_for_test() {
                     break;
@@ -3065,6 +3062,135 @@ mod tests {
                 );
             app.update(host, Duration::from_millis(16));
         }
+    }
+
+    fn assert_no_viewport_readback(before: renderkit::TransferCounters, gpu: &GpuContext) {
+        let after = gpu.transfers();
+        assert_eq!(
+            (after.readback_bytes - after.asset_bake_readback_bytes,
+                after.capture_requests - after.asset_bake_readback_requests),
+            (before.readback_bytes - before.asset_bake_readback_bytes,
+                before.capture_requests - before.asset_bake_readback_requests),
+            "normal viewport transfer changed: before={before:?}, after={after:?}",
+        );
+        if before.readback_bytes != after.readback_bytes {
+            eprintln!("Concurrent explicit asset transfers: before={before:?}, after={after:?}");
+        }
+    }
+
+    fn check_native_bake(
+        app: &mut UiApplicationAdapter<NativeCreatorApplication>,
+        host: &mut HostContext,
+        images: &mut ImageRegistry,
+        gpu: &Arc<GpuContext>,
+        renderer: &mut PaintRenderer,
+        output: &Arc<GpuImage>,
+    ) {
+        let mut fixture = app
+            .application
+            .editor
+            .begin_native_bake_for_test(&mut app.session.ui, &mut app.session.context);
+        let mut previous = None;
+        for phase in 0..5 {
+            let mut phase_pending = true;
+            let before = gpu.transfers().readback_bytes;
+            let deadline = Instant::now() + Duration::from_secs(10);
+            let (image, size) = loop {
+                app.update(host, Duration::from_millis(16));
+                if phase_pending {
+                    app.application.editor.set_native_bake_phase_for_test(
+                        &mut fixture,
+                        phase,
+                        &mut app.session.ui,
+                        &mut app.session.context,
+                    );
+                    phase_pending = false;
+                }
+                let paint = app.frame(host, images).unwrap();
+                assert!(
+                    app.application.pending.as_ref().unwrap().world_for_test(),
+                    "persisted bake must stay native"
+                );
+                renderer
+                    .render(
+                        &paint,
+                        images,
+                        &output.view,
+                        output.descriptor.format,
+                        (1200, 800),
+                        1.,
+                        [0.; 4],
+                    )
+                    .unwrap();
+                app.presented(host);
+                if let Some(image) = app.application.editor.native_bake_image_for_test(&fixture) {
+                    break image;
+                }
+                assert!(
+                    Instant::now() < deadline,
+                    "persisted bake never became ready"
+                );
+            };
+            assert_eq!(gpu.transfers().readback_bytes, before);
+            assert!(
+                !app.application
+                    .editor
+                    .native_world_has_cpu_storage_for_test()
+            );
+            app.application.editor.check_native_bake_pick_for_test(&fixture);
+            let mut capture = ReadbackTicket::capture(gpu, images.get(image).unwrap()).unwrap();
+            gpu.device
+                .poll(wgpu::PollType::Wait {
+                    submission_index: None,
+                    timeout: Some(Duration::from_secs(30)),
+                })
+                .unwrap();
+            let pixels = capture.try_finish(gpu).unwrap().unwrap();
+            let reference = app
+                .application
+                .editor
+                .native_bake_reference_for_test(gpu, size);
+            let delta = pixels
+                .pixels()
+                .chunks_exact(4)
+                .zip(reference.chunks_exact(4))
+                .flat_map(|(a, b)| (0..3).map(move |i| a[i].abs_diff(b[i])))
+                .max()
+                .unwrap();
+            eprintln!("Persisted native bake phase{phase}: max reference delta={delta}");
+            for (suffix, data) in [
+                ("native", pixels.pixels()),
+                ("reference", reference.as_slice()),
+            ] {
+                let file = std::fs::File::create(format!(
+                    "/private/tmp/eldiron-native-bake-{phase}-{suffix}.png"
+                ))
+                .unwrap();
+                let mut encoder = png::Encoder::new(file, size.0, size.1);
+                encoder.set_color(png::ColorType::Rgba);
+                encoder.set_depth(png::BitDepth::Eight);
+                encoder
+                    .write_header()
+                    .unwrap()
+                    .write_image_data(data)
+                    .unwrap();
+            }
+            assert!(
+                delta <= 1,
+                "persisted bake reference RGB phase{phase}: {delta}"
+            );
+            if phase == 1 {
+                assert!(pixels.pixels() != previous.as_ref().unwrap());
+            }
+            previous = Some(pixels.pixels().to_vec());
+        }
+        check_native_paste(app, host, images, gpu, renderer, output);
+        app.application.editor.finish_native_bake_for_test(
+            fixture,
+            &mut app.session.ui,
+            &mut app.session.context,
+        );
+        app.update(host, Duration::from_millis(16));
     }
 
     fn check_native_custom_contexts(
