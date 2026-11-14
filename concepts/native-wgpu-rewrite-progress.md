@@ -12949,3 +12949,73 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   policy inventory; dynamic DPR/input; physical native/Windows/Linux/iOS and
   equal-hardware optimized frame/startup/input/peak-memory measurements. Goal
   remains active; full M0–M9 completion is unproven.
+
+
+## 2026-11-14 — Bounded current-paint source paging (active)
+
+- Previous goal turn: progress, checkpoint4b4887db verified shared writable bake
+  depth/overlay storage and immutable projection inputs, full native assembly
+  and current browser recovery. Checkout starts with only the concurrent
+  untracked networking concept. Goal remains active; no build handles carried.
+- Source audit confirms whole-layer UV plane copies in frozen paint Snapshot
+  and whole-layer atlas packing before per-tile work. Bounded paging first needs
+  immutable CPU publications that do not duplicate every plane on freeze.
+- Added CPU-only SharedBytes copy-on-write storage with explicit Vec<u8> serde
+  delegation (no new serde rc feature/dependency). Only persistent baked UV
+  chunk color/material fields adopt it; serialized field names/wire values and
+  current paint algorithms remain unchanged. Author writes detach shared data,
+  so snapshots/history retain original bytes without a whole-layer clone.
+- Core contract PASS1/0.01s: empty/nonempty/full64x64RGBA source vectors keep
+  byte-identical JSON/bincode, clones initially share backing storage, writes
+  detach and cannot mutate frozen sources. Initial host compile found a missing
+  explicit SharedBytes import in shared's selected CPU prelude; fixed after
+  compiler exit. Host/current-paint integration checks collecting. Old paint
+  versions stay excluded; no cap increase or adapter retirement claimed yet.
+
+- Matching derived TerrainPaintChunk planes now also use SharedBytes, so the
+  terrain publication bridge shares source payloads rather than deep-copying
+  them back into Vec. Its first compile exposed the old Vec field expectation;
+  corrected that CPU publication type and adapted the one GPU fixture literal.
+  Canonical native Creator/player check PASS20.09s; browser hosts PASS43.29s.
+- Current UV authoring tests PASS20/0.01s (CPU/no graphics). Actual frozen
+  Snapshot test PASS1/0.14s and now asserts regional plane pointers are shared
+  before an author edit, then original frozen bytes survive a real chunk edit
+  and document/history retirement. Paint JSON field/layout and CPU terrain
+  publication test PASS1/0.00s: exact existing chunk shape, direct shared-plane
+  pointers, old publication stable after changed revision/color/material.
+- Native GPU terrain reference/negative coordinates/material/erase/bounded
+  neighborhoods PASS2/0.65s. Actual hidden-world linked Prefab five-channel bake
+  and pending catalog-edit retirement PASS1/4.28s. No duplicate full native
+  assembly or browser package run for the unchanged shader/presentation paths.
+  Logs/private/tmp/eldiron-paint-shared-bytes-{core,hosts,uv-tests,snapshot,
+  wire-publication,wasm,isometric-gpu,hidden-bake-gpu}.log.
+- Paging design correction from shader evidence:3d_body.wgsl unified hits sample
+  paint for indirect transport (path_trace_indirect has5bounces) and transparency
+  shadows, including off-screen geometry. A primary view/tile UV-frustum crop
+  alone would change beauty/material behavior, so do not implement it as the
+  full bounded solution. Required next step is a complete authored-key index
+  plus bounded resident UV pages and explicit missing-page detection/replay,
+  preserving deterministic sample seed/previous-sample history and withholding
+  original sample/channel publication until page dependencies resolve. Review
+  compute3d_aux binding18 (currently read-only) and the stage storage-buffer
+  budget before choosing the feedback layout. Dense/high-ray working sets need
+  bounded dispatch subdivision, not silent missing paint or a raised cap.
+- Copy-on-write original source ownership is implemented and verified; sparse
+  residency/request/replay and above-budget adapter retirement remain pending.
+  Old paint-version replay remains outside scope. No manifest/lock/schema changes
+  or concurrent networking edits; CPU-only worker check collecting.
+
+- Isolated CPU-only codec worker wasm compile PASS7.66s; no feature-unification
+  dependency assumption needed for the new source type. All test/build handles
+  terminal. Only final local line wrapping after those results; no shader,
+  platform, bake scheduling or numerical paint changes. Durable evidence:
+  concepts/native-wgpu-evidence/paint-shared-source-ownership.json.
+- Binding audit: compute3d header already uses8storage buffers (the default
+  stage limit); adding a ninth feedback binding is not a portable default.
+  compute3d_aux is binding18 and accessed through its word helper. Review a
+  bounded feedback segment within that allocation with a compute-only writable
+  layout, keeping ordinary raster/vertex contracts explicit. Missing authored
+  pages must differ from unpainted keys. Faulted passes must not advance sample
+  counters/ping-pong history or publish any original channel; replays need the
+  same deterministic seed and prior valid sample. No such replay is implemented
+  or claimed passed by this source-ownership checkpoint.

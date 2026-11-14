@@ -1,0 +1,54 @@
+{
+  "date": "2026-11-14",
+  "scope": "Copy-on-write original current-paint source ownership, prerequisite for bounded sparse paint residency. No source adapter retired.",
+  "contracts": {
+    "wire": "SharedBytes delegates directly to Vec<u8> Serialize/Deserialize; JSON/bincode bytes equal for 0/4/16384byte vectors. Persistent chunk JSON metadata/field values unchanged.",
+    "freeze": "Actual frozen authoring snapshot and derived terrain publications share original pixel backing, detach on author writes and retain old bytes through document/history retirement.",
+    "isolation": "CPU core uses only std Arc and existing serde; no new dependencies, GPU/UI services or serde rc feature."
+  },
+  "verification": [
+    {
+      "check": "Core vector wire/COW contract",
+      "cases": 1,
+      "seconds": 0.01
+    },
+    {
+      "check": "Current CPU UV authoring",
+      "cases": 20,
+      "seconds": 0.01
+    },
+    {
+      "check": "Actual frozen source/history independence",
+      "cases": 1,
+      "seconds": 0.14
+    },
+    {
+      "check": "Paint JSON fields and terrain publication ownership",
+      "cases": 1,
+      "seconds": 0.0
+    },
+    {
+      "check": "Terrain actual GPU reference/material/negative/erase/budgets",
+      "cases": 2,
+      "seconds": 0.65
+    },
+    {
+      "check": "Hidden-world linked Prefab original bake/catalog-edit retirement",
+      "cases": 1,
+      "seconds": 4.28
+    },
+    {
+      "check": "Canonical native Creator/player compile",
+      "seconds": 20.09
+    },
+    {
+      "check": "Browser Creator/player compile",
+      "seconds": 43.29
+    },
+    {
+      "check": "CPU-only browser codec worker compile",
+      "seconds": 7.66
+    }
+  ],
+  "pending": "Sparse original-key index, resident page requests/replay and deterministic sample/history/publication barriers; current large-paint and oversized-tile adapters remain. Off-screen indirect/shadow paint sampling prevents using primary-view UV culling alone."
+}

@@ -189,7 +189,9 @@ impl Editor {
                     y * ISO_PAINT_BAKED_CHUNK_SIZE,
                 ];
                 let mut chunk = IsoPaintBakedChunk::new(owner.clone(), geo, origin);
-                chunk.color_rgba = [24, 190, 72, 192].repeat(chunk.color_rgba.len() / 4);
+                chunk.color_rgba = [24, 190, 72, 192]
+                    .repeat(chunk.color_rgba.len() / 4)
+                    .into();
                 chunk.revision = 1;
                 paint
                     .baked_chunks
@@ -393,6 +395,11 @@ fn frozen_paint_source_owns_current_pixels_without_editor_history() {
         &project.block_prop_paint,
     );
     let snapshot = Snapshot::capture(&region, &project, &assets).0;
+    for (key, source) in &region.iso_paint.baked_chunks {
+        let frozen = &snapshot.baked_chunks[key];
+        assert_eq!(frozen.color_rgba.as_ptr(), source.color_rgba.as_ptr());
+        assert_eq!(frozen.material_rgba.as_ptr(), source.material_rgba.as_ptr());
+    }
     assert_eq!(snapshot.baked_chunks, expected.baked_chunks);
     assert!(
         snapshot
@@ -417,6 +424,10 @@ fn frozen_paint_source_owns_current_pixels_without_editor_history() {
     assert!(snapshot.source_images.is_empty() && snapshot.surface_commit_strokes.is_empty());
     assert!(snapshot.active_selection_id.is_none() && !snapshot.selection_visible);
     assert_eq!(serde_json::to_vec(&region.iso_paint).unwrap(), before);
+    // An author edit must detach only that chunk while frozen bytes stay valid.
+    let first = region.iso_paint.baked_chunks.values_mut().next().unwrap();
+    first.color_rgba[..4].copy_from_slice(&[1, 2, 3, 4]);
+    assert_eq!(snapshot.baked_chunks, expected.baked_chunks);
     // Retiring the document's history/selection cannot invalidate frozen pixels.
     region.iso_paint = Default::default();
     project.block_prop_paint.clear();

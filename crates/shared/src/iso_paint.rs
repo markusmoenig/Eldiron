@@ -1,6 +1,7 @@
 use crate::iso_paint_brush::{self, IsoPaintBrushSample};
 use crate::prelude::*;
 use theframework_core::prelude::{Uuid, Vec2, Vec3};
+use theframework_core::SharedBytes;
 
 fn default_visible() -> bool {
     true
@@ -553,8 +554,8 @@ pub struct IsoPaintBakedChunk {
     pub origin: [i32; 2],
     #[serde(default = "default_revision")]
     pub revision: u64,
-    pub color_rgba: Vec<u8>,
-    pub material_rgba: Vec<u8>,
+    pub color_rgba: SharedBytes,
+    pub material_rgba: SharedBytes,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -643,8 +644,8 @@ impl IsoPaintBakedChunk {
             paint_geo,
             origin,
             revision: 0,
-            color_rgba: vec![0_u8; len],
-            material_rgba,
+            color_rgba: vec![0_u8; len].into(),
+            material_rgba: material_rgba.into(),
         }
     }
 }

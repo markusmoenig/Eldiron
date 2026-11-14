@@ -2,6 +2,7 @@
 //! height and camera changes never move the authored texels.
 use rustc_hash::FxHashMap;
 use std::sync::Arc;
+use theframework_core::SharedBytes;
 
 pub struct StampSprite {
     pub surface: Option<super::surface::SurfaceFrame>,
@@ -24,8 +25,8 @@ pub const PIXELS_PER_UNIT: f32 = 32.;
 
 #[derive(Clone, Default)]
 pub struct TerrainPaintChunk {
-    pub color: Vec<u8>,
-    pub material: Vec<u8>,
+    pub color: SharedBytes,
+    pub material: SharedBytes,
 }
 
 #[derive(Clone, Default)]

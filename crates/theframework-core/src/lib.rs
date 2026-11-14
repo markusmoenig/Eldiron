@@ -1,5 +1,7 @@
 //! CPU-only shared data. This crate has no UI, window, font, or GPU dependencies.
 pub mod image;
+mod shared_bytes;
+pub use shared_bytes::SharedBytes;
 pub mod thecolor;
 pub mod thedim;
 pub mod thepalette;
@@ -36,8 +38,8 @@ pub use thergbbuffer::TheRGBBuffer;
 /// Presentation services belong to the Framework prelude instead.
 pub mod prelude {
     pub use crate::{
-        AlphaMode, ColorSpace, ImageAsset, ImageColorFilter, ImageError, ImageHandle, TheColor,
-        TheDim, TheDimShrinker, TheHorizontalAlign, TheId, TheKeyCode, ThePalette, ThePixelRect,
+        AlphaMode, ColorSpace, ImageAsset, ImageColorFilter, ImageError, ImageHandle, SharedBytes,
+        TheColor, TheDim, TheDimShrinker, TheHorizontalAlign, TheId, TheKeyCode, ThePalette, ThePixelRect,
         TheRGBABuffer, TheRGBARegion, TheRGBARegionSequence, TheRGBATile, TheRGBBuffer,
         TheRasterTarget, TheSurfaceError, TheSurfaceMut, TheTileMask, TheTime, TheValue,
         TheValueAssignment, TheValueComparison, TheVerticalAlign,

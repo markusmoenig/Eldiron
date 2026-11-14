@@ -31,8 +31,8 @@ fn painted() -> TerrainPaint {
     for cy in -2..=1 {
         for cx in -2..=1 {
             let mut chunk = TerrainPaintChunk {
-                color: vec![0; (CHUNK_SIZE * CHUNK_SIZE * 4) as usize],
-                material: vec![0; (CHUNK_SIZE * CHUNK_SIZE * 4) as usize],
+                color: vec![0; (CHUNK_SIZE * CHUNK_SIZE * 4) as usize].into(),
+                material: vec![0; (CHUNK_SIZE * CHUNK_SIZE * 4) as usize].into(),
             };
             for y in 0..CHUNK_SIZE {
                 for x in 0..CHUNK_SIZE {

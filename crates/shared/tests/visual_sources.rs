@@ -3,6 +3,55 @@ use rusterix::{Assets, GeometryObject, PixelSource, Texture, Tile};
 use theframework_core::prelude::{TheColor, Uuid};
 use vek::Vec3;
 #[test]
+fn paint_wire_fields_and_terrain_publications_keep_frozen_pixel_ownership() {
+    use eldiron_shared::{
+        iso_paint::{IsoPaintBakedChunk, IsoPaintLayer, IsoPaintOwner},
+        iso_paint_terrain,
+    };
+    use rusterix::isometric::paint::TERRAIN_PAINT_GEO;
+    let mut chunk = IsoPaintBakedChunk::new(
+        IsoPaintOwner::Terrain { x: 0, z: 0 },
+        TERRAIN_PAINT_GEO,
+        [0, 0],
+    );
+    chunk.color_rgba[..4].copy_from_slice(&[24, 190, 72, 192]);
+    let wire = serde_json::json!({
+        "owner": { "Terrain": { "x": 0, "z": 0 } },
+        "paint_geo": TERRAIN_PAINT_GEO, "origin": [0, 0], "revision": 0,
+        "color_rgba": chunk.color_rgba.to_vec(),
+        "material_rgba": chunk.material_rgba.to_vec(),
+    });
+    assert_eq!(serde_json::to_value(&chunk).unwrap(), wire);
+    let restored: IsoPaintBakedChunk = serde_json::from_value(wire).unwrap();
+    assert_eq!(restored, chunk);
+    let mut layer = IsoPaintLayer::default();
+    layer.baked_chunks.insert("original".into(), chunk);
+    let map = Uuid::new_v4();
+    let mut assets = Assets::default();
+    iso_paint_terrain::sync(&mut assets, map, &mut layer);
+    let frozen = assets.terrain_paint[&map].clone();
+    let original = &layer.baked_chunks["original"];
+    assert_eq!(
+        frozen.chunks[&[0, 0]].color.as_ptr(),
+        original.color_rgba.as_ptr()
+    );
+    assert_eq!(
+        frozen.chunks[&[0, 0]].material.as_ptr(),
+        original.material_rgba.as_ptr()
+    );
+    let changed = layer.baked_chunks.get_mut("original").unwrap();
+    changed.color_rgba[..4].copy_from_slice(&[240, 20, 60, 128]);
+    changed.material_rgba[..4].copy_from_slice(&[254, 1, 1, 255]);
+    changed.revision += 1;
+    iso_paint_terrain::sync(&mut assets, map, &mut layer);
+    assert_eq!(frozen.sample([0., 0.]).unwrap().0, [24, 190, 72, 192]);
+    assert_eq!(
+        assets.terrain_paint[&map].sample([0., 0.]).unwrap().0,
+        [240, 20, 60, 128]
+    );
+    assert_eq!(frozen.sample([0., 0.]).unwrap().1, [254, 0, 0, 0]);
+}
+#[test]
 fn cpu_visual_sources_preserve_project_data_engine_entries_and_palette_geometry_indices() {
     let mut project = Project::new();
     let authored = Tile::from_texture(Texture::new(vec![10, 40, 70, 255], 1, 1));

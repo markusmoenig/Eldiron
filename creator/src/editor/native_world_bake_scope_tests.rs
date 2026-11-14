@@ -146,7 +146,9 @@ fn hidden_world_bakes_linked_prefab_paint_and_retires_catalog_edits() {
                     geo,
                     [x * 64, y * 64],
                 );
-                chunk.color_rgba = [24, 190, 72, 255].repeat(chunk.color_rgba.len() / 4);
+                chunk.color_rgba = [24, 190, 72, 255]
+                    .repeat(chunk.color_rgba.len() / 4)
+                    .into();
                 chunk.revision = 1;
                 paint.baked_chunks.insert(format!("{id}:{x}:{y}"), chunk);
             }
