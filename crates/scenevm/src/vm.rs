@@ -3639,6 +3639,8 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
 pub struct VM {
     shared_atlas: SharedAtlas,
     pub(crate) gpu_domain: Option<u64>,
+    // Explicit host-owned cache domain; raw-device reference renderers leave it absent.
+    pub(crate) target_context: Option<std::sync::Arc<renderkit::GpuContext>>,
     pub chunks_map: FxHashMap<Uuid, Chunk>,
     pub current_chunk: Option<Uuid>,
 
@@ -4130,56 +4132,47 @@ impl VM {
         self.raster3d_post_style1 = style1;
     }
 
-    fn ensure_prev_dummy(&mut self, device: &wgpu::Device) -> wgpu::TextureView {
-        if self.prev_dummy.is_none() {
-            let mut tex = crate::Texture::render_target(1, 1);
-            tex.ensure_gpu_with(device);
-            self.prev_dummy = Some(tex);
+    fn create_layer_target(&self, device: &wgpu::Device, width: u32, height: u32) -> crate::SceneVMResult<crate::Texture> {
+        if let Some(context) = &self.target_context {
+            if context.device != *device || self.gpu_domain != Some(context.generation()) {
+                return Err(crate::SceneVMError::InvalidOperation("layer target GPU domain mismatch".into()));
+            }
+            crate::Texture::pooled_render_target(context, width, height)
+                .map_err(|e| crate::SceneVMError::InvalidOperation(e.to_string()))
+        } else {
+            let mut texture = crate::Texture::render_target(width, height);
+            texture.ensure_gpu_with(device);
+            Ok(texture)
         }
-        self.prev_dummy
-            .as_ref()
-            .unwrap()
-            .gpu
-            .as_ref()
-            .unwrap()
-            .view
-            .clone()
     }
 
-    /// Ensure the layer texture(s) exist and match the given size
-    pub(crate) fn ensure_layer_texture(&mut self, device: &wgpu::Device, width: u32, height: u32) {
-        if self.ping_pong_enabled {
-            let needs_recreate = self
-                .ping_pong_textures
-                .as_ref()
-                .map(|pair| {
-                    pair[0].width != width
-                        || pair[0].height != height
-                        || pair[1].width != width
-                        || pair[1].height != height
-                })
-                .unwrap_or(true);
+    fn ensure_prev_dummy(&mut self, device: &wgpu::Device) -> crate::SceneVMResult<wgpu::TextureView> {
+        if self.prev_dummy.is_none() {
+            self.prev_dummy = Some(self.create_layer_target(device, 1, 1)?);
+        }
+        Ok(self.prev_dummy.as_ref().unwrap().gpu.as_ref().unwrap().view.clone())
+    }
 
+    /// Retain all history allocations until their owner and published outputs retire.
+    pub(crate) fn ensure_layer_texture(&mut self, device: &wgpu::Device, width: u32, height: u32) -> crate::SceneVMResult<()> {
+        if self.ping_pong_enabled {
+            let needs_recreate = self.ping_pong_textures.as_ref().map(|pair| {
+                pair.iter().any(|t| t.width != width || t.height != height)
+            }).unwrap_or(true);
             if needs_recreate {
-                let mut a = crate::Texture::render_target(width, height);
-                let mut b = crate::Texture::render_target(width, height);
-                a.ensure_gpu_with(device);
-                b.ensure_gpu_with(device);
+                let a = self.create_layer_target(device, width, height)?;
+                let b = self.create_layer_target(device, width, height)?;
                 self.ping_pong_textures = Some([a, b]);
                 self.ping_pong_front = 0;
             }
         } else {
-            let needs_recreate = match &self.layer_texture {
-                None => true,
-                Some(tex) => tex.width != width || tex.height != height,
-            };
-
+            let needs_recreate = self.layer_texture.as_ref()
+                .is_none_or(|t| t.width != width || t.height != height);
             if needs_recreate {
-                let mut tex = crate::Texture::render_target(width, height);
-                tex.ensure_gpu_with(device);
-                self.layer_texture = Some(tex);
+                self.layer_texture = Some(self.create_layer_target(device, width, height)?);
             }
         }
+        Ok(())
     }
 
     pub(crate) fn render_target_cpu_bytes(&self) -> usize {
@@ -4215,8 +4208,8 @@ impl VM {
         queue: &wgpu::Queue,
         width: u32,
         height: u32,
-    ) -> (wgpu::TextureView, wgpu::TextureView, usize) {
-        self.ensure_layer_texture(device, width, height);
+    ) -> crate::SceneVMResult<(wgpu::TextureView, wgpu::TextureView, usize)> {
+        self.ensure_layer_texture(device, width, height)?;
         let bg = self.background;
 
         if self.ping_pong_enabled {
@@ -4300,7 +4293,7 @@ impl VM {
                 queue.submit(Some(encoder.finish()));
             }
 
-            (write_view, read_view, write_idx)
+            Ok((write_view, read_view, write_idx))
         } else {
             let view = self
                 .layer_texture
@@ -4311,7 +4304,7 @@ impl VM {
                 .unwrap()
                 .view
                 .clone();
-            let prev_view = self.ensure_prev_dummy(device);
+            let prev_view = self.ensure_prev_dummy(device)?;
 
             let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("clear-layer"),
@@ -4339,7 +4332,7 @@ impl VM {
             });
             queue.submit(Some(encoder.finish()));
 
-            (view.clone(), prev_view, self.ping_pong_front)
+            Ok((view.clone(), prev_view, self.ping_pong_front))
         }
     }
 
@@ -5724,6 +5717,7 @@ impl VM {
         Self {
             shared_atlas,
             gpu_domain: None,
+            target_context: None,
             chunks_map: FxHashMap::default(),
             current_chunk: None,
             animation_counter: 0,
@@ -10157,7 +10151,7 @@ impl VM {
         self.init_raster2d(device)?;
         self.upload_tile_metadata_to_gpu(device);
         let (write_view, _prev_view, next_front) =
-            self.prepare_layer_views(device, queue, fb_w, fb_h);
+            self.prepare_layer_views(device, queue, fb_w, fb_h)?;
 
         let fb_dims = (fb_w, fb_h);
         let has_pixel_lines = self
@@ -10599,7 +10593,7 @@ impl VM {
         self.upload_tile_metadata_to_gpu(device);
         // Ensure layer texture exists and matches size
         let (write_view, prev_view, next_front) =
-            self.prepare_layer_views(device, queue, fb_w, fb_h);
+            self.prepare_layer_views(device, queue, fb_w, fb_h)?;
         // Update uniforms
         let m = self.transform2d;
         let m_inv = mat3_inverse_f32(&m).unwrap_or(Mat3::<f32>::identity());
@@ -10881,7 +10875,7 @@ impl VM {
         self.upload_raster3d_paint_overlay(device, queue);
         self.upload_compute3d_aux_ssbo(device, queue);
         let (write_view, prev_view, next_front) =
-            self.prepare_layer_views(device, queue, fb_w, fb_h);
+            self.prepare_layer_views(device, queue, fb_w, fb_h)?;
 
         // --- Uniforms ---
         let m = self.transform3d;
@@ -11409,7 +11403,7 @@ impl VM {
         self.upload_tile_metadata_to_gpu(device);
         self.upload_scene_data_ssbo(device, queue);
         let (write_view, _prev_view, next_front) =
-            self.prepare_layer_views(device, queue, fb_w, fb_h);
+            self.prepare_layer_views(device, queue, fb_w, fb_h)?;
 
         let c = self.camera3d;
 
@@ -12803,7 +12797,7 @@ impl VM {
         }
         self.init_compute(device)?;
         let (write_view, prev_view, next_front) =
-            self.prepare_layer_views(device, queue, fb_w, fb_h);
+            self.prepare_layer_views(device, queue, fb_w, fb_h)?;
         self.upload_atlas_to_gpu_with(device, queue);
         let c = self.camera3d;
 

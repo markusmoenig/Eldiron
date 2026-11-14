@@ -32,7 +32,14 @@ impl SceneRenderTarget {
         let texture = Texture::pooled_render_target(&context, width, height)?;
         let image = GpuImage::from_target(
             &context,
-            texture.gpu.as_ref().unwrap().target_lease.as_ref().unwrap().clone(),
+            texture
+                .gpu
+                .as_ref()
+                .unwrap()
+                .target_lease
+                .as_ref()
+                .unwrap()
+                .clone(),
             ImageDescriptor {
                 width,
                 height,
@@ -87,17 +94,22 @@ impl SceneVM {
         let Some(gpu) = &texture.gpu else {
             return Ok(None);
         };
-        let image = Arc::new(GpuImage::from_texture(
-            context,
-            gpu.texture.clone(),
-            ImageDescriptor {
-                width: texture.width,
-                height: texture.height,
-                format: gpu.texture.format(),
-                color_space: ColorSpace::Srgb,
-                alpha_mode: AlphaMode::Straight,
-            },
-        )?);
+        let descriptor = ImageDescriptor {
+            width: texture.width,
+            height: texture.height,
+            format: gpu.texture.format(),
+            color_space: ColorSpace::Srgb,
+            alpha_mode: AlphaMode::Straight,
+        };
+        let image = if let Some(lease) = &gpu.target_lease {
+            GpuImage::from_target(context, lease.clone(), descriptor)?
+        } else {
+            Arc::new(GpuImage::from_texture(
+                context,
+                gpu.texture.clone(),
+                descriptor,
+            )?)
+        };
         Ok(Some(SceneOutput { image, revision }))
     }
     pub fn shared_atlas(&self) -> SharedAtlas {
@@ -154,6 +166,7 @@ impl SceneVM {
             isometric_pass: None,
         };
         this.vm.gpu_domain = Some(context.generation());
+        this.vm.target_context = Some(context);
         this.refresh_layer_metadata();
         this
     }
@@ -184,8 +197,10 @@ impl SceneVM {
         let mut surface = Texture::render_target(self.size.0.max(1), self.size.1.max(1));
         surface.ensure_gpu_in_domain(&context.device, generation);
         self.vm.reset_gpu_domain(generation);
+        self.vm.target_context = Some(context.clone());
         for vm in &mut self.overlay_vms {
             vm.reset_gpu_domain(generation);
+            vm.target_context = Some(context.clone());
         }
         self.compositing_pipeline = None;
         self.rgba_overlay_pipeline = None;

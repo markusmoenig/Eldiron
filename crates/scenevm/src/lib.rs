@@ -1502,6 +1502,7 @@ impl SceneVM {
         // Overlays default to transparent so they don't hide layers below unless drawn into.
         let mut vm = VM::new_with_shared_atlas(self.atlas.clone());
         vm.gpu_domain = self.gpu.as_ref().and_then(|g| g.context_generation);
+        vm.target_context = self.vm.target_context.clone();
         vm.set_background_lighting(self.vm.background_lighting());
         vm.background = vek::Vec4::new(0.0, 0.0, 0.0, 0.0);
         self.overlay_vms.push(vm);

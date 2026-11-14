@@ -12451,3 +12451,44 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
 - Scene output storage/lifetime subtask verified; other per-layer/history targets,
   total active/in-flight/driver allocation budgets and remaining M0–M9 acceptance
   remain open. Full Goal active. Concurrent networking concept left untouched.
+
+
+## 2026-11-14 — Explicit per-layer/history target cache domain (active)
+
+- Scene output pool checkpoint ba0c268a is verified. Audited internal layer and
+  ping-pong history allocation: raw-device reference API can remain unpooled;
+  canonical injected renderers must explicitly retain their host cache domain.
+- Implementing that explicit per-VM context, propagating to new overlays and
+  replacement devices, and preserving layer_output leases. Pool failure/domain
+  mismatch propagates as SceneVMResult rather than silently changing devices.
+  Initialization still clears every mip before publication. Target cache remains
+  retained estimate only; no hard total-GPU-memory claim. Focused lease/history/
+  resize/device tests pending; full Goal active.
+
+- Scene check PASS2.25s; actual GPU suite PASS4/1.10s, including new retired
+  overlay output/queued resize and custom history-sampling fixtures.32queued
+  size changes kept9pooled allocations constant, hits8->72, cache6996bytes.
+  Explicit captures verify red/blue/green retired outputs and4progressive history
+  samples, nonzero-sample resize reset, replacement device and ordinary dummy
+  reset. Five renderer modes still match explicit reference capture maxdelta0.
+  Logs /private/tmp/eldiron-scene-layer-pool-{check,gpu}.log. App checks/current
+  release browser verification pending; no schema/manifest changes.
+
+- Creator all-targets PASS30.44s; clients PASS14.82s; browser check PASS24.62s;
+  correct staticlib-feature check PASS25.38s (initial queue typo requested absent
+  ui feature, failed before compilation; corrected without changing source).
+  Current browser release/package PASS1m21s/99,170,822bytes. Logs
+  /private/tmp/eldiron-scene-layer-pool-{creator,clients,wasm,staticlib-final,
+  browser-package}.log. No unchanged CPU/runtime suite repeated.
+- Actual current-release browser scene/layer proof PASS: warm16->48presents kept
+ 32pooled creations/10multi-mip storage creations; resize2424x1287allocated12
+  targets including5storage targets, warm62->94kept44/15constant. Returning
+ 2400x1287kept44/15; generation2->3rebuilt16including5storage targets, then
+ 109->141presents kept60/20constant. Same document/clean state and ordinary
+  nonbaked scene; rootCPU/Canvas2D/ordinary color readbacks/browser/GPU errors0.
+  /private/tmp/eldiron-scene-layer-pool-browser-proof.log. All handles terminal.
+- Visually inspected recovered150%DPR controls, scene, text and palette. Durable
+  screenshot concepts/native-wgpu-evidence/browser-scene-layer-pool-150.png.
+  Layer/history reuse subtask verified; cache counters cover explicit pooled
+  textures, not VMGpu depth/MSAA/other buffers or driver/global hard budgets.
+  Full Goal remains active; physical/platform/performance gates unchanged.
