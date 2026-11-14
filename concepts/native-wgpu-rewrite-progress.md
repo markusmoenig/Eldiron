@@ -11730,3 +11730,56 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   all global source/encoded/codec/atlas/target budgets, owner/core extraction,
   canonical Creator retirement, equal-hardware release measurements and the
   physical target workflows. No M0–M9 milestone signoff is inferred here.
+
+## 2026-11-14 — Per-tile source identities (active)
+
+- Previous complete scheduling checkpoint09eb7de9 is verified above. Full Goal
+  remains active; networking concept preserved. Added transient per-tile epochs
+  to the CPU source cache, separate from decoded residency and the whole source
+  publication. Lazy re-decode preserves an original tile epoch; actual producer
+  replacement/install/clear creates new identities. Nothing is serialized.
+- Small-source GPU buffers now retain only matching tile epochs instead of
+  clearing the complete cache on every progressive sample. Cache hits are still
+  pinned before initializer reservations; two owners retain independent buffers
+  under the shared pool. Source positions enumerate retained epoch metadata
+  without allocating a second HashSet or locking decoded pixels.
+- Pending small-source work may keep its last completed image only under the
+  existing request/projection compatibility rule. A new camera/document/source
+  request still cannot inherit it; final committed output still uses an exact
+  publication. Waiting remains true until the newer source completes.
+- Added actual-GPU coverage for three visible source tiles across two requests,
+  changed-only uploads, unchanged color/depth, alpha clearing, shared-pool slot
+  pressure, retaining the prior request-compatible image and revoking it for a
+  different projection. Build is collecting in96294; no new test pass claimed.
+  This optimizes the retained small working set; large-page incremental target
+  updates and the1.98GB progressive upload observation remain separate work.
+- Initial GPU suite RED4pass1fail/18.93s only at the new exact upload-byte
+  assertion: counter delta4,719,232versus4,718,592source-channel bytes. The
+  existing transfer counter also includes640bytes of dispatch uniforms. Need
+  allow bounded small metadata overhead while retaining an upper bound far
+  below another full tile; no content/request/ownership failure observed.
+  Log /private/tmp/eldiron-tile-epochs-gpu.log. Native/CPU/wasm builds continue
+  in60113/75220; no final epoch-suite pass claimed yet.
+- Corrected the upload oracle to allow<4KiB dispatch metadata above its exact
+  original-channel byte count, far below another256x256tile. Focused new GPU
+  case PASS1/0.72s, /private/tmp/eldiron-tile-epochs-metadata-oracle.log. Across
+  each of two distinct requests it uploads three cold tiles initially, then
+  only one changed tile per sample while keeping the other two. Transparent/
+  partial-alpha replacement and depth match the CPU source; no readback occurs
+  before explicit oracle captures. Four occupied source slots retain the prior
+  completed same-request image, keep waiting=true and reject a moved camera.
+  The four existing GPU cases passed in the initial epoch build; no production
+  code changed while correcting this test's counter expectation.
+- Native Creator test build PASS43.94s; native-worker and single_thread CPU
+  contracts PASS22/0.49s each; wasm Creator library PASS21.17s. Added a focused
+  CPU re-decode assertion for an evicted, unleased early tile (rather than only
+  a pinned tile); PASS1/0.51s, /private/tmp/eldiron-tile-epochs-redecode.log.
+  These epoch changes have focused GPU/CPU and cross-target build evidence;
+  the prior270.85s assembled and actual browser64tile results are09eb7de9,
+  not a new full application/platform run of this epoch checkpoint.
+- All epoch build/run handles are terminal and git diff --check is clean.
+  Networking work remains untouched. Ready for local epoch-cache checkpoint;
+  full M0–M9 remains ACTIVE. Next: incremental large progressive targets using
+  these identities, with exact alpha/depth removal and projection/request guards;
+  keep the existing8MiB pages/64MiB shared budget and verify transfer reduction
+  against real large generation. Full resource/performance/platform gates remain.

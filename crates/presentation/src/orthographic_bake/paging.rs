@@ -57,7 +57,7 @@ impl OrthographicBakeRenderer {
             }
         }
     }
-    fn current(&self, key: &FrameKey) -> Option<OrthographicBakeOutput> {
+    pub(super) fn current(&self, key: &FrameKey) -> Option<OrthographicBakeOutput> {
         self.complete
             .as_ref()
             .filter(|old| old.compatible(key))

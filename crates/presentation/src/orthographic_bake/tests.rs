@@ -490,6 +490,131 @@ fn progressive_source_updates_do_not_starve_pages_or_escape_their_request() {
     );
 }
 
+#[test]
+#[ignore = "actual GPU per-tile identity, changed-only upload and request retirement"]
+fn progressive_small_sources_retain_unchanged_gpu_tiles() {
+    let context = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let map = Uuid::new_v4();
+    let mut camera = Camera3D::iso();
+    camera.ortho_half_h = 1.;
+    let mut owner = OrthographicBakeController::default();
+    let mut renderer = OrthographicBakeRenderer::new(context.clone()).unwrap();
+    let mut old_request = None;
+    for request_phase in 0..2 {
+        owner.cancel_work();
+        owner.request_render(map, 2);
+        let request = owner.active_request().unwrap();
+        assert_ne!(old_request, Some(request));
+        let mut committed = Vec::new();
+        for _ in 0..2 {
+            let work = owner
+                .prepare_work(map, 256, 256, camera, Some((-2., 2., -2., 2.)))
+                .unwrap()
+                .unwrap();
+            let n = (work.tile_size * work.tile_size) as usize;
+            assert!(!owner.finish_sample());
+            assert!(owner.finish_sample());
+            owner
+                .commit_current_tile(
+                    [40 + request_phase * 50, 80, 120, 255].repeat(n),
+                    vec![2.; n],
+                    [40, 80, 120, 255].repeat(n),
+                    [128, 255, 128, 255].repeat(n),
+                    [200, 0, 255, 0].repeat(n),
+                )
+                .unwrap();
+        }
+        let work = owner
+            .prepare_work(map, 256, 256, camera, Some((-2., 2., -2., 2.)))
+            .unwrap()
+            .unwrap();
+        let n = (work.tile_size * work.tile_size) as usize;
+        owner
+            .preview_current_tile(&[60, 90, 130, 255].repeat(n))
+            .unwrap();
+        let source = owner.presentation_source(map, &camera).unwrap();
+        assert_eq!(source.positions().count(), 3);
+        for at in source.positions() {
+            committed.push((at, source.tile_revision(at.0, at.1).unwrap()));
+        }
+        let before = context.transfers();
+        let output = ready(&mut renderer, &source, &camera, (96, 64), None);
+        assert_eq!(output.request(), Some(request));
+        let uploaded = context.transfers().uploaded_bytes - before.uploaded_bytes;
+        let channels = n as u64 * 24 * 3;
+        assert!(
+            (channels..channels + 4096).contains(&uploaded),
+            "new request needs all three original tiles plus small dispatch metadata: {uploaded}"
+        );
+        finish(&context);
+        for sample in 0..4 {
+            let before = context.transfers();
+            let rgba = match sample {
+                1 => [0; 4],
+                2 => [20, 30, 40, 128],
+                _ => [70 + sample, 100, 140, 255],
+            };
+            owner.preview_current_tile(&rgba.repeat(n)).unwrap();
+            let source = owner.presentation_source(map, &camera).unwrap();
+            let unchanged = committed
+                .iter()
+                .filter(|(at, id)| source.tile_revision(at.0, at.1) == Some(*id))
+                .count();
+            assert_eq!(
+                unchanged, 2,
+                "only the current preview tile changes identity"
+            );
+            if sample == 0 {
+                let held: Vec<_> = (0..context.source_pool_usage().submission_limit)
+                    .map(|_| context.try_source_submission(0).unwrap())
+                    .collect();
+                let previous = renderer
+                    .render(&source, &camera, (96, 64), None)
+                    .unwrap()
+                    .unwrap();
+                assert!(renderer.waiting());
+                assert_eq!(previous.source_revision(), output.source_revision());
+                assert_eq!(previous.request(), Some(request));
+                let mut moved = camera;
+                moved.pos += camera.right * 0.1;
+                assert!(
+                    renderer
+                        .render(&source, &moved, (96, 64), None)
+                        .unwrap()
+                        .is_none(),
+                    "a pending new projection cannot inherit the prior image"
+                );
+                drop(held);
+            }
+            let output = ready(&mut renderer, &source, &camera, (96, 64), None);
+            let uploaded = context.transfers().uploaded_bytes - before.uploaded_bytes;
+            let channels = n as u64 * 24;
+            assert!(
+                (channels..channels + 4096).contains(&uploaded),
+                "only one changed tile plus small dispatch metadata may upload: {uploaded}"
+            );
+            assert_eq!(context.transfers().readback_bytes, before.readback_bytes);
+            let expected = owner.compose_rgba(map, 96, 64, &camera).unwrap();
+            assert!(
+                colors(&context, &output)
+                    .iter()
+                    .zip(expected)
+                    .all(|(a, b)| a.abs_diff(b) <= 1)
+            );
+            let expected = owner.compose_depth(map, 96, 64, &camera).unwrap();
+            assert!(
+                depths(&context, &output)
+                    .into_iter()
+                    .zip(expected)
+                    .all(|(a, b)| a == b || (a - b).abs() < 1e-5)
+            );
+            let usage = context.source_pool_usage();
+            assert!(usage.bytes <= usage.byte_limit);
+        }
+        old_request = Some(request);
+    }
+}
+
 fn solid_gpu(context: &GpuContext, size: (u32, u32), bytes: [u8; 4]) -> Arc<GpuImage> {
     let image = GpuImage::new(
         context,

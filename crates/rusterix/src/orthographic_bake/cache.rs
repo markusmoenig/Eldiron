@@ -93,6 +93,7 @@ pub(super) struct TileCache {
     state: Mutex<State>,
     budget: Arc<Budget>,
     index: HashMap<(i32, i32), usize>,
+    revisions: HashMap<(i32, i32), Uuid>,
 }
 impl TileCache {
     pub(super) fn clear(&mut self) {
@@ -102,12 +103,16 @@ impl TileCache {
         state.failed.clear();
         state.usable = None;
         self.index.clear();
+        self.revisions.clear();
     }
     pub(super) fn reset(&mut self, asset: Option<&OrthographicBakeAsset>) {
         self.clear();
         if let Some(asset) = asset {
-            self.index
-                .extend(asset.tiles.iter().enumerate().map(|(i, t)| ((t.x, t.y), i)));
+            for (i, tile) in asset.tiles.iter().enumerate() {
+                let at = (tile.x, tile.y);
+                self.index.insert(at, i);
+                self.revisions.insert(at, Uuid::new_v4());
+            }
         }
     }
     pub(super) fn positions(&self) -> impl Iterator<Item = (i32, i32)> + '_ {
@@ -187,6 +192,7 @@ impl TileCache {
             state.pending = None;
         }
         self.insert_locked(&mut state, at, pixels)?;
+        self.revisions.insert(at, Uuid::new_v4());
         if let Some(index) = index {
             self.index.insert(at, index);
         }
@@ -308,10 +314,11 @@ impl TileCache {
         state.pending = Some(DecodeWork::start(at, task)?);
         Ok(Pending)
     }
+    pub(super) fn revision(&self, at: (i32, i32)) -> Option<Uuid> {
+        self.revisions.get(&at).copied()
+    }
     pub(super) fn all_positions(&self) -> Vec<(i32, i32)> {
-        let mut positions: std::collections::HashSet<_> = self.positions().collect();
-        positions.extend(self.state.lock().unwrap().entries.keys().copied());
-        positions.into_iter().collect()
+        self.revisions.keys().copied().collect()
     }
 }
 

@@ -45,6 +45,10 @@ struct Pixel {
     material: u32,
     surface_channels: u32,
 }
+struct CachedTile {
+    revision: Uuid,
+    buffer: Weak<renderkit::SourceBuffer>,
+}
 enum TileState {
     Ready(Arc<renderkit::SourceBuffer>),
     Missing,
@@ -91,8 +95,7 @@ pub struct OrthographicBakeRenderer {
     draw: wgpu::ComputePipeline,
     dummy: wgpu::Buffer,
     target: Option<OrthographicBakeOutput>,
-    publication: Option<Uuid>,
-    tiles: HashMap<(i32, i32), Weak<renderkit::SourceBuffer>>,
+    tiles: HashMap<(i32, i32), CachedTile>,
     complete: Option<FrameKey>,
     paging: Option<Paging>,
     page_buffer: Weak<renderkit::SourceBuffer>,
@@ -172,7 +175,6 @@ impl OrthographicBakeRenderer {
             draw,
             dummy,
             target: None,
-            publication: None,
             tiles: HashMap::new(),
             complete: None,
             paging: None,
@@ -184,7 +186,7 @@ impl OrthographicBakeRenderer {
     pub fn source_resident_bytes(&self) -> u64 {
         self.tiles
             .values()
-            .filter_map(Weak::upgrade)
+            .filter_map(|tile| tile.buffer.upgrade())
             .map(|b| b.bytes())
             .sum::<u64>()
             + self.page_buffer.upgrade().map_or(0, |b| b.bytes())
@@ -238,7 +240,15 @@ impl OrthographicBakeRenderer {
         source: &OrthographicBakeSource<'_>,
         size: u32,
     ) -> Result<TileState> {
-        if let Some(buffer) = self.tiles.get(&at).and_then(Weak::upgrade) {
+        let Some(revision) = source.tile_revision(at.0, at.1) else {
+            return Ok(TileState::Missing);
+        };
+        if let Some(buffer) = self
+            .tiles
+            .get(&at)
+            .filter(|tile| tile.revision == revision)
+            .and_then(|tile| tile.buffer.upgrade())
+        {
             self.context.touch_source_buffer(&buffer);
             return Ok(TileState::Ready(buffer));
         }
@@ -266,7 +276,13 @@ impl OrthographicBakeRenderer {
             return Ok(TileState::Busy);
         };
         self.context.record_upload(bytes);
-        self.tiles.insert(at, Arc::downgrade(&buffer));
+        self.tiles.insert(
+            at,
+            CachedTile {
+                revision,
+                buffer: Arc::downgrade(&buffer),
+            },
+        );
         Ok(TileState::Ready(buffer))
     }
     fn target(
@@ -521,29 +537,28 @@ impl OrthographicBakeRenderer {
             visible.sort_unstable_by_key(|(at, _)| *at);
             return self.advance_paged(source, key, visible, tile_bytes);
         }
-        if self.publication != Some(source.revision()) {
-            self.tiles.clear();
-            self.publication = Some(source.revision());
-        }
         let positions: std::collections::HashSet<_> = visible.iter().map(|(at, _)| *at).collect();
-        self.tiles
-            .retain(|at, b| positions.contains(at) && b.strong_count() > 0);
+        self.tiles.retain(|at, tile| {
+            positions.contains(at)
+                && source.tile_revision(at.0, at.1) == Some(tile.revision)
+                && tile.buffer.strong_count() > 0
+        });
         // Pin cache hits before reserving initializer staging: pool eviction
         // cannot turn one of those hits into an unaccounted cold upload.
         let pinned: Vec<_> = visible
             .iter()
-            .filter_map(|(at, _)| self.tiles.get(at).and_then(Weak::upgrade))
+            .filter_map(|(at, _)| self.tiles.get(at).and_then(|tile| tile.buffer.upgrade()))
             .collect();
         let upload_bytes = (visible.len() - pinned.len()) as u64 * tile_bytes;
         let Some(submission) = self.context.try_source_submission(upload_bytes) else {
-            return Ok(None);
+            return Ok(self.current(&key));
         };
         let mut resolved = Vec::new();
         for (at, dispatch) in visible {
             match self.tile(at, source, asset.tile_size)? {
                 TileState::Ready(buffer) => resolved.push((at, dispatch, buffer)),
                 TileState::Missing => (),
-                TileState::Busy => return Ok(None),
+                TileState::Busy => return Ok(self.current(&key)),
             }
         }
         let output = self.target(

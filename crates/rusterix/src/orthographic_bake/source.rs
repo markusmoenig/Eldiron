@@ -66,6 +66,11 @@ impl<'a> OrthographicBakeSource<'a> {
     pub fn poll_tile(&self, x: i32, y: i32) -> Result<OrthographicBakeTilePoll, String> {
         self.tiles.poll(self.asset, (x, y))
     }
+    /// Identity of this original tile publication, independent of CPU decode
+    /// residency and updates to other tiles. Never serialized into the asset.
+    pub fn tile_revision(&self, x: i32, y: i32) -> Option<Uuid> {
+        self.tiles.revision((x, y))
+    }
     pub fn positions(&self) -> impl Iterator<Item = (i32, i32)> {
         self.tiles.all_positions().into_iter()
     }
@@ -338,13 +343,29 @@ mod tests {
             0,
             "presentation readiness and metadata enumeration do not decode originals"
         );
+        let first_revision = source.tile_revision(0, 0).unwrap();
+        let evicted_revision = source.tile_revision(1, 0).unwrap();
         let first = source.try_tile(0, 0).unwrap().unwrap();
         for x in 1..32 {
             let lease = source.try_tile(x, 0).unwrap().unwrap();
             assert_eq!(lease.depth[0], 2.);
             assert!(source.decoded_resident_bytes() <= cache::DECODE_BUDGET);
         }
+        assert_eq!(
+            &source.try_tile(1, 0).unwrap().unwrap().color[..4],
+            &[80, 120, 160, 255]
+        );
+        assert_eq!(
+            source.tile_revision(1, 0),
+            Some(evicted_revision),
+            "re-decoding an evicted original preserves its publication identity"
+        );
         assert_eq!(&first.color[..4], &[80, 120, 160, 255]);
+        assert_eq!(
+            source.tile_revision(0, 0),
+            Some(first_revision),
+            "cache eviction cannot change original identity"
+        );
         asset.samples += 1;
         owner.sync_persisted_asset(region, Some(&asset));
         assert_eq!(
@@ -355,6 +376,11 @@ mod tests {
         drop(first);
         assert_eq!(owner.decoded_resident_bytes(), 0);
         let source = owner.presentation_source(region, &camera).unwrap();
+        assert_ne!(
+            source.tile_revision(0, 0),
+            Some(first_revision),
+            "new installation revokes all prior tile identities"
+        );
         assert_eq!(
             source.try_tile(31, 0).unwrap().unwrap().albedo.len(),
             pixels * 4
