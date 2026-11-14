@@ -9,6 +9,9 @@ use std::{
     },
 };
 
+mod decode;
+use decode::{DecodeTask, DecodeWork, WorkerSlot};
+
 pub(super) const DECODE_BUDGET: u64 = 32 * 1024 * 1024;
 
 #[derive(Debug, Default)]
@@ -16,16 +19,50 @@ struct Budget(AtomicU64);
 #[derive(Debug)]
 struct ChargedTile {
     pixels: DecodedBakeTile,
-    bytes: u64,
-    budget: Arc<Budget>,
+    _charge: Charge,
 }
 impl Drop for ChargedTile {
     fn drop(&mut self) {
         // Free backing allocations before another consumer can reserve their
         // charge; Rust normally drops fields after this Drop body returns.
         self.pixels = DecodedBakeTile::default();
+    }
+}
+
+#[derive(Debug)]
+struct Charge {
+    bytes: u64,
+    budget: Arc<Budget>,
+}
+impl Charge {
+    fn shrink(&mut self, bytes: u64) {
+        assert!(bytes <= self.bytes);
+        self.budget
+            .0
+            .fetch_sub(self.bytes - bytes, Ordering::Relaxed);
+        self.bytes = bytes;
+    }
+}
+impl Drop for Charge {
+    fn drop(&mut self) {
         self.budget.0.fetch_sub(self.bytes, Ordering::Relaxed);
     }
+}
+fn pixel_bytes(pixels: &DecodedBakeTile) -> u64 {
+    (pixels.color.capacity()
+        + pixels.albedo.capacity()
+        + pixels.normal.capacity()
+        + pixels.material.capacity()) as u64
+        + pixels.depth.capacity() as u64 * 4
+}
+
+/// A nonblocking original-source lookup. Pending must be retried by the host;
+/// it never denotes a missing tile and must not publish a partial projection.
+#[derive(Debug)]
+pub enum OrthographicBakeTilePoll {
+    Ready(OrthographicBakeTileLease),
+    Pending,
+    Missing,
 }
 
 /// Immutable original channels; no viewport pixels or renderer ownership.
@@ -49,6 +86,7 @@ struct State {
     clock: u64,
     failed: std::collections::HashSet<(i32, i32)>,
     usable: Option<bool>,
+    pending: Option<DecodeWork>,
 }
 #[derive(Debug, Default)]
 pub(super) struct TileCache {
@@ -59,6 +97,7 @@ pub(super) struct TileCache {
 impl TileCache {
     pub(super) fn clear(&mut self) {
         let state = self.state.get_mut().unwrap();
+        state.pending = None;
         state.entries.clear();
         state.failed.clear();
         state.usable = None;
@@ -119,18 +158,16 @@ impl TileCache {
         at: (i32, i32),
         pixels: DecodedBakeTile,
     ) -> Result<OrthographicBakeTileLease, String> {
-        let bytes = (pixels.color.capacity()
-            + pixels.albedo.capacity()
-            + pixels.normal.capacity()
-            + pixels.material.capacity()) as u64
-            + pixels.depth.capacity() as u64 * 4;
+        let bytes = pixel_bytes(&pixels);
         state.entries.remove(&at);
         self.make_room(state, bytes)?;
         self.budget.0.fetch_add(bytes, Ordering::Relaxed);
         let lease = OrthographicBakeTileLease(Arc::new(ChargedTile {
             pixels,
-            bytes,
-            budget: self.budget.clone(),
+            _charge: Charge {
+                bytes,
+                budget: self.budget.clone(),
+            },
         }));
         state.clock = state.clock.wrapping_add(1);
         state.failed.remove(&at);
@@ -145,6 +182,10 @@ impl TileCache {
         pixels: DecodedBakeTile,
     ) -> Result<(), String> {
         let mut state = self.state.lock().unwrap();
+        if state.pending.as_ref().is_some_and(|work| work.at() == at) {
+            // A newer producer sample supersedes an encoded decode in flight.
+            state.pending = None;
+        }
         self.insert_locked(&mut state, at, pixels)?;
         if let Some(index) = index {
             self.index.insert(at, index);
@@ -181,6 +222,91 @@ impl TileCache {
             return Ok(None);
         };
         self.insert_locked(&mut state, at, pixels).map(Some)
+    }
+    pub(super) fn may_have_tiles(&self) -> bool {
+        let state = self.state.lock().unwrap();
+        !state.entries.is_empty() || self.index.len() > state.failed.len()
+    }
+    pub(super) fn advance(&self) -> Result<(), String> {
+        use OrthographicBakeTilePoll::*;
+        let mut state = self.state.lock().unwrap();
+        if let Some(mut work) = state.pending.take() {
+            let work_at = work.at();
+            match work.poll()? {
+                Pending => state.pending = Some(work),
+                Missing => {
+                    state.failed.insert(work_at);
+                }
+                Ready(lease) => {
+                    state.clock = state.clock.wrapping_add(1);
+                    let age = state.clock;
+                    state.failed.remove(&work_at);
+                    state.usable = Some(true);
+                    state.entries.insert(work_at, (lease, age));
+                }
+            }
+        }
+        Ok(())
+    }
+    pub(super) fn poll(
+        &self,
+        asset: &OrthographicBakeAsset,
+        at: (i32, i32),
+    ) -> Result<OrthographicBakeTilePoll, String> {
+        use OrthographicBakeTilePoll::*;
+        let mut state = self.state.lock().unwrap();
+        state.clock = state.clock.wrapping_add(1);
+        let age = state.clock;
+        if let Some((lease, last)) = state.entries.get_mut(&at) {
+            *last = age;
+            return Ok(Ready(lease.clone()));
+        }
+        if state.failed.contains(&at) {
+            return Ok(Missing);
+        }
+        let Some(tile) = self.index.get(&at).and_then(|i| asset.tiles.get(*i)) else {
+            return Ok(Missing);
+        };
+        if state.pending.is_some() {
+            return Ok(Pending);
+        }
+        let Some(slot) = WorkerSlot::acquire() else {
+            return Ok(Pending);
+        };
+        let inputs = [
+            Some(tile.color_png_base64.as_str()),
+            tile.depth_base64.as_deref(),
+            tile.albedo_png_base64.as_deref(),
+            tile.normal_png_base64.as_deref(),
+            tile.material_png_base64.as_deref(),
+        ];
+        let decoded = u64::from(asset.tile_size)
+            .checked_mul(u64::from(asset.tile_size))
+            .and_then(|n| n.checked_mul(20))
+            .ok_or("Invalid decoded bake tile size.")?;
+        let bytes = inputs
+            .iter()
+            .flatten()
+            .try_fold(decoded, |sum, s| sum.checked_add(s.len() as u64))
+            .ok_or("Invalid encoded bake tile size.")?;
+        // Charge owned encoded inputs and maximum output before cloning or
+        // starting work. PNG/depth codec scratch has separate bounded limits.
+        if bytes > DECODE_BUDGET {
+            return Err("Bake tile and owned decode inputs exceed source budget.".into());
+        }
+        if self.make_room(&mut state, bytes).is_err() {
+            // A cancelled worker or externally retained original still owns
+            // this charge. Retry without blocking or failing the document.
+            return Ok(Pending);
+        }
+        self.budget.0.fetch_add(bytes, Ordering::Relaxed);
+        let charge = Charge {
+            bytes,
+            budget: self.budget.clone(),
+        };
+        let task = DecodeTask::new(inputs, asset.tile_size, charge, slot);
+        state.pending = Some(DecodeWork::start(at, task)?);
+        Ok(Pending)
     }
     pub(super) fn all_positions(&self) -> Vec<(i32, i32)> {
         let mut positions: std::collections::HashSet<_> = self.positions().collect();

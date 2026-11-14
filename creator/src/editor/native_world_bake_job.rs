@@ -130,7 +130,7 @@ impl Editor {
             self.cancel_native_bake_job();
             // Also discard a completed-but-unpublished old-generation result.
             if self.server_ctx.bake.initialized() {
-                *self.server_ctx.bake.write() = rusterix::OrthographicBakeController::default();
+                self.server_ctx.bake.write().reset();
             }
         }
         self.native_viewport.world.bake_jobs.generation = Some(generation);
@@ -168,7 +168,7 @@ impl Editor {
                 if jobs.active.is_some() {
                     // This is an invalid document/map/mode, not missing layout:
                     // a completed native result must never remain unowned.
-                    *self.server_ctx.bake.write() = rusterix::OrthographicBakeController::default();
+                    self.server_ctx.bake.write().reset();
                     self.server_ctx.background_progress = None;
                 }
                 jobs.active = None;
@@ -193,7 +193,7 @@ impl Editor {
             if request.is_none_or(|(_, request)| request == old.key.request) {
                 // Source changed without a new Render command. Discard pending
                 // publication as well as samples, then restore authored data.
-                *self.server_ctx.bake.write() = rusterix::OrthographicBakeController::default();
+                self.server_ctx.bake.write().reset();
                 let map = &self.documents.project.get_region(&key.region).unwrap().map;
                 self.server_ctx
                     .bake

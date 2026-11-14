@@ -248,8 +248,14 @@ impl OrthographicBakeRenderer {
         let bytes = count
             .checked_mul(std::mem::size_of::<Pixel>() as u64)
             .ok_or_else(|| RenderError("bake tile size overflow".into()))?;
-        let Some(lease) = source.try_tile(at.0, at.1).map_err(RenderError)? else {
-            return Ok(TileState::Missing);
+        let lease = match source.poll_tile(at.0, at.1).map_err(RenderError)? {
+            rusterix::orthographic_bake::OrthographicBakeTilePoll::Ready(lease) => lease,
+            rusterix::orthographic_bake::OrthographicBakeTilePoll::Pending => {
+                return Ok(TileState::Busy);
+            }
+            rusterix::orthographic_bake::OrthographicBakeTilePoll::Missing => {
+                return Ok(TileState::Missing);
+            }
         };
         let mut pixels = Vec::with_capacity(count as usize);
         Self::pack(lease.source(), count as usize, &mut pixels)?;
@@ -397,6 +403,10 @@ impl OrthographicBakeRenderer {
     ) -> Result<Option<OrthographicBakeOutput>> {
         self.waiting = true;
         self.context.poll()?;
+        source.advance_decode().map_err(RenderError)?;
+        if !source.may_have_tiles() {
+            return Ok(None);
+        }
         if self.context.is_lost() {
             return Err(RenderError("bake renderer device is lost".into()));
         }

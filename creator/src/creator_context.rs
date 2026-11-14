@@ -54,7 +54,7 @@ impl CreatorContext {
         if self.bake.initialized() {
             // Discard transient work without publishing a clear into the next
             // document, whose persisted map IDs may match the outgoing project.
-            *self.bake.write() = rusterix::OrthographicBakeController::default();
+            self.bake.write().reset();
         }
     }
 }

@@ -82,6 +82,7 @@ fn ready(
             "source pages did not complete"
         );
         finish(&renderer.context);
+        std::thread::sleep(std::time::Duration::from_millis(1));
     }
 }
 fn colors(context: &GpuContext, output: &OrthographicBakeOutput) -> Vec<u8> {
@@ -303,7 +304,8 @@ fn tiles_compose_with_reference_pan_resize_alpha_sun_depth_and_retained_sources(
     let before = context.transfers().readback_bytes;
     let mut a = None;
     let mut b = None;
-    for _ in 0..64 {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    loop {
         if a.is_none() {
             a = renderer.render(&source, &camera, (96, 64), None).unwrap();
         }
@@ -315,7 +317,12 @@ fn tiles_compose_with_reference_pan_resize_alpha_sun_depth_and_retained_sources(
         if a.is_some() && b.is_some() {
             break;
         }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "two source owners did not finish"
+        );
         finish(&context);
+        std::thread::sleep(std::time::Duration::from_millis(1));
     }
     assert_eq!(context.transfers().readback_bytes, before);
     let a = a.unwrap();

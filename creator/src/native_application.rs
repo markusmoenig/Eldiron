@@ -3159,10 +3159,10 @@ mod tests {
                     phase_pending = false;
                 }
                 let paint = app.frame(host, images).unwrap();
-                assert!(
-                    app.application.pending.as_ref().unwrap().world_for_test(),
-                    "persisted bake must stay native"
-                );
+                let native_receipt = app.application.pending.as_ref().unwrap().world_for_test();
+                assert!(!app.application.editor.native_world_has_cpu_storage_for_test());
+                assert_eq!(gpu.transfers().readback_bytes, before);
+
                 renderer
                     .render(
                         &paint,
@@ -3176,6 +3176,7 @@ mod tests {
                     .unwrap();
                 app.presented(host);
                 if let Some(image) = app.application.editor.native_bake_image_for_test(&fixture) {
+                    assert!(native_receipt, "completed persisted bake must have a native receipt");
                     break image;
                 }
                 assert!(
@@ -3316,7 +3317,9 @@ mod tests {
         loop {
             app.update(host, Duration::from_millis(16));
             let paint = app.frame(host, images).unwrap();
-            assert!(app.application.pending.as_ref().unwrap().world_for_test());
+            assert!(app.application.pending.as_ref().unwrap().world_for_test()
+                || app.application.editor.native_views_waiting(), "bake cancellation must remain native or pending");
+            assert!(!app.application.editor.native_world_has_cpu_storage_for_test());
             renderer.render(&paint, images, &output.view, output.descriptor.format, (1200,800), 1., [0.;4]).unwrap();
             app.presented(host);
             assert_no_viewport_readback(transfers, gpu);

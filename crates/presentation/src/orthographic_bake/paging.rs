@@ -124,12 +124,24 @@ impl OrthographicBakeRenderer {
         let count = (buffer.bytes() / tile_bytes).min(64) as usize;
         let end = (job.next + count).min(job.visible.len());
         let pixels_per_tile = (tile_bytes / std::mem::size_of::<Pixel>() as u64) as usize;
-        let mut pixels = Vec::with_capacity((end - job.next) * pixels_per_tile);
-        let mut draws = Vec::new();
+        // Resolve the complete page before packing/uploading. Pending decode
+        // never becomes an omitted tile or a partially published projection.
+        let mut ready = Vec::new();
         for &(at, dispatch) in &job.visible[job.next..end] {
-            let Some(lease) = source.try_tile(at.0, at.1).map_err(RenderError)? else {
-                continue;
-            };
+            match source.poll_tile(at.0, at.1).map_err(RenderError)? {
+                rusterix::orthographic_bake::OrthographicBakeTilePoll::Ready(lease) => {
+                    ready.push((at, dispatch, lease))
+                }
+                rusterix::orthographic_bake::OrthographicBakeTilePoll::Missing => (),
+                rusterix::orthographic_bake::OrthographicBakeTilePoll::Pending => {
+                    self.paging = Some(job);
+                    return Ok(self.current(&key));
+                }
+            }
+        }
+        let mut pixels = Vec::with_capacity(ready.len() * pixels_per_tile);
+        let mut draws = Vec::new();
+        for (at, dispatch, lease) in ready {
             let offset = pixels.len() as u32;
             Self::pack(lease.source(), pixels_per_tile, &mut pixels)?;
             draws.push((at, dispatch, offset));

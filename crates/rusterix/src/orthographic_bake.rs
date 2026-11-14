@@ -8,7 +8,7 @@ use vek::Vec3;
 
 mod cache;
 mod source;
-pub use cache::OrthographicBakeTileLease;
+pub use cache::{OrthographicBakeTileLease, OrthographicBakeTilePoll};
 use cache::TileCache;
 mod work;
 pub use source::{OrthographicBakeSource, OrthographicBakeTileSource};
@@ -131,6 +131,17 @@ impl Default for OrthographicBakeController {
 }
 
 impl OrthographicBakeController {
+    /// Retire source/request state without publishing a document edit. Keep
+    /// allocation domains so old workers/external leases remain charged across
+    /// device/document/source replacement within this application owner.
+    pub fn reset(&mut self) {
+        self.staging_tiles.clear();
+        self.committed_tiles.clear();
+        let staging_tiles = std::mem::take(&mut self.staging_tiles);
+        let committed_tiles = std::mem::take(&mut self.committed_tiles);
+        *self = Self { staging_tiles, committed_tiles, ..Self::default() };
+    }
+
     pub fn request_render(&mut self, region_id: Uuid, samples: u32) {
         self.source_revision = Uuid::new_v4();
         self.requested_region = Some(region_id);
@@ -163,7 +174,7 @@ impl OrthographicBakeController {
         {
             // A different displayed map revokes all uncommitted/pending work.
             // Copied documents are additionally reset by the application owner.
-            *self = Self::default();
+            self.reset();
         }
         if self
             .pending_persisted_update
@@ -193,8 +204,9 @@ impl OrthographicBakeController {
         self.visible = self.committed.is_some();
     }
 
-    /// Includes externally leased data after cache retirement. Staging and
-    /// committed originals each have a 32 MiB decode allocation domain.
+    /// Includes external leases and reserved decode outputs/owned encoded job
+    /// inputs after retirement. Staging and committed each have a 32 MiB domain.
+    /// Codec scratch and authored encoded originals are separate allocations.
     pub fn decoded_resident_bytes(&self) -> u64 {
         self.staging_tiles
             .usage()
@@ -486,7 +498,7 @@ impl OrthographicBakeController {
             self.committed_region
         }
         .unwrap_or(Uuid::nil());
-        *self = Self::default();
+        self.reset();
         self.pending_persisted_update = Some((map, None));
     }
 

@@ -19,7 +19,7 @@ impl CreatorContext {
             bake.sync_persisted_asset(region.map.id, region.map.orthographic_bake.as_ref());
         } else {
             // No selected region owns a pending completion or cached source.
-            *bake = rusterix::OrthographicBakeController::default();
+            bake.reset();
         }
         if was_rendering && !bake.is_rendering() {
             self.background_progress = None;

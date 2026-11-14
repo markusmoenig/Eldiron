@@ -27,7 +27,7 @@ Started: 2026-11-11 (Asia/Bangkok). Overall Goal: active; full M0–M9 scope rem
 - M3: in progress. Every active built-in TheWidget implementation now has a command paint path, including procedural controls and the legacy node canvas. Complex Creator integration, full widget catalog parity and legacy adapter retirement remain.
 - M4: in progress. CPU schema/identity extraction, shared `GameSession`, CPU startup preparation, message/party/world-target policies and terminal adoption are implemented and tested. Per-session routing, local players, world values, runtime IDs and region context ownership now pass controlled overlapping-session and parallel assembled-player regressions. Graphical clients adopt GameSession; Creator shares its clock/output pump and runtime-owned PlayerInput. Text Play state is now Editor-owned and uses explicit CPU runtime borrows. Canonical Creator Play now owns a separate runtime Project projection; startup/warmup, entities/generated geometry and time no longer mutate authored Documents. The Console also consumes explicit addressed CPU inspections and rejects stale runtime actor links/history without reading the global server or authored entity fallbacks. Native Creator now owns its GameSession server/assets/current-map/clock/audio lifetime and advances from host elapsed time independently of rendering. Reference storage/start-menu/source bridges and remaining bitmap/value data extraction remain; this evidence does not establish full simultaneous Creator Play workflows.
 - M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Immutable ordinary editor-view preparation, exact reference/native view outputs and retained CPU chunk publication are now available through SceneViews. Common HUD, paint/props panels, profile displays and ViewCube now have retained command frames, guarded input and actual GPU composition/reconstruction evidence. Six standard tools additionally emit ordered typed overlay aggregates with exact presented-frame and detail-profile source guards. Full-viewport profile editing is now connected to the actual native Creator root with document/widget binding, presentation-gated input and inline commit/cancel; ordinary stopped top-down, sprite-isometric and 3D region rendering and the six standard tool overlays now use the same native application owner and real tool dispatch. Orbit/orthographic/first-person views include depth-aware guides, retained ViewCube and explicit tool query snapshots; surface paint uses the view-owned GPU scene. The Terrain tool now also uses retained native controls and GPU brush guides with real sculpt/cancel integration. Rect now also uses presentation-gated composition/rotation controls, shared source sprite previews blitted on the GPU, terrain-conforming perimeters, and view-owned 3D queries; actual isometric placement and fractional-DPI sprite sampling pass in the assembled checkpoint. Isometric terrain Paint now also uses retained native controls, batched GPU brush feedback, update-phase editable source publication and the existing authoring/undo dispatch. Native 3D Paint now also consumes dedicated scene-owned paint-coordinate queries and explicit authoring surface captures, with camera-scoped drafts and GPU composition; full Paint workflow/platform parity remains unverified. The isolated Prefab viewport now also uses native top-down/isometric/3D outputs, live effects with hierarchy-aware owned drags, and actual 3D Paint authoring on its asset-owned layer. Paint now shares the normal tile picker; its settings live only in the viewport overlay. The canonical Creator Play toolbar now owns the same CPU clock/output pump as GameSession, and its live authoring viewport keeps its own native SceneView. The authored Game-tool viewport now also uses the common GameScreenController/SceneViews/Swash presentation; authoring GameInput now also shares runtime controls while retaining the native scene in supported contexts. Region geometry, ordinary scene and sprite-isometric minimaps now have owned GPU outputs and presentation-scoped navigation; palette and rig previews also have retained native sources and acknowledged palette input. Authored screen minimaps now also use a GPU-only ordered 2D overview producer with compatible source sampling and acknowledged screen-scoped navigation. Parent-region minimaps during Prefab/profile/detail editing also have independent native source production and presented-parent navigation without modifying the isolated editor map. Main native authoring static geometry/readiness/billboards now use an application-owned bounded CPU source, retained across GPU reconstruction and isolated from clipboard projections. Remaining uncommon contexts/tools retain explicit migration adapters. Application/global/document/Play ownership, main world/tool/HUD integration, remaining producers, full visual/workflow/performance acceptance and canonical retirement remain.
-- M5 ownership checkpoint (2026-11-14): CreatorContext now owns camera, configuration/table/sidebar mode, undo history, cooperative scene jobs and reference engine/assets/minimap/palette snapshots. Action/tool/dock controllers are application-owned (3ca4e97d); HUD themes and remembered geometry parameters are also per application, with final verification recorded below. Canonical scene/context injection keeps the compatibility GPU cold on startup; native 2D visibility and owned authoring speech use paint commands. Scepter worker/preview ownership is implemented with the verification below; bounded progressive bakes (including regional paint/stamps), persisted bake composition, custom cameras and 3D clipboard projections now have native ownership; above-budget bake adapters, remaining painted-input coverage, pure CPU cache audits and resource/performance acceptance remain open.
+- M5 ownership checkpoint (2026-11-14): CreatorContext now owns camera, configuration/table/sidebar mode, undo history, cooperative scene jobs and reference engine/assets/minimap/palette snapshots. Action/tool/dock controllers are application-owned (3ca4e97d); HUD themes and remembered geometry parameters are also per application, with final verification recorded below. Canonical scene/context injection keeps the compatibility GPU cold on startup; native 2D visibility and owned authoring speech use paint commands. Scepter worker/preview ownership is implemented with the verification below; bounded progressive bakes (including regional paint/stamps), persisted bake composition, custom cameras and 3D clipboard projections now have native ownership; whole-asset/generation-plan bake adapters are retired through bounded CPU/GPU paging (7a2b5844), while oversized individual tiles, over-budget paint inputs, linked prefab expansion, decode scheduling/resource audits and performance acceptance remain open.
 - M6: in progress. Independent GPU game views, common player/input/camera components, authored screen paint, private world descriptions, view-owned speech, acknowledged-frame world pointer gestures, relative first-person mouse look, default/world-intent cursors, world/UI item drag previews and acknowledged authored inventory/equipment pointer/keyboard gestures are implemented. Application-owned audio is integrated into the common player with cancellable CPU preparation jobs. The native container HUD now includes acknowledged paint/input, real server transfers, scrolling, GPU recovery and navigation lifetime. Floating inventory/equipment, action catalogue/spellbook and preferences now use typed native HUD owners, retained text/source resources and acknowledged input. Acknowledged UI-origin tooltips now use retained text and host deadlines. UI-origin Drop cursors and acknowledged drag/assignment highlighting now have GPU and authoritative transfer evidence. Native isometric source production, shared CPU source publication, game-view outputs and acknowledged input receipts now have GPU/CPU and shipped-source device-reconstruction evidence. Persistent region 3D paint now also crosses the CPU asset boundary into independent per-view GPU uploads; actual painted browser rendering/device recovery and native integration pass. Browser worker hosting, uncommon Prefab/stamp/live paint publication, remaining game-mode/HUD policy parity and performance acceptance remain. Canonical native desktop launchers now share the common application/host; see launcher verification below.
 - M7/M8/M9: Retirement and full platform acceptance remain pending. Canonical desktop clients share the common player; the Xcode client and versioned Creator host use Rust-created CAMetalLayer surfaces with retained compatibility exports. Addressed document load/save, owned CPU transfers and application lifetime checks have compiled/linked/runtime evidence. Browser player and Creator now use the shared WebGPU host, with actual source loading, Swash/fallback/IME, scene/pixel/material rendering, explicit asset bakes, OPFS save, addressed cancellation and idle device recovery evidence below. Physical native/monitor/clipboard/mobile workflows, remaining ownership/adapter retirement, resource budgets and measured release performance remain open. Compile checks and detached-layer tests do not establish complete platform parity.
 
@@ -11584,3 +11584,149 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   over-budget paint, linked prefab expansion and unavailable physical platform
   workflows remain recorded acceptance gaps. Source pool numbers cover logical
   original storage plus pending uploads, not total driver/atlas/target memory.
+
+## 2026-11-14 — Deferred source decode scheduling (active)
+
+- Previous batch checkpoint7a2b5844 contains bounded shared GPU paging and its
+  native/browser evidence. Concurrent networking concept remains untouched.
+- Presentation-source readiness now checks source scope/metadata without
+  decoding originals. Explicit CPU reference/capture lookups remain synchronous.
+  GPU lookups distinguish Ready/Pending/Missing; Pending cannot omit a tile or
+  publish a partial projection. One source-decode advance occurs per render
+  preparation before arbitrary cached lookups.
+- Added owned CPU decode tasks with at most two active worker slots across
+  controllers, one pending task per cache, a one-result channel and no blocking
+  join. Native workers own only encoded originals, output reservation and
+  cancellation metadata. Clear/replacement drops their receiver and checks
+  cancellation between channels; newer progressive insertion revokes matching
+  work. Worker inputs and maximum decoded output are charged before cloning;
+  final immutable lease retains its charge after cancellation/cache retirement.
+- Browser/single_thread mode advances one original channel per preparation
+  step and yields between channels. A single PNG/depth decode is still a
+  synchronous codec operation; frame-time and codec-scratch limits remain
+  performance/resource acceptance work. The existing32MiB cache allocation
+  domain now includes in-flight encoded clones/output reservations, not all
+  authored encoded data or driver/target/global memory.
+- Initial isolated CPU contracts PASS18; expanded cancellation/replacement/
+  cooperative-channel/corruption contracts PASS21/0.49s,
+  /private/tmp/eldiron-deferred-source-contracts.log. New tests verify lookups
+  alone cannot publish worker results, equal-coordinate replacement cannot
+  accept old work, a producer sample supersedes an in-flight decode, corrupt
+  source revocation permits a fresh replacement, and charges retire.
+- First actual GPU suite RED3pass1fail/11.48s at the two-owner oracle's fixed64
+  polling iterations, /private/tmp/eldiron-deferred-source-gpu-contracts.log.
+  Its new asynchronous CPU misses can still be legitimately pending after64
+  fast polls. Need a bounded elapsed-time readiness barrier while retaining
+  complete output/channel/ownership assertions; no GPU content mismatch seen.
+  Creator test build is still collecting in handle64297. No integrated pass
+  claimed for this active batch yet.
+- Added explicit Pending retry for temporary pressure from retiring workers or
+  external leases; oversize individual requests still fail explicitly. Added a
+  pinned-budget regression. Final Creator test build PASS40.88s. Browser-style
+  single_thread CPU contracts PASS22/0.49s; wasm Creator library PASS23.09s;
+  isolated runtime and default/reference library checks PASS (logs
+  /private/tmp/eldiron-deferred-source-final-{single-thread,wasm,runtime,reference}.log).
+- Updated the two-owner GPU oracle to a30s elapsed-time barrier with cooperative
+ 1ms observer yields. Actual GPU suite now PASS4/19.99s, /private/tmp/eldiron-
+  deferred-source-gpu-ready.log: original color/depth references,43visible tiles,
+  bounded two-owner pool, source/camera/loss/replacement and progressive request
+  scopes all pass. No production deadline or content/ownership assertion relaxed.
+- First assembled Creator run RED35.46s at persisted-bake phase0's unconditional
+  per-frame presentation-receipt assertion. A cold source is now intentionally
+  pending and has no receipt until ready. Need assert pending frames have no CPU
+  storage/readback and require a native receipt for the completed image. The
+  existing image/reference/picking/history checks remain required. Log
+  /private/tmp/eldiron-deferred-source-native-assembly.log. Browser release is
+  still collecting; no current integrated/browser pass claimed yet.
+- Second assembled run progressed through persisted references and real painted
+  generation/history, then RED67.53s at the same unconditional receipt assumption
+  in the paint-only cancellation loop. That loop now requires native-or-pending
+  plus no CPU viewport storage and retains its no ordinary readback/source-job
+  retirement assertions. Completed-image receipt checks stay strict.
+- Current browser release PASS1m21s,99,232,802bytes (before the final budget-reset
+  correction below). Actual64visible source test PASS, /private/tmp/eldiron-
+  deferred-source-browser-64.log: cold sources complete through cooperative
+  channels, all64tiles visible,8MiB pooled source storage, no root/ordinary
+  readbacks/Canvas2D/errors. Paused while decoding a new64tile projection (no
+  submission/upload yet), destroyed device, resumed; generation3publishes the
+  same document/all64tiles. CPU work contains no GPU handles and safely crosses
+  device reconstruction. Final budget-reset variant still needs verification.
+- Review found an existing cache-domain bypass: replacing an entire controller
+  with Default hid old lease/worker charges from the new controller. Added an
+  explicit reset that retains both cache allocation domains while retiring all
+  source/request/publication state. Creator document/scope/device/job/clear
+  callers now use it. Extended the cancellation oracle to assert the old external
+  lease remains visible in controller usage after reset, then retires to zero.
+  This preserves limits across controller reset, not a global budget spanning
+  unrelated independent application owners. Final native build handle81675 and
+  feature checks23257are active; no final budget-reset pass claimed yet.
+- Final reset-domain build PASS44.41s; final single_thread contracts PASS22/
+  0.50s and native-worker contracts PASS22/0.51s. Final wasm Creator library
+  PASS27.55s, isolated runtime PASS10.88s, default/reference Creator library
+  PASS23.96s; staticlib/no-Winit library PASS23.64s. Current actual GPU suite
+  PASS4/18.74s (/private/tmp/eldiron-deferred-owner-gpu.log). Final compiler/run
+  logs are /private/tmp/eldiron-deferred-owner-* and the final feature logs
+  /private/tmp/eldiron-deferred-source-final-{single-thread,wasm,runtime,reference}.log.
+- Final current-production browser release/package PASS1m23s,99,109,355bytes.
+  Actual browser64visible/cooperative decode/pending loss/reconstruction PASS,
+  /private/tmp/eldiron-deferred-owner-browser-64.log. Generation2->3 retains
+  document scope and publishes all64tiles with8MiB pooled source storage and
+  zero root/ordinary/Canvas2D/color-copy/error counters. Verified pending state
+  before loss had source readiness revoked and no GPU submission/upload yet.
+  Visually inspected completed tiled painted originals and surrounding UI.
+- Final screenshot is byte-identical to retained concepts/native-wgpu-evidence/browser-gpu-source-pages-150.png (196781bytes); no duplicate image added.
+  SHA2560ab98e768cfb7cd2ba48c85f2a62cdb65f93de6a26e146c3da1f27045048dea8.
+- Current native assembly has passed persisted/painted/history/cancellation,
+  all17custom references and fractional-DPI source checks so far.64tile native
+  cold publication now takes77pending root frames (versus13before deferred CPU
+  misses), source-pool bytes58,720,256and no ordinary readback/CPU viewport.
+  This is a functional gate, not a latency improvement claim: browser worker
+  hosting/source prefetch, release input-to-ready latency and per-codec work
+  budgets remain necessary. Final assembly result is still collecting in66250.
+- Physical blocker rechecked: ioreg reports IOConsoleLocked=Yes on this Mac.
+  No unlock/permission changes attempted; physical window/monitor workflows
+  remain unavailable and are not counted as passed.
+- Final assembled native Creator PASS1/270.85s, /private/tmp/eldiron-deferred-
+  owner-native-assembly.log: all5persisted/all17custom references exactRGB0;
+  painted generation/content/history/cancellation, actual64visible cold source,
+  Play/documents/clipboard/recovery and fractionalDPI/source checks pass (<=1).
+  Pending source frames have no CPU viewport allocation/readback and completed
+  frames retain strict native receipt/picking/source checks. Broad suite is now
+  green; no further unchanged matrix rerun planned for this batch.
+- One focused real54tile/above-plan-cutoff generation run now collecting in
+  /private/tmp/eldiron-deferred-owner-large-generation.log. This specifically
+  exercises progressive tile eviction/deferred decode while the producer is
+  still publishing, then full completion/history/save. Prior real large output
+  before this scheduling change is not substituted for this current run.
+- Parity-scope correction from original baseline source: f8d880110366e8638305493ac7c4bc6c58b9313d
+  creator/src/block_props.rs:1269explicitly deferred free-standing linked-Prefab
+  stamp expansion and cleared those stamps in the reference path too. This is
+  a pre-existing feature gap, not evidence of a native regression or a new paint
+  compatibility requirement. Keep it visible, but do not let it silently expand
+  rewrite scope into implementing previously unsupported behavior. Current
+  supported regional stamps and linked UV surface paint remain parity gates;
+  the latter has the hidden-world production/reference evidence above. Full
+  current-paint parity and resource limits still require verification.
+- Focused final real large generation PASS1/122.85s, /private/tmp/eldiron-
+  deferred-owner-large-generation.log: plan84,934,656bytes,54tiles,652root
+  frames,324labeled asset captures/184,025,088bytes. Progressive feedback, full
+  publication, history/undo/redo/fresh save pass. No ordinary readback or CPU
+  viewport allocation; source pool remains within64MiB. Do not interpret this
+  debug elapsed time versus prior runs as an equal-condition release benchmark.
+- Independent fresh ZIP inspection (/private/tmp/eldiron-deferred-owner-large-
+  generated-bake.eldiron) PASS:V5/2samples/54tiles, every tile has all5channels,
+  every PNG is256x256, every depth plane has256x256f32values,1,418,267finite
+  depths,3,160,318archive bytes, SHA256
+  3c27db4cbc57b6191aad69a65aafa35de0feac5d5779dd4f7b0735cd2f035e89.
+- All compiler/test/browser handles in this scheduling batch are terminal;
+  git diff --check clean. Unrelated networking work is preserved and excluded.
+  Ready for authorized local checkpoint; full M0–M9 Goal remains ACTIVE.
+- Next coherent performance work: tile content epochs and incremental private
+  GPU targets for progressive updates. The large debug run still uploads about
+  1.98GB while producing184MB of explicit asset captures because whole visible
+  pages are rebuilt after sample publications. Preserve exact camera/request/
+  source publication and depth/alpha clearing when retaining unchanged tiles.
+  Browser worker hosting and cold-cache source latency remain open alongside
+  all global source/encoded/codec/atlas/target budgets, owner/core extraction,
+  canonical Creator retirement, equal-hardware release measurements and the
+  physical target workflows. No M0–M9 milestone signoff is inferred here.

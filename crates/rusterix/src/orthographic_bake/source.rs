@@ -53,6 +53,19 @@ impl<'a> OrthographicBakeSource<'a> {
     pub fn try_tile(&self, x: i32, y: i32) -> Result<Option<OrthographicBakeTileLease>, String> {
         self.tiles.get(self.asset, (x, y))
     }
+    /// Advance at most one cooperative channel, then poll lookups freely.
+    /// Call exactly once per preparation step, before resolving visible tiles.
+    pub fn advance_decode(&self) -> Result<(), String> {
+        self.tiles.advance()
+    }
+    pub fn may_have_tiles(&self) -> bool {
+        self.tiles.may_have_tiles()
+    }
+    /// Schedule/poll bounded original-channel work without blocking for a CPU
+    /// decode. Native uses bounded workers; browsers advance one channel/step.
+    pub fn poll_tile(&self, x: i32, y: i32) -> Result<OrthographicBakeTilePoll, String> {
+        self.tiles.poll(self.asset, (x, y))
+    }
     pub fn positions(&self) -> impl Iterator<Item = (i32, i32)> {
         self.tiles.all_positions().into_iter()
     }
@@ -72,7 +85,12 @@ impl OrthographicBakeController {
         region_id: Uuid,
         camera: &Camera3D,
     ) -> Option<OrthographicBakeSource<'_>> {
-        if !self.can_compose(region_id, camera) {
+        let active = if self.is_rendering() {
+            self.requested_region
+        } else {
+            self.committed_region
+        };
+        if !self.visible || active != Some(region_id) {
             return None;
         }
         let (asset, tiles) = if self.is_rendering() {
@@ -80,6 +98,9 @@ impl OrthographicBakeController {
         } else {
             (self.committed.as_ref()?, &self.committed_tiles)
         };
+        if !asset_matches_camera(asset, camera) || !tiles.may_have_tiles() {
+            return None;
+        }
         Some(OrthographicBakeSource {
             revision: self.source_revision,
             request: self.active_request(),
@@ -121,6 +142,166 @@ mod tests {
         }
     }
 
+    fn wait_deferred(
+        source: &OrthographicBakeSource<'_>,
+        at: (i32, i32),
+    ) -> OrthographicBakeTileLease {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        loop {
+            source.advance_decode().unwrap();
+            match source.poll_tile(at.0, at.1).unwrap() {
+                OrthographicBakeTilePoll::Ready(lease) => return lease,
+                OrthographicBakeTilePoll::Missing => panic!("original tile unexpectedly missing"),
+                OrthographicBakeTilePoll::Pending => (),
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "deferred tile stalled"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+    }
+
+    #[test]
+    fn deferred_decode_publishes_only_when_advanced_and_revokes_replaced_work() {
+        let map = Uuid::new_v4();
+        let camera = Camera3D::iso();
+        let mut asset = fixture(&camera);
+        let mut owner = OrthographicBakeController::default();
+        owner.sync_persisted_asset(map, Some(&asset));
+        {
+            let source = owner.presentation_source(map, &camera).unwrap();
+            assert_eq!(source.decoded_resident_bytes(), 0);
+            assert!(matches!(
+                source.poll_tile(0, 0).unwrap(),
+                OrthographicBakeTilePoll::Pending
+            ));
+            for _ in 0..8 {
+                assert!(
+                    matches!(
+                        source.poll_tile(0, 0).unwrap(),
+                        OrthographicBakeTilePoll::Pending
+                    ),
+                    "lookup alone cannot advance or publish work"
+                );
+            }
+        }
+        // Same coordinate and encoded length, new installation. An old queued
+        // result has no receiver/publication path into the replacement cache.
+        asset.tiles[0].depth_base64 = Some(BASE64.encode(encode_depth(&[7.])));
+        owner.sync_persisted_asset(map, Some(&asset));
+        let green = wait_deferred(&owner.presentation_source(map, &camera).unwrap(), (0, 0));
+        assert_eq!(green.depth, [7.]);
+        assert_eq!(green.color, [80, 120, 160, 255]);
+        // A progressive producer may supersede an encoded decode directly.
+        owner.committed_tiles.reset(Some(&asset));
+        let source = owner.presentation_source(map, &camera).unwrap();
+        assert!(matches!(
+            source.poll_tile(0, 0).unwrap(),
+            OrthographicBakeTilePoll::Pending
+        ));
+        owner
+            .committed_tiles
+            .insert(
+                (0, 0),
+                Some(0),
+                DecodedBakeTile {
+                    color: vec![9, 8, 7, 255],
+                    depth: vec![11.],
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        let source = owner.presentation_source(map, &camera).unwrap();
+        for _ in 0..8 {
+            source.advance_decode().unwrap();
+            let OrthographicBakeTilePoll::Ready(tile) = source.poll_tile(0, 0).unwrap() else {
+                panic!("fresh producer source lost");
+            };
+            assert_eq!(tile.depth, [11.]);
+            assert_eq!(tile.color, [9, 8, 7, 255]);
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        assert_eq!(green.depth, [7.], "external originals remain immutable");
+        owner.clear();
+        assert!(
+            owner.decoded_resident_bytes() >= 8,
+            "controller reset must retain the external lease allocation domain"
+        );
+        drop(green);
+        let end = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while owner.decoded_resident_bytes() != 0 {
+            assert!(
+                std::time::Instant::now() < end,
+                "cancelled decode charge leaked"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+    }
+
+    #[test]
+    fn deferred_budget_pressure_retries_while_an_external_original_is_pinned() {
+        let map = Uuid::new_v4();
+        let camera = Camera3D::iso();
+        let asset = fixture(&camera);
+        let mut owner = OrthographicBakeController::default();
+        owner.sync_persisted_asset(map, Some(&asset));
+        owner
+            .committed_tiles
+            .insert(
+                (1, 0),
+                None,
+                DecodedBakeTile {
+                    color: vec![1; cache::DECODE_BUDGET as usize],
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        let source = owner.presentation_source(map, &camera).unwrap();
+        let pinned = source.try_tile(1, 0).unwrap().unwrap();
+        assert!(matches!(
+            source.poll_tile(0, 0).unwrap(),
+            OrthographicBakeTilePoll::Pending
+        ));
+        assert_eq!(source.decoded_resident_bytes(), cache::DECODE_BUDGET);
+        drop(pinned);
+        assert_eq!(wait_deferred(&source, (0, 0)).depth, [2.]);
+        assert!(source.decoded_resident_bytes() <= cache::DECODE_BUDGET);
+    }
+
+    #[test]
+    fn corrupt_deferred_originals_revoke_presentation_without_poisoning_replacement() {
+        let map = Uuid::new_v4();
+        let camera = Camera3D::iso();
+        let mut asset = fixture(&camera);
+        let valid = asset.tiles[0].color_png_base64.clone();
+        asset.tiles[0].color_png_base64 = "invalid".into();
+        let mut owner = OrthographicBakeController::default();
+        owner.sync_persisted_asset(map, Some(&asset));
+        let end = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        {
+            let source = owner.presentation_source(map, &camera).unwrap();
+            loop {
+                source.advance_decode().unwrap();
+                match source.poll_tile(0, 0).unwrap() {
+                    OrthographicBakeTilePoll::Missing => break,
+                    OrthographicBakeTilePoll::Ready(_) => panic!("corrupt source published"),
+                    OrthographicBakeTilePoll::Pending => (),
+                }
+                assert!(std::time::Instant::now() < end);
+                std::thread::sleep(std::time::Duration::from_millis(1));
+            }
+        }
+        assert!(owner.presentation_source(map, &camera).is_none());
+        assert_eq!(owner.decoded_resident_bytes(), 0);
+        asset.tiles[0].color_png_base64 = valid;
+        owner.sync_persisted_asset(map, Some(&asset));
+        assert_eq!(
+            wait_deferred(&owner.presentation_source(map, &camera).unwrap(), (0, 0)).depth,
+            [2.]
+        );
+    }
+
     #[test]
     fn encoded_sources_decode_lazily_and_page_without_mutating_leased_channels() {
         let region = Uuid::new_v4();
@@ -154,8 +335,8 @@ mod tests {
         assert_eq!(source.positions().count(), 32);
         assert_eq!(
             source.decoded_resident_bytes(),
-            pixels as u64 * 20,
-            "first readiness probes one usable tile; metadata enumeration adds no decoded pixels"
+            0,
+            "presentation readiness and metadata enumeration do not decode originals"
         );
         let first = source.try_tile(0, 0).unwrap().unwrap();
         for x in 1..32 {

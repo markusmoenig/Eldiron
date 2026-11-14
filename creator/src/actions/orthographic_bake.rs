@@ -229,7 +229,7 @@ impl Action for ClearOrthographicBake {
         let before = map.clone();
         // This action edits the map synchronously. No delayed persisted clear
         // may erase a subsequent undo or a different document's bake.
-        *server_ctx.bake.write() = rusterix::OrthographicBakeController::default();
+        server_ctx.bake.write().reset();
         map.orthographic_bake = None;
         map.changed = map.changed.wrapping_add(1);
         server_ctx.background_progress = None;
