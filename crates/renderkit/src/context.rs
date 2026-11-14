@@ -38,6 +38,7 @@ pub struct GpuContext {
     capture_queue: Arc<crate::capture_queue::CaptureQueue>,
     source_pool: Arc<crate::source_pool::SourcePool>,
     target_pool: Arc<crate::target_pool::TargetPool>,
+    buffer_cache: Arc<crate::buffer_cache::BufferCache>,
     #[cfg(target_arch = "wasm32")]
     validation_error: Arc<std::sync::Mutex<Option<String>>>,
 }
@@ -101,6 +102,7 @@ impl GpuContext {
             capture_queue: Arc::new(crate::capture_queue::CaptureQueue::default()),
             source_pool: Arc::new(crate::source_pool::SourcePool::default()),
             target_pool: Arc::new(crate::target_pool::TargetPool::default()),
+            buffer_cache: Arc::new(crate::buffer_cache::BufferCache::default()),
             #[cfg(target_arch = "wasm32")]
             validation_error,
         }))
@@ -150,6 +152,18 @@ impl GpuContext {
     /// submitted on this queue, and clear/overwrite before publishing the image.
     pub fn acquire_target(&self, descriptor: crate::TargetDescriptor) -> Result<crate::TargetLease> {
         self.target_pool.acquire(self, descriptor)
+    }
+    /// Shared immutable paint inputs, with separate geometry/uniform upload counters.
+    pub fn immutable_buffer_cache_usage(&self) -> crate::BufferCacheUsage {
+        self.buffer_cache.usage()
+    }
+    pub fn set_immutable_buffer_cache_limits(&self, bytes: u64, entries: usize) {
+        self.buffer_cache.set_limits(bytes, entries);
+    }
+    /// Exact immutable contents can be shared before prior draws submit. The
+    /// cache bounds retained GPU plus CPU content bytes, not total driver memory.
+    pub fn upload_immutable_buffer(&self, bytes: &[u8], usage: wgpu::BufferUsages) -> Result<Arc<crate::GpuBuffer>> {
+        self.buffer_cache.upload(self, bytes, usage)
     }
     pub fn source_pool_usage(&self) -> crate::SourcePoolUsage {
         self.source_pool.usage()

@@ -12556,3 +12556,65 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   Client/controller extraction, reference adapter retirement, active/in-flight/
   driver resource budgets, codec workers and final performance/platform gates
   remain open. Full M0–M9 Goal active; concurrent networking concept untouched.
+
+
+## 2026-11-14 — Shared immutable UI draw-data cache (active)
+
+- Graphical bridge checkpoint fec0b063 verified. PaintRenderer still allocated
+  vertex/index/uniform/distance buffers per draw, including unchanged warm UI.
+  Implementing one context-owned immutable content cache with exact-byte
+  collision checks,128MiB retained GPU+CPU comparison bytes/16,384entries.
+- Identical inputs share even while earlier draws are unsubmitted. No entry is
+  overwritten/destroyed, so nested parent/opacity passes and eviction cannot
+  corrupt prior draw inputs. Read-only storage contract; writable/copy-destination
+  usages rejected. Empty buffers remain valid. Device/size failures propagate
+  through the paint Result contract; upload counters are separate from existing
+  image transfer counters. Active/queued/driver memory is not hard-bounded by
+  cache retention. Focused GPU/order/eviction/warm allocation evidence pending.
+
+- Focused native GPU PASS: immutable buffer contract1/0.19s; paint cases12/
+  0.78s; nested opacity/queued pressure1/0.38s; UI cases16/0.63s.64warm
+  nested frames retained8buffers/688GPU+688CPU bytes with allocations8and
+  uploaded_bytes688unchanged, hits13->1357. Targets stayed5allocations and
+ 61,440cached estimate bytes. Small1KiB/four-buffer pressure preserved all
+  retained output colors across six queued sizes; explicit captures only after
+  drawing. Usage distinctions, empty input, LRU hits, eviction before submission
+  and replacement-device separation pass. Logs /private/tmp/eldiron-draw-buffer-
+  cache-{contract,paint,ui}.log.
+- Cache uses logarithmic LRU updates rather than scanning16Kentries on every
+  changed draw; metadata count is bounded, and retained byte counters cover GPU
+  buffer sizes plus exact boxed comparison bytes, excluding map/node overhead.
+  Application checks and actual browser allocation/recovery proof next. No
+  unchanged CPU/project/session suites or full Creator assembly repeat planned
+  absent a newly exposed concern.
+
+- Creator all-targets PASS26.82s, clients PASS13.34s, wasm Creator PASS22.12s,
+  no-Winit staticlib PASS21.56s. Current browser release/package PASS1m20s/
+  99,294,343bytes. /private/tmp/eldiron-draw-buffer-cache-{creator,clients,wasm,
+  staticlib,browser-package}.log. All compiler/browser handles terminal.
+- Actual current WebGPU browser PASS: warm16->48presents kept1,189immutable
+  buffers/353,848allocated bytes; resize2424x1287warm62->94kept1,505/448,888;
+  return2400x1287kept1,505/448,888. Replacement generation2->3rebuilt593
+  buffers; recovered109->141kept2,101/626,412constant. Target warm/reuse also
+  constant, same document/clean state; rootCPU/Canvas2D/ordinary color readbacks/
+  GPU/browser errors0. Durable summarized actual API counters at
+  concepts/native-wgpu-evidence/browser-immutable-buffer-reuse.json; full log
+  /private/tmp/eldiron-draw-buffer-cache-browser-proof.log. Current recovered
+  screenshot visually inspected: scene, controls/text/palette/guides intact;
+  no duplicate screenshot artifact added for unchanged visual composition.
+- Immutable draw-data reuse subtask verified. This counts buffer creation and
+  mapped initialization payload, not bind-group/driver allocations or GPU time.
+ 128MiBbounds retained GPU sizes plus CPU comparison bytes; entry count also
+  bounds metadata, whose allocator overhead is excluded from byte counters.
+  Active/in-flight/global GPU/codec scratch and performance/platform gates stay
+  open. No schema/manifest/package-version changes; concurrent concept untouched.
+- Next independent implementation: browser codec worker hosting. Current native
+  source-channel decodes use2bounded workers; wasm/single-thread advances one
+  channel per poll on the UI thread. Preserve that CPU-only codec and charged
+  ownership/cancellation model while adding a separately packaged wasm worker,
+  explicit ready/request/result protocol, bounded2jobs and stale-result rejection.
+  Cancelled jobs must retain charges/slots until actual result/error retirement,
+  rather than releasing them when merely requesting Worker.terminate. Window-free
+  worker bootstrap and actual browser off-thread execution must be verified.
+  Oversized individual tile subdivision and above64MiBpaint adapters also remain
+  open; CPU decode currently rejects a tile plus owned inputs above32MiB.

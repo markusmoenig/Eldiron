@@ -23,8 +23,8 @@ struct Params {
 }
 #[derive(Clone)]
 struct Geometry {
-    vertices: wgpu::Buffer,
-    indices: wgpu::Buffer,
+    vertices: Arc<renderkit::GpuBuffer>,
+    indices: Arc<renderkit::GpuBuffer>,
     count: u32,
     colored: bool,
 }
@@ -66,6 +66,8 @@ struct Draw {
     bind: wgpu::BindGroup,
     // Preserve target leases while a parent pass still holds unsubmitted draws.
     _image: Arc<GpuImage>,
+    _params: Arc<renderkit::GpuBuffer>,
+    _field: Option<Arc<renderkit::GpuBuffer>>,
     stencil: u32,
     phase: u8,
     instances: u32,
@@ -280,9 +282,9 @@ impl PaintRenderer {
         self.stats
     }
 
-    fn glyph_draw(&self, batch: GlyphBatch, size: (u32, u32), level: u32) -> Draw {
+    fn glyph_draw(&self, batch: GlyphBatch, size: (u32, u32), level: u32) -> Result<Draw> {
         self.draw_with_effects(
-            self.geometry(&batch.vertices, &batch.indices),
+            self.geometry(&batch.vertices, &batch.indices)?,
             &Brush::Solid(batch.color),
             Some((&batch.image, Sampling::Linear)),
             size,
@@ -374,29 +376,13 @@ impl PaintRenderer {
         self.pipelines.insert(format, p.clone());
         p
     }
-    fn geometry(&self, vertices: &[Vertex], indices: &[u32]) -> Geometry {
-        let vertices = self
-            .context
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("ui-vertices"),
-                contents: bytemuck::cast_slice(vertices),
-                usage: wgpu::BufferUsages::VERTEX,
-            });
-        let buffer = self
-            .context
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("ui-indices"),
-                contents: bytemuck::cast_slice(indices),
-                usage: wgpu::BufferUsages::INDEX,
-            });
-        Geometry {
-            vertices,
-            indices: buffer,
+    fn geometry(&self, vertices: &[Vertex], indices: &[u32]) -> Result<Geometry> {
+        Ok(Geometry {
+            vertices: self.context.upload_immutable_buffer(bytemuck::cast_slice(vertices), wgpu::BufferUsages::VERTEX)?,
+            indices: self.context.upload_immutable_buffer(bytemuck::cast_slice(indices), wgpu::BufferUsages::INDEX)?,
             count: indices.len() as u32,
             colored: false,
-        }
+        })
     }
     fn draw(
         &self,
@@ -406,7 +392,7 @@ impl PaintRenderer {
         size: (u32, u32),
         stencil: u32,
         phase: u8,
-    ) -> Draw {
+    ) -> Result<Draw> {
         self.draw_with_effects(geometry, brush, image, size, stencil, phase, None, None)
     }
     fn draw_with_effects(
@@ -419,7 +405,7 @@ impl PaintRenderer {
         phase: u8,
         field: Option<Field<'_>>,
         effect: Option<ImageEffect>,
-    ) -> Draw {
+    ) -> Result<Draw> {
         let (mode, color0, color1, gradient) = match brush {
             Brush::Solid(c) => (0, self.color(*c), [0.; 4], [0.; 4]),
             Brush::LinearGradient {
@@ -642,14 +628,7 @@ impl PaintRenderer {
                 (a / determinant) as f32,
             ];
         }
-        let uniform = self
-            .context
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("ui-paint-params"),
-                contents: bytemuck::bytes_of(&params),
-                usage: wgpu::BufferUsages::UNIFORM,
-            });
+        let uniform = self.context.upload_immutable_buffer(bytemuck::bytes_of(&params), wgpu::BufferUsages::UNIFORM)?;
         let texture = image.map_or(&self.white, |(image, _)| image);
         let sampler = &self.samplers[&image.map(|(_, s)| s).unwrap_or(Sampling::Linear)];
         let mut field_data = field.map(|field| match field {
@@ -667,14 +646,8 @@ impl PaintRenderer {
             }]);
         }
         let field_buffer = field_data.as_ref().filter(|v| !v.is_empty()).map(|data| {
-            self.context
-                .device
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("ui-distance-primitives"),
-                    contents: bytemuck::cast_slice(data),
-                    usage: wgpu::BufferUsages::STORAGE,
-                })
-        });
+            self.context.upload_immutable_buffer(bytemuck::cast_slice(data), wgpu::BufferUsages::STORAGE)
+        }).transpose()?;
         let bind = self
             .context
             .device
@@ -684,7 +657,7 @@ impl PaintRenderer {
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
-                        resource: uniform.as_entire_binding(),
+                        resource: uniform.buffer().as_entire_binding(),
                     },
                     wgpu::BindGroupEntry {
                         binding: 1,
@@ -697,23 +670,25 @@ impl PaintRenderer {
                     wgpu::BindGroupEntry {
                         binding: 3,
                         resource: field_buffer
-                            .as_ref()
+                            .as_ref().map(|buffer| buffer.buffer())
                             .unwrap_or(&self.empty_field)
                             .as_entire_binding(),
                     },
                 ],
             });
-        Draw {
+        Ok(Draw {
             geometry,
             bind,
             _image: texture.clone(),
+            _params: uniform,
+            _field: field_buffer,
             stencil,
             phase,
             instances: match effect {
                 Some(ImageEffect::SampledLine { samples, .. }) => samples,
                 _ => 1,
             },
-        }
+        })
     }
     /// Execute paint in order. Explicit capture is available separately through renderkit.
     pub fn render(
@@ -842,7 +817,7 @@ impl PaintRenderer {
             1.,
         );
         let draw = self.draw_with_effects(
-            self.geometry(&vertices, &indices),
+            self.geometry(&vertices, &indices)?,
             &Brush::Solid([1.; 4]),
             Some((&image, Sampling::Nearest)),
             size,
@@ -850,7 +825,7 @@ impl PaintRenderer {
             0,
             None,
             Some(ImageEffect::Present(format.is_srgb())),
-        );
+        )?;
         let mut encoder =
             self.context
                 .device
@@ -876,8 +851,8 @@ impl PaintRenderer {
             });
             pass.set_pipeline(&self.display_pipelines[&format]);
             pass.set_bind_group(0, &draw.bind, &[]);
-            pass.set_vertex_buffer(0, draw.geometry.vertices.slice(..));
-            pass.set_index_buffer(draw.geometry.indices.slice(..), wgpu::IndexFormat::Uint32);
+            pass.set_vertex_buffer(0, draw.geometry.vertices.buffer().slice(..));
+            pass.set_index_buffer(draw.geometry.indices.buffer().slice(..), wgpu::IndexFormat::Uint32);
             pass.draw_indexed(0..draw.geometry.count, 0, 0..draw.instances);
         }
         self.context.queue.submit([encoder.finish()]);
@@ -911,7 +886,7 @@ impl PaintRenderer {
                         for vertex in &mut v {
                             vertex.color = [rect.x, rect.y, rect.width, rect.height];
                         }
-                        let mut geometry = self.geometry(&v, &ix);
+                        let mut geometry = self.geometry(&v, &ix)?;
                         geometry.colored = false;
                         draws.push(self.draw_with_effects(
                             geometry,
@@ -922,14 +897,14 @@ impl PaintRenderer {
                             0,
                             Some(Field::HueLightness(*rect, basis)),
                             None,
-                        ));
+                        )?);
                     }
                 }
                 PaintOp::DistanceField { rect, field } => {
                     if rect.width > 0. && rect.height > 0. {
                         let (v, ix) = mesh::quad(*rect, Rect::default(), transform, density);
                         draws.push(self.draw_with_effects(
-                            self.geometry(&v, &ix),
+                            self.geometry(&v, &ix)?,
                             &Brush::Solid(field.background),
                             None,
                             size,
@@ -937,7 +912,7 @@ impl PaintRenderer {
                             0,
                             Some(Field::Distance(field, [rect.x, rect.y])),
                             None,
-                        ));
+                        )?);
                     }
                 }
                 PaintOp::PixelRadialLayer { rect, layer } => {
@@ -953,7 +928,7 @@ impl PaintRenderer {
                             vertex.color = [rect.x, rect.y, rect.width, rect.height];
                         }
                         draws.push(self.draw_with_effects(
-                            self.geometry(&vertices, &indices),
+                            self.geometry(&vertices, &indices)?,
                             &Brush::Solid([1.; 4]),
                             None,
                             size,
@@ -961,7 +936,7 @@ impl PaintRenderer {
                             0,
                             Some(Field::Radial(layer, *rect, basis)),
                             None,
-                        ));
+                        )?);
                     }
                 }
                 PaintOp::ImageOutline {
@@ -991,7 +966,7 @@ impl PaintRenderer {
                         );
                         let (v, ix) = mesh::quad(expanded, expanded_uv, transform, density);
                         draws.push(self.draw_with_effects(
-                            self.geometry(&v, &ix),
+                            self.geometry(&v, &ix)?,
                             &Brush::Solid(*color),
                             Some((&image, *sampling)),
                             size,
@@ -1003,7 +978,7 @@ impl PaintRenderer {
                                 step,
                                 width: *width,
                             }),
-                        ));
+                        )?);
                     }
                 }
                 PaintOp::ThresholdImage {
@@ -1021,7 +996,7 @@ impl PaintRenderer {
                     if rect.width > 0. && rect.height > 0. {
                         let (vertices, indices) = mesh::quad(*rect, *uv, transform, density);
                         draws.push(self.draw_with_effects(
-                            self.geometry(&vertices, &indices),
+                            self.geometry(&vertices, &indices)?,
                             &Brush::Solid([1.; 4]),
                             Some((&image, *sampling)),
                             size,
@@ -1033,7 +1008,7 @@ impl PaintRenderer {
                                 light: *light,
                                 threshold: *threshold,
                             }),
-                        ));
+                        )?);
                     }
                 }
                 PaintOp::FilteredImage {
@@ -1050,7 +1025,7 @@ impl PaintRenderer {
                     if rect.width > 0. && rect.height > 0. {
                         let (vertices, indices) = mesh::quad(*rect, *uv, transform, density);
                         draws.push(self.draw_with_effects(
-                            self.geometry(&vertices, &indices),
+                            self.geometry(&vertices, &indices)?,
                             &Brush::Solid(*tint),
                             Some((&image, *sampling)),
                             size,
@@ -1058,7 +1033,7 @@ impl PaintRenderer {
                             0,
                             None,
                             Some(ImageEffect::Filter(*filter)),
-                        ));
+                        )?);
                     }
                 }
                 PaintOp::ImageMesh {
@@ -1074,19 +1049,19 @@ impl PaintRenderer {
                         })?;
                         let vertices = mesh::textured(vertices, transform, density);
                         draws.push(self.draw(
-                            self.geometry(&vertices, indices),
+                            self.geometry(&vertices, indices)?,
                             &Brush::Solid(*tint),
                             Some((&image, *sampling)),
                             size,
                             level,
                             0,
-                        ));
+                        )?);
                     }
                 }
                 PaintOp::Mesh { vertices, indices } => {
                     if !indices.is_empty() {
                         let vertices = mesh::colored(vertices, transform, density);
-                        let mut geometry = self.geometry(&vertices, indices);
+                        let mut geometry = self.geometry(&vertices, indices)?;
                         geometry.colored = true;
                         draws.push(self.draw(
                             geometry,
@@ -1095,7 +1070,7 @@ impl PaintRenderer {
                             size,
                             level,
                             0,
-                        ));
+                        )?);
                     }
                 }
                 PaintOp::Rect {
@@ -1111,13 +1086,13 @@ impl PaintRenderer {
                             transform,
                             density,
                         )?;
-                        draws.push(self.draw(self.geometry(&v, &ix), brush, None, size, level, 0));
+                        draws.push(self.draw(self.geometry(&v, &ix)?, brush, None, size, level, 0)?);
                     }
                 }
                 PaintOp::Receipt(_) | PaintOp::DisplayCompositing(_) => {}
                 PaintOp::Fill { path, rule, brush } => {
                     let (v, ix) = mesh::tessellate(path, *rule, None, transform, density)?;
-                    draws.push(self.draw(self.geometry(&v, &ix), brush, None, size, level, 0));
+                    draws.push(self.draw(self.geometry(&v, &ix)?, brush, None, size, level, 0)?);
                 }
                 PaintOp::Stroke { path, stroke } => {
                     let (v, ix) = mesh::tessellate(
@@ -1128,13 +1103,13 @@ impl PaintRenderer {
                         density,
                     )?;
                     draws.push(self.draw(
-                        self.geometry(&v, &ix),
+                        self.geometry(&v, &ix)?,
                         &stroke.brush,
                         None,
                         size,
                         level,
                         0,
-                    ));
+                    )?);
                 }
                 PaintOp::Image {
                     image,
@@ -1148,13 +1123,13 @@ impl PaintRenderer {
                     })?;
                     let (v, ix) = mesh::quad(*rect, *uv, transform, density);
                     draws.push(self.draw(
-                        self.geometry(&v, &ix),
+                        self.geometry(&v, &ix)?,
                         &Brush::Solid(*tint),
                         Some((&image, *sampling)),
                         size,
                         level,
                         0,
-                    ));
+                    )?);
                 }
                 PaintOp::PixelTriangle { points, color } => {
                     let physical = points.map(|p| transform.point(p).map(|v| v * density));
@@ -1163,7 +1138,7 @@ impl PaintRenderer {
                     }
                     if let Some((vertices, indices)) = mesh::pixel_triangle(physical, size) {
                         draws.push(self.draw_with_effects(
-                            self.geometry(&vertices, &indices),
+                            self.geometry(&vertices, &indices)?,
                             &Brush::Solid(*color),
                             None,
                             size,
@@ -1171,7 +1146,7 @@ impl PaintRenderer {
                             0,
                             None,
                             Some(ImageEffect::PixelTriangle(physical)),
-                        ));
+                        )?);
                     }
                 }
                 PaintOp::PixelLine { from, to, color } => {
@@ -1181,7 +1156,7 @@ impl PaintRenderer {
                     let b = physical(*to);
                     if let Some((vertices, indices)) = mesh::pixel_line(a, b, size) {
                         draws.push(self.draw_with_effects(
-                            self.geometry(&vertices, &indices),
+                            self.geometry(&vertices, &indices)?,
                             &Brush::Solid(*color),
                             None,
                             size,
@@ -1189,7 +1164,7 @@ impl PaintRenderer {
                             0,
                             None,
                             Some(ImageEffect::PixelLine([a[0], a[1], b[0], b[1]])),
-                        ));
+                        )?);
                     }
                 }
                 PaintOp::LogicalPixelLine { from, to, color } => {
@@ -1213,7 +1188,7 @@ impl PaintRenderer {
                             v.color = [rect.x, rect.y, rect.width, rect.height];
                         }
                         draws.push(self.draw_with_effects(
-                            self.geometry(&vertices, &indices),
+                            self.geometry(&vertices, &indices)?,
                             &Brush::Solid(*color),
                             None,
                             size,
@@ -1224,7 +1199,7 @@ impl PaintRenderer {
                                 endpoints: [a[0], a[1], b[0], b[1]],
                                 basis,
                             }),
-                        ));
+                        )?);
                     }
                 }
                 PaintOp::SampledLine { from, to, color } => {
@@ -1247,7 +1222,7 @@ impl PaintRenderer {
                         );
                         let [a, b, c, d, _, _] = transform.0;
                         draws.push(self.draw_with_effects(
-                            self.geometry(&vertices, &indices),
+                            self.geometry(&vertices, &indices)?,
                             &Brush::Solid(*color),
                             None,
                             size,
@@ -1259,7 +1234,7 @@ impl PaintRenderer {
                                 basis: [a * density, b * density, c * density, d * density],
                                 samples: steps + 1,
                             }),
-                        ));
+                        )?);
                     }
                 }
                 PaintOp::PixelRects { rects, color } => {
@@ -1296,7 +1271,7 @@ impl PaintRenderer {
                             vertices.extend(next);
                         }
                         if !indices.is_empty() {
-                            let mut geometry = self.geometry(&vertices, &indices);
+                            let mut geometry = self.geometry(&vertices, &indices)?;
                             geometry.colored = false;
                             let [a, b, c, d, _, _] = transform.0;
                             draws.push(self.draw_with_effects(
@@ -1311,7 +1286,7 @@ impl PaintRenderer {
                                     scale: [1., 1.],
                                     basis: [a * density, b * density, c * density, d * density],
                                 }),
-                            ));
+                            )?);
                         }
                     }
                 }
@@ -1346,7 +1321,7 @@ impl PaintRenderer {
                         for vertex in &mut vertices {
                             vertex.color = [origin[0], origin[1], extent[0], extent[1]];
                         }
-                        let mut geometry = self.geometry(&vertices, &indices);
+                        let mut geometry = self.geometry(&vertices, &indices)?;
                         geometry.colored = false;
                         draws.push(self.draw_with_effects(
                             geometry,
@@ -1360,7 +1335,7 @@ impl PaintRenderer {
                                 scale: *scale,
                                 basis,
                             }),
-                        ));
+                        )?);
                     }
                 }
                 PaintOp::PixelImage { image, rect, tint } => {
@@ -1375,7 +1350,7 @@ impl PaintRenderer {
                         let (vertices, indices) =
                             mesh::quad(*rect, Rect::new(0., 0., 1., 1.), transform, density);
                         draws.push(self.draw_with_effects(
-                            self.geometry(&vertices, &indices),
+                            self.geometry(&vertices, &indices)?,
                             &Brush::Solid(*tint),
                             Some((&image, Sampling::Nearest)),
                             size,
@@ -1383,7 +1358,7 @@ impl PaintRenderer {
                             0,
                             None,
                             Some(ImageEffect::PixelNearest(size_physical)),
-                        ));
+                        )?);
                     }
                 }
                 PaintOp::GlyphRun { run, origin, color }
@@ -1437,7 +1412,7 @@ impl PaintRenderer {
                                 if batch.as_ref().is_some_and(|b| {
                                     !Arc::ptr_eq(&b.image, &entry.image) || b.color != tint
                                 }) {
-                                    draws.push(self.glyph_draw(batch.take().unwrap(), size, level));
+                                    draws.push(self.glyph_draw(batch.take().unwrap(), size, level)?);
                                 }
                                 let batch = batch.get_or_insert_with(|| GlyphBatch {
                                     vertices: Vec::new(),
@@ -1458,7 +1433,7 @@ impl PaintRenderer {
                             }
                         }
                         if let Some(batch) = batch {
-                            draws.push(self.glyph_draw(batch, size, level));
+                            draws.push(self.glyph_draw(batch, size, level)?);
                         }
                     }
                 }
@@ -1477,7 +1452,7 @@ impl PaintRenderer {
                         transform,
                         density,
                     )?;
-                    let geometry = self.geometry(&v, &ix);
+                    let geometry = self.geometry(&v, &ix)?;
                     draws.push(self.draw(
                         geometry.clone(),
                         &Brush::Solid([1.; 4]),
@@ -1485,12 +1460,12 @@ impl PaintRenderer {
                         size,
                         level,
                         1,
-                    ));
+                    )?);
                     clips.push(geometry);
                 }
                 PaintOp::PushPathClip(path, rule) => {
                     let (v, ix) = mesh::tessellate(path, *rule, None, transform, density)?;
-                    let geometry = self.geometry(&v, &ix);
+                    let geometry = self.geometry(&v, &ix)?;
                     draws.push(self.draw(
                         geometry.clone(),
                         &Brush::Solid([1.; 4]),
@@ -1498,14 +1473,14 @@ impl PaintRenderer {
                         size,
                         level,
                         1,
-                    ));
+                    )?);
                     clips.push(geometry);
                 }
                 PaintOp::PopClip => {
                     let geometry = clips
                         .pop()
                         .ok_or_else(|| RenderError("paint clip underflow".into()))?;
-                    draws.push(self.draw(geometry, &Brush::Solid([1.; 4]), None, size, level, 2));
+                    draws.push(self.draw(geometry, &Brush::Solid([1.; 4]), None, size, level, 2)?);
                 }
                 PaintOp::PushOpacity(opacity) => {
                     let mut depth = 1;
@@ -1554,7 +1529,7 @@ impl PaintRenderer {
                         1.,
                     );
                     draws.push(self.draw_with_effects(
-                        self.geometry(&v, &ix),
+                        self.geometry(&v, &ix)?,
                         &Brush::Solid([1., 1., 1., opacity.clamp(0., 1.)]),
                         Some((&group, Sampling::Nearest)),
                         size,
@@ -1562,7 +1537,7 @@ impl PaintRenderer {
                         0,
                         None,
                         Some(ImageEffect::Group),
-                    ));
+                    )?);
                     i = end;
                 }
                 PaintOp::PopOpacity => {
@@ -1633,8 +1608,8 @@ impl PaintRenderer {
                 });
                 pass.set_stencil_reference(draw.stencil);
                 pass.set_bind_group(0, &draw.bind, &[]);
-                pass.set_vertex_buffer(0, draw.geometry.vertices.slice(..));
-                pass.set_index_buffer(draw.geometry.indices.slice(..), wgpu::IndexFormat::Uint32);
+                pass.set_vertex_buffer(0, draw.geometry.vertices.buffer().slice(..));
+                pass.set_index_buffer(draw.geometry.indices.buffer().slice(..), wgpu::IndexFormat::Uint32);
                 pass.draw_indexed(0..draw.geometry.count, 0, 0..draw.instances);
                 self.stats.draw_calls += 1;
             }
