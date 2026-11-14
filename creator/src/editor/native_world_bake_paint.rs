@@ -284,7 +284,8 @@ impl Editor {
             expected.asset().projected_bounds
         );
         let mut painted_pixels = 0;
-        for (at, tile) in actual.tiles() {
+        for (at, lease) in actual.tiles() {
+            let tile = lease.source();
             let mut encoder = png::Encoder::new(
                 std::fs::File::create(format!(
                     "/private/tmp/eldiron-painted-albedo-{}-{}.png",
@@ -301,7 +302,8 @@ impl Editor {
                 .unwrap()
                 .write_image_data(tile.albedo)
                 .unwrap();
-            let expected = expected.tile(at.0, at.1).unwrap();
+            let expected_lease = expected.tile(at.0, at.1).unwrap();
+            let expected = expected_lease.source();
             for (name, a, b) in [
                 ("beauty", tile.color, expected.color),
                 ("albedo", tile.albedo, expected.albedo),

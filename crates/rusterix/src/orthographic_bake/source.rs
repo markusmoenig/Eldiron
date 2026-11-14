@@ -27,7 +27,7 @@ impl<'a> From<&'a DecodedBakeTile> for OrthographicBakeTileSource<'a> {
 pub struct OrthographicBakeSource<'a> {
     revision: Uuid,
     asset: &'a OrthographicBakeAsset,
-    tiles: &'a HashMap<(i32, i32), DecodedBakeTile>,
+    tiles: &'a TileCache,
 }
 impl<'a> OrthographicBakeSource<'a> {
     pub fn revision(&self) -> Uuid {
@@ -39,13 +39,23 @@ impl<'a> OrthographicBakeSource<'a> {
     pub fn matches_camera(&self, camera: &Camera3D) -> bool {
         asset_matches_camera(self.asset, camera)
     }
-    pub fn tile(&self, x: i32, y: i32) -> Option<OrthographicBakeTileSource<'a>> {
-        self.tiles.get(&(x, y)).map(Into::into)
+    pub fn tile(&self, x: i32, y: i32) -> Option<OrthographicBakeTileLease> {
+        self.try_tile(x, y).ok().flatten()
     }
-    pub fn tiles(&self) -> impl Iterator<Item = ((i32, i32), OrthographicBakeTileSource<'a>)> + '_ {
-        self.tiles
-            .iter()
-            .map(|(position, tile)| (*position, tile.into()))
+    /// Resolve one original tile. Budget pressure is an explicit producer error,
+    /// never an omitted visible tile in the GPU path.
+    pub fn try_tile(&self, x: i32, y: i32) -> Result<Option<OrthographicBakeTileLease>, String> {
+        self.tiles.get(self.asset, (x, y))
+    }
+    pub fn positions(&self) -> impl Iterator<Item = (i32, i32)> {
+        self.tiles.all_positions().into_iter()
+    }
+    pub fn decoded_resident_bytes(&self) -> u64 {
+        self.tiles.usage()
+    }
+    pub fn tiles(&self) -> impl Iterator<Item = ((i32, i32), OrthographicBakeTileLease)> + '_ {
+        self.positions()
+            .filter_map(|at| self.tile(at.0, at.1).map(|tile| (at, tile)))
     }
 }
 impl OrthographicBakeController {
@@ -102,6 +112,93 @@ mod tests {
                 material_png_path: None,
             }],
         }
+    }
+
+    #[test]
+    fn encoded_sources_decode_lazily_and_page_without_mutating_leased_channels() {
+        let region = Uuid::new_v4();
+        let camera = Camera3D::iso();
+        let mut asset = fixture(&camera);
+        asset.tile_size = 256;
+        let pixels = 256 * 256;
+        let rgba =
+            BASE64.encode(encode_png(256, 256, &[80, 120, 160, 255].repeat(pixels)).unwrap());
+        let mut tile = asset.tiles[0].clone();
+        tile.color_png_base64 = rgba.clone();
+        tile.albedo_png_base64 = Some(rgba.clone());
+        tile.normal_png_base64 = Some(rgba.clone());
+        tile.material_png_base64 = Some(rgba);
+        tile.depth_base64 = Some(BASE64.encode(encode_depth(&vec![2.; pixels])));
+        asset.tiles = (0..32)
+            .map(|x| {
+                let mut tile = tile.clone();
+                tile.x = x;
+                tile
+            })
+            .collect();
+        let mut owner = OrthographicBakeController::default();
+        owner.sync_persisted_asset(region, Some(&asset));
+        assert_eq!(
+            owner.decoded_resident_bytes(),
+            0,
+            "install only encoded originals/metadata"
+        );
+        let source = owner.presentation_source(region, &camera).unwrap();
+        assert_eq!(source.positions().count(), 32);
+        assert_eq!(
+            source.decoded_resident_bytes(),
+            pixels as u64 * 20,
+            "first readiness probes one usable tile; metadata enumeration adds no decoded pixels"
+        );
+        let first = source.try_tile(0, 0).unwrap().unwrap();
+        for x in 1..32 {
+            let lease = source.try_tile(x, 0).unwrap().unwrap();
+            assert_eq!(lease.depth[0], 2.);
+            assert!(source.decoded_resident_bytes() <= cache::DECODE_BUDGET);
+        }
+        assert_eq!(&first.color[..4], &[80, 120, 160, 255]);
+        asset.samples += 1;
+        owner.sync_persisted_asset(region, Some(&asset));
+        assert_eq!(
+            owner.decoded_resident_bytes(),
+            pixels as u64 * 20,
+            "reset releases cached pixels but preserves and charges the external lease"
+        );
+        drop(first);
+        assert_eq!(owner.decoded_resident_bytes(), 0);
+        let source = owner.presentation_source(region, &camera).unwrap();
+        assert_eq!(
+            source.try_tile(31, 0).unwrap().unwrap().albedo.len(),
+            pixels * 4
+        );
+    }
+
+    #[test]
+    fn missing_and_corrupt_originals_keep_geometry_fallback_and_do_not_poison_replacements() {
+        let map = Uuid::new_v4();
+        let camera = Camera3D::iso();
+        let mut asset = fixture(&camera);
+        let valid = asset.tiles[0].color_png_base64.clone();
+        asset.tiles[0].color_png_base64 = "invalid".into();
+        let mut owner = OrthographicBakeController::default();
+        owner.sync_persisted_asset(map, Some(&asset));
+        assert!(!owner.can_compose(map, &camera));
+        assert!(owner.presentation_source(map, &camera).is_none());
+        assert!(owner.compose_rgba(map, 1, 1, &camera).is_none());
+        assert_eq!(owner.decoded_resident_bytes(), 0);
+        asset.tiles[0].color_png_base64 = valid;
+        owner.sync_persisted_asset(map, Some(&asset));
+        assert!(owner.can_compose(map, &camera));
+        assert_eq!(
+            owner
+                .presentation_source(map, &camera)
+                .unwrap()
+                .try_tile(0, 0)
+                .unwrap()
+                .unwrap()
+                .depth,
+            [2.]
+        );
     }
 
     #[test]

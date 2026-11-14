@@ -160,8 +160,10 @@ fn cooperative_tile_job_matches_reference_channels_and_retires_pending_requests(
         .orthographic_bake
         .presentation_source(map.id, &camera_frame)
         .unwrap();
-    for (at, tile) in actual.tiles() {
-        let expected = expected.tile(at.0, at.1).unwrap();
+    for (at, lease) in actual.tiles() {
+        let tile = lease.source();
+        let expected_lease = expected.tile(at.0, at.1).unwrap();
+        let expected = expected_lease.source();
         for (name, a, b) in [
             ("beauty", tile.color, expected.color),
             ("albedo", tile.albedo, expected.albedo),

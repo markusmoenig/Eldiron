@@ -4,9 +4,7 @@ use bytemuck::{Pod, Zeroable};
 use renderkit::{
     AlphaMode, ColorSpace, GpuContext, GpuImage, ImageDescriptor, RenderError, Result, wgpu,
 };
-use rusterix::orthographic_bake::{
-    OrthographicBakeLighting, OrthographicBakeSource, OrthographicBakeTileSource,
-};
+use rusterix::orthographic_bake::{OrthographicBakeLighting, OrthographicBakeSource};
 use scenevm::Camera3D;
 use std::{collections::HashMap, sync::Arc};
 use theframework_core::Uuid;
@@ -170,11 +168,11 @@ impl OrthographicBakeRenderer {
     fn tile(
         &mut self,
         at: (i32, i32),
-        source: OrthographicBakeTileSource<'_>,
+        source: &OrthographicBakeSource<'_>,
         size: u32,
-    ) -> Result<wgpu::Buffer> {
+    ) -> Result<Option<wgpu::Buffer>> {
         if let Some(tile) = self.tiles.get(&at) {
-            return Ok(tile.buffer.clone());
+            return Ok(Some(tile.buffer.clone()));
         }
         let count = u64::from(size)
             .checked_mul(u64::from(size))
@@ -186,6 +184,10 @@ impl OrthographicBakeRenderer {
                     && *n <= u64::from(self.context.device.limits().max_storage_buffer_binding_size)
             })
             .ok_or_else(|| RenderError("bake source tile exceeds GPU source budget".into()))?;
+        let Some(lease) = source.try_tile(at.0, at.1).map_err(RenderError)? else {
+            return Ok(None);
+        };
+        let source = lease.source();
         if source.color.len() as u64 != count * 4 {
             return Err(RenderError("incomplete bake color tile".into()));
         }
@@ -230,7 +232,7 @@ impl OrthographicBakeRenderer {
                 bytes,
             },
         );
-        Ok(buffer)
+        Ok(Some(buffer))
     }
     fn target(
         &mut self,
@@ -428,7 +430,7 @@ impl OrthographicBakeRenderer {
             .checked_mul(u64::from(asset.tile_size))
             .and_then(|count| count.checked_mul(std::mem::size_of::<Pixel>() as u64))
             .ok_or_else(|| RenderError("bake tile size overflow".into()))?;
-        for (at, tile) in source.tiles() {
+        for at in source.positions() {
             let lo = [
                 origin[0] + at.0 as f32 * span,
                 origin[1] + at.1 as f32 * span,
@@ -450,7 +452,7 @@ impl OrthographicBakeRenderer {
             {
                 continue;
             }
-            visible.push((at, tile, params.dispatch));
+            visible.push((at, params.dispatch));
             if (visible.len() as u64).saturating_mul(tile_bytes) > SOURCE_BUDGET {
                 return Err(RenderError(
                     "visible bake sources exceed 64 MiB GPU working set; paging is required".into(),
@@ -463,8 +465,7 @@ impl OrthographicBakeRenderer {
             self.resident = 0;
             self.publication = Some(source.revision());
         }
-        let positions: std::collections::HashSet<_> =
-            visible.iter().map(|(at, _, _)| *at).collect();
+        let positions: std::collections::HashSet<_> = visible.iter().map(|(at, _)| *at).collect();
         self.tiles.retain(|at, _| positions.contains(at));
         self.resident = self.tiles.values().map(|tile| tile.bytes).sum();
         params.dispatch = [0, 0, size.0, size.1];
@@ -475,11 +476,13 @@ impl OrthographicBakeRenderer {
                     label: Some("orthographic bake presentation"),
                 });
         self.dispatch(&mut encoder, &output, &params, &self.dummy, true);
-        for (at, tile, dispatch) in visible {
+        for (at, dispatch) in visible {
             params.dispatch = dispatch;
             params.tile[0] = at.0;
             params.tile[1] = at.1;
-            let buffer = self.tile(at, tile, asset.tile_size)?;
+            let Some(buffer) = self.tile(at, source, asset.tile_size)? else {
+                continue;
+            };
             self.dispatch(&mut encoder, &output, &params, &buffer, false);
         }
         self.context.queue.submit(Some(encoder.finish()));

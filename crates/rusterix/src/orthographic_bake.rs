@@ -6,7 +6,10 @@ use std::collections::HashMap;
 use uuid::Uuid;
 use vek::Vec3;
 
+mod cache;
 mod source;
+pub use cache::OrthographicBakeTileLease;
+use cache::TileCache;
 mod work;
 pub use source::{OrthographicBakeSource, OrthographicBakeTileSource};
 
@@ -57,12 +60,12 @@ pub fn background_color(
 }
 
 #[derive(Clone, Debug, Default)]
-struct DecodedBakeTile {
-    color: Vec<u8>,
-    depth: Vec<f32>,
-    albedo: Vec<u8>,
-    normal: Vec<u8>,
-    material: Vec<u8>,
+pub struct DecodedBakeTile {
+    pub color: Vec<u8>,
+    pub depth: Vec<f32>,
+    pub albedo: Vec<u8>,
+    pub normal: Vec<u8>,
+    pub material: Vec<u8>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -93,13 +96,13 @@ pub struct OrthographicBakeController {
     requested_samples: u32,
     staging_camera: Option<Camera3D>,
     staging_asset: Option<OrthographicBakeAsset>,
-    staging_tiles: HashMap<(i32, i32), DecodedBakeTile>,
+    staging_tiles: TileCache,
     tile_plan: Vec<(i32, i32)>,
     current_tile: usize,
     current_sample: u32,
     committed_region: Option<Uuid>,
     committed: Option<OrthographicBakeAsset>,
-    committed_tiles: HashMap<(i32, i32), DecodedBakeTile>,
+    committed_tiles: TileCache,
     source_revision: Uuid,
     pending_persisted_update: Option<(Uuid, Option<OrthographicBakeAsset>)>,
 }
@@ -114,13 +117,13 @@ impl Default for OrthographicBakeController {
             requested_samples: 32,
             staging_camera: None,
             staging_asset: None,
-            staging_tiles: HashMap::new(),
+            staging_tiles: TileCache::default(),
             tile_plan: Vec::new(),
             current_tile: 0,
             current_sample: 0,
             committed_region: None,
             committed: None,
-            committed_tiles: HashMap::new(),
+            committed_tiles: TileCache::default(),
             source_revision: Uuid::new_v4(),
             pending_persisted_update: None,
         }
@@ -181,13 +184,24 @@ impl OrthographicBakeController {
         self.source_revision = Uuid::new_v4();
         self.committed_region = persisted.map(|_| region_id);
         self.committed = persisted.cloned();
-        self.committed_tiles = persisted.map(decode_tiles).unwrap_or_default();
+        self.committed_tiles.reset(persisted);
         self.status = if self.committed.is_some() {
             OrthographicBakeStatus::Ready
         } else {
             OrthographicBakeStatus::Missing
         };
         self.visible = self.committed.is_some();
+    }
+
+    /// Includes externally leased data after cache retirement. Staging and
+    /// committed originals each have a 32 MiB decode allocation domain.
+    pub fn decoded_resident_bytes(&self) -> u64 {
+        self.staging_tiles
+            .usage()
+            .saturating_add(self.committed_tiles.usage())
+    }
+    pub fn decoded_source_budget_bytes(&self) -> u64 {
+        cache::DECODE_BUDGET * 2
     }
 
     /// World bounds are needed only when a requested bake creates its plan.
@@ -356,7 +370,14 @@ impl OrthographicBakeController {
         if rgba.len() != needed {
             return Err("The progressive bake preview has an invalid tile size.".into());
         }
-        self.staging_tiles.entry((x, y)).or_default().color = rgba.to_vec();
+        self.staging_tiles.insert(
+            (x, y),
+            None,
+            DecodedBakeTile {
+                color: rgba.to_vec(),
+                ..Default::default()
+            },
+        )?;
         self.source_revision = Uuid::new_v4();
         Ok(())
     }
@@ -409,6 +430,7 @@ impl OrthographicBakeController {
         });
         self.staging_tiles.insert(
             (x, y),
+            Some(asset.tiles.len() - 1),
             DecodedBakeTile {
                 color: rgba,
                 depth,
@@ -416,7 +438,7 @@ impl OrthographicBakeController {
                 normal,
                 material,
             },
-        );
+        )?;
         self.source_revision = Uuid::new_v4();
         self.current_tile += 1;
         self.current_sample = 0;
@@ -425,7 +447,8 @@ impl OrthographicBakeController {
             let completed = self.staging_asset.take().unwrap();
             self.committed_region = self.requested_region;
             self.committed = Some(completed.clone());
-            self.committed_tiles = std::mem::take(&mut self.staging_tiles);
+            std::mem::swap(&mut self.committed_tiles, &mut self.staging_tiles);
+            self.staging_tiles.clear();
             self.pending_persisted_update = Some((self.requested_region.unwrap(), Some(completed)));
             self.status = OrthographicBakeStatus::Ready;
             self.staging_camera = None;
@@ -508,12 +531,12 @@ impl OrthographicBakeController {
         if !self.visible || active_region != Some(region_id) {
             return false;
         }
-        let (asset, has_tiles) = if self.is_rendering() {
-            (self.staging_asset.as_ref(), !self.staging_tiles.is_empty())
+        let (asset, tiles) = if self.is_rendering() {
+            (self.staging_asset.as_ref(), &self.staging_tiles)
         } else {
-            (self.committed.as_ref(), !self.committed_tiles.is_empty())
+            (self.committed.as_ref(), &self.committed_tiles)
         };
-        has_tiles && asset.is_some_and(|asset| asset_matches_camera(asset, camera))
+        asset.is_some_and(|asset| asset_matches_camera(asset, camera) && tiles.has_tiles(asset))
     }
 
     pub fn compose_rgba(
@@ -547,7 +570,7 @@ impl OrthographicBakeController {
         } else {
             (self.committed.as_ref()?, &self.committed_tiles)
         };
-        if !asset_matches_camera(asset, camera) || tiles.is_empty() {
+        if !asset_matches_camera(asset, camera) || !tiles.has_tiles(asset) {
             return None;
         }
 
@@ -577,7 +600,7 @@ impl OrthographicBakeController {
                 .clamp(0.0, asset.tile_size.saturating_sub(1) as f32)
                 as u32;
             let mut current_tile_x = i32::MIN;
-            let mut current_tile_data: Option<&DecodedBakeTile> = None;
+            let mut current_tile_data: Option<OrthographicBakeTileLease> = None;
             for x in 0..width {
                 let u = center_u + ((x as f32 + 0.5) * 2.0 / width as f32 - 1.0) * half_w;
                 if has_exact_bounds && (u < min_u || u > max_u) {
@@ -586,9 +609,10 @@ impl OrthographicBakeController {
                 let tile_x = ((u - origin_u) / span).floor() as i32;
                 if tile_x != current_tile_x {
                     current_tile_x = tile_x;
-                    current_tile_data = tiles.get(&(tile_x, tile_y));
+                    current_tile_data.take();
+                    current_tile_data = tiles.get(asset, (tile_x, tile_y)).ok()?;
                 }
-                let Some(tile) = current_tile_data else {
+                let Some(tile) = current_tile_data.as_ref() else {
                     continue;
                 };
                 let local_x = ((u - (origin_u + tile_x as f32 * span)) * ppu)
@@ -624,7 +648,7 @@ impl OrthographicBakeController {
         } else {
             (self.committed.as_ref()?, &self.committed_tiles)
         };
-        if !asset_matches_camera(asset, camera) || tiles.is_empty() {
+        if !asset_matches_camera(asset, camera) || !tiles.has_tiles(asset) {
             return None;
         }
 
@@ -663,13 +687,20 @@ impl OrthographicBakeController {
                 .floor()
                 .clamp(0.0, asset.tile_size.saturating_sub(1) as f32)
                 as u32;
+            let mut current_tile_x = i32::MIN;
+            let mut current_tile_data: Option<OrthographicBakeTileLease> = None;
             for x in 0..width {
                 let u = center_u + ((x as f32 + 0.5) * 2.0 / width as f32 - 1.0) * half_w;
                 if has_exact_bounds && (u < min_u || u > max_u) {
                     continue;
                 }
                 let tile_x = ((u - origin_u) / span).floor() as i32;
-                let Some(tile) = tiles.get(&(tile_x, tile_y)) else {
+                if tile_x != current_tile_x {
+                    current_tile_x = tile_x;
+                    current_tile_data.take();
+                    current_tile_data = tiles.get(asset, (tile_x, tile_y)).ok()?;
+                }
+                let Some(tile) = current_tile_data.as_ref() else {
                     continue;
                 };
                 let local_x = ((u - (origin_u + tile_x as f32 * span)) * ppu)
@@ -842,49 +873,53 @@ fn decode_depth(encoded: &str, pixel_count: usize) -> Option<Vec<f32>> {
 
 fn decode_png(encoded: &str, tile_size: u32) -> Option<Vec<u8>> {
     let bytes = BASE64.decode(encoded).ok()?;
-    let decoded = image::load_from_memory(&bytes).ok()?.into_rgba8();
-    (decoded.width() == tile_size && decoded.height() == tile_size).then(|| decoded.into_raw())
+    let mut limits = image::Limits::default();
+    limits.max_image_width = Some(tile_size);
+    limits.max_image_height = Some(tile_size);
+    limits.max_alloc = Some(
+        u64::from(tile_size)
+            .checked_mul(u64::from(tile_size))?
+            .checked_mul(16)?
+            .checked_add(1024 * 1024)?,
+    );
+    let reader = || {
+        let mut reader =
+            image::ImageReader::with_format(std::io::Cursor::new(&bytes), image::ImageFormat::Png);
+        reader.limits(limits.clone());
+        reader
+    };
+    if reader().into_dimensions().ok()? != (tile_size, tile_size) {
+        return None;
+    }
+    let decoder = reader();
+    Some(decoder.decode().ok()?.into_rgba8().into_raw())
 }
 
-fn decode_tiles(asset: &OrthographicBakeAsset) -> HashMap<(i32, i32), DecodedBakeTile> {
-    asset
-        .tiles
-        .iter()
-        .filter_map(|tile| {
-            let pixel_count = asset.tile_size as usize * asset.tile_size as usize;
-            let color = decode_png(&tile.color_png_base64, asset.tile_size)?;
-            let depth = tile
-                .depth_base64
-                .as_deref()
-                .and_then(|encoded| decode_depth(encoded, pixel_count))
-                .unwrap_or_default();
-            let albedo = tile
-                .albedo_png_base64
-                .as_deref()
-                .and_then(|encoded| decode_png(encoded, asset.tile_size))
-                .unwrap_or_default();
-            let normal = tile
-                .normal_png_base64
-                .as_deref()
-                .and_then(|encoded| decode_png(encoded, asset.tile_size))
-                .unwrap_or_default();
-            let material = tile
-                .material_png_base64
-                .as_deref()
-                .and_then(|encoded| decode_png(encoded, asset.tile_size))
-                .unwrap_or_default();
-            Some((
-                (tile.x, tile.y),
-                DecodedBakeTile {
-                    color,
-                    depth,
-                    albedo,
-                    normal,
-                    material,
-                },
-            ))
-        })
-        .collect()
+fn decode_tile(tile: &OrthographicBakeTile, tile_size: u32) -> Option<DecodedBakeTile> {
+    let pixel_count = (tile_size as usize).checked_mul(tile_size as usize)?;
+    Some(DecodedBakeTile {
+        color: decode_png(&tile.color_png_base64, tile_size)?,
+        depth: tile
+            .depth_base64
+            .as_deref()
+            .and_then(|v| decode_depth(v, pixel_count))
+            .unwrap_or_default(),
+        albedo: tile
+            .albedo_png_base64
+            .as_deref()
+            .and_then(|v| decode_png(v, tile_size))
+            .unwrap_or_default(),
+        normal: tile
+            .normal_png_base64
+            .as_deref()
+            .and_then(|v| decode_png(v, tile_size))
+            .unwrap_or_default(),
+        material: tile
+            .material_png_base64
+            .as_deref()
+            .and_then(|v| decode_png(v, tile_size))
+            .unwrap_or_default(),
+    })
 }
 
 fn asset_matches_camera(asset: &OrthographicBakeAsset, camera: &Camera3D) -> bool {

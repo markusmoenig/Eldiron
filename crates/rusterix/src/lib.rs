@@ -31,7 +31,6 @@ pub mod map;
 pub mod material_library;
 pub mod material_profile;
 pub mod message_text;
-#[cfg(feature = "graphics")]
 pub mod orthographic_bake;
 pub mod particleharness;
 pub mod party;
@@ -133,7 +132,6 @@ pub const WHITE: Pixel = [255, 255, 255, 255];
 pub use crate::client::{Client, daylight::Daylight};
 pub use crate::command::Command;
 pub use crate::message_text::{MsgParser, Tok};
-#[cfg(feature = "graphics")]
 pub use crate::orthographic_bake::{
     OrthographicBakeController, OrthographicBakeLighting, OrthographicBakeStatus,
     OrthographicBakeWork,

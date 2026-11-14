@@ -11322,3 +11322,132 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   transform expansion and remaining paint contexts, general atlas/target/source
   budgets, core/runtime extraction, canonical Creator retirement, measured
   release p50/p95/p99/input/startup/memory and physical platform acceptance.
+
+## 2026-11-14 — Bounded decoded original bake channels (active)
+
+- Previous goal turn made progress: checkpointfc2de2b4 removed whole paint/history
+  clones and verified real hidden linked production/cancellation. Revalidated
+  current HEAD and preserved the sole unrelated networking concept. Full M0–M9
+  Goal active; old paint-version compatibility remains excluded by user steering.
+- Controller source installation now indexes encoded tiles without eager image
+  decoding. Staging/committed originals each have a32MiB LRU allocation domain;
+  immutable leases remain charged after clear/reset until their consumers drop
+  them. Cache charges actual Vec capacities. Progressive samples/complete tiles
+  use the same bounded store, while full encoded assets and atomic publication
+  remain unchanged. No serialized type changed.
+- Source positions are separate from channel resolution. GPU composition first
+  determines visible coordinates, then acquires/ships/releases one original tile
+  at a time, retaining existing GPU source buffers. It no longer pins/decodes all
+  visible CPU channels before upload or repeatedly resolves a GPU-resident tile.
+  Cache pressure is explicit through try_tile; channel-comparison test callers
+  retain a lease while borrowing its source slices. No CPU viewport is created.
+- Legacy explicit CPU composition also resolves the currently sampled tile per
+  row, with bounded original-channel data, and drops its old lease before loading
+  the next tile. PNG dimensions/decoder limits are checked before pixel decode.
+- CPU controller/cache/source modules no longer require the graphics feature.
+  First attempted --no-default-features test selected0tests because the original
+  module was graphics-gated; that is NOT a pass. Removed the unnecessary gate
+  after confirming only CPU math/data/codec dependencies. Actual isolated run:
+  cargo test --locked --offline -p rusterix --no-default-features --lib
+  orthographic_bake:: -- --nocapture
+  PASS17/0.51s (build17.53s), /private/tmp/eldiron-paged-bake-cpu-actual-tests.log.
+  Includes lazy install/position queries, >32MiB source traversal with retained
+  immutable channels, reset lease accounting, pinned-capacity rejection, saved
+  format/depth/sun/pan/resize and addressed progressive/publication cancellation.
+- Native Creator library first compile PASS24.42s. Presentation test build
+  PASS23.65s; Creator native test assembly build still collecting, handle42324.
+  CPU-only rusterix dependency inventory has no wgpu/winit/pixels/renderkit/
+  Parley/Swash packages, /private/tmp/eldiron-paged-bake-cpu-dependencies.txt.
+  Runtime/project/rules/core extraction and all other dependency gates remain.
+- Large-visible-set GPU paging/lifetime remains required: the existing64MiB
+  GPU-visible preflight and Creator above-budget adapters are still explicit.
+  This batch is the CPU-source dependency for that work, not its completion.
+  Full encoded-asset equality/clones, codec scratch/metadata/encoded memory,
+  global source/atlas/target/queue budgets, owner retirement, performance and
+  physical platform acceptance remain open. No full resource/platform pass.
+
+- Native Creator test build PASS49.48s; assembled application PASS1/242.03s,
+  /private/tmp/eldiron-paged-bake-native-assembly.log. All5persisted and17custom
+  phases referenceRGB0; generated unpainted bake50GPUframes; painted original
+  beauty/albedo/normal/material exact0, depth parity and63,849green albedo pixels;
+  authored paint unchanged, history/save/cancel and surrounding Play/documents/
+  clipboard/presentation/recovery pass; fractionalDPI/source/minimap<=1.
+- Final review also preserved the pre-existing geometry fallback for entirely
+  missing/corrupt encoded originals: readiness probes only until one usable tile
+  is found, once per installation; failed coordinates/readiness are cached.
+  Installation still decodes0pixels, position enumeration adds0decoded pixels,
+  and a normal first readiness query decodes at most its first usable original
+  (invalid predecessors are skipped). Decoder pressure goes to the producer's
+  explicit error path. Replacement resets failed-source metadata. This final
+  correction and allocation-before-charge release ordering were followed by
+  final isolatedCPU PASS18/0.54s and final GPU contracts below. The assembled
+  native run above was on the preceding lazy-store implementation, not rerun
+  for those final source-readiness/teardown corrections.
+- Final actual GPU component suite PASS3/5.64s, --ignored --nocapture
+  --test-threads=1 with filterorthographic_bake::, log/private/tmp/eldiron-paged-
+  bake-gpu-components.log. Original producer beauty/albedo/normal/material0,
+  finite-depth parity, pending request retirement; dynamic surface/actor/guide
+  overlay; pan/resize/alpha/sun/depth and retained source composition pass.
+  Added32visible original tiles: GPU50,331,648bytes, decodedCPU32,768,000bytes,
+  reference pixel delta<=1, no ordinary readback during production. This
+  verifies CPU paging while the GPU working set fits64MiB. The43visible-tile
+  rejection still passes before source upload; it remains an explicit open
+  GPU paging gate, not accepted large-visible-set support.
+- Final independent compilation PASS: Creator wasm22.82s, isolated runtime9.00s,
+  Creator default/reference20.11s; /private/tmp/eldiron-paged-bake-{wasm,runtime,
+  reference}-validated.log. CPU-only bake tests are now real, not cfg-skipped.
+  Final presentation test build21.97s. No dependency/version/serialized schema
+  changed. Earlier intermediate CPU17 and compiler passes remain above.
+- API migration ledger: original source tile resolution now returns an immutable
+  charged lease; consumers borrow channel slices via lease.source(). Production
+  GPU renderer uses positions()+try_tile() and never bulk-pins decoded sources.
+  Explicit CPU RGBA/depth composition uses the same store. Remaining channel-
+  comparison/inspection helpers use lease-based tile()/tiles(); no original
+  borrowed-map tile implementation remains. This is CPU asset data, not an
+  application-facing framebuffer/display signature or a per-widget renderer.
+- Source misses currently decode during preparation, so cooperative decode
+  scheduling/frame-time acceptance is still required. Per-frame source metadata
+  enumeration, full encoded equality/clones, total codec/encoded/index/scratch
+  memory and GPU in-flight allocation lifetimes are also still open work.
+- Fresh browser release/package collecting in handle81463 to verify the new
+  codecs/cache in actual WebGPU load/generation/recovery. Revalidated task-owned
+  Chrome9267, PID46991, profile/private/tmp/eldiron-history-density-9267 and its
+  sole Eldiron page; local8898painted fixture917,382bytes is present. No personal
+  browser sessions touched. Do not claim a runtime browser pass until complete.
+
+- Fresh browser release PASS1m30s; packaged WASM99,189,713bytes. Actual task-owned
+  Chrome152/Metal WebGPU load + device-destroy reconstruction PASS for both
+  BakedPaged.eldiron and BakedPaint.eldiron: acknowledged native baked view,
+  same document/camera, generation2, rootCPU0/ordinary readbacks0/Canvas2D0,
+  GPU/runtime errors[]. This is actual browser runtime evidence, not a compile
+  inference. Logs/private/tmp/eldiron-paged-bake-browser-{large,painted}-bootstrap.log.
+- Controlled BakedPaged fixture922,675bytes derives32tile coordinates from one
+  existing original painted tile (all5channel paths retained), spans32source
+  widths, and moves the persisted camera target to their center. The viewport
+  shows a subset of those tiles. This proves native load/recovery of the large
+  source asset; do NOT claim all32were simultaneously visible or infer browser
+  cache memory from it. Simultaneous32tile paging and measured source byte
+  counters are the separate native GPU component oracle above.
+- Visually inspected the controlled large-source browser view. Retained
+  concepts/native-wgpu-evidence/browser-paged-bake-source-150.png188,676bytes,
+  SHA2563a925e0a19bf3aa9573cfe41d8ce62b9cd2d18a3bb71751cf9b2c4112372562c.
+- Actual current-release browser32sample painted Render/partial save/completed
+  publication/fresh save PASS, /private/tmp/eldiron-paged-bake-browser-progressive.log:
+  36explicit asset requests/11,272,192bytes, ordinary/root/Canvas2D0/errors[].
+  Independently inspected fresh base/partial/generated ZIPs: base=partial every
+  entry byte; full authored project including paint unchanged except bake and
+  map.changed; generated V5/32samples/1tile/all5channels,18,627green original-
+  albedo pixels and20,889finite depths. JSON SHA256
+  ca612bef614a10f7b7f2b7fc72f772553ca086edd5e4fb1115f0e674f9af48ad,
+  identical to the prior painted result. Visually inspected completed UI/albedo.
+- All build/run handles for this batch are terminal; git diff --check clean.
+  Concurrent networking concept remains untouched. Ready for local checkpoint;
+  full M0–M9 remains ACTIVE. No new Apple/physical platform acceptance claimed.
+- Next coherent work: bounded GPU upload/page lifetimes and asynchronous complete
+  composition for visible sets above64MiB, coupled with cooperative source decode
+  scheduling; only then remove the corresponding whole-asset/generation-plan
+  adapters. Retain original channels and presented source/document/camera scopes
+  across paging/recovery/cancellation. Remaining full-plan gates also include
+  encoded/source/atlas/target/global queue budgets, owner/core/runtime extraction,
+  canonical Creator retirement, release p50/p95/p99/input/startup/peak-memory and
+  physical platform workflows. This CPU paging checkpoint is not M0–M9 completion.

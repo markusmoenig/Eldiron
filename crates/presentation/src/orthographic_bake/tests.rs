@@ -218,6 +218,28 @@ fn tiles_compose_with_reference_pan_resize_alpha_sun_depth_and_retained_sources(
     camera.pos +=
         camera.right * (43. - camera.pos.dot(camera.right)) - camera.up * camera.pos.dot(camera.up);
     camera.ortho_half_h = 40.;
+    // 32 full original tiles exceed the CPU decode cache, but fit the GPU
+    // working set. Resolve them one at a time rather than pinning the entire
+    // visible set in the decoder before upload.
+    let remaining = legacy.tiles.split_off(32);
+    owner.sync_persisted_asset(region, Some(&legacy));
+    assert_eq!(owner.decoded_resident_bytes(), 0);
+    let before = context.transfers();
+    let source = owner.presentation_source(region, &camera).unwrap();
+    let paged = renderer.render(&source, &camera, (96, 64), None).unwrap();
+    assert_eq!(context.transfers().readback_bytes, before.readback_bytes);
+    assert!(renderer.source_resident_bytes() > 32 * 1024 * 1024);
+    assert!(source.decoded_resident_bytes() <= 32 * 1024 * 1024);
+    let expected = owner.compose_rgba(region, 96, 64, &camera).unwrap();
+    let actual = colors(&context, &paged);
+    assert!(actual.iter().zip(expected).all(|(a, b)| a.abs_diff(b) <= 1));
+    eprintln!(
+        "Paged original channels: GPU={} CPU={} bytes",
+        renderer.source_resident_bytes(),
+        source.decoded_resident_bytes()
+    );
+    legacy.tiles.extend(remaining);
+    owner.sync_persisted_asset(region, Some(&legacy));
     let uploaded = context.transfers().uploaded_bytes;
     let error = renderer
         .render(
