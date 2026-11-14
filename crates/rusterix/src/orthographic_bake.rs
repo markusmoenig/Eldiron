@@ -10,6 +10,35 @@ mod cache;
 mod source;
 pub use cache::{OrthographicBakeTileLease, OrthographicBakeTilePoll};
 use cache::TileCache;
+/// Browser original-channel ownership diagnostics; no project content.
+#[cfg(target_arch = "wasm32")]
+#[derive(Clone, Copy, Debug, Default, serde::Serialize)]
+pub struct BrowserCodecWorkerStats {
+    pub configured: bool,
+    pub workers: usize,
+    pub active_jobs: usize,
+    pub requests: u64,
+    pub completed: u64,
+    pub cancelled: u64,
+    pub failures: u64,
+    pub job_bytes: u64,
+    pub bridge_bytes: u64,
+    pub bridge_limit: u64,
+}
+#[cfg(target_arch = "wasm32")]
+pub fn browser_codec_worker_stats() -> BrowserCodecWorkerStats {
+    cache::browser_worker_stats()
+}
+/// Configure the packaged CPU-only module worker before browser source decoding.
+#[cfg(target_arch = "wasm32")]
+pub fn configure_browser_codec_worker(url: &str) -> Result<(), String> {
+    cache::configure_browser_worker(url)
+}
+/// Entry for the separately built CPU-only wasm worker binary.
+#[cfg(target_arch = "wasm32")]
+pub fn start_browser_codec_worker() -> Result<(), wasm_bindgen::JsValue> {
+    cache::browser_worker_main()
+}
 mod work;
 pub use source::{OrthographicBakeSource, OrthographicBakeTileSource};
 

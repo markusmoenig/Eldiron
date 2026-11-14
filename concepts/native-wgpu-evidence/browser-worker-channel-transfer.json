@@ -1,0 +1,78 @@
+{
+  "tile_size": 256,
+  "channels": [
+    {
+      "channel": "color",
+      "bytes": 262144,
+      "sha256": "8a39d2abd3999ab73c34db2476849cddf303ce389b35826850f9a700589b4a90",
+      "byte_identical": true
+    },
+    {
+      "channel": "depth",
+      "bytes": 262144,
+      "sha256": "ac10c081a4b52e78c25bc2ca350a6888bd63508a8420bac77894a21bef471927",
+      "byte_identical": true
+    },
+    {
+      "channel": "albedo",
+      "bytes": 262144,
+      "sha256": "8a39d2abd3999ab73c34db2476849cddf303ce389b35826850f9a700589b4a90",
+      "byte_identical": true
+    },
+    {
+      "channel": "normal",
+      "bytes": 262144,
+      "sha256": "8a39d2abd3999ab73c34db2476849cddf303ce389b35826850f9a700589b4a90",
+      "byte_identical": true
+    },
+    {
+      "channel": "material",
+      "bytes": 262144,
+      "sha256": "8a39d2abd3999ab73c34db2476849cddf303ce389b35826850f9a700589b4a90",
+      "byte_identical": true
+    }
+  ],
+  "sample_limitation": "The first real archived tile has transparent zero RGBA planes; the additional deterministic request below covers distinct nonzero pixels and depth bits.",
+  "deterministic_packaged_worker": {
+    "size": 2,
+    "channels": [
+      {
+        "channel": "color",
+        "bytes": 16,
+        "sha256": "8a08337398d3c7b0244fec4fd397ec86961ab72237988ea6dbbe63067b5fc5ca",
+        "byte_identical": true
+      },
+      {
+        "channel": "depth",
+        "bytes": 16,
+        "sha256": "58e0dc1ecb64301e09ae442c495293f9303ee438403a742872932e9ec9278187",
+        "byte_identical": true
+      },
+      {
+        "channel": "albedo",
+        "bytes": 16,
+        "sha256": "49e7b7764b5b45054d27d0c41b96718e5027dd7a5fb5470cb08dd573a84ddee7",
+        "byte_identical": true
+      },
+      {
+        "channel": "normal",
+        "bytes": 16,
+        "sha256": "6c104b4113a9d2f88fd81221bd4d9707cd5732bd257b79d6b85e4eed9999ced2",
+        "byte_identical": true
+      },
+      {
+        "channel": "material",
+        "bytes": 16,
+        "sha256": "3456c393472306f27628848625737979af30d4951a5e86ac3f058ed5bb37e717",
+        "byte_identical": true
+      }
+    ],
+    "depth_words": [
+      "0x80000000",
+      "0x7f800000",
+      "0x3fa00000",
+      "0x7fc12345"
+    ],
+    "transparent_rgb_preserved": true
+  }
+}

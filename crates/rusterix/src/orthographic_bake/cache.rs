@@ -11,6 +11,18 @@ use std::{
 
 mod decode;
 use decode::{DecodeTask, DecodeWork, WorkerSlot};
+#[cfg(target_arch = "wasm32")]
+pub(super) fn configure_browser_worker(url: &str) -> Result<(), String> {
+    decode::configure_browser_worker(url)
+}
+#[cfg(target_arch = "wasm32")]
+pub(super) fn browser_worker_main() -> Result<(), wasm_bindgen::JsValue> {
+    decode::browser_worker_main()
+}
+#[cfg(target_arch = "wasm32")]
+pub(super) fn browser_worker_stats() -> BrowserCodecWorkerStats {
+    decode::browser_worker_stats()
+}
 
 pub(super) const DECODE_BUDGET: u64 = 32 * 1024 * 1024;
 

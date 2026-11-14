@@ -1,7 +1,13 @@
 [package]
 name = "run-wasm"
+default-run = "run-wasm"
 version = "0.96.0"
 edition = "2021"
 
 [dependencies]
+wasm-bindgen-cli-support = "=0.2.114"
 cargo-run-wasm = "0.3"
+
+[[bin]]
+name = "eldiron-package-web"
+path = "src/package_web.rs"

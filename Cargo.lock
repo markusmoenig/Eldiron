@@ -4532,6 +4532,7 @@ name = "run-wasm"
 version = "0.96.0"
 dependencies = [
  "cargo-run-wasm",
+ "wasm-bindgen-cli-support",
 ]
 
 [[package]]
@@ -4617,6 +4618,7 @@ dependencies = [
  "image",
  "indexmap",
  "instant",
+ "js-sys",
  "lewton",
  "nalgebra",
  "noiselib",

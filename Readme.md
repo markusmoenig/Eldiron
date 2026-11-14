@@ -77,6 +77,11 @@ cd Eldiron
 cargo run --release --package eldiron-creator
 ```
 
+### Browser Packages
+
+Follow the [WebGPU browser build instructions](web/README.md) to package Creator
+or the player with their CPU codec worker and serve them over HTTP.
+
 ### Linux Dependencies
 
 Make sure these dependencies are installed: `libasound2-dev` `libatk1.0-dev` `libgtk-3-dev`

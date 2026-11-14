@@ -2,6 +2,20 @@
 //! handles, unbounded task queue, detached result publication or blocking join.
 use super::*;
 use std::sync::atomic::AtomicUsize;
+#[cfg(target_arch = "wasm32")]
+mod browser;
+#[cfg(target_arch = "wasm32")]
+pub(super) fn configure_browser_worker(url: &str) -> Result<(), String> {
+    browser::configure(url)
+}
+#[cfg(target_arch = "wasm32")]
+pub(super) fn browser_worker_main() -> Result<(), wasm_bindgen::JsValue> {
+    browser::worker_main()
+}
+#[cfg(target_arch = "wasm32")]
+pub(super) fn browser_worker_stats() -> BrowserCodecWorkerStats {
+    browser::stats()
+}
 
 static ACTIVE: AtomicUsize = AtomicUsize::new(0);
 const WORKERS: usize = 2;
@@ -166,19 +180,51 @@ impl Drop for DecodeWork {
 pub(super) struct DecodeWork {
     at: (i32, i32),
     task: Option<DecodeTask>,
+    #[cfg(target_arch = "wasm32")]
+    ticket: Option<browser::Ticket>,
 }
 #[cfg(any(target_arch = "wasm32", feature = "single_thread"))]
 impl DecodeWork {
+    #[cfg(target_arch = "wasm32")]
+    fn start_worker(&mut self) -> Result<(), String> {
+        if self.ticket.is_none() {
+            match browser::start(self.task.take().unwrap())? {
+                browser::Start::Ticket(ticket) => self.ticket = Some(ticket),
+                browser::Start::Waiting(task) => self.task = Some(task),
+            }
+        }
+        Ok(())
+    }
     pub(super) fn start(at: (i32, i32), task: DecodeTask) -> Result<Self, String> {
+        #[cfg(target_arch = "wasm32")]
+        if browser::configured() {
+            let mut work = Self {
+                at,
+                task: Some(task),
+                ticket: None,
+            };
+            work.start_worker()?;
+            return Ok(work);
+        }
         Ok(Self {
             at,
             task: Some(task),
+            #[cfg(target_arch = "wasm32")]
+            ticket: None,
         })
     }
     pub(super) fn at(&self) -> (i32, i32) {
         self.at
     }
     pub(super) fn poll(&mut self) -> Result<OrthographicBakeTilePoll, String> {
+        #[cfg(target_arch = "wasm32")]
+        if browser::configured() {
+            self.start_worker()?;
+            return self.ticket.as_mut().map_or(
+                Ok(OrthographicBakeTilePoll::Pending),
+                browser::Ticket::poll,
+            );
+        }
         if self.task.as_mut().unwrap().step() {
             Ok(self.task.take().unwrap().finish().map_or(
                 OrthographicBakeTilePoll::Missing,

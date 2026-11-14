@@ -1,0 +1,550 @@
+{
+  "date": "2026-11-14",
+  "scope": "Original orthographic five-channel decode workers; other codecs/platform/performance gates remain open.",
+  "normal": {
+    "initial": {
+      "codec": {
+        "configured": true,
+        "workers": 1,
+        "active_jobs": 0,
+        "requests": 100,
+        "completed": 100,
+        "cancelled": 0,
+        "failures": 0,
+        "bridge_bytes": 0,
+        "bridge_limit": 67108864
+      },
+      "frames": 123,
+      "generation": 2,
+      "document": "39fff83b-092a-45d6-81d5-c925d59f4331",
+      "root_cpu_bytes": "0",
+      "readback_bytes": "0",
+      "workers": [
+        {
+          "url": "./eldiron-bake-codec-worker-bootstrap.js",
+          "ready": true,
+          "window": false,
+          "posted": 100,
+          "completed": 100,
+          "invalid": 0,
+          "inputBytes": 39818448,
+          "outputBytes": 131072000,
+          "errors": []
+        }
+      ]
+    },
+    "warm": {
+      "before": {
+        "configured": true,
+        "workers": 1,
+        "active_jobs": 0,
+        "requests": 100,
+        "completed": 100,
+        "cancelled": 0,
+        "failures": 0,
+        "bridge_bytes": 0,
+        "bridge_limit": 67108864
+      },
+      "after": {
+        "configured": true,
+        "workers": 1,
+        "active_jobs": 0,
+        "requests": 100,
+        "completed": 100,
+        "cancelled": 0,
+        "failures": 0,
+        "bridge_bytes": 0,
+        "bridge_limit": 67108864
+      },
+      "frames": [
+        135,
+        167
+      ]
+    },
+    "resized": {
+      "codec": {
+        "configured": true,
+        "workers": 1,
+        "active_jobs": 0,
+        "requests": 154,
+        "completed": 154,
+        "cancelled": 0,
+        "failures": 0,
+        "bridge_bytes": 0,
+        "bridge_limit": 67108864
+      },
+      "frames": 233,
+      "generation": 2,
+      "document": "39fff83b-092a-45d6-81d5-c925d59f4331",
+      "root_cpu_bytes": "0",
+      "readback_bytes": "0",
+      "workers": [
+        {
+          "url": "./eldiron-bake-codec-worker-bootstrap.js",
+          "ready": true,
+          "window": false,
+          "posted": 154,
+          "completed": 154,
+          "invalid": 0,
+          "inputBytes": 61176744,
+          "outputBytes": 201850880,
+          "errors": []
+        }
+      ]
+    },
+    "resize-warm": {
+      "before": {
+        "configured": true,
+        "workers": 1,
+        "active_jobs": 0,
+        "requests": 154,
+        "completed": 154,
+        "cancelled": 0,
+        "failures": 0,
+        "bridge_bytes": 0,
+        "bridge_limit": 67108864
+      },
+      "after": {
+        "configured": true,
+        "workers": 1,
+        "active_jobs": 0,
+        "requests": 154,
+        "completed": 154,
+        "cancelled": 0,
+        "failures": 0,
+        "bridge_bytes": 0,
+        "bridge_limit": 67108864
+      },
+      "frames": [
+        245,
+        277
+      ]
+    },
+    "restored-cached-size": {
+      "codec": {
+        "configured": true,
+        "workers": 1,
+        "active_jobs": 0,
+        "requests": 208,
+        "completed": 208,
+        "cancelled": 0,
+        "failures": 0,
+        "bridge_bytes": 0,
+        "bridge_limit": 67108864
+      },
+      "frames": 343,
+      "generation": 2,
+      "document": "39fff83b-092a-45d6-81d5-c925d59f4331",
+      "root_cpu_bytes": "0",
+      "readback_bytes": "0",
+      "workers": [
+        {
+          "url": "./eldiron-bake-codec-worker-bootstrap.js",
+          "ready": true,
+          "window": false,
+          "posted": 208,
+          "completed": 208,
+          "invalid": 0,
+          "inputBytes": 82535040,
+          "outputBytes": 272629760,
+          "errors": []
+        }
+      ]
+    },
+    "recovered": {
+      "codec": {
+        "configured": true,
+        "workers": 1,
+        "active_jobs": 0,
+        "requests": 262,
+        "completed": 262,
+        "cancelled": 0,
+        "failures": 0,
+        "bridge_bytes": 0,
+        "bridge_limit": 67108864
+      },
+      "frames": 409,
+      "generation": 3,
+      "document": "39fff83b-092a-45d6-81d5-c925d59f4331",
+      "root_cpu_bytes": "0",
+      "readback_bytes": "0",
+      "workers": [
+        {
+          "url": "./eldiron-bake-codec-worker-bootstrap.js",
+          "ready": true,
+          "window": false,
+          "posted": 262,
+          "completed": 262,
+          "invalid": 0,
+          "inputBytes": 103893336,
+          "outputBytes": 343408640,
+          "errors": []
+        }
+      ]
+    },
+    "recovered-warm": {
+      "before": {
+        "configured": true,
+        "workers": 1,
+        "active_jobs": 0,
+        "requests": 262,
+        "completed": 262,
+        "cancelled": 0,
+        "failures": 0,
+        "bridge_bytes": 0,
+        "bridge_limit": 67108864
+      },
+      "after": {
+        "configured": true,
+        "workers": 1,
+        "active_jobs": 0,
+        "requests": 262,
+        "completed": 262,
+        "cancelled": 0,
+        "failures": 0,
+        "bridge_bytes": 0,
+        "bridge_limit": 67108864
+      },
+      "frames": [
+        421,
+        453
+      ]
+    }
+  },
+  "scene_comparison": {
+    "baseline": "browser-target-pool-150.png",
+    "crop": [
+      80,
+      170,
+      1810,
+      895
+    ],
+    "pixels": 1254250,
+    "max_rgba_delta": 0
+  },
+  "cancellation": {
+    "held-before-open": {
+      "document": "a209ed71-1aae-4276-a40e-ac4df3b06bf4",
+      "dirty": "false",
+      "codec": {
+        "configured": true,
+        "workers": 1,
+        "active_jobs": 1,
+        "requests": 1,
+        "completed": 0,
+        "cancelled": 0,
+        "failures": 0,
+        "job_bytes": 1670600,
+        "bridge_bytes": 3341200,
+        "bridge_limit": 67108864
+      },
+      "presented": null,
+      "frames": 11
+    },
+    "cancel-acknowledged-with-reservation": {
+      "document": "a209ed71-1aae-4276-a40e-ac4df3b06bf4",
+      "dirty": "false",
+      "codec": {
+        "configured": true,
+        "workers": 1,
+        "active_jobs": 1,
+        "requests": 1,
+        "completed": 0,
+        "cancelled": 1,
+        "failures": 0,
+        "job_bytes": 1670600,
+        "bridge_bytes": 3341200,
+        "bridge_limit": 67108864
+      },
+      "presented": null,
+      "frames": 13
+    },
+    "replacement-ready-without-old-publication": {
+      "document": "24014e63-e6f0-43dc-9ab4-a05c7ed237be",
+      "dirty": "false",
+      "codec": {
+        "configured": true,
+        "workers": 1,
+        "active_jobs": 1,
+        "requests": 1,
+        "completed": 0,
+        "cancelled": 1,
+        "failures": 0,
+        "job_bytes": 1670600,
+        "bridge_bytes": 3341200,
+        "bridge_limit": 67108864
+      },
+      "presented": {
+        "baked": false,
+        "context": "Region(c85863d6-3e93-46ad-9a3b-c98dccb0c37b)",
+        "custom": false,
+        "map": "236ae48a-0b3c-4871-9594-1408bcd9596f",
+        "ready": true
+      },
+      "frames": 15
+    },
+    "actual-result-retirement": {
+      "document": "24014e63-e6f0-43dc-9ab4-a05c7ed237be",
+      "dirty": "false",
+      "codec": {
+        "configured": true,
+        "workers": 1,
+        "active_jobs": 0,
+        "requests": 1,
+        "completed": 1,
+        "cancelled": 1,
+        "failures": 0,
+        "job_bytes": 0,
+        "bridge_bytes": 0,
+        "bridge_limit": 67108864
+      },
+      "presented": {
+        "baked": false,
+        "context": "Region(c85863d6-3e93-46ad-9a3b-c98dccb0c37b)",
+        "custom": false,
+        "map": "236ae48a-0b3c-4871-9594-1408bcd9596f",
+        "ready": true
+      },
+      "frames": 19
+    }
+  },
+  "replacement_save": {
+    "same_document": true,
+    "before_bytes": 1448893,
+    "after_bytes": 1448893,
+    "before_sha256": "a89caef5853e5418dda7c300167c9975ff88ea033233e048a8aa8a9be239451e",
+    "after_sha256": "a89caef5853e5418dda7c300167c9975ff88ea033233e048a8aa8a9be239451e",
+    "archive_byte_identical": true,
+    "entries": [
+      {
+        "name": "manifest.json",
+        "byte_identical": true,
+        "bytes": 49,
+        "sha256": "78394f9cb99b56a283ec40e5a9dec54e053c8e438de2c8f86263721606f8626f"
+      },
+      {
+        "name": "project.json",
+        "byte_identical": true,
+        "bytes": 29790661,
+        "sha256": "d15d695920bfd89b32f0ae65f4488558b5f0866a32f1423ee4766a32bb42d256"
+      }
+    ]
+  },
+  "expected_failures": {
+    "missing": {
+      "state": "error",
+      "codec": {
+        "configured": true,
+        "workers": 1,
+        "active_jobs": 0,
+        "requests": 1,
+        "completed": 0,
+        "cancelled": 0,
+        "failures": 1,
+        "job_bytes": 0,
+        "bridge_bytes": 0,
+        "bridge_limit": 67108864
+      },
+      "console": [
+        "Cannot run Eldiron Creator: Browser codec worker failed to load or execute",
+        "Cannot run Eldiron Creator: Browser codec worker failed to load or execute"
+      ],
+      "worker_errors": [
+        [
+          "Uncaught TypeError: Failed to fetch dynamically imported module: http://127.0.0.1:8898/absent-owned-proof-worker.js"
+        ]
+      ],
+      "contexts2D": 0,
+      "colorCopies": 0,
+      "gpuErrors": []
+    },
+    "malformed": {
+      "state": "error",
+      "codec": {
+        "configured": true,
+        "workers": 1,
+        "active_jobs": 0,
+        "requests": 1,
+        "completed": 1,
+        "cancelled": 0,
+        "failures": 1,
+        "job_bytes": 0,
+        "bridge_bytes": 0,
+        "bridge_limit": 67108864
+      },
+      "console": [
+        "Cannot run Eldiron Creator: Invalid codec output validity flag",
+        "Cannot run Eldiron Creator: Invalid codec output validity flag"
+      ],
+      "worker_errors": [
+        []
+      ],
+      "contexts2D": 0,
+      "colorCopies": 0,
+      "gpuErrors": []
+    }
+  },
+  "channel_evidence": "browser-worker-channel-transfer.json",
+  "player_stable_dpi": {
+    "initial": {
+      "dataset": {
+        "eldironInspectView": "",
+        "eldironState": "playing",
+        "eldironCodecWorkers": "{\"configured\":true,\"workers\":0,\"active_jobs\":0,\"requests\":0,\"completed\":0,\"cancelled\":0,\"failures\":0,\"job_bytes\":0,\"bridge_bytes\":0,\"bridge_limit\":67108864}",
+        "eldironReadbackBytes": "0",
+        "eldironGpuGeneration": "1",
+        "eldironPresentations": "21",
+        "eldironSession": "8d8f3697-2a31-4aec-a88c-b404e5c10cbe",
+        "eldironTicks": "2"
+      },
+      "probe": {
+        "workers": [],
+        "immutableBuffers": 263,
+        "immutableBufferBytes": 40992,
+        "pooledTargets": 5,
+        "pooledSceneTargets": 2,
+        "contexts2D": 0,
+        "colorCopies": 0,
+        "devices": 1,
+        "assetCopies": 0,
+        "gpuErrors": [],
+        "errors": [],
+        "console": []
+      },
+      "codec": {
+        "configured": true,
+        "workers": 0,
+        "active_jobs": 0,
+        "requests": 0,
+        "completed": 0,
+        "cancelled": 0,
+        "failures": 0,
+        "job_bytes": 0,
+        "bridge_bytes": 0,
+        "bridge_limit": 67108864
+      },
+      "canvas": [
+        [
+          2400,
+          1287
+        ]
+      ]
+    },
+    "resized": {
+      "dataset": {
+        "eldironInspectView": "",
+        "eldironState": "playing",
+        "eldironCodecWorkers": "{\"configured\":true,\"workers\":0,\"active_jobs\":0,\"requests\":0,\"completed\":0,\"cancelled\":0,\"failures\":0,\"job_bytes\":0,\"bridge_bytes\":0,\"bridge_limit\":67108864}",
+        "eldironReadbackBytes": "0",
+        "eldironGpuGeneration": "1",
+        "eldironPresentations": "44",
+        "eldironSession": "8d8f3697-2a31-4aec-a88c-b404e5c10cbe",
+        "eldironTicks": "6"
+      },
+      "probe": {
+        "workers": [],
+        "immutableBuffers": 521,
+        "immutableBufferBytes": 81792,
+        "pooledTargets": 7,
+        "pooledSceneTargets": 2,
+        "contexts2D": 0,
+        "colorCopies": 0,
+        "devices": 1,
+        "assetCopies": 0,
+        "gpuErrors": [],
+        "errors": [],
+        "console": []
+      },
+      "codec": {
+        "configured": true,
+        "workers": 0,
+        "active_jobs": 0,
+        "requests": 0,
+        "completed": 0,
+        "cancelled": 0,
+        "failures": 0,
+        "job_bytes": 0,
+        "bridge_bytes": 0,
+        "bridge_limit": 67108864
+      },
+      "canvas": [
+        [
+          1856,
+          1097
+        ]
+      ]
+    },
+    "recovered": {
+      "dataset": {
+        "eldironInspectView": "",
+        "eldironState": "playing",
+        "eldironCodecWorkers": "{\"configured\":true,\"workers\":0,\"active_jobs\":0,\"requests\":0,\"completed\":0,\"cancelled\":0,\"failures\":0,\"job_bytes\":0,\"bridge_bytes\":0,\"bridge_limit\":67108864}",
+        "eldironReadbackBytes": "0",
+        "eldironGpuGeneration": "2",
+        "eldironPresentations": "73",
+        "eldironSession": "8d8f3697-2a31-4aec-a88c-b404e5c10cbe",
+        "eldironTicks": "10"
+      },
+      "probe": {
+        "workers": [],
+        "immutableBuffers": 784,
+        "immutableBufferBytes": 122784,
+        "pooledTargets": 12,
+        "pooledSceneTargets": 4,
+        "contexts2D": 0,
+        "colorCopies": 0,
+        "devices": 2,
+        "assetCopies": 0,
+        "gpuErrors": [],
+        "errors": [],
+        "console": []
+      },
+      "codec": {
+        "configured": true,
+        "workers": 0,
+        "active_jobs": 0,
+        "requests": 0,
+        "completed": 0,
+        "cancelled": 0,
+        "failures": 0,
+        "job_bytes": 0,
+        "bridge_bytes": 0,
+        "bridge_limit": 67108864
+      },
+      "canvas": [
+        [
+          1856,
+          1097
+        ]
+      ]
+    }
+  },
+  "dynamic_dpr_unverified": {
+    "observed": {
+      "devicePixelRatio": 1.2499999701976776,
+      "canvas": [
+        1856,
+        1097
+      ],
+      "observed": {
+        "contentRect": [
+          1237.328125,
+          731.328125
+        ],
+        "contentBox": [
+          [
+            1237.328125,
+            731.328125
+          ]
+        ],
+        "devicePixelBox": [
+          [
+            1856,
+            1097
+          ]
+        ]
+      }
+    },
+    "result": "RED expected physical125% after runtime DPR change; ResizeObserver and DPR disagree. Stable150% resize/recovery separately passes."
+  }
+}

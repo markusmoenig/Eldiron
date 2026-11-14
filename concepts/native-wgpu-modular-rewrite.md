@@ -27,6 +27,8 @@ Desktop Winit is the first delivery target. Browser WebGPU and Apple document/Me
 
 Networking, new gameplay rules, project-format redesign, a new editor UX, and a second general widget toolkit are outside this rewrite. The runtime boundary must remain compatible with the separate [networking/MMO concept](networking-mmo-concept.md).
 
+User scope clarification: backward compatibility for obsolete experimental paint versions is unnecessary. Preserve current paint data and project serialization; do not add legacy paint replay or migration as a rewrite acceptance requirement.
+
 ## 2. Current architecture and evidence
 
 ### 2.1 Dependency and ownership map

@@ -12618,3 +12618,135 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   worker bootstrap and actual browser off-thread execution must be verified.
   Oversized individual tile subdivision and above64MiBpaint adapters also remain
   open; CPU decode currently rejects a tile plus owned inputs above32MiB.
+
+
+## 2026-11-14 — Browser original-channel worker protocol (active)
+
+- Immutable draw-data cache checkpoint9131db1cverified. Implementing dedicated
+  CPU-only wasm bake codec entry plus realm-local two-worker host pool. Cache
+  tickets contain only Send CPU state; JS Worker handles never enter TileCache
+  or scene/server ownership. Existing unconfigured/single-thread reference path
+  stays cooperative; canonical host configuration will follow packaging.
+- Cancellation marks a ticket but leaves task, input/output charge and global
+  WorkerSlot owned by the running pool until actual result/error. No controller
+  drop claims Worker.terminate completion. Requests/replies are versioned, scoped
+  by job identity, size/channel/budget checked; stale identities ignored. Worker
+  returns original five channels via transferable ArrayBuffers, not viewport
+  composition. Window-free realm handshake required. Compilation/packaging/
+  canonical host connection and actual browser execution are pending.
+
+- CPU-only worker wasm check PASS5.36s after private wrapper/API fixes; canonical
+  Creator wasm check PASS34.16s. Both browser launchers now configure the sibling
+  worker before project construction. New durable tools/package_web.py builds
+  worker and selected application and uses a workspace-pinned bindings tool in
+  run-wasm; existing run-wasm default invocation preserved. web/README.md records
+  layout/HTTP/CSP and ownership contracts. Real execution still pending.
+- Added64MiBglobal worker transport charge (2x each task's encoded+max-decoded
+  reservation) before posting. If occupied, the existing charged task waits with
+  its WorkerSlot; it cannot fall through to UI-thread decoding or queue unlimited
+  transport payloads. Cancelled work holds that reservation until actual reply/
+  error. Cancellation before initial ready retires safely without sending work.
+  Linear-memory allocator/codec scratch overhead remains separately classified.
+
+- Native Creator/player libraries PASS21.83s; browser player PASS24.73s; focused
+  CPU cooperative decode/lease regressions PASS2/0.01s. Boundary tool PASS25
+  separately resolved configurations plus shared aggregate-import guard, now
+  including the CPU-only worker wasm feature. Only two existing-package Cargo
+  dependency lists change (rusterix->js-sys, run-wasm->pinned bindings support);
+  no package versions/checksums changed. First complete Creator+worker package
+  is building; actual browser/cancellation/channel comparison not passed yet.
+
+- First complete Creator+worker package built: CPU worker release40.28s, Creator
+  release1m31s; bindings tool9.31s. Bound worker module3.4MiB, ordinary Creator
+  separate. Local probe initially had a string-quoting syntax error before any
+  browser action; fixed helper and reran. Actual WebGPU proof PASS:54visible
+  original tiles reached ready, warmed/resize-return/replacement-device phases
+  remained GPU-direct. One dedicated worker (window=false) completed262requests
+  and343,408,640original output bytes,0invalid/worker/GPU/browser errors. At
+  ready: active_jobs0andbridge_bytes0; cancelled0in this non-cancel run.
+- Same fixture/map/camera/center/canvas as pre-worker baseline. Recovered scene
+  crop(80,170)-(1810,895),1,254,250pixels, is RGBA byte-identical to committed
+  browser-target-pool-150.png (maxdelta0). Screenshot visually inspected. This
+  verifies rendered channel equivalence, not yet cancellation/individual channel
+  bytes/player packaging. /private/tmp/eldiron-browser-codec-worker-proof.log.
+- Tightening malformed result-validity handling (invalid boolean must error,
+  not look like missing color) and exposing live job reservation bytes for
+  cancellation verification. Final two-application packages are next; source
+  then freezes for delayed-result/document-close and channel-transfer checks.
+
+- Final initial Creator/player packages PASS: worker22.99s/0.23s, Creator1m14s,
+  player58.43s. Cancellation test through Open toolbar successfully switches
+  LargeGpuBake->3DStarter while a deliberately delayed actual response is held:
+  cancelled0->1, active_jobs1, job_bytes1,670,600andbridge_bytes3,341,200
+  unchanged across document replacement. New document is clean/ready/nonbaked.
+- Earlier Ctrl+O/file-chooser test variants stalled presents until inspector
+  handoff; Open toolbar avoids that interaction. Do not treat those timeouts as
+  proof of worker corruption or relax keyboard/platform acceptance. A first
+  toolbar test then waited on stale per-frame resource attributes after the
+  new document went idle; the worker probe already observed its late response.
+- Adding read-only generated-module eldironCodecWorkerStats() diagnostics in
+  Creator/player, so ownership retirement can be measured live without forcing
+  repaint or exposing an application/editor pointer. Full cancellation/5channel
+  byte/save comparison still pending; no final worker subtask pass claimed yet.
+
+- Live-diagnostic Creator/player packages PASS, then final host wasm check PASS
+  20.16s after local formatting/shared stats-call cleanup. No protocol changes
+  after runtime tests. Both failure paths exercised on the real packaged worker:
+  missing module reports Browser codec worker failed to load or execute; a
+  completed reply with nonboolean valid reports Invalid codec output validity
+  flag. Both surface host errors with failures1/active_jobs0/job_bytes0/bridge0,
+  no UI codec fallback, Canvas2D/color copy or GPU validation errors. Expected
+  missing-module fetch/worker error events are classified, not hidden. Logs
+  /private/tmp/eldiron-browser-codec-worker-failure-{missing,malformed}.log.
+- Actual delayed-response cancellation/document replacement PASS: cancellation
+  0->1 retains active1/job1,670,600/bridge3,341,200 until real completion; then
+  active0/job0/bridge0/completed1. Replacement3DStarter stays clean/nonbaked.
+  A second 60s-delay run saved the SAME replacement before and after retirement:
+  entire1,448,893byte ZIP identical, SHA256
+  a89caef5853e5418dda7c300167c9975ff88ea033233e048a8aa8a9be239451e;
+  both49byte manifest and29,790,661byte project entries exact. Different loads
+  of old3DStarter synthesize face/item IDs, so comparing independently loaded
+  archives was not a valid byte-equivalence test; no production migration was
+  changed to mask that difference. /private/tmp/eldiron-browser-codec-worker-
+  save-late-proof.log and save-comparison.json preserve the correct experiment.
+- Actual five-channel256tile transfer matches original PNG/depth decoding byte
+  for byte. Its first sampled RGBA planes were transparent zeros, so an extra
+  direct request to the SAME packaged dedicated worker covers distinct nonzero
+  color/albedo/normal/material and RGB under alpha0, plus LE depth bits -0,
+  +infinity,1.25 and NaN payload0x7fc12345. All80output bytes exact. Durable
+  concepts/native-wgpu-evidence/browser-worker-channel-transfer.json records
+  hashes and the transparent-sample limitation. No extra pixel fixture accepted
+  merely because two paths produced empty data. Packaged player smoke pending.
+- Repeated user clarification is now explicit in the modular plan scope: old
+  experimental paint versions need no backward compatibility. Existing current
+  paint/project schemas remain preserved; no obsolete replay work is added.
+
+- Dynamic browser scale subcase RED: CDP changes reported devicePixelRatio
+  1.5->1.24999997 at CSS1237x731, but canvas physical remains1856x1097
+  (150%). Player continues playing/ticking/readback0 without GPU errors. The
+  current test expects125% physical size, so resize/recovery is not claimed
+  passed from that run. Local Winit0.30.13 source uses ResizeObserver's
+  devicePixelContentBoxSize when supported, rather than CSS*dpr. Need distinguish
+  browser emulation/physical-box inconsistency from shared host metrics/input
+  handling with direct observer/host evidence before changing production code.
+  Stable150% player resize/recovery is next, separately classified.
+
+- Packaged player stable150% runtime PASS: real3DStarter starts playing, ticks
+  progress, CSS1600x858->1237x731 resizes physical2400x1287->1856x1097;
+  explicit device.destroy reconstructs generation1->2 with SAME CPU session and
+  continued ticks/presentations. Readback0/Canvas2D0/colorCopies0/GPUerrors0.
+  This unbaked project starts no codec requests; do not present it as player
+  five-channel workload evidence. /private/tmp/eldiron-browser-codec-worker-
+  player-stable.log; durable browser-codec-worker-ownership.json includes source
+  run, cancellation/reservations/save, expected errors and player states.
+- Direct ResizeObserver measurement in the same125% emulation session confirms
+  browser API inconsistency: DPR1.24999997, CSS1237.328125x731.328125, physical
+  devicePixelContentBox1856x1097. No production Winit/host workaround added
+  based solely on that emulation discrepancy. Dynamic DPR/input still open.
+- Final boundary check PASS25 separately resolved configurations;698 lockfile
+  package/version/source/checksum identities unchanged. Browser worker hosting
+  subtask verified for original bake channels with retained cancellation charges
+  and explicit failures. Worker assets/package instructions are checked in.
+  Codec scratch/linear-memory/driver overhead, other worker types, oversized
+  single tiles, above64MiBpaint, full platform/performance and M0–M9 gates remain
+  incomplete. Concurrent networking concept remains untouched.

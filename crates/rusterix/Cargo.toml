@@ -77,9 +77,10 @@ features = [
 # WASM has no runtime filesystem, including development builds.
 rust-embed = { version = "8", features = ["debug-embed"] }
 cpal = { version = "0.17", features = ["wasm-bindgen"] }
+js-sys = "0.3"
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
-web-sys = { version = "0.3", features = ["Window", "Performance", "Navigator", "AudioContext", "AudioContextState"] }
+web-sys = { version = "0.3", features = ["Window", "Performance", "Navigator", "AudioContext", "AudioContextState", "Worker", "WorkerOptions", "WorkerType", "MessageEvent", "Event", "DedicatedWorkerGlobalScope"] }
 console_error_panic_hook = "0.1"
 instant = { version = "0.1", features = ["wasm-bindgen"] }
 
@@ -87,7 +88,13 @@ instant = { version = "0.1", features = ["wasm-bindgen"] }
 zip = { version = "6.0", default-features = false, features = ["deflate-flate2"] }
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 
+[[bin]]
+name = "eldiron-bake-codec-worker"
+path = "src/bin/bake_codec_worker.rs"
+required-features = ["browser-codec-worker"]
+
 [features]
+browser-codec-worker = []
 single_thread = []
 graphics = ["scenevm/gpu", "dep:theframework", "theframework/ui", "dep:fontdue"]
 default = ["graphics"]

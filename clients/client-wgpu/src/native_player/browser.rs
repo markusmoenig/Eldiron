@@ -36,6 +36,11 @@ fn report(error: impl std::fmt::Display) {
     web_sys::console::error_1(&JsValue::from_str(&message));
     status("error", Some(&message));
 }
+/// Live resource diagnostics remain available while an application is idle.
+#[wasm_bindgen::prelude::wasm_bindgen(js_name = eldironCodecWorkerStats)]
+pub fn codec_worker_stats() -> String {
+    serde_json::to_string(&rusterix::orthographic_bake::browser_codec_worker_stats()).unwrap()
+}
 pub fn start() {
     std::panic::set_hook(Box::new(|info| {
         console_error_panic_hook::hook(info);
@@ -49,6 +54,9 @@ pub fn start() {
     });
 }
 async fn load() -> std::result::Result<(), String> {
+    rusterix::orthographic_bake::configure_browser_codec_worker(
+        "./eldiron-bake-codec-worker-bootstrap.js",
+    )?;
     let window = web_sys::window().ok_or("Browser window is unavailable")?;
     let document = window.document().ok_or("Browser document is unavailable")?;
     let query =
@@ -169,6 +177,7 @@ impl GpuApplication for BrowserApplication {
             .and_then(|window| window.document())
             .and_then(|document| document.document_element())
         {
+            let _ = root.set_attribute("data-eldiron-codec-workers", &codec_worker_stats());
             let _ = root.set_attribute(
                 "data-eldiron-readback-bytes",
                 &images.context().transfers().readback_bytes.to_string(),
