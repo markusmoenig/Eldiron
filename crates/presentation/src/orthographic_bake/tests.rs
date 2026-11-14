@@ -51,7 +51,7 @@ fn fixture(region: Uuid, camera: Camera3D) -> OrthographicBakeController {
     assert_eq!(tile, 4);
     owner
 }
-fn finish(context: &GpuContext) {
+pub(super) fn finish(context: &GpuContext) {
     context
         .device
         .poll(wgpu::PollType::Wait {
@@ -60,7 +60,7 @@ fn finish(context: &GpuContext) {
         })
         .unwrap();
 }
-fn ready(
+pub(super) fn ready(
     renderer: &mut OrthographicBakeRenderer,
     source: &OrthographicBakeSource<'_>,
     camera: &Camera3D,
@@ -85,7 +85,7 @@ fn ready(
         std::thread::sleep(std::time::Duration::from_millis(1));
     }
 }
-fn colors(context: &GpuContext, output: &OrthographicBakeOutput) -> Vec<u8> {
+pub(super) fn colors(context: &GpuContext, output: &OrthographicBakeOutput) -> Vec<u8> {
     let mut capture = ReadbackTicket::capture(context, output.image.clone()).unwrap();
     finish(context);
     capture
@@ -95,7 +95,7 @@ fn colors(context: &GpuContext, output: &OrthographicBakeOutput) -> Vec<u8> {
         .pixels()
         .to_vec()
 }
-fn depths(context: &GpuContext, output: &OrthographicBakeOutput) -> Vec<f32> {
+pub(super) fn depths(context: &GpuContext, output: &OrthographicBakeOutput) -> Vec<f32> {
     let bytes = u64::from(output.size.0) * u64::from(output.size.1) * 4;
     let staging = context.device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("explicit bake depth fixture capture"),

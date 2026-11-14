@@ -37,6 +37,8 @@ pub(super) struct Paging {
     visible: Vec<((i32, i32), [u32; 4])>,
     next: usize,
     pending: Option<Arc<AtomicBool>>,
+    base: Option<OrthographicBakeOutput>,
+    revisions: HashMap<(i32, i32), Uuid>,
 }
 impl OrthographicBakeRenderer {
     pub(super) fn cancel_incompatible(&mut self, key: &FrameKey) {
@@ -67,10 +69,49 @@ impl OrthographicBakeRenderer {
         &mut self,
         source: &OrthographicBakeSource<'_>,
         key: FrameKey,
-        visible: Vec<((i32, i32), [u32; 4])>,
+        mut visible: Vec<((i32, i32), [u32; 4])>,
         tile_bytes: u64,
     ) -> Result<Option<OrthographicBakeOutput>> {
         if self.paging.is_none() {
+            let desired: HashMap<_, _> = visible
+                .iter()
+                .filter_map(|(at, _)| {
+                    source
+                        .tile_revision(at.0, at.1)
+                        .map(|revision| (*at, revision))
+                })
+                .collect();
+            // Only a live producer request fixes geometry/projection while tile
+            // samples advance. Lighting, camera, bounds, size and request must
+            // all match exactly to reuse prior pixels/depth. Removed coordinates
+            // force a full rebuild rather than leaving inherited pixels behind.
+            let base = self
+                .complete
+                .as_ref()
+                .filter(|old| {
+                    key.request.is_some()
+                        && old.request == key.request
+                        && old.params == key.params
+                        && self
+                            .complete_tiles
+                            .keys()
+                            .all(|at| desired.contains_key(at))
+                })
+                .and(self.target.clone());
+            let revisions = if base.is_some() {
+                visible.retain(|(at, _)| self.complete_tiles.get(at) != desired.get(at));
+                if visible.is_empty() {
+                    self.complete = Some(key.clone());
+                    self.complete_tiles = desired;
+                    let target = self.target.as_mut().unwrap();
+                    target.source_revision = key.revision;
+                    self.waiting = false;
+                    return Ok(Some(target.clone()));
+                }
+                self.complete_tiles.clone()
+            } else {
+                HashMap::new()
+            };
             let previous = self.target.take();
             let output = self.target(
                 (key.params.size[0], key.params.size[1]),
@@ -85,6 +126,8 @@ impl OrthographicBakeRenderer {
                 visible,
                 next: 0,
                 pending: None,
+                base,
+                revisions,
             });
         }
         let mut job = self.paging.take().unwrap();
@@ -100,6 +143,7 @@ impl OrthographicBakeRenderer {
         if job.next == job.visible.len() {
             self.waiting = job.key != key;
             self.complete = Some(job.key);
+            self.complete_tiles = job.revisions;
             self.target = Some(job.output.clone());
             return Ok(Some(job.output));
         }
@@ -130,9 +174,11 @@ impl OrthographicBakeRenderer {
         for &(at, dispatch) in &job.visible[job.next..end] {
             match source.poll_tile(at.0, at.1).map_err(RenderError)? {
                 rusterix::orthographic_bake::OrthographicBakeTilePoll::Ready(lease) => {
-                    ready.push((at, dispatch, lease))
+                    ready.push((at, dispatch, Some(lease)))
                 }
-                rusterix::orthographic_bake::OrthographicBakeTilePoll::Missing => (),
+                rusterix::orthographic_bake::OrthographicBakeTilePoll::Missing => {
+                    ready.push((at, dispatch, None))
+                }
                 rusterix::orthographic_bake::OrthographicBakeTilePoll::Pending => {
                     self.paging = Some(job);
                     return Ok(self.current(&key));
@@ -143,8 +189,13 @@ impl OrthographicBakeRenderer {
         let mut draws = Vec::new();
         for (at, dispatch, lease) in ready {
             let offset = pixels.len() as u32;
-            Self::pack(lease.source(), pixels_per_tile, &mut pixels)?;
-            draws.push((at, dispatch, offset));
+            if let Some(lease) = &lease {
+                Self::pack(lease.source(), pixels_per_tile, &mut pixels)?;
+            }
+            draws.push((at, dispatch, offset, lease.is_none()));
+            if let Some(revision) = source.tile_revision(at.0, at.1) {
+                job.revisions.insert(at, revision);
+            }
         }
         let upload_bytes = (pixels.len() * std::mem::size_of::<Pixel>()) as u64;
         let Some(submission) = self.context.try_source_submission(upload_bytes) else {
@@ -165,13 +216,33 @@ impl OrthographicBakeRenderer {
                 });
         let mut params = job.key.params;
         if job.next == 0 {
-            self.dispatch(&mut encoder, &job.output, &params, &self.dummy, true);
+            if let Some(base) = job.base.take() {
+                encoder.copy_texture_to_texture(
+                    base.image.texture.as_image_copy(),
+                    job.output.image.texture.as_image_copy(),
+                    wgpu::Extent3d {
+                        width: base.size.0,
+                        height: base.size.1,
+                        depth_or_array_layers: 1,
+                    },
+                );
+                encoder.copy_buffer_to_buffer(
+                    &base.depth,
+                    0,
+                    &job.output.depth,
+                    0,
+                    u64::from(base.size.0) * u64::from(base.size.1) * 4,
+                );
+            } else {
+                self.dispatch(&mut encoder, &job.output, &params, &self.dummy, true);
+            }
         }
-        for (at, dispatch, offset) in draws {
+        for (at, dispatch, offset, missing) in draws {
             params.tile[0] = at.0;
             params.tile[1] = at.1;
             params.dispatch = dispatch;
             params.bits[2] = offset;
+            params.bits[3] = u32::from(missing);
             self.dispatch(&mut encoder, &job.output, &params, buffer.buffer(), false);
         }
         job.next = end;

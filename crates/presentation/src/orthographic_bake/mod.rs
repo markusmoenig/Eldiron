@@ -97,6 +97,7 @@ pub struct OrthographicBakeRenderer {
     target: Option<OrthographicBakeOutput>,
     tiles: HashMap<(i32, i32), CachedTile>,
     complete: Option<FrameKey>,
+    complete_tiles: HashMap<(i32, i32), Uuid>,
     paging: Option<Paging>,
     page_buffer: Weak<renderkit::SourceBuffer>,
     waiting: bool,
@@ -177,6 +178,7 @@ impl OrthographicBakeRenderer {
             target: None,
             tiles: HashMap::new(),
             complete: None,
+            complete_tiles: HashMap::new(),
             paging: None,
             page_buffer: Weak::new(),
             waiting: false,
@@ -330,14 +332,17 @@ impl OrthographicBakeRenderer {
                     format: descriptor.format,
                     usage: wgpu::TextureUsages::STORAGE_BINDING
                         | wgpu::TextureUsages::TEXTURE_BINDING
-                        | wgpu::TextureUsages::COPY_SRC,
+                        | wgpu::TextureUsages::COPY_SRC
+                        | wgpu::TextureUsages::COPY_DST,
                     view_formats: &[],
                 });
             let image = Arc::new(GpuImage::from_texture(&self.context, texture, descriptor)?);
             let depth = self.context.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("orthographic bake camera depth"),
                 size: bytes,
-                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+                usage: wgpu::BufferUsages::STORAGE
+                    | wgpu::BufferUsages::COPY_SRC
+                    | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             });
             self.target = Some(OrthographicBakeOutput {
@@ -553,6 +558,14 @@ impl OrthographicBakeRenderer {
         let Some(submission) = self.context.try_source_submission(upload_bytes) else {
             return Ok(self.current(&key));
         };
+        let tile_revisions = visible
+            .iter()
+            .filter_map(|(at, _)| {
+                source
+                    .tile_revision(at.0, at.1)
+                    .map(|revision| (*at, revision))
+            })
+            .collect();
         let mut resolved = Vec::new();
         for (at, dispatch) in visible {
             match self.tile(at, source, asset.tile_size)? {
@@ -589,6 +602,7 @@ impl OrthographicBakeRenderer {
             drop(submission);
         });
         self.complete = Some(key);
+        self.complete_tiles = tile_revisions;
         self.waiting = false;
         Ok(Some(output))
     }
@@ -599,3 +613,6 @@ mod tests;
 
 #[cfg(test)]
 mod job_tests;
+
+#[cfg(test)]
+mod incremental_tests;

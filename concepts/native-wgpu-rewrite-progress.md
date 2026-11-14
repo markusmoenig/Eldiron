@@ -11783,3 +11783,116 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   these identities, with exact alpha/depth removal and projection/request guards;
   keep the existing8MiB pages/64MiB shared budget and verify transfer reduction
   against real large generation. Full resource/performance/platform gates remain.
+
+## 2026-11-14 — Incremental progressive GPU targets (active)
+
+- Previous goal turn was progress: verified GPU paging/deferred decode/cache
+  epochs checkpoint28f8329c; revalidated clean tracked state and preserved the
+  concurrent networking concept. Full M0–M9 remains active.
+- Larger progressive views can now copy the last completed color/depth into a
+  private GPU target and upload/draw only changed tile epochs. This requires
+  identical live producer request, full projection/bounds/size/depth/lighting
+  parameters, and no removed visible coordinates. Camera/light/request changes
+  rebuild all tiles; final committed sources still use exact publications.
+- Completion records the epochs actually drawn in each page, so newer samples
+  arriving during an older page job are detected by the next update. Identical
+  visible originals can republish metadata without GPU work. The shared source
+  pool/page/upload limits and asynchronous publication barrier are unchanged.
+- Replaced pixels now reset depth before applying their new finite hit; a
+  missing changed original clears precisely its own source-grid pixels, not
+  its conservatively expanded dispatch rectangle. This handles transparent,
+  absent-depth and evicted-preview replacement without neighboring tile damage.
+- Private output color/depth have COPY_DST usage for GPU-only copies. No CPU
+  viewport destination/readback, GPU handle callback capture or project-format
+  change added. Target allocation/driver/global-memory acceptance remains open.
+- Native presentation test build PASS21.86s. Actual GPU suite and Creator test
+  build collecting in /private/tmp/eldiron-incremental-bake-gpu.log and
+  /private/tmp/eldiron-owned-scepter-check-test-incremental-pages.log.
+  New GPU cases cover changed-only pages, unpublished target isolation, alpha/
+  depth removal/addition, zero-work republish, lighting/camera invalidation and
+  a genuinely evicted unencoded preview requiring exact missing-tile clearing.
+  No new GPU/integrated result claimed until these complete.
+- Actual GPU suite PASS7/25.06s, /private/tmp/eldiron-incremental-bake-gpu.log.
+  New tests prove published color/depth remain unchanged while private updates
+  execute, only one changed tile (then completed+new tiles) uploads, transparent/
+  partial-alpha/absent-depth and finite-depth transitions match the CPU source,
+  unchanged visibility republish performs zero transfers, light/camera changes
+  rebuild, and a genuinely evicted changed preview clears without damaging its
+  neighbors. Existing request/two-owner/loss/producer/overlay cases still pass.
+- Creator test build PASS45.91s; wasm library PASS33.69s; staticlib/no-Winit
+  library PASS40.19s. Browser release/package PASS1m59s,99,144,158bytes.
+  Native54tile generation remains live in60931, currently247+captures with
+  roughly58MB uploaded; do not substitute an intermediate counter for a final
+  result. Actual task-owned browser fixture now loads the previously saved
+ 54tile native project to exercise live multi-tile generation/copies on WebGPU,
+  rather than using a committed-source-only recovery probe as copy evidence.
+- Final native large progressive generation PASS1/168.91s, /private/tmp/eldiron-
+  incremental-bake-large-generation.log: same84,934,656byte plan/54tiles,
+  664root frames,324labeled captures/184,025,088asset bytes, complete preview/
+  publication/history/undo/redo/save and no ordinary readback/CPU viewport.
+  Total uploaded counter76,697,560bytes versus1,975,350,008in the previous
+  controlled case (about96.1% fewer bytes). This is transfer evidence; elapsed
+  debug runs differed and do not prove equal-hardware release frame-time gains.
+- Independent current archive inspection PASS:V5/2samples/54tiles/all5channels,
+  every PNG256x256/every depth plane65,536f32s,1,418,267finite depths,
+  3,160,269archive bytes, SHA256
+  6f35f9aa4e438a332d2e8e06a7c9d4c0d0e4874bbda96d91fd5daece377ebb25.
+  /private/tmp/eldiron-incremental-large-generated-bake.eldiron. All270original
+  channel entries (54beauty+54depth+54albedo+54normal+54material) are byte-
+  identical to the prior09eb7de9large-generation archive by tile coordinate.
+  Only project/document metadata differs between independently created fixtures.
+- Browser bootstrap loaded that prior54tile project and recovered generation2
+  without readback/errors, but is still pending source decode at its short wait.
+  This is not final browser copy/completion evidence. A focused real Render
+  workflow is being prepared through native action controls, with GPU-to-GPU
+  color/depth-copy instrumentation to prove the incremental path actually runs.
+- Browser harness corrections, without production changes: a single CDP
+  multiline insertion left partial action text; explicit Return with separate
+  text events produced the visibly verified samples=2. The first archive
+  transfer stopped with an unsettled-await/socket observation; authoritative
+  reattachment found the same page/document alive, Ready54tiles, zero errors.
+  Bounded32KiB archive chunks and explicit socket rejection completed transfers.
+  A later oracle incorrectly expected status.total=2; that status aggregates
+  tile/sample iterations (6tiles*2=12). Observed the same first request finish
+  Ready6tiles with2color+2depth GPU copies, then ran the complete save workflow
+  only after that authoritative terminal state. No live job was restarted on
+  an observation timeout and no production limit/assertion was weakened.
+- Final actual WebGPU multi-tile workflow PASS, /private/tmp/eldiron-incremental-
+  browser-proof-final.log. Real two-sample6tile generation (>8MiB retained fast
+  path),2color+2depth GPU-to-GPU target copies while rendering, completed native
+  source, source-pool peak67,108,864bytes within64MiB.36explicit asset captures/
+  20,447,232bytes for this request; ordinary/root/Canvas2D/color-copy/error0.
+  Partial save remained pending; completed fresh save and subsequent GPU loss
+  recover generation2->3with same document,6visible tiles, ready source,8MiB
+  source storage and zero post-recovery readbacks/errors. Prototype copy hooks
+  count actual labeled GPU commands; this is not inferred from final pixels.
+- Independent browser ZIP checks PASS: all32base/partial entries byte-identical;
+  all authored project data unchanged except the completed bake/map revision.
+  Generated V5/2samples/6tiles/all5channels,256x256PNGs and depths,
+  174,509finite depths,1,091,860archive bytes. project.json SHA256
+  84376774a1d99dece1d4dfff20b8b08a0fdcc678444e0d6fc26cca52294e3476.
+  Visually inspected the recovered completed floor, grid and surrounding UI.
+- Retained concepts/native-wgpu-evidence/browser-incremental-bake-150.png (376217bytes),
+  SHA2564990928ca13cb1f43829cb2ce073177e2e7307204ef8ca15dc79c28aac620e39.
+- All current build/test/browser handles are terminal; git diff --check clean;
+  unrelated networking concept is untouched. Ready for local checkpoint. Full
+  M0–M9 remains ACTIVE: this is a source-transfer improvement, not completion
+  of release latency/startup/p50/p95/p99/peak-memory or physical-platform gates.
+- Next useful whole-plan work: bounded GPU target reuse/allocation accounting
+  or remaining core-data/ownership extraction. Keep oversized individual source
+  tiles/over-budget paint adapters explicit until their producers page; preserve
+  current paint serialization and supported source semantics. Browser off-thread
+  decode/cold-source latency and canonical Creator retirement remain open. The
+  linked free-standing stamp omission is a baseline feature gap as audited above,
+  not an invented old-paint compatibility obligation.
+- Follow-up source-lifetime invariant identified during final review: the
+  current CPU eviction policy can remove an unencoded transient preview (the
+  explicit missing-tile GPU oracle reproduces this). Its last published epoch
+  then has no CPU backing for device reconstruction until the next sample.
+  Keep those unencoded originals resident until commit/cancellation; evict only
+  originals backed by encoded asset entries. This stays within the same32MiB
+  domain, returning Pending/error under real pin pressure. Update the pressure
+  fixture to prove the changed transient survives and its GPU update preserves
+  neighbors, rather than relying on its disappearance. Retain defensive missing-
+  source clearing for corrupt sources. This is the next concrete action before
+  broad target-budget/core extraction, not a completed recovery invariant.

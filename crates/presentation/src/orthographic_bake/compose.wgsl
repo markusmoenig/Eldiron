@@ -67,10 +67,19 @@ fn draw(@builtin(global_invocation_id) id:vec3<u32>) {
     var origin=vec2<f32>(0.);if p.tile.z!=0 {origin=vec2<f32>(p.bounds.x,p.bounds.z);}
     let tile=vec2<i32>(floor(vec2<f32>(divided(fp(u-origin.x),p.source.y),divided(fp(v-origin.y),p.source.y))));
     if any(tile!=p.tile.xy) {return;}
+    // A missing/replaced original clears only its exact tile, including the
+    // conservative dispatch rectangle's shared edges. No destination readback.
+    if p.bits.w!=0u {
+        textureStore(image,at,vec4<f32>(0.));
+        depth[at.y*p.size.x+at.x]=bitcast<f32>(p.bits.x);return;
+    }
     let local_x=u32(clamp(floor(fp(fp(u-fp(origin.x+fp(f32(tile.x)*p.source.y)))*p.source.x)),0.,f32(p.size.z-1u)));
     let local_y=u32(clamp(floor(fp(fp(fp(origin.y+fp(f32(tile.y+1)*p.source.y))-v)*p.source.x)),0.,f32(p.size.z-1u)));
     let pixel=pixels[p.bits.z+local_y*p.size.z+local_x];
     textureStore(image,at,shade(pixel));
+    // Changed originals can remove a previous hit, even when their new depth
+    // is invalid or absent. This is required when copying a completed target.
+    depth[at.y*p.size.x+at.x]=bitcast<f32>(p.bits.x);
     // Legacy versions intentionally lack depth occlusion. Invalid/no-hit source
     // depths remain infinity, preserving compatibility without a CPU plane.
     if p.size.w!=0u && abs(pixel.depth)<bitcast<f32>(p.bits.x) {
