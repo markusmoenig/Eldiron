@@ -9,7 +9,7 @@ use scenevm::{
     prelude::{Vec2, Vec3},
 };
 
-fn scene(context: &Arc<GpuContext>, assets: &Assets, chunk: &Chunk) -> SceneHandler {
+pub(super) fn scene(context: &Arc<GpuContext>, assets: &Assets, chunk: &Chunk) -> SceneHandler {
     let vm = SceneVM::new_with_context_and_atlas(context.clone(), 1, 1, SharedAtlas::new(256, 256));
     let mut scene = SceneHandler::with_vm(vm);
     scene.sync_base_render_settings(&assets.config);
@@ -21,7 +21,7 @@ fn scene(context: &Arc<GpuContext>, assets: &Assets, chunk: &Chunk) -> SceneHand
     });
     scene
 }
-fn finish(context: &GpuContext) {
+pub(super) fn finish(context: &GpuContext) {
     context
         .device
         .poll(wgpu::PollType::Wait {

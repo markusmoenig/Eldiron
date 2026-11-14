@@ -477,6 +477,27 @@ impl Snapshot {
         );
         Self(paint)
     }
+    pub(super) fn upload_page_sources(
+        self,
+        scene: &mut rusterix::SceneHandler,
+        camera: scenevm::Camera3D,
+        viewport: (u32, u32),
+        context: &renderkit::GpuContext,
+    ) -> Result<std::sync::Arc<shared::surface_paint::pages::PaintPageIndex>, String> {
+        let limit =
+            u64::from(context.device.limits().max_storage_buffer_binding_size).saturating_sub(20);
+        let source = shared::surface_paint::pages::PaintPageIndex::from_layer(&self.0, limit)?;
+        shared::iso_paint_render::IsoPaintRenderer::upload_stamp_billboards_cached(
+            &mut Default::default(),
+            &self.0,
+            &mut scene.vm,
+            camera,
+            viewport.0,
+            viewport.1,
+        );
+        Ok(std::sync::Arc::new(source))
+    }
+    #[cfg(test)]
     pub(super) fn upload(
         mut self,
         scene: &mut rusterix::SceneHandler,

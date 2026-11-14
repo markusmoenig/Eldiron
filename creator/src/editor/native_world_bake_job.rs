@@ -48,6 +48,11 @@ impl Jobs {
                 "document": job.key.document, "map": job.key.source.map, "request": job.key.request,
                 "preparing": !job.source.ready(), "gpu": job.gpu.is_some(),
                 "pending": job.gpu.as_ref().is_some_and(|gpu| gpu.has_pending_capture()),
+                "paint_pages": job.gpu.as_ref().and_then(|gpu| gpu.paint_residency_usage()).map(|usage| serde_json::json!({
+                    "gpu_plane_bytes": usage.gpu_plane_bytes, "capacity": usage.capacity,
+                    "resident": usage.resident, "pinned": usage.pinned,
+                    "page_uploads": usage.page_uploads, "uploaded_bytes": usage.uploaded_bytes,
+                })),
             })),
             "adapter": self.legacy.is_some() && controller.is_rendering(),
         })
@@ -335,19 +340,24 @@ impl Editor {
                         // Authoring paint uses the same original-world source
                         // policy as the displayed view. Runtime surface_paint
                         // caches are derived game inputs, not authored layers.
-                        job.paint.take().unwrap().upload(
+                        let paint = job.paint.take().unwrap().upload_page_sources(
                             &mut scene,
                             job.frame.camera,
                             job.viewport,
-                        );
-                        job.gpu = Some(
-                            OrthographicBakeJob::new(
-                                images.context().clone(),
-                                scene,
-                                job.frame.clone(),
-                            )
-                            .map_err(|error| error.to_string())?,
-                        );
+                            images.context(),
+                        )?;
+                        let mut gpu = OrthographicBakeJob::new(
+                            images.context().clone(),
+                            scene,
+                            job.frame.clone(),
+                        )
+                        .map_err(|error| error.to_string())?;
+                        // The existing authored-input guard remains until
+                        // oversized dispatch subdivision is verified. Its
+                        // supported UV source set fits this residency budget.
+                        gpu.set_paint_pages(paint, 64 * 1024 * 1024)
+                            .map_err(|error| error.to_string())?;
+                        job.gpu = Some(gpu);
                     }
                     job.gpu
                         .as_mut()

@@ -13147,3 +13147,96 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   wasm-cpu,wasm-cpu-tree}.log. All handles terminal; source index remains a
   prerequisite only. Continue bounded resident upload and deterministic replay;
   no old paint-version compatibility, source guard increase or adapter retirement.
+
+
+## 2026-11-14 — Demand paint residency and deterministic sample replay (active)
+
+- Previous turn progressed with checkpoints661cb4f4/f2ca1672 (publication gates
+  and complete frozen CPU source index). Rechecked tracked source clean before
+  this batch; networking concept remains untracked and untouched.
+- Added producer-owned, generation-checked PaintPageBinding for original color
+  (RGBA8Unorm) and material(RGBA8Uint) textures plus the complete source table.
+  SceneVM retains leases through the binding, reads ordinary/sparse metadata
+  through one helper, and never overwrites a producer atlas when returning to
+  ordinary CPU-source uploads. Combined compute paint/organic metadata is size
+  checked before allocating the packed upload, including the atomic/header prefix.
+- New application-owned PaintPageResidency allocates only a capped GPU page atlas,
+  uploads at most one original64x64color/material page per request directly from
+  SharedBytes, and preserves full source-key metadata. Current dispatch faults
+  pin their pages; another request cannot evict a pinned neighbor. Full working
+  sets report subdivision required rather than silently sampling missing paint.
+  Partial row padding may consume spare budget but cannot exceed its cap.
+- Private bake jobs now optionally load faulted sources and replay the same
+  work/channel/sample seed. A typed history checkpoint retains the actual pooled
+  previous target plus device/one-pass epoch, rejects stale/foreign/reallocated
+  history, and restores only the previously valid ping-pong front. Faults never
+  start original readback, preview, sample advancement or persistent publication.
+- Initial actual GPU bounded cache PASS1/0.23s:2slots,3distinct original pages,
+  full pinned pressure, safe eviction next dispatch, unchanged neighbor pixels,
+  separate original upload counts and cross-device rejection. Actual replay
+  PASS1/1.04s: deliberately drop residency after sample0, force misses at samples
+  0and1, and compare all4original color channels and geometry-derived depth to
+  full residency; RGBAmaxdelta0 and exact finite-depth agreement.
+- Expanded bake suite PASS11/13.60s includes off-screen enclosure indirect-only
+  source faults and existing progressive/retained/dynamic/depth/channel tests.
+  Added pending-dependency request retirement, partial-row capacity and stronger
+  stale-history checks afterward; final suite collecting.
+- Creator's canonical private bake producer now builds this frozen complete index
+  and uploads organic stamp sources separately, without packing a whole CPU UV
+  atlas. The old Snapshot UV upload remains test-only for the reference oracle.
+  Original64MiB input guards remain until oversized dispatch subdivision passes;
+  supported UV originals fit the64MiB resident plane budget. Prefab audit confirms
+  its UV source keys/bytes are shared per asset, not duplicated per instance;
+  only instance alpha-owner classification expands. Do not multiply their source
+  estimate or claim source-size adapter retirement from this batch.
+- Actual canonical hidden-world linked Prefab paint production and pending catalog
+  edit retirement PASS1/4.75s:1tile and1,573green albedo pixels, unchanged authored
+  source and original asset contract. Browser release/cross-target integration
+  collecting. No shader numerical changes, serialized formats, dependency/lock
+  changes or physical platform/performance acceptance claims.
+
+- Final bake suite PASS11/13.57s with typed epoch guards, pending metadata request
+  retirement and bounded partial-row capacity. Actual3-page/2-slot producer
+  pressure PASS1/0.54s:2uploads,2pinned pages, explicit subdivision-required error,
+  0original capture/preview/persistence, next advance Retired. Material fixture
+  then strengthened with nonempty semantic replacement planes: replay/indirect/
+  pressure tests PASS3/1.42s, all4RGBAoriginal channels delta0 plus exact finite
+  depth agreement. Same-size ordinary CPU-source transition GPU test PASS1/0.32s:
+  original atlas/neighbor pixels survive separate ordinary uploads and device
+  mismatch rejection. Only final line wrapping after those checks.
+- Canonical release Creator+isolated CPU-worker package PASS(worker23.37s,
+  Creator78s); isolated browser player compile PASS12.75s. Actual browser UI
+  Bake:Render32samples on current-version24paint fixture PASS4.142s smoke elapsed
+  (not a release performance baseline). Native page producer observed; reference
+  adapter stayed false. Observed capacity25/819,200plane bytes, only4required
+  pages uploaded. Direct queue instrumentation on a fresh rebake after recovery
+  confirms exactly2plane allocations and8original16,384byte writes=131,072bytes;
+  32beauty+3aux+1depth requests, no normal color capture/Canvas2D/root framebuffer
+  or GPU errors. Original plane budget64MiB never increased.
+- Saved32-sample/version5single-tile asset and recovered/rebaked archives retain
+  all current regional/Prefab paint JSON exactly. All5original bake sidecars are
+  byte-identical before recovery, after recovery, and a fresh bake on replacement
+  device generation2. Recovered produced scene1,254,250RGBApixels exact. Viewed
+  the recovered screenshot: actual green painted geometry is present, not merely
+  a blank successful surface. Durable artifacts:
+  concepts/native-wgpu-evidence/paint-demand-residency.json and
+  concepts/native-wgpu-evidence/paint-demand-residency-150.png.
+- Logs:/private/tmp/eldiron-paint-{residency-final-bake-suite-gpu,residency-pressure-gpu,
+  residency-semantic-replay-gpu,residency-owner-transition-gpu,demand-creator-gpu,
+  residency-browser-package,residency-browser-produce,residency-browser-count-writes,
+  residency-player-wasm-check}.log. All build/test/browser handles terminal.
+- Next: implement real bounded subdispatch production and retirement of above-
+  budget source adapters. Before widening accepted inputs, stop transport at its
+  first unresolved paint dependency; today's empty provisional result may lead
+  later bounces down irrelevant paths and pin speculative pages. Preserve exact
+  absolute pixel/sample seeds and the previous valid sample through all regions;
+  clear sample0only once, keep incomplete working output private, and commit
+  only after every region resolves. Current ping-pong full-pass flip/rollback
+  alone is insufficient for partial passes (clear/resolve/commit need explicit
+  ownership). Keep current input guard until these paths pass original-channel
+  parity, source pressure, cancellation, source invalidation and recovery.
+- Large-source CPU index/alpha classification scheduling, request batching and
+  total active/inflight/codec/driver memory remain work; retained plane caps and
+  this smoke are not those acceptance gates. Physical window/platform/release
+  performance and other M0-M9 gates remain open. No networking concept edits or
+  staged unrelated work, no shader/schema/dependency changes, no overall completion.

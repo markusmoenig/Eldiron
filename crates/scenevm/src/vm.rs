@@ -13,6 +13,7 @@ mod irradiance;
 mod raster3d;
 mod raster_mesh;
 mod surface_gpu;
+mod paint_pages;
 
 use crate::{
     Camera3D, CameraKind, Chunk, Light, LightType, Poly2D, Poly3D, Texture,
@@ -3654,6 +3655,7 @@ pub struct VM {
     // Optional ping-pong textures when enabled (front index selects current composited view)
     ping_pong_textures: Option<[crate::Texture; 2]>,
     ping_pong_front: usize,
+    history_epoch: u64,
     ping_pong_enabled: bool,
     progressive_sample_index: Option<u32>,
     frozen_frame_texture: Option<crate::Texture>,
@@ -3689,6 +3691,7 @@ pub struct VM {
     pub material_table_dirty: bool,
     raster3d_paint_overlay: Option<Raster3DPaintOverlayData>,
     raster3d_surface_paint: Option<Raster3DSurfacePaintData>,
+    paged_surface_paint: Option<std::sync::Arc<crate::paint_pages::PaintPageBinding>>,
     raster3d_paint_alpha_geo_ids: FxHashSet<GeoId>,
     raster3d_paint_overlay_dirty: bool,
     pub palette: [[f32; 4]; 256],
@@ -4210,6 +4213,9 @@ impl VM {
         height: u32,
     ) -> crate::SceneVMResult<(wgpu::TextureView, wgpu::TextureView, usize)> {
         self.ensure_layer_texture(device, width, height)?;
+        self.history_epoch = self.history_epoch.checked_add(1).ok_or_else(|| {
+            crate::SceneVMError::InvalidOperation("layer history epoch exhausted".into())
+        })?;
         let bg = self.background;
 
         if self.ping_pong_enabled {
@@ -5506,6 +5512,9 @@ impl VM {
     }
 
     fn upload_raster3d_paint_overlay(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
+        if self.upload_paged_paint(device, queue) {
+            return;
+        }
         if self.gpu.is_none() {
             return;
         }
@@ -5622,38 +5631,20 @@ impl VM {
                 extent,
             );
         }
-        let dummy_surface_entry = [Raster3DSurfacePaintEntry::zeroed()];
-        let entries = if surface_entries.is_empty() {
-            dummy_surface_entry.as_slice()
-        } else {
-            surface_entries
-        };
-        let entries_size = std::mem::size_of_val(entries);
-        if g.raster3d_surface_paint_entries_ssbo.is_none()
-            || g.raster3d_surface_paint_entries_size != entries_size
-        {
-            g.raster3d_surface_paint_entries_ssbo = Some(device.create_buffer_init(
-                &wgpu::util::BufferInitDescriptor {
-                    label: Some("vm-raster3d-surface-paint-entries"),
-                    contents: bytemuck::cast_slice(entries),
-                    usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-                },
-            ));
-            g.raster3d_surface_paint_entries_size = entries_size;
-        } else if let Some(buffer) = g.raster3d_surface_paint_entries_ssbo.as_ref() {
-            queue.write_buffer(buffer, 0, bytemuck::cast_slice(entries));
-        }
+        paint_pages::upload_entries(g, device, queue, surface_entries);
         self.raster3d_paint_overlay_dirty = false;
     }
 
-    fn upload_compute3d_aux_ssbo(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
+    fn upload_compute3d_aux_ssbo(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> crate::SceneVMResult<()> {
         use wgpu::util::DeviceExt;
 
         let dummy_surface_entry = Raster3DSurfacePaintEntry::zeroed();
         let surface_entries = self
-            .raster3d_surface_paint
-            .as_ref()
-            .map(|paint| paint.entries.as_slice())
+            .paint_entries()
             .filter(|entries| !entries.is_empty())
             .unwrap_or(std::slice::from_ref(&dummy_surface_entry));
         let organic_words = self.build_organic_billboard_words();
@@ -5663,7 +5654,23 @@ impl VM {
         let surface_offset = 4u32;
         let surface_words: &[u32] = bytemuck::cast_slice(surface_entries);
         let organic_offset = surface_offset + surface_words.len() as u32;
-        let mut words = Vec::with_capacity(5 + surface_words.len() + organic_words.len());
+        let word_len = 5usize
+            .checked_add(surface_words.len())
+            .and_then(|len| len.checked_add(organic_words.len()))
+            .ok_or_else(|| {
+                crate::SceneVMError::BufferAllocationFailed("compute metadata size overflow".into())
+            })?;
+        let byte_len = word_len.checked_mul(size_of::<u32>()).ok_or_else(|| {
+            crate::SceneVMError::BufferAllocationFailed("compute metadata size overflow".into())
+        })?;
+        if byte_len as u64 > u64::from(device.limits().max_storage_buffer_binding_size)
+            || byte_len as u64 > device.limits().max_buffer_size
+        {
+            return Err(crate::SceneVMError::BufferAllocationFailed(
+                "compute paint/organic metadata exceeds device binding limit".into(),
+            ));
+        }
+        let mut words = Vec::with_capacity(word_len);
         words.extend_from_slice(&[
             u32::MAX,
             surface_offset,
@@ -5675,7 +5682,6 @@ impl VM {
         words.extend_from_slice(&organic_words);
 
         let bytes: &[u8] = bytemuck::cast_slice(&words);
-        let byte_len = bytes.len().max(std::mem::size_of::<u32>());
         let g = self.gpu.as_mut().unwrap();
         if g.compute3d_aux_ssbo.is_none() || g.compute3d_aux_ssbo_size != byte_len {
             g.compute3d_aux_ssbo = Some(device.create_buffer_init(
@@ -5691,6 +5697,7 @@ impl VM {
         } else if let Some(buffer) = g.compute3d_aux_ssbo.as_ref() {
             queue.write_buffer(buffer, 0, bytes);
         }
+        Ok(())
     }
 
     /// Capture the last submitted compute pass's dependency prefix only when
@@ -5710,13 +5717,19 @@ impl VM {
                 "paint status requires Compute3D".into(),
             ));
         }
-        let Some(paint) = &self.raster3d_surface_paint else {
+        let Some(entries) = self.paint_entries() else {
             return Ok(None);
         };
-        if !paint.entries.iter().any(|entry| {
-            entry.uv_size.iter().all(|size| *size > 0)
-                && (entry.atlas_rect[2] == 0 || entry.atlas_rect[3] == 0)
-        }) {
+        let missing = self.paged_surface_paint.as_ref().map_or_else(
+            || {
+                entries.iter().any(|entry| {
+                    entry.uv_size.iter().all(|size| *size > 0)
+                        && (entry.atlas_rect[2] == 0 || entry.atlas_rect[3] == 0)
+                })
+            },
+            |paint| paint.has_missing,
+        );
+        if !missing {
             return Ok(None);
         }
         let buffer = self
@@ -5726,7 +5739,7 @@ impl VM {
             .ok_or_else(|| {
                 renderkit::RenderError("paint status requires a submitted compute pass".into())
             })?;
-        let count = u32::try_from(paint.entries.len())
+        let count = u32::try_from(entries.len())
             .map_err(|_| renderkit::RenderError("paint source index exceeds u32 range".into()))?;
         crate::paint_feedback::PaintPageReadback::capture(context, buffer, count).map(Some)
     }
@@ -5769,6 +5782,7 @@ impl VM {
             layer_texture: None,
             ping_pong_textures: None,
             ping_pong_front: 0,
+            history_epoch: 0,
             ping_pong_enabled: false,
             progressive_sample_index: None,
             frozen_frame_texture: None,
@@ -5804,6 +5818,7 @@ impl VM {
             material_table_dirty: true,
             raster3d_paint_overlay: None,
             raster3d_surface_paint: None,
+            paged_surface_paint: None,
             raster3d_paint_alpha_geo_ids: FxHashSet::default(),
             raster3d_paint_overlay_dirty: true,
             transform2d: Mat3::identity(),
@@ -6050,6 +6065,9 @@ impl VM {
                 material_rgba,
                 paint_alpha_geo_ids,
             } => {
+                if self.paged_surface_paint.take().is_some() {
+                    self.raster3d_paint_overlay_dirty = true;
+                }
                 let expected = width as usize * height as usize * 4;
                 if width == 0
                     || height == 0
@@ -6105,6 +6123,9 @@ impl VM {
                 entries,
                 paint_alpha_geo_ids,
             } => {
+                if self.paged_surface_paint.take().is_some() {
+                    self.raster3d_paint_overlay_dirty = true;
+                }
                 let expected = width as usize * height as usize * 4;
                 if width == 0
                     || height == 0
@@ -6156,6 +6177,7 @@ impl VM {
                 }
             }
             Atom::ClearRaster3DPaintOverlay => {
+                if self.paged_surface_paint.take().is_some() { self.raster3d_paint_overlay_dirty = true; }
                 if self.raster3d_paint_overlay.is_some()
                     || self.raster3d_surface_paint.is_some()
                     || !self.raster3d_paint_alpha_geo_ids.is_empty()
@@ -10915,7 +10937,7 @@ impl VM {
         self.upload_tile_metadata_to_gpu(device);
         self.upload_material_table_ssbo(device, queue);
         self.upload_raster3d_paint_overlay(device, queue);
-        self.upload_compute3d_aux_ssbo(device, queue);
+        self.upload_compute3d_aux_ssbo(device, queue)?;
         let (write_view, prev_view, next_front) =
             self.prepare_layer_views(device, queue, fb_w, fb_h)?;
 

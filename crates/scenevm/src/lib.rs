@@ -5,6 +5,8 @@ pub mod render_output;
 pub mod surface_output;
 #[cfg(feature = "gpu")]
 pub mod paint_feedback;
+#[cfg(feature = "gpu")]
+pub mod paint_pages;
 #[cfg(feature = "ui")]
 pub mod app_event;
 #[cfg(feature = "gpu")]

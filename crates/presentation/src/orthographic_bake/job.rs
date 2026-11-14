@@ -7,9 +7,13 @@ use rusterix::editor_view::{EditorView3D, EditorViewFrame};
 use rusterix::{OrthographicBakeController, OrthographicBakeWork, SceneHandler};
 use scenevm::{
     paint_feedback::{PaintPageReadback, PaintPageStatus},
+    paint_pages::LayerHistoryCheckpoint,
     render_output::SceneRenderTarget,
     surface_output::{SurfaceDepthCapture, SurfaceSelection},
 };
+
+#[cfg(test)]
+mod paint_replay_tests;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BakeAdvance {
@@ -33,6 +37,7 @@ enum Pending {
         channel: Channel,
         image: Arc<GpuImage>,
         status: PaintPageReadback,
+        history: Option<LayerHistoryCheckpoint>,
     },
     Color {
         work: OrthographicBakeWork,
@@ -60,6 +65,8 @@ pub struct OrthographicBakeJob {
     frame: EditorView3D,
     target: Option<SceneRenderTarget>,
     pending: Option<Pending>,
+    paint_pages: Option<PaintPageResidency>,
+    replay: Option<(OrthographicBakeWork, Channel)>,
     final_work: Option<(OrthographicBakeWork, Channel)>,
     tile: Tile,
     revision: u64,
@@ -91,6 +98,8 @@ impl OrthographicBakeJob {
             frame,
             target: None,
             pending: None,
+            paint_pages: None,
+            replay: None,
             final_work: None,
             tile: Tile::default(),
             revision: 0,
@@ -99,12 +108,36 @@ impl OrthographicBakeJob {
             retired: false,
         })
     }
+    /// Configure before advancing the private job. The frozen source survives
+    /// resident eviction; a fault never advances the controller's sample clock.
+    pub fn set_paint_pages(
+        &mut self,
+        source: Arc<shared::surface_paint::pages::PaintPageIndex>,
+        plane_byte_limit: u64,
+    ) -> Result<()> {
+        if self.prepared_geometry || self.request.is_some() || self.retired {
+            return Err(RenderError(
+                "paint sources must be bound before bake preparation".into(),
+            ));
+        }
+        let pages = PaintPageResidency::new(self.context.clone(), source, plane_byte_limit)?;
+        self.scene.vm.set_active_vm(0);
+        self.scene
+            .vm
+            .set_paint_page_binding(&self.context, pages.binding()?)?;
+        self.paint_pages = Some(pages);
+        Ok(())
+    }
+    pub fn paint_residency_usage(&self) -> Option<PaintResidencyUsage> {
+        self.paint_pages.as_ref().map(PaintPageResidency::usage)
+    }
     pub fn cancel(&mut self) {
         self.retired = true;
         self.reset_tile();
     }
     fn reset_tile(&mut self) {
         self.pending = None;
+        self.replay = None;
         self.final_work = None;
         self.tile = Tile::default();
         self.scene.vm.set_layer_ping_pong_enabled(0, false);
@@ -199,30 +232,49 @@ impl OrthographicBakeJob {
                     channel,
                     image,
                     status,
+                    history,
                     ..
-                } => {
-                    match status.try_finish(&self.context)? {
-                        None => self.pending = Some(pending),
-                        Some(PaintPageStatus::Ready) => {
-                            self.pending = Some(Pending::Color {
-                                work,
-                                channel: *channel,
-                                ticket: ReadbackTicket::capture_asset(
-                                    &self.context,
-                                    image.clone(),
-                                )?,
-                            });
+                } => match status.try_finish(&self.context)? {
+                    None => self.pending = Some(pending),
+                    Some(PaintPageStatus::Ready) => {
+                        self.pending = Some(Pending::Color {
+                            work,
+                            channel: *channel,
+                            ticket: ReadbackTicket::capture_asset(&self.context, image.clone())?,
+                        });
+                    }
+                    Some(PaintPageStatus::MissingEntry(index)) => {
+                        if let Some(checkpoint) = history.take() {
+                            if !self.scene.vm.restore_layer_history(0, checkpoint) {
+                                return Err(RenderError(
+                                    "paint replay lost its valid sample history".into(),
+                                ));
+                            }
                         }
-                        Some(PaintPageStatus::MissingEntry(index)) => {
-                            // Residency/replay is added separately. Never turn
-                            // an unresolved authored source into empty paint or
-                            // advance the sample/history/publication clock.
+                        let Some(pages) = self.paint_pages.as_mut() else {
                             return Err(RenderError(format!(
                                 "Bake paint entry {index} is not resident; sample withheld"
                             )));
+                        };
+                        match pages.request(index)? {
+                            PaintPageRequest::Loaded => {
+                                self.scene
+                                    .vm
+                                    .set_paint_page_binding(&self.context, pages.binding()?)?;
+                                self.replay = Some((work, *channel));
+                            }
+                            PaintPageRequest::WorkingSetFull => {
+                                return Err(RenderError("paint dispatch working set exceeds resident capacity; subdivision required; sample withheld".into()));
+                            }
+                            PaintPageRequest::Resident => {
+                                return Err(RenderError(
+                                    "paint dependency receipt names an already resident source"
+                                        .into(),
+                                ));
+                            }
                         }
                     }
-                }
+                },
                 Pending::Color {
                     channel, ticket, ..
                 } => {
@@ -293,7 +345,15 @@ impl OrthographicBakeJob {
             }
             return Ok(BakeAdvance::Pending);
         }
-        let (work, channel) = if let Some((work, channel)) = self.final_work.take() {
+        let replay = self.replay.take();
+        let replaying = replay.is_some();
+        let (work, channel) = if let Some((work, channel)) = replay {
+            if !bake.work_is_current(&work) {
+                self.cancel();
+                return Ok(BakeAdvance::Retired);
+            }
+            (work, channel)
+        } else if let Some((work, channel)) = self.final_work.take() {
             if !bake.work_is_current(&work) {
                 self.cancel();
                 return Ok(BakeAdvance::Retired);
@@ -328,10 +388,20 @@ impl OrthographicBakeJob {
             Channel::Depth => unreachable!(),
         };
         let beauty = matches!(channel, Channel::Beauty);
+        if !replaying && let Some(pages) = self.paint_pages.as_mut() {
+            pages.begin_dispatch();
+        }
         if beauty && work.sample == 0 {
             self.scene.vm.set_layer_ping_pong_enabled(0, false);
             self.scene.vm.set_layer_ping_pong_enabled(0, true);
         }
+        let history = if beauty && work.sample > 0 {
+            Some(self.scene.vm.layer_history_checkpoint(0).ok_or_else(|| {
+                RenderError("paint replay requires previous sample history".into())
+            })?)
+        } else {
+            None
+        };
         let image = self.render(
             work.camera,
             (work.tile_size, work.tile_size),
@@ -345,6 +415,7 @@ impl OrthographicBakeJob {
                     channel,
                     image,
                     status,
+                    history,
                 }
             } else {
                 Pending::Color {

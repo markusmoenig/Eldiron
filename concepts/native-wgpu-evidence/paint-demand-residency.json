@@ -1,0 +1,267 @@
+{
+  "date": "2026-11-14",
+  "scope": "Bounded original GPU paint page residency and deterministic fault replay, adopted by the canonical Creator private bake producer within its existing authored-input guard.",
+  "contracts": {
+    "ownership": "Application-owned frozen CPU source and GPU page cache, injected scene device/generation, no whole CPU UV atlas packing for canonical native bake jobs.",
+    "bounds": "Plane allocation cannot exceed caller cap; original fault dependencies pinned until dispatch completion or subdivision. One original 64x64 color/material pair per request.",
+    "history": "Typed checkpoint retains previous target lease/device/one-pass epoch. A fault restores previous valid accumulation and reuses the original sample seed; original captures/previews/sample counters/persistence are withheld.",
+    "transition": "Returning to same-sized ordinary CPU paint must allocate separate upload storage and cannot overwrite a producer-owned atlas.",
+    "depth": "Existing geometry-only surface pass retained; final depth is filtered by resolved original normal coverage.",
+    "compatibility": "No serialized types, shaders, dependencies or lockfile changed. Old experimental paint versions excluded. Existing 64MiB authored-input/oversized-source guards remain."
+  },
+  "native_gpu": [
+    {
+      "check": "Final affected bake suite including ordinary full-resident/reference channels, source pressure, retained outputs, progressive updates, indirect/primary replay and pending retirement",
+      "cases": 11,
+      "seconds": 13.57
+    },
+    {
+      "check": "Three original pages with two resident slots withhold all original captures/previews/persistence until subdivision",
+      "cases": 1,
+      "seconds": 0.54
+    },
+    {
+      "check": "Nonempty semantic material planes, sample-zero and sample-one replay, indirect source faults, pending request retirement and over-capacity refusal",
+      "cases": 3,
+      "seconds": 1.42,
+      "max_original_channel_byte_delta": 0,
+      "finite_depth_agreement": true
+    },
+    {
+      "check": "Exact pinned neighbor pixels, bounded partial-row allocation, device isolation and same-size ordinary-source transition",
+      "cases": 1,
+      "seconds": 0.32
+    },
+    {
+      "check": "Canonical hidden-world linked Prefab paint production, original source preservation and catalog-edit retirement",
+      "cases": 1,
+      "seconds": 4.75,
+      "saved_tiles": 1,
+      "green_albedo_pixels": 1573
+    }
+  ],
+  "browser": {
+    "canonical_release_worker_build_seconds": 23.37,
+    "canonical_release_creator_build_seconds": 78,
+    "isolated_player_wasm_check_seconds": 12.75,
+    "real_ui_action": "Bake: Render, samples=32, on current version24 BakedPaint.eldiron; native job observed and reference adapter remained false.",
+    "smoke_elapsed_ms": 4142,
+    "not_a_release_performance_baseline": true,
+    "authored_pages": 25,
+    "observed_residency": [
+      {
+        "capacity": 25,
+        "gpu_plane_bytes": 819200,
+        "page_uploads": 0,
+        "pinned": 0,
+        "resident": 0,
+        "uploaded_bytes": 0
+      },
+      {
+        "capacity": 25,
+        "gpu_plane_bytes": 819200,
+        "page_uploads": 2,
+        "pinned": 2,
+        "resident": 2,
+        "uploaded_bytes": 65536
+      },
+      {
+        "capacity": 25,
+        "gpu_plane_bytes": 819200,
+        "page_uploads": 3,
+        "pinned": 3,
+        "resident": 3,
+        "uploaded_bytes": 98304
+      },
+      {
+        "capacity": 25,
+        "gpu_plane_bytes": 819200,
+        "page_uploads": 4,
+        "pinned": 4,
+        "resident": 4,
+        "uploaded_bytes": 131072
+      }
+    ],
+    "actual_allocation_and_upload_counts": {
+      "allocations": [
+        {
+          "width": 1600,
+          "height": 64,
+          "format": "rgba8unorm"
+        },
+        {
+          "width": 1600,
+          "height": 64,
+          "format": "rgba8uint"
+        }
+      ],
+      "writes": [
+        {
+          "format": "rgba8unorm",
+          "bytes": 16384,
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
+        {
+          "format": "rgba8uint",
+          "bytes": 16384,
+          "origin": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
+        {
+          "format": "rgba8unorm",
+          "bytes": 16384,
+          "origin": {
+            "x": 64,
+            "y": 0,
+            "z": 0
+          }
+        },
+        {
+          "format": "rgba8uint",
+          "bytes": 16384,
+          "origin": {
+            "x": 64,
+            "y": 0,
+            "z": 0
+          }
+        },
+        {
+          "format": "rgba8unorm",
+          "bytes": 16384,
+          "origin": {
+            "x": 128,
+            "y": 0,
+            "z": 0
+          }
+        },
+        {
+          "format": "rgba8uint",
+          "bytes": 16384,
+          "origin": {
+            "x": 128,
+            "y": 0,
+            "z": 0
+          }
+        },
+        {
+          "format": "rgba8unorm",
+          "bytes": 16384,
+          "origin": {
+            "x": 192,
+            "y": 0,
+            "z": 0
+          }
+        },
+        {
+          "format": "rgba8uint",
+          "bytes": 16384,
+          "origin": {
+            "x": 192,
+            "y": 0,
+            "z": 0
+          }
+        }
+      ],
+      "asset_request_delta": 36,
+      "root": "0",
+      "errors": [],
+      "gpu_errors": []
+    },
+    "states": {
+      "before": {
+        "document": "1c026d99-2545-4aca-933f-2550eb55f60f",
+        "dirty": "false",
+        "frames": 1207,
+        "generation": 1,
+        "root": "0",
+        "readback": "21504",
+        "assetReadback": "21504",
+        "assetRequests": "3",
+        "errors": [],
+        "gpu_errors": [],
+        "canvas2d": 0,
+        "normal_color_copies": 0
+      },
+      "produced": {
+        "document": "1c026d99-2545-4aca-933f-2550eb55f60f",
+        "dirty": "true",
+        "frames": 1326,
+        "generation": 1,
+        "root": "0",
+        "readback": "11293696",
+        "assetReadback": "11293696",
+        "assetRequests": "39",
+        "errors": [],
+        "gpu_errors": [],
+        "canvas2d": 0,
+        "normal_color_copies": 0
+      },
+      "saved": {
+        "document": "1c026d99-2545-4aca-933f-2550eb55f60f",
+        "dirty": "false",
+        "frames": 1336,
+        "generation": 1,
+        "root": "0",
+        "readback": "11293696",
+        "assetReadback": "11293696",
+        "assetRequests": "39",
+        "errors": [],
+        "gpu_errors": [],
+        "canvas2d": 0,
+        "normal_color_copies": 0
+      },
+      "recovered": {
+        "document": "1c026d99-2545-4aca-933f-2550eb55f60f",
+        "dirty": "false",
+        "frames": 1339,
+        "generation": 2,
+        "root": "0",
+        "readback": "0",
+        "assetReadback": "0",
+        "assetRequests": "0",
+        "errors": [],
+        "gpu_errors": [],
+        "canvas2d": 0,
+        "normal_color_copies": 0
+      }
+    },
+    "saved_asset": {
+      "samples": 32,
+      "tiles": 1,
+      "version": 5,
+      "authored_paint_unchanged": true,
+      "sidecar_hashes_produced_recovered_and_fresh_rebake_equal": {
+        "color.png": "f139df0dccdc8a9ef4fe969c693986ea94ac4a58cd12acc3eee6b4c0f1edee61",
+        "depth.f32le": "ca4724cea3799768c73841f4f891e41ecacbda36538f1d8c020ec4cfaf2c52f0",
+        "albedo.png": "6e66b4bef3dce70d22f435bc96cafc5964851c705a2166494239101bf8dcdf36",
+        "normal.png": "30a5f364863eb9deb080a94e37b45fd3797345c149223dc177f193658ed69c00",
+        "material.png": "148d0e5f6289470abdca3da537cbf432b42586af4644bb34d4d46d46a609d2c3"
+      }
+    },
+    "recovered_scene_pixels": {
+      "artifact": "paint-demand-residency-150.png",
+      "crop": [
+        80,
+        170,
+        1810,
+        895
+      ],
+      "pixels": 1254250,
+      "max_rgba_delta": 0
+    }
+  },
+  "pending": [
+    "Dispatch subdivision and oversized input/source adapter retirement. Full working sets currently fail explicitly instead of publishing an incomplete sample.",
+    "Before broadening source bounds, stop a ray at its first unresolved paint dependency. Continuing with empty fallback can discover irrelevant speculative paths and over-pin a small working set.",
+    "Subdivided passes must keep absolute pixel/sample seeds, the same previous valid sample, and one unpublished working target until every region resolves. Sample-zero clearing must happen once per sample, not once per subdispatch.",
+    "Large CPU index construction/alpha classification scheduling, batched dependency requests, full active/inflight/codec/driver memory accounting, remaining browser CPU jobs and platform services.",
+    "Physical native window/input/platform and equal-hardware release p50/p95/p99/startup/peak-memory acceptance. M0-M9 remain open."
+  ]
+}

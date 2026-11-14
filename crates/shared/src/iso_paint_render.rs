@@ -463,7 +463,7 @@ impl IsoPaintRenderer {
         true
     }
 
-    fn upload_stamp_billboards_cached(
+    pub fn upload_stamp_billboards_cached(
         render_cache: &mut IsoPaintRenderCache,
         layer: &IsoPaintLayer,
         vm: &mut SceneVM,

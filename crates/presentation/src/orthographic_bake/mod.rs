@@ -18,6 +18,8 @@ const PAGE_BYTES: u64 = 8 * 1024 * 1024;
 mod paging;
 use paging::{FrameKey, Paging};
 mod job;
+mod paint_residency;
+pub use paint_residency::{PaintPageRequest, PaintPageResidency, PaintResidencyUsage};
 mod overlay;
 pub use job::{BakeAdvance, OrthographicBakeJob};
 pub use overlay::OrthographicBakeOverlay;
