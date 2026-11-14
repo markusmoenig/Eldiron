@@ -27,7 +27,7 @@ struct Job {
     frame: EditorView3D,
     render: RuntimeRenderState,
     viewport: (u32, u32),
-    paint: Option<paint::Snapshot>,
+    paint: Option<paint::Preparation>,
 }
 #[derive(Default)]
 pub(super) struct Jobs {
@@ -46,7 +46,7 @@ impl Jobs {
             "status": format!("{:?}", controller.status()),
             "job": self.active.as_ref().map(|job| serde_json::json!({
                 "document": job.key.document, "map": job.key.source.map, "request": job.key.request,
-                "preparing": !job.source.ready(), "gpu": job.gpu.is_some(),
+                "preparing": !job.source.ready() || job.paint.as_ref().is_some_and(|paint| !paint.ready()), "gpu": job.gpu.is_some(),
                 "pending": job.gpu.as_ref().is_some_and(|gpu| gpu.has_pending_capture()),
                 "paint_subdivisions": job.gpu.as_ref().map(|gpu| gpu.paint_subdivisions()),
                 "paint_pages": job.gpu.as_ref().and_then(|gpu| gpu.paint_residency_usage()).map(|usage| serde_json::json!({
@@ -255,8 +255,8 @@ impl Editor {
                         .as_ref()
                         .is_some_and(|asset| !bake::supported(asset))
                 {
-                    // Above-budget source paging remains an explicit adapter;
-                    // no original paint or bake channels are silently omitted.
+                    // Organic stamp input and oversized saved original tiles
+                    // retain explicit adapters; UV sources are indexed in batches.
                     jobs.legacy = Some(key.clone());
                 } else {
                     let mut projection = region.map.clone();
@@ -294,11 +294,14 @@ impl Editor {
                         frame,
                         render: bridge.render_state_for_view(&region.map, false),
                         viewport,
-                        paint: Some(paint::Snapshot::capture(
-                            region,
-                            &self.documents.project,
-                            &bridge.assets,
-                        )),
+                        paint: Some(
+                            paint::Snapshot::capture(
+                                region,
+                                &self.documents.project,
+                                &bridge.assets,
+                            )
+                            .into_preparation(),
+                        ),
                     });
                 }
             }
@@ -317,6 +320,9 @@ impl Editor {
             if job.source.ready() && self.server_ctx.bake.read().is_rendering() {
                 let result = (|| -> Result<BakeAdvance, String> {
                     if job.gpu.is_none() {
+                        if !job.paint.as_mut().unwrap().advance(images.context())? {
+                            return Ok(BakeAdvance::Pending);
+                        }
                         let vm = scenevm::SceneVM::new_with_context_and_atlas(
                             images.context().clone(),
                             1,
@@ -345,7 +351,6 @@ impl Editor {
                             &mut scene,
                             job.frame.camera,
                             job.viewport,
-                            images.context(),
                         )?;
                         let mut gpu = OrthographicBakeJob::new(
                             images.context().clone(),
@@ -353,9 +358,9 @@ impl Editor {
                             job.frame.clone(),
                         )
                         .map_err(|error| error.to_string())?;
-                        // The existing authored-input guard remains until
-                        // oversized dispatch subdivision is verified. Its
-                        // supported UV source set fits this residency budget.
+                        // Original source size is independent of resident plane
+                        // capacity. Private subdivision resolves spatial pressure;
+                        // an impossible single-ray working set fails explicitly.
                         gpu.set_paint_pages(paint, 64 * 1024 * 1024)
                             .map_err(|error| error.to_string())?;
                         job.gpu = Some(gpu);

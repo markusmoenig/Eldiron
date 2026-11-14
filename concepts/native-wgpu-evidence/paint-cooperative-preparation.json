@@ -1,0 +1,1162 @@
+{
+  "checkpoint_base": "bf27822e",
+  "date": "2026-11-14",
+  "scope": "Cooperative current-paint original key/alpha preparation and retirement of canonical UV source-size adapter; no obsolete paint-version migration.",
+  "contract": {
+    "per_creator_advance_material_pages_or_owners": 16,
+    "per_creator_advance_initialized_lookup_slots_max": 1024,
+    "source_planes": "original SharedBytes moved/shared, never atlas-packed or pixel-cloned during preparation",
+    "publication": "complete validated key/alpha index only",
+    "separate_limits": [
+      "organic stamp input",
+      "individual saved original tiles",
+      "complete GPU lookup binding size",
+      "64 MiB resident GPU paint planes"
+    ]
+  },
+  "native": {
+    "cpu_index_contracts": {
+      "passed": 8,
+      "seconds": 0.67
+    },
+    "canonical_small_and_large_producers": {
+      "passed": 2,
+      "seconds": 5.46
+    },
+    "large_source_cpu_and_pending_gpu_retirement": {
+      "passed": 1,
+      "seconds": 5.31,
+      "distinct_original_page_pairs": 2051,
+      "logical_original_plane_bytes": 67207168,
+      "cooperative_yields": 135,
+      "saved_green_albedo_pixels": 1573,
+      "reference_adapter": false,
+      "before_gpu_catalog_edit": "retired without original capture",
+      "pending_gpu_catalog_edit": "retired without replacing previous asset"
+    }
+  },
+  "browser_release_package": {
+    "worker_build_seconds": 0.37,
+    "creator_build_seconds": 56.1
+  },
+  "browser": {
+    "production-demand-paint-complete": {
+      "elapsed_ms": 8915,
+      "preparationObservations": 61,
+      "before": {
+        "state": "editing",
+        "view": {
+          "bake": {
+            "adapter": false,
+            "job": null,
+            "rendering": false,
+            "status": "Ready"
+          },
+          "bake_pages": {
+            "limit": 67108864,
+            "resident": 6291456,
+            "shared_bytes": 17301504,
+            "submissions": 0,
+            "upload_bytes": 0,
+            "visible": 4,
+            "waiting": false
+          },
+          "center": [
+            0,
+            0,
+            0
+          ],
+          "fly": false,
+          "fly_mouse": false,
+          "mode": "iso",
+          "moving": false,
+          "navigation": false,
+          "paste": {
+            "active": false,
+            "authored_vertices": 4,
+            "projected_vertices": null,
+            "ready": false,
+            "target": null
+          },
+          "position": [
+            0.25,
+            0,
+            -0.125
+          ],
+          "source": {
+            "context": "Region(d5d4ee1b-c326-4e51-afe3-94e1c856f355)",
+            "map": "777449cf-3dff-4f86-9583-c886320423e6",
+            "presented": {
+              "baked": true,
+              "context": "Region(d5d4ee1b-c326-4e51-afe3-94e1c856f355)",
+              "custom": false,
+              "map": "777449cf-3dff-4f86-9583-c886320423e6",
+              "ready": true
+            }
+          },
+          "speech": {
+            "fonts": false,
+            "layouts": 0,
+            "messages": 0,
+            "visible": 0
+          },
+          "world": true
+        },
+        "document": "850b24f7-5883-42b7-bc08-530a8ef7eec3",
+        "dirty": "false",
+        "frames": 254,
+        "generation": 1,
+        "ticks": null,
+        "root": "0",
+        "readback": "21504",
+        "assetReadback": "21504",
+        "assetRequests": "3",
+        "probe": {
+          "workers": [
+            {
+              "url": "./eldiron-bake-codec-worker-bootstrap.js",
+              "ready": true,
+              "window": false,
+              "posted": 4,
+              "completed": 4,
+              "invalid": 0,
+              "inputBytes": 1555424,
+              "outputBytes": 5242880,
+              "errors": [],
+              "sample": 0
+            }
+          ],
+          "immutableBuffers": 639,
+          "immutableBufferBytes": 274124,
+          "pooledTargets": 18,
+          "pooledSceneTargets": 5,
+          "workingBuffers": 1,
+          "workingBufferBytes": 2520364,
+          "contexts2D": 0,
+          "colorCopies": 0,
+          "devices": 1,
+          "assetCopies": 6,
+          "gpuErrors": [],
+          "errors": [],
+          "console": []
+        }
+      },
+      "after": {
+        "state": "editing",
+        "view": {
+          "bake": {
+            "adapter": false,
+            "job": null,
+            "rendering": false,
+            "status": "Ready"
+          },
+          "bake_pages": {
+            "limit": 67108864,
+            "resident": 1572864,
+            "shared_bytes": 64487424,
+            "submissions": 0,
+            "upload_bytes": 0,
+            "visible": 1,
+            "waiting": false
+          },
+          "center": [
+            0,
+            0,
+            0
+          ],
+          "fly": false,
+          "fly_mouse": false,
+          "mode": "iso",
+          "moving": false,
+          "navigation": false,
+          "paste": {
+            "active": false,
+            "authored_vertices": 4,
+            "projected_vertices": null,
+            "ready": false,
+            "target": null
+          },
+          "position": [
+            0.25,
+            0,
+            -0.125
+          ],
+          "source": {
+            "context": "Region(d5d4ee1b-c326-4e51-afe3-94e1c856f355)",
+            "map": "777449cf-3dff-4f86-9583-c886320423e6",
+            "presented": {
+              "baked": true,
+              "context": "Region(d5d4ee1b-c326-4e51-afe3-94e1c856f355)",
+              "custom": false,
+              "map": "777449cf-3dff-4f86-9583-c886320423e6",
+              "ready": true
+            }
+          },
+          "speech": {
+            "fonts": false,
+            "layouts": 0,
+            "messages": 0,
+            "visible": 0
+          },
+          "world": true
+        },
+        "document": "850b24f7-5883-42b7-bc08-530a8ef7eec3",
+        "dirty": "true",
+        "frames": 508,
+        "generation": 1,
+        "ticks": null,
+        "root": "0",
+        "readback": "11293696",
+        "assetReadback": "11293696",
+        "assetRequests": "39",
+        "probe": {
+          "workers": [
+            {
+              "url": "./eldiron-bake-codec-worker-bootstrap.js",
+              "ready": true,
+              "window": false,
+              "posted": 4,
+              "completed": 4,
+              "invalid": 0,
+              "inputBytes": 1555424,
+              "outputBytes": 5242880,
+              "errors": [],
+              "sample": 0
+            }
+          ],
+          "immutableBuffers": 682,
+          "immutableBufferBytes": 353828,
+          "pooledTargets": 24,
+          "pooledSceneTargets": 8,
+          "workingBuffers": 1,
+          "workingBufferBytes": 2520364,
+          "contexts2D": 0,
+          "colorCopies": 0,
+          "devices": 1,
+          "assetCopies": 43,
+          "gpuErrors": [],
+          "errors": [],
+          "console": []
+        }
+      },
+      "residency": [
+        {
+          "capacity": 2048,
+          "gpu_plane_bytes": 67108864,
+          "page_uploads": 0,
+          "pinned": 0,
+          "resident": 0,
+          "uploaded_bytes": 0
+        },
+        {
+          "capacity": 2048,
+          "gpu_plane_bytes": 67108864,
+          "page_uploads": 1,
+          "pinned": 1,
+          "resident": 1,
+          "uploaded_bytes": 32768
+        },
+        {
+          "capacity": 2048,
+          "gpu_plane_bytes": 67108864,
+          "page_uploads": 3,
+          "pinned": 3,
+          "resident": 3,
+          "uploaded_bytes": 98304
+        },
+        {
+          "capacity": 2048,
+          "gpu_plane_bytes": 67108864,
+          "page_uploads": 4,
+          "pinned": 4,
+          "resident": 4,
+          "uploaded_bytes": 131072
+        }
+      ]
+    },
+    "produced-demand-paint-device-recovered": {
+      "saved": {
+        "state": "editing",
+        "view": {
+          "bake": {
+            "adapter": false,
+            "job": null,
+            "rendering": false,
+            "status": "Ready"
+          },
+          "bake_pages": {
+            "limit": 67108864,
+            "resident": 1572864,
+            "shared_bytes": 64487424,
+            "submissions": 0,
+            "upload_bytes": 0,
+            "visible": 1,
+            "waiting": false
+          },
+          "center": [
+            0,
+            0,
+            0
+          ],
+          "fly": false,
+          "fly_mouse": false,
+          "mode": "iso",
+          "moving": false,
+          "navigation": false,
+          "paste": {
+            "active": false,
+            "authored_vertices": 4,
+            "projected_vertices": null,
+            "ready": false,
+            "target": null
+          },
+          "position": [
+            0.25,
+            0,
+            -0.125
+          ],
+          "source": {
+            "context": "Region(d5d4ee1b-c326-4e51-afe3-94e1c856f355)",
+            "map": "777449cf-3dff-4f86-9583-c886320423e6",
+            "presented": {
+              "baked": true,
+              "context": "Region(d5d4ee1b-c326-4e51-afe3-94e1c856f355)",
+              "custom": false,
+              "map": "777449cf-3dff-4f86-9583-c886320423e6",
+              "ready": true
+            }
+          },
+          "speech": {
+            "fonts": false,
+            "layouts": 0,
+            "messages": 0,
+            "visible": 0
+          },
+          "world": true
+        },
+        "document": "850b24f7-5883-42b7-bc08-530a8ef7eec3",
+        "dirty": "false",
+        "frames": 519,
+        "generation": 1,
+        "ticks": null,
+        "root": "0",
+        "readback": "11293696",
+        "assetReadback": "11293696",
+        "assetRequests": "39",
+        "probe": {
+          "workers": [
+            {
+              "url": "./eldiron-bake-codec-worker-bootstrap.js",
+              "ready": true,
+              "window": false,
+              "posted": 4,
+              "completed": 4,
+              "invalid": 0,
+              "inputBytes": 1555424,
+              "outputBytes": 5242880,
+              "errors": [],
+              "sample": 0
+            }
+          ],
+          "immutableBuffers": 684,
+          "immutableBufferBytes": 359900,
+          "pooledTargets": 24,
+          "pooledSceneTargets": 8,
+          "workingBuffers": 1,
+          "workingBufferBytes": 2520364,
+          "contexts2D": 0,
+          "colorCopies": 0,
+          "devices": 1,
+          "assetCopies": 43,
+          "gpuErrors": [],
+          "errors": [],
+          "console": []
+        }
+      },
+      "recovered": {
+        "state": "editing",
+        "view": {
+          "bake": {
+            "adapter": false,
+            "job": null,
+            "rendering": false,
+            "status": "Ready"
+          },
+          "bake_pages": {
+            "limit": 67108864,
+            "resident": 1572864,
+            "shared_bytes": 1572864,
+            "submissions": 0,
+            "upload_bytes": 0,
+            "visible": 1,
+            "waiting": false
+          },
+          "center": [
+            0,
+            0,
+            0
+          ],
+          "fly": false,
+          "fly_mouse": false,
+          "mode": "iso",
+          "moving": false,
+          "navigation": false,
+          "paste": {
+            "active": false,
+            "authored_vertices": 4,
+            "projected_vertices": null,
+            "ready": false,
+            "target": null
+          },
+          "position": [
+            0.25,
+            0,
+            -0.125
+          ],
+          "source": {
+            "context": "Region(d5d4ee1b-c326-4e51-afe3-94e1c856f355)",
+            "map": "777449cf-3dff-4f86-9583-c886320423e6",
+            "presented": {
+              "baked": true,
+              "context": "Region(d5d4ee1b-c326-4e51-afe3-94e1c856f355)",
+              "custom": false,
+              "map": "777449cf-3dff-4f86-9583-c886320423e6",
+              "ready": true
+            }
+          },
+          "speech": {
+            "fonts": false,
+            "layouts": 0,
+            "messages": 0,
+            "visible": 0
+          },
+          "world": true
+        },
+        "document": "850b24f7-5883-42b7-bc08-530a8ef7eec3",
+        "dirty": "false",
+        "frames": 523,
+        "generation": 2,
+        "ticks": null,
+        "root": "0",
+        "readback": "0",
+        "assetReadback": "0",
+        "assetRequests": "0",
+        "probe": {
+          "workers": [
+            {
+              "url": "./eldiron-bake-codec-worker-bootstrap.js",
+              "ready": true,
+              "window": false,
+              "posted": 5,
+              "completed": 5,
+              "invalid": 0,
+              "inputBytes": 1979060,
+              "outputBytes": 6553600,
+              "errors": [],
+              "sample": 0
+            }
+          ],
+          "immutableBuffers": 1196,
+          "immutableBufferBytes": 577072,
+          "pooledTargets": 41,
+          "pooledSceneTargets": 13,
+          "workingBuffers": 2,
+          "workingBufferBytes": 5040728,
+          "contexts2D": 0,
+          "colorCopies": 0,
+          "devices": 2,
+          "assetCopies": 43,
+          "gpuErrors": [],
+          "errors": [],
+          "console": []
+        }
+      }
+    }
+  },
+  "browser_lifecycle": {
+    "cpu-preparation-device-retired": {
+      "initial": {
+        "state": "editing",
+        "view": {
+          "bake": {
+            "adapter": false,
+            "job": null,
+            "rendering": false,
+            "status": "Ready"
+          },
+          "bake_pages": {
+            "limit": 67108864,
+            "resident": 1572864,
+            "shared_bytes": 1572864,
+            "submissions": 0,
+            "upload_bytes": 0,
+            "visible": 1,
+            "waiting": false
+          },
+          "center": [
+            0,
+            0,
+            0
+          ],
+          "fly": false,
+          "fly_mouse": false,
+          "mode": "iso",
+          "moving": false,
+          "navigation": false,
+          "paste": {
+            "active": false,
+            "authored_vertices": 4,
+            "projected_vertices": null,
+            "ready": false,
+            "target": null
+          },
+          "position": [
+            0.25,
+            0,
+            -0.125
+          ],
+          "source": {
+            "context": "Region(d5d4ee1b-c326-4e51-afe3-94e1c856f355)",
+            "map": "777449cf-3dff-4f86-9583-c886320423e6",
+            "presented": {
+              "baked": true,
+              "context": "Region(d5d4ee1b-c326-4e51-afe3-94e1c856f355)",
+              "custom": false,
+              "map": "777449cf-3dff-4f86-9583-c886320423e6",
+              "ready": true
+            }
+          },
+          "speech": {
+            "fonts": false,
+            "layouts": 0,
+            "messages": 0,
+            "visible": 0
+          },
+          "world": true
+        },
+        "document": "850b24f7-5883-42b7-bc08-530a8ef7eec3",
+        "dirty": "false",
+        "frames": 1265,
+        "generation": 2,
+        "ticks": null,
+        "root": "0",
+        "readback": "0",
+        "assetReadback": "0",
+        "assetRequests": "0",
+        "probe": {
+          "workers": [
+            {
+              "url": "./eldiron-bake-codec-worker-bootstrap.js",
+              "ready": true,
+              "window": false,
+              "posted": 5,
+              "completed": 5,
+              "invalid": 0,
+              "inputBytes": 1979060,
+              "outputBytes": 6553600,
+              "errors": [],
+              "sample": 0
+            }
+          ],
+          "immutableBuffers": 1198,
+          "immutableBufferBytes": 584800,
+          "pooledTargets": 41,
+          "pooledSceneTargets": 13,
+          "workingBuffers": 2,
+          "workingBufferBytes": 5040728,
+          "contexts2D": 0,
+          "colorCopies": 0,
+          "devices": 2,
+          "assetCopies": 43,
+          "gpuErrors": [],
+          "errors": [],
+          "console": []
+        }
+      },
+      "pending": {
+        "state": "editing",
+        "view": {
+          "bake": {
+            "adapter": false,
+            "job": {
+              "document": "850b24f7-5883-42b7-bc08-530a8ef7eec3",
+              "gpu": false,
+              "map": "777449cf-3dff-4f86-9583-c886320423e6",
+              "paint_pages": null,
+              "paint_subdivisions": null,
+              "pending": false,
+              "preparing": true,
+              "request": "3ed85006-4fb8-4e06-9d5a-a4c5c2e81306"
+            },
+            "rendering": true,
+            "status": "Requested"
+          },
+          "bake_pages": null,
+          "center": [
+            0,
+            0,
+            0
+          ],
+          "fly": false,
+          "fly_mouse": false,
+          "mode": "iso",
+          "moving": false,
+          "navigation": false,
+          "paste": {
+            "active": false,
+            "authored_vertices": 4,
+            "projected_vertices": null,
+            "ready": false,
+            "target": null
+          },
+          "position": [
+            0.25,
+            0,
+            -0.125
+          ],
+          "source": {
+            "context": "Region(d5d4ee1b-c326-4e51-afe3-94e1c856f355)",
+            "map": "777449cf-3dff-4f86-9583-c886320423e6",
+            "presented": {
+              "baked": false,
+              "context": "Region(d5d4ee1b-c326-4e51-afe3-94e1c856f355)",
+              "custom": false,
+              "map": "777449cf-3dff-4f86-9583-c886320423e6",
+              "ready": true
+            }
+          },
+          "speech": {
+            "fonts": false,
+            "layouts": 0,
+            "messages": 0,
+            "visible": 0
+          },
+          "world": true
+        },
+        "document": "850b24f7-5883-42b7-bc08-530a8ef7eec3",
+        "dirty": "false",
+        "frames": 1271,
+        "generation": 2,
+        "ticks": null,
+        "root": "0",
+        "readback": "0",
+        "assetReadback": "0",
+        "assetRequests": "0",
+        "probe": {
+          "workers": [
+            {
+              "url": "./eldiron-bake-codec-worker-bootstrap.js",
+              "ready": true,
+              "window": false,
+              "posted": 5,
+              "completed": 5,
+              "invalid": 0,
+              "inputBytes": 1979060,
+              "outputBytes": 6553600,
+              "errors": [],
+              "sample": 0
+            }
+          ],
+          "immutableBuffers": 1202,
+          "immutableBufferBytes": 591216,
+          "pooledTargets": 41,
+          "pooledSceneTargets": 13,
+          "workingBuffers": 2,
+          "workingBufferBytes": 5040728,
+          "contexts2D": 0,
+          "colorCopies": 0,
+          "devices": 2,
+          "assetCopies": 43,
+          "gpuErrors": [],
+          "errors": [],
+          "console": []
+        }
+      },
+      "lost": {
+        "state": "editing",
+        "view": {
+          "bake": {
+            "adapter": false,
+            "job": null,
+            "rendering": false,
+            "status": "Ready"
+          },
+          "bake_pages": {
+            "limit": 67108864,
+            "resident": 1572864,
+            "shared_bytes": 1572864,
+            "submissions": 0,
+            "upload_bytes": 0,
+            "visible": 1,
+            "waiting": false
+          },
+          "center": [
+            0,
+            0,
+            0
+          ],
+          "fly": false,
+          "fly_mouse": false,
+          "mode": "iso",
+          "moving": false,
+          "navigation": false,
+          "paste": {
+            "active": false,
+            "authored_vertices": 4,
+            "projected_vertices": null,
+            "ready": false,
+            "target": null
+          },
+          "position": [
+            0.25,
+            0,
+            -0.125
+          ],
+          "source": {
+            "context": "Region(d5d4ee1b-c326-4e51-afe3-94e1c856f355)",
+            "map": "777449cf-3dff-4f86-9583-c886320423e6",
+            "presented": {
+              "baked": true,
+              "context": "Region(d5d4ee1b-c326-4e51-afe3-94e1c856f355)",
+              "custom": false,
+              "map": "777449cf-3dff-4f86-9583-c886320423e6",
+              "ready": true
+            }
+          },
+          "speech": {
+            "fonts": false,
+            "layouts": 0,
+            "messages": 0,
+            "visible": 0
+          },
+          "world": true
+        },
+        "document": "850b24f7-5883-42b7-bc08-530a8ef7eec3",
+        "dirty": "false",
+        "frames": 1275,
+        "generation": 3,
+        "ticks": null,
+        "root": "0",
+        "readback": "0",
+        "assetReadback": "0",
+        "assetRequests": "0",
+        "probe": {
+          "workers": [
+            {
+              "url": "./eldiron-bake-codec-worker-bootstrap.js",
+              "ready": true,
+              "window": false,
+              "posted": 6,
+              "completed": 6,
+              "invalid": 0,
+              "inputBytes": 2402696,
+              "outputBytes": 7864320,
+              "errors": [],
+              "sample": 0
+            }
+          ],
+          "immutableBuffers": 1715,
+          "immutableBufferBytes": 810124,
+          "pooledTargets": 58,
+          "pooledSceneTargets": 18,
+          "workingBuffers": 3,
+          "workingBufferBytes": 7561092,
+          "contexts2D": 0,
+          "colorCopies": 0,
+          "devices": 3,
+          "assetCopies": 43,
+          "gpuErrors": [],
+          "errors": [],
+          "console": []
+        }
+      }
+    },
+    "cpu-preparation-document-retired": {
+      "pending": {
+        "state": "editing",
+        "view": {
+          "bake": {
+            "adapter": false,
+            "job": {
+              "document": "850b24f7-5883-42b7-bc08-530a8ef7eec3",
+              "gpu": false,
+              "map": "777449cf-3dff-4f86-9583-c886320423e6",
+              "paint_pages": null,
+              "paint_subdivisions": null,
+              "pending": false,
+              "preparing": true,
+              "request": "c1c12f68-3912-4ea5-86e3-fdd501844b59"
+            },
+            "rendering": true,
+            "status": "Requested"
+          },
+          "bake_pages": null,
+          "center": [
+            0,
+            0,
+            0
+          ],
+          "fly": false,
+          "fly_mouse": false,
+          "mode": "iso",
+          "moving": false,
+          "navigation": false,
+          "paste": {
+            "active": false,
+            "authored_vertices": 4,
+            "projected_vertices": null,
+            "ready": false,
+            "target": null
+          },
+          "position": [
+            0.25,
+            0,
+            -0.125
+          ],
+          "source": {
+            "context": "Region(d5d4ee1b-c326-4e51-afe3-94e1c856f355)",
+            "map": "777449cf-3dff-4f86-9583-c886320423e6",
+            "presented": {
+              "baked": false,
+              "context": "Region(d5d4ee1b-c326-4e51-afe3-94e1c856f355)",
+              "custom": false,
+              "map": "777449cf-3dff-4f86-9583-c886320423e6",
+              "ready": true
+            }
+          },
+          "speech": {
+            "fonts": false,
+            "layouts": 0,
+            "messages": 0,
+            "visible": 0
+          },
+          "world": true
+        },
+        "document": "850b24f7-5883-42b7-bc08-530a8ef7eec3",
+        "dirty": "false",
+        "frames": 1289,
+        "generation": 3,
+        "ticks": null,
+        "root": "0",
+        "readback": "0",
+        "assetReadback": "0",
+        "assetRequests": "0",
+        "probe": {
+          "workers": [
+            {
+              "url": "./eldiron-bake-codec-worker-bootstrap.js",
+              "ready": true,
+              "window": false,
+              "posted": 6,
+              "completed": 6,
+              "invalid": 0,
+              "inputBytes": 2402696,
+              "outputBytes": 7864320,
+              "errors": [],
+              "sample": 0
+            }
+          ],
+          "immutableBuffers": 1720,
+          "immutableBufferBytes": 824740,
+          "pooledTargets": 58,
+          "pooledSceneTargets": 18,
+          "workingBuffers": 3,
+          "workingBufferBytes": 7561092,
+          "contexts2D": 0,
+          "colorCopies": 0,
+          "devices": 3,
+          "assetCopies": 43,
+          "gpuErrors": [],
+          "errors": [],
+          "console": []
+        }
+      },
+      "changed": {
+        "state": "editing",
+        "view": {
+          "bake": {
+            "adapter": false,
+            "job": null,
+            "rendering": false,
+            "status": "Missing"
+          },
+          "bake_pages": null,
+          "center": [
+            0,
+            0,
+            0
+          ],
+          "fly": false,
+          "fly_mouse": false,
+          "mode": "iso",
+          "moving": false,
+          "navigation": false,
+          "paste": {
+            "active": false,
+            "authored_vertices": 0,
+            "projected_vertices": null,
+            "ready": false,
+            "target": null
+          },
+          "position": [
+            5.014869689941406,
+            0,
+            0.30367547273635864
+          ],
+          "source": {
+            "context": "Region(c85863d6-3e93-46ad-9a3b-c98dccb0c37b)",
+            "map": "236ae48a-0b3c-4871-9594-1408bcd9596f",
+            "presented": {
+              "baked": false,
+              "context": "Region(c85863d6-3e93-46ad-9a3b-c98dccb0c37b)",
+              "custom": false,
+              "map": "236ae48a-0b3c-4871-9594-1408bcd9596f",
+              "ready": true
+            }
+          },
+          "speech": {
+            "fonts": false,
+            "layouts": 0,
+            "messages": 0,
+            "visible": 0
+          },
+          "world": true
+        },
+        "document": "270c3d66-29ac-4e38-9648-b5a2ef61b5b3",
+        "dirty": "false",
+        "frames": 1292,
+        "generation": 3,
+        "ticks": null,
+        "root": "0",
+        "readback": "0",
+        "assetReadback": "0",
+        "assetRequests": "0",
+        "probe": {
+          "workers": [
+            {
+              "url": "./eldiron-bake-codec-worker-bootstrap.js",
+              "ready": true,
+              "window": false,
+              "posted": 6,
+              "completed": 6,
+              "invalid": 0,
+              "inputBytes": 2402696,
+              "outputBytes": 7864320,
+              "errors": [],
+              "sample": 0
+            }
+          ],
+          "immutableBuffers": 1825,
+          "immutableBufferBytes": 851060,
+          "pooledTargets": 59,
+          "pooledSceneTargets": 19,
+          "workingBuffers": 3,
+          "workingBufferBytes": 7561092,
+          "contexts2D": 0,
+          "colorCopies": 0,
+          "devices": 3,
+          "assetCopies": 43,
+          "gpuErrors": [],
+          "errors": [],
+          "console": []
+        }
+      }
+    },
+    "large-current-paint-reopened": {
+      "state": "editing",
+      "view": {
+        "bake": {
+          "adapter": false,
+          "job": null,
+          "rendering": false,
+          "status": "Ready"
+        },
+        "bake_pages": {
+          "limit": 67108864,
+          "resident": 1572864,
+          "shared_bytes": 3145728,
+          "submissions": 0,
+          "upload_bytes": 0,
+          "visible": 1,
+          "waiting": false
+        },
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "fly": false,
+        "fly_mouse": false,
+        "mode": "iso",
+        "moving": false,
+        "navigation": false,
+        "paste": {
+          "active": false,
+          "authored_vertices": 4,
+          "projected_vertices": null,
+          "ready": false,
+          "target": null
+        },
+        "position": [
+          0.25,
+          0,
+          -0.125
+        ],
+        "source": {
+          "context": "Region(d5d4ee1b-c326-4e51-afe3-94e1c856f355)",
+          "map": "777449cf-3dff-4f86-9583-c886320423e6",
+          "presented": {
+            "baked": true,
+            "context": "Region(d5d4ee1b-c326-4e51-afe3-94e1c856f355)",
+            "custom": false,
+            "map": "777449cf-3dff-4f86-9583-c886320423e6",
+            "ready": true
+          }
+        },
+        "speech": {
+          "fonts": false,
+          "layouts": 0,
+          "messages": 0,
+          "visible": 0
+        },
+        "world": true
+      },
+      "document": "ac8adeed-d114-454d-b1b8-75c0ad42979b",
+      "dirty": "false",
+      "frames": 1296,
+      "generation": 3,
+      "ticks": null,
+      "root": "0",
+      "readback": "0",
+      "assetReadback": "0",
+      "assetRequests": "0",
+      "probe": {
+        "workers": [
+          {
+            "url": "./eldiron-bake-codec-worker-bootstrap.js",
+            "ready": true,
+            "window": false,
+            "posted": 7,
+            "completed": 7,
+            "invalid": 0,
+            "inputBytes": 2826332,
+            "outputBytes": 9175040,
+            "errors": [],
+            "sample": 0
+          }
+        ],
+        "immutableBuffers": 1828,
+        "immutableBufferBytes": 858100,
+        "pooledTargets": 60,
+        "pooledSceneTargets": 20,
+        "workingBuffers": 3,
+        "workingBufferBytes": 7561092,
+        "contexts2D": 0,
+        "colorCopies": 0,
+        "devices": 3,
+        "assetCopies": 43,
+        "gpuErrors": [],
+        "errors": [],
+        "console": []
+      }
+    }
+  },
+  "archive_comparisons": {
+    "input": {
+      "sha256": "cfeced2d6282f8082397ea0b4ea991a0ca0f1fdffe63c44a981fa92c2167de3c",
+      "source_pages": 2051,
+      "bake_sidecars": {
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_0_0_0/color.png": "ec5db0bed4a19af5d5b52fb7b95e10bd2d39c11bfd1f3702b9ff4db0ea845035",
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_0_0_0/depth.f32le": "f39c1fffdc7cb049246201fd4cafd88ad958ba735cbde52e665858cfaa066bae",
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_0_0_0/albedo.png": "84a4e23b0ce6c569453ab5959be532352a7d793db77e9c730c3421855aa1ced5",
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_0_0_0/normal.png": "e456003221a71bf4191a12aa98f47d56dcecc8ad9556532ef0f0c19fed8ad23f",
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_0_0_0/material.png": "0ae04c18b0dd747276907af7811be3724b851f3c8f3b7b5c169aa6d0908fff18",
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_1_1_0/color.png": "7650fa2163a90ed5459cf4c90096867b3c184404de71d7ec10e81585e2b81a61",
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_1_1_0/depth.f32le": "9fd96eaff053c903b8e00e9afc1cff2aa92a04a04b97f2f8a3ca11dfdde1a81b",
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_1_1_0/albedo.png": "4431ede3934553e6e43aaaddec7c5ab4157f0eb8952581cd6e60b98faa84ba81",
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_1_1_0/normal.png": "287582321b7f8e95117fdab3bbe1e04333ad42d9966e6e708a5d4564b8685f24",
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_1_1_0/material.png": "494774bcdc1d7c8aadf3599b346460f38408d08288a1dda6756bce4470efb8a7",
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_2_0_1/color.png": "7c0025063a5f3c5dd03cf9fa0a44243c8569f6d8e6a8b0c49dc16f33d3b7b925",
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_2_0_1/depth.f32le": "d2bc503ff1fa52204be27d1028eaf0f9a3e46dec35da89e9006f7a3b4428021f",
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_2_0_1/albedo.png": "b7bd6bc165f03e7240455f87afe15e34c6910e81c094a39ed2e0f89601efb06e",
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_2_0_1/normal.png": "dfefc3508450af97e13b8611712aabd7db6013d6481ab5fc98c21c01d23a0632",
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_2_0_1/material.png": "68c85f9d47aa81d5011d2db1c49fcd9315cb0adba5bef65387d3a05015f25727",
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_3_1_1/color.png": "765cda7acf2374a216e3e5cf4567d8f84cb80d201a99473ad57754714c063cfb",
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_3_1_1/depth.f32le": "d30bf8b01e17e18cea849baf85b15916afd61d5f2fc1dd8b0011f5b7ff8b6ea3",
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_3_1_1/albedo.png": "30bb9dab8a272f89b5de4e31bdcb3f408d185dfc3165e783f8c22554929ab860",
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_3_1_1/normal.png": "8f490b45c90bca326649f1308ea3bcdc3814aca3391365190c1a0f90a332c6ef",
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_3_1_1/material.png": "55855790bed0907fe2dfa2b2ffa9b09ddfcf2f8198b8ccd772d44d7c526abb42"
+      }
+    },
+    "reference": {
+      "sha256": "bbe2ceda8b71c5eafff7e77e52f3184e1cf12814481334da05ced7bb892630e0",
+      "source_pages": 25,
+      "bake_sidecars": {
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_0_0_0/color.png": "f139df0dccdc8a9ef4fe969c693986ea94ac4a58cd12acc3eee6b4c0f1edee61",
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_0_0_0/depth.f32le": "ca4724cea3799768c73841f4f891e41ecacbda36538f1d8c020ec4cfaf2c52f0",
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_0_0_0/albedo.png": "6e66b4bef3dce70d22f435bc96cafc5964851c705a2166494239101bf8dcdf36",
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_0_0_0/normal.png": "30a5f364863eb9deb080a94e37b45fd3797345c149223dc177f193658ed69c00",
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_0_0_0/material.png": "148d0e5f6289470abdca3da537cbf432b42586af4644bb34d4d46d46a609d2c3"
+      }
+    },
+    "produced": {
+      "sha256": "b9b7fae47ca1642ca95f93324e0f94a96371724f8291f43009a1234e506d5c3b",
+      "source_pages": 2051,
+      "bake_sidecars": {
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_0_0_0/color.png": "f139df0dccdc8a9ef4fe969c693986ea94ac4a58cd12acc3eee6b4c0f1edee61",
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_0_0_0/depth.f32le": "ca4724cea3799768c73841f4f891e41ecacbda36538f1d8c020ec4cfaf2c52f0",
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_0_0_0/albedo.png": "6e66b4bef3dce70d22f435bc96cafc5964851c705a2166494239101bf8dcdf36",
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_0_0_0/normal.png": "30a5f364863eb9deb080a94e37b45fd3797345c149223dc177f193658ed69c00",
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_0_0_0/material.png": "148d0e5f6289470abdca3da537cbf432b42586af4644bb34d4d46d46a609d2c3"
+      }
+    },
+    "recovered": {
+      "sha256": "b9b7fae47ca1642ca95f93324e0f94a96371724f8291f43009a1234e506d5c3b",
+      "source_pages": 2051,
+      "bake_sidecars": {
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_0_0_0/color.png": "f139df0dccdc8a9ef4fe969c693986ea94ac4a58cd12acc3eee6b4c0f1edee61",
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_0_0_0/depth.f32le": "ca4724cea3799768c73841f4f891e41ecacbda36538f1d8c020ec4cfaf2c52f0",
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_0_0_0/albedo.png": "6e66b4bef3dce70d22f435bc96cafc5964851c705a2166494239101bf8dcdf36",
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_0_0_0/normal.png": "30a5f364863eb9deb080a94e37b45fd3797345c149223dc177f193658ed69c00",
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_0_0_0/material.png": "148d0e5f6289470abdca3da537cbf432b42586af4644bb34d4d46d46a609d2c3"
+      }
+    },
+    "retired": {
+      "sha256": "b9b7fae47ca1642ca95f93324e0f94a96371724f8291f43009a1234e506d5c3b",
+      "source_pages": 2051,
+      "bake_sidecars": {
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_0_0_0/color.png": "f139df0dccdc8a9ef4fe969c693986ea94ac4a58cd12acc3eee6b4c0f1edee61",
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_0_0_0/depth.f32le": "ca4724cea3799768c73841f4f891e41ecacbda36538f1d8c020ec4cfaf2c52f0",
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_0_0_0/albedo.png": "6e66b4bef3dce70d22f435bc96cafc5964851c705a2166494239101bf8dcdf36",
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_0_0_0/normal.png": "30a5f364863eb9deb080a94e37b45fd3797345c149223dc177f193658ed69c00",
+        "binaries/bakes/d5d4ee1b-c326-4e51-afe3-94e1c856f355/777449cf-3dff-4f86-9583-c886320423e6/tile_0_0_0/material.png": "148d0e5f6289470abdca3da537cbf432b42586af4644bb34d4d46d46a609d2c3"
+      }
+    }
+  },
+  "comparisons": {
+    "source_paint_json_with_pixel_arrays": "input == produced == recovered == retired",
+    "all_five_bake_channels": "previous pre-preparation 32sample reference == produced == recovered == retired",
+    "scene_pixels_compared": 1254250,
+    "scene_max_rgba_delta": 0,
+    "scene_checks": [
+      "produced",
+      "reopened after actual file switch"
+    ]
+  },
+  "reproducible_fixture": "python3 tools/make_large_paint_fixture.py input-current-BakedPaint.eldiron output.eldiron --pages 2051",
+  "logs": [
+    "/private/tmp/eldiron-paint-preparation-shared.log",
+    "/private/tmp/eldiron-paint-preparation-canonical-gpu.log",
+    "/private/tmp/eldiron-paint-preparation-retirement-gpu.log",
+    "/private/tmp/eldiron-paint-preparation-browser-package.log",
+    "/private/tmp/eldiron-paint-preparation-browser-bootstrap.log",
+    "/private/tmp/eldiron-paint-preparation-browser-produce.log",
+    "/private/tmp/eldiron-paint-preparation-browser-retirement.log"
+  ],
+  "open_acceptance": [
+    "Large browser source visits only four page pairs; full browser cache-pressure/subdivision owner remains unverified. Native two-slot pressure oracle is separate prior evidence.",
+    "Smoke elapsed times are not release p50/p95/p99/startup/input baselines.",
+    "Memory here bounds retained GPU planes, not full active/inflight/codec/driver peak.",
+    "Remaining uncommon adapters/ownership/workflows, physical native/platform/input, Windows/Linux/iOS, and full M0-M9 gates remain open."
+  ]
+}

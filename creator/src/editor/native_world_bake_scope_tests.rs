@@ -119,6 +119,16 @@ fn frozen_bake_scope_survives_missing_layout_and_rejects_retired_completed_sourc
 #[test]
 #[ignore = "actual GPU original-channel generation and pending capture retirement"]
 fn hidden_world_bakes_linked_prefab_paint_and_retires_catalog_edits() {
+    run_hidden_linked_paint(false);
+}
+
+#[test]
+#[ignore = "actual GPU canonical source above former UV input limit"]
+fn hidden_world_bakes_large_linked_paint_without_source_size_adapter() {
+    run_hidden_linked_paint(true);
+}
+
+fn run_hidden_linked_paint(large: bool) {
     use shared::iso_paint::{IsoPaintBakedChunk, IsoPaintLayer, IsoPaintOwner};
     use std::time::{Duration, Instant};
     let gpu = futures::executor::block_on(renderkit::GpuContext::headless()).unwrap();
@@ -146,12 +156,23 @@ fn hidden_world_bakes_linked_prefab_paint_and_retires_catalog_edits() {
                     geo,
                     [x * 64, y * 64],
                 );
-                chunk.color_rgba = [24, 190, 72, 255]
-                    .repeat(chunk.color_rgba.len() / 4)
-                    .into();
+                chunk.color_rgba = [24, 190, 72, 255].repeat(chunk.color_rgba.len() / 4).into();
                 chunk.revision = 1;
                 paint.baked_chunks.insert(format!("{id}:{x}:{y}"), chunk);
             }
+        }
+    }
+    if large {
+        let prototype = paint.baked_chunks.values().next().unwrap().clone();
+        while paint.baked_chunks.len() < 2051 {
+            let number = paint.baked_chunks.len();
+            let mut chunk = prototype.clone();
+            chunk.origin = [number as i32 * 64, 8192];
+            // Distinct original planes: a large logical source cannot hide an
+            // accidental whole-source allocation behind shared fixture aliases.
+            chunk.color_rgba[..4].copy_from_slice(&[number as u8, 190, 72, 255]);
+            chunk.material_rgba[1] = number as u8;
+            paint.baked_chunks.insert(format!("unused:{number}"), chunk);
         }
     }
     let asset = rusterix::BlockPropAsset::new_authored("Painted linked source", vec![floor]);
@@ -181,7 +202,7 @@ fn hidden_world_bakes_linked_prefab_paint_and_retires_catalog_edits() {
     }
     let map_id = region.map.id;
     let map_changed = region.map.changed;
-    let authored_paint = serde_json::to_vec(&editor.documents.project.block_prop_paint).unwrap();
+    let authored_paint = editor.documents.project.block_prop_paint.clone();
     editor.server_ctx.shared.curr_region = region_id;
     editor.server_ctx.shared.pc = ProjectContext::Region(region_id);
     editor.server_ctx.shared.editor_view_mode = EditorViewMode::Iso;
@@ -214,11 +235,78 @@ fn hidden_world_bakes_linked_prefab_paint_and_retires_catalog_edits() {
     ui.get_widget("PolyView")
         .unwrap()
         .set_dim(TheDim::sized(0, 0), &mut ctx);
+    if large {
+        let before_preparation = gpu.transfers().asset_bake_readback_requests;
+        for _ in 0..10 {
+            editor.update_native_bake(&mut ui, &mut ctx);
+            editor.prepare_native_bake(&mut ctx, &images);
+        }
+        let job = editor
+            .native_viewport
+            .world
+            .bake_jobs
+            .active
+            .as_ref()
+            .unwrap();
+        assert!(job.source.ready());
+        assert!(job.gpu.is_none());
+        assert!(!job.paint.as_ref().unwrap().ready());
+        // A catalog edit while only CPU material preparation exists must retire
+        // that frozen source just as it retires a pending original GPU sample.
+        let chunk = editor
+            .documents
+            .project
+            .block_prop_paint
+            .get_mut(&asset_id)
+            .unwrap()
+            .baked_chunks
+            .values_mut()
+            .last()
+            .unwrap();
+        chunk.revision += 1;
+        editor.update_native_bake(&mut ui, &mut ctx);
+        assert!(editor.native_bake_paint_retired_for_test(&None));
+        assert_eq!(
+            gpu.transfers().asset_bake_readback_requests,
+            before_preparation
+        );
+        // Restore the fixture input, then issue a new, independently frozen job.
+        editor
+            .documents
+            .project
+            .block_prop_paint
+            .get_mut(&asset_id)
+            .unwrap()
+            .baked_chunks
+            .values_mut()
+            .last()
+            .unwrap()
+            .revision -= 1;
+        ui.get_widget("PolyView")
+            .unwrap()
+            .set_dim(TheDim::sized(128, 128), &mut ctx);
+        editor.server_ctx.bake.write().request_render(map_id, 2);
+        editor.update_native_bake(&mut ui, &mut ctx);
+        ui.get_widget("PolyView")
+            .unwrap()
+            .set_dim(TheDim::sized(0, 0), &mut ctx);
+    }
     let before = gpu.transfers();
+    let mut preparation_yields = 0;
     let deadline = Instant::now() + Duration::from_secs(60);
     loop {
         editor.update_native_bake(&mut ui, &mut ctx);
         editor.prepare_native_bake(&mut ctx, &images);
+        if let Some(job) = &editor.native_viewport.world.bake_jobs.active {
+            assert!(editor.native_viewport.world.bake_jobs.legacy.is_none());
+            if job.source.ready() && job.gpu.is_none() {
+                preparation_yields += 1;
+                assert_eq!(
+                    gpu.transfers().asset_bake_readback_requests,
+                    before.asset_bake_readback_requests
+                );
+            }
+        }
         gpu.device.poll(wgpu::PollType::Poll).unwrap();
         if !editor.server_ctx.bake.read().is_rendering()
             && editor.native_viewport.world.bake_jobs.active.is_none()
@@ -231,6 +319,15 @@ fn hidden_world_bakes_linked_prefab_paint_and_retires_catalog_edits() {
             editor.server_ctx.bake.read().status()
         );
         std::thread::sleep(Duration::from_millis(2));
+    }
+    if large {
+        assert!(
+            preparation_yields > 128,
+            "large material preparation must yield"
+        );
+        eprintln!(
+            "Large canonical paint: 2051 distinct source pairs, {preparation_yields} preparation yields, no adapter"
+        );
     }
     let old = editor.documents.project.regions[0]
         .map
@@ -246,10 +343,7 @@ fn hidden_world_bakes_linked_prefab_paint_and_retires_catalog_edits() {
         editor.documents.project.regions[0].map.changed,
         map_changed + 1
     );
-    assert_eq!(
-        serde_json::to_vec(&editor.documents.project.block_prop_paint).unwrap(),
-        authored_paint
-    );
+    assert_eq!(editor.documents.project.block_prop_paint, authored_paint);
     let bake = editor.server_ctx.bake.read();
     let source = bake.presentation_source(map_id, &camera).unwrap();
     let green: usize = source

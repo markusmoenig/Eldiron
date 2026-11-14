@@ -156,17 +156,7 @@ impl Builder {
         let mut geo_ids = Vec::new();
         let mut has_alpha_paint = false;
         for chunk in layer.baked_chunks.values() {
-            let needs_alpha = chunk.material_rgba.chunks_exact(4).any(|pixel| {
-                if (pixel[0] == 252 || (128..=187).contains(&pixel[0])) && pixel[3] > 0 {
-                    return true;
-                }
-                if pixel[0] != 254 || pixel[3] == 0 || pixel[2] == 0 {
-                    return false;
-                }
-                let material_id = pixel[1];
-                let replace_opacity = pixel[2].saturating_sub(1);
-                replace_opacity < 254 || Self::iso_paint_material_is_translucent(material_id)
-            });
+            let needs_alpha = Self::surface_paint_chunk_needs_alpha(chunk);
             if needs_alpha {
                 has_alpha_paint = true;
                 let geo_id = Self::iso_paint_owner_geo_id(&chunk.owner);
@@ -184,6 +174,19 @@ impl Builder {
             }
         }
         geo_ids
+    }
+
+    pub(crate) fn surface_paint_chunk_needs_alpha(chunk: &IsoPaintBakedChunk) -> bool {
+        chunk.material_rgba.chunks_exact(4).any(|pixel| {
+            if (pixel[0] == 252 || (128..=187).contains(&pixel[0])) && pixel[3] > 0 {
+                return true;
+            }
+            if pixel[0] != 254 || pixel[3] == 0 || pixel[2] == 0 {
+                return false;
+            }
+            let replace_opacity = pixel[2].saturating_sub(1);
+            replace_opacity < 254 || Self::iso_paint_material_is_translucent(pixel[1])
+        })
     }
 
     pub(crate) fn iso_paint_material_is_translucent(material_id: u8) -> bool {

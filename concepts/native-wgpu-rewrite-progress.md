@@ -13338,3 +13338,59 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   document/source invalidation and recovery. Keep allocator/driver peak and release
   performance acceptance separate from retained plane bounds. M0-M9 remains active;
   physical native/platform/input and remaining workflow/retirement gates are open.
+
+## Cooperative original paint preparation (2026-11-14, verification in progress)
+
+- Previous private-subdispatch batch saved as bf27822e. Concurrent untracked
+  concepts/networking-mmo-concept.md remains untouched and excluded.
+- Current implementation introduces PaintPageIndexBuilder: move frozen shared
+  planes into a stable complete index, initialize lookup slots incrementally,
+  classify at most16 original64x64 material pages/instance owners per Creator
+  advance, and expose no index until complete. Alpha classification shares the
+  existing current-material predicate; no old paint replay/migration added.
+- Creator prepares this CPU source before constructing its private GPU scene.
+  Cancellation/source/document/device retirement drops incomplete preparation
+  with the job. UV logical source bytes no longer select the size adapter;
+  organic stamp and oversized individual saved-tile adapters remain separate.
+- Focused CPU contracts and actual hidden canonical large-Prefab producer checks
+  are being compiled/run. Full browser large-source pressure owner, performance,
+  total memory and physical platform acceptance remain open. Do not treat this
+  in-progress entry as verified acceptance or M0-M9 completion.
+
+- Verification completed: CPU original-index contracts PASS8/0.67s. Actual hidden
+  canonical Creator small+large linked-Prefab bakes PASS2/5.46s; large source has
+  2,051 distinct original page pairs (67,207,168logical bytes),135cooperative
+  preparation yields, no size adapter, and1,573saved green albedo pixels.
+  Strengthened large case PASS1/5.31s: catalog edit during CPU-only preparation
+  retires its job before any original capture; subsequent new request completes;
+  a later edit with GPU capture pending cannot replace the saved asset.
+- Fresh release browser package PASS(worker0.37s,Creator56.10s). Actual large
+  current-format fixture loads and performs32sample bake PASS8.915s smoke,
+  including61observed CPU preparation intervals without a GPU bake scene.
+  GPUplanes cap67,108,864bytes/2,048slots while only4needed page pairs upload
+  (131,072bytes).36explicit original-channel/depth capture requests. No size
+  adapter, normal color readback, Canvas2D/root framebuffer, or GPU/errors.
+  These elapsed times are smoke observations, not performance acceptance.
+- Browser actual device.destroy during a second CPU preparation retires it with
+  no original capture/dirty publication and reconstructs the previous saved bake.
+  A new request then switches to another document during preparation and retires
+  safely; reopening the saved large archive renders correctly. Native catalog
+  invalidation, browser device/document retirement, and current serialization
+  are verified independently of the earlier partial-region GPU pressure oracle.
+- All original regional/Prefab paint JSON including color/material arrays is
+  unchanged across input,produced,recovered,and CPU-preparation-retired archives.
+  All5bake sidecars match pre-preparation32sample production byte-for-byte across
+  save/recovery/retirement. Produced and reopened scene crops each compare
+  1,254,250RGBApixels exactly to the prior checkpoint. Screenshot visually checked.
+- Durable evidence:concepts/native-wgpu-evidence/paint-cooperative-preparation.json,
+  paint-preparation-150.png; repeatable large fixture generator:
+  tools/make_large_paint_fixture.py. Logs:/private/tmp/eldiron-paint-preparation-
+  {shared,canonical-gpu,retirement-gpu,browser-package,browser-bootstrap,
+  browser-produce,browser-retirement}.log. All commands terminal/pass. Only an
+  unused-import removal followed native tests; release wasm compiles that source.
+- Retired: canonical whole-UV-source input-size adapter. Still open: actual
+  browser owner subdivision/cache pressure (this large fixture visits only4of
+  2,051pages), pressure-specific cancellation/recovery, organic stamps and
+  oversized original saved tiles, other workflows/owners/adapters, total peak
+  memory, release p50/p95/p99/input/startup, physical native/platform acceptance.
+  Do not mark any full M0-M9 gate complete from this batch. Goal remains active.

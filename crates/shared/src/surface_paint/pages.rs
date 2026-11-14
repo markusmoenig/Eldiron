@@ -3,7 +3,9 @@
 //! replays authoring history, or initializes a renderer. GPU residency is derived
 //! separately so indirect rays can distinguish absent keys from unloaded pages.
 use super::Builder;
+mod preparation;
 use crate::iso_paint::{ISO_PAINT_BAKE_VERSION, ISO_PAINT_BAKED_CHUNK_SIZE, IsoPaintLayer};
+pub use preparation::PaintPageIndexBuilder;
 use scenevm::{GeoId, Raster3DSurfacePaintEntry};
 use std::collections::HashSet;
 use theframework_core::SharedBytes;
@@ -36,87 +38,24 @@ impl PaintPageIndex {
     /// a device storage-binding limit here.
     pub fn from_layer(layer: &IsoPaintLayer, table_byte_limit: u64) -> Result<Self, String> {
         let current = layer.visible && layer.baked_version == ISO_PAINT_BAKE_VERSION;
-        let count = if current { layer.baked_chunks.len() } else { 0 };
-        let table_len = count
-            .checked_mul(2)
-            .and_then(usize::checked_next_power_of_two)
-            .filter(|length| *length <= u32::MAX as usize)
-            .ok_or("Paint source index exceeds its addressable range")?
-            .max(2);
-        let table_bytes = table_len as u64 * size_of::<Raster3DSurfacePaintEntry>() as u64;
-        if table_bytes > table_byte_limit {
-            return Err("Paint source index exceeds its metadata byte limit".into());
-        }
-        let mut pages = Vec::new();
-        pages.try_reserve_exact(count).map_err(|e| e.to_string())?;
-        let mut entries = Vec::new();
-        entries
-            .try_reserve_exact(table_len)
-            .map_err(|e| e.to_string())?;
-        entries.resize(
-            table_len,
-            Raster3DSurfacePaintEntry {
-                geo: [0; 4],
-                uv_origin: [0; 2],
-                uv_size: [0; 2],
-                atlas_rect: [0; 4],
+        let source = IsoPaintLayer {
+            visible: layer.visible,
+            baked_version: layer.baked_version,
+            baked_chunks: if current {
+                layer.baked_chunks.clone()
+            } else {
+                Default::default()
             },
-        );
-        let mut sources_by_slot = Vec::new();
-        sources_by_slot
-            .try_reserve_exact(table_len)
-            .map_err(|e| e.to_string())?;
-        sources_by_slot.resize(table_len, None);
-        if current {
-            for chunk in layer.baked_chunks.values() {
-                if chunk.color_rgba.len() != PLANE_BYTES || chunk.material_rgba.len() != PLANE_BYTES
-                {
-                    return Err("Paint source page has invalid plane dimensions".into());
-                }
-                if chunk
-                    .origin
-                    .iter()
-                    .any(|value| value.rem_euclid(SIZE as i32) != 0)
-                {
-                    return Err("Paint source page has an unaligned UV origin".into());
-                }
-                let mut slot = Builder::surface_paint_entry_hash(chunk.paint_geo, chunk.origin)
-                    as usize
-                    & (table_len - 1);
-                while entries[slot].uv_size != [0; 2] {
-                    if entries[slot].geo == chunk.paint_geo
-                        && entries[slot].uv_origin == chunk.origin
-                    {
-                        return Err("Paint source contains duplicate UV keys".into());
-                    }
-                    slot = (slot + 1) & (table_len - 1);
-                }
-                entries[slot] = Raster3DSurfacePaintEntry {
-                    geo: chunk.paint_geo,
-                    uv_origin: chunk.origin,
-                    uv_size: [SIZE; 2],
-                    atlas_rect: [0; 4],
-                };
-                sources_by_slot[slot] = Some(pages.len());
-                pages.push(PaintPageSource {
-                    geo: chunk.paint_geo,
-                    uv_origin: chunk.origin,
-                    revision: chunk.revision,
-                    color: chunk.color_rgba.clone(),
-                    material: chunk.material_rgba.clone(),
-                });
-            }
-        }
-        Ok(Self {
-            pages,
-            entries,
-            sources_by_slot,
-            alpha_geo_ids: if current {
-                Builder::surface_paint_alpha_geo_ids(layer)
+            surface_instance_owners: if current {
+                layer.surface_instance_owners.clone()
             } else {
                 Vec::new()
             },
-        })
+            ..Default::default()
+        };
+        let mut builder = PaintPageIndexBuilder::new(source, table_byte_limit)?;
+        while !builder.advance(64)? {}
+        Ok(builder.finish()?.0)
     }
     pub fn source_count(&self) -> usize {
         self.pages.len()

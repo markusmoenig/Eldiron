@@ -1,9 +1,10 @@
 //! Frozen authoring paint for a private bake scene. Source revision checks do
 //! not clone atlases or hash their pixels during every application update.
 use super::*;
-use shared::iso_paint::{ISO_PAINT_BAKE_VERSION, ISO_PAINT_BAKED_CHUNK_SIZE, IsoPaintLayer};
+use shared::iso_paint::IsoPaintLayer;
 use std::hash::{Hash, Hasher};
 
+// Organic stamp sources still use the separate bounded billboard adapter.
 const INPUT_BUDGET: u64 = 64 * 1024 * 1024;
 #[derive(Clone, PartialEq)]
 pub(super) struct Stamp {
@@ -48,17 +49,6 @@ impl Stamp {
                             (chunk.stamps.len() as u64).saturating_mul(256 * 256 * 4),
                         );
                     }
-                }
-                if layer.visible && layer.baked_version == ISO_PAINT_BAKE_VERSION {
-                    // Two RGBA planes, with a conservative factor of two for atlas
-                    // row packing. Obsolete UV pixels are excluded by Snapshot;
-                    // they must not force its native job into a legacy adapter.
-                    bytes = bytes.saturating_add(
-                        (layer.baked_chunks.len() as u64)
-                            .saturating_mul(ISO_PAINT_BAKED_CHUNK_SIZE as u64)
-                            .saturating_mul(ISO_PAINT_BAKED_CHUNK_SIZE as u64)
-                            .saturating_mul(16),
-                    );
                 }
                 (id, hash.finish())
             })
@@ -189,9 +179,7 @@ impl Editor {
                     y * ISO_PAINT_BAKED_CHUNK_SIZE,
                 ];
                 let mut chunk = IsoPaintBakedChunk::new(owner.clone(), geo, origin);
-                chunk.color_rgba = [24, 190, 72, 192]
-                    .repeat(chunk.color_rgba.len() / 4)
-                    .into();
+                chunk.color_rgba = [24, 190, 72, 192].repeat(chunk.color_rgba.len() / 4).into();
                 chunk.revision = 1;
                 paint
                     .baked_chunks
@@ -477,25 +465,8 @@ impl Snapshot {
         );
         Self(paint)
     }
-    pub(super) fn upload_page_sources(
-        self,
-        scene: &mut rusterix::SceneHandler,
-        camera: scenevm::Camera3D,
-        viewport: (u32, u32),
-        context: &renderkit::GpuContext,
-    ) -> Result<std::sync::Arc<shared::surface_paint::pages::PaintPageIndex>, String> {
-        let limit =
-            u64::from(context.device.limits().max_storage_buffer_binding_size).saturating_sub(20);
-        let source = shared::surface_paint::pages::PaintPageIndex::from_layer(&self.0, limit)?;
-        shared::iso_paint_render::IsoPaintRenderer::upload_stamp_billboards_cached(
-            &mut Default::default(),
-            &self.0,
-            &mut scene.vm,
-            camera,
-            viewport.0,
-            viewport.1,
-        );
-        Ok(std::sync::Arc::new(source))
+    pub(super) fn into_preparation(self) -> Preparation {
+        Preparation(State::Frozen(Some(self)))
     }
     #[cfg(test)]
     pub(super) fn upload(
@@ -511,5 +482,66 @@ impl Snapshot {
             camera,
             viewport,
         );
+    }
+}
+
+/// Frozen paint progresses independently of viewport visibility. The GPU scene
+/// is created only after all original keys and alpha owners have been validated.
+pub(super) struct Preparation(State);
+enum State {
+    Frozen(Option<Snapshot>),
+    Building(shared::surface_paint::pages::PaintPageIndexBuilder),
+    Ready(
+        std::sync::Arc<shared::surface_paint::pages::PaintPageIndex>,
+        IsoPaintLayer,
+    ),
+}
+impl Preparation {
+    pub(super) fn ready(&self) -> bool {
+        matches!(self.0, State::Ready(..))
+    }
+    pub(super) fn advance(&mut self, context: &renderkit::GpuContext) -> Result<bool, String> {
+        if let State::Frozen(snapshot) = &mut self.0 {
+            let limit = u64::from(context.device.limits().max_storage_buffer_binding_size)
+                .saturating_sub(20);
+            self.0 = State::Building(shared::surface_paint::pages::PaintPageIndexBuilder::new(
+                snapshot
+                    .take()
+                    .ok_or("Frozen paint source already consumed")?
+                    .0,
+                limit,
+            )?);
+        }
+        if let State::Building(builder) = &mut self.0 {
+            if !builder.advance(16)? {
+                return Ok(false);
+            }
+            let State::Building(builder) = std::mem::replace(&mut self.0, State::Frozen(None))
+            else {
+                unreachable!();
+            };
+            let (index, stamps) = builder.finish()?;
+            self.0 = State::Ready(std::sync::Arc::new(index), stamps);
+        }
+        Ok(self.ready())
+    }
+    pub(super) fn upload_page_sources(
+        self,
+        scene: &mut rusterix::SceneHandler,
+        camera: scenevm::Camera3D,
+        viewport: (u32, u32),
+    ) -> Result<std::sync::Arc<shared::surface_paint::pages::PaintPageIndex>, String> {
+        let State::Ready(source, stamps) = self.0 else {
+            return Err("Paint source preparation is incomplete".into());
+        };
+        shared::iso_paint_render::IsoPaintRenderer::upload_stamp_billboards_cached(
+            &mut Default::default(),
+            &stamps,
+            &mut scene.vm,
+            camera,
+            viewport.0,
+            viewport.1,
+        );
+        Ok(source)
     }
 }

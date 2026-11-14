@@ -208,3 +208,66 @@ fn unloaded_material_pages_retain_transparency_and_instance_classification() {
     let _entries = index.resident_entries([64, 64], &[]).unwrap();
     assert_eq!(index.alpha_geo_ids(), &[GeoId::Sector(7), GeoId::Sector(9)]);
 }
+
+#[test]
+fn cooperative_preparation_matches_all_slots_alpha_and_shared_planes() {
+    let mut source = layer(2049);
+    source
+        .baked_chunks
+        .values_mut()
+        .last()
+        .unwrap()
+        .material_rgba[..4]
+        .copy_from_slice(&[254, 20, 128, 255]);
+    source.surface_instance_owners = (8..55).map(IsoPaintOwner::Sector).collect();
+    let expected_alpha = Builder::surface_paint_alpha_geo_ids(&source);
+    let expected = PaintPageIndex::from_layer(&source, 1024 * 1024).unwrap();
+    let original = source.baked_chunks.clone();
+    let mut preparation = PaintPageIndexBuilder::new(source, 1024 * 1024).unwrap();
+    assert!(!preparation.advance(0).unwrap());
+    let mut advances = 1;
+    while !preparation.advance(16).unwrap() {
+        advances += 1;
+    }
+    assert!(
+        advances > 128,
+        "preparation must yield across original pages"
+    );
+    let (index, residual) = preparation.finish().unwrap();
+    assert!(residual.baked_chunks.is_empty());
+    assert_eq!(index.unloaded_entries(), expected.unloaded_entries());
+    assert_eq!(index.alpha_geo_ids(), expected_alpha);
+    for chunk in original.values() {
+        let slot = index.slot(chunk.paint_geo, chunk.origin).unwrap();
+        assert_eq!(
+            index.page(slot).unwrap().color.as_ptr(),
+            chunk.color_rgba.as_ptr()
+        );
+        assert_eq!(
+            index.page(slot).unwrap().material.as_ptr(),
+            chunk.material_rgba.as_ptr()
+        );
+    }
+}
+
+#[test]
+fn unfinished_or_failed_preparation_cannot_publish_an_index() {
+    assert!(
+        PaintPageIndexBuilder::new(layer(2), 1024)
+            .unwrap()
+            .finish()
+            .is_err()
+    );
+    let mut source = layer(2);
+    source
+        .baked_chunks
+        .values_mut()
+        .last()
+        .unwrap()
+        .material_rgba = vec![0; 4].into();
+    let mut preparation = PaintPageIndexBuilder::new(source, 1024).unwrap();
+    let error = preparation.advance(16).unwrap_err();
+    assert!(error.contains("dimensions"));
+    assert_eq!(preparation.advance(16).unwrap_err(), error);
+    assert!(preparation.finish().is_err());
+}
