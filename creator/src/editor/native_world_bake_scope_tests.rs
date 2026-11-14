@@ -119,16 +119,22 @@ fn frozen_bake_scope_survives_missing_layout_and_rejects_retired_completed_sourc
 #[test]
 #[ignore = "actual GPU original-channel generation and pending capture retirement"]
 fn hidden_world_bakes_linked_prefab_paint_and_retires_catalog_edits() {
-    run_hidden_linked_paint(false);
+    run_hidden_linked_paint(false, false);
 }
 
 #[test]
 #[ignore = "actual GPU canonical source above former UV input limit"]
 fn hidden_world_bakes_large_linked_paint_without_source_size_adapter() {
-    run_hidden_linked_paint(true);
+    run_hidden_linked_paint(true, false);
 }
 
-fn run_hidden_linked_paint(large: bool) {
+#[test]
+#[ignore = "actual GPU replacement independent of oversized saved original tile"]
+fn hidden_world_rebakes_over_an_oversized_saved_original_without_decoding_it() {
+    run_hidden_linked_paint(false, true);
+}
+
+fn run_hidden_linked_paint(large: bool, oversized: bool) {
     use shared::iso_paint::{IsoPaintBakedChunk, IsoPaintLayer, IsoPaintOwner};
     use std::time::{Duration, Instant};
     let gpu = futures::executor::block_on(renderkit::GpuContext::headless()).unwrap();
@@ -199,6 +205,20 @@ fn run_hidden_linked_paint(large: bool) {
             instance.world_transform[2] = [1., 0., 0., 0.];
         }
         region.map.block_prop_instances.push(instance);
+    }
+    if oversized {
+        let asset: rusterix::map::OrthographicBakeAsset = serde_json::from_str(include_str!(
+            "../../tests/fixtures/oversized-current-bake.json"
+        ))
+        .unwrap();
+        assert!(!bake::supported(&asset));
+        region.map.orthographic_bake = Some(asset);
+        editor
+            .server_ctx
+            .bake
+            .write()
+            .sync_persisted_asset(region.map.id, region.map.orthographic_bake.as_ref());
+        assert_eq!(editor.server_ctx.bake.read().decoded_resident_bytes(), 0);
     }
     let map_id = region.map.id;
     let map_changed = region.map.changed;
@@ -337,6 +357,12 @@ fn run_hidden_linked_paint(large: bool) {
         .as_ref()
         .expect("hidden completion must enter authored history");
     assert_eq!(asset.samples, 2);
+    assert_eq!(asset.tile_size, 256);
+    if oversized {
+        eprintln!(
+            "Replaced valid 2048px saved tile with native 256px original production; previous source was never decoded"
+        );
+    }
     assert!(editor.server_ctx.history.read().revision() > history);
     assert!(editor.documents.sessions[editor.documents.active_session].dirty);
     assert_eq!(

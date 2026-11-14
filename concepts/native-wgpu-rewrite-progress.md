@@ -13435,3 +13435,27 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   ownership retirement, active/inflight/driver budgets and release baselines.
   Physical Winit remains unverified while this Mac console is locked; Windows,
   Linux and selected iOS workflows remain unavailable here. Goal stays active.
+
+## Rebake admission independent of prior saved tile size (2026-11-14)
+
+- Removed the previous persisted asset's individual tile-size check from new
+  private bake producer admission. New work samples frozen authored geometry and
+  paint and initializes its own256px output plan; it never needs to decode the
+  previous saved original. Organic stamp input admission remains separate.
+- Added a valid current-version2048px lossless saved color fixture (compressed
+  JSON28,752B, optional auxiliary channels absent under the current format).
+  Conservative decoded original channels exceed32MiB, so this remains outside
+  the displayed-source adapter's support. No old paint-version migration added.
+- Actual canonical hidden native GPU replacement PASS1/3.83s: begins with the
+  oversized asset installed/undecoded, creates native work without selecting the
+  reference producer, publishes256px originals with expected1,573green albedo
+  pixels and undo/dirty ownership, and rejects a subsequent catalog edit while
+  capture is pending. Prior whole-tile decode/display adapter remains open.
+  Log:/private/tmp/eldiron-bake-previous-oversized-gpu.log.
+- Browser-host wasm compile check collecting; no repeated unchanged release
+  application assembly or claim of actual canonical browser oversized-tile
+  display acceptance. The full M0-M9 goal remains active.
+- Browser-host wasm compile PASS21.37s for the admission change; only existing
+  warnings. Native actual replacement evidence remains the runtime gate for
+  this specific change. The oversized saved tile display/decode adapter is not
+  retired by making new production independent of that prior saved asset.

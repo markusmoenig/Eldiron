@@ -248,15 +248,10 @@ impl Editor {
             if jobs.active.is_none() && jobs.legacy.is_none() {
                 let bridge = self.server_ctx.reference.read();
                 let region = self.documents.project.get_region(&key.region).unwrap();
-                if !key.paint.supported()
-                    || region
-                        .map
-                        .orthographic_bake
-                        .as_ref()
-                        .is_some_and(|asset| !bake::supported(asset))
-                {
-                    // Organic stamp input and oversized saved original tiles
-                    // retain explicit adapters; UV sources are indexed in batches.
+                if !key.paint.supported() {
+                    // Organic stamp inputs retain their explicit source adapter.
+                    // A new bake samples authored geometry/paint, independently
+                    // of the previously saved asset's original tile dimensions.
                     jobs.legacy = Some(key.clone());
                 } else {
                     let mut projection = region.map.clone();
