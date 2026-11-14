@@ -6378,6 +6378,23 @@ impl IsoPaintRenderer {
         }
     }
 
+    /// Upload immutable world/UV sources without a camera-space framebuffer.
+    /// Stamps use the supplied authoring camera only for their persistent world
+    /// size and facing; changing a bake tile's camera position does not move them.
+    pub fn upload_sources_cached(
+        render_cache: &mut IsoPaintRenderCache,
+        layer: &mut IsoPaintLayer,
+        vm: &mut SceneVM,
+        camera: Camera3D,
+        viewport: (u32, u32),
+    ) -> bool {
+        let surface_changed = Self::upload_surface_paint_cached(render_cache, layer, vm);
+        let stamps_changed = Self::upload_stamp_billboards_cached(
+            render_cache, layer, vm, camera, viewport.0, viewport.1,
+        );
+        surface_changed || stamps_changed
+    }
+
     /// Compatibility at the renderer call boundary only.  The implementation no longer uploads
     /// a camera-space overlay; the retained camera parameters will disappear as call sites move
     /// to the `PaintRenderer` name.
@@ -6394,10 +6411,7 @@ impl IsoPaintRenderer {
         height: u32,
         _current_camera_scale: Option<f32>,
     ) -> bool {
-        let surface_changed = Self::upload_surface_paint_cached(render_cache, layer, vm);
-        let stamps_changed =
-            Self::upload_stamp_billboards_cached(render_cache, layer, vm, camera, width, height);
-        surface_changed || stamps_changed
+        Self::upload_sources_cached(render_cache, layer, vm, camera, (width, height))
     }
 
     pub fn draw_stamps(

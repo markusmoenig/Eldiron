@@ -3214,6 +3214,64 @@ mod tests {
         encoder.write_header().unwrap().write_image_data(captured.pixels()).unwrap();
         app.application.editor.check_native_generated_bake_history_for_test(&old, &mut app.session.ui, &mut app.session.context);
         check_native_paste(app, host, images, gpu, renderer, output);
+        let authored_paint = app.application.editor.stage_native_bake_paint_for_test();
+        let (authored, old, revision) = app.application.editor.request_native_progressive_bake_for_test(
+            &mut app.session.ui, &mut app.session.context);
+        let transfers = gpu.transfers();
+        let deadline = Instant::now() + Duration::from_secs(90);
+        loop {
+            app.update(host, Duration::from_millis(16));
+            let paint = app.frame(host, images).unwrap();
+            assert!(app.application.pending.as_ref().unwrap().world_for_test(), "painted bake must keep the viewport native");
+            renderer.render(&paint, images, &output.view, output.descriptor.format, (1200,800), 1., [0.;4]).unwrap();
+            app.presented(host);
+            assert_no_viewport_readback(transfers, gpu);
+            assert!(!app.application.editor.native_world_has_cpu_storage_for_test());
+            if app.application.editor.native_progressive_bake_complete_for_test(&authored, &old, revision) { break; }
+            assert!(Instant::now() < deadline, "painted progressive bake did not publish");
+        }
+        app.application.editor.check_native_bake_paint_for_test(&authored_paint, gpu);
+        app.application.editor.check_native_generated_bake_history_for_test(&old, &mut app.session.ui, &mut app.session.context);
+        std::fs::copy("/private/tmp/eldiron-native-generated-bake.eldiron", "/private/tmp/eldiron-native-painted-bake.eldiron").unwrap();
+        // Undo/redo queues legitimate source changes. Settle them before
+        // isolating a subsequent paint-only invalidation of a fresh request.
+        let deadline = Instant::now() + Duration::from_secs(30);
+        loop {
+            app.update(host, Duration::from_millis(16));
+            if app.application.editor.native_world_source_for_test().is_some_and(|(_, ready)| ready)
+                && app.application.editor.native_reference_source_ready_for_test() { break; }
+            assert!(Instant::now() < deadline, "history sources must settle before pending-paint isolation");
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        let (_, retained, _) = app.application.editor.request_native_progressive_bake_for_test(
+            &mut app.session.ui, &mut app.session.context);
+        app.application.editor.log_native_bake_paint_state_for_test();
+        let transfers = gpu.transfers();
+        let deadline = Instant::now() + Duration::from_secs(30);
+        loop {
+            app.update(host, Duration::from_millis(16));
+            let paint = app.frame(host, images).unwrap();
+            renderer.render(&paint, images, &output.view, output.descriptor.format, (1200,800), 1., [0.;4]).unwrap();
+            app.presented(host);
+            assert_no_viewport_readback(transfers, gpu);
+            if app.application.editor.native_bake_paint_pending_for_test() { break; }
+            if Instant::now() >= deadline {
+                app.application.editor.log_native_bake_paint_state_for_test();
+                panic!("paint work never became pending");
+            }
+        }
+        app.application.editor.edit_native_bake_paint_for_test(&mut app.session.context);
+        let deadline = Instant::now() + Duration::from_secs(30);
+        loop {
+            app.update(host, Duration::from_millis(16));
+            let paint = app.frame(host, images).unwrap();
+            assert!(app.application.pending.as_ref().unwrap().world_for_test());
+            renderer.render(&paint, images, &output.view, output.descriptor.format, (1200,800), 1., [0.;4]).unwrap();
+            app.presented(host);
+            assert_no_viewport_readback(transfers, gpu);
+            if app.application.editor.native_bake_paint_retired_for_test(&retained) { break; }
+            assert!(Instant::now() < deadline, "paint-only edit must retire the frozen job");
+        }
         app.application.editor.finish_native_bake_for_test(
             fixture,
             &mut app.session.ui,

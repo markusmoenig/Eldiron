@@ -5,6 +5,8 @@ use eldiron_presentation::orthographic_bake::{BakeAdvance, OrthographicBakeJob};
 use renderkit::ImageRegistry;
 use rusterix::editor_view::EditorView3D;
 use rusterix::server::message::RuntimeRenderState;
+#[path = "native_world_bake_paint.rs"]
+mod paint;
 
 const SOURCE_BUDGET: u64 = 64 * 1024 * 1024;
 #[derive(Clone, PartialEq)]
@@ -16,7 +18,7 @@ struct Key {
     assets: AssetKey,
     config: String,
     axes: [[u32; 3]; 3],
-    painted: bool,
+    paint: paint::Stamp,
     request: Uuid,
 }
 struct Job {
@@ -26,6 +28,7 @@ struct Job {
     frame: EditorView3D,
     render: RuntimeRenderState,
     viewport: (u32, u32),
+    paint: Option<paint::Snapshot>,
 }
 #[derive(Default)]
 pub(super) struct Jobs {
@@ -60,11 +63,6 @@ impl Jobs {
         })
     }
 }
-fn has_paint(paint: &shared::iso_paint::IsoPaintLayer) -> bool {
-    !paint.chunks.is_empty()
-        || !paint.baked_chunks.is_empty()
-        || !paint.surface_commit_strokes.is_empty()
-}
 impl Editor {
     fn native_bake_key(
         &self,
@@ -98,15 +96,7 @@ impl Editor {
         let mut assets = self.native_world_asset_key(&bridge.assets);
         // Actor animation cache publications cannot change static transport.
         assets.avatars = 0;
-        let painted = has_paint(&region.iso_paint)
-            || bridge.assets.surface_paint.contains_key(&region.map.id)
-            || region.map.block_prop_instances.iter().any(|instance| {
-                self.documents
-                    .project
-                    .block_prop_paint
-                    .get(&instance.asset_id)
-                    .is_some_and(has_paint)
-            });
+        let paint = paint::Stamp::new(region, &self.documents.project);
         let bits = |v: Vec3<f32>| [v.x.to_bits(), v.y.to_bits(), v.z.to_bits()];
         Some((
             Key {
@@ -117,7 +107,7 @@ impl Editor {
                 assets,
                 config: self.native_world_geometry_config(),
                 axes: [bits(camera.forward), bits(camera.right), bits(camera.up)],
-                painted,
+                paint,
                 request: request.1,
             },
             camera,
@@ -240,15 +230,15 @@ impl Editor {
             if jobs.active.is_none() && jobs.legacy.is_none() {
                 let bridge = self.server_ctx.reference.read();
                 let region = self.documents.project.get_region(&key.region).unwrap();
-                if key.painted
+                if !key.paint.supported()
                     || region
                         .map
                         .orthographic_bake
                         .as_ref()
                         .is_some_and(|asset| !bake::supported(asset))
                 {
-                    // Explicit migration adapters: painted capture input and
-                    // above-budget paging are tracked, not silently omitted.
+                    // Above-budget source paging remains an explicit adapter;
+                    // no original paint or bake channels are silently omitted.
                     jobs.legacy = Some(key.clone());
                 } else {
                     let mut projection = region.map.clone();
@@ -286,6 +276,11 @@ impl Editor {
                         frame,
                         render: bridge.render_state_for_view(&region.map, false),
                         viewport,
+                        paint: Some(paint::Snapshot::capture(
+                            region,
+                            &self.documents.project,
+                            &bridge.assets,
+                        )),
                     });
                 }
             }
@@ -325,6 +320,14 @@ impl Editor {
                                 chunk: chunk.as_ref().clone(),
                             });
                         }
+                        // Authoring paint uses the same original-world source
+                        // policy as the displayed view. Runtime surface_paint
+                        // caches are derived game inputs, not authored layers.
+                        job.paint.take().unwrap().upload(
+                            &mut scene,
+                            job.frame.camera,
+                            job.viewport,
+                        );
                         job.gpu = Some(
                             OrthographicBakeJob::new(
                                 images.context().clone(),
