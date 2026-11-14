@@ -1,7 +1,7 @@
 //! Frozen authoring paint for a private bake scene. Source revision checks do
 //! not clone atlases or hash their pixels during every application update.
 use super::*;
-use shared::iso_paint::{ISO_PAINT_BAKED_CHUNK_SIZE, IsoPaintLayer};
+use shared::iso_paint::{ISO_PAINT_BAKE_VERSION, ISO_PAINT_BAKED_CHUNK_SIZE, IsoPaintLayer};
 use std::hash::{Hash, Hasher};
 
 const INPUT_BUDGET: u64 = 64 * 1024 * 1024;
@@ -49,9 +49,10 @@ impl Stamp {
                         );
                     }
                 }
-                if layer.visible {
+                if layer.visible && layer.baked_version == ISO_PAINT_BAKE_VERSION {
                     // Two RGBA planes, with a conservative factor of two for atlas
-                    // row packing. Check before cloning/constructing display data.
+                    // row packing. Obsolete UV pixels are excluded by Snapshot;
+                    // they must not force its native job into a legacy adapter.
                     bytes = bytes.saturating_add(
                         (layer.baked_chunks.len() as u64)
                             .saturating_mul(ISO_PAINT_BAKED_CHUNK_SIZE as u64)

@@ -12750,3 +12750,27 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   Codec scratch/linear-memory/driver overhead, other worker types, oversized
   single tiles, above64MiBpaint, full platform/performance and M0–M9 gates remain
   incomplete. Concurrent networking concept remains untouched.
+
+
+## 2026-11-14 — Paint scope and post-worker runtime evidence (active)
+
+- Browser worker checkpoint8925ed5e includes the canonical packages, CPU-only
+  codec boundary, lifecycle/error evidence and current paint scope clarification.
+  Packager syntax check initially could not write Python's default external
+  cache; explicit task-local /private/tmp bytecode compile PASS. No permissions
+  or global cache settings changed.
+- Native bake paint eligibility now counts UV chunk storage only when its
+  version equals ISO_PAINT_BAKE_VERSION, matching the existing frozen Snapshot
+  exclusion. Obsolete UV bytes cannot force an otherwise empty/current-source
+  request into the legacy adapter. Current UV/stamp bytes keep their64MiB
+  conservative bound; no history replay, legacy migration or schema changes.
+  Existing CPU frozen-source/history-independence regression PASS1/0.14s after
+  current native-host test build; no unchanged full assembly rerun required for
+  this guard. /private/tmp/eldiron-current-paint-budget-check.log.
+- Extra player-baked workload evidence collecting. The authoring LargeGpuBake
+  fixture has no configured runtime region or player template; both explicit
+  startup errors occurred before GPU creation, not worker failures. A separate
+  task-only playable fixture combines3DStarter runtime/template/config with the
+  controlled baked map, preserving entities and all referenced original binary
+  entries. Initial synthetic ZIP omitted those referenced channel entries; fixed
+  before decode. No repository project or production startup policy changed.
