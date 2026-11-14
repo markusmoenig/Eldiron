@@ -147,11 +147,17 @@ impl TileCache {
             let victim = state
                 .entries
                 .iter()
-                .filter(|(_, (lease, _))| Arc::strong_count(&lease.0) == 1)
+                .filter(|(at, (lease, _))| {
+                    // A transient beauty sample has no encoded backing yet.
+                    // Its cache entry is the original, not a disposable decode.
+                    self.index.contains_key(at) && Arc::strong_count(&lease.0) == 1
+                })
                 .min_by_key(|(_, (_, age))| *age)
                 .map(|(at, _)| *at);
             let Some(victim) = victim else {
-                return Err("Decoded bake source budget is pinned by active consumers.".into());
+                return Err(
+                    "Decoded bake source budget is pinned by active originals or consumers.".into(),
+                );
             };
             state.entries.remove(&victim);
         }

@@ -11896,3 +11896,51 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   neighbors, rather than relying on its disappearance. Retain defensive missing-
   source clearing for corrupt sources. This is the next concrete action before
   broad target-budget/core extraction, not a completed recovery invariant.
+
+## 2026-11-14 — Preserve unencoded transient originals (active)
+
+- Previous turn was progress at62c0ea8f; clean tracked worktree revalidated and
+  networking concept preserved. Full Goal remains active. Following the recorded
+  recovery gap, CPU cache eviction now chooses only entries backed by encoded
+  asset originals. A transient beauty sample remains its own original until
+  commit/replacement/cancellation; idle Arc count alone cannot make it evictable.
+  The same32MiB allocation domain, external lease charges and explicit pressure
+  behavior remain. No new serialized fields or old-paint compatibility added.
+- Updated the genuine pressure fixture:28encoded originals exceed cache capacity,
+  yet the newly changed unencoded sample remains Ready with its original epoch/
+  bytes. Its incremental GPU update must affect only that tile and preserve
+  neighbors. The fixture then destroys its first device and creates a fresh
+  renderer/device, requiring identical color/depth from CPU originals without
+  retaining the prior GPU target as a reconstruction source.
+- The synthetic external-lease pressure test marks its temporary entry as having
+  encoded backing, so releasing the lease legitimately allows eviction. The
+  producer error now distinguishes active originals/consumers rather than
+  implying all retained data are external consumers. Actual metadata/byte limits
+  are unchanged; unencoded originals are intentionally non-disposable data.
+- Isolated native CPU contracts PASS22/0.53s,
+  /private/tmp/eldiron-transient-original-cpu.log. Presentation build is collecting;
+  no final GPU/reconstruction or cross-target pass claimed yet.
+- Focused real GPU pressure/reconstruction PASS1/5.02s,
+  /private/tmp/eldiron-transient-original-gpu.log.28encoded originals force
+  eviction, the changed preview remains Ready, only its packed tile uploads,
+  color/depth match the CPU reference with no neighbor damage. After dropping
+  the renderer/destroying its device, a new device/renderer reconstructs exactly
+  the same color/depth from CPU originals; no prior target is reused.
+- Final single_thread CPU contracts PASS22/0.55s; native Creator library
+  PASS27.29s; wasm Creator library PASS24.23s, logs /private/tmp/eldiron-
+  transient-original-{single-thread,native,wasm}.log. No production shader or
+  host interface changed; the previous actual browser/full-generation results
+  remain62c0ea8f, not a new browser/full-matrix run of this cache predicate.
+- All current compiler/run handles are terminal and git diff --check clean.
+  Networking concept is untouched/excluded. This closes the recorded sole-copy
+  preview eviction gap within the existing allocation domain; global encoded/
+  codec/target/driver memory and release/platform acceptance remain open.
+- Next coherent whole-plan work is M4 core data extraction: legacy bitmap/value
+  definitions still live in TheFramework alongside font rasterization. Move CPU
+  data/serialization and pure pixel utilities to theframework-core with exact
+  compatibility re-exports; keep fontdue draw helpers in an explicit framework
+  reference adapter. Preserve legacy bitmap dim/render_scale/compressed bytes,
+  enum tags/order, project/history values and the neutral ImageAsset API. Inspect
+  private raster-target field access and text extension callers before moving;
+  do not move font/UI/window/GPU dependencies into the CPU core. Canonical
+  renderer ownership/retirement and full M0–M9 acceptance remain active.

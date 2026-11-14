@@ -164,8 +164,8 @@ fn progressive_pages_copy_completed_targets_and_upload_only_changed_originals() 
 }
 
 #[test]
-#[ignore = "actual GPU missing original clears inherited pixels and depth exactly"]
-fn missing_changed_original_clears_its_inherited_tile_without_neighbor_damage() {
+#[ignore = "actual GPU transient original survives source pressure and reconstruction"]
+fn changed_transient_original_survives_pressure_without_neighbor_damage() {
     let context = futures::executor::block_on(GpuContext::headless()).unwrap();
     let map = Uuid::new_v4();
     let mut camera = Camera3D::iso();
@@ -179,8 +179,8 @@ fn missing_changed_original_clears_its_inherited_tile_without_neighbor_damage() 
         (128, 128),
         None,
     );
-    // Ensure a visible published preview before deliberately evicting its next
-    // unencoded sample through genuine bounded original-source pressure.
+    // Read more encoded originals than fit the CPU cache. The unencoded
+    // current sample must stay available, with its epoch and bytes unchanged.
     owner
         .preview_current_tile(&[180, 40, 30, 255].repeat(n))
         .unwrap();
@@ -204,15 +204,29 @@ fn missing_changed_original_clears_its_inherited_tile_without_neighbor_damage() 
     }
     assert!(matches!(
         source.poll_tile(changed[0].0, changed[0].1).unwrap(),
-        rusterix::orthographic_bake::OrthographicBakeTilePoll::Missing
+        rusterix::orthographic_bake::OrthographicBakeTilePoll::Ready(_)
     ));
     let before = context.transfers();
     let output = ready(&mut renderer, &source, &camera, (128, 128), None);
     assert!(!Arc::ptr_eq(previous.image(), output.image()));
     assert!(
-        context.transfers().uploaded_bytes - before.uploaded_bytes < 4096,
-        "missing original requires metadata only"
+        (n as u64 * 24..n as u64 * 24 + 4096)
+            .contains(&(context.transfers().uploaded_bytes - before.uploaded_bytes)),
+        "only the changed original and dispatch metadata upload"
     );
     assert_eq!(context.transfers().readback_bytes, before.readback_bytes);
     reference(&context, &output, &owner, map, &camera, None);
+    let expected = colors(&context, &output);
+    let expected_depth = depths(&context, &output);
+    drop(renderer);
+    context.device.destroy();
+    let replacement = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let mut renderer = OrthographicBakeRenderer::new(replacement.clone()).unwrap();
+    let restored = ready(&mut renderer, &source, &camera, (128, 128), None);
+    assert_eq!(
+        colors(&replacement, &restored),
+        expected,
+        "reconstruction uses original pixels without a previous GPU target"
+    );
+    assert_eq!(depths(&replacement, &restored), expected_depth);
 }

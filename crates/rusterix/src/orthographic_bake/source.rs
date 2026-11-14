@@ -255,7 +255,7 @@ mod tests {
             .committed_tiles
             .insert(
                 (1, 0),
-                None,
+                Some(0), // Encoded backing permits eviction after the lease retires.
                 DecodedBakeTile {
                     color: vec![1; cache::DECODE_BUDGET as usize],
                     ..Default::default()
