@@ -11451,3 +11451,136 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   encoded/source/atlas/target/global queue budgets, owner/core/runtime extraction,
   canonical Creator retirement, release p50/p95/p99/input/startup/peak-memory and
   physical platform workflows. This CPU paging checkpoint is not M0–M9 completion.
+
+## 2026-11-14 — Cooperative GPU source pages (active)
+
+- Previous goal turn made progress at268bb642: bounded CPU decode, native/browser
+  runtime and serialized-output evidence. Revalidated that HEAD and preserved
+  unrelated networking work. Full M0–M9 Goal remains active.
+- Added an injected-device source pool:64MiB shared storage/upload reservations,
+  four outstanding source submissions, weak renderer caches and cross-owner idle
+  buffer eviction. GPU completion callbacks pin source buffers, upload capacity
+  and submission slots after cancellation. Pool entries contain no context Arc;
+  callbacks do not retain the owning context/application.
+- Bake composition now returns an optional completed image. Small source sets
+  use retained buffers; larger sets advance through reusable8MiB original-channel
+  pages, at most64tiles per preparation step. A private color/depth target is
+  published only after its final page completes. Source offsets are shader-side;
+  no CPU destination image, viewport readback or blocking GPU wait was added.
+- Source/document/request/projection changes revoke partial jobs. Lighting may
+  finish its frozen snapshot while a later lighting update waits; current-camera
+  compatible completed output can remain visible. Progressive samples/tiles use
+  the addressed producer request as their immutable geometry scope, preventing
+  perpetual cancellation when sample publication revisions advance. Final
+  committed sources again require exact publication revisions. Output metadata
+  explicitly distinguishes progressive request scope from exact committed data.
+- Creator's main view defers paint/input acknowledgement while a new projection
+  is incomplete and continues scheduling pending pages. Removed the whole-asset
+  residency restriction for supported ordinary bake tiles and the native bake
+  generation-plan residency fallback; CPU originals already page independently.
+  Oversized individual tiles and above-budget paint inputs remain explicit
+  adapters. Complete source/encoded/atlas/target budgets remain separate gates.
+- Initial compile RED: WGPU29 BufferViewMut is write-only and cannot be indexed.
+  Replaced that expression with its supported slice/copy API. Subsequent native
+  Creator library check PASS26.85s. Shared pool metadata reservation contract
+  PASS1 (log/private/tmp/eldiron-source-pool-tests.log); initial presentation/
+  native test builds passed before progressive-source scope additions.
+- Final build collecting in handle34516; tests are NOT yet claimed passed.
+  New verification covers43visible tiles, two owners sharing a device pool,
+  camera/source replacement while pages are pending, device loss, continuous
+  progressive updates, and a real assembled64tile persisted Creator bake above
+  the prior64MiB cutoff. Pending source-scope fixture uses real GPU composition;
+  actual tile generation/export remains the separate existing producer oracle.
+
+- Shared initializer uploads are reserved too: cache hits are pinned before
+  computing cold-upload bytes, so pool eviction cannot create an unaccounted
+  mapped initializer. Source pool counters cover both pooled storage and pending
+  initializer/page staging, not just the renderer's cache dictionary.
+- Final small-source/page builds PASS36.60s; a fixture correction uses2048x2048
+  sampling dimensions to create a genuinely multi-tile progressive plan (a256
+  sampling viewport at half-height10would fit the bounds in one tile).
+- Assembled native Creator PASS1/251.93s, /private/tmp/eldiron-gpu-pages-native-
+  assembly.log. Includes prior5persisted/all17custom exactRGB0, painted channel/
+  depth/content/source/history checks, surrounding Play/documents/clipboard/
+  recovery and fractionalDPI/source/minimap<=1. New fully visible64tile persisted
+  bake (96MiB original GPU channels) published after13pending root frames,
+  source-pool storage/staging<=64MiB (58,720,256bytes at final observation), native
+  reference delta<=1 and no ordinary readback/CPU viewport allocation. Getter
+  asserts all64tiles were actually visible, not inferred from asset tile count.
+- First GPU suite RED only at an immediate device.destroy() loss assertion:
+  native loss notification is asynchronous. Other three tests,43tile composition,
+  two owners and source/camera replacement passed. Updated the oracle to the
+  existing producer test's bounded poll-until-observed-loss pattern; production
+  now uses GpuContext::poll so WebGPU validation faults are checked too.
+- Actual final GPU suite PASS4/22.37s, /private/tmp/eldiron-gpu-pages-observed-
+  loss-contracts.log.43visible tiles above64MiB match reference color/depth;
+  two view owners share the device pool and keep independent outputs; a pending
+  source can be replaced under a new owner with reused coordinates; observed
+  loss rejects publication and releases pending source submissions. Continuous
+  progressive sample revisions complete pages without starvation and a new
+  request on the same map cannot reuse the prior partial result.
+- Final native build with a focused real large-generation workflow PASS37.99s.
+  The new isolated application case avoids repeating the whole UI matrix:
+  large authored geometry at128source pixels/world-unit, actual Render command,
+  progressive feedback, complete publication, undo/redo and fresh save. Uses the
+  same bounded owned/reference source readiness barrier as existing history/
+  paste fixtures. Run collecting in handle63454, /private/tmp/eldiron-native-
+  large-plan-generation.log. Final CPU/wasm/runtime/reference checks collecting
+  in handle80605. No large generation or final feature pass claimed yet.
+- Added diagnostics for bake-page waiting, actual visible tiles, per-view source
+  residency and shared storage/upload/submission usage. They are inspection
+  metadata only; no implementation details were added to normal product UI.
+
+- Final cross-target check initially RED: four wasm E0277 errors because WGPU29
+  completion callbacks require Send, while browser GPU handles are not Send.
+  Replaced captured GPU handles with Send-safe allocation pins. Queued command
+  scopes retain their actual buffers; metadata pins retain storage charges and
+  prevent pool eviction until completion. Callbacks contain no GPU/context/app
+  handles. Final native test build PASS51.58s; final wasm Creator library
+  PASS25.53s, /private/tmp/eldiron-gpu-pages-send-pins-wasm.log.
+- Final metadata-pin GPU suite PASS4/22.57s, /private/tmp/eldiron-gpu-pages-send-
+  pins-contracts.log. Final pool metadata PASS1; isolated runtime check PASS8.20s;
+  default/reference Creator library PASS19.70s, logs /private/tmp/eldiron-gpu-
+  pages-send-pins-{pool,runtime,reference}.log. CPU bake contracts PASS18 in
+  /private/tmp/eldiron-gpu-pages-final-cpu.log. No unchanged full UI suite rerun
+  after the callback-only portability correction; the assembled251.93s result
+  above precedes that correction and the focused generation below follows it.
+- Focused real large-plan generation first hit its120s debug observer deadline
+  after304of324captures (no budget/content assertion failed). Extended only the
+  observer deadline to240s; current metadata-pin build PASS1/164.91s,
+  /private/tmp/eldiron-native-large-plan-extended.log. Actual authored12x12floor
+  at128source pixels/world, plan84,934,656bytes,54tiles,652root frames,
+  324labeled asset captures/184,025,088bytes. Progressive feedback, publication,
+  history, undo/redo and fresh save pass; ordinary readback/CPU viewport0.
+  Independent ZIP inspection of /private/tmp/eldiron-native-large-generated-
+  bake.eldiron:54tiles/2samples/all5channels,1,418,267finite depth pixels,
+  3,160,316archive bytes. This debug workflow establishes functional progress,
+  not release speed/frame-time/startup/peak-memory acceptance.
+- Current-production browser release/package PASS1m56s,99,237,976bytes. Generic
+  bootstrap loaded the source and recovered generation2, but its fixed2s wait
+  stopped before paged publication; that alone is not final paging evidence.
+  Focused task-owned CDP9267 probe instead waits for complete source readiness.
+  First probe RED because wheel events lacked active World hover/held modifier;
+  corrected real pointer/keyboard timing without production changes.
+- Actual final browser PASS: controlled8x8 original painted-tile fixture,
+  all64simultaneously visible (inspection counter), native completed source,
+  zero root/ordinary readbacks/Canvas2D/color copies/errors. Paused RAF with an
+  unfinished64tile projection:8MiB source storage +7,864,320pending upload,
+  one pending submission, presented source revoked. Destroyed device and resumed;
+  generation3publishes all64tiles with same document, no pending work,8MiB
+  shared source storage. Log /private/tmp/eldiron-gpu-pages-browser-64-focused.log.
+  Visually inspected the resulting tiled painted source and surrounding UI.
+- Retained concepts/native-wgpu-evidence/browser-gpu-source-pages-150.png (196781bytes),
+  SHA2560ab98e768cfb7cd2ba48c85f2a62cdb65f93de6a26e146c3da1f27045048dea8.
+- All batch compiler/test/probe logs are terminal. git diff --check clean;
+  unrelated networking concept is untouched. This checkpoint retires ordinary
+  whole-asset and generation-plan64MiB display fallbacks, not all adapters.
+  Current-paint serialization is preserved; old experimental paint-version
+  compatibility is excluded by explicit user instruction.
+- Full M0–M9 remains ACTIVE. Next useful work: move source decode misses out of
+  frame preparation with bounded scheduling, reduce repeated progressive source
+  uploads, finish owner/core/runtime/canonical Creator retirement, and measure
+  release performance/global memory. Individual oversized tile subdivision,
+  over-budget paint, linked prefab expansion and unavailable physical platform
+  workflows remain recorded acceptance gaps. Source pool numbers cover logical
+  original storage plus pending uploads, not total driver/atlas/target memory.

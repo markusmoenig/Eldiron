@@ -1,6 +1,8 @@
 //! Explicit GPU ownership and resources shared by UI and scene renderers.
 //! No application event loop, widget tree, or gameplay state lives here.
 mod capture_queue;
+mod source_pool;
+pub use source_pool::{SourceBuffer, SourceBufferPin, SourcePoolUsage, SourceSubmission};
 mod context;
 pub use capture_queue::{CaptureLease, CaptureQueueUsage};
 mod fault;

@@ -362,6 +362,57 @@ mod tests {
     use std::sync::Arc;
     use theframework::render_wgpu::PaintRenderer;
     #[test]
+    #[ignore = "actual native large-plan generation, progressive display and saved channels"]
+    fn native_large_bake_plan_generates_without_a_viewport_adapter() {
+        let gpu=pollster::block_on(GpuContext::headless()).unwrap();
+        let mut images=ImageRegistry::new(gpu.clone());
+        let mut application=NativeCreatorApplication::new(vec!["eldiron-creator-native".into()],false);
+        application.start_services=false;
+        let mut app=UiApplicationAdapter::new(application);
+        app.application.editor.check_context_ownership_for_test(&gpu);
+        let mut host=HostContext::new((1200,800));
+        app.initialize(&mut host,&mut images).unwrap();
+        let output=GpuImage::new(&gpu,ImageDescriptor::rgba(1200,800)).unwrap();
+        let mut renderer=PaintRenderer::new(gpu.clone()).unwrap();
+        app.update(&mut host,Duration::from_millis(16));
+        let paint=app.frame(&mut host,&mut images).unwrap();
+        renderer.render(&paint,&images,&output.view,output.descriptor.format,(1200,800),1.,[0.;4]).unwrap();
+        app.presented(&mut host);
+        let fixture=app.application.editor.begin_native_large_generation_for_test(&mut app.session.ui,&mut app.session.context);
+        let settled=Instant::now()+Duration::from_secs(30);
+        loop {
+            app.update(&mut host,Duration::from_millis(16));
+            if app.application.editor.native_world_source_for_test().is_some_and(|(_,ready)|ready)
+                && app.application.editor.native_reference_source_ready_for_test() { break; }
+            assert!(Instant::now()<settled,"large fixture sources did not settle");
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        let (authored,old,revision)=app.application.editor.request_native_progressive_bake_for_test(&mut app.session.ui,&mut app.session.context);
+        let before=gpu.transfers();
+        let deadline=Instant::now()+Duration::from_secs(240);
+        let mut largest_plan=0;let mut preview=false;let mut frames=0;
+        loop {
+            app.update(&mut host,Duration::from_millis(16));
+            let paint=app.frame(&mut host,&mut images).unwrap();
+            renderer.render(&paint,&images,&output.view,output.descriptor.format,(1200,800),1.,[0.;4]).unwrap();
+            app.presented(&mut host);
+            assert_no_viewport_readback(before,&gpu);
+            assert!(!app.application.editor.native_world_has_cpu_storage_for_test());
+            let (plan,seen)=app.application.editor.native_large_generation_progress_for_test();
+            largest_plan=largest_plan.max(plan);preview|=seen;frames+=1;
+            assert!(gpu.source_pool_usage().bytes<=gpu.source_pool_usage().byte_limit);
+            if app.application.editor.native_progressive_bake_complete_for_test(&authored,&old,revision) { break; }
+            assert!(Instant::now()<deadline,"large native generation did not complete: plan={largest_plan}, frames={frames}");
+        }
+        assert!(largest_plan>64*1024*1024,"fixture must actually exceed the previous plan cutoff: {largest_plan}");
+        assert!(preview,"large generation must publish progressive native feedback");
+        assert!(gpu.transfers().asset_bake_readback_requests>before.asset_bake_readback_requests);
+        app.application.editor.check_native_generated_bake_history_for_test(&old,&mut app.session.ui,&mut app.session.context);
+        std::fs::copy("/private/tmp/eldiron-native-generated-bake.eldiron","/private/tmp/eldiron-native-large-generated-bake.eldiron").unwrap();
+        eprintln!("Large native generation: plan={largest_plan} bytes, {frames} root frames, captures={}, bytes={}",gpu.transfers().asset_bake_readback_requests-before.asset_bake_readback_requests,gpu.transfers().asset_bake_readback_bytes-before.asset_bake_readback_bytes);
+        app.application.editor.finish_native_bake_for_test(fixture,&mut app.session.ui,&mut app.session.context);
+    }
+    #[test]
     #[ignore = "requires actual native GPU; exercises the assembled Creator UI"]
     fn native_creator_application_paints_the_root_ui_without_a_root_framebuffer() {
         let gpu = pollster::block_on(GpuContext::headless()).unwrap();
@@ -3272,6 +3323,32 @@ mod tests {
             if app.application.editor.native_bake_paint_retired_for_test(&retained) { break; }
             assert!(Instant::now() < deadline, "paint-only edit must retire the frozen job");
         }
+        app.application.editor.stage_native_large_bake_for_test();
+        let transfers = gpu.transfers();
+        let deadline = Instant::now() + Duration::from_secs(45);
+        let mut pending_pages = 0;
+        loop {
+            app.update(host,Duration::from_millis(16));
+            let paint = app.frame(host,images).unwrap();
+            if !app.application.pending.as_ref().unwrap().world_for_test() { pending_pages += 1; }
+            renderer.render(&paint,images,&output.view,output.descriptor.format,(1200,800),1.,[0.;4]).unwrap();
+            app.presented(host);
+            assert_no_viewport_readback(transfers,gpu);
+            assert!(!app.application.editor.native_world_has_cpu_storage_for_test());
+            assert!(gpu.source_pool_usage().bytes <= gpu.source_pool_usage().byte_limit);
+            if app.application.editor.native_large_bake_ready_for_test() { break; }
+            assert!(Instant::now()<deadline,"large persisted bake pages never completed");
+        }
+        assert!(pending_pages>0,"large composition must wait for its private source pages");
+        eprintln!("Native 64-tile bake published after {pending_pages} pending root frames; source bytes={}",gpu.source_pool_usage().bytes);
+        let (image,size)=app.application.editor.native_generated_bake_image_for_test();
+        let mut capture=ReadbackTicket::capture(gpu,images.get(image).unwrap()).unwrap();
+        gpu.device.poll(wgpu::PollType::Wait { submission_index:None,timeout:Some(Duration::from_secs(30)) }).unwrap();
+        let pixels=capture.try_finish(gpu).unwrap().unwrap();
+        let reference=app.application.editor.native_bake_reference_for_test(gpu,size);
+        let delta=pixels.pixels().chunks_exact(4).zip(reference.chunks_exact(4))
+            .flat_map(|(a,b)|(0..3).map(move|i|a[i].abs_diff(b[i]))).max().unwrap();
+        assert!(delta<=1,"large native bake reference delta={delta}");
         app.application.editor.finish_native_bake_for_test(
             fixture,
             &mut app.session.ui,

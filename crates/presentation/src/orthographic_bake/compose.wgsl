@@ -69,7 +69,7 @@ fn draw(@builtin(global_invocation_id) id:vec3<u32>) {
     if any(tile!=p.tile.xy) {return;}
     let local_x=u32(clamp(floor(fp(fp(u-fp(origin.x+fp(f32(tile.x)*p.source.y)))*p.source.x)),0.,f32(p.size.z-1u)));
     let local_y=u32(clamp(floor(fp(fp(fp(origin.y+fp(f32(tile.y+1)*p.source.y))-v)*p.source.x)),0.,f32(p.size.z-1u)));
-    let pixel=pixels[local_y*p.size.z+local_x];
+    let pixel=pixels[p.bits.z+local_y*p.size.z+local_x];
     textureStore(image,at,shade(pixel));
     // Legacy versions intentionally lack depth occlusion. Invalid/no-hit source
     // depths remain infinity, preserving compatibility without a CPU plane.

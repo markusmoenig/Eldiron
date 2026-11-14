@@ -245,6 +245,7 @@ impl Editor {
             "fly_mouse": self.server_ctx.editor_fly_nav_mouse_down,
             "world": self.native_world_owns_viewport(),
             "bake": self.native_viewport.world.bake_jobs.diagnostics(&self.server_ctx.bake.read()),
+            "bake_pages": self.native_viewport.world.gpu.as_ref().and_then(|gpu| gpu.bake.diagnostics()),
             "source": {
                 "context": format!("{:?}", self.server_ctx.pc),
                 "map": self.native_world_map_id(),

@@ -9,8 +9,7 @@ pub(super) fn supported(asset: &rusterix::map::OrthographicBakeAsset) -> bool {
     u64::from(asset.tile_size)
         .checked_mul(u64::from(asset.tile_size))
         .and_then(|count| count.checked_mul(24))
-        .and_then(|bytes| bytes.checked_mul(asset.tiles.len() as u64))
-        .is_some_and(|bytes| bytes <= 64 * 1024 * 1024)
+        .is_some_and(|bytes| bytes > 0 && bytes <= 32 * 1024 * 1024)
 }
 
 #[derive(Default)]
@@ -35,7 +34,7 @@ impl Gpu {
         scenes: &mut SceneViews,
         client: &rusterix::Client,
         images: &mut ImageRegistry,
-    ) -> Result<ImageHandle, String> {
+    ) -> Result<Option<ImageHandle>, String> {
         if self.renderer.is_none() {
             self.renderer = Some(
                 OrthographicBakeRenderer::new(images.context().clone())
@@ -60,12 +59,15 @@ impl Gpu {
                 .map(|colors| colors[0]),
         );
         let size = (output.descriptor.width, output.descriptor.height);
-        let bake = self
+        let Some(bake) = self
             .renderer
             .as_mut()
             .unwrap()
             .render(source, camera, size, Some(lighting))
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| e.to_string())?
+        else {
+            return Ok(None);
+        };
         let surface = scenes
             .render_surface_output(output, scenevm::surface_output::SurfaceSelection::Dynamic)
             .map_err(|e| e.to_string())?
@@ -82,14 +84,33 @@ impl Gpu {
         if let Some((old, handle)) = &self.image
             && Arc::ptr_eq(old, &composed)
         {
-            return Ok(*handle);
+            return Ok(Some(*handle));
         }
         if let Some((_, image)) = self.image.take() {
             images.remove(image);
         }
         let image = images.insert(composed.clone()).map_err(|e| e.to_string())?;
         self.image = Some((composed, image));
-        Ok(image)
+        Ok(Some(image))
+    }
+    pub(super) fn visible_tiles(&self) -> usize {
+        self.renderer
+            .as_ref()
+            .map_or(0, |renderer| renderer.visible_tiles())
+    }
+    #[cfg(any(target_arch = "wasm32", feature = "staticlib"))]
+    pub(super) fn diagnostics(&self) -> Option<serde_json::Value> {
+        self.renderer.as_ref().map(|renderer| {
+            let pool = renderer.source_pool_usage();
+            serde_json::json!({"waiting": renderer.waiting(), "visible": renderer.visible_tiles(),
+                "resident": renderer.source_resident_bytes(), "shared_bytes":pool.bytes,
+                "upload_bytes":pool.upload_bytes,"submissions":pool.submissions,"limit":pool.byte_limit})
+        })
+    }
+    pub(super) fn waiting(&self) -> bool {
+        self.renderer
+            .as_ref()
+            .is_some_and(|renderer| renderer.waiting())
     }
 }
 
@@ -458,6 +479,91 @@ impl Editor {
             }
         }
         pixels
+    }
+    pub(crate) fn begin_native_large_generation_for_test(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+    ) -> Fixture {
+        let id = self.documents.project.regions[0].id;
+        self.server_ctx.curr_region = id;
+        self.server_ctx.pc = ProjectContext::Region(id);
+        let fixture = self.begin_native_bake_for_test(ui, ctx);
+        let height = ui.get_render_view("PolyView").unwrap().dim().height;
+        assert!(height > 0);
+        // Exactly 128 source pixels per world unit; the 12x12 floor needs
+        // more than 42 ordinary tiles while the live viewport sees a subset.
+        self.server_ctx.camera.iso_camera.scale = height as f32 / 256.;
+        let region = self.documents.project.get_region_mut(&id).unwrap();
+        let floor_id = region.map.geometry_objects[0].id;
+        let mut floor = rusterix::GeometryObject::box_from_bounds(
+            "Large generated floor",
+            Vec3::new(-6., -0.25, -6.),
+            Vec3::new(6., 0., 6.),
+        );
+        floor.id = floor_id;
+        region.map.geometry_objects[0] = floor;
+        region.editing_position_3d = Vec3::zero();
+        region.editing_position_iso_3d = Some(Vec3::zero());
+        region.map.changed = region.map.changed.wrapping_add(1);
+        fixture
+    }
+    pub(crate) fn native_large_generation_progress_for_test(&self) -> (u64, bool) {
+        let bake = self.server_ctx.bake.read();
+        let world = &self.native_viewport.world;
+        (
+            bake.planned_source_bytes(),
+            bake.is_rendering()
+                && world.presented.as_ref().is_some_and(|f| f.ready && f.baked)
+                && world
+                    .gpu
+                    .as_ref()
+                    .is_some_and(|gpu| gpu.bake.visible_tiles() > 5),
+        )
+    }
+    pub(crate) fn stage_native_large_bake_for_test(&mut self) {
+        let region = self
+            .documents
+            .project
+            .get_region_mut(&self.server_ctx.curr_region)
+            .unwrap();
+        let asset = region.map.orthographic_bake.as_mut().unwrap();
+        let span = asset.tile_size as f32 / asset.pixels_per_world_unit;
+        let tile = asset.tiles[0].clone();
+        asset.tiles = (0..64)
+            .map(|i| {
+                let mut tile = tile.clone();
+                tile.x = i % 8;
+                tile.y = i / 8;
+                tile
+            })
+            .collect();
+        asset.projected_bounds = [0., 8. * span, 0., 8. * span];
+        let center = Vec3::from(asset.camera_right) * (4. * span)
+            + Vec3::from(asset.camera_up) * (4. * span);
+        region.editing_position_3d = center;
+        region.editing_position_iso_3d = Some(center);
+        self.server_ctx.camera.iso_camera.scale = 5. * span;
+        region.map.changed = region.map.changed.wrapping_add(1);
+        assert!(supported(asset));
+        assert!(
+            u64::from(asset.tile_size).pow(2) * 24 * asset.tiles.len() as u64 > 64 * 1024 * 1024
+        );
+    }
+    pub(crate) fn native_large_bake_ready_for_test(&self) -> bool {
+        let world = &self.native_viewport.world;
+        world
+            .gpu
+            .as_ref()
+            .is_some_and(|gpu| !gpu.bake.waiting() && gpu.bake.visible_tiles() >= 64)
+            && world.presented.as_ref().is_some_and(|frame| {
+                frame.ready
+                    && frame.baked
+                    && frame.stamp
+                        == SourceStamp::new(
+                            scope::map(&self.documents.project, &self.server_ctx).unwrap(),
+                        )
+            })
     }
     pub(crate) fn request_native_progressive_bake_for_test(
         &mut self,

@@ -700,7 +700,8 @@ impl Editor {
     pub(super) fn native_world_waiting(&self) -> bool {
         self.native_world_owns_viewport()
             && self.native_viewport.world.binding.is_some()
-            && self.native_viewport.world.presented.as_ref().is_none_or(|frame| !frame.ready)
+            && (self.native_viewport.world.presented.as_ref().is_none_or(|frame| !frame.ready)
+                || self.native_viewport.world.gpu.as_ref().is_some_and(|gpu| gpu.bake.waiting()))
     }
 
     fn bind_native_world(&mut self, next: Option<Binding>, ui: &mut TheUI, ctx: &mut TheContext) {
@@ -815,8 +816,8 @@ impl Editor {
             || custom::Description::current(map, &self.server_ctx).is_some()) { return false; }
         if self.server_ctx.editor_view_mode != EditorViewMode::D2
             && map.orthographic_bake.as_ref().is_some_and(|asset| !bake::supported(asset)) {
-            // Above-budget visible sets still need a paged producer. Keep their
-            // explicit adapter until that acceptance gate is satisfied.
+            // Individual oversized source tiles still need subdivision. Valid
+            // ordinary tiles page independently of the whole asset's extent.
             return false;
         }
         let tools = self.server_ctx.tools.read();
@@ -1400,8 +1401,21 @@ impl Editor {
             .output(gpu.view)
             .ok_or("native world has no visible output")?;
         let world_image = if let Some(source) = &bake_source {
-            gpu.bake.compose(source, bake_camera.as_ref().unwrap(), output,
-                &mut gpu.scenes, &bridge.client, images.registry)?
+            match gpu.bake.compose(source, bake_camera.as_ref().unwrap(), output,
+                &mut gpu.scenes, &bridge.client, images.registry)? {
+                Some(image) => image,
+                None => {
+                    world.presented = None;
+                    world.overlay_input.invalidate();
+                    if let Some((id, list)) = world.published.take()
+                        && let Some(view) = ui.get_render_view(&id.name)
+                        && view.id().uuid == id.uuid {
+                        view.clear_paint_list(&list);
+                    }
+                    ctx.ui.redraw_all = true;
+                    return Ok(None);
+                }
+            }
         } else {
             gpu.bake.clear(images.registry);
             output.image

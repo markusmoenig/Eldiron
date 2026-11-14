@@ -6,17 +6,23 @@ use renderkit::{
 };
 use rusterix::orthographic_bake::{OrthographicBakeLighting, OrthographicBakeSource};
 use scenevm::Camera3D;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Weak},
+};
 use theframework_core::Uuid;
 use wgpu::util::DeviceExt;
 
 const SOURCE_BUDGET: u64 = 64 * 1024 * 1024;
+const PAGE_BYTES: u64 = 8 * 1024 * 1024;
+mod paging;
+use paging::{FrameKey, Paging};
 mod job;
 mod overlay;
 pub use job::{BakeAdvance, OrthographicBakeJob};
 pub use overlay::OrthographicBakeOverlay;
 #[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
+#[derive(Clone, Copy, Pod, Zeroable, PartialEq)]
 struct Params {
     size: [u32; 4], // output size, tile size, depth enabled
     tile: [i32; 4], // coordinates, exact bounds, sun enabled
@@ -39,9 +45,10 @@ struct Pixel {
     material: u32,
     surface_channels: u32,
 }
-struct Tile {
-    buffer: wgpu::Buffer,
-    bytes: u64,
+enum TileState {
+    Ready(Arc<renderkit::SourceBuffer>),
+    Missing,
+    Busy,
 }
 /// The depth buffer stores camera-linear f32 values (infinity for no surface).
 /// It is GPU-only and intended for a subsequent depth-aware overlay pass.
@@ -50,6 +57,7 @@ pub struct OrthographicBakeOutput {
     image: Arc<GpuImage>,
     depth: wgpu::Buffer,
     source_revision: Uuid,
+    request: Option<(Uuid, Uuid)>,
     size: (u32, u32),
     depth_enabled: bool,
 }
@@ -60,8 +68,14 @@ impl OrthographicBakeOutput {
     pub fn depth(&self) -> &wgpu::Buffer {
         &self.depth
     }
+    /// A paged progressive preview starts at this revision and may include
+    /// newer samples in the same request. Committed outputs use an exact source
+    /// revision; request() is None for them.
     pub fn source_revision(&self) -> Uuid {
         self.source_revision
+    }
+    pub fn request(&self) -> Option<(Uuid, Uuid)> {
+        self.request
     }
     pub fn size(&self) -> (u32, u32) {
         self.size
@@ -78,8 +92,12 @@ pub struct OrthographicBakeRenderer {
     dummy: wgpu::Buffer,
     target: Option<OrthographicBakeOutput>,
     publication: Option<Uuid>,
-    tiles: HashMap<(i32, i32), Tile>,
-    resident: u64,
+    tiles: HashMap<(i32, i32), Weak<renderkit::SourceBuffer>>,
+    complete: Option<FrameKey>,
+    paging: Option<Paging>,
+    page_buffer: Weak<renderkit::SourceBuffer>,
+    waiting: bool,
+    visible_tiles: usize,
 }
 impl OrthographicBakeRenderer {
     pub fn new(context: Arc<GpuContext>) -> Result<Self> {
@@ -156,53 +174,50 @@ impl OrthographicBakeRenderer {
             target: None,
             publication: None,
             tiles: HashMap::new(),
-            resident: 0,
+            complete: None,
+            paging: None,
+            page_buffer: Weak::new(),
+            waiting: false,
+            visible_tiles: 0,
         })
     }
     pub fn source_resident_bytes(&self) -> u64 {
-        self.resident
+        self.tiles
+            .values()
+            .filter_map(Weak::upgrade)
+            .map(|b| b.bytes())
+            .sum::<u64>()
+            + self.page_buffer.upgrade().map_or(0, |b| b.bytes())
     }
     pub fn source_budget_bytes(&self) -> u64 {
         SOURCE_BUDGET
     }
-    fn tile(
-        &mut self,
-        at: (i32, i32),
-        source: &OrthographicBakeSource<'_>,
-        size: u32,
-    ) -> Result<Option<wgpu::Buffer>> {
-        if let Some(tile) = self.tiles.get(&at) {
-            return Ok(Some(tile.buffer.clone()));
-        }
-        let count = u64::from(size)
-            .checked_mul(u64::from(size))
-            .ok_or_else(|| RenderError("invalid bake tile size".into()))?;
-        let bytes = count
-            .checked_mul(std::mem::size_of::<Pixel>() as u64)
-            .filter(|n| {
-                *n <= SOURCE_BUDGET
-                    && *n <= u64::from(self.context.device.limits().max_storage_buffer_binding_size)
-            })
-            .ok_or_else(|| RenderError("bake source tile exceeds GPU source budget".into()))?;
-        let Some(lease) = source.try_tile(at.0, at.1).map_err(RenderError)? else {
-            return Ok(None);
-        };
-        let source = lease.source();
-        if source.color.len() as u64 != count * 4 {
+    pub fn waiting(&self) -> bool {
+        self.waiting
+    }
+    pub fn visible_tiles(&self) -> usize {
+        self.visible_tiles
+    }
+    pub fn source_pool_usage(&self) -> renderkit::SourcePoolUsage {
+        self.context.source_pool_usage()
+    }
+
+    fn pack(
+        source: rusterix::orthographic_bake::OrthographicBakeTileSource<'_>,
+        count: usize,
+        pixels: &mut Vec<Pixel>,
+    ) -> Result<()> {
+        if source.color.len() != count * 4 {
             return Err(RenderError("incomplete bake color tile".into()));
         }
-        if self.resident + bytes > SOURCE_BUDGET {
-            return Err(RenderError("bake sources exceed GPU working set".into()));
-        }
-        let word = |channel: &[u8], index: usize| {
+        let word = |channel: &[u8], i: usize| {
             channel
-                .get(index * 4..index * 4 + 4)
-                .map(|bytes| u32::from_le_bytes(bytes.try_into().unwrap()))
+                .get(i * 4..i * 4 + 4)
+                .map(|b| u32::from_le_bytes(b.try_into().unwrap()))
                 .unwrap_or(0)
         };
-        // Pack original source channels only; never generate destination pixels.
-        let pixels: Vec<_> = (0..count as usize)
-            .map(|i| Pixel {
+        pixels.extend((0..count).map(|i| {
+            Pixel {
                 color: word(source.color, i),
                 depth: source.depth.get(i).copied().unwrap_or(f32::INFINITY),
                 albedo: word(source.albedo, i),
@@ -211,34 +226,49 @@ impl OrthographicBakeRenderer {
                 surface_channels: u32::from(
                     [source.albedo, source.normal, source.material]
                         .into_iter()
-                        .all(|channel| channel.len() >= (i + 1) * 4),
+                        .all(|c| c.len() >= (i + 1) * 4),
                 ),
-            })
-            .collect();
-        let buffer = self
+            }
+        }));
+        Ok(())
+    }
+    fn tile(
+        &mut self,
+        at: (i32, i32),
+        source: &OrthographicBakeSource<'_>,
+        size: u32,
+    ) -> Result<TileState> {
+        if let Some(buffer) = self.tiles.get(&at).and_then(Weak::upgrade) {
+            self.context.touch_source_buffer(&buffer);
+            return Ok(TileState::Ready(buffer));
+        }
+        let count = u64::from(size)
+            .checked_mul(u64::from(size))
+            .ok_or_else(|| RenderError("invalid bake tile size".into()))?;
+        let bytes = count
+            .checked_mul(std::mem::size_of::<Pixel>() as u64)
+            .ok_or_else(|| RenderError("bake tile size overflow".into()))?;
+        let Some(lease) = source.try_tile(at.0, at.1).map_err(RenderError)? else {
+            return Ok(TileState::Missing);
+        };
+        let mut pixels = Vec::with_capacity(count as usize);
+        Self::pack(lease.source(), count as usize, &mut pixels)?;
+        let Some(buffer) = self
             .context
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("orthographic bake source channels"),
-                contents: bytemuck::cast_slice(&pixels),
-                usage: wgpu::BufferUsages::STORAGE,
-            });
+            .try_source_buffer(bytes, Some(bytemuck::cast_slice(&pixels)))
+        else {
+            return Ok(TileState::Busy);
+        };
         self.context.record_upload(bytes);
-        self.resident += bytes;
-        self.tiles.insert(
-            at,
-            Tile {
-                buffer: buffer.clone(),
-                bytes,
-            },
-        );
-        Ok(Some(buffer))
+        self.tiles.insert(at, Arc::downgrade(&buffer));
+        Ok(TileState::Ready(buffer))
     }
     fn target(
         &mut self,
         size: (u32, u32),
         revision: Uuid,
         depth_enabled: bool,
+        request: Option<(Uuid, Uuid)>,
     ) -> Result<OrthographicBakeOutput> {
         let limit = self.context.device.limits();
         let bytes = u64::from(size.0) * u64::from(size.1) * 4;
@@ -292,6 +322,7 @@ impl OrthographicBakeRenderer {
                 image,
                 depth,
                 source_revision: revision,
+                request,
                 size,
                 depth_enabled,
             });
@@ -299,6 +330,7 @@ impl OrthographicBakeRenderer {
         let target = self.target.as_mut().unwrap();
         target.source_revision = revision;
         target.depth_enabled = depth_enabled;
+        target.request = request;
         Ok(target.clone())
     }
     fn dispatch(
@@ -362,7 +394,9 @@ impl OrthographicBakeRenderer {
         camera: &Camera3D,
         size: (u32, u32),
         lighting: Option<OrthographicBakeLighting>,
-    ) -> Result<OrthographicBakeOutput> {
+    ) -> Result<Option<OrthographicBakeOutput>> {
+        self.waiting = true;
+        self.context.poll()?;
         if self.context.is_lost() {
             return Err(RenderError("bake renderer device is lost".into()));
         }
@@ -453,21 +487,61 @@ impl OrthographicBakeRenderer {
                 continue;
             }
             visible.push((at, params.dispatch));
-            if (visible.len() as u64).saturating_mul(tile_bytes) > SOURCE_BUDGET {
-                return Err(RenderError(
-                    "visible bake sources exceed 64 MiB GPU working set; paging is required".into(),
-                ));
-            }
         }
-        let output = self.target(size, source.revision(), asset.version >= 4)?;
+        if tile_bytes == 0
+            || tile_bytes > SOURCE_BUDGET / 2
+            || tile_bytes > u64::from(self.context.device.limits().max_storage_buffer_binding_size)
+        {
+            return Err(RenderError("bake tile exceeds source page limits".into()));
+        }
+        self.visible_tiles = visible.len();
+        params.dispatch = [0, 0, size.0, size.1];
+        let key = FrameKey {
+            revision: source.revision(),
+            request: source.request(),
+            params,
+        };
+        self.cancel_incompatible(&key);
+        if self.complete.as_ref() == Some(&key) {
+            self.waiting = false;
+            return Ok(self.target.clone());
+        }
+        if (visible.len() as u64).saturating_mul(tile_bytes) > PAGE_BYTES || visible.len() > 64 {
+            self.tiles.clear();
+            visible.sort_unstable_by_key(|(at, _)| *at);
+            return self.advance_paged(source, key, visible, tile_bytes);
+        }
         if self.publication != Some(source.revision()) {
             self.tiles.clear();
-            self.resident = 0;
             self.publication = Some(source.revision());
         }
         let positions: std::collections::HashSet<_> = visible.iter().map(|(at, _)| *at).collect();
-        self.tiles.retain(|at, _| positions.contains(at));
-        self.resident = self.tiles.values().map(|tile| tile.bytes).sum();
+        self.tiles
+            .retain(|at, b| positions.contains(at) && b.strong_count() > 0);
+        // Pin cache hits before reserving initializer staging: pool eviction
+        // cannot turn one of those hits into an unaccounted cold upload.
+        let pinned: Vec<_> = visible
+            .iter()
+            .filter_map(|(at, _)| self.tiles.get(at).and_then(Weak::upgrade))
+            .collect();
+        let upload_bytes = (visible.len() - pinned.len()) as u64 * tile_bytes;
+        let Some(submission) = self.context.try_source_submission(upload_bytes) else {
+            return Ok(None);
+        };
+        let mut resolved = Vec::new();
+        for (at, dispatch) in visible {
+            match self.tile(at, source, asset.tile_size)? {
+                TileState::Ready(buffer) => resolved.push((at, dispatch, buffer)),
+                TileState::Missing => (),
+                TileState::Busy => return Ok(None),
+            }
+        }
+        let output = self.target(
+            size,
+            source.revision(),
+            asset.version >= 4,
+            source.request(),
+        )?;
         params.dispatch = [0, 0, size.0, size.1];
         let mut encoder =
             self.context
@@ -476,17 +550,22 @@ impl OrthographicBakeRenderer {
                     label: Some("orthographic bake presentation"),
                 });
         self.dispatch(&mut encoder, &output, &params, &self.dummy, true);
-        for (at, dispatch) in visible {
+        let mut leases = Vec::new();
+        for (at, dispatch, buffer) in resolved {
             params.dispatch = dispatch;
             params.tile[0] = at.0;
             params.tile[1] = at.1;
-            let Some(buffer) = self.tile(at, source, asset.tile_size)? else {
-                continue;
-            };
-            self.dispatch(&mut encoder, &output, &params, &buffer, false);
+            self.dispatch(&mut encoder, &output, &params, buffer.buffer(), false);
+            leases.push(buffer.pin());
         }
         self.context.queue.submit(Some(encoder.finish()));
-        Ok(output)
+        self.context.queue.on_submitted_work_done(move || {
+            drop(leases);
+            drop(submission);
+        });
+        self.complete = Some(key);
+        self.waiting = false;
+        Ok(Some(output))
     }
 }
 

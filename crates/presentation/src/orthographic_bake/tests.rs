@@ -60,6 +60,30 @@ fn finish(context: &GpuContext) {
         })
         .unwrap();
 }
+fn ready(
+    renderer: &mut OrthographicBakeRenderer,
+    source: &OrthographicBakeSource<'_>,
+    camera: &Camera3D,
+    size: (u32, u32),
+    light: Option<OrthographicBakeLighting>,
+) -> OrthographicBakeOutput {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    loop {
+        let output = renderer.render(source, camera, size, light).unwrap();
+        let usage = renderer.context.source_pool_usage();
+        assert!(usage.bytes <= usage.byte_limit && usage.submissions <= usage.submission_limit);
+        if let Some(output) = output
+            && !renderer.waiting()
+        {
+            return output;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "source pages did not complete"
+        );
+        finish(&renderer.context);
+    }
+}
 fn colors(context: &GpuContext, output: &OrthographicBakeOutput) -> Vec<u8> {
     let mut capture = ReadbackTicket::capture(context, output.image.clone()).unwrap();
     finish(context);
@@ -118,10 +142,10 @@ fn tiles_compose_with_reference_pan_resize_alpha_sun_depth_and_retained_sources(
             sun_enabled: true,
         });
         let source = owner.presentation_source(region, &camera).unwrap();
-        let output = renderer.render(&source, &camera, size, lighting).unwrap();
+        let output = ready(&mut renderer, &source, &camera, size, lighting);
         assert!(renderer.source_resident_bytes() <= renderer.source_budget_bytes());
         let uploaded = context.transfers().uploaded_bytes;
-        let repeated = renderer.render(&source, &camera, size, lighting).unwrap();
+        let repeated = ready(&mut renderer, &source, &camera, size, lighting);
         assert!(Arc::ptr_eq(&output.image, &repeated.image));
         assert!(
             context.transfers().uploaded_bytes - uploaded
@@ -179,14 +203,13 @@ fn tiles_compose_with_reference_pan_resize_alpha_sun_depth_and_retained_sources(
     let mut legacy = owner.take_persisted_update().unwrap().unwrap();
     legacy.version = 3;
     owner.sync_persisted_asset(region, Some(&legacy));
-    let output = renderer
-        .render(
-            &owner.presentation_source(region, &camera).unwrap(),
-            &camera,
-            (96, 64),
-            None,
-        )
-        .unwrap();
+    let output = ready(
+        &mut renderer,
+        &owner.presentation_source(region, &camera).unwrap(),
+        &camera,
+        (96, 64),
+        None,
+    );
     assert!(!output.depth_enabled);
     assert!(
         depths(&context, &output)
@@ -202,8 +225,9 @@ fn tiles_compose_with_reference_pan_resize_alpha_sun_depth_and_retained_sources(
             .render(&source, &wrong_camera, (96, 64), None)
             .is_err()
     );
-    // More than 64 MiB of visible channels must fail before source upload or
-    // submission; retained command buffers must not defeat the cache budget.
+    // Visible sets larger than the source residency budget page to a private
+    // target without retaining all original-channel GPU buffers.
+    let alternate = legacy.tiles[1].clone();
     let tile = legacy.tiles[0].clone();
     legacy.tiles = (0..43)
         .map(|x| {
@@ -226,9 +250,9 @@ fn tiles_compose_with_reference_pan_resize_alpha_sun_depth_and_retained_sources(
     assert_eq!(owner.decoded_resident_bytes(), 0);
     let before = context.transfers();
     let source = owner.presentation_source(region, &camera).unwrap();
-    let paged = renderer.render(&source, &camera, (96, 64), None).unwrap();
+    let paged = ready(&mut renderer, &source, &camera, (96, 64), None);
     assert_eq!(context.transfers().readback_bytes, before.readback_bytes);
-    assert!(renderer.source_resident_bytes() > 32 * 1024 * 1024);
+    assert!(renderer.source_resident_bytes() <= PAGE_BYTES);
     assert!(source.decoded_resident_bytes() <= 32 * 1024 * 1024);
     let expected = owner.compose_rgba(region, 96, 64, &camera).unwrap();
     let actual = colors(&context, &paged);
@@ -239,19 +263,224 @@ fn tiles_compose_with_reference_pan_resize_alpha_sun_depth_and_retained_sources(
         source.decoded_resident_bytes()
     );
     legacy.tiles.extend(remaining);
+    legacy.version = 5;
     owner.sync_persisted_asset(region, Some(&legacy));
-    let uploaded = context.transfers().uploaded_bytes;
-    let error = renderer
-        .render(
-            &owner.presentation_source(region, &camera).unwrap(),
-            &camera,
-            (96, 64),
-            None,
-        )
-        .err()
-        .expect("oversized working set accepted");
-    assert!(error.to_string().contains("paging is required"));
-    assert_eq!(context.transfers().uploaded_bytes, uploaded);
+    let before = context.transfers();
+    let source = owner.presentation_source(region, &camera).unwrap();
+    assert!(
+        renderer
+            .render(&source, &camera, (96, 64), None)
+            .unwrap()
+            .is_none(),
+        "a new projection cannot publish its first partial page"
+    );
+    let large = ready(&mut renderer, &source, &camera, (96, 64), None);
+    assert_eq!(context.transfers().readback_bytes, before.readback_bytes);
+    let expected = owner.compose_rgba(region, 96, 64, &camera).unwrap();
+    assert!(
+        colors(&context, &large)
+            .iter()
+            .zip(expected)
+            .all(|(a, b)| a.abs_diff(b) <= 1)
+    );
+    finish(&context);
+    assert_eq!(context.source_pool_usage().submissions, 0);
+    assert_eq!(context.source_pool_usage().upload_bytes, 0);
+    assert!(context.source_pool_usage().bytes <= SOURCE_BUDGET);
+    eprintln!(
+        "43 visible source tiles completed with shared source bytes={}",
+        context.source_pool_usage().bytes
+    );
+    let expected_depth = owner.compose_depth(region, 96, 64, &camera).unwrap();
+    for (actual, expected) in depths(&context, &large).into_iter().zip(expected_depth) {
+        assert!(actual == expected || (actual - expected).abs() < 1e-5);
+    }
+    // Two view owners share the pool and independently complete their pages.
+    let mut second = OrthographicBakeRenderer::new(context.clone()).unwrap();
+    camera.pos += camera.right * 0.037;
+    let mut other = camera;
+    other.pos += other.up * 0.025;
+    let before = context.transfers().readback_bytes;
+    let mut a = None;
+    let mut b = None;
+    for _ in 0..64 {
+        if a.is_none() {
+            a = renderer.render(&source, &camera, (96, 64), None).unwrap();
+        }
+        if b.is_none() {
+            b = second.render(&source, &other, (96, 64), None).unwrap();
+        }
+        let usage = context.source_pool_usage();
+        assert!(usage.bytes <= usage.byte_limit && usage.submissions <= usage.submission_limit);
+        if a.is_some() && b.is_some() {
+            break;
+        }
+        finish(&context);
+    }
+    assert_eq!(context.transfers().readback_bytes, before);
+    let a = a.unwrap();
+    let b = b.unwrap();
+    assert!(!Arc::ptr_eq(a.image(), b.image()));
+    for (output, camera) in [(&a, &camera), (&b, &other)] {
+        let expected = owner.compose_rgba(region, 96, 64, camera).unwrap();
+        assert!(
+            colors(&context, output)
+                .iter()
+                .zip(expected)
+                .all(|(a, b)| a.abs_diff(b) <= 1)
+        );
+    }
+    // Revoke a pending camera request, then replace its source under a new
+    // owner using identical tile coordinates. No old partial image may publish.
+    other.pos += other.right * 0.5;
+    assert!(
+        second
+            .render(&source, &other, (96, 64), None)
+            .unwrap()
+            .is_none()
+    );
+    let old_revision = source.revision();
+    let next_region = Uuid::new_v4();
+    legacy.tiles = (0..43)
+        .map(|x| {
+            let mut t = alternate.clone();
+            t.x = x;
+            t.y = 0;
+            t
+        })
+        .collect();
+    owner.sync_persisted_asset(next_region, Some(&legacy));
+    let source = owner.presentation_source(next_region, &other).unwrap();
+    assert_ne!(source.revision(), old_revision);
+    assert!(
+        second
+            .render(&source, &other, (96, 64), None)
+            .unwrap()
+            .is_none()
+    );
+    let replaced = ready(&mut second, &source, &other, (96, 64), None);
+    assert_eq!(replaced.source_revision(), source.revision());
+    let expected = owner.compose_rgba(next_region, 96, 64, &other).unwrap();
+    assert!(
+        colors(&context, &replaced)
+            .iter()
+            .zip(expected)
+            .all(|(a, b)| a.abs_diff(b) <= 1)
+    );
+    other.pos += other.right * 0.1;
+    assert!(
+        second
+            .render(&source, &other, (96, 64), None)
+            .unwrap()
+            .is_none()
+    );
+    context.device.destroy();
+    for _ in 0..100 {
+        let _ = context.poll();
+        if context.is_lost() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    assert!(context.is_lost(), "device loss callback was not delivered");
+    assert!(second.render(&source, &other, (96, 64), None).is_err());
+    drop(second);
+    drop(renderer);
+    let _ = context.device.poll(wgpu::PollType::Poll);
+    assert_eq!(context.source_pool_usage().submissions, 0);
+}
+
+#[test]
+#[ignore = "actual GPU progressive source coalescing across page boundaries"]
+fn progressive_source_updates_do_not_starve_pages_or_escape_their_request() {
+    let context = futures::executor::block_on(GpuContext::headless()).unwrap();
+    let map = Uuid::new_v4();
+    let mut camera = Camera3D::iso();
+    camera.ortho_half_h = 10.;
+    let mut owner = OrthographicBakeController::default();
+    owner.request_render(map, 1);
+    let mut first_revision = None;
+    for _ in 0..8 {
+        let work = owner
+            .prepare_work(map, 2048, 2048, camera, Some((-8., 8., -8., 8.)))
+            .unwrap()
+            .unwrap();
+        let n = (work.tile_size * work.tile_size) as usize;
+        assert!(owner.finish_sample());
+        owner
+            .commit_current_tile(
+                [40, 80, 120, 255].repeat(n),
+                vec![2.; n],
+                [40, 80, 120, 255].repeat(n),
+                [128, 255, 128, 255].repeat(n),
+                [200, 0, 255, 0].repeat(n),
+            )
+            .unwrap();
+    }
+    let mut renderer = OrthographicBakeRenderer::new(context.clone()).unwrap();
+    let request = owner.active_request().unwrap();
+    let before = context.transfers().readback_bytes;
+    let mut published = false;
+    for step in 0..32 {
+        let work = owner
+            .prepare_work(map, 2048, 2048, camera, Some((-8., 8., -8., 8.)))
+            .unwrap()
+            .unwrap();
+        let n = (work.tile_size * work.tile_size) as usize;
+        owner
+            .preview_current_tile(&[40 + step, 80, 120, 255].repeat(n))
+            .unwrap();
+        let source = owner.presentation_source(map, &camera).unwrap();
+        first_revision.get_or_insert(source.revision());
+        if let Some(output) = renderer.render(&source, &camera, (96, 64), None).unwrap() {
+            assert_eq!(output.request(), Some(request));
+            published = true;
+            break;
+        }
+        finish(&context);
+    }
+    assert!(
+        published,
+        "continuous sample revisions must not starve a frozen request's pages"
+    );
+    assert_eq!(context.transfers().readback_bytes, before);
+    // A later producer request with the same map ID is a distinct scope.
+    owner.cancel_work();
+    owner.request_render(map, 1);
+    for _ in 0..8 {
+        let work = owner
+            .prepare_work(map, 2048, 2048, camera, Some((-8., 8., -8., 8.)))
+            .unwrap()
+            .unwrap();
+        let n = (work.tile_size * work.tile_size) as usize;
+        assert!(owner.finish_sample());
+        owner
+            .commit_current_tile(
+                [150, 40, 20, 255].repeat(n),
+                vec![4.; n],
+                [150, 40, 20, 255].repeat(n),
+                [128, 255, 128, 255].repeat(n),
+                [200, 0, 255, 0].repeat(n),
+            )
+            .unwrap();
+    }
+    let source = owner.presentation_source(map, &camera).unwrap();
+    assert_ne!(source.request(), Some(request));
+    assert!(
+        renderer
+            .render(&source, &camera, (96, 64), None)
+            .unwrap()
+            .is_none()
+    );
+    let output = ready(&mut renderer, &source, &camera, (96, 64), None);
+    assert_eq!(output.request(), source.request());
+    let expected = owner.compose_rgba(map, 96, 64, &camera).unwrap();
+    assert!(
+        colors(&context, &output)
+            .iter()
+            .zip(expected)
+            .all(|(a, b)| a.abs_diff(b) <= 1)
+    );
 }
 
 fn solid_gpu(context: &GpuContext, size: (u32, u32), bytes: [u8; 4]) -> Arc<GpuImage> {
@@ -408,6 +637,7 @@ fn dynamic_surfaces_occlude_actors_preserve_guides_and_clear_without_readback_st
         image: bake_image,
         depth,
         source_revision: Uuid::new_v4(),
+        request: None,
         size,
         depth_enabled: true,
     };

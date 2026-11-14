@@ -36,6 +36,7 @@ pub struct GpuContext {
     faults: Arc<crate::fault::Notifications>,
     counters: Arc<Counters>,
     capture_queue: Arc<crate::capture_queue::CaptureQueue>,
+    source_pool: Arc<crate::source_pool::SourcePool>,
     #[cfg(target_arch = "wasm32")]
     validation_error: Arc<std::sync::Mutex<Option<String>>>,
 }
@@ -97,6 +98,7 @@ impl GpuContext {
             generation: NEXT_DEVICE.fetch_add(1, Ordering::Relaxed),
             counters: Arc::new(Counters::default()),
             capture_queue: Arc::new(crate::capture_queue::CaptureQueue::default()),
+            source_pool: Arc::new(crate::source_pool::SourcePool::default()),
             #[cfg(target_arch = "wasm32")]
             validation_error,
         }))
@@ -134,6 +136,32 @@ impl GpuContext {
             return Err(RenderError("capture device is lost".into()));
         }
         self.capture_queue.reserve(bytes)
+    }
+    pub fn source_pool_usage(&self) -> crate::SourcePoolUsage {
+        self.source_pool.usage()
+    }
+    pub fn try_source_buffer(
+        &self,
+        bytes: u64,
+        data: Option<&[u8]>,
+    ) -> Option<Arc<crate::SourceBuffer>> {
+        if self.is_lost()
+            || bytes % 4 != 0
+            || bytes > u64::from(self.device.limits().max_storage_buffer_binding_size)
+            || data.is_some_and(|data| data.len() as u64 > bytes)
+        {
+            return None;
+        }
+        self.source_pool.buffer(&self.device, bytes, data)
+    }
+    pub fn touch_source_buffer(&self, buffer: &Arc<crate::SourceBuffer>) {
+        self.source_pool.touch(buffer);
+    }
+    pub fn try_source_submission(&self, upload_bytes: u64) -> Option<crate::SourceSubmission> {
+        if self.is_lost() {
+            return None;
+        }
+        self.source_pool.submission(upload_bytes)
     }
     pub(crate) fn record_status_readback(&self) {
         self.counters.status.fetch_add(4, Ordering::Relaxed);

@@ -8,7 +8,6 @@ use rusterix::server::message::RuntimeRenderState;
 #[path = "native_world_bake_paint.rs"]
 mod paint;
 
-const SOURCE_BUDGET: u64 = 64 * 1024 * 1024;
 #[derive(Clone, PartialEq)]
 struct Key {
     document: Uuid,
@@ -365,13 +364,7 @@ impl Editor {
                     Ok(BakeAdvance::Retired) => {
                         jobs.active = None;
                     }
-                    Ok(_) => {
-                        if self.server_ctx.bake.read().planned_source_bytes() > SOURCE_BUDGET {
-                            jobs.legacy = Some(job.key.clone());
-                            jobs.active = None;
-                            ctx.ui.redraw_all = true;
-                        }
-                    }
+                    Ok(_) => (),
                     Err(error) => {
                         self.server_ctx.bake.write().fail(error.clone());
                         self.server_ctx.background_progress = None;

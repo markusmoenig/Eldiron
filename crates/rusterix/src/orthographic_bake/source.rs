@@ -26,12 +26,18 @@ impl<'a> From<&'a DecodedBakeTile> for OrthographicBakeTileSource<'a> {
 /// samples. It cannot alias an old source after controller clear/replacement.
 pub struct OrthographicBakeSource<'a> {
     revision: Uuid,
+    request: Option<(Uuid, Uuid)>,
     asset: &'a OrthographicBakeAsset,
     tiles: &'a TileCache,
 }
 impl<'a> OrthographicBakeSource<'a> {
     pub fn revision(&self) -> Uuid {
         self.revision
+    }
+    /// Progressive samples share one immutable authoring/request scope while
+    /// original channel publications continue to advance within that request.
+    pub fn request(&self) -> Option<(Uuid, Uuid)> {
+        self.request
     }
     pub fn asset(&self) -> &'a OrthographicBakeAsset {
         self.asset
@@ -76,6 +82,7 @@ impl OrthographicBakeController {
         };
         Some(OrthographicBakeSource {
             revision: self.source_revision,
+            request: self.active_request(),
             asset,
             tiles,
         })
