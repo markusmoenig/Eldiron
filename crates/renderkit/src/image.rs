@@ -29,6 +29,7 @@ pub struct GpuImage {
     pub view: wgpu::TextureView,
     pub descriptor: ImageDescriptor,
     device_generation: u64,
+    _target_lease: Option<crate::TargetLease>,
 }
 impl GpuImage {
     pub fn new(context: &GpuContext, descriptor: ImageDescriptor) -> Result<Arc<Self>> {
@@ -58,6 +59,18 @@ impl GpuImage {
         });
         Ok(Arc::new(Self::from_texture(context, texture, descriptor)?))
     }
+    /// Retained render-target storage. Contents can belong to an earlier frame;
+    /// fully clear/overwrite before sampling. Keep the image through submission.
+    /// Source assets continue using new(), which preserves fresh-zero semantics.
+    pub fn render_target(context: &GpuContext, descriptor: ImageDescriptor) -> Result<Arc<Self>> {
+        let lease = context.acquire_target(crate::TargetDescriptor::color(
+            descriptor.width, descriptor.height, descriptor.format,
+        ))?;
+        Ok(Arc::new(Self {
+            texture: lease.texture().clone(), view: lease.view().clone(), descriptor,
+            device_generation: context.generation(), _target_lease: Some(lease),
+        }))
+    }
     /// The supplied texture must have been created on this context's device.
     /// Ownership metadata prevents mixing registered images across device domains.
     pub fn from_texture(
@@ -77,6 +90,7 @@ impl GpuImage {
             view,
             descriptor,
             device_generation: context.generation(),
+            _target_lease: None,
         })
     }
     pub fn device_generation(&self) -> u64 {

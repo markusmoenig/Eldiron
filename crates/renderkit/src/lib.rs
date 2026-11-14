@@ -2,6 +2,8 @@
 //! No application event loop, widget tree, or gameplay state lives here.
 mod capture_queue;
 mod source_pool;
+mod target_pool;
+pub use target_pool::{TargetDescriptor, TargetLease, TargetPoolUsage};
 pub use source_pool::{SourceBuffer, SourceBufferPin, SourcePoolUsage, SourceSubmission};
 mod context;
 pub use capture_queue::{CaptureLease, CaptureQueueUsage};

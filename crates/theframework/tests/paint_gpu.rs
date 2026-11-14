@@ -55,6 +55,7 @@ fn ordered_paint_clips_groups_and_swash_blits() {
         .unwrap();
     let uploads = ctx.transfers().uploaded_bytes;
     let count = renderer.glyphs.rasterizations;
+    let targets = ctx.target_pool_usage();
     assert!(count > 0);
     renderer
         .render(
@@ -68,6 +69,8 @@ fn ordered_paint_clips_groups_and_swash_blits() {
         )
         .unwrap();
     assert_eq!(renderer.glyphs.rasterizations, count);
+    assert_eq!(ctx.target_pool_usage().allocations, targets.allocations);
+    assert!(ctx.target_pool_usage().hits > targets.hits);
     assert_eq!(ctx.transfers().uploaded_bytes, uploads);
     assert_eq!(ctx.transfers().readback_bytes, 0);
     let mut capture = ReadbackTicket::capture(&ctx, output).unwrap();

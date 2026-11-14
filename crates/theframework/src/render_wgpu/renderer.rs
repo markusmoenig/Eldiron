@@ -64,6 +64,8 @@ enum ImageEffect {
 struct Draw {
     geometry: Geometry,
     bind: wgpu::BindGroup,
+    // Preserve target leases while a parent pass still holds unsubmitted draws.
+    _image: Arc<GpuImage>,
     stencil: u32,
     phase: u8,
     instances: u32,
@@ -400,7 +402,7 @@ impl PaintRenderer {
         &self,
         geometry: Geometry,
         brush: &Brush,
-        image: Option<(&GpuImage, Sampling)>,
+        image: Option<(&Arc<GpuImage>, Sampling)>,
         size: (u32, u32),
         stencil: u32,
         phase: u8,
@@ -411,7 +413,7 @@ impl PaintRenderer {
         &self,
         geometry: Geometry,
         brush: &Brush,
-        image: Option<(&GpuImage, Sampling)>,
+        image: Option<(&Arc<GpuImage>, Sampling)>,
         size: (u32, u32),
         stencil: u32,
         phase: u8,
@@ -648,7 +650,7 @@ impl PaintRenderer {
                 contents: bytemuck::bytes_of(&params),
                 usage: wgpu::BufferUsages::UNIFORM,
             });
-        let texture = image.map_or(&*self.white, |(image, _)| image);
+        let texture = image.map_or(&self.white, |(image, _)| image);
         let sampler = &self.samplers[&image.map(|(_, s)| s).unwrap_or(Sampling::Linear)];
         let mut field_data = field.map(|field| match field {
             Field::HueLightness(..) => Vec::new(),
@@ -704,6 +706,7 @@ impl PaintRenderer {
         Draw {
             geometry,
             bind,
+            _image: texture.clone(),
             stencil,
             phase,
             instances: match effect {
@@ -779,7 +782,7 @@ impl PaintRenderer {
             .as_ref()
             .is_none_or(|image| (image.descriptor.width, image.descriptor.height) != size)
         {
-            self.display_target = Some(GpuImage::new(
+            self.display_target = Some(GpuImage::render_target(
                 &self.context,
                 ImageDescriptor {
                     width: size.0,
@@ -1524,7 +1527,7 @@ impl PaintRenderer {
                     if depth != 0 {
                         return Err(RenderError("unclosed opacity group".into()));
                     }
-                    let group = GpuImage::new(
+                    let group = GpuImage::render_target(
                         &self.context,
                         ImageDescriptor {
                             width: size.0,
@@ -1575,28 +1578,14 @@ impl PaintRenderer {
             return Err(RenderError("unclosed paint scope".into()));
         }
         let pipelines = self.pipelines(format);
-        let scratch = |format, samples| {
-            self.context
-                .device
-                .create_texture(&wgpu::TextureDescriptor {
-                    label: Some("ui-frame-attachment"),
-                    size: wgpu::Extent3d {
-                        width: size.0,
-                        height: size.1,
-                        depth_or_array_layers: 1,
-                    },
-                    mip_level_count: 1,
-                    sample_count: samples,
-                    dimension: wgpu::TextureDimension::D2,
-                    format,
-                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-                    view_formats: &[],
-                })
-        };
-        let stencil = scratch(wgpu::TextureFormat::Depth24PlusStencil8, pipelines.samples)
-            .create_view(&Default::default());
-        let msaa = (pipelines.samples > 1)
-            .then(|| scratch(format, pipelines.samples).create_view(&Default::default()));
+        let stencil = self.context.acquire_target(renderkit::TargetDescriptor::attachment(
+            size.0, size.1, wgpu::TextureFormat::Depth24PlusStencil8, pipelines.samples,
+        ))?;
+        let msaa = if pipelines.samples > 1 {
+            Some(self.context.acquire_target(renderkit::TargetDescriptor::attachment(
+                size.0, size.1, format, pipelines.samples,
+            ))?)
+        } else { None };
         let mut encoder =
             self.context
                 .device
@@ -1608,7 +1597,7 @@ impl PaintRenderer {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("ui-ordered-paint"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: msaa.as_ref().unwrap_or(target),
+                    view: msaa.as_ref().map_or(target, |texture| texture.view()),
                     resolve_target: msaa.as_ref().map(|_| target),
                     depth_slice: None,
                     ops: wgpu::Operations {
@@ -1622,7 +1611,7 @@ impl PaintRenderer {
                     },
                 })],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &stencil,
+                    view: stencil.view(),
                     depth_ops: None,
                     stencil_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Clear(0),

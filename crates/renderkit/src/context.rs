@@ -37,6 +37,7 @@ pub struct GpuContext {
     counters: Arc<Counters>,
     capture_queue: Arc<crate::capture_queue::CaptureQueue>,
     source_pool: Arc<crate::source_pool::SourcePool>,
+    target_pool: Arc<crate::target_pool::TargetPool>,
     #[cfg(target_arch = "wasm32")]
     validation_error: Arc<std::sync::Mutex<Option<String>>>,
 }
@@ -99,6 +100,7 @@ impl GpuContext {
             counters: Arc::new(Counters::default()),
             capture_queue: Arc::new(crate::capture_queue::CaptureQueue::default()),
             source_pool: Arc::new(crate::source_pool::SourcePool::default()),
+            target_pool: Arc::new(crate::target_pool::TargetPool::default()),
             #[cfg(target_arch = "wasm32")]
             validation_error,
         }))
@@ -136,6 +138,18 @@ impl GpuContext {
             return Err(RenderError("capture device is lost".into()));
         }
         self.capture_queue.reserve(bytes)
+    }
+    /// Retained targets shared by all renderers in this device domain.
+    pub fn target_pool_usage(&self) -> crate::TargetPoolUsage {
+        self.target_pool.usage()
+    }
+    pub fn set_target_cache_limits(&self, bytes: u64, textures: usize) {
+        self.target_pool.set_limits(bytes, textures);
+    }
+    /// Reused contents are unspecified. Hold the lease until all uses have been
+    /// submitted on this queue, and clear/overwrite before publishing the image.
+    pub fn acquire_target(&self, descriptor: crate::TargetDescriptor) -> Result<crate::TargetLease> {
+        self.target_pool.acquire(self, descriptor)
     }
     pub fn source_pool_usage(&self) -> crate::SourcePoolUsage {
         self.source_pool.usage()

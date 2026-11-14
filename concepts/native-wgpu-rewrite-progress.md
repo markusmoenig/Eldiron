@@ -12293,3 +12293,85 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   CLI/dependency checks pass. Physical native/Windows/Linux/iOS workflow matrix,
   remaining adapters/resource budgets and equal-hardware release performance
   still prevent M0–M9 completion. Full Goal stays active.
+
+
+## 2026-11-14 — Shared retained target storage (active)
+
+- Canonical launcher source cutover committed7acaa28e; only concurrent networking
+  concept untracked at preflight. Physical window check remains failed/unresolved
+  with locked console. Continuing independent resource implementation.
+- Found UI render_ops creating fresh stencil/MSAA textures each pass and opacity
+  targets each frame. Added device-owned renderkit target pool shared by context
+  clones, with explicit descriptors/leases and512MiB/64texture retention limits.
+  Estimates conservatively allow8bytes per Depth24Plus plane; driver overhead,
+  active uncached working sets and queued GPU ownership are outside this cache
+  estimate. This is not yet a total allocation/driver-memory hard budget.
+- Pooled contents are explicitly unspecified and must be cleared/overwritten;
+  only already-cleared UI attachments/opacity/display targets opt in. Existing
+  GpuImage::new source images retain fresh-zero behavior (important for glyph
+  atlas padding/partial writes). Oversized targets remain supported uncached.
+  Eviction drops cached ownership and never calls texture.destroy().
+- Paint draws now retain Arc images until their consuming pass submits. This
+  prevents a later opacity group or glyph-page turnover from reusing an earlier
+  unsubmitted source. Queue-ordered submissions make later scratch/target reuse
+  safe without waits/readback. Native compile and actual GPU lease/order/pressure
+  tests follow; no verification or full resource gate completion claimed yet.
+
+- Initial targeted native checks PASS: shared target lease/eviction/device-domain
+  GPU test1/0.23s; paint_gpu12/2.76s; nested-opacity/resize-pressure1/0.30s;
+  ui_gpu16/2.94s (one ordinary nonignored case not selected by --ignored). Includes
+  real foreign CAMetalLayer presentation, glyph caching, text/clips/procedural
+  widgets, image color/alpha identity and UI without canvas framebuffer storage.
+- New pixel fixture catches sibling/nested group aliasing and validates every
+  separately retained output after several queue-only resizes/cache evictions.
+  Warm frame target allocations stay constant and readback stays zero until
+  explicit test capture. Expanded its stationary phase to64queued frames and
+  added allocation metrics for durable evidence; only that fixture repeats.
+  Native/client/browser/staticlib consumers are next, not a repeat of unchanged
+  CPU runtime/project suites. Total GPU allocation/active/driver budgets still
+  remain a separate unresolved resource gate.
+
+- Sustained native target fixture PASS1/0.47s:64queued warm frames kept5texture
+  allocations and61,440cached estimate bytes constant, with hits9->905. Six
+  in-flight resize/pressure cases retained at most16KiB/two cached textures and
+  preserved all nested/sibling output colors. Final pressure counters34evictions/
+  55uncached allocations; readback stayed0until explicit captures. These are
+  target texture allocations only, not all buffer/view/driver allocations.
+- Final native Creator all-targets PASS30.25s; graphical client all-targets
+  PASS28.54s; browser creator-web PASS25.37s; no-Winit staticlib PASS25.77s;
+  renderkit CPU queue/pool policy suites PASS3. Logs /private/tmp/eldiron-target-
+  pool-{warm,creator,clients,wasm,staticlib,core}-final.log. No schema changes.
+- Current browser release/package is building to verify actual WebGPU pooled
+  texture creation, warm frames, resize reuse and device replacement. Test-only
+  bootstrap adds a counter for label 'renderkit pooled target' while preserving
+  zero Canvas2D/ordinary-color-readback probes. No new native library/CPU suite
+  repeats are planned unless this browser check uncovers an actual concern.
+
+- Current browser release build/package PASS1m50s/99,197,945bytes, /private/tmp/
+  eldiron-target-pool-browser-package.log and eldiron-browser-creator-release-
+  build.log. Loading the task-owned LargeGpuBake archive with current code now;
+  target-pool browser helper is /private/tmp/eldiron-target-pool-browser-proof.mjs.
+  It requires actual successful canvas presents during warm phases, equal pooled
+  createTexture counts, same-size return reuse and fresh device-generation targets;
+  zero CPU root/Canvas2D/ordinary color readbacks and unchanged dirty state are
+  required. Results pending; no browser pass claimed yet.
+
+- Actual current-release browser PASS /private/tmp/eldiron-target-pool-browser-
+  proof.log. Loaded54visible original tiles. Warm phase presented316->348with
+  pooled createTexture count14->14; resized2424x1287phase presented642->674with
+  count21->21; return2400x1287kept21(no new targets). Explicit device replacement
+  generation2->3rebuilt seven targets (21->28), same document/clean state; recovered
+  warm phase1250->1279kept28. Root CPU bytes, Canvas2D, ordinary color readbacks,
+  browser errors and GPU errors all0. No asset captures requested in these phases.
+- Visually inspected current recovered150%DPR screenshot: controls/text/palette,
+  checkerboard baked isometric world and guides intact. Durable evidence
+  concepts/native-wgpu-evidence/browser-target-pool-150.png. No physical-console
+  acceptance inferred. Every compiler/browser/native handle for this batch is
+  terminal; git diff --check clean. Concurrent networking concept untouched.
+- Shared retained UI target reuse/lease subtask is verified, including native
+  pixel/order/pressure tests and real WebGPU warm/resize/recovery. Global active
+  allocations, queued/driver memory, other SceneVM targets/codec scratch, browser
+  worker hosting and release p50/p95/p99/input-visible/startup/peak-memory gates
+  remain open. Do not mark M0–M9 complete. Next inspect SceneVM target lifetime/
+  mip/storage requirements before further pooling; preserve output leases and
+  capture semantics rather than adopting raw texture reuse blindly.
