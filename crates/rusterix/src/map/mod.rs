@@ -1,3 +1,4 @@
+use theframework_core::SharedText;
 pub mod bbox;
 pub mod block_prop;
 pub mod geometry;
@@ -48,20 +49,20 @@ pub struct OrthographicBakeTile {
     pub y: i32,
     /// Legacy/in-memory lossless PNG bytes encoded as Base64. Archive saves externalize this
     /// payload and omit the string from project.json.
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub color_png_base64: String,
+    #[serde(default, skip_serializing_if = "SharedText::is_empty")]
+    pub color_png_base64: SharedText,
     /// Camera-linear f32 depth values, little-endian and Base64 encoded.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub depth_base64: Option<String>,
+    pub depth_base64: Option<SharedText>,
     /// Linear primary-surface albedo encoded as a lossless RGBA PNG.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub albedo_png_base64: Option<String>,
+    pub albedo_png_base64: Option<SharedText>,
     /// World-space normals encoded from [-1, 1] to an RGBA PNG.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub normal_png_base64: Option<String>,
+    pub normal_png_base64: Option<SharedText>,
     /// Roughness, metallic, opacity and emission encoded as an RGBA PNG.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub material_png_base64: Option<String>,
+    pub material_png_base64: Option<SharedText>,
     /// ZIP entry containing the color PNG in packaged projects.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub color_png_path: Option<String>,

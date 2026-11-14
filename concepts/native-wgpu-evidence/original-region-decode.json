@@ -1,0 +1,88 @@
+{
+  "date": "2026-11-14",
+  "base_checkpoint": "aa7b2fa0",
+  "scope": "Bounded original-region decode and shared encoded source foundation; not yet canonical display/worker page integration.",
+  "source_contract": {
+    "region_max_side": 512,
+    "orientation": "original top-left pixel coordinates; no scaling or source-tile address changes",
+    "base64": "seekable decoded-byte view over existing original text; <=3072 temporary decoded bytes per read chunk",
+    "png": "cooperative full-source validation and original row/Adam7 pass-row decoding; only requested pixels retained",
+    "color": "gray/gray-alpha/RGB/RGBA, palettes/transparency and 8/16-bit conversion compared to existing full decoder",
+    "depth": "little-endian IEEE bits preserved including NaN payloads, signed zero and infinities",
+    "publication": "finish returns only after complete validation; incomplete/failed work cannot return pixels",
+    "row_safety": "header/worst-case row bound checked before PNG row allocation; configured codec allocation limit8MiB; library/internal/driver total peak not measured"
+  },
+  "large_current_original": {
+    "size": [
+      2048,
+      2048
+    ],
+    "logical_full_decoded_channels_bytes": 83886080,
+    "requested_origin": [
+      1999,
+      1977
+    ],
+    "requested_extent": [
+      49,
+      71
+    ],
+    "returned_rgba_bytes": 13916,
+    "observed_max_row_bytes": 8192,
+    "cooperative_advances_lower_bound": 128,
+    "fixture": "creator/tests/fixtures/oversized-current-bake.json"
+  },
+  "ownership": {
+    "encoded_bake_fields": "theframework_core::SharedText over Arc<String>",
+    "serialization": "exact prior String JSON and bincode value shapes; archive sidecar representation unchanged",
+    "clone": "source allocation shared across document/controller/new region-decoder owners",
+    "projection_clear": "clears save projection without copying original text or mutating other owners",
+    "existing_full_tile_codec": "retains existing bounded copied-input contract; new page-owner/worker protocol is still pending"
+  },
+  "verification": {
+    "original_isolated_cpu_compile": {
+      "passed": true,
+      "seconds": 8.48
+    },
+    "four_apps": {
+      "passed": true,
+      "seconds": 29.63
+    },
+    "browser_host_wasm": {
+      "passed": true,
+      "seconds": 26.31
+    },
+    "shared_text_wire": {
+      "passed": 1,
+      "seconds": 0.0
+    },
+    "archive_round_trip": {
+      "passed": 8,
+      "seconds": 0.41
+    },
+    "affected_bake_cpu": {
+      "passed": 29,
+      "seconds": 0.51
+    },
+    "final_region_safety_checks": {
+      "passed": 7,
+      "seconds": 0.08
+    }
+  },
+  "lock_change": "Only rusterix dependency edge to already locked png0.18.0; no package/WGPU version change.",
+  "logs": [
+    "/private/tmp/eldiron-original-region-check.log",
+    "/private/tmp/eldiron-original-region-cpu.log",
+    "/private/tmp/eldiron-original-shared-text-apps.log",
+    "/private/tmp/eldiron-original-text-wire.log",
+    "/private/tmp/eldiron-original-text-archive.log",
+    "/private/tmp/eldiron-original-text-bake-cpu.log",
+    "/private/tmp/eldiron-original-region-final-cpu.log",
+    "/private/tmp/eldiron-original-region-wasm.log"
+  ],
+  "still_open": [
+    "Asynchronous page cache and browser transfer/worker ownership for large originals.",
+    "GPU composition page-origin/extent with original world sampling and source/request retirement.",
+    "Creator oversized persisted-tile display guard still present.",
+    "Full process/codec/driver peaks and performance acceptance remain open; no M0-M9 gate marked complete."
+  ]
+}

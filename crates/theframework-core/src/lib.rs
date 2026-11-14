@@ -1,6 +1,8 @@
 //! CPU-only shared data. This crate has no UI, window, font, or GPU dependencies.
 pub mod image;
 mod shared_bytes;
+mod shared_text;
+pub use shared_text::SharedText;
 pub use shared_bytes::SharedBytes;
 pub mod thecolor;
 pub mod thedim;

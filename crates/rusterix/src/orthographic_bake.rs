@@ -7,6 +7,7 @@ use uuid::Uuid;
 use vek::Vec3;
 
 mod cache;
+pub mod region_decode;
 mod source;
 pub use cache::{OrthographicBakeTileLease, OrthographicBakeTilePoll};
 use cache::TileCache;
@@ -458,11 +459,11 @@ impl OrthographicBakeController {
         asset.tiles.push(OrthographicBakeTile {
             x,
             y,
-            color_png_base64: BASE64.encode(png),
-            depth_base64: Some(BASE64.encode(encode_depth(&depth))),
-            albedo_png_base64: Some(BASE64.encode(albedo_png)),
-            normal_png_base64: Some(BASE64.encode(normal_png)),
-            material_png_base64: Some(BASE64.encode(material_png)),
+            color_png_base64: BASE64.encode(png).into(),
+            depth_base64: Some(BASE64.encode(encode_depth(&depth)).into()),
+            albedo_png_base64: Some(BASE64.encode(albedo_png).into()),
+            normal_png_base64: Some(BASE64.encode(normal_png).into()),
+            material_png_base64: Some(BASE64.encode(material_png).into()),
             color_png_path: None,
             depth_path: None,
             albedo_png_path: None,
@@ -1004,7 +1005,7 @@ mod tests {
         let tile = OrthographicBakeTile {
             x: 0,
             y: 0,
-            color_png_base64: encoded,
+            color_png_base64: encoded.into(),
             depth_base64: None,
             albedo_png_base64: None,
             normal_png_base64: None,
@@ -1051,8 +1052,8 @@ mod tests {
             tiles: vec![OrthographicBakeTile {
                 x: 0,
                 y: 0,
-                color_png_base64: BASE64.encode(encode_png(1, 1, &rgba).unwrap()),
-                depth_base64: Some(BASE64.encode(encode_depth(&[2.0]))),
+                color_png_base64: BASE64.encode(encode_png(1, 1, &rgba).unwrap()).into(),
+                depth_base64: Some(BASE64.encode(encode_depth(&[2.0])).into()),
                 albedo_png_base64: None,
                 normal_png_base64: None,
                 material_png_base64: None,
@@ -1149,7 +1150,7 @@ mod tests {
             tiles: vec![OrthographicBakeTile {
                 x: 0,
                 y: 0,
-                color_png_base64: BASE64.encode(encode_png(4, 4, &rgba).unwrap()),
+                color_png_base64: BASE64.encode(encode_png(4, 4, &rgba).unwrap()).into(),
                 depth_base64: None,
                 albedo_png_base64: None,
                 normal_png_base64: None,
@@ -1255,7 +1256,7 @@ mod tests {
             tiles: vec![OrthographicBakeTile {
                 x: 0,
                 y: 0,
-                color_png_base64: BASE64.encode(encode_png(4, 4, &rgba).unwrap()),
+                color_png_base64: BASE64.encode(encode_png(4, 4, &rgba).unwrap()).into(),
                 depth_base64: None,
                 albedo_png_base64: None,
                 normal_png_base64: None,

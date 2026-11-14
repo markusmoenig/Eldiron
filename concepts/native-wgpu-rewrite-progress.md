@@ -13569,3 +13569,39 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   formats and existing full-tile CPU/reference consumers. Worker ownership,
   browser transfer/output bounds and encoded-source retention must be accounted
   for before removing the Creator display guard. No gate is marked complete.
+
+## Original-region decode and encoded ownership foundation (2026-11-14)
+
+- Previous goal turn was verified progress (bf46de02/aa7b2fa0), not an idle wait.
+  User time/status feedback: roughly80% was an informal implementation estimate,
+  not a verified acceptance percentage. After this in-flight patch, consolidate
+  the M0-M9 gates and prioritize actual end-to-end gaps over more bake edge cases.
+- Added bounded OriginalRegion/PngRegionDecoder/DepthRegionDecoder. Base64 is a
+  seekable original-text view (3072byte stack chunks); PNG rows/Adam7 pass rows
+  scatter only into the requested<=512px rectangle. No full encoded PNG buffer
+  or decoded image is materialized. Cooperative advances validate chunks or
+  decode rows; unfinished/error work cannot publish. Optional text/ICC metadata
+  is unused for original raw channels and ignored. Header/worst-case row storage
+  is checked before PNG row allocation; configured codec limit8MiB is separate
+  from an unmeasured total process/codec peak.
+- Exact color comparison to existing full decoder passes grayscale/gray-alpha/
+  RGB/RGBA8/16bit, palette transparency and odd Adam7 cases. Depth preserves IEEE
+  NaN payloads/signed zero/infinities. Valid2048px original (full channels80MiB)
+  returns a49x71original crop (13,916RGBAbytes), observes8,192byte rows and yields
+  >=128times. No downsampling/changed original tile coordinates or wire format.
+- Five persistent bake channel strings now use immutable SharedText(Arc<String>)
+  with exact prior serialized String shape. Document/controller/region-decoder
+  clones share encoded backing; clearing a save projection does not copy/mutate
+  the original. Existing full-tile codec's bounded String-input job contract is
+  unchanged; new source-page/worker integration remains pending.
+- Verification: isolated CPU compile PASS8.48s; four canonical applications check
+  PASS29.63s; browser-host wasm check PASS26.31s; String JSON/bincode wire PASS1;
+  project archive tests PASS8/0.41s; affected bake CPU contracts PASS29/0.51s;
+  final region/header safety and retained owned-text tests PASS7/0.08s. Only a
+  conservative header row-allocation check followed wasm/app compile; final CPU
+  contracts compile and exercise it. No repeated unchanged GPU application run.
+- Direct png dependency pins the already locked0.18.0. Cargo.lock adds only that
+  rusterix dependency edge; WGPU and all package versions remain unchanged.
+  Evidence:concepts/native-wgpu-evidence/original-region-decode.json; logs listed
+  there. Native display guard is NOT removed: page cache, worker/transfer and
+  original-coordinate GPU composition must be integrated before its retirement.

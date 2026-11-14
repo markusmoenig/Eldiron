@@ -133,8 +133,8 @@ mod tests {
             tiles: vec![OrthographicBakeTile {
                 x: 0,
                 y: 0,
-                color_png_base64: BASE64.encode(encode_png(1, 1, &[80, 120, 160, 255]).unwrap()),
-                depth_base64: Some(BASE64.encode(encode_depth(&[2.]))),
+                color_png_base64: BASE64.encode(encode_png(1, 1, &[80, 120, 160, 255]).unwrap()).into(),
+                depth_base64: Some(BASE64.encode(encode_depth(&[2.])).into()),
                 albedo_png_base64: None,
                 normal_png_base64: None,
                 material_png_base64: None,
@@ -193,7 +193,7 @@ mod tests {
         }
         // Same coordinate and encoded length, new installation. An old queued
         // result has no receiver/publication path into the replacement cache.
-        asset.tiles[0].depth_base64 = Some(BASE64.encode(encode_depth(&[7.])));
+        asset.tiles[0].depth_base64 = Some(BASE64.encode(encode_depth(&[7.])).into());
         owner.sync_persisted_asset(map, Some(&asset));
         let green = wait_deferred(&owner.presentation_source(map, &camera).unwrap(), (0, 0));
         assert_eq!(green.depth, [7.]);
@@ -299,7 +299,7 @@ mod tests {
         }
         assert!(owner.presentation_source(map, &camera).is_none());
         assert_eq!(owner.decoded_resident_bytes(), 0);
-        asset.tiles[0].color_png_base64 = valid;
+        asset.tiles[0].color_png_base64 = valid.into();
         owner.sync_persisted_asset(map, Some(&asset));
         assert_eq!(
             wait_deferred(&owner.presentation_source(map, &camera).unwrap(), (0, 0)).depth,
@@ -317,11 +317,11 @@ mod tests {
         let rgba =
             BASE64.encode(encode_png(256, 256, &[80, 120, 160, 255].repeat(pixels)).unwrap());
         let mut tile = asset.tiles[0].clone();
-        tile.color_png_base64 = rgba.clone();
-        tile.albedo_png_base64 = Some(rgba.clone());
-        tile.normal_png_base64 = Some(rgba.clone());
-        tile.material_png_base64 = Some(rgba);
-        tile.depth_base64 = Some(BASE64.encode(encode_depth(&vec![2.; pixels])));
+        tile.color_png_base64 = rgba.clone().into();
+        tile.albedo_png_base64 = Some(rgba.clone().into());
+        tile.normal_png_base64 = Some(rgba.clone().into());
+        tile.material_png_base64 = Some(rgba.into());
+        tile.depth_base64 = Some(BASE64.encode(encode_depth(&vec![2.; pixels])).into());
         asset.tiles = (0..32)
             .map(|x| {
                 let mut tile = tile.clone();
@@ -400,7 +400,7 @@ mod tests {
         assert!(owner.presentation_source(map, &camera).is_none());
         assert!(owner.compose_rgba(map, 1, 1, &camera).is_none());
         assert_eq!(owner.decoded_resident_bytes(), 0);
-        asset.tiles[0].color_png_base64 = valid;
+        asset.tiles[0].color_png_base64 = valid.into();
         owner.sync_persisted_asset(map, Some(&asset));
         assert!(owner.can_compose(map, &camera));
         assert_eq!(
@@ -432,7 +432,7 @@ mod tests {
 
         // Same version, count and encoded length: the old signature missed this.
         let previous_len = asset.tiles[0].depth_base64.as_ref().unwrap().len();
-        asset.tiles[0].depth_base64 = Some(BASE64.encode(encode_depth(&[7.])));
+        asset.tiles[0].depth_base64 = Some(BASE64.encode(encode_depth(&[7.])).into());
         assert_eq!(
             asset.tiles[0].depth_base64.as_ref().unwrap().len(),
             previous_len

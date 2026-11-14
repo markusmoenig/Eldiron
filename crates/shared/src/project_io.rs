@@ -1,4 +1,5 @@
 use crate::project::Project;
+use theframework_core::SharedText;
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
@@ -311,7 +312,7 @@ fn externalize_bake_entries(
 
 fn externalize_required_payload(
     binaries: &mut ProjectBinaryWriter,
-    encoded: &mut String,
+    encoded: &mut SharedText,
     stored_path: &mut Option<String>,
     path: String,
     compression: ProjectBinaryCompression,
@@ -332,7 +333,7 @@ fn externalize_required_payload(
 
 fn externalize_optional_payload(
     binaries: &mut ProjectBinaryWriter,
-    encoded: &mut Option<String>,
+    encoded: &mut Option<SharedText>,
     stored_path: &mut Option<String>,
     path: String,
     compression: ProjectBinaryCompression,
@@ -568,7 +569,7 @@ fn hydrate_bake_entries(
 fn hydrate_required_payload(
     binaries: &mut ProjectBinaryReader<'_, '_>,
     path: Option<&str>,
-    encoded: &mut String,
+    encoded: &mut SharedText,
     max_size: u64,
     require_png: bool,
 ) -> Result<(), String> {
@@ -583,14 +584,14 @@ fn hydrate_required_payload(
     } else {
         binaries.read(path, max_size)?
     };
-    *encoded = BASE64.encode(bytes);
+    *encoded = BASE64.encode(bytes).into();
     Ok(())
 }
 
 fn hydrate_optional_payload(
     binaries: &mut ProjectBinaryReader<'_, '_>,
     path: Option<&str>,
-    encoded: &mut Option<String>,
+    encoded: &mut Option<SharedText>,
     max_size: u64,
     require_png: bool,
 ) -> Result<(), String> {
@@ -602,7 +603,7 @@ fn hydrate_optional_payload(
     } else {
         binaries.read(path, max_size)?
     };
-    *encoded = Some(BASE64.encode(bytes));
+    *encoded = Some(BASE64.encode(bytes).into());
     Ok(())
 }
 
@@ -721,11 +722,11 @@ mod tests {
             tiles: vec![OrthographicBakeTile {
                 x: 0,
                 y: 0,
-                color_png_base64: BASE64.encode(png),
-                depth_base64: Some(BASE64.encode(depth)),
-                albedo_png_base64: Some(BASE64.encode(png)),
-                normal_png_base64: Some(BASE64.encode(png)),
-                material_png_base64: Some(BASE64.encode(png)),
+                color_png_base64: BASE64.encode(png).into(),
+                depth_base64: Some(BASE64.encode(depth).into()),
+                albedo_png_base64: Some(BASE64.encode(png).into()),
+                normal_png_base64: Some(BASE64.encode(png).into()),
+                material_png_base64: Some(BASE64.encode(png).into()),
                 color_png_path: None,
                 depth_path: None,
                 albedo_png_path: None,
@@ -839,7 +840,7 @@ mod tests {
             tiles: vec![OrthographicBakeTile {
                 x: 0,
                 y: 0,
-                color_png_base64: String::new(),
+                color_png_base64: SharedText::default(),
                 depth_base64: None,
                 albedo_png_base64: None,
                 normal_png_base64: None,
