@@ -15,6 +15,19 @@ fn resources_reject_stale_handles_and_capture_padded_rows() {
     assert_ne!(old, new);
     assert_eq!(old.slot, new.slot);
     let mut ticket = ReadbackTicket::capture(&ctx, image).unwrap();
+    let shared = ctx.as_ref().clone();
+    assert_eq!(shared.capture_queue_usage().bytes, 512);
+    assert_eq!(shared.capture_queue_usage().requests, 1);
+    let capacity = shared.capture_queue_usage().byte_limit;
+    let full = shared.reserve_capture(capacity - 512).unwrap();
+    let transfers = ctx.transfers();
+    assert!(ReadbackTicket::capture_asset(&ctx, a.get(new).unwrap()).is_err());
+    assert_eq!(
+        ctx.transfers(),
+        transfers,
+        "rejection must precede allocation/submission/accounting"
+    );
+    drop(full);
     ctx.device
         .poll(wgpu::PollType::Wait {
             submission_index: None,
@@ -24,6 +37,25 @@ fn resources_reject_stale_handles_and_capture_padded_rows() {
     let capture = ticket.try_finish(&ctx).unwrap().unwrap();
     assert_eq!(capture, source);
     assert!(ticket.try_finish(&ctx).is_err());
+    assert_eq!(ctx.capture_queue_usage().bytes, 0);
+    assert_eq!(ctx.capture_queue_usage().requests, 0);
+    let pending: Vec<_> = (0..ctx.capture_queue_usage().request_limit)
+        .map(|_| ReadbackTicket::capture(&ctx, a.get(new).unwrap()).unwrap())
+        .collect();
+    let full = ctx.capture_queue_usage();
+    let transfers = ctx.transfers();
+    assert!(ReadbackTicket::capture(&shared, a.get(new).unwrap()).is_err());
+    assert_eq!(ctx.capture_queue_usage(), full);
+    assert_eq!(ctx.transfers(), transfers);
+    drop(pending);
+    ctx.device
+        .poll(wgpu::PollType::Wait {
+            submission_index: None,
+            timeout: Some(std::time::Duration::from_secs(15)),
+        })
+        .unwrap();
+    assert_eq!(ctx.capture_queue_usage().bytes, 0);
+    assert_eq!(ctx.capture_queue_usage().requests, 0);
     // Actual loss must wake idle owners, while retired listener leases do not.
     use std::sync::{
         Arc,
@@ -39,6 +71,13 @@ fn resources_reject_stale_handles_and_capture_padded_rows() {
         count.fetch_add(100, Ordering::SeqCst);
     });
     drop(retired);
+    let mut ready_before_loss = ReadbackTicket::capture(&ctx, a.get(new).unwrap()).unwrap();
+    ctx.device
+        .poll(wgpu::PollType::Wait {
+            submission_index: None,
+            timeout: Some(std::time::Duration::from_secs(15)),
+        })
+        .unwrap();
     ctx.device.destroy();
     for _ in 0..100 {
         let _ = ctx.poll();
@@ -48,6 +87,15 @@ fn resources_reject_stale_handles_and_capture_padded_rows() {
         std::thread::sleep(std::time::Duration::from_millis(1));
     }
     assert!(ctx.is_lost());
+    assert!(
+        ready_before_loss
+            .try_finish(&ctx)
+            .unwrap_err()
+            .to_string()
+            .contains("lost")
+    );
+    drop(ready_before_loss);
+    assert_eq!(ctx.capture_queue_usage().requests, 0);
     assert_eq!(wakes.load(Ordering::SeqCst), 1);
     let count = wakes.clone();
     let late = ctx.observe_faults(move || {

@@ -35,6 +35,7 @@ pub struct GpuContext {
     lost: Arc<AtomicBool>,
     faults: Arc<crate::fault::Notifications>,
     counters: Arc<Counters>,
+    capture_queue: Arc<crate::capture_queue::CaptureQueue>,
     #[cfg(target_arch = "wasm32")]
     validation_error: Arc<std::sync::Mutex<Option<String>>>,
 }
@@ -95,6 +96,7 @@ impl GpuContext {
             queue,
             generation: NEXT_DEVICE.fetch_add(1, Ordering::Relaxed),
             counters: Arc::new(Counters::default()),
+            capture_queue: Arc::new(crate::capture_queue::CaptureQueue::default()),
             #[cfg(target_arch = "wasm32")]
             validation_error,
         }))
@@ -119,6 +121,19 @@ impl GpuContext {
             asset_bake_readback_bytes: asset_bytes,
             asset_bake_readback_requests: asset_requests,
         }
+    }
+    /// Outstanding explicit color/depth staging, shared by cloned contexts.
+    /// Four-byte producer metadata uses its separate bounded status protocol.
+    pub fn capture_queue_usage(&self) -> crate::CaptureQueueUsage {
+        self.capture_queue.usage()
+    }
+    /// Reserve actual staging bytes before allocation. A submitted producer must
+    /// retain the lease until both GPU completion and consumer retirement.
+    pub fn reserve_capture(&self, bytes: u64) -> Result<crate::CaptureLease> {
+        if self.is_lost() {
+            return Err(RenderError("capture device is lost".into()));
+        }
+        self.capture_queue.reserve(bytes)
     }
     pub(crate) fn record_status_readback(&self) {
         self.counters.status.fetch_add(4, Ordering::Relaxed);

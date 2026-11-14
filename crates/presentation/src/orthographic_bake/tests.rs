@@ -441,6 +441,15 @@ fn dynamic_surfaces_occlude_actors_preserve_guides_and_clear_without_readback_st
     let before_asset = context.transfers();
     let mut asset_color = ReadbackTicket::capture_asset(&context, bake.image.clone()).unwrap();
     let mut asset_depth = surface.capture_asset_depth(&context).unwrap();
+    let usage = context.capture_queue_usage();
+    assert_eq!(usage.requests, 2, "color and depth share one staging queue");
+    let full = context
+        .reserve_capture(usage.byte_limit - usage.bytes)
+        .unwrap();
+    let rejected = context.transfers();
+    assert!(surface.capture_asset_depth(&context).is_err());
+    assert_eq!(context.transfers(), rejected);
+    drop(full);
     let after_asset = context.transfers();
     let bytes = u64::from(size.0 * size.1) * (4 + 32);
     assert_eq!(
@@ -623,8 +632,32 @@ fn dynamic_surfaces_occlude_actors_preserve_guides_and_clear_without_readback_st
     }
     // Owned pending tickets can be retired even before loss notification has
     // reached the host. Destroying their exclusive buffers is idempotent.
+    let mut ready_depth = padded_surface.capture_asset_depth(&context).unwrap();
+    finish(&context);
     let lost_color = ReadbackTicket::capture_asset(&context, bake.image.clone()).unwrap();
     let lost_depth = padded_surface.capture_asset_depth(&context).unwrap();
     context.device.destroy();
     drop((lost_color, lost_depth));
+    for _ in 0..100 {
+        let _ = context.poll();
+        if context.is_lost() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    assert!(
+        context.is_lost(),
+        "wait for the actual device-loss notification"
+    );
+    assert!(ready_depth.try_finish(&context).is_err());
+    drop(ready_depth);
+    for _ in 0..100 {
+        let _ = context.poll();
+        if context.capture_queue_usage().requests == 0 {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    assert_eq!(context.capture_queue_usage().bytes, 0);
+    assert_eq!(context.capture_queue_usage().requests, 0);
 }

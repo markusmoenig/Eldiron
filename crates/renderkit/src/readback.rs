@@ -9,6 +9,7 @@ pub struct ReadbackTicket {
     ready: mpsc::Receiver<std::result::Result<(), wgpu::BufferAsyncError>>,
     device_generation: u64,
     finished: bool,
+    lease: Option<crate::CaptureLease>,
 }
 impl ReadbackTicket {
     pub fn capture(context: &GpuContext, image: Arc<GpuImage>) -> Result<Self> {
@@ -43,6 +44,7 @@ impl ReadbackTicket {
                 "asset capture exceeds 64 MiB staging budget".into(),
             ));
         }
+        let lease = context.reserve_capture(bytes)?;
         let logical = u64::from(image.descriptor.width) * u64::from(image.descriptor.height) * 4;
         if asset {
             context.record_asset_bake(logical);
@@ -86,6 +88,7 @@ impl ReadbackTicket {
             image.texture.size(),
         );
         context.queue.submit([encoder.finish()]);
+        lease.retain_for_submission(&context.queue);
         let (tx, ready) = mpsc::channel();
         buffer.map_async(wgpu::MapMode::Read, .., move |r| {
             let _ = tx.send(r);
@@ -97,6 +100,7 @@ impl ReadbackTicket {
             ready,
             device_generation: context.generation(),
             finished: false,
+            lease: Some(lease),
         })
     }
     pub fn try_finish(&mut self, context: &GpuContext) -> Result<Option<ImageAsset>> {
@@ -108,7 +112,15 @@ impl ReadbackTicket {
                 "capture invalidated by device replacement".into(),
             ));
         }
+        if context.is_lost() {
+            return Err(RenderError("capture device is lost".into()));
+        }
         context.poll()?;
+        // Poll can deliver loss after a successful map notification was already
+        // queued. That notification no longer authorizes mapped-buffer access.
+        if context.is_lost() {
+            return Err(RenderError("capture device is lost".into()));
+        }
         match self.ready.try_recv() {
             Err(mpsc::TryRecvError::Empty) => return Ok(None),
             Err(mpsc::TryRecvError::Disconnected) => {
@@ -126,7 +138,9 @@ impl ReadbackTicket {
         }
         drop(mapped);
         self.buffer.unmap();
+        self.buffer.destroy();
         self.finished = true;
+        self.lease = None;
         if matches!(
             d.format,
             wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Bgra8UnormSrgb

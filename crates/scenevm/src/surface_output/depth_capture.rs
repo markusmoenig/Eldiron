@@ -17,12 +17,14 @@ pub struct SurfaceDepthCapture {
     source: SurfaceOutput,
     ready: mpsc::Receiver<std::result::Result<(), wgpu::BufferAsyncError>>,
     finished: bool,
+    lease: Option<renderkit::CaptureLease>,
 }
 impl SurfaceOutput {
     /// Request from a fresh surface output before any later producer query can
     /// reuse its targets. The copy is submitted immediately and survives reuse.
     /// Only an explicit bake/export job should request asset depth. The caller
-    /// owns queue bounds and validates its document/source revision on completion.
+    /// validates its document/source revision on completion. Shared device-domain
+    /// staging limits apply before allocation, including outstanding color jobs.
     pub fn capture_asset_depth(&self, context: &GpuContext) -> Result<SurfaceDepthCapture> {
         if context.is_lost() || self.generation != context.generation() {
             return Err(RenderError(
@@ -38,6 +40,7 @@ impl SurfaceOutput {
                 *bytes <= 64 * 1024 * 1024 && *bytes <= context.device.limits().max_buffer_size
             })
             .ok_or_else(|| RenderError("asset depth exceeds 64 MiB staging budget".into()))?;
+        let lease = context.reserve_capture(bytes)?;
         let buffer = context.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("requested asset surface depth"),
             size: bytes,
@@ -70,6 +73,7 @@ impl SurfaceOutput {
         }
         context.record_asset_bake(u64::from(self.size.0) * u64::from(self.size.1) * 32);
         context.queue.submit(Some(encoder.finish()));
+        lease.retain_for_submission(&context.queue);
         let (send, ready) = mpsc::channel();
         buffer.map_async(wgpu::MapMode::Read, .., move |result| {
             let _ = send.send(result);
@@ -80,6 +84,7 @@ impl SurfaceOutput {
             source: self.clone(),
             ready,
             finished: false,
+            lease: Some(lease),
         })
     }
 }
@@ -95,6 +100,9 @@ impl SurfaceDepthCapture {
             ));
         }
         context.poll()?;
+        if context.is_lost() {
+            return Err(RenderError("asset depth device is lost".into()));
+        }
         match self.ready.try_recv() {
             Err(mpsc::TryRecvError::Empty) => return Ok(None),
             Err(mpsc::TryRecvError::Disconnected) => {
@@ -122,7 +130,9 @@ impl SurfaceDepthCapture {
         }
         drop(mapped);
         self.buffer.unmap();
+        self.buffer.destroy();
         self.finished = true;
+        self.lease = None;
         Ok(Some(CapturedSurfaceDepth {
             size,
             revision: self.source.revision,
