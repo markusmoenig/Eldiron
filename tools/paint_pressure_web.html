@@ -1,0 +1,9 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Eldiron Rust paint-pressure acceptance</title></head>
+<body><script type="module">
+import('./paint_pressure_web.js').then(module => module.default()).catch(error => {
+  document.documentElement.setAttribute('data-paint-pressure-state', 'failed');
+  document.documentElement.setAttribute('data-paint-pressure-result', JSON.stringify({error: String(error)}));
+  console.error(error);
+});
+</script></body></html>

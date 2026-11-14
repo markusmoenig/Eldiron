@@ -13394,3 +13394,44 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   oversized original saved tiles, other workflows/owners/adapters, total peak
   memory, release p50/p95/p99/input/startup, physical native/platform acceptance.
   Do not mark any full M0-M9 gate complete from this batch. Goal remains active.
+
+## Actual Rust browser bake-owner pressure (2026-11-14)
+
+- Added explicit acceptance executable creator/examples/paint_pressure_web.rs,
+  packaged from the existing dependency graph with no manifest/lock changes.
+  Drives the real OrthographicBakeJob/SceneVM/residency/status/capture/controller
+  owner on browser WebGPU, not a JavaScript sampler or alternate renderer.
+  tools/verify_browser_paint_owner.mjs instruments a new task-owned test tab;
+  tools/paint_pressure_web.html provides its reproducible package entry point.
+- Release wasm build PASS99s; binding package PASS. Actual browser Rust owner
+  PASS:2,049distinct source page pairs/67,141,632logical bytes, complete393,216B
+  lookup payload,3activepages through2resident slots/65,536GPUplane bytes.
+  Three progressive samples and3auxiliary channels require18real subdivisions,
+  48page uploads and360bytes of consumed producer status. Exactly7original
+  capture requests, with no implicit color readback. Recovered fully resident
+  reference and paged output compare1,048,576RGBAbytes exactly; finite original
+  depth is exact;16,384painted green albedo pixels ensure real paint was sampled.
+- Request supersession and actual device.destroy after genuine pressure each
+  retire without original capture/persistence. Replacement generation2 rebuilds
+  from the same retained original source and completes full/paged comparisons.
+  This is retirement during pressure, not an assertion that a private region
+  had already completed; native resolved-region retirement remains separate.
+- Browser probe:2actual devices,8storage buffers per stage, requiredFeatures=[];
+  no GPU/runtime errors, Canvas2D or normal frame color copies. Only explicit
+  asset-capture texture copies occur (12RGBA,4depth-plane copies). Initial Rust
+  fixture already passed; its driver initially rejected Chrome's automatically
+  exposed core-features-and-limits flag. Corrected the driver to inspect the
+  actual empty optional-feature request rather than require an empty reported
+  device feature list, then full owner/probe PASS. No product workaround added.
+- Durable evidence:concepts/native-wgpu-evidence/paint-browser-owner-pressure.json.
+  Logs:/private/tmp/eldiron-paint-owner-browser-{build,package,runtime}.log.
+  Reproduction commands are included in the evidence JSON. Previous large
+  canonical browser UI admission/preparation/save/recovery and document/source
+  retirement evidence remains independent. This standalone fixture validates the
+  actual shared Rust owner; it does not pass canonical surface/input/platform or
+  application-memory-policy acceptance, or all M0-M9 gates.
+- Next useful work: remaining organic stamp/oversized original-tile adapters,
+  canonical pressure lifecycle after a resolved subregion, rare workflows and
+  ownership retirement, active/inflight/driver budgets and release baselines.
+  Physical Winit remains unverified while this Mac console is locked; Windows,
+  Linux and selected iOS workflows remain unavailable here. Goal stays active.

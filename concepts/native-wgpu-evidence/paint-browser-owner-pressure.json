@@ -1,0 +1,84 @@
+{
+  "url": "http://127.0.0.1:8898/paint-pressure/",
+  "state": "passed",
+  "result": {
+    "actual_device_loss_retirement": true,
+    "depth": "exact finite agreement",
+    "green_albedo_pixels": 16384,
+    "logical_original_bytes": 67141632,
+    "plane_budget": 65536,
+    "pressure": {
+      "gpu_plane_bytes": 65536,
+      "original_capture_requests": 7,
+      "page_uploads": 48,
+      "samples": 3,
+      "status_bytes": 360,
+      "subdivisions": 18
+    },
+    "reconstructed_device_generation": 2,
+    "reference": {
+      "gpu_plane_bytes": null,
+      "original_capture_requests": 7,
+      "page_uploads": null,
+      "samples": 3,
+      "status_bytes": 24,
+      "subdivisions": 0
+    },
+    "request_retirement": true,
+    "rgba_bytes_compared": 1048576,
+    "rgba_max_delta": 0,
+    "scope": "Real Rust OrthographicBakeJob on browser WebGPU, explicit verification assets, not canonical application surface/input acceptance",
+    "source_pages": 2049,
+    "table_bytes": 393216
+  },
+  "probe": {
+    "devices": [
+      {
+        "maxStorageBuffersPerShaderStage": 8,
+        "features": [
+          "core-features-and-limits"
+        ],
+        "requestedFeatures": []
+      },
+      {
+        "maxStorageBuffersPerShaderStage": 8,
+        "features": [
+          "core-features-and-limits"
+        ],
+        "requestedFeatures": []
+      }
+    ],
+    "gpuErrors": [],
+    "errors": [],
+    "contexts2D": 0,
+    "textureCopies": {
+      "renderkit-asset-capture": 12,
+      "asset surface depth capture": 4
+    },
+    "metadataBytes": 408
+  },
+  "base_checkpoint": "1a416ae3",
+  "date": "2026-11-14",
+  "release_build_seconds": 99,
+  "reference_contract": "Fully resident original active pages compared with the actual Rust private-subdispatch owner on the same recovered WebGPU device. No alternate renderer or hand-written sampler is used.",
+  "retirement_scope": "Request supersession and actual device loss after first genuine pressure subdivision, before any original capture. Earlier native fixtures separately retire after a completed private subregion.",
+  "source_storage": "2049 separately allocated original RGBA/material page pairs; 3 active and 2046 indexed unvisited keys.",
+  "reproduce": [
+    "MACOSX_DEPLOYMENT_TARGET=26.1 CARGO_TARGET_DIR=/Users/markusmoenig/Eldiron/target cargo build -p eldiron-creator --example paint_pressure_web --locked --offline --no-default-features --features native-render --release --target wasm32-unknown-unknown",
+    "CARGO_TARGET_DIR=/Users/markusmoenig/Eldiron/target cargo run -p run-wasm --bin eldiron-package-web --locked --offline -- /Users/markusmoenig/Eldiron/target/wasm32-unknown-unknown/release/examples/paint_pressure_web.wasm /private/tmp/eldiron-browser-player/paint-pressure",
+    "Copy tools/paint_pressure_web.html to the output directory as index.html; serve its parent on local HTTP port 8898.",
+    "ELDIRON_CDP_PORT=9267 ELDIRON_PAINT_OWNER_EVIDENCE=/private/tmp/eldiron-paint-owner-browser-result.json node tools/verify_browser_paint_owner.mjs"
+  ],
+  "logs": [
+    "/private/tmp/eldiron-paint-owner-browser-build.log",
+    "/private/tmp/eldiron-paint-owner-browser-package.log",
+    "/private/tmp/eldiron-paint-owner-browser-runtime.log"
+  ],
+  "validation_harness_correction": "Initial Rust fixture passed; the driver incorrectly required GPUDevice.features itself to be empty. It now verifies the actual requiredFeatures request is empty. This Chrome automatically exposes core-features-and-limits; no optional capability was requested or enabled by the fixture.",
+  "still_open": [
+    "Canonical Creator UI workflow under enough active paint to force its default 64 MiB cache, and retirement after a resolved private region on browser.",
+    "Normal application surface/input acceptance; this fixture generates explicit verification assets without a window surface.",
+    "Complete active/inflight/codec/driver memory and release percentile/input/startup performance.",
+    "Remaining workflows/adapters and physical Windows/Linux/macOS/iOS acceptance; all M0-M9 gates remain active."
+  ]
+}
