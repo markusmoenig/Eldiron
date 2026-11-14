@@ -2,6 +2,16 @@
 use super::*;
 
 impl OrthographicBakeController {
+    /// Read-only active destination/request identity for application-owned jobs.
+    pub fn active_request(&self) -> Option<(Uuid, Uuid)> {
+        self.is_rendering()
+            .then(|| {
+                self.requested_region
+                    .map(|map| (map, self.request_revision))
+            })
+            .flatten()
+    }
+
     /// Retire transient work while preserving the last committed source.
     pub fn cancel_work(&mut self) -> bool {
         if !self.is_rendering() {

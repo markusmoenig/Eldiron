@@ -13,7 +13,9 @@ use theframework_core::Uuid;
 use wgpu::util::DeviceExt;
 
 const SOURCE_BUDGET: u64 = 64 * 1024 * 1024;
+mod job;
 mod overlay;
+pub use job::{BakeAdvance, OrthographicBakeJob};
 pub use overlay::OrthographicBakeOverlay;
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -487,3 +489,6 @@ impl OrthographicBakeRenderer {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod job_tests;

@@ -10947,9 +10947,14 @@ impl VM {
             let mut v3: Vec<Vert3DPod> = Vec::new();
             let mut i3: Vec<u32> = Vec::new();
             let mut tri_visibility: Vec<bool> = Vec::new();
+            let mut tri_geo_ids = Vec::new();
+            let mut paint_group_ids = FxHashMap::default();
 
             for (_cid, ch) in &self.chunks_map {
                 for poly_list in ch.polys3d_map.values() {
+                    if let Some((id, group)) = poly_list.iter().find_map(|poly| poly.paint_group_id.map(|group| (poly.id, group))) {
+                        paint_group_ids.insert(id, group);
+                    }
                     for poly in poly_list {
                         // IMPORTANT: Include ALL geometry in BVH, not just visible
                         // We'll track visibility separately
@@ -11046,10 +11051,22 @@ impl VM {
                             ]);
                             // Track visibility per triangle
                             tri_visibility.push(poly.visible);
+                            tri_geo_ids.push(poly.id);
                         }
                     }
                 }
             }
+
+            // Compute and raster consumers share the same acknowledged static
+            // geometry for picking/depth. GPU minimum-buffer sentinels below
+            // are not authored surfaces and must never enter this snapshot.
+            self.cached_static_v3 = v3.clone();
+            self.cached_static_i3 = i3.clone();
+            self.cached_static_tri_visibility = tri_visibility.clone();
+            self.cached_static_tri_geo_ids = tri_geo_ids.clone();
+            self.cached_tri_geo_ids = tri_geo_ids;
+            self.cached_static_paint_group_ids = paint_group_ids;
+            self.cached_static_raster_indices_valid = false;
 
             if v3.is_empty() {
                 v3.push(Vert3DPod {
@@ -11105,6 +11122,7 @@ impl VM {
             for (_cid, ch) in &self.chunks_map {
                 for poly_list in ch.polys3d_map.values() {
                     for poly in poly_list {
+                        if self.shared_atlas.tile_index(&poly.tile_id).is_none() { continue; }
                         // Count triangles for this poly
                         for _ in &poly.indices {
                             tri_visibility.push(poly.visible);
@@ -11113,6 +11131,9 @@ impl VM {
                 }
             }
 
+            self.cached_static_tri_visibility = tri_visibility.clone();
+            self.cached_static_raster_indices_valid = false;
+            visibility_changed = true;
             if tri_visibility.is_empty() {
                 tri_visibility.push(false);
             }

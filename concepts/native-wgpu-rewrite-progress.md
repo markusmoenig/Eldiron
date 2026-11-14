@@ -10771,3 +10771,84 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   Explicit capture primitive checkpoint ready. Next work is the actual progressive
   producer/scheduler and Creator integration; the normal bake adapter is still
   retained until those workflows pass. Concurrent networking concept untouched.
+
+## 2026-11-14 — Cooperative progressive tile producer (active)
+
+- Explicit asset capture checkpoint5ad6f71b. Full Goal remains active.
+- Added OrthographicBakeJob in presentation, owning an independent injected scene,
+  frozen frame policy, GPU target/accumulation and one pending original-channel
+  capture. Each advance polls or submits one render/capture. CPU controller owns
+  planning, preview and final format publication; it validates every result.
+- A job binds one destination/request identity and retires on replacement, wrong
+  map, orientation error, explicit cancellation or device failure. One GPU-only
+  warm-up builds geometry before discovering full projected bounds. Static beauty
+  samples accumulate on GPU; albedo/material/normal and camera-linear depth are
+  captured separately as explicit assets. No displayed VM is borrowed/swapped.
+- Component check PASS13.30s before final request/warm-up refinements. Final test
+  build PASS25.92s. Actual two-sample channel parity against retained Rusterix bake
+  drawing, preview visibility/no-early-persistence, asset-only transfer counters,
+  one outstanding request, cancellation and actual device-loss oracle collecting.
+- Creator integration is still pending. It must own document/source/asset/device
+  stamps, keep native viewport ownership during work, consume publication during
+  update and schedule remaining advances. No progressive workflow acceptance yet.
+
+- First job oracle RED6.35s; all color channels matched but finite depth assertion
+  failed. Diagnostic buildPASS5.02s/RED1.06s proves16,384 visible beauty/albedo/
+  normal pixels, but raw static query has0validdepth in BOTH producers. Compute3D
+  built cached_v3/i3 but not the static prefix/IDs/visibility used by surface
+  queries. Populate that shared metadata before GPU-only sentinel padding; keep
+  visibility changes aligned with the same tile filtering and upload revision.
+- Also diagnosed material data loss: its A byte is emissive, legitimately zero.
+  Both producers had captured a blended framebuffer for G-buffer channels, which
+  erased valid roughness/opacity RGB atA0. Added GPU raw layer_output leases;
+  cooperative producer now captures original layer bytes. Reference adapter also
+  captures raw albedo/material/normal layers. Existing assets/serde unchanged;
+  this corrects newly rendered channel data rather than rewriting stored bakes.
+- A guarded edit script initially rejected its expected match count before writing
+  these changes; corrected exact region matching and applied the coherent batch.
+  Stronger oracle requires visible color, nonzero material data and finite depth;
+  parity against an empty result is not accepted. Final build/run collecting.
+
+- Corrected channel/depth build PASS24.65s. GPU oracle now has16,384 actual
+  finite depths in both producers, all four channel maxdelta0 and preserved
+  material RGB atzero emissive. Source/map bytes unchanged,6explicit asset requests
+  for2beauty+3channels+depth; no normal transfers/CPU viewport or surface staging.
+  Replacement/Clear/wrong-map/orientation retirement phases also passed, then
+  RED2.51s at actual-loss assertion: it ran immediately after device.destroy,
+  before the asynchronous loss callback was delivered. The fixture now polls
+  for the real loss notification (same bounded pattern as the GPU contract test)
+  before requiring retirement. No production loss guard weakened. Full component
+  matrix collecting. Wasm Creator library PASS23.21s on production fixes.
+
+- Full component matrix RED1/PASS2/2.45s after loss notification: the job correctly
+  detected loss, but dropping its pending color ticket called buffer.unmap on a
+  device-destroyed buffer and WGPU validation panicked. Found the same owned-buffer
+  teardown in SurfaceDepthCapture. Changed both exclusive staging owners to
+  buffer.destroy on cancellation; WGPU29's buffer_destroy explicitly tolerates
+  already-invalid/already-destroyed buffers and cancels maps internally. Successful
+  mapped reads still unmap normally. No exception/validation suppression added.
+- Extended component fixture to drop pending color+depth tickets immediately after
+  device.destroy (before notification), and job fixture to defer zero viewport
+  without uploads/captures. Updated matrix collecting; all previous channel/depth
+  and scope assertions remain. Creator adoption still pending these results.
+
+- Loss-safe build PASS26.06s; full bake component matrix PASS3/2.62s. New producer
+  has exact0RGBA deltas for beauty/albedo/normal/material,16,384 finite depth pixels
+  matching reference within1e-5, retainedA0materialRGB,2samples/6assetrequests and
+  exact labeled byte count. Zero-size defers with unchanged counters; replacement,
+  Clear, wrong-map and orientation retirement pass. Actual loss notification
+  retires the job; direct pending color+depth drop immediately after device.destroy
+  also passes without WGPU validation errors. Previous composition/padding/alpha/
+  sun/stale/resize oracles remain green. Wasm Creator library PASS25.30s.
+- Producer ready for checkpoint; it is NOT yet a canonical Creator caller.
+  Next integration: application owns a frozen CPU source and a job lease separately
+  from the display GPU cache, so suspend/resize do not discard accumulation and
+  actual generation replacement does retire it. Stamp document, parent map/source,
+  asset/config, request and device; validate before publication. Consume completed
+  assets during update through a reversible document/history edit, advancing save
+  revision as well as dirty state. Schedule asset advances independently of whether
+  the world panel is visible. Preserve the explicit above-budget adapter until
+  paging/source-decode budgets are implemented; do not declare bake retirement.
+- No broad native Creator run repeated for this not-yet-adopted producer. It is
+  required at actual application integration. No browser runtime bake-job or new
+  Swift workflow claim from wasm compilation. Remaining M0–M9 gates stay open.

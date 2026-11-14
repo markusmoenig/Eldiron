@@ -621,4 +621,10 @@ fn dynamic_surfaces_occlude_actors_preserve_guides_and_clear_without_readback_st
             assert!(depth.is_infinite());
         }
     }
+    // Owned pending tickets can be retired even before loss notification has
+    // reached the host. Destroying their exclusive buffers is idempotent.
+    let lost_color = ReadbackTicket::capture_asset(&context, bake.image.clone()).unwrap();
+    let lost_depth = padded_surface.capture_asset_depth(&context).unwrap();
+    context.device.destroy();
+    drop((lost_color, lost_depth));
 }

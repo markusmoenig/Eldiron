@@ -192,7 +192,11 @@ impl Rusterix {
                             true,
                             false,
                         );
-                        let albedo = self.orthographic_bake_work_pixels.clone();
+                        let albedo = self
+                            .scene_handler
+                            .vm
+                            .capture_layer_rgba(0)
+                            .map(|(_, _, bytes)| bytes);
 
                         self.scene_handler.vm.set_layer_compute3d_bake_output(0, 2);
                         self.client.draw_d3_with_camera_override(
@@ -207,7 +211,11 @@ impl Rusterix {
                             true,
                             false,
                         );
-                        let material = self.orthographic_bake_work_pixels.clone();
+                        let material = self
+                            .scene_handler
+                            .vm
+                            .capture_layer_rgba(0)
+                            .map(|(_, _, bytes)| bytes);
 
                         self.scene_handler.vm.set_layer_compute3d_bake_output(0, 3);
                         self.client.draw_d3_with_camera_override(
@@ -222,8 +230,22 @@ impl Rusterix {
                             true,
                             false,
                         );
-                        let normal = self.orthographic_bake_work_pixels.clone();
+                        let normal = self
+                            .scene_handler
+                            .vm
+                            .capture_layer_rgba(0)
+                            .map(|(_, _, bytes)| bytes);
 
+                        let (Some(albedo), Some(material), Some(normal)) =
+                            (albedo, material, normal)
+                        else {
+                            self.scene_handler.vm.set_layer_compute3d_bake_output(0, 0);
+                            self.reset_orthographic_bake_renderer();
+                            bake.fail(
+                                "The bake surface channels could not be read back from the GPU.",
+                            );
+                            return;
+                        };
                         self.scene_handler.vm.set_active_vm(0);
                         let surface = self
                             .scene_handler

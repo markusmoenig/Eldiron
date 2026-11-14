@@ -62,6 +62,42 @@ impl SceneRenderTarget {
     }
 }
 impl SceneVM {
+    /// Lease original layer channels before window composition. Material data
+    /// uses all RGBA bytes even when A is zero, so it must bypass alpha blending.
+    /// Capture immediately before a later render can reuse this layer target.
+    pub fn layer_output(
+        &self,
+        context: &GpuContext,
+        layer: usize,
+        revision: u64,
+    ) -> Result<Option<SceneOutput>> {
+        if context.is_lost() || self.device_generation() != Some(context.generation()) {
+            return Err(RenderError(
+                "layer output belongs to a lost or different device".into(),
+            ));
+        }
+        let Some(texture) = self
+            .vm_ref_by_index(layer)
+            .and_then(|vm| vm.composite_texture())
+        else {
+            return Ok(None);
+        };
+        let Some(gpu) = &texture.gpu else {
+            return Ok(None);
+        };
+        let image = Arc::new(GpuImage::from_texture(
+            context,
+            gpu.texture.clone(),
+            ImageDescriptor {
+                width: texture.width,
+                height: texture.height,
+                format: gpu.texture.format(),
+                color_space: ColorSpace::Srgb,
+                alpha_mode: AlphaMode::Straight,
+            },
+        )?);
+        Ok(Some(SceneOutput { image, revision }))
+    }
     pub fn shared_atlas(&self) -> SharedAtlas {
         self.atlas.clone()
     }

@@ -134,7 +134,10 @@ impl SurfaceDepthCapture {
 impl Drop for SurfaceDepthCapture {
     fn drop(&mut self) {
         if !self.finished {
-            self.buffer.unmap();
+            // This staging buffer is exclusive to the ticket. destroy cancels
+            // a pending map and is idempotent after device loss; unmap validates
+            // a live buffer and can panic after its device destroyed it.
+            self.buffer.destroy();
         }
     }
 }
