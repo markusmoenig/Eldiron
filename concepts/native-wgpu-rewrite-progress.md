@@ -26,7 +26,7 @@ Started: 2026-11-11 (Asia/Bangkok). Overall Goal: active; full M0–M9 scope rem
 - M3: in progress. Every active built-in TheWidget implementation now has a command paint path, including procedural controls and the legacy node canvas. Complex Creator integration, full widget catalog parity and legacy adapter retirement remain.
 - M4: in progress. CPU schema/identity extraction, shared `GameSession`, CPU startup preparation, message/party/world-target policies and terminal adoption are implemented and tested. Per-session routing, local players, world values, runtime IDs and region context ownership now pass controlled overlapping-session and parallel assembled-player regressions. Graphical clients adopt GameSession; Creator shares its clock/output pump and runtime-owned PlayerInput. Text Play state is now Editor-owned and uses explicit CPU runtime borrows. Canonical Creator Play now owns a separate runtime Project projection; startup/warmup, entities/generated geometry and time no longer mutate authored Documents. The Console also consumes explicit addressed CPU inspections and rejects stale runtime actor links/history without reading the global server or authored entity fallbacks. Native Creator now owns its GameSession server/assets/current-map/clock/audio lifetime and advances from host elapsed time independently of rendering. Reference storage/start-menu/source bridges and remaining bitmap/value data extraction remain; this evidence does not establish full simultaneous Creator Play workflows.
 - M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Immutable ordinary editor-view preparation, exact reference/native view outputs and retained CPU chunk publication are now available through SceneViews. Common HUD, paint/props panels, profile displays and ViewCube now have retained command frames, guarded input and actual GPU composition/reconstruction evidence. Six standard tools additionally emit ordered typed overlay aggregates with exact presented-frame and detail-profile source guards. Full-viewport profile editing is now connected to the actual native Creator root with document/widget binding, presentation-gated input and inline commit/cancel; ordinary stopped top-down, sprite-isometric and 3D region rendering and the six standard tool overlays now use the same native application owner and real tool dispatch. Orbit/orthographic/first-person views include depth-aware guides, retained ViewCube and explicit tool query snapshots; surface paint uses the view-owned GPU scene. The Terrain tool now also uses retained native controls and GPU brush guides with real sculpt/cancel integration. Rect now also uses presentation-gated composition/rotation controls, shared source sprite previews blitted on the GPU, terrain-conforming perimeters, and view-owned 3D queries; actual isometric placement and fractional-DPI sprite sampling pass in the assembled checkpoint. Isometric terrain Paint now also uses retained native controls, batched GPU brush feedback, update-phase editable source publication and the existing authoring/undo dispatch. Native 3D Paint now also consumes dedicated scene-owned paint-coordinate queries and explicit authoring surface captures, with camera-scoped drafts and GPU composition; full Paint workflow/platform parity remains unverified. The isolated Prefab viewport now also uses native top-down/isometric/3D outputs, live effects with hierarchy-aware owned drags, and actual 3D Paint authoring on its asset-owned layer. Paint now shares the normal tile picker; its settings live only in the viewport overlay. The canonical Creator Play toolbar now owns the same CPU clock/output pump as GameSession, and its live authoring viewport keeps its own native SceneView. The authored Game-tool viewport now also uses the common GameScreenController/SceneViews/Swash presentation; authoring GameInput now also shares runtime controls while retaining the native scene in supported contexts. Region geometry, ordinary scene and sprite-isometric minimaps now have owned GPU outputs and presentation-scoped navigation; palette and rig previews also have retained native sources and acknowledged palette input. Authored screen minimaps now also use a GPU-only ordered 2D overview producer with compatible source sampling and acknowledged screen-scoped navigation. Parent-region minimaps during Prefab/profile/detail editing also have independent native source production and presented-parent navigation without modifying the isolated editor map. Main native authoring static geometry/readiness/billboards now use an application-owned bounded CPU source, retained across GPU reconstruction and isolated from clipboard projections. Remaining uncommon contexts/tools retain explicit migration adapters. Application/global/document/Play ownership, main world/tool/HUD integration, remaining producers, full visual/workflow/performance acceptance and canonical retirement remain.
-- M5 ownership checkpoint (2026-11-14): CreatorContext now owns camera, configuration/table/sidebar mode, undo history, cooperative scene jobs and reference engine/assets/minimap/palette snapshots. Action/tool/dock controllers are application-owned (3ca4e97d); HUD themes and remembered geometry parameters are also per application, with final verification recorded below. Canonical scene/context injection keeps the compatibility GPU cold on startup; native 2D visibility and owned authoring speech use paint commands. Scepter worker/preview ownership is implemented with the verification below; pure CPU cache audits, custom/bake/clipboard view adapters and resource/performance acceptance remain open.
+- M5 ownership checkpoint (2026-11-14): CreatorContext now owns camera, configuration/table/sidebar mode, undo history, cooperative scene jobs and reference engine/assets/minimap/palette snapshots. Action/tool/dock controllers are application-owned (3ca4e97d); HUD themes and remembered geometry parameters are also per application, with final verification recorded below. Canonical scene/context injection keeps the compatibility GPU cold on startup; native 2D visibility and owned authoring speech use paint commands. Scepter worker/preview ownership is implemented with the verification below; Bounded unpainted progressive bakes, persisted bake composition, custom cameras and 3D clipboard projections now have native ownership; painted/above-budget bake adapters, pure CPU cache audits and resource/performance acceptance remain open.
 - M6: in progress. Independent GPU game views, common player/input/camera components, authored screen paint, private world descriptions, view-owned speech, acknowledged-frame world pointer gestures, relative first-person mouse look, default/world-intent cursors, world/UI item drag previews and acknowledged authored inventory/equipment pointer/keyboard gestures are implemented. Application-owned audio is integrated into the common player with cancellable CPU preparation jobs. The native container HUD now includes acknowledged paint/input, real server transfers, scrolling, GPU recovery and navigation lifetime. Floating inventory/equipment, action catalogue/spellbook and preferences now use typed native HUD owners, retained text/source resources and acknowledged input. Acknowledged UI-origin tooltips now use retained text and host deadlines. UI-origin Drop cursors and acknowledged drag/assignment highlighting now have GPU and authoritative transfer evidence. Native isometric source production, shared CPU source publication, game-view outputs and acknowledged input receipts now have GPU/CPU and shipped-source device-reconstruction evidence. Persistent region 3D paint now also crosses the CPU asset boundary into independent per-view GPU uploads; actual painted browser rendering/device recovery and native integration pass. Browser worker hosting, uncommon Prefab/stamp/live paint publication, remaining game-mode/HUD policy parity and performance acceptance remain. Canonical native desktop launchers now share the common application/host; see launcher verification below.
 - M7/M8/M9: Retirement and full platform acceptance remain pending. Canonical desktop clients share the common player; the Xcode client and versioned Creator host use Rust-created CAMetalLayer surfaces with retained compatibility exports. Addressed document load/save, owned CPU transfers and application lifetime checks have compiled/linked/runtime evidence. Browser player and Creator now use the shared WebGPU host, with actual source loading, Swash/fallback/IME, scene/pixel/material rendering, explicit asset bakes, OPFS save, addressed cancellation and idle device recovery evidence below. Physical native/monitor/clipboard/mobile workflows, remaining ownership/adapter retirement, resource budgets and measured release performance remain open. Compile checks and detached-layer tests do not establish complete platform parity.
 
@@ -10852,3 +10852,113 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
 - No broad native Creator run repeated for this not-yet-adopted producer. It is
   required at actual application integration. No browser runtime bake-job or new
   Swift workflow claim from wasm compilation. Remaining M0–M9 gates stay open.
+
+## 2026-11-14 — Creator progressive bake adoption (active)
+
+- Producer checkpoint a8719f95. Full Goal remains active.
+- Added an application job lease separate from the displayed WorldGpu cache.
+  It owns bounded cooperative CPU source preparation, frozen frame/runtime policy,
+  request/document/parent-map/source/asset/config/orientation stamps and an optional
+  independent GPU producer. Shared explicit scene-asset setup avoids separate
+  palette/config rules. Actor-only cache animation is excluded from static scope.
+- Creator now keeps native viewport ownership while bounded unpainted jobs run;
+  GPU advances are scheduled for every drawable root, including hidden world
+  panels. Update validates source/request before publishing one complete asset as
+  a normal undoable MapEdit, marks dirty and preserves pre-completion save content.
+  Project close/switch retires work; resize/suspend retain its accumulation;
+  generation replacement drops pending and completed-unpublished old-device data.
+- Painted source capture and source plans above64MiB retain named request-scoped
+  adapters. No existing paint or large-bake data is silently omitted. Those
+  adapters and their resource/paging gates remain OPEN, not a complete M5 claim.
+- Initial check failed on missing ImageRegistry import; fixed. Owned integration
+  check PASS12.10s, initial integration test build PASS51.82s. Added actual Sidebar
+  two-sample Render, no partial document publication, ready/picking and normal-zero
+  transfer assertions, generated material/depth content, undo/redo and fresh archive
+  save to the existing full native application fixture. Added final screenshot/
+  ready-source assertions after that build; assembled rebuild/run collecting.
+- Controlled bake fixture now resets its paint layer along with its new map; it
+  previously retained unrelated paint from earlier workflow phases. Original
+  project/paint still restore from the fixture snapshot. No real project changed.
+
+- Native generated bake reached complete publication after50GPUframes:4tiles,
+  2samples,24explicit asset requests/13,631,488bytes; ordinary viewport transfer
+  partition unchanged. Actual finite depth/material channels, static pick,
+  undo/redo and fresh archive save passed. Inspected checker-floor screenshot.
+  First surrounding run RED49.00s at paste reference identity because the snapshot
+  preceded queued authoring jobs. A readiness-only adjustment then RED82.08s:
+  its128tight updates elapsed before the retained worker's wall-clock redraw tick.
+  Replaced that fixture setup with bounded30s polling and2ms yield; no production
+  ownership or pointer-identity assertion relaxed. Rebuild/run collecting.
+- Browser release/package PASS,98,374,181bytes. Fresh runtime test now targets
+  task-owned Chrome9267 at density1.5 with exact explicit asset encoder labels;
+  initial source/recovery, actual Render, partial save, completion/history,
+  pending-device cancellation and copied-document retirement collecting.
+  Package success alone does not count as runtime or lifecycle acceptance.
+
+- Fresh browser workflow PASS: live32sample Render stays native/root0, normal
+  color transfers/Canvas2D/GPU errors0; partial save atsample1 remains the old
+  asset, completed publication dirty/undoable. Fresh archive inspection verifies
+  every tile's5channel files,20,902finite depth pixels and nonzero material RGB.
+  Base/partial project JSON+channels identical; undo/redo differ from their
+  respective original states only in map.changed. Redo/recovered/canceled
+  project JSON+channel bytes identical after completed and pending actual device
+  destruction (generations2→3→4). Switching to a copied file with the SAME map ID
+  retires pending work under a fresh document ID; map/bake+channel bytes equal
+  original both immediately and after late updates. Full copied-project JSON
+  changes in one derived procedural-material tile/data_ext and its cache-key
+  entry as that pre-existing rebuild finishes; no full-project byte-stability
+  claim. All authored map content stays unchanged except bake+changed on publish.
+- Default/reference library compile PASS20.93s; staticlib PASS46.47s. Swift
+  progressive lifecycle fixture linked; execution collecting.
+- Native surrounding matrix RED96.29s at sprite-isometric paste setup: this mode
+  deliberately defers hidden reference SceneVM chunks, so waiting for them is
+  invalid even with wall-clock yields. Updated test readiness to match that
+  explicit production deferral, while retaining pointer identity and authored/
+  GPU/no-transfer assertions. All five persisted and preceding custom phases
+  still exactRGB0; final rebuilt full matrix collecting. Production unchanged.
+
+- Swift actual detached CAMetalLayer progressive workflow PASS. First harness
+  attempt timed out selecting a different action: staticlib omits the22logical
+  point in-canvas menu. Corrected its UI coordinates, without changing production.
+  Actual32sample render survives suspend (no new presentations) and resize
+  2400×1287@1.5→2000×1073@1.25 with the same request identity. Publication contains
+  2tiles/22,155finite depths,72labeled asset requests/22,544,384bytes; root and
+  ordinary readback bytes0. Actual undo/redo and replacement during another
+  pending request pass. Both original/replacement layers are retained through
+  Rust host destruction. No physical native window/IME/iOS parity implied.
+- Swift6fresharchives inspected independently: base=partial project JSON/channel
+  files; undo/redo differ from original states only map.changed; redo=replaced
+  project JSON/channel bytes identical (SHA256JSON
+  ee1c17e800ee58e4c016af876acc5d90d28f000aa51426945b563afdd3c367c3).
+  Generated map changes only orthographic_bake and changed revision. Browser
+  redo/recovery/cancellation JSON SHA256
+  dc2233b615e5e65e2fb3365220044cfe593ffe5c008910bf6234fc620741c592.
+- Inspected current generated native/browser images and retained durable captures
+  under concepts/native-wgpu-evidence/:
+  native-generated-bake.png62,358bytes SHA256
+  9b37120e6bf765131cdfe80b3b537fa199cafdbfc7f1a49176706edef16e4b88;
+  browser-generated-bake-150.png275,519bytes SHA256
+  e1605f84554becad72a20484e7100f2fca76629d15175839dca852ad9a65bef3;
+  browser-progressive-bake-preview-150.png261,749bytes SHA256
+  a728d460c64bd18239abd99b870bad00fe52911bfdf469c20789bf49beb9d5c8.
+- Full native assembly has passed all5persisted/all17custom pixel phases exact0,
+  progressive publication/picking/history, sprite-isometric paste and fractional
+  DPI/source/palette minimap phases<=1; final surrounding matrix collecting.
+  Keep full M0–M9 Goal active. Next resource work: enforce aggregate outstanding
+  readback bytes/request limits per injected device domain across color/depth
+  tickets, preserving separate explicit asset accounting and cancellation.
+  This does not replace outstanding atlas/decoded-source/target/queue budgets,
+  painted/large-source bake migration, reference retirement or release/platform
+  acceptance. Concurrent networking concept remains untouched.
+
+- Final native assembly PASS1/225.94s after deferred-worker fixture correction
+  (buildPASS28.99s): all5persisted/all17custom exactRGB0; real progressive
+  publication/picking/history/freshsave/paste; normal transfer partition unchanged,
+  no CPU viewport storage; fractionalDPI/source/palette minimap<=1; surrounding
+  document/Play/clipboard/presentation/device recovery matrix green. Current
+  native screenshot/archive generated by this passing run. No runtime/source
+  compatibility schema changed; no unrelated networking work staged.
+- Creator adoption checkpoint ready. This verifies bounded unpainted native bake
+  production and scoped history/publication, not painted/large-source retirement
+  or any still-open M0–M9 acceptance gate. Continue with shared outstanding
+  capture queue residency/byte/request limits and completion-safe cancellation.

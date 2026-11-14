@@ -244,6 +244,7 @@ impl Editor {
             "navigation": self.native_viewport.world.relative_navigation.is_some(), "moving": camera.move_action.is_some(), "fly": self.server_ctx.editor_fly_nav_active,
             "fly_mouse": self.server_ctx.editor_fly_nav_mouse_down,
             "world": self.native_world_owns_viewport(),
+            "bake": self.native_viewport.world.bake_jobs.diagnostics(&self.server_ctx.bake.read()),
             "source": {
                 "context": format!("{:?}", self.server_ctx.pc),
                 "map": self.native_world_map_id(),

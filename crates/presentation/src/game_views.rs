@@ -25,36 +25,7 @@ impl SceneViews {
         editor: bool,
     ) -> Result<()> {
         let scene = self.scene_mut(id)?;
-        scene.sync_base_render_settings(&assets.config);
-        let shader = rusterix::Embedded::get("shader/2d_shader.wgsl")
-            .ok_or_else(|| RenderError("missing engine 2D program".into()))?;
-        let source = std::str::from_utf8(&shader.data).map_err(|e| RenderError(e.to_string()))?;
-        scene.vm.set_active_vm(0);
-        scene.vm.execute(scenevm::Atom::SetSource2D(source.into()));
-        scene.build_atlas(&assets.tiles, editor);
-        scene.sync_prefab_particle_sprites(&assets.block_props);
-        scene.vm.execute(scenevm::Atom::SetPalette(
-            assets
-                .palette
-                .colors
-                .iter()
-                .map(|entry| {
-                    entry
-                        .as_ref()
-                        .map_or(scenevm::prelude::Vec4::zero(), |color| {
-                            let [r, g, b, a] = color.to_array();
-                            scenevm::prelude::Vec4::new(
-                                r.max(0.).powf(2.2),
-                                g.max(0.).powf(2.2),
-                                b.max(0.).powf(2.2),
-                                a,
-                            )
-                        })
-                })
-                .collect(),
-        ));
-        scene.mark_dynamics_dirty();
-        Ok(())
+        configure_scene_assets(scene, assets, editor)
     }
     /// Prepare each game widget against its own camera/history/target. Logical
     /// dimensions and optional scene upscaling never allocate CPU output storage.
@@ -91,4 +62,43 @@ impl SceneViews {
         }
         Ok(())
     }
+}
+
+/// Configure an explicitly owned scene from immutable CPU assets. This is shared
+/// by displayed views and independent asset producers; no window/device lookup.
+pub fn configure_scene_assets(
+    scene: &mut rusterix::SceneHandler,
+    assets: &Assets,
+    editor: bool,
+) -> Result<()> {
+    scene.sync_base_render_settings(&assets.config);
+    let shader = rusterix::Embedded::get("shader/2d_shader.wgsl")
+        .ok_or_else(|| RenderError("missing engine 2D program".into()))?;
+    let source = std::str::from_utf8(&shader.data).map_err(|e| RenderError(e.to_string()))?;
+    scene.vm.set_active_vm(0);
+    scene.vm.execute(scenevm::Atom::SetSource2D(source.into()));
+    scene.build_atlas(&assets.tiles, editor);
+    scene.sync_prefab_particle_sprites(&assets.block_props);
+    scene.vm.execute(scenevm::Atom::SetPalette(
+        assets
+            .palette
+            .colors
+            .iter()
+            .map(|entry| {
+                entry
+                    .as_ref()
+                    .map_or(scenevm::prelude::Vec4::zero(), |color| {
+                        let [r, g, b, a] = color.to_array();
+                        scenevm::prelude::Vec4::new(
+                            r.max(0.).powf(2.2),
+                            g.max(0.).powf(2.2),
+                            b.max(0.).powf(2.2),
+                            a,
+                        )
+                    })
+            })
+            .collect(),
+    ));
+    scene.mark_dynamics_dirty();
+    Ok(())
 }

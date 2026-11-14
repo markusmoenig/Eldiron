@@ -2,6 +2,17 @@
 use super::*;
 
 impl OrthographicBakeController {
+    /// Conservative original-channel working set for the whole current plan.
+    /// Applications use this to keep explicit migration adapters scoped until
+    /// their paged producers are adopted; computing this allocates no tile data.
+    pub fn planned_source_bytes(&self) -> u64 {
+        self.staging_asset.as_ref().map_or(0, |asset| {
+            u64::from(asset.tile_size)
+                .saturating_mul(u64::from(asset.tile_size))
+                .saturating_mul(24)
+                .saturating_mul(self.tile_plan.len() as u64)
+        })
+    }
     /// Read-only active destination/request identity for application-owned jobs.
     pub fn active_request(&self) -> Option<(Uuid, Uuid)> {
         self.is_rendering()

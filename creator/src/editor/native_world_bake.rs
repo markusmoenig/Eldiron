@@ -148,6 +148,7 @@ impl Editor {
             .unwrap();
         let id = region.id;
         region.map = Map::new();
+        region.iso_paint = Default::default();
         region.map.camera = MapCamera::ThreeDIso;
         let sector = crate::project_templates::rectangle(&mut region.map, -2., -2., 4., 4.);
         region.map.find_sector_mut(sector).unwrap().properties.set(
@@ -457,6 +458,175 @@ impl Editor {
             }
         }
         pixels
+    }
+    pub(crate) fn request_native_progressive_bake_for_test(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+    ) -> (
+        serde_json::Value,
+        Option<rusterix::map::OrthographicBakeAsset>,
+        u64,
+    ) {
+        let map = scope::map(&self.documents.project, &self.server_ctx).unwrap();
+        let mut authored = serde_json::to_value(map).unwrap();
+        authored
+            .as_object_mut()
+            .unwrap()
+            .remove("orthographic_bake");
+        authored.as_object_mut().unwrap().remove("changed");
+        let old = map.orthographic_bake.clone();
+        let revision = self.server_ctx.history.read().revision();
+        let params = {
+            let actions = self.server_ctx.actions.read();
+            let mut params = actions
+                .get_action_by_command_id("bake.render")
+                .unwrap()
+                .params();
+            params.set_i32_value("actionBakeSamples", 2);
+            crate::actions::nodeui_to_toml(&params)
+        };
+        self.sidebar
+            .execute_action_command(
+                &crate::actionscript::EditorActionRequest {
+                    command_id: "bake.render".into(),
+                    parameters_toml: params,
+                },
+                ui,
+                ctx,
+                &mut self.documents.project,
+                &mut self.server_ctx,
+            )
+            .unwrap();
+        (authored, old, revision)
+    }
+    pub(crate) fn native_progressive_bake_complete_for_test(
+        &self,
+        expected: &serde_json::Value,
+        old: &Option<rusterix::map::OrthographicBakeAsset>,
+        revision: u64,
+    ) -> bool {
+        let map = scope::map(&self.documents.project, &self.server_ctx).unwrap();
+        let mut authored = serde_json::to_value(map).unwrap();
+        authored
+            .as_object_mut()
+            .unwrap()
+            .remove("orthographic_bake");
+        authored.as_object_mut().unwrap().remove("changed");
+        assert_eq!(
+            &authored, expected,
+            "bake cannot modify authored geometry/selection"
+        );
+        let bake = self.server_ctx.bake.read();
+        assert!(
+            !self
+                .native_viewport
+                .world
+                .bake_jobs
+                .uses_adapter(self.documents.active_id(), bake.active_request()),
+            "controlled progressive fixture unexpectedly selected its adapter"
+        );
+        if bake.is_rendering() {
+            assert_eq!(
+                &map.orthographic_bake, old,
+                "preview cannot persist partial tiles"
+            );
+            return false;
+        }
+        if &map.orthographic_bake == old {
+            return false;
+        }
+        if !self
+            .native_viewport
+            .world
+            .presented
+            .as_ref()
+            .is_some_and(|frame| frame.ready && frame.baked && frame.stamp == SourceStamp::new(map))
+        {
+            return false;
+        }
+        let asset = map.orthographic_bake.as_ref().unwrap();
+        assert_eq!(asset.version, 5);
+        assert_eq!(asset.samples, 2);
+        assert!(!asset.tiles.is_empty());
+        let source = bake
+            .presentation_source(
+                map.id,
+                &self
+                    .native_world_camera()
+                    .unwrap()
+                    .as_scenevm_camera_for_surface(256., 256.),
+            )
+            .unwrap();
+        assert!(
+            source
+                .tiles()
+                .any(|(_, tile)| tile.depth.iter().any(|depth| depth.is_finite()))
+        );
+        assert!(source.tiles().any(|(_, tile)| {
+            tile.material
+                .chunks_exact(4)
+                .any(|p| p[0] != 0 || p[2] != 0)
+        }));
+        assert!(self.server_ctx.history.read().revision() != revision);
+        assert!(self.server_ctx.history.read().has_unsaved());
+        assert!(self.document_info().unwrap().dirty);
+        true
+    }
+    pub(crate) fn native_generated_bake_image_for_test(&self) -> (ImageHandle, (u32, u32)) {
+        let world = &self.native_viewport.world;
+        let frame = world.presented.as_ref().unwrap();
+        (
+            world.gpu.as_ref().unwrap().bake.image.as_ref().unwrap().1,
+            (frame.binding.size.0 as u32, frame.binding.size.1 as u32),
+        )
+    }
+    pub(crate) fn check_native_generated_bake_history_for_test(
+        &mut self,
+        old: &Option<rusterix::map::OrthographicBakeAsset>,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+    ) {
+        let generated = scope::map(&self.documents.project, &self.server_ctx)
+            .unwrap()
+            .orthographic_bake
+            .clone();
+        self.server_ctx.history.write().undo(
+            &mut self.server_ctx,
+            &mut self.documents.project,
+            ui,
+            ctx,
+        );
+        assert_eq!(
+            &scope::map(&self.documents.project, &self.server_ctx)
+                .unwrap()
+                .orthographic_bake,
+            old
+        );
+        self.server_ctx.history.write().redo(
+            &mut self.server_ctx,
+            &mut self.documents.project,
+            ui,
+            ctx,
+        );
+        assert_eq!(
+            scope::map(&self.documents.project, &self.server_ctx)
+                .unwrap()
+                .orthographic_bake,
+            generated
+        );
+        let document = self.document_info().unwrap().document;
+        let save = self.prepare_document_save(document, ctx).unwrap();
+        std::fs::write(
+            "/private/tmp/eldiron-native-generated-bake.eldiron",
+            self.document_save_bytes(save.ticket).unwrap(),
+        )
+        .unwrap();
+        assert!(
+            self.complete_document_save(save.ticket, true, None, ui, ctx)
+                .unwrap()
+                .clean
+        );
     }
     pub(crate) fn finish_native_bake_for_test(
         &mut self,

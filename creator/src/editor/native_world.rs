@@ -17,6 +17,8 @@ mod scope;
 mod custom;
 #[path = "native_world_bake.rs"]
 mod bake;
+#[path = "native_world_bake_job.rs"]
+mod bake_job;
 use crate::editor_overlay::panel::PanelScope;
 use crate::editor_overlay::procedural_gpu::GpuIcons;
 use crate::hud::{Hud, HudInputs, HudStyle};
@@ -379,6 +381,7 @@ pub(super) struct NativeWorldFrame {
 }
 pub(crate) struct NativeWorld {
     source: Option<source::Publication>,
+    bake_jobs: bake_job::Jobs,
     paste: Option<paste::Preview>,
     binding: Option<Binding>,
     epoch: u64,
@@ -425,6 +428,7 @@ impl Default for NativeWorld {
     fn default() -> Self {
         Self {
             source: None,
+            bake_jobs: Default::default(),
             paste: None,
             binding: None,
             epoch: 0,
@@ -853,7 +857,8 @@ impl Editor {
         });
         (bridge.server.state == rusterix::ServerState::Off || owned_play)
             && (owned_play || bridge.client.messages_to_draw.is_empty())
-            && !self.server_ctx.bake.read().is_rendering()
+            && !self.native_viewport.world.bake_jobs.uses_adapter(
+                self.documents.active_id(), self.server_ctx.bake.read().active_request())
     }
     pub(super) fn native_world_gesture_active(&self) -> bool {
         self.native_viewport.world.world_capture.is_some()
@@ -2222,6 +2227,17 @@ impl Editor {
         ctx.ui.set_focus(&view);
         ctx.ui.send(TheEvent::Paste(TheValue::Empty, None));
         (view, vertices, before)
+    }
+    pub(crate) fn native_reference_source_ready_for_test(&self) -> bool {
+        // Match update_ui's deliberate deferral: sprite-isometric authoring
+        // leaves hidden SceneVM chunks queued until a camera needs them.
+        let deferred = !self.server_ctx.game_mode
+            && self.server_ctx.editor_view_mode == EditorViewMode::D2
+            && self.server_ctx.editing_surface.is_none()
+            && self.documents.project.get_map(&self.server_ctx)
+                .is_some_and(|map| map.camera == MapCamera::TwoDIso);
+        deferred || !self.server_ctx.jobs.scene_initialized()
+            || !self.server_ctx.jobs.scene().has_pending_geometry()
     }
     pub(crate) fn native_world_source_for_test(&self) -> Option<(Arc<SceneBuildSnapshot>, bool)> {
         let source = self.native_viewport.world.source.as_ref()?;

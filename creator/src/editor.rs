@@ -4939,6 +4939,8 @@ impl Editor {
         self.server_ctx.sidebar_mode = SidebarMode::Region;
         self.server_ctx.camera.reset_for_project_switch();
         self.server_ctx.reference.clear_minimap();
+        #[cfg(feature = "native-render")]
+        self.cancel_native_bake_job();
         self.server_ctx.reset_bake_for_project_switch();
         self.play_session = None;
         #[cfg(feature = "native-render")]
@@ -9331,6 +9333,8 @@ impl TheTrait for Editor {
             // views that bypass the CPU viewport adapter below.
             self.server_ctx.reference.write().client.use_editor_canvas = !running_game_mode;
             self.server_ctx.reconcile_bake_scope(&self.documents.project, is_running);
+            #[cfg(feature = "native-render")]
+            self.update_native_bake(ui, ctx);
 
             // Draw the regular region canvas or the isolated Prefab canvas.
             // They intentionally have distinct widget identities so editor

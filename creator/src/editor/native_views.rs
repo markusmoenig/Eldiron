@@ -98,6 +98,7 @@ impl Editor {
     ) {
         #[cfg(not(target_arch = "wasm32"))]
         self.scepter_preview.bind_context(context.clone());
+        self.retire_native_bake_device(context.generation());
         if self.server_ctx.reference.bind_context(context) {
             self.procedural_material.reset_model_gpu();
         }
@@ -207,6 +208,7 @@ impl Editor {
             images.registry,
             self.server_ctx.animation_counter,
         );
+        self.prepare_native_bake(ctx, images.registry);
         let display = self.prepare_native_display_viewport(ui, ctx, images)?;
         let world = self.prepare_native_world_viewport(ui, ctx, images)?;
         let play = self.prepare_native_play_viewport(ui, ctx, images.registry)?;
@@ -255,6 +257,7 @@ impl Editor {
             || self.appearance_workspace.gpu_preview_waiting()
             || self.procedural_material.gpu_preview_waiting()
             || self.native_world_waiting()
+            || self.native_bake_waiting()
     }
     pub(crate) fn presented_native_views(
         &mut self,

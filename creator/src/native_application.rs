@@ -3185,6 +3185,34 @@ mod tests {
             }
             previous = Some(pixels.pixels().to_vec());
         }
+        let (authored, old, revision) = app.application.editor.request_native_progressive_bake_for_test(
+            &mut app.session.ui, &mut app.session.context);
+        let transfers = gpu.transfers();
+        let deadline = Instant::now() + Duration::from_secs(90);
+        let mut progressive_frames = 0;
+        loop {
+            app.update(host, Duration::from_millis(16));
+            let paint = app.frame(host, images).unwrap();
+            assert!(app.application.pending.as_ref().unwrap().world_for_test(), "progressive bake must keep the viewport native");
+            renderer.render(&paint, images, &output.view, output.descriptor.format, (1200,800), 1., [0.;4]).unwrap();
+            app.presented(host);
+            assert_no_viewport_readback(transfers, gpu);
+            assert!(!app.application.editor.native_world_has_cpu_storage_for_test());
+            progressive_frames += 1;
+            if app.application.editor.native_progressive_bake_complete_for_test(&authored, &old, revision) { break; }
+            assert!(Instant::now() < deadline, "native progressive bake did not publish");
+        }
+        assert!(gpu.transfers().asset_bake_readback_requests > transfers.asset_bake_readback_requests);
+        eprintln!("Native generated bake published after {progressive_frames} GPU frames");
+        app.application.editor.check_native_bake_pick_for_test(&fixture);
+        let (baked_image, baked_size) = app.application.editor.native_generated_bake_image_for_test();
+        let mut capture = ReadbackTicket::capture(gpu, images.get(baked_image).unwrap()).unwrap();
+        gpu.device.poll(wgpu::PollType::Wait { submission_index: None, timeout: Some(Duration::from_secs(30)) }).unwrap();
+        let captured = capture.try_finish(gpu).unwrap().unwrap();
+        let mut encoder = png::Encoder::new(std::fs::File::create("/private/tmp/eldiron-native-generated-bake.png").unwrap(), baked_size.0, baked_size.1);
+        encoder.set_color(png::ColorType::Rgba);encoder.set_depth(png::BitDepth::Eight);
+        encoder.write_header().unwrap().write_image_data(captured.pixels()).unwrap();
+        app.application.editor.check_native_generated_bake_history_for_test(&old, &mut app.session.ui, &mut app.session.context);
         check_native_paste(app, host, images, gpu, renderer, output);
         app.application.editor.finish_native_bake_for_test(
             fixture,
@@ -3481,16 +3509,21 @@ mod tests {
         renderer: &mut PaintRenderer,
         output: &Arc<GpuImage>,
     ) {
-        let source = app.application.editor.reference_for_test().read()
-            .scene_handler
-            .build_index
-            .snapshot();
-        for _ in 0..128 {
+        let deadline = Instant::now() + Duration::from_secs(30);
+        loop {
             app.update(host, Duration::from_millis(16));
-            if app.application.editor.native_world_source_for_test().is_some_and(|(_, ready)| ready) {
+            if app.application.editor.native_world_source_for_test().is_some_and(|(_, ready)| ready)
+                && app.application.editor.native_reference_source_ready_for_test() {
                 break;
             }
+            assert!(Instant::now() < deadline, "preceding authoring jobs must settle before isolating paste");
+            // The retained reference worker advances on the editor's wall-clock
+            // redraw cadence. A tight update-only loop can finish before its
+            // next tick, even though the owned source has already completed.
+            std::thread::sleep(Duration::from_millis(2));
         }
+        assert!(app.application.editor.native_reference_source_ready_for_test(), "preceding authoring jobs must settle before isolating paste");
+        let source = app.application.editor.reference_for_test().read().scene_handler.build_index.snapshot();
         let (owned_source, ready) = app.application.editor.native_world_source_for_test().unwrap();
         assert!(ready, "the application must publish its own completed authoring source");
         assert!(!Arc::ptr_eq(&source, &owned_source), "native geometry must not borrow the reference worker's publication");
