@@ -17,6 +17,7 @@ Started: 2026-11-11 (Asia/Bangkok). Overall Goal: active; full M0–M9 scope rem
 - Text: Parley 0.9 layout/fallback/bidi plus required Swash 0.2.10 glyph images. The local Parley dictionary-analysis patch and test scope are documented in `vendor/parley/ELDIRON-PATCH.md`. These are already available in the local registry; version compatibility will be compiled and checked.
 - Paths: Lyon tessellation with GPU rasterization; static Zeno masks remain only an optional asset/reference path. Coverage/AA quality remains a visual verification gate.
 - Preserve serialized legacy core values through identity-compatible re-exports; new CPU image data has size/pixels without UI position/display scale.
+- User instruction (2026-11-14): older experimental paint algorithm versions do not require backwards compatibility. Preserve current paint/project serialization; do not add legacy paint replay requirements to native producers.
 
 ## Milestone state
 
@@ -11246,3 +11247,78 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   release p50/p95/p99/input/startup/memory and physical platform acceptance open.
   Source-only images/captures remain explicit CPU assets; do not substitute
   passing handoff fixtures for those still-unverified full-plan deliverables.
+
+## 2026-11-14 — Frozen paint source projection and hidden linked bake (active)
+
+- Previous goal turn was a status-only response, classified no progress. Revalidated
+  HEAD ea929b8a and the clean rewrite tree; concurrent untracked networking
+  concept remains untouched. Full M0–M9 objective remains active.
+- User steering: backwards compatibility for old paint versions is unnecessary.
+  Current paint serialization remains unchanged; native frozen sources now admit
+  only current-version derived UV pixels. No legacy stroke replay is added.
+- Replaced the private bake's whole authoring-layer clone with a CPU source
+  projection: current baked UV chunks, regional stamps and derived linked owners.
+  Stroke history, selection masks/tint, camera-space screen chunks, source cache
+  maps and tool settings are absent. Stamp image Arcs stay shared and frozen.
+- Prefab render-source merging uses the existing canonical expansion/order and
+  source-local UV IDs, copies no stroke history and omits obsolete UV versions.
+  Existing authoring callers retain their behavior. Linked free-standing stamp
+  expansion is still an open existing-policy adapter, not claimed implemented.
+- Shared surface upload now borrows immutable baked chunks when no selection
+  tint is active; only selection composition allocates a writable chunk copy.
+- Added CPU source-content/ownership coverage and actual private-GPU production
+  with two translated/rotated linked Prefab instances while PolyView is zero.
+  The GPU workflow must publish real green saved albedo through history without
+  a displayed scene, then reject a catalog-only revision during pending work
+  after the world widget disappears. These checks are collecting, not passed.
+- Native test build before user steering PASS40.46s; superseded by the current
+  simplified source and hidden-workflow fixture. Final native build handle65169,
+  /private/tmp/eldiron-owned-scepter-check-test-frozen-painted-hidden.log.
+  No legacy-version compatibility pass is required by the updated user scope.
+- General source/atlas/target budgeting and paging, ownership/core extraction,
+  canonical retirement, release performance and physical platform acceptance
+  remain open. This source projection alone does not close those full-plan gates.
+
+- Current-source native build PASS36.71s. CPU snapshot contract PASS1/0.15s;
+  actual hidden linked producer/cancel workflow PASS1/4.89s with1tile and1,573
+  green original-albedo pixels, history+dirty publication, unchanged source
+  paint, zero ordinary readback, no displayed World GPU object, and no capture
+  reservation after pending-catalog retirement. Registered test path:
+  editor::native_views::world::bake_job::scope_tests::hidden_world_bakes_linked_prefab_paint_and_retires_catalog_edits
+  (`--exact --ignored --nocapture`), log/private/tmp/eldiron-hidden-linked-bake.log.
+- Assembled native integration PASS1/257.14s on that projected-source/borrowed-
+  packing checkpoint, log/private/tmp/eldiron-frozen-paint-assembly.log:
+  all5persisted bake phases/all17custom view phases referenceRGB0; painted
+  beauty/albedo/normal/material exact0and depth parity,63,849green albedo pixels,
+  authored paint unchanged, generated history/save and pending paint retirement;
+  fractionalDPI/source/minimap deltas<=1; surrounding Play/documents/clipboard/
+  presentation/recovery. Visually rechecked the generated original albedo PNG.
+- Final follow-up trimmed linked empty history chunks and pending stroke IDs
+  as well as stroke bodies; the CPU fixture now includes pending IDs to verify
+  their exclusion. Final native rebuild PASS33.68s, final CPU contractPASS1/0.17s
+  and final actual hidden linked GPU workflowPASS1/5.43s (same1,573green pixels),
+  log/private/tmp/eldiron-hidden-linked-bake-final.log. Broad native assembly
+  above was not rerun for this history-only trim; final focused checks cover it.
+- Final Creator wasm library PASS14.44s and default/reference libraryPASS14.51s:
+  MACOSX_DEPLOYMENT_TARGET=26.1 CARGO_TARGET_DIR=/Users/markusmoenig/Eldiron/target
+  cargo check --locked --offline -p eldiron-creator --lib
+  (wasm additionally --no-default-features --features browser-host
+  --target wasm32-unknown-unknown). Logs/private/tmp/eldiron-frozen-paint-final-
+  {wasm,reference}.log. Earlier wasm checkpoint18.08s. No new real browser or
+  Swift runtime matrix is claimed from these compile checks.
+- All build/test handles for this batch are terminal. No serialized type changed.
+  The new hidden workflow calls the application's private producer/update owner
+  with zero/missing PolyView and real GPU work; it does not replace the still-
+  required assembled root/dock scheduling and physical-window acceptance gates.
+- Next paging audit confirmed three coupled causes: controller
+  orthographic_bake.rs::sync_persisted_asset deep-compares/clones encoded assets
+  and eagerly decodes every tile; CreatorContext::reconcile_bake_scope invokes
+  this before producer selection; GPU orthographic_bake/mod.rs::render retains
+  visible tiles but rejects visible sets above64MiB. Change all relevant source
+  preparation/consumption boundaries for bounded decoded original channels and
+  paged GPU residency, then remove the corresponding above-budget adapters.
+  Preserve complete five-channel publication, source cancellation and history.
+- Full M0–M9 Goal remains active. Other open work: linked free-standing stamp
+  transform expansion and remaining paint contexts, general atlas/target/source
+  budgets, core/runtime extraction, canonical Creator retirement, measured
+  release p50/p95/p99/input/startup/memory and physical platform acceptance.

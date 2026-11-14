@@ -438,7 +438,13 @@ impl IsoPaintRenderer {
         if render_cache.surface_uploaded_key == Some(surface_key) {
             return false;
         }
-        let display_chunks = Self::surface_chunks_with_selection(layer);
+        // Only the transient selection needs writable pixels. Ordinary views
+        // and private bake scenes can pack the immutable UV source directly.
+        let display_chunks = if has_selection {
+            std::borrow::Cow::Owned(Self::surface_chunks_with_selection(layer))
+        } else {
+            std::borrow::Cow::Borrowed(&layer.baked_chunks)
+        };
         let Some((width, height, color_rgba, material_rgba, entries)) =
             Self::build_surface_paint_atlas(&display_chunks)
         else {

@@ -336,23 +336,131 @@ impl Editor {
 }
 
 pub(super) struct Snapshot(IsoPaintLayer);
+
+#[cfg(test)]
+#[test]
+fn frozen_paint_source_owns_current_pixels_without_editor_history() {
+    use shared::iso_paint::{IsoPaintOwner, IsoPaintPoint, IsoPaintSelection};
+    use vek::Vec2;
+    let mut project = Project::new();
+    let mut region = shared::region::Region::new();
+    let paint = &mut region.iso_paint;
+    let owner = IsoPaintOwner::Sector(7);
+    let geo = [7, 0, 0, 1];
+    let mut mask = IsoPaintSelection::new(owner.clone());
+    for y in 0..16 {
+        for x in 0..16 {
+            mask.set_pixel(owner.clone(), geo, [x, y]);
+        }
+    }
+    paint.set_active_selection(mask);
+    paint.active_size = 3.;
+    paint.active_color = [24, 190, 72, 192];
+    paint.begin_stroke(
+        IsoPaintPoint::new([8, 8], None, Some(owner.clone()))
+            .with_surface_uv(Some(Vec2::new(0.125, 0.125)))
+            .with_paint_geo(Some(geo)),
+    );
+    paint.active_brush = "grass".into();
+    paint.add_stamp(IsoPaintPoint::new(
+        [10, 10],
+        Some(Vec3::zero()),
+        Some(owner.clone()),
+    ));
+    paint.ensure_screen_chunk([0, 0]);
+    paint.selection_visible = true;
+    paint.surface_commit_strokes.push(Uuid::new_v4());
+    // Unreferenced selection data must never enter the frozen source.
+    paint
+        .selection_masks
+        .insert(Uuid::new_v4(), IsoPaintSelection::new(owner));
+    let asset = Uuid::new_v4();
+    region
+        .map
+        .block_prop_instances
+        .push(rusterix::BlockPropInstance::new(asset));
+    project.block_prop_paint.insert(asset, paint.clone());
+    let assets = rusterix::Assets::default();
+    let before = serde_json::to_vec(&region.iso_paint).unwrap();
+    let mut expected = region.iso_paint.clone();
+    crate::block_props::merge_prefab_paint_for_map(
+        &mut expected,
+        &region.map,
+        &assets.block_props,
+        &project.block_prop_paint,
+    );
+    let snapshot = Snapshot::capture(&region, &project, &assets).0;
+    assert_eq!(snapshot.baked_chunks, expected.baked_chunks);
+    assert!(
+        snapshot
+            .baked_chunks
+            .values()
+            .any(|chunk| chunk.color_rgba.chunks_exact(4).any(|p| p[3] > 0))
+    );
+    assert_eq!(
+        snapshot
+            .chunks
+            .values()
+            .flat_map(|c| &c.stamps)
+            .collect::<Vec<_>>(),
+        expected
+            .chunks
+            .values()
+            .flat_map(|c| &c.stamps)
+            .collect::<Vec<_>>()
+    );
+    assert!(snapshot.chunks.values().all(|c| c.strokes.is_empty()));
+    assert!(snapshot.selection_masks.is_empty() && snapshot.screen_chunks.is_empty());
+    assert!(snapshot.source_images.is_empty() && snapshot.surface_commit_strokes.is_empty());
+    assert!(snapshot.active_selection_id.is_none() && !snapshot.selection_visible);
+    assert_eq!(serde_json::to_vec(&region.iso_paint).unwrap(), before);
+    // Retiring the document's history/selection cannot invalidate frozen pixels.
+    region.iso_paint = Default::default();
+    project.block_prop_paint.clear();
+    assert_eq!(snapshot.baked_chunks, expected.baked_chunks);
+}
+
 impl Snapshot {
     pub(super) fn capture(
         region: &shared::region::Region,
         project: &Project,
         assets: &rusterix::Assets,
     ) -> Self {
-        let mut paint = region.iso_paint.clone();
-        crate::block_props::merge_prefab_paint_for_map(
+        use shared::iso_paint::{ISO_PAINT_BAKE_VERSION, IsoPaintChunk};
+        let source = &region.iso_paint;
+        let mut paint = IsoPaintLayer {
+            visible: source.visible,
+            ..Default::default()
+        };
+        if source.visible {
+            // Obsolete experimental UV versions are outside the compatibility
+            // contract. Never replay their history or use their derived pixels.
+            if source.baked_version == ISO_PAINT_BAKE_VERSION {
+                paint.baked_chunks = source.baked_chunks.clone();
+            }
+            for (key, chunk) in &source.chunks {
+                if chunk.stamps.is_empty() {
+                    continue;
+                }
+                paint.chunks.insert(
+                    key.clone(),
+                    IsoPaintChunk {
+                        origin: chunk.origin,
+                        revision: chunk.revision,
+                        stamp_revision: chunk.stamp_revision,
+                        strokes: Vec::new(),
+                        stamps: chunk.stamps.clone(),
+                    },
+                );
+            }
+        }
+        crate::block_props::merge_prefab_paint_source_for_map(
             &mut paint,
             &region.map,
             &assets.block_props,
             &project.block_prop_paint,
+            false,
         );
-        // Persistent stroke masks remain; the active editor selection is not
-        // authored transport and must never become part of a saved bake.
-        paint.selection_visible = false;
-        paint.ensure_baked_paint_current();
         Self(paint)
     }
     pub(super) fn upload(

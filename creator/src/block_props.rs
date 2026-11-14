@@ -1247,6 +1247,18 @@ pub fn merge_prefab_paint_for_map(
     assets: &IndexMap<Uuid, rusterix::BlockPropAsset>,
     paint_catalog: &IndexMap<Uuid, IsoPaintLayer>,
 ) {
+    merge_prefab_paint_source_for_map(target, map, assets, paint_catalog, true);
+}
+
+/// Render snapshots can omit stroke history once the region's UV bake is
+/// current. Keep instance expansion and source ordering identical to authoring.
+pub(crate) fn merge_prefab_paint_source_for_map(
+    target: &mut IsoPaintLayer,
+    map: &Map,
+    assets: &IndexMap<Uuid, rusterix::BlockPropAsset>,
+    paint_catalog: &IndexMap<Uuid, IsoPaintLayer>,
+    copy_history: bool,
+) {
     target.surface_instance_owners.clear();
     if !target.visible {
         target.chunks.clear();
@@ -1279,27 +1291,37 @@ pub fn merge_prefab_paint_for_map(
         let Some(source) = paint_catalog.get(&asset_id).filter(|paint| paint.visible) else {
             continue;
         };
+        if !copy_history && source.baked_version != shared::iso_paint::ISO_PAINT_BAKE_VERSION {
+            continue;
+        }
         target.visible = true;
-        for (key, chunk) in &source.chunks {
-            let mut chunk = chunk.clone();
-            // Surface paint is shared directly. Free-standing paint stamps need
-            // a per-instance transform expansion and are deliberately deferred.
-            chunk.stamps.clear();
-            if let Some(existing) = target.chunks.get_mut(key) {
-                existing.revision = existing.revision.max(chunk.revision);
-                existing.stamp_revision = existing.stamp_revision.max(chunk.stamp_revision);
-                existing.strokes.extend(chunk.strokes);
-            } else {
-                target.chunks.insert(key.clone(), chunk);
+        if copy_history {
+            for (key, chunk) in &source.chunks {
+                // Surface paint is shared directly. Free-standing paint stamps need
+                // a per-instance transform expansion and are deliberately deferred.
+                let chunk = IsoPaintChunk {
+                    origin: chunk.origin,
+                    revision: chunk.revision,
+                    stamp_revision: chunk.stamp_revision,
+                    strokes: chunk.strokes.clone(),
+                    stamps: Vec::new(),
+                };
+                if let Some(existing) = target.chunks.get_mut(key) {
+                    existing.revision = existing.revision.max(chunk.revision);
+                    existing.stamp_revision = existing.stamp_revision.max(chunk.stamp_revision);
+                    existing.strokes.extend(chunk.strokes);
+                } else {
+                    target.chunks.insert(key.clone(), chunk);
+                }
+            }
+            for stroke_id in &source.surface_commit_strokes {
+                if !target.surface_commit_strokes.contains(stroke_id) {
+                    target.surface_commit_strokes.push(*stroke_id);
+                }
             }
         }
         for (key, chunk) in &source.baked_chunks {
             target.baked_chunks.insert(key.clone(), chunk.clone());
-        }
-        for stroke_id in &source.surface_commit_strokes {
-            if !target.surface_commit_strokes.contains(stroke_id) {
-                target.surface_commit_strokes.push(*stroke_id);
-            }
         }
     }
 }
