@@ -12774,3 +12774,78 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   controlled baked map, preserving entities and all referenced original binary
   entries. Initial synthetic ZIP omitted those referenced channel entries; fixed
   before decode. No repository project or production startup policy changed.
+
+- Native paint guard checkpoint1661291f. Test build45.61s/CPU test0.14s.
+- Next resource slice (active): orthographic bake color outputs now acquire the
+  existing shared TargetPool and publish a lease-retaining GpuImage. Exact
+  storage/copy usages retained; a progressive base stays leased while its new
+  private target is acquired. Existing reference pan/resize/alpha/sun/depth test
+  now also checks resize-return reuse and current-source recomposition. Build/
+  actual GPU checks pending; depth buffers and projection uniforms not changed.
+- The extra player fixture initially retained its authored first-person camera,
+  which correctly bypasses orthographic bake presentation. Test fixture's game
+  widget is now explicitly iso before the next run; no production camera policy
+  changed to manufacture worker activity.
+
+- Bake pool first compile found a redundant Arc around GpuImage::from_target
+  (that API already returns Arc). Corrected the caller after compiler exit;
+  focused four-test actual GPU suite is running. No Rust edits while compiling.
+  Source usage/alpha/color encoding/depth behavior remain the reference gates.
+
+- Shared bake color targets native GPU PASS4/13.80s (final test build3.85s):
+  source reference RGB maxdelta0/0/1 across pan/resize/light phases; exact depth,
+  resize-return cache hits with allocations fixed3, original-channel paging,
+  progressive updates/retained sources and dynamic depth overlays pass. Browser
+  Creator/player check PASS11.89s. Rebuilding only player release for actual
+  current-source browser baked/color-pool evidence; unchanged broad suites not
+  repeated. Depth allocations/global in-flight/driver budget remain open.
+- Player-baked source matching also requires its authored camera axes to match
+  the source. Fixture40degree elevation intentionally bypassed a35.264degree
+  persisted source. Corrected the task fixture to iso/135/35.2643897, reloaded
+  before evidence initial state; no production camera compatibility relaxed.
+
+- Corrected extra player-codec probe scope after source audit: runtime game views
+  do not call OrthographicBakeRenderer/presentation_source at all (presentation
+  references outside its module are only lib.rs export). Configuring a runtime
+  iso camera therefore cannot exercise this Creator authoring-bake codec path.
+  Prior fixture camera hypotheses were not sufficient and no player-baked pass
+  is claimed. Stopped only the exact owned Node predicate helper; healthy
+  unbaked player resize/recovery remains verified. No production feature added
+  solely to satisfy an inapplicable test. Current color-pool browser proof must
+  run through Creator's actual bake consumer, not player.
+
+- Current-source browser packages completed: worker23.59s, player44.23s,
+  Creator1m27s (same pinned bindings/sidecar assembly). Actual Creator LargeGpuBake
+ 54visible-tile proof running through warm/resize-return/device recovery. The
+  unused-player-codec predicate was explicitly retired above; no fabricated
+  player-codec or browser color-pool success is recorded from it.
+
+- Current Creator browser bake color-pool proof PASS. Initial54visible originals
+  finish54dedicated codec requests with active/job/bridge0. Real warmed frames
+ 80->112 keep pooled textures17/immutable buffers527; resized190->222 keep
+ 30/820. Returning2400px from2424px reuses all30targets; device generation1->2
+  rebuilds then warmed366->398 keep47targets/1347buffers. Same clean document,
+  no normal color readback/Canvas2D/GPU/browser/worker errors;21,504bytes remain
+  separately classified explicit startup asset captures. Final216codec requests
+  across reprojections/recovery, all completed, no live charges at ready.
+- Recovered screenshot visually inspected: original tiled floor, grid/guides,
+  controls/text/property and palette panels intact. Scene crop(80,170)-(1810,895)
+  is byte-identical to browser-target-pool-150.png:1,254,250RGBApixels/maxdelta0.
+  Durable browser-bake-color-target-pool.json records phases/counters/limitations;
+  log/private/tmp/eldiron-bake-target-pool-browser-proof.log. No duplicate PNG
+  committed for unchanged visual composition. Bake color target reuse subtask
+  verified; full rewrite Goal stays active.
+- Next independent resource work: OrthographicBakeOverlay still creates raw
+  display color storage in overlay.rs; bake camera-depth buffers in mod.rs are
+  per-resize; dispatch and overlay allocate projection uniforms per pass. Batch
+  their lease/cache conversion with focused lifetime/queued draw evidence, not
+  repeated unchanged broad suites. These derived resources belong to the same
+  injected context. Shared budgets must still account for active/in-flight
+  ownership, codec scratch and driver overhead separately from retained cache.
+- Remaining M0–M9 gates include above-budget current paint/input paging,
+  oversized individual original tiles, full client policy/workflow inventory,
+  dynamic DPR/input behavior (browser metrics discrepancy recorded), other
+  browser CPU jobs/codecs, physical native/Windows/Linux/iOS workflows and
+  equal-hardware optimized performance/startup/input/memory measurements. Do not
+  turn unavailable platform evidence into a pass. No project schemas changed;
+  concurrent networking-mmo-concept.md remains untouched.

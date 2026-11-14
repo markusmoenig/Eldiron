@@ -201,6 +201,23 @@ fn tiles_compose_with_reference_pan_resize_alpha_sun_depth_and_retained_sources(
             );
         }
     }
+    // Returning to a retired size reuses shared target storage. The changed
+    // projection must still clear/recompose it, preserving current source data.
+    let before = context.target_pool_usage();
+    assert_eq!(before.allocations, 3);
+    let source = owner.presentation_source(region, &camera).unwrap();
+    let returned = ready(&mut renderer, &source, &camera, (96, 64), None);
+    let after = context.target_pool_usage();
+    assert_eq!(after.allocations, before.allocations);
+    assert!(after.hits > before.hits);
+    let expected = owner.compose_rgba(region, 96, 64, &camera).unwrap();
+    assert!(
+        colors(&context, &returned)
+            .iter()
+            .zip(expected)
+            .all(|(a, b)| a.abs_diff(b) <= 1)
+    );
+    drop(returned);
     let mut legacy = owner.take_persisted_update().unwrap().unwrap();
     legacy.version = 3;
     owner.sync_persisted_asset(region, Some(&legacy));

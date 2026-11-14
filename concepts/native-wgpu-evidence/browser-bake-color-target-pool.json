@@ -1,0 +1,785 @@
+{
+  "date": "2026-11-14",
+  "scope": "Shared retained color-target cache for original bake GPU composition; depth buffers/projection uniforms/global driver memory remain outside this change.",
+  "native_gpu": {
+    "cases": 4,
+    "seconds": 13.8,
+    "source_max_color_deltas": [
+      0,
+      0,
+      1
+    ],
+    "resize_return_allocations": 3,
+    "resize_return_cache_hit": true
+  },
+  "browser": {
+    "initial": {
+      "state": "editing",
+      "frames": 68,
+      "generation": 1,
+      "document": "28a69c95-7a6a-4ead-b42e-ce9cecfdb03e",
+      "dirty": "false",
+      "canvas": [
+        [
+          2400,
+          1287
+        ]
+      ],
+      "root_cpu_bytes": "0",
+      "readback_bytes": "21504",
+      "explicit_asset_readback_bytes": "21504",
+      "source": {
+        "context": "Region(939f0cf8-fe61-4f81-a493-e7f680efaab3)",
+        "map": "e0823025-0441-4b30-8fb8-5a25df7bd713",
+        "presented": {
+          "baked": true,
+          "context": "Region(939f0cf8-fe61-4f81-a493-e7f680efaab3)",
+          "custom": false,
+          "map": "e0823025-0441-4b30-8fb8-5a25df7bd713",
+          "ready": true
+        }
+      },
+      "bake_pages": {
+        "limit": 67108864,
+        "resident": 8388608,
+        "shared_bytes": 33554432,
+        "submissions": 0,
+        "upload_bytes": 0,
+        "visible": 54,
+        "waiting": false
+      },
+      "codec": {
+        "configured": true,
+        "workers": 1,
+        "active_jobs": 0,
+        "requests": 54,
+        "completed": 54,
+        "cancelled": 0,
+        "failures": 0,
+        "job_bytes": 0,
+        "bridge_bytes": 0,
+        "bridge_limit": 67108864
+      },
+      "probe": {
+        "workers": [
+          {
+            "url": "./eldiron-bake-codec-worker-bootstrap.js",
+            "ready": true,
+            "window": false,
+            "posted": 54,
+            "completed": 54,
+            "invalid": 0,
+            "inputBytes": 21358296,
+            "outputBytes": 70778880,
+            "errors": [],
+            "sample": 0
+          }
+        ],
+        "immutableBuffers": 524,
+        "immutableBufferBytes": 188828,
+        "pooledTargets": 17,
+        "pooledSceneTargets": 5,
+        "contexts2D": 0,
+        "colorCopies": 0,
+        "devices": 1,
+        "assetCopies": 6,
+        "gpuErrors": [],
+        "errors": [],
+        "console": []
+      }
+    },
+    "warm": {
+      "before": {
+        "state": "editing",
+        "frames": 80,
+        "generation": 1,
+        "document": "28a69c95-7a6a-4ead-b42e-ce9cecfdb03e",
+        "dirty": "false",
+        "canvas": [
+          [
+            2400,
+            1287
+          ]
+        ],
+        "root_cpu_bytes": "0",
+        "readback_bytes": "21504",
+        "explicit_asset_readback_bytes": "21504",
+        "source": {
+          "context": "Region(939f0cf8-fe61-4f81-a493-e7f680efaab3)",
+          "map": "e0823025-0441-4b30-8fb8-5a25df7bd713",
+          "presented": {
+            "baked": true,
+            "context": "Region(939f0cf8-fe61-4f81-a493-e7f680efaab3)",
+            "custom": false,
+            "map": "e0823025-0441-4b30-8fb8-5a25df7bd713",
+            "ready": true
+          }
+        },
+        "bake_pages": {
+          "limit": 67108864,
+          "resident": 8388608,
+          "shared_bytes": 33554432,
+          "submissions": 0,
+          "upload_bytes": 0,
+          "visible": 54,
+          "waiting": false
+        },
+        "codec": {
+          "configured": true,
+          "workers": 1,
+          "active_jobs": 0,
+          "requests": 54,
+          "completed": 54,
+          "cancelled": 0,
+          "failures": 0,
+          "job_bytes": 0,
+          "bridge_bytes": 0,
+          "bridge_limit": 67108864
+        },
+        "probe": {
+          "workers": [
+            {
+              "url": "./eldiron-bake-codec-worker-bootstrap.js",
+              "ready": true,
+              "window": false,
+              "posted": 54,
+              "completed": 54,
+              "invalid": 0,
+              "inputBytes": 21358296,
+              "outputBytes": 70778880,
+              "errors": [],
+              "sample": 0
+            }
+          ],
+          "immutableBuffers": 527,
+          "immutableBufferBytes": 190028,
+          "pooledTargets": 17,
+          "pooledSceneTargets": 5,
+          "contexts2D": 0,
+          "colorCopies": 0,
+          "devices": 1,
+          "assetCopies": 6,
+          "gpuErrors": [],
+          "errors": [],
+          "console": []
+        }
+      },
+      "after": {
+        "state": "editing",
+        "frames": 112,
+        "generation": 1,
+        "document": "28a69c95-7a6a-4ead-b42e-ce9cecfdb03e",
+        "dirty": "false",
+        "canvas": [
+          [
+            2400,
+            1287
+          ]
+        ],
+        "root_cpu_bytes": "0",
+        "readback_bytes": "21504",
+        "explicit_asset_readback_bytes": "21504",
+        "source": {
+          "context": "Region(939f0cf8-fe61-4f81-a493-e7f680efaab3)",
+          "map": "e0823025-0441-4b30-8fb8-5a25df7bd713",
+          "presented": {
+            "baked": true,
+            "context": "Region(939f0cf8-fe61-4f81-a493-e7f680efaab3)",
+            "custom": false,
+            "map": "e0823025-0441-4b30-8fb8-5a25df7bd713",
+            "ready": true
+          }
+        },
+        "bake_pages": {
+          "limit": 67108864,
+          "resident": 8388608,
+          "shared_bytes": 33554432,
+          "submissions": 0,
+          "upload_bytes": 0,
+          "visible": 54,
+          "waiting": false
+        },
+        "codec": {
+          "configured": true,
+          "workers": 1,
+          "active_jobs": 0,
+          "requests": 54,
+          "completed": 54,
+          "cancelled": 0,
+          "failures": 0,
+          "job_bytes": 0,
+          "bridge_bytes": 0,
+          "bridge_limit": 67108864
+        },
+        "probe": {
+          "workers": [
+            {
+              "url": "./eldiron-bake-codec-worker-bootstrap.js",
+              "ready": true,
+              "window": false,
+              "posted": 54,
+              "completed": 54,
+              "invalid": 0,
+              "inputBytes": 21358296,
+              "outputBytes": 70778880,
+              "errors": [],
+              "sample": 0
+            }
+          ],
+          "immutableBuffers": 527,
+          "immutableBufferBytes": 190028,
+          "pooledTargets": 17,
+          "pooledSceneTargets": 5,
+          "contexts2D": 0,
+          "colorCopies": 0,
+          "devices": 1,
+          "assetCopies": 6,
+          "gpuErrors": [],
+          "errors": [],
+          "console": []
+        }
+      }
+    },
+    "resized": {
+      "state": "editing",
+      "frames": 178,
+      "generation": 1,
+      "document": "28a69c95-7a6a-4ead-b42e-ce9cecfdb03e",
+      "dirty": "false",
+      "canvas": [
+        [
+          2424,
+          1287
+        ]
+      ],
+      "root_cpu_bytes": "0",
+      "readback_bytes": "21504",
+      "explicit_asset_readback_bytes": "21504",
+      "source": {
+        "context": "Region(939f0cf8-fe61-4f81-a493-e7f680efaab3)",
+        "map": "e0823025-0441-4b30-8fb8-5a25df7bd713",
+        "presented": {
+          "baked": true,
+          "context": "Region(939f0cf8-fe61-4f81-a493-e7f680efaab3)",
+          "custom": false,
+          "map": "e0823025-0441-4b30-8fb8-5a25df7bd713",
+          "ready": true
+        }
+      },
+      "bake_pages": {
+        "limit": 67108864,
+        "resident": 8388608,
+        "shared_bytes": 33554432,
+        "submissions": 0,
+        "upload_bytes": 0,
+        "visible": 54,
+        "waiting": false
+      },
+      "codec": {
+        "configured": true,
+        "workers": 1,
+        "active_jobs": 0,
+        "requests": 108,
+        "completed": 108,
+        "cancelled": 0,
+        "failures": 0,
+        "job_bytes": 0,
+        "bridge_bytes": 0,
+        "bridge_limit": 67108864
+      },
+      "probe": {
+        "workers": [
+          {
+            "url": "./eldiron-bake-codec-worker-bootstrap.js",
+            "ready": true,
+            "window": false,
+            "posted": 108,
+            "completed": 108,
+            "invalid": 0,
+            "inputBytes": 42716592,
+            "outputBytes": 141557760,
+            "errors": [],
+            "sample": 0
+          }
+        ],
+        "immutableBuffers": 819,
+        "immutableBufferBytes": 277068,
+        "pooledTargets": 30,
+        "pooledSceneTargets": 10,
+        "contexts2D": 0,
+        "colorCopies": 0,
+        "devices": 1,
+        "assetCopies": 6,
+        "gpuErrors": [],
+        "errors": [],
+        "console": []
+      }
+    },
+    "resize-warm": {
+      "before": {
+        "state": "editing",
+        "frames": 190,
+        "generation": 1,
+        "document": "28a69c95-7a6a-4ead-b42e-ce9cecfdb03e",
+        "dirty": "false",
+        "canvas": [
+          [
+            2424,
+            1287
+          ]
+        ],
+        "root_cpu_bytes": "0",
+        "readback_bytes": "21504",
+        "explicit_asset_readback_bytes": "21504",
+        "source": {
+          "context": "Region(939f0cf8-fe61-4f81-a493-e7f680efaab3)",
+          "map": "e0823025-0441-4b30-8fb8-5a25df7bd713",
+          "presented": {
+            "baked": true,
+            "context": "Region(939f0cf8-fe61-4f81-a493-e7f680efaab3)",
+            "custom": false,
+            "map": "e0823025-0441-4b30-8fb8-5a25df7bd713",
+            "ready": true
+          }
+        },
+        "bake_pages": {
+          "limit": 67108864,
+          "resident": 8388608,
+          "shared_bytes": 33554432,
+          "submissions": 0,
+          "upload_bytes": 0,
+          "visible": 54,
+          "waiting": false
+        },
+        "codec": {
+          "configured": true,
+          "workers": 1,
+          "active_jobs": 0,
+          "requests": 108,
+          "completed": 108,
+          "cancelled": 0,
+          "failures": 0,
+          "job_bytes": 0,
+          "bridge_bytes": 0,
+          "bridge_limit": 67108864
+        },
+        "probe": {
+          "workers": [
+            {
+              "url": "./eldiron-bake-codec-worker-bootstrap.js",
+              "ready": true,
+              "window": false,
+              "posted": 108,
+              "completed": 108,
+              "invalid": 0,
+              "inputBytes": 42716592,
+              "outputBytes": 141557760,
+              "errors": [],
+              "sample": 0
+            }
+          ],
+          "immutableBuffers": 820,
+          "immutableBufferBytes": 277148,
+          "pooledTargets": 30,
+          "pooledSceneTargets": 10,
+          "contexts2D": 0,
+          "colorCopies": 0,
+          "devices": 1,
+          "assetCopies": 6,
+          "gpuErrors": [],
+          "errors": [],
+          "console": []
+        }
+      },
+      "after": {
+        "state": "editing",
+        "frames": 222,
+        "generation": 1,
+        "document": "28a69c95-7a6a-4ead-b42e-ce9cecfdb03e",
+        "dirty": "false",
+        "canvas": [
+          [
+            2424,
+            1287
+          ]
+        ],
+        "root_cpu_bytes": "0",
+        "readback_bytes": "21504",
+        "explicit_asset_readback_bytes": "21504",
+        "source": {
+          "context": "Region(939f0cf8-fe61-4f81-a493-e7f680efaab3)",
+          "map": "e0823025-0441-4b30-8fb8-5a25df7bd713",
+          "presented": {
+            "baked": true,
+            "context": "Region(939f0cf8-fe61-4f81-a493-e7f680efaab3)",
+            "custom": false,
+            "map": "e0823025-0441-4b30-8fb8-5a25df7bd713",
+            "ready": true
+          }
+        },
+        "bake_pages": {
+          "limit": 67108864,
+          "resident": 8388608,
+          "shared_bytes": 33554432,
+          "submissions": 0,
+          "upload_bytes": 0,
+          "visible": 54,
+          "waiting": false
+        },
+        "codec": {
+          "configured": true,
+          "workers": 1,
+          "active_jobs": 0,
+          "requests": 108,
+          "completed": 108,
+          "cancelled": 0,
+          "failures": 0,
+          "job_bytes": 0,
+          "bridge_bytes": 0,
+          "bridge_limit": 67108864
+        },
+        "probe": {
+          "workers": [
+            {
+              "url": "./eldiron-bake-codec-worker-bootstrap.js",
+              "ready": true,
+              "window": false,
+              "posted": 108,
+              "completed": 108,
+              "invalid": 0,
+              "inputBytes": 42716592,
+              "outputBytes": 141557760,
+              "errors": [],
+              "sample": 0
+            }
+          ],
+          "immutableBuffers": 820,
+          "immutableBufferBytes": 277148,
+          "pooledTargets": 30,
+          "pooledSceneTargets": 10,
+          "contexts2D": 0,
+          "colorCopies": 0,
+          "devices": 1,
+          "assetCopies": 6,
+          "gpuErrors": [],
+          "errors": [],
+          "console": []
+        }
+      }
+    },
+    "restored-cached-size": {
+      "state": "editing",
+      "frames": 288,
+      "generation": 1,
+      "document": "28a69c95-7a6a-4ead-b42e-ce9cecfdb03e",
+      "dirty": "false",
+      "canvas": [
+        [
+          2400,
+          1287
+        ]
+      ],
+      "root_cpu_bytes": "0",
+      "readback_bytes": "21504",
+      "explicit_asset_readback_bytes": "21504",
+      "source": {
+        "context": "Region(939f0cf8-fe61-4f81-a493-e7f680efaab3)",
+        "map": "e0823025-0441-4b30-8fb8-5a25df7bd713",
+        "presented": {
+          "baked": true,
+          "context": "Region(939f0cf8-fe61-4f81-a493-e7f680efaab3)",
+          "custom": false,
+          "map": "e0823025-0441-4b30-8fb8-5a25df7bd713",
+          "ready": true
+        }
+      },
+      "bake_pages": {
+        "limit": 67108864,
+        "resident": 8388608,
+        "shared_bytes": 33554432,
+        "submissions": 0,
+        "upload_bytes": 0,
+        "visible": 54,
+        "waiting": false
+      },
+      "codec": {
+        "configured": true,
+        "workers": 1,
+        "active_jobs": 0,
+        "requests": 162,
+        "completed": 162,
+        "cancelled": 0,
+        "failures": 0,
+        "job_bytes": 0,
+        "bridge_bytes": 0,
+        "bridge_limit": 67108864
+      },
+      "probe": {
+        "workers": [
+          {
+            "url": "./eldiron-bake-codec-worker-bootstrap.js",
+            "ready": true,
+            "window": false,
+            "posted": 162,
+            "completed": 162,
+            "invalid": 0,
+            "inputBytes": 64074888,
+            "outputBytes": 212336640,
+            "errors": [],
+            "sample": 0
+          }
+        ],
+        "immutableBuffers": 820,
+        "immutableBufferBytes": 277148,
+        "pooledTargets": 30,
+        "pooledSceneTargets": 10,
+        "contexts2D": 0,
+        "colorCopies": 0,
+        "devices": 1,
+        "assetCopies": 6,
+        "gpuErrors": [],
+        "errors": [],
+        "console": []
+      }
+    },
+    "recovered": {
+      "state": "editing",
+      "frames": 354,
+      "generation": 2,
+      "document": "28a69c95-7a6a-4ead-b42e-ce9cecfdb03e",
+      "dirty": "false",
+      "canvas": [
+        [
+          2400,
+          1287
+        ]
+      ],
+      "root_cpu_bytes": "0",
+      "readback_bytes": "0",
+      "explicit_asset_readback_bytes": "0",
+      "source": {
+        "context": "Region(939f0cf8-fe61-4f81-a493-e7f680efaab3)",
+        "map": "e0823025-0441-4b30-8fb8-5a25df7bd713",
+        "presented": {
+          "baked": true,
+          "context": "Region(939f0cf8-fe61-4f81-a493-e7f680efaab3)",
+          "custom": false,
+          "map": "e0823025-0441-4b30-8fb8-5a25df7bd713",
+          "ready": true
+        }
+      },
+      "bake_pages": {
+        "limit": 67108864,
+        "resident": 8388608,
+        "shared_bytes": 8388608,
+        "submissions": 0,
+        "upload_bytes": 0,
+        "visible": 54,
+        "waiting": false
+      },
+      "codec": {
+        "configured": true,
+        "workers": 1,
+        "active_jobs": 0,
+        "requests": 216,
+        "completed": 216,
+        "cancelled": 0,
+        "failures": 0,
+        "job_bytes": 0,
+        "bridge_bytes": 0,
+        "bridge_limit": 67108864
+      },
+      "probe": {
+        "workers": [
+          {
+            "url": "./eldiron-bake-codec-worker-bootstrap.js",
+            "ready": true,
+            "window": false,
+            "posted": 216,
+            "completed": 216,
+            "invalid": 0,
+            "inputBytes": 85433184,
+            "outputBytes": 283115520,
+            "errors": [],
+            "sample": 0
+          }
+        ],
+        "immutableBuffers": 1344,
+        "immutableBufferBytes": 465976,
+        "pooledTargets": 47,
+        "pooledSceneTargets": 15,
+        "contexts2D": 0,
+        "colorCopies": 0,
+        "devices": 2,
+        "assetCopies": 6,
+        "gpuErrors": [],
+        "errors": [],
+        "console": []
+      }
+    },
+    "recovered-warm": {
+      "before": {
+        "state": "editing",
+        "frames": 366,
+        "generation": 2,
+        "document": "28a69c95-7a6a-4ead-b42e-ce9cecfdb03e",
+        "dirty": "false",
+        "canvas": [
+          [
+            2400,
+            1287
+          ]
+        ],
+        "root_cpu_bytes": "0",
+        "readback_bytes": "0",
+        "explicit_asset_readback_bytes": "0",
+        "source": {
+          "context": "Region(939f0cf8-fe61-4f81-a493-e7f680efaab3)",
+          "map": "e0823025-0441-4b30-8fb8-5a25df7bd713",
+          "presented": {
+            "baked": true,
+            "context": "Region(939f0cf8-fe61-4f81-a493-e7f680efaab3)",
+            "custom": false,
+            "map": "e0823025-0441-4b30-8fb8-5a25df7bd713",
+            "ready": true
+          }
+        },
+        "bake_pages": {
+          "limit": 67108864,
+          "resident": 8388608,
+          "shared_bytes": 8388608,
+          "submissions": 0,
+          "upload_bytes": 0,
+          "visible": 54,
+          "waiting": false
+        },
+        "codec": {
+          "configured": true,
+          "workers": 1,
+          "active_jobs": 0,
+          "requests": 216,
+          "completed": 216,
+          "cancelled": 0,
+          "failures": 0,
+          "job_bytes": 0,
+          "bridge_bytes": 0,
+          "bridge_limit": 67108864
+        },
+        "probe": {
+          "workers": [
+            {
+              "url": "./eldiron-bake-codec-worker-bootstrap.js",
+              "ready": true,
+              "window": false,
+              "posted": 216,
+              "completed": 216,
+              "invalid": 0,
+              "inputBytes": 85433184,
+              "outputBytes": 283115520,
+              "errors": [],
+              "sample": 0
+            }
+          ],
+          "immutableBuffers": 1347,
+          "immutableBufferBytes": 467176,
+          "pooledTargets": 47,
+          "pooledSceneTargets": 15,
+          "contexts2D": 0,
+          "colorCopies": 0,
+          "devices": 2,
+          "assetCopies": 6,
+          "gpuErrors": [],
+          "errors": [],
+          "console": []
+        }
+      },
+      "after": {
+        "state": "editing",
+        "frames": 398,
+        "generation": 2,
+        "document": "28a69c95-7a6a-4ead-b42e-ce9cecfdb03e",
+        "dirty": "false",
+        "canvas": [
+          [
+            2400,
+            1287
+          ]
+        ],
+        "root_cpu_bytes": "0",
+        "readback_bytes": "0",
+        "explicit_asset_readback_bytes": "0",
+        "source": {
+          "context": "Region(939f0cf8-fe61-4f81-a493-e7f680efaab3)",
+          "map": "e0823025-0441-4b30-8fb8-5a25df7bd713",
+          "presented": {
+            "baked": true,
+            "context": "Region(939f0cf8-fe61-4f81-a493-e7f680efaab3)",
+            "custom": false,
+            "map": "e0823025-0441-4b30-8fb8-5a25df7bd713",
+            "ready": true
+          }
+        },
+        "bake_pages": {
+          "limit": 67108864,
+          "resident": 8388608,
+          "shared_bytes": 8388608,
+          "submissions": 0,
+          "upload_bytes": 0,
+          "visible": 54,
+          "waiting": false
+        },
+        "codec": {
+          "configured": true,
+          "workers": 1,
+          "active_jobs": 0,
+          "requests": 216,
+          "completed": 216,
+          "cancelled": 0,
+          "failures": 0,
+          "job_bytes": 0,
+          "bridge_bytes": 0,
+          "bridge_limit": 67108864
+        },
+        "probe": {
+          "workers": [
+            {
+              "url": "./eldiron-bake-codec-worker-bootstrap.js",
+              "ready": true,
+              "window": false,
+              "posted": 216,
+              "completed": 216,
+              "invalid": 0,
+              "inputBytes": 85433184,
+              "outputBytes": 283115520,
+              "errors": [],
+              "sample": 0
+            }
+          ],
+          "immutableBuffers": 1347,
+          "immutableBufferBytes": 467176,
+          "pooledTargets": 47,
+          "pooledSceneTargets": 15,
+          "contexts2D": 0,
+          "colorCopies": 0,
+          "devices": 2,
+          "assetCopies": 6,
+          "gpuErrors": [],
+          "errors": [],
+          "console": []
+        }
+      }
+    }
+  },
+  "scene_comparison": {
+    "baseline": "browser-target-pool-150.png",
+    "crop": [
+      80,
+      170,
+      1810,
+      895
+    ],
+    "pixels": 1254250,
+    "max_rgba_delta": 0
+  },
+  "limits": "Retained cache estimates only. This does not establish global active/in-flight/driver budgets, physical native-window workflows, dynamic DPR or release performance acceptance."
+}

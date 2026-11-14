@@ -2,7 +2,8 @@
 //! Retained outputs have no CPU viewport or readback storage.
 use bytemuck::{Pod, Zeroable};
 use renderkit::{
-    AlphaMode, ColorSpace, GpuContext, GpuImage, ImageDescriptor, RenderError, Result, wgpu,
+    AlphaMode, ColorSpace, GpuContext, GpuImage, ImageDescriptor, RenderError, Result,
+    TargetDescriptor, wgpu,
 };
 use rusterix::orthographic_bake::{OrthographicBakeLighting, OrthographicBakeSource};
 use scenevm::Camera3D;
@@ -316,27 +317,20 @@ impl OrthographicBakeRenderer {
                 color_space: ColorSpace::Srgb,
                 alpha_mode: AlphaMode::Premultiplied,
             };
-            let texture = self
-                .context
-                .device
-                .create_texture(&wgpu::TextureDescriptor {
-                    label: Some("orthographic bake output"),
-                    size: wgpu::Extent3d {
-                        width: size.0,
-                        height: size.1,
-                        depth_or_array_layers: 1,
-                    },
-                    mip_level_count: 1,
-                    sample_count: 1,
-                    dimension: wgpu::TextureDimension::D2,
-                    format: descriptor.format,
-                    usage: wgpu::TextureUsages::STORAGE_BINDING
-                        | wgpu::TextureUsages::TEXTURE_BINDING
-                        | wgpu::TextureUsages::COPY_SRC
-                        | wgpu::TextureUsages::COPY_DST,
-                    view_formats: &[],
-                });
-            let image = Arc::new(GpuImage::from_texture(&self.context, texture, descriptor)?);
+            // GpuImage retains the lease through consumers' submissions. A
+            // paged projection's retained base cannot alias its private output.
+            let target = self.context.acquire_target(TargetDescriptor {
+                width: size.0,
+                height: size.1,
+                format: descriptor.format,
+                samples: 1,
+                mip_levels: 1,
+                usage: wgpu::TextureUsages::STORAGE_BINDING
+                    | wgpu::TextureUsages::TEXTURE_BINDING
+                    | wgpu::TextureUsages::COPY_SRC
+                    | wgpu::TextureUsages::COPY_DST,
+            })?;
+            let image = GpuImage::from_target(&self.context, target, descriptor)?;
             let depth = self.context.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("orthographic bake camera depth"),
                 size: bytes,
