@@ -12849,3 +12849,103 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   equal-hardware optimized performance/startup/input/memory measurements. Do not
   turn unavailable platform evidence into a pass. No project schemas changed;
   concurrent networking-mmo-concept.md remains untouched.
+
+
+## 2026-11-14 — Shared writable storage and bake derived resources (active)
+
+- Previous goal turn: progress. Checkpoints8925ed5e/1661291f/698e605d verified
+  browser codec workers, current-paint eligibility and pooled bake color outputs.
+  Current checkout clean except concurrent untracked networking concept before
+  this batch; no live compiler/test handle carried over. Goal remains active.
+- Added context-owned writable buffer leases/cache (128MiB/64retained entries),
+  exact size/usage identity, idle-only reuse, generation metadata and bounded
+  retention/eviction without explicit buffer destruction. Active/queued/driver
+  memory is explicitly outside retained-cache counters. Requests validate
+  alignment, usages and binding/device limits before cache changes.
+- Bake outputs now retain depth leases; staged base/output lifetimes stay
+  distinct. Overlay color storage acquires the shared target pool. Bake and
+  overlay projection uniforms use immutable exact-content inputs held through
+  submission, with actual uploads in the separate buffer-cache telemetry.
+  Source/image transfer counters no longer pretend every cached uniform lookup
+  performs an upload. No paint algorithms/serialization/runtime clocks changed.
+- Focused GPU coverage prepared for working-buffer reuse/lease pinning/eviction
+  during encoding/queued byte survival/invalid inputs/replacement generation,
+  native bake depth resize return and actual repeated-overlay uniform reuse.
+  Compilation, GPU integration and current browser execution pending.
+
+- Native GPU working lease contract PASS1/0.21s (build0.88s); actual lost-device
+  rejection added and PASS1/0.21s. Covers exact size/usage identity, cloned-lease
+  pinning, context-clone sharing, overwrite of unspecified reused bytes, bounded
+  eviction during encoding and48captured bytes surviving submission/owner drops.
+  Invalid requests and lost-device requests leave counters unchanged; replacement
+  context gets a new generation/pool. Focused bake GPU suite PASS4/13.30s after
+ 23.71s build: RGB reference deltas0/0/1, exact depth, resize-return depth
+  allocations fixed3, progressive pages/retained sources/dynamic occlusion and
+  repeated overlay uniform reuse without uploaded-byte/allocation growth.
+- Browser Creator/player check PASS23.83s. Creator now exposes optional
+  data-eldiron-cache-usage only under its existing inspection flag: last prepared
+  frame target/writable/immutable retained sizes, limits, hits/allocations and
+  actual immutable upload bytes. No global renderer pointer or mandatory product
+  UI added. Snapshot counts are not live async/driver memory accounting. Native
+  canonical host checks and current packaged Creator browser proof are next.
+
+- Canonical native Creator/classic/WGPU checks PASS23.28s. Foreign/staticlib
+  assembly compile check running before release packaging. Source audit leaves
+  only the tiny per-renderer dummy buffer outside the source/target/working/
+  immutable pools in the migrated bake composition files; source upload bytes
+  remain counted explicitly. Projection uniforms have no per-pass raw buffer
+  allocation now. Read-only depth access documents lease lifetime, with an
+  owning depth_lease() available to downstream producers.
+
+- Foreign Creator staticlib/common-player check PASS22.40s. Current Creator
+  release/package PASS1m25s; CPU worker unchanged0.23s. Packager waited briefly
+  for the owned native assembly build directory lock, then completed normally;
+  no restarted process or concurrent Rust edits. Native full assembly is running
+  with a sealed Rust/WGSL/Cargo manifest and no test-only early-exit flag.
+- Current browser derived-resource proof PASS: warmed79->111 keep one writable
+  depth allocation and198,908immutable uploaded bytes; resized189->221 keep two
+  depth allocations and294,908bytes. Return to prior size keeps two allocations
+  and increases writable-cache hits3->4; retained working bytes5,075,224.
+  Recovery generation1->2 creates one new-device depth allocation, then warmed
+ 365->397 keep its2,520,364retained bytes and198,908immutable upload bytes.
+  Target/writable/immutable retained sizes/counts stay within declared limits.
+- Same clean54tile document, dedicated worker completed216requests across
+  reprojections/recovery, no live job/bridge charge at ready. Normal readback0,
+  Canvas2D0, GPU/browser/worker errors0;21,504startup asset bytes stay separately
+  classified. Recovered screenshot visually inspected; scene crop1,254,250pixels
+  RGBAbyte-identical/maxdelta0 to browser-target-pool-150.png. Durable
+  browser-bake-derived-resources.json records resource snapshots/limits; no
+  duplicate PNG or speedup claim. Full native assembly still pending.
+- Fresh adapter audit: EffectsTool and TilePickerTool are explicitly Prefab-only
+  presentation tools (tools/effects.rs and tools/tile_picker.rs). Their rejection
+  outside Prefab in native_world_owns_viewport is deliberate, not an invented
+  missing region workflow. Oversized original tiles and above-budget current
+  paint remain real admitted adapters. Current full-layer paint packing is in
+  shared::surface_paint::Builder; job snapshot upload occurs before per-tile
+  capture. Do not remove those guards by increasing limits or omitting channels.
+
+- Full assembled native Creator integration PASS1/221.10s; total build/run wait
+ 276.42s. All1,319Rust/WGSL/Cargo source/build files unchanged across sealed
+  manifest; result and aggregate manifest hash recorded in durable
+  browser-bake-derived-resources.json. Covers persisted/native painted channel
+  reference, history/save/retirement, custom views, tools/paste, root UI, DPI,
+  game/runtime and device reconstruction at the existing assembled scope.
+  /private/tmp/eldiron-derived-resource-integration-{sources,result}.json and
+  -native.log retain detailed evidence. This is offscreen GPU/application
+  integration, not a physical native-window or release-performance pass.
+- Writable depth/overlay/uniform resource slice verified. All builds/tests are
+  terminal; no Rust source changes after the sealed integration started. No
+  Cargo manifest/lock, project schema or old-paint compatibility work changed.
+  Concurrent networking-mmo-concept.md remains untouched.
+- Next substantive adapter retirement: above64MiBcurrent-paint source preparation
+  and oversized individual baked originals. Paint atlas Builder currently packs
+  every chunk into two planes; Snapshot::upload runs before per-tile BakeWork.
+  A correct bounded design must freeze original current sources without replay,
+  select/project required UV chunks for actual tile/view geometry and preserve
+  stamp/linked-prefab/channel/cancellation behavior, rather than raise the cap or
+  omit paint. Review CPU snapshot ownership and source-size accounting together
+  with per-tile/page scheduling. Other open gates: global active/in-flight/driver
+  budgets and codec scratch; remaining browser job hosting; full workflow/client
+  policy inventory; dynamic DPR/input; physical native/Windows/Linux/iOS and
+  equal-hardware optimized frame/startup/input/peak-memory measurements. Goal
+  remains active; full M0–M9 completion is unproven.

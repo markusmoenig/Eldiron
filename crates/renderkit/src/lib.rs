@@ -2,6 +2,8 @@
 //! No application event loop, widget tree, or gameplay state lives here.
 mod buffer_cache;
 pub use buffer_cache::{BufferCacheUsage, GpuBuffer};
+mod working_buffers;
+pub use working_buffers::{WorkingBufferDescriptor, WorkingBufferLease, WorkingBufferPoolUsage};
 mod capture_queue;
 mod source_pool;
 mod target_pool;

@@ -104,6 +104,7 @@ impl OrthographicBakeOverlay {
         let generation = self.context.generation();
         if self.context.is_lost()
             || bake.image.device_generation() != generation
+            || bake.depth.device_generation() != generation
             || overlay.device_generation() != generation
             || surface.device_generation() != generation
         {
@@ -116,7 +117,7 @@ impl OrthographicBakeOverlay {
             || surface.size() != size
             || (overlay.descriptor.width, overlay.descriptor.height) != size
             || (bake.image.descriptor.width, bake.image.descriptor.height) != size
-            || bake.depth.size() != u64::from(size.0) * u64::from(size.1) * 4
+            || bake.depth().size() != u64::from(size.0) * u64::from(size.1) * 4
         {
             return Err(RenderError(
                 "incompatible bake overlay targets or surface policy".into(),
@@ -134,30 +135,17 @@ impl OrthographicBakeOverlay {
                 color_space: ColorSpace::Srgb,
                 alpha_mode: AlphaMode::Opaque,
             };
-            let texture = self
-                .context
-                .device
-                .create_texture(&wgpu::TextureDescriptor {
-                    label: Some("baked world composition"),
-                    size: wgpu::Extent3d {
-                        width: size.0,
-                        height: size.1,
-                        depth_or_array_layers: 1,
-                    },
-                    mip_level_count: 1,
-                    sample_count: 1,
-                    dimension: wgpu::TextureDimension::D2,
-                    format: descriptor.format,
-                    usage: wgpu::TextureUsages::STORAGE_BINDING
-                        | wgpu::TextureUsages::TEXTURE_BINDING
-                        | wgpu::TextureUsages::COPY_SRC,
-                    view_formats: &[],
-                });
-            self.target = Some(Arc::new(GpuImage::from_texture(
-                &self.context,
-                texture,
-                descriptor,
-            )?));
+            let lease = self.context.acquire_target(TargetDescriptor {
+                width: size.0,
+                height: size.1,
+                format: descriptor.format,
+                samples: 1,
+                mip_levels: 1,
+                usage: wgpu::TextureUsages::STORAGE_BINDING
+                    | wgpu::TextureUsages::TEXTURE_BINDING
+                    | wgpu::TextureUsages::COPY_SRC,
+            })?;
+            self.target = Some(GpuImage::from_target(&self.context, lease, descriptor)?);
         }
         let target = self.target.as_ref().unwrap().clone();
         let camera = surface.camera();
@@ -170,14 +158,7 @@ impl OrthographicBakeOverlay {
         };
         let uniform = self
             .context
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("bake overlay camera"),
-                contents: bytemuck::bytes_of(&params),
-                usage: wgpu::BufferUsages::UNIFORM,
-            });
-        self.context
-            .record_upload(std::mem::size_of::<OverlayParams>() as u64);
+            .upload_immutable_buffer(bytemuck::bytes_of(&params), wgpu::BufferUsages::UNIFORM)?;
         let view = |binding, view| wgpu::BindGroupEntry {
             binding,
             resource: wgpu::BindingResource::TextureView(view),
@@ -191,12 +172,12 @@ impl OrthographicBakeOverlay {
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
-                        resource: uniform.as_entire_binding(),
+                        resource: uniform.buffer().as_entire_binding(),
                     },
                     view(1, &bake.image.view),
                     wgpu::BindGroupEntry {
                         binding: 2,
-                        resource: bake.depth.as_entire_binding(),
+                        resource: bake.depth().as_entire_binding(),
                     },
                     view(3, &overlay.view),
                     view(4, surface.world()),

@@ -1,0 +1,941 @@
+{
+  "date": "2026-11-14",
+  "scope": "Pooled writable bake depth and overlay color storage, immutable exact-content bake/overlay uniforms.",
+  "native_gpu": {
+    "working_buffer_cases": 1,
+    "working_buffer_seconds": 0.21,
+    "bake_cases": 4,
+    "bake_seconds": 13.3,
+    "depth_resize_return_allocations": 3,
+    "source_rgb_max_deltas": [
+      0,
+      0,
+      1
+    ]
+  },
+  "browser": {
+    "initial": {
+      "state": "editing",
+      "frames": 67,
+      "generation": 1,
+      "document": "a7f885ff-c1ec-47c9-bab7-0e0aabeaa812",
+      "dirty": "false",
+      "root": "0",
+      "readback": "21504",
+      "assetReadback": "21504",
+      "canvas": [
+        [
+          2400,
+          1287
+        ]
+      ],
+      "codec": {
+        "configured": true,
+        "workers": 1,
+        "active_jobs": 0,
+        "requests": 54,
+        "completed": 54,
+        "cancelled": 0,
+        "failures": 0,
+        "job_bytes": 0,
+        "bridge_bytes": 0,
+        "bridge_limit": 67108864
+      },
+      "resources": {
+        "immutable": {
+          "allocations": 533,
+          "byte_limit": 134217728,
+          "cpu_bytes": 180148,
+          "entries": 533,
+          "entry_limit": 16384,
+          "evictions": 0,
+          "gpu_bytes": 180148,
+          "hits": 92253,
+          "uploaded_bytes": 180148
+        },
+        "targets": {
+          "allocations": 18,
+          "byte_limit": 536870912,
+          "bytes": 231864604,
+          "entries": 18,
+          "entry_limit": 64,
+          "evictions": 0,
+          "hits": 948
+        },
+        "working": {
+          "allocations": 1,
+          "byte_limit": 134217728,
+          "bytes": 2520364,
+          "entries": 1,
+          "entry_limit": 64,
+          "evictions": 0,
+          "hits": 3
+        }
+      },
+      "probe": {
+        "workers": [
+          {
+            "url": "./eldiron-bake-codec-worker-bootstrap.js",
+            "ready": true,
+            "window": false,
+            "posted": 54,
+            "completed": 54,
+            "invalid": 0,
+            "inputBytes": 21358296,
+            "outputBytes": 70778880,
+            "errors": [],
+            "sample": 0
+          }
+        ],
+        "immutableBuffers": 580,
+        "immutableBufferBytes": 197708,
+        "pooledTargets": 18,
+        "pooledSceneTargets": 5,
+        "workingBuffers": 1,
+        "workingBufferBytes": 2520364,
+        "contexts2D": 0,
+        "colorCopies": 0,
+        "devices": 1,
+        "assetCopies": 6,
+        "gpuErrors": [],
+        "errors": [],
+        "console": []
+      }
+    },
+    "warm": {
+      "before": {
+        "state": "editing",
+        "frames": 79,
+        "generation": 1,
+        "document": "a7f885ff-c1ec-47c9-bab7-0e0aabeaa812",
+        "dirty": "false",
+        "root": "0",
+        "readback": "21504",
+        "assetReadback": "21504",
+        "canvas": [
+          [
+            2400,
+            1287
+          ]
+        ],
+        "codec": {
+          "configured": true,
+          "workers": 1,
+          "active_jobs": 0,
+          "requests": 54,
+          "completed": 54,
+          "cancelled": 0,
+          "failures": 0,
+          "job_bytes": 0,
+          "bridge_bytes": 0,
+          "bridge_limit": 67108864
+        },
+        "resources": {
+          "immutable": {
+            "allocations": 583,
+            "byte_limit": 134217728,
+            "cpu_bytes": 198908,
+            "entries": 583,
+            "entry_limit": 16384,
+            "evictions": 0,
+            "gpu_bytes": 198908,
+            "hits": 110875,
+            "uploaded_bytes": 198908
+          },
+          "targets": {
+            "allocations": 18,
+            "byte_limit": 536870912,
+            "bytes": 231864604,
+            "entries": 18,
+            "entry_limit": 64,
+            "evictions": 0,
+            "hits": 1116
+          },
+          "working": {
+            "allocations": 1,
+            "byte_limit": 134217728,
+            "bytes": 2520364,
+            "entries": 1,
+            "entry_limit": 64,
+            "evictions": 0,
+            "hits": 3
+          }
+        },
+        "probe": {
+          "workers": [
+            {
+              "url": "./eldiron-bake-codec-worker-bootstrap.js",
+              "ready": true,
+              "window": false,
+              "posted": 54,
+              "completed": 54,
+              "invalid": 0,
+              "inputBytes": 21358296,
+              "outputBytes": 70778880,
+              "errors": [],
+              "sample": 0
+            }
+          ],
+          "immutableBuffers": 583,
+          "immutableBufferBytes": 198908,
+          "pooledTargets": 18,
+          "pooledSceneTargets": 5,
+          "workingBuffers": 1,
+          "workingBufferBytes": 2520364,
+          "contexts2D": 0,
+          "colorCopies": 0,
+          "devices": 1,
+          "assetCopies": 6,
+          "gpuErrors": [],
+          "errors": [],
+          "console": []
+        }
+      },
+      "after": {
+        "state": "editing",
+        "frames": 111,
+        "generation": 1,
+        "document": "a7f885ff-c1ec-47c9-bab7-0e0aabeaa812",
+        "dirty": "false",
+        "root": "0",
+        "readback": "21504",
+        "assetReadback": "21504",
+        "canvas": [
+          [
+            2400,
+            1287
+          ]
+        ],
+        "codec": {
+          "configured": true,
+          "workers": 1,
+          "active_jobs": 0,
+          "requests": 54,
+          "completed": 54,
+          "cancelled": 0,
+          "failures": 0,
+          "job_bytes": 0,
+          "bridge_bytes": 0,
+          "bridge_limit": 67108864
+        },
+        "resources": {
+          "immutable": {
+            "allocations": 583,
+            "byte_limit": 134217728,
+            "cpu_bytes": 198908,
+            "entries": 583,
+            "entry_limit": 16384,
+            "evictions": 0,
+            "gpu_bytes": 198908,
+            "hits": 160667,
+            "uploaded_bytes": 198908
+          },
+          "targets": {
+            "allocations": 18,
+            "byte_limit": 536870912,
+            "bytes": 231864604,
+            "entries": 18,
+            "entry_limit": 64,
+            "evictions": 0,
+            "hits": 1564
+          },
+          "working": {
+            "allocations": 1,
+            "byte_limit": 134217728,
+            "bytes": 2520364,
+            "entries": 1,
+            "entry_limit": 64,
+            "evictions": 0,
+            "hits": 3
+          }
+        },
+        "probe": {
+          "workers": [
+            {
+              "url": "./eldiron-bake-codec-worker-bootstrap.js",
+              "ready": true,
+              "window": false,
+              "posted": 54,
+              "completed": 54,
+              "invalid": 0,
+              "inputBytes": 21358296,
+              "outputBytes": 70778880,
+              "errors": [],
+              "sample": 0
+            }
+          ],
+          "immutableBuffers": 583,
+          "immutableBufferBytes": 198908,
+          "pooledTargets": 18,
+          "pooledSceneTargets": 5,
+          "workingBuffers": 1,
+          "workingBufferBytes": 2520364,
+          "contexts2D": 0,
+          "colorCopies": 0,
+          "devices": 1,
+          "assetCopies": 6,
+          "gpuErrors": [],
+          "errors": [],
+          "console": []
+        }
+      }
+    },
+    "resized": {
+      "state": "editing",
+      "frames": 177,
+      "generation": 1,
+      "document": "a7f885ff-c1ec-47c9-bab7-0e0aabeaa812",
+      "dirty": "false",
+      "root": "0",
+      "readback": "21504",
+      "assetReadback": "21504",
+      "canvas": [
+        [
+          2424,
+          1287
+        ]
+      ],
+      "codec": {
+        "configured": true,
+        "workers": 1,
+        "active_jobs": 0,
+        "requests": 108,
+        "completed": 108,
+        "cancelled": 0,
+        "failures": 0,
+        "job_bytes": 0,
+        "bridge_bytes": 0,
+        "bridge_limit": 67108864
+      },
+      "resources": {
+        "immutable": {
+          "allocations": 913,
+          "byte_limit": 134217728,
+          "cpu_bytes": 291708,
+          "entries": 913,
+          "entry_limit": 16384,
+          "evictions": 0,
+          "gpu_bytes": 291708,
+          "hits": 253270,
+          "uploaded_bytes": 291708
+        },
+        "targets": {
+          "allocations": 32,
+          "byte_limit": 536870912,
+          "bytes": 466128468,
+          "entries": 32,
+          "entry_limit": 64,
+          "evictions": 0,
+          "hits": 2482
+        },
+        "working": {
+          "allocations": 2,
+          "byte_limit": 134217728,
+          "bytes": 5075224,
+          "entries": 2,
+          "entry_limit": 64,
+          "evictions": 0,
+          "hits": 3
+        }
+      },
+      "probe": {
+        "workers": [
+          {
+            "url": "./eldiron-bake-codec-worker-bootstrap.js",
+            "ready": true,
+            "window": false,
+            "posted": 108,
+            "completed": 108,
+            "invalid": 0,
+            "inputBytes": 42716592,
+            "outputBytes": 141557760,
+            "errors": [],
+            "sample": 0
+          }
+        ],
+        "immutableBuffers": 931,
+        "immutableBufferBytes": 294828,
+        "pooledTargets": 32,
+        "pooledSceneTargets": 10,
+        "workingBuffers": 2,
+        "workingBufferBytes": 5075224,
+        "contexts2D": 0,
+        "colorCopies": 0,
+        "devices": 1,
+        "assetCopies": 6,
+        "gpuErrors": [],
+        "errors": [],
+        "console": []
+      }
+    },
+    "resize-warm": {
+      "before": {
+        "state": "editing",
+        "frames": 189,
+        "generation": 1,
+        "document": "a7f885ff-c1ec-47c9-bab7-0e0aabeaa812",
+        "dirty": "false",
+        "root": "0",
+        "readback": "21504",
+        "assetReadback": "21504",
+        "canvas": [
+          [
+            2424,
+            1287
+          ]
+        ],
+        "codec": {
+          "configured": true,
+          "workers": 1,
+          "active_jobs": 0,
+          "requests": 108,
+          "completed": 108,
+          "cancelled": 0,
+          "failures": 0,
+          "job_bytes": 0,
+          "bridge_bytes": 0,
+          "bridge_limit": 67108864
+        },
+        "resources": {
+          "immutable": {
+            "allocations": 932,
+            "byte_limit": 134217728,
+            "cpu_bytes": 294908,
+            "entries": 932,
+            "entry_limit": 16384,
+            "evictions": 0,
+            "gpu_bytes": 294908,
+            "hits": 271923,
+            "uploaded_bytes": 294908
+          },
+          "targets": {
+            "allocations": 32,
+            "byte_limit": 536870912,
+            "bytes": 466128468,
+            "entries": 32,
+            "entry_limit": 64,
+            "evictions": 0,
+            "hits": 2650
+          },
+          "working": {
+            "allocations": 2,
+            "byte_limit": 134217728,
+            "bytes": 5075224,
+            "entries": 2,
+            "entry_limit": 64,
+            "evictions": 0,
+            "hits": 3
+          }
+        },
+        "probe": {
+          "workers": [
+            {
+              "url": "./eldiron-bake-codec-worker-bootstrap.js",
+              "ready": true,
+              "window": false,
+              "posted": 108,
+              "completed": 108,
+              "invalid": 0,
+              "inputBytes": 42716592,
+              "outputBytes": 141557760,
+              "errors": [],
+              "sample": 0
+            }
+          ],
+          "immutableBuffers": 932,
+          "immutableBufferBytes": 294908,
+          "pooledTargets": 32,
+          "pooledSceneTargets": 10,
+          "workingBuffers": 2,
+          "workingBufferBytes": 5075224,
+          "contexts2D": 0,
+          "colorCopies": 0,
+          "devices": 1,
+          "assetCopies": 6,
+          "gpuErrors": [],
+          "errors": [],
+          "console": []
+        }
+      },
+      "after": {
+        "state": "editing",
+        "frames": 221,
+        "generation": 1,
+        "document": "a7f885ff-c1ec-47c9-bab7-0e0aabeaa812",
+        "dirty": "false",
+        "root": "0",
+        "readback": "21504",
+        "assetReadback": "21504",
+        "canvas": [
+          [
+            2424,
+            1287
+          ]
+        ],
+        "codec": {
+          "configured": true,
+          "workers": 1,
+          "active_jobs": 0,
+          "requests": 108,
+          "completed": 108,
+          "cancelled": 0,
+          "failures": 0,
+          "job_bytes": 0,
+          "bridge_bytes": 0,
+          "bridge_limit": 67108864
+        },
+        "resources": {
+          "immutable": {
+            "allocations": 932,
+            "byte_limit": 134217728,
+            "cpu_bytes": 294908,
+            "entries": 932,
+            "entry_limit": 16384,
+            "evictions": 0,
+            "gpu_bytes": 294908,
+            "hits": 321715,
+            "uploaded_bytes": 294908
+          },
+          "targets": {
+            "allocations": 32,
+            "byte_limit": 536870912,
+            "bytes": 466128468,
+            "entries": 32,
+            "entry_limit": 64,
+            "evictions": 0,
+            "hits": 3098
+          },
+          "working": {
+            "allocations": 2,
+            "byte_limit": 134217728,
+            "bytes": 5075224,
+            "entries": 2,
+            "entry_limit": 64,
+            "evictions": 0,
+            "hits": 3
+          }
+        },
+        "probe": {
+          "workers": [
+            {
+              "url": "./eldiron-bake-codec-worker-bootstrap.js",
+              "ready": true,
+              "window": false,
+              "posted": 108,
+              "completed": 108,
+              "invalid": 0,
+              "inputBytes": 42716592,
+              "outputBytes": 141557760,
+              "errors": [],
+              "sample": 0
+            }
+          ],
+          "immutableBuffers": 932,
+          "immutableBufferBytes": 294908,
+          "pooledTargets": 32,
+          "pooledSceneTargets": 10,
+          "workingBuffers": 2,
+          "workingBufferBytes": 5075224,
+          "contexts2D": 0,
+          "colorCopies": 0,
+          "devices": 1,
+          "assetCopies": 6,
+          "gpuErrors": [],
+          "errors": [],
+          "console": []
+        }
+      }
+    },
+    "restored-cached-size": {
+      "state": "editing",
+      "frames": 287,
+      "generation": 1,
+      "document": "a7f885ff-c1ec-47c9-bab7-0e0aabeaa812",
+      "dirty": "false",
+      "root": "0",
+      "readback": "21504",
+      "assetReadback": "21504",
+      "canvas": [
+        [
+          2400,
+          1287
+        ]
+      ],
+      "codec": {
+        "configured": true,
+        "workers": 1,
+        "active_jobs": 0,
+        "requests": 162,
+        "completed": 162,
+        "cancelled": 0,
+        "failures": 0,
+        "job_bytes": 0,
+        "bridge_bytes": 0,
+        "bridge_limit": 67108864
+      },
+      "resources": {
+        "immutable": {
+          "allocations": 932,
+          "byte_limit": 134217728,
+          "cpu_bytes": 294908,
+          "entries": 932,
+          "entry_limit": 16384,
+          "evictions": 0,
+          "gpu_bytes": 294908,
+          "hits": 414648,
+          "uploaded_bytes": 294908
+        },
+        "targets": {
+          "allocations": 32,
+          "byte_limit": 536870912,
+          "bytes": 466128468,
+          "entries": 32,
+          "entry_limit": 64,
+          "evictions": 0,
+          "hits": 4030
+        },
+        "working": {
+          "allocations": 2,
+          "byte_limit": 134217728,
+          "bytes": 5075224,
+          "entries": 2,
+          "entry_limit": 64,
+          "evictions": 0,
+          "hits": 4
+        }
+      },
+      "probe": {
+        "workers": [
+          {
+            "url": "./eldiron-bake-codec-worker-bootstrap.js",
+            "ready": true,
+            "window": false,
+            "posted": 162,
+            "completed": 162,
+            "invalid": 0,
+            "inputBytes": 64074888,
+            "outputBytes": 212336640,
+            "errors": [],
+            "sample": 0
+          }
+        ],
+        "immutableBuffers": 932,
+        "immutableBufferBytes": 294908,
+        "pooledTargets": 32,
+        "pooledSceneTargets": 10,
+        "workingBuffers": 2,
+        "workingBufferBytes": 5075224,
+        "contexts2D": 0,
+        "colorCopies": 0,
+        "devices": 1,
+        "assetCopies": 6,
+        "gpuErrors": [],
+        "errors": [],
+        "console": []
+      }
+    },
+    "recovered": {
+      "state": "editing",
+      "frames": 353,
+      "generation": 2,
+      "document": "a7f885ff-c1ec-47c9-bab7-0e0aabeaa812",
+      "dirty": "false",
+      "root": "0",
+      "readback": "0",
+      "assetReadback": "0",
+      "canvas": [
+        [
+          2400,
+          1287
+        ]
+      ],
+      "codec": {
+        "configured": true,
+        "workers": 1,
+        "active_jobs": 0,
+        "requests": 216,
+        "completed": 216,
+        "cancelled": 0,
+        "failures": 0,
+        "job_bytes": 0,
+        "bridge_bytes": 0,
+        "bridge_limit": 67108864
+      },
+      "resources": {
+        "immutable": {
+          "allocations": 533,
+          "byte_limit": 134217728,
+          "cpu_bytes": 180148,
+          "entries": 533,
+          "entry_limit": 16384,
+          "evictions": 0,
+          "gpu_bytes": 180148,
+          "hits": 90848,
+          "uploaded_bytes": 180148
+        },
+        "targets": {
+          "allocations": 18,
+          "byte_limit": 536870912,
+          "bytes": 231864604,
+          "entries": 18,
+          "entry_limit": 64,
+          "evictions": 0,
+          "hits": 904
+        },
+        "working": {
+          "allocations": 1,
+          "byte_limit": 134217728,
+          "bytes": 2520364,
+          "entries": 1,
+          "entry_limit": 64,
+          "evictions": 0,
+          "hits": 0
+        }
+      },
+      "probe": {
+        "workers": [
+          {
+            "url": "./eldiron-bake-codec-worker-bootstrap.js",
+            "ready": true,
+            "window": false,
+            "posted": 216,
+            "completed": 216,
+            "invalid": 0,
+            "inputBytes": 85433184,
+            "outputBytes": 283115520,
+            "errors": [],
+            "sample": 0
+          }
+        ],
+        "immutableBuffers": 1512,
+        "immutableBufferBytes": 492616,
+        "pooledTargets": 50,
+        "pooledSceneTargets": 15,
+        "workingBuffers": 3,
+        "workingBufferBytes": 7595588,
+        "contexts2D": 0,
+        "colorCopies": 0,
+        "devices": 2,
+        "assetCopies": 6,
+        "gpuErrors": [],
+        "errors": [],
+        "console": []
+      }
+    },
+    "recovered-warm": {
+      "before": {
+        "state": "editing",
+        "frames": 365,
+        "generation": 2,
+        "document": "a7f885ff-c1ec-47c9-bab7-0e0aabeaa812",
+        "dirty": "false",
+        "root": "0",
+        "readback": "0",
+        "assetReadback": "0",
+        "canvas": [
+          [
+            2400,
+            1287
+          ]
+        ],
+        "codec": {
+          "configured": true,
+          "workers": 1,
+          "active_jobs": 0,
+          "requests": 216,
+          "completed": 216,
+          "cancelled": 0,
+          "failures": 0,
+          "job_bytes": 0,
+          "bridge_bytes": 0,
+          "bridge_limit": 67108864
+        },
+        "resources": {
+          "immutable": {
+            "allocations": 583,
+            "byte_limit": 134217728,
+            "cpu_bytes": 198908,
+            "entries": 583,
+            "entry_limit": 16384,
+            "evictions": 0,
+            "gpu_bytes": 198908,
+            "hits": 109470,
+            "uploaded_bytes": 198908
+          },
+          "targets": {
+            "allocations": 18,
+            "byte_limit": 536870912,
+            "bytes": 231864604,
+            "entries": 18,
+            "entry_limit": 64,
+            "evictions": 0,
+            "hits": 1072
+          },
+          "working": {
+            "allocations": 1,
+            "byte_limit": 134217728,
+            "bytes": 2520364,
+            "entries": 1,
+            "entry_limit": 64,
+            "evictions": 0,
+            "hits": 0
+          }
+        },
+        "probe": {
+          "workers": [
+            {
+              "url": "./eldiron-bake-codec-worker-bootstrap.js",
+              "ready": true,
+              "window": false,
+              "posted": 216,
+              "completed": 216,
+              "invalid": 0,
+              "inputBytes": 85433184,
+              "outputBytes": 283115520,
+              "errors": [],
+              "sample": 0
+            }
+          ],
+          "immutableBuffers": 1515,
+          "immutableBufferBytes": 493816,
+          "pooledTargets": 50,
+          "pooledSceneTargets": 15,
+          "workingBuffers": 3,
+          "workingBufferBytes": 7595588,
+          "contexts2D": 0,
+          "colorCopies": 0,
+          "devices": 2,
+          "assetCopies": 6,
+          "gpuErrors": [],
+          "errors": [],
+          "console": []
+        }
+      },
+      "after": {
+        "state": "editing",
+        "frames": 397,
+        "generation": 2,
+        "document": "a7f885ff-c1ec-47c9-bab7-0e0aabeaa812",
+        "dirty": "false",
+        "root": "0",
+        "readback": "0",
+        "assetReadback": "0",
+        "canvas": [
+          [
+            2400,
+            1287
+          ]
+        ],
+        "codec": {
+          "configured": true,
+          "workers": 1,
+          "active_jobs": 0,
+          "requests": 216,
+          "completed": 216,
+          "cancelled": 0,
+          "failures": 0,
+          "job_bytes": 0,
+          "bridge_bytes": 0,
+          "bridge_limit": 67108864
+        },
+        "resources": {
+          "immutable": {
+            "allocations": 583,
+            "byte_limit": 134217728,
+            "cpu_bytes": 198908,
+            "entries": 583,
+            "entry_limit": 16384,
+            "evictions": 0,
+            "gpu_bytes": 198908,
+            "hits": 159262,
+            "uploaded_bytes": 198908
+          },
+          "targets": {
+            "allocations": 18,
+            "byte_limit": 536870912,
+            "bytes": 231864604,
+            "entries": 18,
+            "entry_limit": 64,
+            "evictions": 0,
+            "hits": 1520
+          },
+          "working": {
+            "allocations": 1,
+            "byte_limit": 134217728,
+            "bytes": 2520364,
+            "entries": 1,
+            "entry_limit": 64,
+            "evictions": 0,
+            "hits": 0
+          }
+        },
+        "probe": {
+          "workers": [
+            {
+              "url": "./eldiron-bake-codec-worker-bootstrap.js",
+              "ready": true,
+              "window": false,
+              "posted": 216,
+              "completed": 216,
+              "invalid": 0,
+              "inputBytes": 85433184,
+              "outputBytes": 283115520,
+              "errors": [],
+              "sample": 0
+            }
+          ],
+          "immutableBuffers": 1515,
+          "immutableBufferBytes": 493816,
+          "pooledTargets": 50,
+          "pooledSceneTargets": 15,
+          "workingBuffers": 3,
+          "workingBufferBytes": 7595588,
+          "contexts2D": 0,
+          "colorCopies": 0,
+          "devices": 2,
+          "assetCopies": 6,
+          "gpuErrors": [],
+          "errors": [],
+          "console": []
+        }
+      }
+    }
+  },
+  "scene_comparison": {
+    "baseline": "browser-target-pool-150.png",
+    "crop": [
+      80,
+      170,
+      1810,
+      895
+    ],
+    "pixels": 1254250,
+    "max_rgba_delta": 0
+  },
+  "limits": "Frame snapshots of retained caches only. Active uncached leases, queued resources, codec scratch/linear memory and driver/allocator overhead are not a total-memory guarantee; physical platform and release performance gates remain open.",
+  "native_integration": {
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-p",
+      "eldiron-creator",
+      "--lib",
+      "--no-default-features",
+      "--features",
+      "native-host",
+      "native_application::tests::native_creator_application_paints_the_root_ui_without_a_root_framebuffer",
+      "--",
+      "--ignored",
+      "--nocapture"
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 276.42,
+    "sources": 1319,
+    "source_changes": [],
+    "test_seconds": 221.1,
+    "source_manifest_sha256": "122f8e7c4c92f14743541acca3f0c0cdca9f3259dc3befdf12a6f3b71e2c4d88",
+    "scope": "Assembled offscreen native Creator workflow; not physical native-window/input/platform or optimized performance acceptance."
+  }
+}

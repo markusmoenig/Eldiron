@@ -104,7 +104,7 @@ pub(super) fn depths(context: &GpuContext, output: &OrthographicBakeOutput) -> V
         mapped_at_creation: false,
     });
     let mut encoder = context.device.create_command_encoder(&Default::default());
-    encoder.copy_buffer_to_buffer(&output.depth, 0, &staging, 0, bytes);
+    encoder.copy_buffer_to_buffer(output.depth(), 0, &staging, 0, bytes);
     context.queue.submit(Some(encoder.finish()));
     context.record_capture(bytes);
     let (send, receive) = std::sync::mpsc::channel();
@@ -204,12 +204,19 @@ fn tiles_compose_with_reference_pan_resize_alpha_sun_depth_and_retained_sources(
     // Returning to a retired size reuses shared target storage. The changed
     // projection must still clear/recompose it, preserving current source data.
     let before = context.target_pool_usage();
+    let depth_before = context.working_buffer_pool_usage();
     assert_eq!(before.allocations, 3);
+    assert_eq!(depth_before.allocations, 3);
     let source = owner.presentation_source(region, &camera).unwrap();
     let returned = ready(&mut renderer, &source, &camera, (96, 64), None);
     let after = context.target_pool_usage();
     assert_eq!(after.allocations, before.allocations);
     assert!(after.hits > before.hits);
+    assert_eq!(
+        context.working_buffer_pool_usage().allocations,
+        depth_before.allocations
+    );
+    assert!(context.working_buffer_pool_usage().hits > depth_before.hits);
     let expected = owner.compose_rgba(region, 96, 64, &camera).unwrap();
     assert!(
         colors(&context, &returned)
@@ -745,12 +752,12 @@ fn dynamic_surfaces_occlude_actors_preserve_guides_and_clear_without_readback_st
     assert_eq!(scenes.scene(view).unwrap().vm.render_target_cpu_bytes(), 0);
     let bake_image = solid_gpu(&context, size, [20, 40, 60, 128]);
     let overlay_image = solid_gpu(&context, size, [100, 20, 10, 128]);
-    let depth = context.device.create_buffer(&wgpu::BufferDescriptor {
-        label: Some("GPU depth fixture"),
-        size: u64::from(size.0 * size.1 * 4),
-        usage: wgpu::BufferUsages::STORAGE,
-        mapped_at_creation: false,
-    });
+    let depth = context
+        .acquire_working_buffer(WorkingBufferDescriptor {
+            bytes: u64::from(size.0 * size.1 * 4),
+            usage: wgpu::BufferUsages::STORAGE,
+        })
+        .unwrap();
     let module = context.device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: None, source: wgpu::ShaderSource::Wgsl("@group(0) @binding(0) var<storage,read_write> depth:array<f32>; @compute @workgroup_size(64) fn main(@builtin(global_invocation_id) id:vec3<u32>) {if id.x<4096u {depth[id.x]=select(3.,5.,id.x%64u>=32u);}}".into()),
     });
@@ -771,7 +778,7 @@ fn dynamic_surfaces_occlude_actors_preserve_guides_and_clear_without_readback_st
             layout: &pipeline.get_bind_group_layout(0),
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
-                resource: depth.as_entire_binding(),
+                resource: depth.buffer().as_entire_binding(),
             }],
         });
     let mut encoder = context.device.create_command_encoder(&Default::default());
@@ -794,6 +801,16 @@ fn dynamic_surfaces_occlude_actors_preserve_guides_and_clear_without_readback_st
     let composed = compositor
         .render(&bake, &overlay_image, &surface, [40, 50, 60, 255])
         .unwrap();
+    let uniform_before = context.immutable_buffer_cache_usage();
+    let repeated = compositor
+        .render(&bake, &overlay_image, &surface, [40, 50, 60, 255])
+        .unwrap();
+    let uniform_after = context.immutable_buffer_cache_usage();
+    assert!(Arc::ptr_eq(&composed, &repeated));
+    assert_eq!(uniform_after.allocations, uniform_before.allocations);
+    assert_eq!(uniform_after.uploaded_bytes, uniform_before.uploaded_bytes);
+    assert!(uniform_after.hits > uniform_before.hits);
+    drop(repeated);
     assert_eq!(context.transfers().readback_bytes, 0);
     assert_eq!(context.transfers().capture_requests, 0);
     let capture = |image: Arc<GpuImage>| {

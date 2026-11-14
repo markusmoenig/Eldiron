@@ -47,3 +47,10 @@ For live resource inspection, the generated application module exports
 transport bytes, completed/cancelled requests and failures. DOM diagnostic
 attributes describe the most recently prepared frame and can remain unchanged
 while an idle application retires a background result.
+
+When Creator's existing `data-eldiron-inspect-view` attribute is enabled,
+`data-eldiron-cache-usage` records its last prepared frame's retained target,
+writable-buffer and immutable-input cache sizes/limits and allocation counters.
+Immutable upload bytes are tracked separately from source/image transfers.
+These counters exclude active uncached leases, queued/driver storage and allocator
+overhead; they do not establish total process/GPU memory or performance budgets.

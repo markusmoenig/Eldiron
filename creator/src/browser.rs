@@ -37,6 +37,32 @@ fn report(error: impl std::fmt::Display) {
 pub fn codec_worker_stats() -> String {
     serde_json::to_string(&rusterix::orthographic_bake::browser_codec_worker_stats()).unwrap()
 }
+// Last prepared-frame diagnostics, sampled only when inspection is enabled.
+// These are retained cache sizes, not total active/in-flight/driver memory.
+fn resource_stats(context: &renderkit::GpuContext) -> String {
+    let target = context.target_pool_usage();
+    let working = context.working_buffer_pool_usage();
+    let immutable = context.immutable_buffer_cache_usage();
+    serde_json::json!({
+        "targets": {
+            "bytes": target.cached_bytes, "entries": target.cached_textures,
+            "byte_limit": target.byte_limit, "entry_limit": target.texture_limit,
+            "allocations": target.allocations, "hits": target.hits, "evictions": target.evictions,
+        },
+        "working": {
+            "bytes": working.cached_bytes, "entries": working.cached_buffers,
+            "byte_limit": working.byte_limit, "entry_limit": working.buffer_limit,
+            "allocations": working.allocations, "hits": working.hits, "evictions": working.evictions,
+        },
+        "immutable": {
+            "gpu_bytes": immutable.gpu_bytes, "cpu_bytes": immutable.cpu_bytes,
+            "entries": immutable.entries, "byte_limit": immutable.byte_limit,
+            "entry_limit": immutable.entry_limit, "allocations": immutable.allocations,
+            "hits": immutable.hits, "evictions": immutable.evictions,
+            "uploaded_bytes": immutable.uploaded_bytes,
+        },
+    }).to_string()
+}
 pub fn start() {
     std::panic::set_hook(Box::new(|info| {
         console_error_panic_hook::hook(info);
@@ -193,6 +219,11 @@ impl GpuApplication for BrowserCreator {
             .and_then(|d| d.document_element())
         {
             let _ = root.set_attribute("data-eldiron-codec-workers", &codec_worker_stats());
+            if root.has_attribute("data-eldiron-inspect-view") {
+                let _ = root.set_attribute("data-eldiron-cache-usage", &resource_stats(images.context()));
+            } else {
+                let _ = root.remove_attribute("data-eldiron-cache-usage");
+            }
             let _ = root.set_attribute(
                 "data-eldiron-readback-bytes",
                 &images.context().transfers().readback_bytes.to_string(),

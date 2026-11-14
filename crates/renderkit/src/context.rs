@@ -5,6 +5,8 @@ use std::sync::{
 };
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct TransferCounters {
+    /// Instrumented source/image transfers. Immutable draw inputs have separate
+    /// actual-upload counters in BufferCacheUsage.
     pub uploaded_bytes: u64,
     pub readback_bytes: u64,
     pub capture_requests: u64,
@@ -39,6 +41,7 @@ pub struct GpuContext {
     source_pool: Arc<crate::source_pool::SourcePool>,
     target_pool: Arc<crate::target_pool::TargetPool>,
     buffer_cache: Arc<crate::buffer_cache::BufferCache>,
+    working_buffers: Arc<crate::working_buffers::WorkingBuffers>,
     #[cfg(target_arch = "wasm32")]
     validation_error: Arc<std::sync::Mutex<Option<String>>>,
 }
@@ -103,6 +106,7 @@ impl GpuContext {
             source_pool: Arc::new(crate::source_pool::SourcePool::default()),
             target_pool: Arc::new(crate::target_pool::TargetPool::default()),
             buffer_cache: Arc::new(crate::buffer_cache::BufferCache::default()),
+            working_buffers: Arc::new(crate::working_buffers::WorkingBuffers::default()),
             #[cfg(target_arch = "wasm32")]
             validation_error,
         }))
@@ -152,6 +156,20 @@ impl GpuContext {
     /// submitted on this queue, and clear/overwrite before publishing the image.
     pub fn acquire_target(&self, descriptor: crate::TargetDescriptor) -> Result<crate::TargetLease> {
         self.target_pool.acquire(self, descriptor)
+    }
+    pub fn working_buffer_pool_usage(&self) -> crate::WorkingBufferPoolUsage {
+        self.working_buffers.usage()
+    }
+    pub fn set_working_buffer_cache_limits(&self, bytes: u64, buffers: usize) {
+        self.working_buffers.set_limits(bytes, buffers);
+    }
+    /// Reused storage is uninitialized. Retain leases through queue submission
+    /// and fully initialize before any shader/consumer reads its contents.
+    pub fn acquire_working_buffer(
+        &self,
+        descriptor: crate::WorkingBufferDescriptor,
+    ) -> Result<crate::WorkingBufferLease> {
+        self.working_buffers.acquire(self, descriptor)
     }
     /// Shared immutable paint inputs, with separate geometry/uniform upload counters.
     pub fn immutable_buffer_cache_usage(&self) -> crate::BufferCacheUsage {

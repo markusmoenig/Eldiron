@@ -3,7 +3,7 @@
 use bytemuck::{Pod, Zeroable};
 use renderkit::{
     AlphaMode, ColorSpace, GpuContext, GpuImage, ImageDescriptor, RenderError, Result,
-    TargetDescriptor, wgpu,
+    TargetDescriptor, WorkingBufferDescriptor, WorkingBufferLease, wgpu,
 };
 use rusterix::orthographic_bake::{OrthographicBakeLighting, OrthographicBakeSource};
 use scenevm::Camera3D;
@@ -12,7 +12,6 @@ use std::{
     sync::{Arc, Weak},
 };
 use theframework_core::Uuid;
-use wgpu::util::DeviceExt;
 
 const SOURCE_BUDGET: u64 = 64 * 1024 * 1024;
 const PAGE_BYTES: u64 = 8 * 1024 * 1024;
@@ -60,7 +59,7 @@ enum TileState {
 #[derive(Clone)]
 pub struct OrthographicBakeOutput {
     image: Arc<GpuImage>,
-    depth: wgpu::Buffer,
+    depth: WorkingBufferLease,
     source_revision: Uuid,
     request: Option<(Uuid, Uuid)>,
     size: (u32, u32),
@@ -70,8 +69,13 @@ impl OrthographicBakeOutput {
     pub fn image(&self) -> &Arc<GpuImage> {
         &self.image
     }
+    /// Retain this output (or depth_lease()) through submission of every use.
+    /// Cloning a raw buffer handle alone does not pin pooled writable storage.
     pub fn depth(&self) -> &wgpu::Buffer {
-        &self.depth
+        self.depth.buffer()
+    }
+    pub fn depth_lease(&self) -> WorkingBufferLease {
+        self.depth.clone()
     }
     /// A paged progressive preview starts at this revision and may include
     /// newer samples in the same request. Committed outputs use an exact source
@@ -331,14 +335,9 @@ impl OrthographicBakeRenderer {
                     | wgpu::TextureUsages::COPY_DST,
             })?;
             let image = GpuImage::from_target(&self.context, target, descriptor)?;
-            let depth = self.context.device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("orthographic bake camera depth"),
-                size: bytes,
-                usage: wgpu::BufferUsages::STORAGE
-                    | wgpu::BufferUsages::COPY_SRC
-                    | wgpu::BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            });
+            let depth = self
+                .context
+                .acquire_working_buffer(WorkingBufferDescriptor::storage(bytes))?;
             self.target = Some(OrthographicBakeOutput {
                 image,
                 depth,
@@ -361,17 +360,10 @@ impl OrthographicBakeRenderer {
         params: &Params,
         source: &wgpu::Buffer,
         clear: bool,
-    ) {
+    ) -> Result<Arc<renderkit::GpuBuffer>> {
         let uniform = self
             .context
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("bake projection"),
-                contents: bytemuck::bytes_of(params),
-                usage: wgpu::BufferUsages::UNIFORM,
-            });
-        self.context
-            .record_upload(std::mem::size_of::<Params>() as u64);
+            .upload_immutable_buffer(bytemuck::bytes_of(params), wgpu::BufferUsages::UNIFORM)?;
         let bind = self
             .context
             .device
@@ -381,7 +373,7 @@ impl OrthographicBakeRenderer {
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
-                        resource: uniform.as_entire_binding(),
+                        resource: uniform.buffer().as_entire_binding(),
                     },
                     wgpu::BindGroupEntry {
                         binding: 1,
@@ -389,7 +381,7 @@ impl OrthographicBakeRenderer {
                     },
                     wgpu::BindGroupEntry {
                         binding: 2,
-                        resource: target.depth.as_entire_binding(),
+                        resource: target.depth().as_entire_binding(),
                     },
                     wgpu::BindGroupEntry {
                         binding: 3,
@@ -408,6 +400,7 @@ impl OrthographicBakeRenderer {
             (params.dispatch[3] - params.dispatch[1]).div_ceil(8),
             1,
         );
+        Ok(uniform)
     }
     pub fn render(
         &mut self,
@@ -581,16 +574,17 @@ impl OrthographicBakeRenderer {
                 .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                     label: Some("orthographic bake presentation"),
                 });
-        self.dispatch(&mut encoder, &output, &params, &self.dummy, true);
+        let mut uniforms = vec![self.dispatch(&mut encoder, &output, &params, &self.dummy, true)?];
         let mut leases = Vec::new();
         for (at, dispatch, buffer) in resolved {
             params.dispatch = dispatch;
             params.tile[0] = at.0;
             params.tile[1] = at.1;
-            self.dispatch(&mut encoder, &output, &params, buffer.buffer(), false);
+            uniforms.push(self.dispatch(&mut encoder, &output, &params, buffer.buffer(), false)?);
             leases.push(buffer.pin());
         }
         self.context.queue.submit(Some(encoder.finish()));
+        drop(uniforms); // Immutable input owners survive encoding and submission.
         self.context.queue.on_submitted_work_done(move || {
             drop(leases);
             drop(submission);

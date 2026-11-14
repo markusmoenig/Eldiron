@@ -215,6 +215,7 @@ impl OrthographicBakeRenderer {
                     label: Some("orthographic bake source page"),
                 });
         let mut params = job.key.params;
+        let mut uniforms = Vec::new();
         if job.next == 0 {
             if let Some(base) = job.base.take() {
                 encoder.copy_texture_to_texture(
@@ -227,14 +228,14 @@ impl OrthographicBakeRenderer {
                     },
                 );
                 encoder.copy_buffer_to_buffer(
-                    &base.depth,
+                    base.depth(),
                     0,
-                    &job.output.depth,
+                    job.output.depth(),
                     0,
                     u64::from(base.size.0) * u64::from(base.size.1) * 4,
                 );
             } else {
-                self.dispatch(&mut encoder, &job.output, &params, &self.dummy, true);
+                uniforms.push(self.dispatch(&mut encoder, &job.output, &params, &self.dummy, true)?);
             }
         }
         for (at, dispatch, offset, missing) in draws {
@@ -243,13 +244,14 @@ impl OrthographicBakeRenderer {
             params.dispatch = dispatch;
             params.bits[2] = offset;
             params.bits[3] = u32::from(missing);
-            self.dispatch(&mut encoder, &job.output, &params, buffer.buffer(), false);
+            uniforms.push(self.dispatch(&mut encoder, &job.output, &params, buffer.buffer(), false)?);
         }
         job.next = end;
         let done = Arc::new(AtomicBool::new(false));
         job.pending = Some(done.clone());
         let pin = buffer.pin();
         self.context.queue.submit(Some(encoder.finish()));
+        drop(uniforms);
         self.context.queue.on_submitted_work_done(move || {
             drop(pin);
             drop(submission);
