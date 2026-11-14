@@ -5389,11 +5389,11 @@ name = "theframework"
 version = "0.96.0"
 dependencies = [
  "arboard",
+ "bincode",
  "bytemuck",
  "console_error_panic_hook",
  "console_log",
  "flags",
- "flate2",
  "font-kit",
  "fontdue",
  "futures",
@@ -5440,6 +5440,10 @@ dependencies = [
 name = "theframework-core"
 version = "0.96.0"
 dependencies = [
+ "bincode",
+ "flate2",
+ "png 0.17.16",
+ "rayon",
  "rustc-hash 2.1.1",
  "serde",
  "serde_json",

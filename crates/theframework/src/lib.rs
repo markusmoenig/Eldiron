@@ -50,57 +50,15 @@ use rust_embed::RustEmbed;
 pub struct Embedded;
 pub use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
-pub enum TheKeyCode {
-    Escape,
-    Return,
-    Delete,
-    Home,
-    End,
-    Up,
-    Right,
-    Down,
-    Left,
-    Space,
-    Tab,
-}
+pub use theframework_core::TheKeyCode;
 
-use ::serde::de::{self, Deserializer};
-use ::serde::ser::{self, Serializer};
-use flate2::{Compression, read::ZlibDecoder, write::ZlibEncoder};
-use std::io::{Read, Write};
-
-fn compress<S>(data: &[u8], serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
-    encoder.write_all(data).map_err(ser::Error::custom)?;
-    let compressed_data = encoder.finish().map_err(ser::Error::custom)?;
-
-    serializer.serialize_bytes(&compressed_data)
-}
-
-fn decompress<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let data = Vec::<u8>::deserialize(deserializer)?;
-    let mut decoder = ZlibDecoder::new(&data[..]);
-    let mut decompressed_data = Vec::new();
-    decoder
-        .read_to_end(&mut decompressed_data)
-        .map_err(de::Error::custom)?;
-
-    Ok(decompressed_data)
-}
 
 pub mod prelude {
     pub use serde::{Deserialize, Serialize};
 
     pub use crate::thedim::*;
     pub use crate::thergbabuffer::{
-        TheRGBABuffer, TheRGBARegion, TheRGBARegionSequence, TheRGBATile,
+        TheRGBABuffer, TheRGBARegion, TheRGBARegionSequence, TheRGBATile, LegacyBitmapText,
     };
     pub use crate::thesurface::{ThePixelRect, TheRasterTarget, TheSurfaceError, TheSurfaceMut};
 

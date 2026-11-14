@@ -17,19 +17,7 @@ pub enum TheFontPreference {
     Code,
 }
 
-#[derive(PartialEq, Clone, Eq)]
-pub enum TheHorizontalAlign {
-    Left,
-    Center,
-    Right,
-}
-
-#[derive(PartialEq)]
-pub enum TheVerticalAlign {
-    Top,
-    Center,
-    Bottom,
-}
+pub use theframework_core::{TheHorizontalAlign, TheVerticalAlign};
 
 #[derive(Default)]
 pub struct TheFontSettings {
@@ -132,10 +120,8 @@ impl TheDraw2D {
         mask_size: &(usize, usize),
         color: &[u8; 4],
     ) {
-        let TheRasterTarget {
-            pixels: frame,
-            scale,
-        } = frame.into();
+        let target: TheRasterTarget<'a> = frame.into();
+        let (frame, scale) = target.into_parts();
         let s = RasterScale(scale);
         if scale != 1.0 {
             let r = s.rect(rect);
@@ -178,10 +164,8 @@ impl TheDraw2D {
         stride: usize,
         color: &[u8; 4],
     ) {
-        let TheRasterTarget {
-            pixels: frame,
-            scale,
-        } = frame.into();
+        let target: TheRasterTarget<'a> = frame.into();
+        let (frame, scale) = target.into_parts();
         let s = RasterScale(scale);
         let rect = &s.rect(rect);
         let stride = s.u(stride);
@@ -206,10 +190,8 @@ impl TheDraw2D {
         color: &[u8; 4],
         safe_rect: &(usize, usize, usize, usize),
     ) {
-        let TheRasterTarget {
-            pixels: frame,
-            scale,
-        } = frame.into();
+        let target: TheRasterTarget<'a> = frame.into();
+        let (frame, scale) = target.into_parts();
         let s = RasterScale(scale);
         let rect = &s.signed_rect(rect);
         let safe_rect = &s.rect(safe_rect);
@@ -236,10 +218,8 @@ impl TheDraw2D {
         stride: usize,
         color: &[u8; 4],
     ) {
-        let TheRasterTarget {
-            pixels: frame,
-            scale,
-        } = frame.into();
+        let target: TheRasterTarget<'a> = frame.into();
+        let (frame, scale) = target.into_parts();
         let s = RasterScale(scale);
         let rect = &s.rect(rect);
         let stride = s.u(stride);
@@ -280,10 +260,8 @@ impl TheDraw2D {
         stride: usize,
         color: &[u8; 4],
     ) {
-        let TheRasterTarget {
-            pixels: frame,
-            scale,
-        } = frame.into();
+        let target: TheRasterTarget<'a> = frame.into();
+        let (frame, scale) = target.into_parts();
         let s = RasterScale(scale);
         let rect = &s.rect(rect);
         let stride = s.u(stride);
@@ -316,10 +294,8 @@ impl TheDraw2D {
         color: &[u8; 4],
         border: usize,
     ) {
-        let TheRasterTarget {
-            pixels: frame,
-            scale,
-        } = frame.into();
+        let target: TheRasterTarget<'a> = frame.into();
+        let (frame, scale) = target.into_parts();
         let s = RasterScale(scale);
         let rect = &s.rect(rect);
         let border = s.u(border);
@@ -353,10 +329,8 @@ impl TheDraw2D {
         color: &[u8; 4],
         border: usize,
     ) {
-        let TheRasterTarget {
-            pixels: frame,
-            scale,
-        } = frame.into();
+        let target: TheRasterTarget<'a> = frame.into();
+        let (frame, scale) = target.into_parts();
         let s = RasterScale(scale);
         let rect = &s.rect(rect);
         let border = s.u(border);
@@ -388,10 +362,8 @@ impl TheDraw2D {
         border: isize,
         safe_rect: &(usize, usize, usize, usize),
     ) {
-        let TheRasterTarget {
-            pixels: frame,
-            scale,
-        } = frame.into();
+        let target: TheRasterTarget<'a> = frame.into();
+        let (frame, scale) = target.into_parts();
         let s = RasterScale(scale);
         let rect = &s.signed_rect(rect);
         let border = (border as f32 * scale).round() as isize;
@@ -443,10 +415,8 @@ impl TheDraw2D {
         color: &[u8; 4],
         radius: f32,
     ) {
-        let TheRasterTarget {
-            pixels: frame,
-            scale,
-        } = frame.into();
+        let target: TheRasterTarget<'a> = frame.into();
+        let (frame, scale) = target.into_parts();
         let s = RasterScale(scale);
         let rect = &s.rect(rect);
         let radius = radius * scale;
@@ -488,10 +458,8 @@ impl TheDraw2D {
         border_color: &[u8; 4],
         border_size: f32,
     ) {
-        let TheRasterTarget {
-            pixels: frame,
-            scale,
-        } = frame.into();
+        let target: TheRasterTarget<'a> = frame.into();
+        let (frame, scale) = target.into_parts();
         let s = RasterScale(scale);
         let rect = &s.rect(rect);
         let radius = radius * scale;
@@ -533,10 +501,8 @@ impl TheDraw2D {
         color: &[u8; 4],
         rounding: &(f32, f32, f32, f32),
     ) {
-        let TheRasterTarget {
-            pixels: frame,
-            scale,
-        } = frame.into();
+        let target: TheRasterTarget<'a> = frame.into();
+        let (frame, scale) = target.into_parts();
         let s = RasterScale(scale);
         let rect = &s.rect(rect);
         let rounding = &(
@@ -601,10 +567,8 @@ impl TheDraw2D {
         border_color: &[u8; 4],
         border_size: f32,
     ) {
-        let TheRasterTarget {
-            pixels: frame,
-            scale,
-        } = frame.into();
+        let target: TheRasterTarget<'a> = frame.into();
+        let (frame, scale) = target.into_parts();
         let s = RasterScale(scale);
         let rect = &s.rect(rect);
         let rounding = &(
@@ -673,10 +637,8 @@ impl TheDraw2D {
         border_color: &[u8; 4],
         border_size: f32,
     ) {
-        let TheRasterTarget {
-            pixels: frame,
-            scale,
-        } = frame.into();
+        let target: TheRasterTarget<'a> = frame.into();
+        let (frame, scale) = target.into_parts();
         let s = RasterScale(scale);
         let rect = &s.rect(rect);
         let border_size = border_size * scale;
@@ -728,10 +690,8 @@ impl TheDraw2D {
         border_color: &[u8; 4],
         border_size: f32,
     ) {
-        let TheRasterTarget {
-            pixels: frame,
-            scale,
-        } = frame.into();
+        let target: TheRasterTarget<'a> = frame.into();
+        let (frame, scale) = target.into_parts();
         let s = RasterScale(scale);
         let rect = &s.rect(rect);
         let border_size = border_size * scale;
@@ -795,10 +755,8 @@ impl TheDraw2D {
         line_color: &[u8; 4],
         pattern_size: usize,
     ) {
-        let TheRasterTarget {
-            pixels: frame,
-            scale,
-        } = frame.into();
+        let target: TheRasterTarget<'a> = frame.into();
+        let (frame, scale) = target.into_parts();
         let s = RasterScale(scale);
         let rect = &s.rect(rect);
         let pattern_size = s.u(pattern_size);
@@ -829,10 +787,8 @@ impl TheDraw2D {
         stride: usize,
         color: &[u8; 4],
     ) {
-        let TheRasterTarget {
-            pixels: frame,
-            scale,
-        } = frame.into();
+        let target: TheRasterTarget<'a> = frame.into();
+        let (frame, scale) = target.into_parts();
         let s = RasterScale(scale);
         let left = s.i(left);
         let base = s.i(base);
@@ -868,10 +824,8 @@ impl TheDraw2D {
         halign: TheHorizontalAlign,
         valign: TheVerticalAlign,
     ) {
-        let TheRasterTarget {
-            pixels: frame,
-            scale,
-        } = frame.into();
+        let target: TheRasterTarget<'a> = frame.into();
+        let (frame, scale) = target.into_parts();
         let s = RasterScale(scale);
         let rect = &s.rect(rect);
         let settings = TheFontSettings {
@@ -961,10 +915,8 @@ impl TheDraw2D {
         halign: TheHorizontalAlign,
         valign: TheVerticalAlign,
     ) {
-        let TheRasterTarget {
-            pixels: frame,
-            scale,
-        } = frame.into();
+        let target: TheRasterTarget<'a> = frame.into();
+        let (frame, scale) = target.into_parts();
         let s = RasterScale(scale);
         let top_left = &Vec2::new(s.i(top_left.x), s.i(top_left.y));
         let clip_rect = &s.rect(clip_rect);
@@ -1056,10 +1008,8 @@ impl TheDraw2D {
         halign: TheHorizontalAlign,
         valign: TheVerticalAlign,
     ) {
-        let TheRasterTarget {
-            pixels: frame,
-            scale,
-        } = frame.into();
+        let target: TheRasterTarget<'a> = frame.into();
+        let (frame, scale) = target.into_parts();
         let s = RasterScale(scale);
         let rect = &s.rect(rect);
         let settings = TheFontSettings {
@@ -1161,10 +1111,8 @@ impl TheDraw2D {
         halign: TheHorizontalAlign,
         valign: TheVerticalAlign,
     ) {
-        let TheRasterTarget {
-            pixels: frame,
-            scale,
-        } = frame.into();
+        let target: TheRasterTarget<'a> = frame.into();
+        let (frame, scale) = target.into_parts();
         let s = RasterScale(scale);
         let top_left = &Vec2::new(s.i(top_left.x), s.i(top_left.y));
         let clip_rect = &s.rect(clip_rect);
@@ -1254,10 +1202,8 @@ impl TheDraw2D {
         color: &[u8; 4],
         background: &[u8; 4],
     ) {
-        let TheRasterTarget {
-            pixels: frame,
-            scale,
-        } = frame.into();
+        let target: TheRasterTarget<'a> = frame.into();
+        let (frame, scale) = target.into_parts();
         let s = RasterScale(scale);
         let pos = &(s.u(pos.0), s.u(pos.1));
         let settings = TheFontSettings {
@@ -1312,10 +1258,8 @@ impl TheDraw2D {
         settings: TheFontSettings,
         color: &[u8; 4],
     ) {
-        let TheRasterTarget {
-            pixels: frame,
-            scale,
-        } = frame.into();
+        let target: TheRasterTarget<'a> = frame.into();
+        let (frame, scale) = target.into_parts();
         let s = RasterScale(scale);
         let pos = &(s.u(pos.0), s.u(pos.1));
         let settings = TheFontSettings {
@@ -1423,10 +1367,8 @@ impl TheDraw2D {
         rect: &(usize, usize, usize, usize),
         dest_stride: usize,
     ) {
-        let TheRasterTarget {
-            pixels: dest,
-            scale,
-        } = dest.into();
+        let target: TheRasterTarget<'a> = dest.into();
+        let (dest, scale) = target.into_parts();
         let s = RasterScale(scale);
         if scale != 1.0 {
             let r = s.rect(rect);
@@ -1465,10 +1407,8 @@ impl TheDraw2D {
         rect: &(usize, usize, usize, usize),
         dest_stride: usize,
     ) {
-        let TheRasterTarget {
-            pixels: dest,
-            scale,
-        } = dest.into();
+        let target: TheRasterTarget<'a> = dest.into();
+        let (dest, scale) = target.into_parts();
         let s = RasterScale(scale);
         if scale != 1.0 {
             let r = s.rect(rect);
@@ -1538,10 +1478,8 @@ impl TheDraw2D {
         dest_stride: usize,
         alpha: f32,
     ) {
-        let TheRasterTarget {
-            pixels: dest,
-            scale,
-        } = dest.into();
+        let target: TheRasterTarget<'a> = dest.into();
+        let (dest, scale) = target.into_parts();
         let s = RasterScale(scale);
         if scale != 1.0 {
             let r = s.rect(rect);
@@ -1592,10 +1530,8 @@ impl TheDraw2D {
         rect: &(usize, usize, usize, usize),
         dest_stride: usize,
     ) {
-        let TheRasterTarget {
-            pixels: dest,
-            scale,
-        } = dest.into();
+        let target: TheRasterTarget<'a> = dest.into();
+        let (dest, scale) = target.into_parts();
         let s = RasterScale(scale);
         if scale != 1.0 {
             let r = s.rect(rect);
@@ -1656,10 +1592,8 @@ impl TheDraw2D {
         offset: usize,
         dest_stride: usize,
     ) {
-        let TheRasterTarget {
-            pixels: dest,
-            scale,
-        } = dest.into();
+        let target: TheRasterTarget<'a> = dest.into();
+        let (dest, scale) = target.into_parts();
         let s = RasterScale(scale);
         if scale != 1.0 {
             let r = s.rect(rect);
@@ -1711,10 +1645,8 @@ impl TheDraw2D {
         dest_stride: usize,
         safe_rect: &(usize, usize, usize, usize),
     ) {
-        let TheRasterTarget {
-            pixels: dest,
-            scale,
-        } = dest.into();
+        let target: TheRasterTarget<'a> = dest.into();
+        let (dest, scale) = target.into_parts();
         let s = RasterScale(scale);
         if scale != 1.0 {
             let r = s.signed_rect(rect);
@@ -1773,10 +1705,8 @@ impl TheDraw2D {
         source_size: &(usize, usize),
         blend_factor: f32,
     ) {
-        let TheRasterTarget {
-            pixels: frame,
-            scale,
-        } = frame.into();
+        let target: TheRasterTarget<'a> = frame.into();
+        let (frame, scale) = target.into_parts();
         let s = RasterScale(scale);
         let rect = &s.rect(rect);
         let stride = s.u(stride);
@@ -1812,10 +1742,8 @@ impl TheDraw2D {
         source_frame: &[u8],
         source_size: &(usize, usize),
     ) {
-        let TheRasterTarget {
-            pixels: frame,
-            scale,
-        } = frame.into();
+        let target: TheRasterTarget<'a> = frame.into();
+        let (frame, scale) = target.into_parts();
         let s = RasterScale(scale);
         let rect = &s.rect(rect);
         let stride = s.u(stride);
@@ -1858,10 +1786,8 @@ impl TheDraw2D {
         source_size: &(usize, usize),
         alpha: f32,
     ) {
-        let TheRasterTarget {
-            pixels: frame,
-            scale,
-        } = frame.into();
+        let target: TheRasterTarget<'a> = frame.into();
+        let (frame, scale) = target.into_parts();
         let s = RasterScale(scale);
         let rect = &s.rect(rect);
         let stride = s.u(stride);
@@ -1903,10 +1829,8 @@ impl TheDraw2D {
         source: &[u8],
         source_size: &(usize, usize),
     ) {
-        let TheRasterTarget {
-            pixels: dest,
-            scale,
-        } = dest.into();
+        let target: TheRasterTarget<'a> = dest.into();
+        let (dest, scale) = target.into_parts();
         let s = RasterScale(scale);
         let dest_rect = &s.rect(dest_rect);
         let dest_stride = s.u(dest_stride);
@@ -2064,10 +1988,7 @@ mod tests {
                         }
                     }
                     draw.rect(
-                        TheRasterTarget {
-                            pixels: &mut actual,
-                            scale,
-                        },
+                        TheRasterTarget::from_parts(&mut actual, scale),
                         &rect,
                         8,
                         &color,

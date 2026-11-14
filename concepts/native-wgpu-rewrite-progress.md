@@ -11944,3 +11944,115 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   private raster-target field access and text extension callers before moving;
   do not move font/UI/window/GPU dependencies into the CPU core. Canonical
   renderer ownership/retirement and full M0–M9 acceptance remain active.
+
+## 2026-11-14 — CPU bitmap/value extraction (active)
+
+- Previous goal turn was progress at77b3625d. Clean tracked state revalidated;
+  unrelated networking concept preserved. Full M0–M9 remains active.
+- Before moving definitions, captured52value variants/operators/key codes plus
+  UTF-8/time/mask/bitmap/region/tile data through original TheFramework APIs;
+  JSON3,542bytes and bincode2,055bytes. Captured reference font raster PNG at
+ 150%density/4,421bytes using the existing Roboto-Bold source. Removed the
+  temporary capture example after recording; tests cannot regenerate goldens.
+- CPU bitmap storage, RGB/RGBA pixel utilities, raster surface/scale/rectangle
+  helpers, TheValue/comparison/assignment and TheKeyCode/alignment definitions
+  now live in theframework-core. Existing Framework module/prelude paths
+  re-export the same concrete types, not separate conversion wrappers. Core
+  remains free of font/UI/window/GPU dependencies. Neutral ImageAsset remains
+  separate from the compatibility bitmap's preserved dim/render_scale schema.
+- Kept fontdue raster text in an explicit Framework LegacyBitmapText extension
+  adapter, exported through the existing prelude. Native paint still uses
+  Parley/Swash. Narrow external bitmap imports may need that trait in scope for
+  the deprecated font helper; all repository callers are being compiled. Pure
+  raster-target callers use from_parts/into_parts rather than private fields;
+  geometry/scale/clipping arithmetic and existing raster oracles are retained.
+- Removed Framework's unused root bitmap codec and moved RGB's identical codec
+  ownership to Core too. The UI module no longer owns serialized RGB storage.
+  Lockfile changes only existing local dependency edges (no new registry versions).
+- Initial move script stopped on nonuniform raster-target destructuring before
+  wiring Core modules; its old-core compile is not extraction evidence. Completed
+  all32destructuring variants, added explicit serde/vek imports. First wired
+  Core checks then compiled; no shader or application behavior was changed.
+- JSON and binary writer bytes matched their pre-move goldens immediately, but
+  binary full-record read hit UnexpectedEof. Isolated harness built from77b3625d
+  original definitions reproduced the same error: the legacy bitmap omits unit
+  render_scale but bincode struct readers expect that field. Preserved that
+  existing format rather than silently redefining it. Original readable binary
+  fixture (51values/fractional bitmap, all fields present) round-tripped before
+  the move and now round-trips in Core. JSON all52values round-trips. This is an
+  explicit baseline binary-format limitation, not a new migration failure/pass.
+- Independently captured original RGB JSON/binary, both round-trip and match
+  moved data. Isolated Core tests PASS17, including moved surface/compositing,
+  existing graph/schema and new value/bitmap checks. Framework compatibility
+  PASS2/0.03s: exact core type identity, legacy import paths, byte-identical
+  serialization and reference text PNG. Logs /private/tmp/eldiron-core-all-
+  bitmaps-final.log and /private/tmp/eldiron-core-framework-compat-final.log.
+  Broad runtime/Creator/client/browser checks still need to run.
+- Baseline legacy-values.json: 3542bytes, SHA2563d345a417034d7af03f5736b33a9343da05dfcd25ad2f626871c8afda18c64f7.
+- Baseline legacy-values.bin: 2055bytes, SHA256c59a540c78ff0e17638193a4e5e1debd02287c5224236856e3f7ba9111cafeaa.
+- Baseline legacy-readable-values.bin: 1935bytes, SHA256c5d2340f42dcf18d9f31ec402b05995ec5c3eac2da60e498ab02696fe88e48fe.
+- Baseline legacy-bitmap-text.png: 4421bytes, SHA2561c696455e9526f2c06d0d70b1741077abf12a4b433b37c6ae8e68b2e982253c1.
+- Baseline legacy-rgb.json: 169bytes, SHA25622e9943f87d83209bb028827741a17b0bcbbde5d4cf5f7e87563577a39314bac.
+- Baseline legacy-rgb.bin: 58bytes, SHA25655b5035c09615edcf1b72278fe1faa18d4b411f9bb0a1a3693fe7b25dc6cb8e3.
+- Broad existing consumers compile unchanged: native Creator library PASS27.22s;
+  classic/WGPU/terminal clients PASS20.60s; default/reference Creator library
+  PASS22.49s; wasm Creator library PASS27.02s. Isolated runtime PASS7/28.31s
+  (clock/output fanout/addressed view/player input and real starter),
+  /private/tmp/eldiron-core-extraction-{runtime,creator,clients,reference,wasm}.log.
+- Core normal dependency audit enumerates37packages and zero TheFramework,
+  fontdue, Winit, WGPU, Pixels, Parley or Swash dependencies; source scan also
+  has no UI/context/GPU/font references in moved data/utility definitions. CPU
+  png/flate2/rayon dependencies reuse existing lockfile versions. Remaining
+  legacy consumers elsewhere may still link fontdue; this audit is Core's
+  boundary, not a claim the entire isolated runtime dependency tree is retired.
+- Framework UI/paint library, compatibility and DPI suites pass together,
+  /private/tmp/eldiron-core-framework-integrated.log. Existing8DPI contracts
+  include negative/scroll composition, physical crop/pad, adjacent fractional
+  rectangles, alpha/storage/schema and display-resolution text. RGB's legacy
+  UI import also statically accepts the exact Core type. Creator assembled test
+  build collecting in42461; actual assembled run is still required.
+- Framework combined run PASS160library/2compatibility/8DPI tests (4.37s/
+  0.03s/0.68s). Creator test build passed and produced the new dependency-hash
+  executable eldiron_creator-b82612fa719ad0d0, not the prior fcd49d153be5a6b9.
+  Actual assembled native run is live in52850; browser release/package36486and
+  staticlib check28838are also collecting. No old executable result is used as
+  proof of this data extraction.
+- Original RGB baseline legacy-rgb.json: 169bytes, SHA25622e9943f87d83209bb028827741a17b0bcbbde5d4cf5f7e87563577a39314bac.
+- Original RGB baseline legacy-rgb.bin: 58bytes, SHA25655b5035c09615edcf1b72278fe1faa18d4b411f9bb0a1a3693fe7b25dc6cb8e3.
+- Current staticlib/no-Winit library PASS1m00s. Browser release/package
+  PASS2m42s/99,092,222bytes. Current release actual browser bootstrap is now
+  loading the pre-extraction LargeGpuBake archive to check real project decode,
+  shared native presentation and device recovery with Core-owned bitmap/value
+  types. Assembled native has passed persisted/painted/history and is continuing
+  through custom/DPI/runtime workflow checks; no final result claimed yet.
+
+- Current assembled native Creator regression PASS1/342.74s with the newly built
+  b82612fa719ad0d0 executable, /private/tmp/eldiron-core-data-native-assembly.log.
+  Persisted/painted/history, custom controls, DPI, asset palette and runtime
+  workflows passed; this is detached native GPU evidence, not physical-console
+  acceptance. Physical monitor/IME/clipboard and other unavailable host gates
+  remain open.
+- Current packaged browser release loaded the pre-extraction 54-tile archive,
+  generated a six-tile/two-sample replacement, saved while generation remained
+  pending and after completion, then recovered generation2->3 on the same
+  document. PASS /private/tmp/eldiron-core-data-browser-proof.log. Root CPU bytes,
+  ordinary color readbacks, Canvas2D contexts, GPU errors and browser errors all
+  zero; requested asset captures alone read20,447,232bytes/36requests. Two color
+  and two depth GPU incremental copies were observed while rendering; sampled
+  shared-source peak48,234,496bytes within64MiB policy (not total process memory).
+- Offline current archive inspection PASS: all272partial-save ZIP entries match
+  the fresh pre-request save byte for byte; completed archive has6tiles at2samples,
+  24valid256x256PNG headers, six correctly sized float-depth fields/174,509finite
+  samples. Authored project JSON is identical after excluding only bake metadata
+  and the affected map changed flag. Completed archive1,091,860bytes, project JSON
+  SHA25675c369c4718eb0c1bf35d66cd9252d68c36a4ce26362087ef04689f9776b144d.
+- This closes the physical CPU data-definition move, not the full M4 milestone:
+  Framework compatibility re-exports and explicit reference text adapter remain;
+  Rusterix/shared/runtime transitive legacy imports/dependencies still need
+  removal from CPU-only paths. Neutral ImageAsset caller conversion, canonical
+  Creator ownership/launcher retirement, global resource budgets/performance
+  baselines and physical/platform acceptance are still active. Old experimental
+  paint-version compatibility is not required by the user; project/value schema
+  preservation remains required. Next coherent batch: remove direct Framework
+  imports/dependency from CPU Rusterix/shared consumers while keeping graphical
+  adapters explicitly feature gated, then audit terminal/runtime dependency trees.

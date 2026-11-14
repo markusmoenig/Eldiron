@@ -16,3 +16,18 @@ pub mod thetilemask;
 pub use theid::TheId;
 pub use thetilemask::TheTileMask;
 pub use uuid::Uuid;
+
+pub mod alignment;
+mod codec;
+pub mod key;
+pub mod thergbabuffer;
+pub mod thesurface;
+pub mod thevalue;
+pub use alignment::{TheHorizontalAlign, TheVerticalAlign};
+pub use key::TheKeyCode;
+pub use thergbabuffer::{TheRGBABuffer, TheRGBARegion, TheRGBARegionSequence, TheRGBATile};
+pub use thesurface::{ThePixelRect, TheRasterTarget, TheSurfaceError, TheSurfaceMut};
+pub use thevalue::{TheValue, TheValueAssignment, TheValueComparison};
+
+pub mod thergbbuffer;
+pub use thergbbuffer::TheRGBBuffer;
