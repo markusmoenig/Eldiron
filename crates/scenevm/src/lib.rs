@@ -1272,7 +1272,7 @@ impl SceneVM {
         }
 
         // Composite each layer in order
-        for (i, vm) in vms_to_composite.iter().enumerate() {
+        for vm in &vms_to_composite {
             if let Some(layer_texture) = vm.composite_texture() {
                 if let Some(layer_gpu) = &layer_texture.gpu {
                     // Create bind group for this layer
@@ -1311,7 +1311,7 @@ impl SceneVM {
                     // First layer: clear to transparent. Ordinary base layers are opaque,
                     // while dynamic-only bake overlays must preserve their alpha.
                     // Subsequent layers: load existing content and blend on top
-                    let load_op = if i == 0 {
+                    let load_op = if debug_composited_layers == 0 {
                         wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT)
                     } else {
                         wgpu::LoadOp::Load
@@ -1342,6 +1342,18 @@ impl SceneVM {
                     debug_composited_layers = debug_composited_layers.saturating_add(1);
                 }
             }
+        }
+        if debug_composited_layers == 0 {
+            // An empty/disabled scene must not republish a prior frame or the
+            // contents of a retained target. The RGBA overlay below blends over
+            // the same transparent base as ordinary scene-layer composition.
+            let _clear = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("scenevm empty output clear"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: surface_view, resolve_target: None, depth_slice: None,
+                    ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT), store: wgpu::StoreOp::Store },
+                })], ..Default::default()
+            });
         }
         let debug_composite_ms = debug_composite_start.elapsed().as_secs_f64() * 1000.0;
 

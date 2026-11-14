@@ -13,6 +13,7 @@ pub struct TargetDescriptor {
     pub height: u32,
     pub format: wgpu::TextureFormat,
     pub samples: u32,
+    pub mip_levels: u32,
     pub usage: wgpu::TextureUsages,
 }
 impl TargetDescriptor {
@@ -22,6 +23,7 @@ impl TargetDescriptor {
             height,
             format,
             samples: 1,
+            mip_levels: 1,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                 | wgpu::TextureUsages::TEXTURE_BINDING
                 | wgpu::TextureUsages::COPY_SRC
@@ -34,6 +36,7 @@ impl TargetDescriptor {
             height,
             format,
             samples,
+            mip_levels: 1,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
         }
     }
@@ -50,11 +53,20 @@ impl TargetDescriptor {
                 .block_copy_size(None)
                 .ok_or_else(|| RenderError("unsupported target storage format".into()))?,
         };
-        u64::from(self.width.div_ceil(w))
-            .checked_mul(u64::from(self.height.div_ceil(h)))
-            .and_then(|n| n.checked_mul(u64::from(block)))
-            .and_then(|n| n.checked_mul(u64::from(self.samples)))
-            .ok_or_else(|| RenderError("target storage size overflow".into()))
+        let mut total = 0_u64;
+        for mip in 0..self.mip_levels {
+            let width = (self.width >> mip).max(1);
+            let height = (self.height >> mip).max(1);
+            let level = u64::from(width.div_ceil(w))
+                .checked_mul(u64::from(height.div_ceil(h)))
+                .and_then(|n| n.checked_mul(u64::from(block)))
+                .and_then(|n| n.checked_mul(u64::from(self.samples)))
+                .ok_or_else(|| RenderError("target storage size overflow".into()))?;
+            total = total
+                .checked_add(level)
+                .ok_or_else(|| RenderError("target mip storage size overflow".into()))?;
+        }
+        Ok(total)
     }
 }
 
@@ -167,6 +179,9 @@ impl TargetPool {
             || descriptor.width > limit
             || descriptor.height > limit
             || !matches!(descriptor.samples, 1 | 2 | 4 | 8 | 16)
+            || descriptor.mip_levels == 0
+            || descriptor.mip_levels > 32 - descriptor.width.max(descriptor.height).leading_zeros()
+            || (descriptor.samples > 1 && descriptor.mip_levels != 1)
             || descriptor.usage.is_empty()
         {
             return Err(RenderError("invalid or lost-device render target".into()));
@@ -205,7 +220,7 @@ impl TargetPool {
                 height: descriptor.height,
                 depth_or_array_layers: 1,
             },
-            mip_level_count: 1,
+            mip_level_count: descriptor.mip_levels,
             sample_count: descriptor.samples,
             dimension: wgpu::TextureDimension::D2,
             format: descriptor.format,

@@ -12375,3 +12375,79 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   remain open. Do not mark M0–M9 complete. Next inspect SceneVM target lifetime/
   mip/storage requirements before further pooling; preserve output leases and
   capture semantics rather than adopting raw texture reuse blindly.
+
+
+## 2026-11-14 — Scene target storage/lifetime audit (active)
+
+- Shared retained UI targets committed7d7ea910after native and browser verification.
+  Concurrent networking concept remains untouched/untracked; full Goal active.
+- SceneRenderTarget currently allocates a full mip chain with storage binding,
+  and exposes a mip0 render view plus an all-mips output image view. Preserve
+  those requirements while adopting common storage; do not blindly substitute
+  the UI's one-mip/color-only target. CPU pixels/readback remain absent.
+- Audit found draw_all_vms clears only at the first enumerated compositing layer.
+  If no layer is enabled/available it submits no color clear, potentially retaining
+  previous output. Characterizing that first with a GPU disable-all-layers pixel
+  fixture before target pooling; baseline test collecting. Any pooled target
+  must also initialize all mip levels before its public image can be sampled.
+
+- Baseline disable-all-layers test RED1/0.27s at7d7ea910: previous red output
+  remained instead of transparent, /private/tmp/eldiron-scene-target-empty-
+  baseline.log. Fix uses the first actually composited layer for the clear and
+  explicitly clears when no layer contributes, before any RGBA overlay blends.
+- Scene target adoption now preserves full mip/storage flags. Shared descriptors
+  account each mip and reject multisample mip chains. Scene TextureGPU and its
+  published GpuImage each retain the same pooled lease; retiring a view cannot
+  make storage reusable while an output image remains live. Constructor zeros
+  every mip through GPU passes before image() can expose reused contents. CPU
+  source images/serialization and lazy readback behavior are unchanged.
+
+- Scene GPU regressions PASS: disabled output1/0.23s; existing independent views/
+  context replacement1/0.30s; retired output lease/full poisoned-mip reset1/0.27s;
+  existing nested opacity/queued UI resize fixture1/0.43s. No CPU/readback storage
+  added to SceneRenderTarget. Full17x9RGBA mip estimate784bytes is verified.
+- Explicit reference-capture comparison PASS1/1.03s across Compute2D, Raster2D,
+  Compute3D, Raster3D and Sdf: max byte delta0in all five. Source audit confirms
+  those draw_into methods render into per-layer targets (their surface argument
+  is unused), so the no-contributing-layer clear cannot erase a direct-output
+  mode. Normal source/layer algorithms are otherwise unchanged.
+- Final native Creator/client/browser/staticlib/isolated CPU runtime check queue
+  all PASS; logs /private/tmp/eldiron-scene-target-{creator,clients,wasm,staticlib,
+  runtime}-final.log. Current release/package collecting for actual WebGPU ordinary
+  nonbaked scene outputs, including mip/storage allocation instrumentation,
+  warm/resize-return/device recovery. No browser scene-target pass claimed yet.
+
+- Current scene-target browser release/package PASS1m24s/99,211,313bytes. New
+  probe also counts pooled textures with multiple mip levels and storage binding;
+  UI scratch alone cannot satisfy this test. Loading3DStarter in the task-owned
+  page; proof requires an ordinary nonbaked presented scene and actual pooled
+  scene allocation, then warm/resize-return/recovery. Results pending.
+- Consumer audit found no canonical raw texture/view clone from a SceneOutput
+  image; presentation registries retain Arc images. Other from_texture adapters
+  inspected remain separate unpooled producers. Scene outputs now preserve both
+  their TextureGPU lease and published image lease across owner retirement.
+
+- Browser bootstrap reached ready ordinary3DStarter scene (Iso editor view,
+  baked=false). Generation2 probe records16pooled targets including2multi-mip
+  storage scene targets across the two device bootstraps, with zero root CPU/
+  Canvas2D/color copies/errors. Full warm/resize/device proof now collecting;
+  bootstrap readiness alone is not counted as its final result.
+
+- Actual ordinary-scene browser proof PASS: warm frames15->47kept16pooled
+  creations including2multi-mip storage targets; resize2424x1287allocated8new
+  pooled targets including1scene target, then61->93presents kept24/3constant.
+  Return2400x1287reused previous storage (24/3unchanged). Device replacement
+  generation2->3rebuilt8targets including1scene target (32/4); recovered warm
+  frames108->140kept32/4constant. Same document/clean state; root CPU bytes,
+  Canvas2D, ordinary color readbacks, GPU/browser errors all0. Log
+  /private/tmp/eldiron-scene-target-browser-proof.log. The helper exited; its
+  original shell session is no longer registered, and the final PASS is in log.
+- Visually inspected current recovered150%DPR ordinary3DStarter screenshot: scene,
+  controls, text, palette and guides present. Durable evidence
+  concepts/native-wgpu-evidence/browser-scene-target-pool-150.png. Added explicit
+  allocation-lease versus mutable-view-content documentation; raw pooled texture
+  clones must use from_target to retain the lease. No physical-window acceptance
+  inferred. All batch compilers are terminal; no schema/manifest/lock changes.
+- Scene output storage/lifetime subtask verified; other per-layer/history targets,
+  total active/in-flight/driver allocation budgets and remaining M0–M9 acceptance
+  remain open. Full Goal active. Concurrent networking concept left untouched.

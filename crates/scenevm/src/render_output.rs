@@ -12,6 +12,9 @@ pub struct SceneRenderTarget {
     context: Arc<GpuContext>,
     image: Arc<GpuImage>,
 }
+/// Retains allocation lifetime, not a snapshot of a still-active view. Submit
+/// sampling/capture before rendering that view again, and retain the image until
+/// that submission; retiring its owner cannot recycle a leased allocation.
 #[derive(Clone)]
 pub struct SceneOutput {
     pub image: Arc<GpuImage>,
@@ -26,11 +29,10 @@ impl SceneRenderTarget {
         {
             return Err(RenderError("invalid scene target size".into()));
         }
-        let mut texture = Texture::render_target(width, height);
-        texture.ensure_gpu_in_domain(&context.device, context.generation());
-        let image = Arc::new(GpuImage::from_texture(
+        let texture = Texture::pooled_render_target(&context, width, height)?;
+        let image = GpuImage::from_target(
             &context,
-            texture.gpu.as_ref().unwrap().texture.clone(),
+            texture.gpu.as_ref().unwrap().target_lease.as_ref().unwrap().clone(),
             ImageDescriptor {
                 width,
                 height,
@@ -38,7 +40,7 @@ impl SceneRenderTarget {
                 color_space: ColorSpace::Srgb,
                 alpha_mode: AlphaMode::Straight,
             },
-        )?);
+        )?;
         Ok(Self {
             texture,
             context,

@@ -66,6 +66,17 @@ impl GpuImage {
         let lease = context.acquire_target(crate::TargetDescriptor::color(
             descriptor.width, descriptor.height, descriptor.format,
         ))?;
+        Self::from_target(context, lease, descriptor)
+    }
+    /// Preserve a producer's pooled allocation lease when publishing its image.
+    /// The producer must initialize every subresource that consumers can sample.
+    pub fn from_target(context: &GpuContext, lease: crate::TargetLease, descriptor: ImageDescriptor) -> Result<Arc<Self>> {
+        if context.is_lost() || lease.device_generation() != context.generation()
+            || lease.texture().width() != descriptor.width
+            || lease.texture().height() != descriptor.height
+            || lease.texture().format() != descriptor.format {
+            return Err(RenderError("pooled image descriptor/device mismatch".into()));
+        }
         Ok(Arc::new(Self {
             texture: lease.texture().clone(), view: lease.view().clone(), descriptor,
             device_generation: context.generation(), _target_lease: Some(lease),
@@ -73,6 +84,8 @@ impl GpuImage {
     }
     /// The supplied texture must have been created on this context's device.
     /// Ownership metadata prevents mixing registered images across device domains.
+    /// For pooled storage use `from_target`: a raw texture clone does not retain
+    /// the allocation lease or prevent its reuse after the producer retires.
     pub fn from_texture(
         context: &GpuContext,
         texture: wgpu::Texture,

@@ -13,6 +13,7 @@ pub struct Texture {
 pub struct TextureGPU {
     pub device: wgpu::Device,
     pub context_generation: Option<u64>,
+    pub(crate) target_lease: Option<renderkit::TargetLease>,
     mip_pipeline: Option<wgpu::ComputePipeline>,
     pub texture: wgpu::Texture,
     pub view: wgpu::TextureView,
@@ -123,6 +124,46 @@ impl Texture {
         }
     }
 
+    /// GPU-only output storage, preserving the legacy mip/storage contract.
+    #[cfg(feature = "gpu")]
+    pub(crate) fn pooled_render_target(context: &renderkit::GpuContext, width: u32, height: u32) -> renderkit::Result<Self> {
+        let levels = mip_level_count(width, height);
+        let mut descriptor = renderkit::TargetDescriptor::color(width, height, wgpu::TextureFormat::Rgba8Unorm);
+        descriptor.mip_levels = levels;
+        descriptor.usage |= wgpu::TextureUsages::STORAGE_BINDING;
+        let lease = context.acquire_target(descriptor)?;
+        let texture = lease.texture().clone();
+        let view = texture.create_view(&wgpu::TextureViewDescriptor {
+            label: Some("scenevm-pooled-target-mip0"), base_mip_level: 0,
+            mip_level_count: Some(1), ..Default::default()
+        });
+        // New scene targets historically expose transparent storage, including
+        // their unused lower mips. Reused storage must restore that contract
+        // before image() can publish it, even before the first scene render.
+        let mut encoder = context.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("scenevm target initialization"),
+        });
+        for mip in 0..levels {
+            let mip_view = texture.create_view(&wgpu::TextureViewDescriptor {
+                base_mip_level: mip, mip_level_count: Some(1), ..Default::default()
+            });
+            let _pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &mip_view, resolve_target: None, depth_slice: None,
+                    ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT), store: wgpu::StoreOp::Store },
+                })], ..Default::default()
+            });
+        }
+        context.queue.submit([encoder.finish()]);
+        Ok(Self { width, height, data: Vec::new(), gpu: Some(TextureGPU {
+            device: context.device.clone(), context_generation: Some(context.generation()),
+            target_lease: Some(lease), mip_pipeline: None, texture, view, readback: None,
+            padded_bytes_per_row: (width * 4).div_ceil(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT) * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT,
+            #[cfg(target_arch = "wasm32")]
+            map_ready: None,
+        }) })
+    }
+
     #[cfg(feature = "gpu")]
     fn ensure_readback(&mut self, device: &wgpu::Device) {
         let gpu = self.gpu.as_mut().expect("GPU texture initialized");
@@ -211,6 +252,7 @@ impl Texture {
             self.gpu = Some(TextureGPU {
                 device: device.clone(),
                 context_generation: None,
+                target_lease: None,
                 mip_pipeline: None,
                 texture: tex,
                 view,
