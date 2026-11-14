@@ -1,0 +1,236 @@
+{
+  "date": "2026-11-14",
+  "scope": "Bounded original paint subdispatches and per-ray dependency-prefix stopping. Canonical source-size guard/CPU preparation retirement remains pending.",
+  "contracts": {
+    "partition": "Absolute full-target coordinates and unchanged camera/sample seed; split rectangles cover every pixel once. Rounded workgroups cannot write outside their selected extent.",
+    "uniform_abi": {
+      "origin_byte_offset": 24,
+      "extent_byte_offset": 368,
+      "palette_byte_offset": 384,
+      "size": 4480,
+      "description": "Existing CPU _pad_tail maps to GPU _pad_cam via vec3 alignment. Field names and total layout unchanged; offsets asserted."
+    },
+    "working_output": "Clear once per sample/channel. All attempts read the previous valid sample and write the same private target; ready partial regions restore the prior front, final region commits. Capture/preview/sample/persistence only after all regions resolve.",
+    "dependencies": "Each invocation stops at its own first unresolved key before fallback or indirect transport; deterministic atomic minimum remains independent of other invocations.",
+    "insufficient_budget": "If one pixel still requires more pinned originals than capacity, explicitly fail/retire with no original capture or publication.",
+    "compatibility": "No serialized types, dependencies or lockfile changes; current paint/project data preserved. Obsolete paint versions excluded."
+  },
+  "native_verification": [
+    {
+      "check": "Odd 13x9 exact partition/overflow boundary/terminal pixel CPU contract",
+      "cases": 1,
+      "seconds": 0.0
+    },
+    {
+      "check": "Three active pages through two GPU slots, original RGBA/depth parity against pre-change shader",
+      "cases": 1,
+      "seconds": 10.76,
+      "max_rgba_delta": 0
+    },
+    {
+      "check": "Distinct large original source through bounded subdispatches",
+      "cases": 1,
+      "seconds": 2.08,
+      "source_page_pairs": 2049,
+      "source_plane_bytes": 67141632,
+      "gpu_plane_budget": 65536,
+      "lookup_table_bytes": 393216,
+      "active_pages": 3,
+      "unused_keys_retained_unloaded": 2046,
+      "intentional_original_pixel_aliases": false,
+      "max_rgba_delta": 0
+    },
+    {
+      "check": "Affected bake GPU suite, including impossible per-ray budget and retained/reference/progressive cases",
+      "cases": 14,
+      "seconds": 18.27
+    },
+    {
+      "check": "Real fallback candidate witness: unresolved primary cannot consume speculative fallback residency",
+      "cases": 1,
+      "seconds": 6.1,
+      "gpu_slots": 1,
+      "speculative_fallback_uploads": 0,
+      "subdivisions": 0,
+      "max_rgba_delta": 0
+    },
+    {
+      "check": "Replay cases strengthened with pending retirement/device loss after a resolved private region",
+      "cases": 7,
+      "seconds": 2.25,
+      "partial_original_publication": false
+    },
+    {
+      "check": "Canonical linked-Prefab original bake and catalog-edit retirement",
+      "cases": 1,
+      "seconds": 4.74,
+      "green_saved_albedo_pixels": 1573
+    }
+  ],
+  "old_shader_oracle": {
+    "commit": "84dc8c64",
+    "path": "crates/scenevm/embedded/3d_body.wgsl",
+    "test_environment": "ELDIRON_PAINT_REFERENCE_BODY",
+    "sha256": "3b24fb57c62c139a57e4110c551adb50ad1b206ef8ebaec2024eea89c3fdd3ac",
+    "description": "Full-resident oracle receives the pre-change body through a test-only path; no old paint compatibility is implemented."
+  },
+  "browser": {
+    "release_worker_build_seconds": 23.8,
+    "release_creator_build_seconds": 81,
+    "isolated_player_wasm_check_seconds": 11.89,
+    "recovered_full_kernel_region_check": {
+      "messages": [],
+      "maxStorageBuffersPerShaderStage": 8,
+      "full_size": [
+        13,
+        9
+      ],
+      "region": {
+        "origin": [
+          2,
+          1
+        ],
+        "size": [
+          7,
+          5
+        ]
+      },
+      "changed": 35,
+      "preserved": 82,
+      "exact_rgba": true
+    },
+    "recovered_sampler_receipts": {
+      "messages": [],
+      "error": null,
+      "maxStorageBuffersPerShaderStage": 8,
+      "receipts": [
+        {
+          "name": "missing",
+          "expected": 1,
+          "actual": 1,
+          "bytes": 4
+        },
+        {
+          "name": "unused",
+          "expected": 4294967295,
+          "actual": 4294967295,
+          "bytes": 4
+        },
+        {
+          "name": "resident",
+          "expected": 4294967295,
+          "actual": 4294967295,
+          "bytes": 4
+        }
+      ]
+    },
+    "real_ui_bake": {
+      "samples": 32,
+      "elapsed_ms": 4128,
+      "performance_baseline": false,
+      "observed_residency": [
+        {
+          "capacity": 25,
+          "gpu_plane_bytes": 819200,
+          "page_uploads": 0,
+          "pinned": 0,
+          "resident": 0,
+          "uploaded_bytes": 0
+        },
+        {
+          "capacity": 25,
+          "gpu_plane_bytes": 819200,
+          "page_uploads": 2,
+          "pinned": 2,
+          "resident": 2,
+          "uploaded_bytes": 65536
+        },
+        {
+          "capacity": 25,
+          "gpu_plane_bytes": 819200,
+          "page_uploads": 3,
+          "pinned": 3,
+          "resident": 3,
+          "uploaded_bytes": 98304
+        },
+        {
+          "capacity": 25,
+          "gpu_plane_bytes": 819200,
+          "page_uploads": 4,
+          "pinned": 4,
+          "resident": 4,
+          "uploaded_bytes": 131072
+        }
+      ],
+      "before": {
+        "document": "d2aead6d-45b6-4d7c-a221-ead9a3dce974",
+        "dirty": "false",
+        "generation": 1,
+        "frames": 1275,
+        "root": "0",
+        "readback": "21504",
+        "assetReadback": "21504",
+        "assetRequests": "3",
+        "canvas2d": 0,
+        "normal_color_copies": 0,
+        "gpu_errors": [],
+        "errors": []
+      },
+      "after": {
+        "document": "d2aead6d-45b6-4d7c-a221-ead9a3dce974",
+        "dirty": "true",
+        "generation": 1,
+        "frames": 1392,
+        "root": "0",
+        "readback": "11293696",
+        "assetReadback": "11293696",
+        "assetRequests": "39",
+        "canvas2d": 0,
+        "normal_color_copies": 0,
+        "gpu_errors": [],
+        "errors": []
+      },
+      "recovered": {
+        "document": "d2aead6d-45b6-4d7c-a221-ead9a3dce974",
+        "dirty": "false",
+        "generation": 2,
+        "frames": 1405,
+        "root": "0",
+        "readback": "0",
+        "assetReadback": "0",
+        "assetRequests": "0",
+        "canvas2d": 0,
+        "normal_color_copies": 0,
+        "gpu_errors": [],
+        "errors": []
+      },
+      "authored_regional_and_prefab_paint_unchanged": true,
+      "sidecars_equal_before_shader_change_after_change_and_recovery": {
+        "color.png": "f139df0dccdc8a9ef4fe969c693986ea94ac4a58cd12acc3eee6b4c0f1edee61",
+        "depth.f32le": "ca4724cea3799768c73841f4f891e41ecacbda36538f1d8c020ec4cfaf2c52f0",
+        "albedo.png": "6e66b4bef3dce70d22f435bc96cafc5964851c705a2166494239101bf8dcdf36",
+        "normal.png": "30a5f364863eb9deb080a94e37b45fd3797345c149223dc177f193658ed69c00",
+        "material.png": "148d0e5f6289470abdca3da537cbf432b42586af4644bb34d4d46d46a609d2c3"
+      }
+    },
+    "scene_comparison": {
+      "baseline": "paint-demand-residency-150.png",
+      "artifact": "paint-subdivision-150.png",
+      "crop": [
+        80,
+        170,
+        1810,
+        895
+      ],
+      "pixels": 1254250,
+      "max_rgba_delta": 0
+    },
+    "scope_limit": "Real UI fixture fits existing guard and did not force subdivision. Full native pressure owner and browser full-kernel odd-region behavior are independently verified; full browser over-budget owner workflow is not yet claimed."
+  },
+  "pending": [
+    "Incremental CPU original-key/alpha preparation and canonical above-input-budget adapter retirement, with real browser pressure/lifecycle coverage.",
+    "Batch dependency requests and measure release latency/performance; per-page metadata waits are cooperative but smoke elapsed time is not p50/p95/p99 acceptance.",
+    "Total active/inflight/codec/driver memory accounting and remaining oversized individual tile/source decoder paths.",
+    "Remaining M0-M9 workflow, physical native window/input/platform, dynamic DPI and equal-hardware release acceptance."
+  ]
+}

@@ -1365,6 +1365,10 @@ pub struct Compute3DUniforms {
     pub palette: [[f32; 4]; 256],
 }
 const _: [(); 0] = [(); std::mem::size_of::<Compute3DUniforms>() % 16];
+// Keep the private dispatch fields in the existing uniform padding footprint.
+const _: [(); 24] = [(); std::mem::offset_of!(Compute3DUniforms, _pad0)];
+const _: [(); 368] = [(); std::mem::offset_of!(Compute3DUniforms, _pad_tail)];
+const _: [(); 384] = [(); std::mem::offset_of!(Compute3DUniforms, palette)];
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -3656,6 +3660,9 @@ pub struct VM {
     ping_pong_textures: Option<[crate::Texture; 2]>,
     ping_pong_front: usize,
     history_epoch: u64,
+    paint_dispatch: Option<crate::paint_pages::PaintDispatchRegion>,
+    partial_target_initialized: bool,
+    pub(crate) last_compute_history: Option<crate::paint_pages::LayerHistoryCheckpoint>,
     ping_pong_enabled: bool,
     progressive_sample_index: Option<u32>,
     frozen_frame_texture: Option<crate::Texture>,
@@ -4076,6 +4083,8 @@ impl VM {
         if self.ping_pong_enabled != enabled {
             self.ping_pong_enabled = enabled;
             self.ping_pong_front = 0;
+            self.partial_target_initialized = false;
+            self.last_compute_history = None;
             if !enabled {
                 self.ping_pong_textures = None;
             }
@@ -4166,6 +4175,7 @@ impl VM {
                 let a = self.create_layer_target(device, width, height)?;
                 let b = self.create_layer_target(device, width, height)?;
                 self.ping_pong_textures = Some([a, b]);
+                self.partial_target_initialized = false;
                 self.ping_pong_front = 0;
             }
         } else {
@@ -4173,6 +4183,7 @@ impl VM {
                 .is_none_or(|t| t.width != width || t.height != height);
             if needs_recreate {
                 self.layer_texture = Some(self.create_layer_target(device, width, height)?);
+                self.partial_target_initialized = false;
             }
         }
         Ok(())
@@ -4245,6 +4256,7 @@ impl VM {
                 .progressive_sample_index
                 .unwrap_or(self.animation_counter as u32)
                 == 0
+                && (self.paint_dispatch.is_none() || !self.partial_target_initialized)
             {
                 let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
                     label: Some("clear-pingpong-layers"),
@@ -4297,6 +4309,7 @@ impl VM {
                 });
 
                 queue.submit(Some(encoder.finish()));
+                self.partial_target_initialized = true;
             }
 
             Ok((write_view, read_view, write_idx))
@@ -4312,31 +4325,34 @@ impl VM {
                 .clone();
             let prev_view = self.ensure_prev_dummy(device)?;
 
-            let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("clear-layer"),
-            });
-            encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("clear-layer-pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: bg.x as f64,
-                            g: bg.y as f64,
-                            b: bg.z as f64,
-                            a: bg.w as f64,
-                        }),
-                        store: wgpu::StoreOp::Store,
-                    },
-                    depth_slice: None,
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
-            queue.submit(Some(encoder.finish()));
+            if self.paint_dispatch.is_none() || !self.partial_target_initialized {
+                let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("clear-layer"),
+                });
+                encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("clear-layer-pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &view,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(wgpu::Color {
+                                r: bg.x as f64,
+                                g: bg.y as f64,
+                                b: bg.z as f64,
+                                a: bg.w as f64,
+                            }),
+                            store: wgpu::StoreOp::Store,
+                        },
+                        depth_slice: None,
+                    })],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                    multiview_mask: None,
+                });
+                queue.submit(Some(encoder.finish()));
+                self.partial_target_initialized = true;
+            }
 
             Ok((view.clone(), prev_view, self.ping_pong_front))
         }
@@ -5783,6 +5799,9 @@ impl VM {
             ping_pong_textures: None,
             ping_pong_front: 0,
             history_epoch: 0,
+            paint_dispatch: None,
+            partial_target_initialized: false,
+            last_compute_history: None,
             ping_pong_enabled: false,
             progressive_sample_index: None,
             frozen_frame_texture: None,
@@ -10929,6 +10948,15 @@ impl VM {
         fb_w: u32,
         fb_h: u32,
     ) -> crate::SceneVMResult<()> {
+        if self
+            .paint_dispatch
+            .is_some_and(|region| !region.fits([fb_w, fb_h]))
+        {
+            return Err(crate::SceneVMError::InvalidOperation(
+                "paint dispatch exceeds its full target".into(),
+            ));
+        }
+        self.last_compute_history = None;
         if self.gpu.is_none() {
             self.init_gpu(device)?;
         }
@@ -10947,7 +10975,7 @@ impl VM {
         let u = Compute3DUniforms {
             background: self.background.into_array(),
             fb_size: [fb_w, fb_h],
-            _pad0: [0, 0],
+            _pad0: self.paint_dispatch.map_or([0; 2], |region| region.origin),
             gp0: self.gp0.into_array(),
             gp1: self.gp1.into_array(),
             gp2: self.gp2.into_array(),
@@ -10982,7 +11010,9 @@ impl VM {
                 CameraKind::FirstPersonPersp => 2,
             },
             _pad_cam: [0, 0, 0],
-            _pad_tail: [0, 0, 0, 0],
+            _pad_tail: self
+                .paint_dispatch
+                .map_or([0; 4], |region| [region.size[0], region.size[1], 0, 0]),
             palette: self.palette,
         };
         if let Some(g) = self.gpu.as_ref() {
@@ -11010,7 +11040,10 @@ impl VM {
 
             for (_cid, ch) in &self.chunks_map {
                 for poly_list in ch.polys3d_map.values() {
-                    if let Some((id, group)) = poly_list.iter().find_map(|poly| poly.paint_group_id.map(|group| (poly.id, group))) {
+                    if let Some((id, group)) = poly_list
+                        .iter()
+                        .find_map(|poly| poly.paint_group_id.map(|group| (poly.id, group)))
+                    {
                         paint_group_ids.insert(id, group);
                     }
                     for poly in poly_list {
@@ -11180,7 +11213,9 @@ impl VM {
             for (_cid, ch) in &self.chunks_map {
                 for poly_list in ch.polys3d_map.values() {
                     for poly in poly_list {
-                        if self.shared_atlas.tile_index(&poly.tile_id).is_none() { continue; }
+                        if self.shared_atlas.tile_index(&poly.tile_id).is_none() {
+                            continue;
+                        }
                         // Count triangles for this poly
                         for _ in &poly.indices {
                             tri_visibility.push(poly.visible);
@@ -11426,9 +11461,20 @@ impl VM {
             });
             cpass.set_pipeline(pipeline);
             cpass.set_bind_group(0, g.u3d_bg.as_ref().unwrap(), &[]);
-            let gx = (fb_w + 7) / 8;
-            let gy = (fb_h + 7) / 8;
+            let size = self
+                .paint_dispatch
+                .map_or([fb_w, fb_h], |region| region.size);
+            let gx = size[0].div_ceil(8);
+            let gy = size[1].div_ceil(8);
             cpass.dispatch_workgroups(gx, gy, 1);
+        }
+        if self.paint_dispatch.is_some() && self.ping_pong_enabled {
+            self.last_compute_history = self.history_checkpoint().map(|mut checkpoint| {
+                // prepare_layer_views already advanced the attempt epoch. This
+                // lease names the untouched read front before the pending flip.
+                checkpoint.epoch -= 1;
+                checkpoint
+            });
         }
         queue.submit(Some(encoder.finish()));
         if self.ping_pong_enabled {

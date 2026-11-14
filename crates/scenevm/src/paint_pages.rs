@@ -4,6 +4,44 @@ use crate::{GeoId, Raster3DSurfacePaintEntry, SceneVM};
 use renderkit::{GpuContext, GpuImage, RenderError, Result, wgpu};
 use std::sync::Arc;
 
+/// Absolute pixel rectangle in one unchanged full-size camera/sample target.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PaintDispatchRegion {
+    pub origin: [u32; 2],
+    pub size: [u32; 2],
+}
+impl PaintDispatchRegion {
+    pub fn full(size: [u32; 2]) -> Self {
+        Self {
+            origin: [0; 2],
+            size,
+        }
+    }
+    pub fn fits(self, target: [u32; 2]) -> bool {
+        (0..2).all(|axis| {
+            self.size[axis] > 0
+                && self.origin[axis]
+                    .checked_add(self.size[axis])
+                    .is_some_and(|end| end <= target[axis])
+        })
+    }
+    pub fn split(self) -> Option<[Self; 2]> {
+        let axis = if self.size[0] >= self.size[1] && self.size[0] > 1 {
+            0
+        } else if self.size[1] > 1 {
+            1
+        } else {
+            return None;
+        };
+        let mut a = self;
+        let mut b = self;
+        a.size[axis] /= 2;
+        b.origin[axis] = b.origin[axis].checked_add(a.size[axis])?;
+        b.size[axis] -= a.size[axis];
+        Some([a, b])
+    }
+}
+
 pub struct PaintPageBinding {
     pub(crate) color: Arc<GpuImage>,
     pub(crate) material: Arc<GpuImage>,
@@ -85,6 +123,22 @@ pub struct LayerHistoryCheckpoint {
     pub(crate) _lease: Option<renderkit::TargetLease>,
 }
 impl SceneVM {
+    /// None restores ordinary full-frame clear/dispatch behavior. While Some,
+    /// the owner must resolve every region before publishing the working image.
+    pub fn set_layer_paint_dispatch(
+        &mut self,
+        layer: usize,
+        region: Option<PaintDispatchRegion>,
+    ) -> bool {
+        let Some(vm) = self.vm_mut_by_index(layer) else {
+            return false;
+        };
+        vm.set_paint_dispatch(region);
+        true
+    }
+    pub fn take_layer_attempt_history(&mut self, layer: usize) -> Option<LayerHistoryCheckpoint> {
+        self.vm_mut_by_index(layer)?.last_compute_history.take()
+    }
     pub fn set_paint_page_binding(
         &mut self,
         context: &GpuContext,

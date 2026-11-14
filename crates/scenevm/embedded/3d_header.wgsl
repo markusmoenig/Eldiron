@@ -25,6 +25,9 @@ struct U3D {
   cam_near:         f32,
   cam_far:          f32,
   cam_kind: u32,         // 0=OrthoIso, 1=OrbitPersp, 2=FirstPersonPersp
+  // GPU vec3 alignment places this at368, matching CPU _pad_tail, not
+  // CPU _pad_cam. Its xy carry private dispatch extent; zero means full frame.
+  // Existing field names and palette offset384 remain unchanged.
   _pad_cam: vec3<u32>,
   palette: array<vec4<f32>, 256>,
 };

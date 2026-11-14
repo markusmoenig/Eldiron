@@ -32,6 +32,16 @@ pub(super) fn upload_entries(
     }
 }
 impl VM {
+    pub(crate) fn set_paint_dispatch(
+        &mut self,
+        region: Option<crate::paint_pages::PaintDispatchRegion>,
+    ) {
+        if region.is_none() || self.paint_dispatch.is_none() {
+            self.partial_target_initialized = false;
+            self.last_compute_history = None;
+        }
+        self.paint_dispatch = region;
+    }
     pub(crate) fn set_paint_page_binding(
         &mut self,
         context: &renderkit::GpuContext,

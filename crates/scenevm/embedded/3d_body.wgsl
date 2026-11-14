@@ -166,6 +166,7 @@ fn unpack_material(mats: vec4<f32>) -> Material {
 struct SurfacePaintSample {
     overlay: vec4<f32>,
     material: vec4<u32>,
+    ready: bool,
 };
 
 fn compute3d_aux_word(index: u32) -> u32 {
@@ -204,7 +205,7 @@ fn surface_paint_entry_hash(paint_geo: vec4<u32>, origin: vec2<i32>) -> u32 {
 }
 
 fn sample_surface_paint_nearest(paint_coord: vec2<f32>, paint_geo: vec4<u32>) -> SurfacePaintSample {
-    let empty = SurfacePaintSample(vec4<f32>(0.0), vec4<u32>(0u));
+    let empty = SurfacePaintSample(vec4<f32>(0.0), vec4<u32>(0u), true);
     let count = compute3d_aux_word(1u);
     if (count == 0u) { return empty; }
     if (count == 1u && all(surface_paint_entry(0u).uv_size == vec2<u32>(0u))) { return empty; }
@@ -225,12 +226,13 @@ fn sample_surface_paint_nearest(paint_coord: vec2<f32>, paint_geo: vec4<u32>) ->
                 // must resolve this dependency before publishing the sample.
                 if (entry.atlas_rect.z == 0u || entry.atlas_rect.w == 0u) {
                     atomicMin(&compute3d_aux.first_missing_paint, index);
-                    return empty;
+                    return SurfacePaintSample(vec4<f32>(0.0), vec4<u32>(0u), false);
                 }
                 let atlas_px = vec2<i32>(entry.atlas_rect.xy + local);
                 return SurfacePaintSample(
                     textureLoad(paint_color_tex, atlas_px, 0),
-                    textureLoad(paint_material_tex, atlas_px, 0)
+                    textureLoad(paint_material_tex, atlas_px, 0),
+                    true
                 );
             }
             return empty;
@@ -312,6 +314,7 @@ fn trace_organic_primary(ro: vec3<f32>, rd: vec3<f32>, tmax: f32) -> OrganicPrim
 const HIT_TYPE_NONE: u32 = 0u;
 const HIT_TYPE_GEOMETRY: u32 = 1u;
 const HIT_TYPE_BILLBOARD: u32 = 2u;
+const HIT_TYPE_UNRESOLVED: u32 = 3u;
 
 struct UnifiedHit {
     hit_type: u32,          // offset 0
@@ -329,6 +332,15 @@ struct UnifiedHit {
     _pad4: u32,             // offset 104
     _pad5: u32,             // offset 108 (pad to 112 bytes, 16-byte aligned)
 };
+
+// No shading, fallback query or later bounce may use a provisional empty page.
+// Every invocation still reports its own first missing key, preserving the
+// deterministic atomic minimum without cross-invocation early-abort races.
+fn unresolved_paint_hit() -> UnifiedHit {
+    return UnifiedHit(HIT_TYPE_UNRESOLVED, 0.0, 0u, 0u, vec3<f32>(0.0), 0.0,
+        vec3<f32>(0.0), 0.0, vec4<f32>(0.0),
+        Material(0.0, 0.0, 0.0, 0.0, vec3<f32>(0.0), 0.0), 0u, 0u, 0u, 0u);
+}
 
 // ===== Billboard Support =====
 // Modular billboard system for dynamic objects (particles, sprites, effects, etc.)
@@ -648,12 +660,14 @@ fn trace_unified_skip_billboards_with_hidden(
         var mat = unpack_material(mat_data);
         let paint_uv = v0.paint_uv * w + v1.paint_uv * geo_hit.u + v2.paint_uv * geo_hit.v;
         var paint = sample_surface_paint_nearest(paint_uv, v0.paint_geo);
+        if (!paint.ready) { return unresolved_paint_hit(); }
         if (paint.overlay.a <= 0.00001 && paint.material.a == 0u &&
             any(v0.paint_geo_fallback != vec4<u32>(0u))) {
             paint = sample_surface_paint_nearest(
                 surface_paint_coordinate(P, v0.paint_geo_fallback),
                 v0.paint_geo_fallback
             );
+            if (!paint.ready) { return unresolved_paint_hit(); }
         }
         let paint_color_weight = clamp(paint.overlay.a, 0.0, 1.0);
         if (paint_color_weight > 0.001) {
@@ -808,7 +822,7 @@ fn trace_shadow_unified(ro: vec3<f32>, rd: vec3<f32>, tmax: f32) -> f32 {
             skip_billboard_index,
             true
         );
-        if (hit.hit_type == HIT_TYPE_NONE) {
+        if (hit.hit_type == HIT_TYPE_NONE || hit.hit_type == HIT_TYPE_UNRESOLVED) {
             return 0.0;
         }
         let alpha = select(
@@ -824,7 +838,7 @@ fn trace_shadow_unified(ro: vec3<f32>, rd: vec3<f32>, tmax: f32) -> f32 {
         // still test geometry so we don't punch a lit rectangle into existing shadows.
         if (hit.hit_type == HIT_TYPE_BILLBOARD) {
             let geo_hit = trace_geometry_only(trace_origin, rd, 0.001, remaining, true);
-            if (geo_hit.hit_type == HIT_TYPE_NONE) {
+            if (geo_hit.hit_type == HIT_TYPE_NONE || geo_hit.hit_type == HIT_TYPE_UNRESOLVED) {
                 return 0.0;
             }
             let geo_opacity = clamp(geo_hit.albedo.a * geo_hit.material.opacity, 0.0, 1.0);
@@ -843,7 +857,7 @@ fn trace_shadow_unified(ro: vec3<f32>, rd: vec3<f32>, tmax: f32) -> f32 {
             skip_billboard_index,
             true
         );
-        if (hit.hit_type == HIT_TYPE_NONE) {
+        if (hit.hit_type == HIT_TYPE_NONE || hit.hit_type == HIT_TYPE_UNRESOLVED) {
             return 0.0;
         }
 
@@ -1087,13 +1101,15 @@ fn shade_surface(
 // Sun-independent multi-bounce Monte Carlo transport used by orthographic
 // baking. Direct sun and authored point lights are deliberately absent: those
 // are resolved from the baked surface data at runtime.
+struct IndirectRadiance { color: vec3<f32>, ready: bool };
+
 fn path_trace_indirect(
     first_hit: UnifiedHit,
     primary_rd: vec3<f32>,
     px: u32,
     py: u32,
     sky_rgb: vec3<f32>
-) -> vec3<f32> {
+) -> IndirectRadiance {
     var radiance = vec3<f32>(0.0);
     var throughput = vec3<f32>(1.0);
     var hit = first_hit;
@@ -1147,6 +1163,7 @@ fn path_trace_indirect(
         }
 
         let next = trace_geometry_only(hit.position + N * 0.002, next_dir, 0.001, 1e6, false);
+        if (next.hit_type == HIT_TYPE_UNRESOLVED) { return IndirectRadiance(vec3<f32>(0.0), false); }
         if (next.hit_type == HIT_TYPE_NONE) {
             radiance += throughput * sky_rgb;
             break;
@@ -1155,14 +1172,16 @@ fn path_trace_indirect(
         incoming = next_dir;
     }
 
-    return radiance;
+    return IndirectRadiance(radiance, true);
 }
 
 // ===== Main Compute Shader =====
 @compute @workgroup_size(8,8,1)
 fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
-    let px = gid.x;
-    let py = gid.y;
+    let extent = select(U.fb_size, U._pad_cam.xy, all(U._pad_cam.xy > vec2<u32>(0u)));
+    if (any(gid.xy >= extent)) { return; }
+    let px = gid.x + U._pad0.x;
+    let py = gid.y + U._pad0.y;
     if (px >= U.fb_size.x || py >= U.fb_size.y) { return; }
 
     // Build camera ray. Bake sessions enable deterministic subpixel jitter and
@@ -1190,6 +1209,7 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
     var fog_distance = 0.0;
     var has_surface = false;
     var surface_hit = trace_unified(ro, rd, 0.001, 1e6);
+    if (surface_hit.hit_type == HIT_TYPE_UNRESOLVED) { return; }
     var trace_origin = ro;
     var traveled = 0.0;
     var skip_mask: u32 = 0u;
@@ -1206,6 +1226,7 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
             skip_mask,
             skip_billboard_index
         );
+        if (hit.hit_type == HIT_TYPE_UNRESOLVED) { return; }
         if (hit.hit_type == HIT_TYPE_NONE) {
             break;
         }
@@ -1270,7 +1291,9 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
     if (has_surface && !organic_won) {
         var front_color = vec3<f32>(0.0);
         if (progressive) {
-            front_color = path_trace_indirect(surface_hit, rd, px, py, sky_rgb);
+            let transport = path_trace_indirect(surface_hit, rd, px, py, sky_rgb);
+            if (!transport.ready) { return; }
+            front_color = transport.color;
         } else {
             front_color = shade_surface(surface_hit, rd, px, py, sky_rgb, ambient_strength);
         }
@@ -1287,6 +1310,7 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
                 1e6,
                 false
             );
+            if (geo_hit.hit_type == HIT_TYPE_UNRESOLVED) { return; }
             if (geo_hit.hit_type != HIT_TYPE_NONE) {
                 let geo_color = shade_surface(geo_hit, rd, px, py, sky_rgb, ambient_strength);
                 let geo_opacity = clamp(geo_hit.albedo.a * geo_hit.material.opacity, 0.0, 1.0);

@@ -48,6 +48,7 @@ impl Jobs {
                 "document": job.key.document, "map": job.key.source.map, "request": job.key.request,
                 "preparing": !job.source.ready(), "gpu": job.gpu.is_some(),
                 "pending": job.gpu.as_ref().is_some_and(|gpu| gpu.has_pending_capture()),
+                "paint_subdivisions": job.gpu.as_ref().map(|gpu| gpu.paint_subdivisions()),
                 "paint_pages": job.gpu.as_ref().and_then(|gpu| gpu.paint_residency_usage()).map(|usage| serde_json::json!({
                     "gpu_plane_bytes": usage.gpu_plane_bytes, "capacity": usage.capacity,
                     "resident": usage.resident, "pinned": usage.pinned,

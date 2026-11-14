@@ -14,6 +14,8 @@ use scenevm::{
 
 #[cfg(test)]
 mod paint_replay_tests;
+mod regions;
+use regions::Regions;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BakeAdvance {
@@ -67,6 +69,8 @@ pub struct OrthographicBakeJob {
     pending: Option<Pending>,
     paint_pages: Option<PaintPageResidency>,
     replay: Option<(OrthographicBakeWork, Channel)>,
+    regions: Option<Regions>,
+    subdivisions: u64,
     final_work: Option<(OrthographicBakeWork, Channel)>,
     tile: Tile,
     revision: u64,
@@ -100,6 +104,8 @@ impl OrthographicBakeJob {
             pending: None,
             paint_pages: None,
             replay: None,
+            regions: None,
+            subdivisions: 0,
             final_work: None,
             tile: Tile::default(),
             revision: 0,
@@ -128,6 +134,9 @@ impl OrthographicBakeJob {
         self.paint_pages = Some(pages);
         Ok(())
     }
+    pub fn paint_subdivisions(&self) -> u64 {
+        self.subdivisions
+    }
     pub fn paint_residency_usage(&self) -> Option<PaintResidencyUsage> {
         self.paint_pages.as_ref().map(PaintPageResidency::usage)
     }
@@ -138,6 +147,8 @@ impl OrthographicBakeJob {
     fn reset_tile(&mut self) {
         self.pending = None;
         self.replay = None;
+        self.regions = None;
+        self.scene.vm.set_layer_paint_dispatch(0, None);
         self.final_work = None;
         self.tile = Tile::default();
         self.scene.vm.set_layer_ping_pong_enabled(0, false);
@@ -237,11 +248,7 @@ impl OrthographicBakeJob {
                 } => match status.try_finish(&self.context)? {
                     None => self.pending = Some(pending),
                     Some(PaintPageStatus::Ready) => {
-                        self.pending = Some(Pending::Color {
-                            work,
-                            channel: *channel,
-                            ticket: ReadbackTicket::capture_asset(&self.context, image.clone())?,
-                        });
+                        self.finish_region(work, *channel, image.clone(), history.take())?;
                     }
                     Some(PaintPageStatus::MissingEntry(index)) => {
                         if let Some(checkpoint) = history.take() {
@@ -264,7 +271,15 @@ impl OrthographicBakeJob {
                                 self.replay = Some((work, *channel));
                             }
                             PaintPageRequest::WorkingSetFull => {
-                                return Err(RenderError("paint dispatch working set exceeds resident capacity; subdivision required; sample withheld".into()));
+                                let regions = self.regions.as_mut().ok_or_else(|| {
+                                    RenderError("paint pressure has no private region owner".into())
+                                })?;
+                                if !regions.split() {
+                                    return Err(RenderError("single-pixel paint dependency working set exceeds resident capacity; sample withheld".into()));
+                                }
+                                self.subdivisions += 1;
+                                pages.begin_dispatch();
+                                self.replay = Some((work, *channel));
                             }
                             PaintPageRequest::Resident => {
                                 return Err(RenderError(
@@ -390,12 +405,19 @@ impl OrthographicBakeJob {
         let beauty = matches!(channel, Channel::Beauty);
         if !replaying && let Some(pages) = self.paint_pages.as_mut() {
             pages.begin_dispatch();
+            self.regions = Some(Regions::new(work.tile_size));
+            self.scene.vm.set_layer_paint_dispatch(0, None);
         }
-        if beauty && work.sample == 0 {
+        if let Some(regions) = &self.regions {
+            self.scene
+                .vm
+                .set_layer_paint_dispatch(0, Some(regions.current()));
+        }
+        if beauty && work.sample == 0 && !replaying {
             self.scene.vm.set_layer_ping_pong_enabled(0, false);
             self.scene.vm.set_layer_ping_pong_enabled(0, true);
         }
-        let history = if beauty && work.sample > 0 {
+        let history = if self.regions.is_none() && beauty && work.sample > 0 {
             Some(self.scene.vm.layer_history_checkpoint(0).ok_or_else(|| {
                 RenderError("paint replay requires previous sample history".into())
             })?)
@@ -408,24 +430,55 @@ impl OrthographicBakeJob {
             Some(if beauty { work.sample } else { 0 }),
             channel_index,
         )?;
-        self.pending = Some(
-            if let Some(status) = self.scene.vm.vm.capture_paint_page_status(&self.context)? {
-                Pending::Paint {
-                    work,
-                    channel,
-                    image,
-                    status,
-                    history,
-                }
-            } else {
-                Pending::Color {
-                    work,
-                    channel,
-                    ticket: ReadbackTicket::capture_asset(&self.context, image)?,
-                }
-            },
-        );
+        let history = if self.regions.is_some() {
+            self.scene.vm.take_layer_attempt_history(0)
+        } else {
+            history
+        };
+        if let Some(status) = self.scene.vm.vm.capture_paint_page_status(&self.context)? {
+            self.pending = Some(Pending::Paint {
+                work,
+                channel,
+                image,
+                status,
+                history,
+            });
+        } else {
+            self.finish_region(work, channel, image, history)?;
+        }
         Ok(BakeAdvance::Pending)
+    }
+    fn finish_region(
+        &mut self,
+        work: OrthographicBakeWork,
+        channel: Channel,
+        image: Arc<GpuImage>,
+        history: Option<LayerHistoryCheckpoint>,
+    ) -> Result<()> {
+        if self.regions.as_mut().is_some_and(Regions::next) {
+            if let Some(history) = history {
+                if !self.scene.vm.restore_layer_history(0, history) {
+                    return Err(RenderError(
+                        "resolved paint region lost its previous sample history".into(),
+                    ));
+                }
+            } else if matches!(channel, Channel::Beauty) {
+                return Err(RenderError(
+                    "partial beauty has no previous sample lease".into(),
+                ));
+            }
+            self.paint_pages.as_mut().unwrap().begin_dispatch();
+            self.replay = Some((work, channel));
+        } else {
+            self.regions = None;
+            self.scene.vm.set_layer_paint_dispatch(0, None);
+            self.pending = Some(Pending::Color {
+                work,
+                channel,
+                ticket: ReadbackTicket::capture_asset(&self.context, image)?,
+            });
+        }
+        Ok(())
     }
     fn render(
         &mut self,

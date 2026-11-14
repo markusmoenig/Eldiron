@@ -13240,3 +13240,101 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   this smoke are not those acceptance gates. Physical window/platform/release
   performance and other M0-M9 gates remain open. No networking concept edits or
   staged unrelated work, no shader/schema/dependency changes, no overall completion.
+
+
+## 2026-11-14 — Private bounded paint subdispatches (active)
+
+- Previous turn progressed at84dc8c64: production demand residency/replay passed
+  native and real browser original bake/save/recovery. Rechecked tracked source
+  clean; concurrent networking concept remains untracked and untouched.
+- Added absolute PaintDispatchRegion and private sample-region ownership. Full
+  camera/target dimensions and pixel/sample seeds remain unchanged; per-dispatch
+  origin/extent use existing Compute3D uniform padding (CPUoffsets24/368,
+  palette384 asserted). GPU _pad_cam aligns to CPU _pad_tail, not CPU _pad_cam;
+  original shader field names/uniform footprint are retained. Extra invocations
+  in rounded8x8workgroups reject outside their region before touching pixels.
+- A sample's working target clears once, including sample0 and non-ping-pong
+  auxiliary channels. Every partial attempt owns the previous target lease and
+  epoch; ready partial regions restore the unchanged previous valid sample while
+  preserving already resolved pixels in the private write target. Only the last
+  resolved region commits that front and begins one original capture. Failed
+  parent regions subdivide and all children overwrite their partition before
+  preview/sample advancement/persistence. Request retirement clears this state.
+- Each invocation stops at its own first unresolved authored page, including
+  before legacy-coordinate fallback or another indirect bounce. Unpainted keys
+  still resolve empty; resolved-empty primary can still query legitimate current
+  fallback paint. No global early-abort race changes atomic-min source priority.
+- CPU odd13x9region partition test PASS1/0.00s: each absolute pixel resolved once,
+  no overlaps, valid extents and terminal one-pixel handling. Actual3-page/2-slot
+  subdivision PASS1/10.76s initially, allRGBAoriginal channels delta0 and finite
+  depth agreement against pre-change84dc8c64full-resident shader body, not merely
+  a second run of the new shader. Baseline body saved from git to
+  /private/tmp/eldiron-paint-pre-subdivision-body.wgsl and passed via test-only
+  ELDIRON_PAINT_REFERENCE_BODY; no old paint-version compatibility introduced.
+- Actual2,049distinct original page pairs (67,141,632logical source
+  bytes, no intentional pixel aliases) with only65,536GPUplane bytes PASS1/2.08s.
+  Three active pages require real subdivision;2,046unvisited keys stay indexed
+  and unloaded. Oracle packs only the three active originals; no whole-source
+  CPU atlas in production. All4image channels delta0; finite depth matches.
+- Full affected bake GPU suite PASS14/18.27s, including single-ray working set
+  exceeding a one-page budget: subdivision reaches one pixel then explicitly
+  fails with0original capture/preview/persistence, rather than looping or leaking
+  an incomplete asset. Existing progressive/retained/dynamic/channel cases pass.
+- Added explicit current-fallback witness: resolved-empty primary really queries
+  authored fallback keys, but opaque missing primary must resolve first. Actual
+  GPU PASS1/6.10s: one-slot cache completes without subdivision or speculative
+  fallback uploads, original channels delta0 against old full-resident shader;
+  pending retirement and sample1replay also pass. Logs:
+  /private/tmp/eldiron-paint-subdivision-{partition-cpu,pressure-gpu,
+  large-source-gpu,bake-suite-gpu,prefix-fallback-gpu}.log.
+- Canonical Creator/browser integration collecting. Current64MiB authored-input
+  guard remains: large API production now works, but incremental CPU index/alpha
+  preparation and above-budget canonical/browser adapter retirement still need
+  completion/verification. Do not claim full source-size acceptance or M0-M9
+  completion from the native API fixture alone.
+
+- Canonical Creator linked-Prefab/current-paint production and pending catalog
+  edit retirement PASS1/4.74s after the new shader/clear/region code. Only local
+  formatting of changed VM methods followed that check; no monolith-wide fmt.
+- Stronger private-output lifecycle tests PASS7/2.25s (all replay fixtures): under
+  pressure, first resolve a subregion, leave another region's receipt pending,
+  then retire its request; no original capture/preview/persistence occurs.
+  A separate actual device.destroy at that same partial state returns an error
+  then Retired, safely dropping private targets/metadata without publication.
+- Browser complete Compute3D kernel region check PASS:13x9full target, unaligned
+  origin2,1and odd7x5extent, rounded8x8dispatch. Exactly35pixels match the full
+  red reference;82outside pixels remain byte-identical to the prior green frame.
+  No compilation/validation errors; baseline8storage buffers. Reproducible:
+  tools/verify_browser_paint_regions.mjs. This is a real full kernel on an empty
+  scene, not a claim of full browser pressure/indirect/subdivision owner coverage.
+- Canonical release Creator/CPU-codec package and isolated browser player compile
+  passed; actual painted browser bake/save/recovery collecting. Existing authored
+  input guard remains, so ordinary UI fixture does not force browser subdivision.
+  Above-budget canonical/browser acceptance stays open until its CPU preparation
+  and adapter retirement are implemented and exercised.
+
+- Actual fresh release browser32-sample current-paint bake/save/device recovery
+  PASS4.128s smoke (not a release baseline). All current regional/Prefab paint
+  JSON including pixel arrays is unchanged. All5original sidecars are identical
+  to pre-subdivision84dc8c64production and survive recovery byte-for-byte. Scene
+  comparison1,254,250RGBApixels exact. Fresh recovered device also passes complete
+  kernel odd-region bounds and missing/unused/resident4byte sampler receipts at
+  default8storage buffers. No normal color readback/Canvas2D/root framebuffer,
+  reference adapter or GPU errors. This ordinary UI input does not force pressure;
+  full browser subdivided-owner/over-budget acceptance remains explicitly open.
+- Release package PASS(worker23.80s,Creator81s); isolated browser player compile
+  PASS11.89s. Final CPU partition check PASS1/0.00s. Resolved-region counter used
+  for lifecycle fault injection is test-only; production owner/layout behavior
+  matches the package. No repeated unchanged full native application assembly.
+- Durable evidence:concepts/native-wgpu-evidence/paint-private-subdispatch.json
+  and paint-subdivision-150.png. Logs:/private/tmp/eldiron-paint-subdivision-
+  {creator-gpu,partial-lifecycle-gpu,browser-package,player-wasm,browser-produce,
+  browser-recovered-region-kernel,browser-recovered-sampler,final-partition-cpu}.log.
+  All build/test/browser handles terminal; only local changed-method formatting
+  and test instrumentation followed integration. No unrelated source staged.
+- Next useful work: make frozen key/alpha preparation cooperative, retire UV
+  whole-source input rejection independently of organic stamp/individual original
+  tile limits, then exercise real large native/wasm producer pressure, cancellation,
+  document/source invalidation and recovery. Keep allocator/driver peak and release
+  performance acceptance separate from retained plane bounds. M0-M9 remains active;
+  physical native/platform/input and remaining workflow/retirement gates are open.
