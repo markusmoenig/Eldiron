@@ -13459,3 +13459,76 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   warnings. Native actual replacement evidence remains the runtime gate for
   this specific change. The oversized saved tile display/decode adapter is not
   retired by making new production independent of that prior saved asset.
+
+## Cooperative original organic-stamp preparation (2026-11-14, integration active)
+
+- Previous turn checkpoints remain verified; current baselinee8a0f8f1. Concurrent
+  untracked networking-mmo-concept.md remains untouched.
+- Extracted billboard sprite cropping/placement into a dedicated shared module;
+  the existing reference uploader retains its ordered one-sprite-per-stamp path.
+  New StampBillboardPreparation visits at most2chunks/stamps per Creator advance,
+  retains every ordered placement, and deduplicates only dimension/byte-identical
+  original sprites (hash buckets plus exact byte comparison). No partial GPU
+  billboard set is published. Current serialized paint fields remain unchanged.
+- Creator retains its private scene during CPU stamp preparation and starts the
+  GPU bake owner only after complete publication. Cancellation/source/document/
+  device retirement drops that private scene and incomplete original sources.
+  Replaced the old pessimistic256x256bytes-per-stamp admission count with actual
+  unique sprite/instance payload(64MiB) and checked per-raster scratch(16MiB).
+  Genuine over-budget sources/scratch still hand off through the named adapter;
+  this does not retire arbitrary distinct over-budget billboard paging.
+- CPU contracts PASS3/0.04s:300ordered placements share1identical original sprite
+  below20KiB while all centers/sizes/flags match the existing raster convention;
+  authored JSON unchanged; incomplete/budget/scratch failures cannot publish.
+- Canonical hidden native GPU integration PASS3/5.35s: ordinary current paint,
+  2,051UVpage source, and300actual original stamps above the old count limit.
+  Stamp case159cooperative yields,no adapter,1,652green saved albedo pixels;
+  existing subsequent pending-capture catalog edit retirement also passes.
+- Dedicated scratch admission handoff PASS1/2.80s: oversized source is rejected
+  before original rendering/allocation/publication, retains its same requested
+  controller identity and authored paint, then cancels normally. No image readback.
+- Actual old-release browser2stamp32sample bake/save/recovery collected before
+  rebuilding, with all5channels differing from the no-stamp reference: this is a
+  real original-stamp oracle. Current browser release build/integration next.
+  Logs:/private/tmp/eldiron-stamp-preparation-{cpu,canonical-gpu,adapter-gpu}.log
+  and /private/tmp/eldiron-stamp-reference-browser-{bootstrap,produce}.log.
+
+- Fresh release browser package PASS(worker0.36s,Creator56.31s). Actual2stamp
+  native32sample bake/save/recovery PASS4.218s smoke; all5bake sidecars exactly
+  match the old released stamp implementation collected before rebuilding.
+  Comparison1,254,250sceneRGBApixels exact. This oracle really renders stamps:
+  its5channels all differ from the no-stamp bake. No normal color readback,
+  Canvas2D/root framebuffer, reference adapter, GPU or runtime errors.
+- Actual300stamp browser32sample native bake/save/recovery PASS9.452s smoke.
+  CPU upload metadata (no GPU inspection/readback) verifies exactly1sprite and
+  300ordered instances in10,064packed bytes;2stamp fixture uses1sprite/528bytes.
+  Old count admission would estimate78,643,200bytes and select the adapter.
+  Current policy admits the actual original payload; all original source recipes
+  and UV pixels survive save/recovery. All5produced channels survive unchanged.
+- Stronger native stamp-phase catalog retirement PASS1/4.81s: directly asserts
+  source ready, private scene retained, GPU bake absent and incomplete stamps,
+  then edits the catalog and retires without an original capture. New request
+  completes, followed by existing pending-GPU retirement.159cooperative yields.
+- Browser actual device.destroy after a sustained pending CPU preparation and
+  a separate document switch retire the300stamp request without original capture
+  or dirty/persist publication. Reopens its saved archive correctly; all5channels
+  match produced/recovered/preparation-retired archives. Browser inspector proves
+  pending preparation with no GPU bake; precise private-scene stamp stage is
+  directly asserted by the independent native test, not inferred from timing.
+- Hand-built browser fixtures omitted three existing nullable stamp defaults
+  (surface_uv,paint_geo,surface_normal). Both old/new release serialize the same
+  nulls; source comparisons normalize only those pre-existing defaults. The new
+  durable generator emits all current fields. No project/paint wire change made.
+- Durable evidence:concepts/native-wgpu-evidence/organic-stamp-preparation.json
+  and organic-stamp-preparation-150.png (visually checked). Reproducible current
+  archive generator:tools/make_stamp_paint_fixture.py. Logs additionally:
+  /private/tmp/eldiron-stamp-preparation-{private-retirement-gpu,browser-package,
+  browser2-produce,browser300-produce,browser300-retirement}.log. All handles
+  terminal/pass. Only strengthened test instrumentation followed the release
+  package; production source matches the browser/native integration build.
+- Retired: pessimistic stamp-count size adapter. Still open: genuinely over-budget
+  distinct billboard originals/per-raster scratch paging or CPU worker policy,
+  free-standing Prefab stamp transformation/publication, normal interactive
+  producer audit, oversized original saved-tile display/decode, other uncommon
+  workflows/owners/adapters, total peak memory and release/per-platform acceptance.
+  No full M0-M9 gate is declared complete; the whole rewrite Goal remains active.

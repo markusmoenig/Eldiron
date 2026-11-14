@@ -119,22 +119,28 @@ fn frozen_bake_scope_survives_missing_layout_and_rejects_retired_completed_sourc
 #[test]
 #[ignore = "actual GPU original-channel generation and pending capture retirement"]
 fn hidden_world_bakes_linked_prefab_paint_and_retires_catalog_edits() {
-    run_hidden_linked_paint(false, false);
+    run_hidden_linked_paint(false, false, false);
 }
 
 #[test]
 #[ignore = "actual GPU canonical source above former UV input limit"]
 fn hidden_world_bakes_large_linked_paint_without_source_size_adapter() {
-    run_hidden_linked_paint(true, false);
+    run_hidden_linked_paint(true, false, false);
 }
 
 #[test]
 #[ignore = "actual GPU replacement independent of oversized saved original tile"]
 fn hidden_world_rebakes_over_an_oversized_saved_original_without_decoding_it() {
-    run_hidden_linked_paint(false, true);
+    run_hidden_linked_paint(false, true, false);
 }
 
-fn run_hidden_linked_paint(large: bool, oversized: bool) {
+#[test]
+#[ignore = "actual GPU cooperative stamp preparation above former count guard"]
+fn hidden_world_bakes_many_original_stamps_with_cooperative_shared_sprites() {
+    run_hidden_linked_paint(false, false, true);
+}
+
+fn run_hidden_linked_paint(large: bool, oversized: bool, stamps: bool) {
     use shared::iso_paint::{IsoPaintBakedChunk, IsoPaintLayer, IsoPaintOwner};
     use std::time::{Duration, Instant};
     let gpu = futures::executor::block_on(renderkit::GpuContext::headless()).unwrap();
@@ -220,6 +226,29 @@ fn run_hidden_linked_paint(large: bool, oversized: bool) {
             .sync_persisted_asset(region.map.id, region.map.orthographic_bake.as_ref());
         assert_eq!(editor.server_ctx.bake.read().decoded_resident_bytes(), 0);
     }
+    if stamps {
+        use shared::iso_paint::IsoPaintPoint;
+        region.iso_paint.visible = true;
+        region.iso_paint.active_brush = "grass".into();
+        region.iso_paint.active_size = 1.;
+        region.iso_paint.active_color = [24, 190, 72, 255];
+        region.iso_paint.add_stamp(IsoPaintPoint::new(
+            [8, 8],
+            Some(Vec3::new(0., 0.1, 0.)),
+            None,
+        ));
+        let chunk = region.iso_paint.chunks.values_mut().next().unwrap();
+        let prototype = chunk.stamps[0].clone();
+        chunk.stamps = (0..300)
+            .map(|order| {
+                let mut stamp = prototype.clone();
+                stamp.id = Uuid::new_v4();
+                stamp.order = order;
+                stamp
+            })
+            .collect();
+    }
+    let authored_region_paint = region.iso_paint.clone();
     let map_id = region.map.id;
     let map_changed = region.map.changed;
     let authored_paint = editor.documents.project.block_prop_paint.clone();
@@ -255,7 +284,7 @@ fn run_hidden_linked_paint(large: bool, oversized: bool) {
     ui.get_widget("PolyView")
         .unwrap()
         .set_dim(TheDim::sized(0, 0), &mut ctx);
-    if large {
+    if large || stamps {
         let before_preparation = gpu.transfers().asset_bake_readback_requests;
         for _ in 0..10 {
             editor.update_native_bake(&mut ui, &mut ctx);
@@ -271,8 +300,14 @@ fn run_hidden_linked_paint(large: bool, oversized: bool) {
         assert!(job.source.ready());
         assert!(job.gpu.is_none());
         assert!(!job.paint.as_ref().unwrap().ready());
-        // A catalog edit while only CPU material preparation exists must retire
-        // that frozen source just as it retires a pending original GPU sample.
+        if stamps {
+            assert!(
+                job.prepared_scene.is_some(),
+                "stamp preparation must own its private scene"
+            );
+        }
+        // A catalog edit during original index/stamp preparation must retire
+        // that frozen source and private scene like a pending GPU sample.
         let chunk = editor
             .documents
             .project
@@ -340,13 +375,13 @@ fn run_hidden_linked_paint(large: bool, oversized: bool) {
         );
         std::thread::sleep(Duration::from_millis(2));
     }
-    if large {
+    if large || stamps {
         assert!(
             preparation_yields > 128,
             "large material preparation must yield"
         );
         eprintln!(
-            "Large canonical paint: 2051 distinct source pairs, {preparation_yields} preparation yields, no adapter"
+            "Canonical paint: large_uv={large}, stamps={stamps}, {preparation_yields} preparation yields, no adapter"
         );
     }
     let old = editor.documents.project.regions[0]
@@ -370,6 +405,10 @@ fn run_hidden_linked_paint(large: bool, oversized: bool) {
         map_changed + 1
     );
     assert_eq!(editor.documents.project.block_prop_paint, authored_paint);
+    assert_eq!(
+        editor.documents.project.regions[0].iso_paint,
+        authored_region_paint
+    );
     let bake = editor.server_ctx.bake.read();
     let source = bake.presentation_source(map_id, &camera).unwrap();
     let green: usize = source
@@ -445,4 +484,69 @@ fn run_hidden_linked_paint(large: bool, oversized: bool) {
         })
         .unwrap();
     assert_eq!(gpu.capture_queue_usage().requests, 0);
+}
+
+#[test]
+#[ignore = "native GPU context; bounded scratch adapter handoff without original production"]
+fn oversized_stamp_scratch_handoff_preserves_request_without_partial_publication() {
+    use shared::iso_paint::IsoPaintPoint;
+    let gpu = futures::executor::block_on(renderkit::GpuContext::headless()).unwrap();
+    let images = ImageRegistry::new(gpu.clone());
+    let mut editor = Editor::new();
+    let region = &mut editor.documents.project.regions[0];
+    let id = region.id;
+    let map = region.map.id;
+    region.map.camera = MapCamera::ThreeDIso;
+    region.iso_paint.active_brush = "grass".into();
+    region.iso_paint.active_size = 1000.;
+    region
+        .iso_paint
+        .add_stamp(IsoPaintPoint::new([8, 8], Some(Vec3::zero()), None));
+    let authored = region.iso_paint.clone();
+    editor.server_ctx.shared.curr_region = id;
+    editor.server_ctx.shared.pc = ProjectContext::Region(id);
+    editor.server_ctx.shared.editor_view_mode = EditorViewMode::Iso;
+    editor.native_viewport.enabled = true;
+    editor.server_ctx.reference.bind_context(gpu.clone());
+    let mut ui = TheUI::new();
+    let mut ctx = TheContext::new(256, 256, 1.);
+    let mut view = TheRenderView::new(TheId::named("PolyView"));
+    view.set_dim(TheDim::sized(128, 128), &mut ctx);
+    ui.canvas.set_widget(view);
+    editor.server_ctx.bake.write().request_render(map, 2);
+    let request = editor.server_ctx.bake.read().active_request();
+    let before = gpu.transfers();
+    for _ in 0..128 {
+        editor.update_native_bake(&mut ui, &mut ctx);
+        editor.prepare_native_bake(&mut ctx, &images);
+        if editor.native_viewport.world.bake_jobs.legacy.is_some() {
+            break;
+        }
+    }
+    assert!(editor.native_viewport.world.bake_jobs.active.is_none());
+    assert!(
+        editor
+            .native_viewport
+            .world
+            .bake_jobs
+            .uses_adapter(editor.documents.active_id(), request)
+    );
+    assert_eq!(editor.server_ctx.bake.read().active_request(), request);
+    assert_eq!(gpu.transfers().readback_bytes, before.readback_bytes);
+    assert_eq!(editor.documents.project.regions[0].iso_paint, authored);
+    assert!(
+        editor.documents.project.regions[0]
+            .map
+            .orthographic_bake
+            .is_none()
+    );
+    assert!(
+        editor
+            .server_ctx
+            .bake
+            .write()
+            .take_persisted_update_for(map)
+            .is_none()
+    );
+    editor.cancel_native_bake_job();
 }

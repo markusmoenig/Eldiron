@@ -4,12 +4,9 @@ use super::*;
 use shared::iso_paint::IsoPaintLayer;
 use std::hash::{Hash, Hasher};
 
-// Organic stamp sources still use the separate bounded billboard adapter.
-const INPUT_BUDGET: u64 = 64 * 1024 * 1024;
 #[derive(Clone, PartialEq)]
 pub(super) struct Stamp {
     layers: Vec<(Uuid, u64)>,
-    bytes: u64,
 }
 impl Stamp {
     pub(super) fn new(region: &shared::region::Region, project: &Project) -> Self {
@@ -22,7 +19,6 @@ impl Stamp {
                 layers.push((instance.asset_id, paint));
             }
         }
-        let mut bytes = 0_u64;
         let layers = layers
             .into_iter()
             .map(|(id, layer)| {
@@ -44,19 +40,11 @@ impl Stamp {
                     chunk.stamp_revision.hash(&mut hash);
                     chunk.strokes.len().hash(&mut hash);
                     chunk.stamps.len().hash(&mut hash);
-                    if layer.visible {
-                        bytes = bytes.saturating_add(
-                            (chunk.stamps.len() as u64).saturating_mul(256 * 256 * 4),
-                        );
-                    }
                 }
                 (id, hash.finish())
             })
             .collect();
-        Self { layers, bytes }
-    }
-    pub(super) fn supported(&self) -> bool {
-        self.bytes <= INPUT_BUDGET
+        Self { layers }
     }
 }
 
@@ -488,6 +476,7 @@ impl Snapshot {
 /// Frozen paint progresses independently of viewport visibility. The GPU scene
 /// is created only after all original keys and alpha owners have been validated.
 pub(super) struct Preparation(State);
+use shared::iso_paint_render::stamp_billboards::{StampBillboardError, StampBillboardPreparation};
 enum State {
     Frozen(Option<Snapshot>),
     Building(shared::surface_paint::pages::PaintPageIndexBuilder),
@@ -495,10 +484,16 @@ enum State {
         std::sync::Arc<shared::surface_paint::pages::PaintPageIndex>,
         IsoPaintLayer,
     ),
+    Billboards(
+        std::sync::Arc<shared::surface_paint::pages::PaintPageIndex>,
+        StampBillboardPreparation,
+    ),
+    Prepared(std::sync::Arc<shared::surface_paint::pages::PaintPageIndex>),
+    AboveBudget,
 }
 impl Preparation {
     pub(super) fn ready(&self) -> bool {
-        matches!(self.0, State::Ready(..))
+        matches!(self.0, State::Prepared(..))
     }
     pub(super) fn advance(&mut self, context: &renderkit::GpuContext) -> Result<bool, String> {
         if let State::Frozen(snapshot) = &mut self.0 {
@@ -523,25 +518,55 @@ impl Preparation {
             let (index, stamps) = builder.finish()?;
             self.0 = State::Ready(std::sync::Arc::new(index), stamps);
         }
-        Ok(self.ready())
+        Ok(!matches!(self.0, State::Frozen(..) | State::Building(..)))
+    }
+    pub(super) fn above_budget(&self) -> bool {
+        matches!(self.0, State::AboveBudget)
     }
     pub(super) fn upload_page_sources(
-        self,
+        &mut self,
         scene: &mut rusterix::SceneHandler,
         camera: scenevm::Camera3D,
         viewport: (u32, u32),
-    ) -> Result<std::sync::Arc<shared::surface_paint::pages::PaintPageIndex>, String> {
-        let State::Ready(source, stamps) = self.0 else {
-            return Err("Paint source preparation is incomplete".into());
-        };
-        shared::iso_paint_render::IsoPaintRenderer::upload_stamp_billboards_cached(
-            &mut Default::default(),
-            &stamps,
-            &mut scene.vm,
-            camera,
-            viewport.0,
-            viewport.1,
-        );
-        Ok(source)
+    ) -> Result<Option<std::sync::Arc<shared::surface_paint::pages::PaintPageIndex>>, String> {
+        if matches!(self.0, State::Ready(..)) {
+            let State::Ready(index, stamps) = std::mem::replace(&mut self.0, State::Frozen(None))
+            else {
+                unreachable!()
+            };
+            self.0 = State::Billboards(
+                index,
+                StampBillboardPreparation::new(stamps, camera, viewport.1, 64 * 1024 * 1024),
+            );
+        }
+        if let State::Billboards(_, builder) = &mut self.0 {
+            match builder.advance(&scene.vm, 2) {
+                Ok(false) => return Ok(None),
+                Ok(true) => (),
+                Err(
+                    StampBillboardError::SourceBudget { .. }
+                    | StampBillboardError::RasterBudget { .. },
+                ) => {
+                    self.0 = State::AboveBudget;
+                    return Ok(None);
+                }
+                Err(error) => return Err(error.to_string()),
+            }
+            let State::Billboards(index, builder) =
+                std::mem::replace(&mut self.0, State::Frozen(None))
+            else {
+                unreachable!()
+            };
+            builder
+                .finish()
+                .map_err(|e| e.to_string())?
+                .upload(&mut scene.vm);
+            self.0 = State::Prepared(index);
+        }
+        match &self.0 {
+            State::Prepared(source) => Ok(Some(source.clone())),
+            State::AboveBudget => Ok(None),
+            _ => Err("Paint source preparation is incomplete".into()),
+        }
     }
 }

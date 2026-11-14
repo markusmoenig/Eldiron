@@ -24,6 +24,7 @@ struct Job {
     key: Key,
     source: crate::scene_source::Source,
     gpu: Option<OrthographicBakeJob>,
+    prepared_scene: Option<rusterix::SceneHandler>,
     frame: EditorView3D,
     render: RuntimeRenderState,
     viewport: (u32, u32),
@@ -248,57 +249,47 @@ impl Editor {
             if jobs.active.is_none() && jobs.legacy.is_none() {
                 let bridge = self.server_ctx.reference.read();
                 let region = self.documents.project.get_region(&key.region).unwrap();
-                if !key.paint.supported() {
-                    // Organic stamp inputs retain their explicit source adapter.
-                    // A new bake samples authored geometry/paint, independently
-                    // of the previously saved asset's original tile dimensions.
-                    jobs.legacy = Some(key.clone());
-                } else {
-                    let mut projection = region.map.clone();
-                    self.project_native_world_geometry(&mut projection);
-                    let source = crate::scene_source::Source::for_editor(
-                        crate::scene_source::SourceKey {
-                            document: key.document,
-                            map,
-                            source: u64::from(key.source.changed),
-                            assets: key.assets.source,
-                        },
-                        projection,
-                        &bridge.assets,
-                    );
-                    let frame = EditorView3D {
-                        size: viewport,
-                        grid_size: region.map.grid_size,
-                        offset: region.map.offset,
-                        hour: bridge.client.server_time.to_f32(),
-                        animation_frame: bridge.client.animation_frame,
-                        camera,
-                        overlay_camera: camera,
-                        canvas_colors: bridge
-                            .client
-                            .editor_canvas_colors
-                            .filter(|_| bridge.client.use_editor_canvas),
-                        neutral_background: true,
-                        static_geometry: true,
-                        transparent_background: false,
-                    };
-                    jobs.active = Some(Job {
-                        key: key.clone(),
-                        source,
-                        gpu: None,
-                        frame,
-                        render: bridge.render_state_for_view(&region.map, false),
-                        viewport,
-                        paint: Some(
-                            paint::Snapshot::capture(
-                                region,
-                                &self.documents.project,
-                                &bridge.assets,
-                            )
+                let mut projection = region.map.clone();
+                self.project_native_world_geometry(&mut projection);
+                let source = crate::scene_source::Source::for_editor(
+                    crate::scene_source::SourceKey {
+                        document: key.document,
+                        map,
+                        source: u64::from(key.source.changed),
+                        assets: key.assets.source,
+                    },
+                    projection,
+                    &bridge.assets,
+                );
+                let frame = EditorView3D {
+                    size: viewport,
+                    grid_size: region.map.grid_size,
+                    offset: region.map.offset,
+                    hour: bridge.client.server_time.to_f32(),
+                    animation_frame: bridge.client.animation_frame,
+                    camera,
+                    overlay_camera: camera,
+                    canvas_colors: bridge
+                        .client
+                        .editor_canvas_colors
+                        .filter(|_| bridge.client.use_editor_canvas),
+                    neutral_background: true,
+                    static_geometry: true,
+                    transparent_background: false,
+                };
+                jobs.active = Some(Job {
+                    key: key.clone(),
+                    source,
+                    gpu: None,
+                    prepared_scene: None,
+                    frame,
+                    render: bridge.render_state_for_view(&region.map, false),
+                    viewport,
+                    paint: Some(
+                        paint::Snapshot::capture(region, &self.documents.project, &bridge.assets)
                             .into_preparation(),
-                        ),
-                    });
-                }
+                    ),
+                });
             }
             if let Some(job) = jobs.active.as_mut() {
                 job.source.advance();
@@ -318,35 +309,43 @@ impl Editor {
                         if !job.paint.as_mut().unwrap().advance(images.context())? {
                             return Ok(BakeAdvance::Pending);
                         }
-                        let vm = scenevm::SceneVM::new_with_context_and_atlas(
-                            images.context().clone(),
-                            1,
-                            1,
-                            scenevm::SharedAtlas::new(1024, 1024),
-                        );
-                        let mut scene = rusterix::SceneHandler::with_vm(vm);
-                        eldiron_presentation::configure_scene_assets(
-                            &mut scene,
-                            &self.server_ctx.reference.read().assets,
-                            true,
-                        )
-                        .map_err(|error| error.to_string())?;
-                        scene.runtime_render_state = job.render.clone();
-                        for chunk in job.source.snapshot().chunks().values() {
-                            scene.build_index.index_chunk(chunk);
-                            scene.vm.execute(scenevm::Atom::AddChunk {
-                                id: Uuid::new_v4(),
-                                chunk: chunk.as_ref().clone(),
-                            });
+                        if job.prepared_scene.is_none() {
+                            let vm = scenevm::SceneVM::new_with_context_and_atlas(
+                                images.context().clone(),
+                                1,
+                                1,
+                                scenevm::SharedAtlas::new(1024, 1024),
+                            );
+                            let mut scene = rusterix::SceneHandler::with_vm(vm);
+                            eldiron_presentation::configure_scene_assets(
+                                &mut scene,
+                                &self.server_ctx.reference.read().assets,
+                                true,
+                            )
+                            .map_err(|error| error.to_string())?;
+                            scene.runtime_render_state = job.render.clone();
+                            for chunk in job.source.snapshot().chunks().values() {
+                                scene.build_index.index_chunk(chunk);
+                                scene.vm.execute(scenevm::Atom::AddChunk {
+                                    id: Uuid::new_v4(),
+                                    chunk: chunk.as_ref().clone(),
+                                });
+                            }
+                            job.prepared_scene = Some(scene);
                         }
                         // Authoring paint uses the same original-world source
                         // policy as the displayed view. Runtime surface_paint
                         // caches are derived game inputs, not authored layers.
-                        let paint = job.paint.take().unwrap().upload_page_sources(
-                            &mut scene,
+                        let Some(paint) = job.paint.as_mut().unwrap().upload_page_sources(
+                            job.prepared_scene.as_mut().unwrap(),
                             job.frame.camera,
                             job.viewport,
-                        )?;
+                        )?
+                        else {
+                            return Ok(BakeAdvance::Pending);
+                        };
+                        let scene = job.prepared_scene.take().unwrap();
+                        job.paint = None;
                         let mut gpu = OrthographicBakeJob::new(
                             images.context().clone(),
                             scene,
@@ -371,17 +370,25 @@ impl Editor {
                         )
                         .map_err(|error| error.to_string())
                 })();
-                match result {
-                    Ok(BakeAdvance::Retired) => {
-                        jobs.active = None;
-                    }
-                    Ok(_) => (),
-                    Err(error) => {
-                        self.server_ctx.bake.write().fail(error.clone());
-                        self.server_ctx.shared.background_progress = None;
-                        jobs.active = None;
-                        ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
-                        ctx.ui.redraw_all = true;
+                if job.paint.as_ref().is_some_and(|paint| paint.above_budget()) {
+                    // Admission uses actual unique sprite/instance storage and
+                    // per-raster scratch, not a worst-case count of all stamps.
+                    // No GPU bake sample was started or published during prep.
+                    jobs.legacy = Some(job.key.clone());
+                    jobs.active = None;
+                } else {
+                    match result {
+                        Ok(BakeAdvance::Retired) => {
+                            jobs.active = None;
+                        }
+                        Ok(_) => (),
+                        Err(error) => {
+                            self.server_ctx.bake.write().fail(error.clone());
+                            self.server_ctx.shared.background_progress = None;
+                            jobs.active = None;
+                            ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error));
+                            ctx.ui.redraw_all = true;
+                        }
                     }
                 }
             }
