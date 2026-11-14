@@ -148,7 +148,17 @@ impl ProjectUndoAtom {
         }
         let preserved_dock = server_ctx.docks.read().dock.clone();
         set_project_context(ctx, ui, project, server_ctx, pc);
-        if let Some(map) = project.get_map_mut(server_ctx) {
+        // A world-scoped action may run while a detail profile stays selected.
+        // Its captured map identity, rather than that selection, owns the undo.
+        let parent = if let ProjectContext::Region(id) = pc {
+            project.get_region(&id).filter(|region| region.map.id == restored_map.id).map(|_| id)
+        } else { None };
+        let map = if let Some(id) = parent {
+            project.get_region_mut(&id).map(|region| &mut region.map)
+        } else {
+            project.get_map_mut(server_ctx)
+        };
+        if let Some(map) = map {
             let revision = map.changed.max(restored_map.changed).wrapping_add(1);
             *map = restored_map.clone();
             // Restoring a snapshot must invalidate caches even when a new edit

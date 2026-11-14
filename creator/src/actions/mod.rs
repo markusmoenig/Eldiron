@@ -1,5 +1,7 @@
 pub use crate::prelude::*;
 use rusterix::PixelSource;
+mod map_scope;
+pub use map_scope::ActionMapScope;
 
 #[derive(Clone, Debug)]
 pub struct ActionMaterialSlot {
@@ -450,6 +452,10 @@ pub trait Action: Send + Sync {
     fn id(&self) -> TheId;
     fn info(&self) -> String;
     fn role(&self) -> ActionRole;
+
+    fn map_scope(&self) -> ActionMapScope {
+        ActionMapScope::Selected
+    }
 
     fn accel(&self) -> Option<TheAccelerator> {
         None

@@ -1313,7 +1313,7 @@ impl Sidebar {
                         if let Some(action) = server_ctx.actions.write()
                             .get_action_by_id_mut(curr_action_id)
                         {
-                            if let Some(map) = project.get_map_mut(&server_ctx) {
+                            if let Some(map) = action.map_scope().map_mut(project, server_ctx) {
                                 action.load_params(map);
                             }
                             action.load_params_project(project, server_ctx);
@@ -2585,7 +2585,7 @@ impl Sidebar {
                 for action in &action_list.actions {
                     if let Some(accel) = action.accel() {
                         if accel.matches(ui.shift, ui.ctrl, ui.alt, ui.logo, *c) {
-                            if let Some(map) = project.get_map_mut(&server_ctx) {
+                            if let Some(map) = action.map_scope().map_mut(project, server_ctx) {
                                 if action.is_applicable(map, ctx, server_ctx) {
                                     println!("{}", action.id().name);
                                     needs_scene_redraw =
@@ -2704,7 +2704,7 @@ impl Sidebar {
                     actions.get_action_by_id_mut(id.uuid).map(|action| {
                         server_ctx.curr_action_id = Some(action.id().uuid);
 
-                        if let Some(map) = project.get_map_mut(&server_ctx) {
+                        if let Some(map) = action.map_scope().map_mut(project, server_ctx) {
                             action.load_params(map);
                         }
                         action.load_params_project(project, server_ctx);
@@ -2744,7 +2744,7 @@ impl Sidebar {
                         if let Some(action) = server_ctx.actions.read().get_action_by_id(action_id)
                         {
                             let mut needs_scene_redraw = false;
-                            if let Some(map) = project.get_map_mut(&server_ctx) {
+                            if let Some(map) = action.map_scope().map_mut(project, server_ctx) {
                                 needs_scene_redraw = self.apply_action(
                                     action,
                                     map,
@@ -4908,8 +4908,8 @@ impl Sidebar {
             .get_action_by_command_id_mut(&request.command_id)
             .ok_or_else(|| format!("Unknown editor action '{}'.", request.command_id))?;
 
-        let applicable = project
-            .get_map(server_ctx)
+        let applicable = action.map_scope()
+            .map(project, server_ctx)
             .map(|map| action.is_applicable(map, ctx, server_ctx))
             .unwrap_or(false);
         if !applicable {
@@ -4920,7 +4920,7 @@ impl Sidebar {
         }
 
         server_ctx.curr_action_id = Some(action.id().uuid);
-        if let Some(map) = project.get_map(server_ctx) {
+        if let Some(map) = action.map_scope().map(project, server_ctx) {
             action.load_params(map);
         }
         action.load_params_project(project, server_ctx);
@@ -4935,7 +4935,7 @@ impl Sidebar {
         self.show_action_toml_params(ui, ctx, server_ctx, action.as_ref());
 
         let mut needs_scene_redraw = false;
-        if let Some(map) = project.get_map_mut(server_ctx) {
+        if let Some(map) = action.map_scope().map_mut(project, server_ctx) {
             needs_scene_redraw = self.apply_action(action, map, ui, ctx, server_ctx, false);
         }
         action.apply_project(project, ui, ctx, server_ctx);
@@ -5037,6 +5037,9 @@ impl Sidebar {
 
                 if let Some(map) = project.get_map(server_ctx).or(Some(&Map::default())) {
                     for (registration_index, action) in actions.actions.iter().enumerate() {
+                        let Some(map) = action.map_scope().map(project, server_ctx).or_else(|| {
+                            (action.map_scope() == crate::actions::ActionMapScope::Selected).then_some(map)
+                        }) else { continue; };
                         let is_current = Some(action.id().uuid) == server_ctx.curr_action_id;
                         let keep_current_action_slots =
                             is_current && action.preserves_hud_material_slots();
@@ -5097,7 +5100,7 @@ impl Sidebar {
         if let Some(action_id) = server_ctx.curr_action_id {
             self.sync_current_action_toml_params(ui, ctx, None, server_ctx);
             if let Some(action) = server_ctx.actions.write().get_action_by_id_mut(action_id) {
-                if let Some(map) = project.get_map(server_ctx) {
+                if let Some(map) = action.map_scope().map(project, server_ctx) {
                     action.load_params(map);
                 } else {
                     let default_map = Map::default();

@@ -151,6 +151,8 @@ mod tests {
         let last = source.revision;
         owner.clear();
         assert!(owner.presentation_source(region, &camera).is_none());
+        // Complete the explicit clear publication before restoring authored data.
+        assert_eq!(owner.take_persisted_update_for(region), Some(None));
         owner.sync_persisted_asset(region, Some(&asset));
         assert_ne!(
             owner.presentation_source(region, &camera).unwrap().revision,

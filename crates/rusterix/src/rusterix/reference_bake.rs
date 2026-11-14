@@ -163,14 +163,14 @@ impl Rusterix {
                 true,
                 false,
             );
-            if let Err(error) = bake.preview_current_tile(&self.orthographic_bake_work_pixels) {
+            if let Err(error) = bake.preview_work(&work, &self.orthographic_bake_work_pixels) {
                 bake.fail(error);
             }
             // The bake deliberately excludes characters, editor preview icons,
             // particles, and doors. Rebuild them for the next live overlay pass.
             self.scene_handler.mark_dynamics_dirty();
 
-            if bake.finish_sample() {
+            if bake.finish_work_sample(&work).unwrap_or(false) {
                 let captured = self.scene_handler.vm.capture_layer_rgba(0);
                 self.scene_handler.vm.set_layer_ping_pong_enabled(0, false);
 
@@ -245,7 +245,7 @@ impl Rusterix {
                             .vm
                             .set_layer_progressive_sample_index(0, None);
                         if let Err(error) =
-                            bake.commit_current_tile(rgba, depth, albedo, normal, material)
+                            bake.commit_work(&work, rgba, depth, albedo, normal, material)
                         {
                             bake.fail(error);
                         }

@@ -9330,6 +9330,7 @@ impl TheTrait for Editor {
             // This is shared authoring/presentation policy, including GPU-owned
             // views that bypass the CPU viewport adapter below.
             self.server_ctx.reference.write().client.use_editor_canvas = !running_game_mode;
+            self.server_ctx.reconcile_bake_scope(&self.documents.project, is_running);
 
             // Draw the regular region canvas or the isolated Prefab canvas.
             // They intentionally have distinct widget identities so editor
@@ -9748,7 +9749,7 @@ impl TheTrait for Editor {
                                 );
                                 profile.lap("scene_draw_3d");
                                 if let Some(persisted) =
-                                    bake.take_persisted_update()
+                                    bake.take_persisted_update_for(map.id)
                                 {
                                     region.map.orthographic_bake = persisted;
                                     region.map.changed = region.map.changed.wrapping_add(1);

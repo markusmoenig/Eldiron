@@ -3086,6 +3086,7 @@ mod tests {
         renderer: &mut PaintRenderer,
         output: &Arc<GpuImage>,
     ) {
+        crate::actions::orthographic_bake::tests::check_parent_bake_commands_and_history(gpu.clone());
         let mut fixture = app
             .application
             .editor

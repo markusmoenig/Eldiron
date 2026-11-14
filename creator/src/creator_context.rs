@@ -1,6 +1,7 @@
 //! Creator-owned authoring services. Shared runtime/project helpers receive the
 //! CPU context through explicit borrows; they never own the editor's camera.
 mod controllers;
+mod bake;
 pub use controllers::{CreatorActions, CreatorBake, CreatorDocks, CreatorTools};
 mod history;
 mod jobs;

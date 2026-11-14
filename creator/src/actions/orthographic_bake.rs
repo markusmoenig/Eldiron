@@ -49,6 +49,10 @@ impl Action for RenderOrthographicBake {
         ActionRole::Editor
     }
 
+    fn map_scope(&self) -> ActionMapScope {
+        ActionMapScope::RegionWorld
+    }
+
     fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
         bake_applicable(server_ctx)
     }
@@ -133,6 +137,10 @@ impl Action for ToggleOrthographicBakeVisibility {
         ActionRole::Editor
     }
 
+    fn map_scope(&self) -> ActionMapScope {
+        ActionMapScope::RegionWorld
+    }
+
     fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
         bake_applicable(server_ctx)
     }
@@ -203,6 +211,10 @@ impl Action for ClearOrthographicBake {
         ActionRole::Editor
     }
 
+    fn map_scope(&self) -> ActionMapScope {
+        ActionMapScope::RegionWorld
+    }
+
     fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
         bake_applicable(server_ctx)
     }
@@ -227,7 +239,7 @@ impl Action for ClearOrthographicBake {
             fl!("status_bake_cleared"),
         ));
         Some(ProjectUndoAtom::MapEdit(
-            server_ctx.pc,
+            self.map_scope().undo_context(server_ctx),
             Box::new(before),
             Box::new(map.clone()),
         ))
@@ -250,7 +262,7 @@ impl Action for ClearOrthographicBake {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     #[test]
@@ -342,5 +354,115 @@ mod tests {
         );
         assert!(!first.reference.initialized());
         assert!(!second.reference.initialized());
+    }
+    #[cfg(feature = "native-render")]
+    pub(crate) fn check_parent_bake_commands_and_history(
+        gpu: std::sync::Arc<renderkit::GpuContext>,
+    ) {
+        let mut project = Project::new();
+        let region_id = project.regions[0].id;
+        let parent_id = project.regions[0].map.id;
+        let child = Map::new();
+        let child_id = child.id;
+        let mut surface = rusterix::Surface::new(0);
+        surface.profile = Some(child_id);
+        project.regions[0].map.profiles.insert(child_id, child);
+        project.regions[0]
+            .map
+            .surfaces
+            .insert(surface.id, surface.clone());
+        let mut server = ServerContext::default();
+        server.reference.bind_context(gpu);
+        server.curr_region = region_id;
+        server.pc = ProjectContext::Region(region_id);
+        server.editor_view_mode = EditorViewMode::Iso;
+        server.geometry_edit_mode = GeometryEditMode::Detail;
+        server.active_detail_surface = Some(surface);
+        assert_eq!(project.get_map(&server).unwrap().id, child_id);
+        let original_child =
+            serde_json::to_vec(&project.regions[0].map.profiles[&child_id]).unwrap();
+        let mut ui = TheUI::new();
+        let mut ctx = TheContext::new(128, 128, 1.);
+        let mut sidebar = crate::sidebar::Sidebar::new();
+        let request = |command: &str| crate::actionscript::EditorActionRequest {
+            command_id: command.into(),
+            parameters_toml: String::new(),
+        };
+        sidebar
+            .execute_action_command(
+                &request("bake.render"),
+                &mut ui,
+                &mut ctx,
+                &mut project,
+                &mut server,
+            )
+            .unwrap();
+        let mut bake = server.bake.write();
+        assert!(
+            bake.prepare_work(child_id, 1, 1, scenevm::Camera3D::iso(), None)
+                .unwrap()
+                .is_none()
+        );
+        let mut work = bake
+            .prepare_work(
+                parent_id,
+                1,
+                1,
+                scenevm::Camera3D::iso(),
+                Some((0., 1., 0., 1.)),
+            )
+            .unwrap()
+            .unwrap();
+        while !bake.finish_work_sample(&work).unwrap() {
+            work = bake
+                .prepare_work(parent_id, 1, 1, scenevm::Camera3D::iso(), None)
+                .unwrap()
+                .unwrap();
+        }
+        let n = (work.tile_size * work.tile_size) as usize;
+        bake.commit_work(
+            &work,
+            [40, 50, 60, 255].repeat(n),
+            vec![3.; n],
+            [40, 50, 60, 255].repeat(n),
+            [128, 255, 128, 255].repeat(n),
+            [200, 32, 255, 0].repeat(n),
+        )
+        .unwrap();
+        project.regions[0].map.orthographic_bake =
+            bake.take_persisted_update_for(parent_id).unwrap();
+        drop(bake);
+        let authored_bake = project.regions[0].map.orthographic_bake.clone();
+        sidebar
+            .execute_action_command(
+                &request("bake.clear"),
+                &mut ui,
+                &mut ctx,
+                &mut project,
+                &mut server,
+            )
+            .unwrap();
+        assert!(project.regions[0].map.orthographic_bake.is_none());
+        assert!(server.history.read().has_unsaved());
+        server
+            .history
+            .write()
+            .undo(&mut server, &mut project, &mut ui, &mut ctx);
+        assert_eq!(project.regions[0].map.id, parent_id);
+        assert_eq!(project.regions[0].map.orthographic_bake, authored_bake);
+        assert_eq!(project.get_map(&server).unwrap().id, child_id);
+        assert_eq!(
+            serde_json::to_vec(&project.regions[0].map.profiles[&child_id]).unwrap(),
+            original_child
+        );
+        server
+            .history
+            .write()
+            .redo(&mut server, &mut project, &mut ui, &mut ctx);
+        assert!(project.regions[0].map.orthographic_bake.is_none());
+        assert_eq!(
+            serde_json::to_vec(&project.regions[0].map.profiles[&child_id]).unwrap(),
+            original_child
+        );
     }
 }

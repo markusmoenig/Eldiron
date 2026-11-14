@@ -7,6 +7,7 @@ use uuid::Uuid;
 use vek::Vec3;
 
 mod source;
+mod work;
 pub use source::{OrthographicBakeSource, OrthographicBakeTileSource};
 
 const BAKE_VERSION: u32 = 5;
@@ -24,18 +25,30 @@ impl OrthographicBakeLighting {
     pub fn from_settings(settings: &crate::render_settings::RenderSettings) -> Self {
         Self {
             sun_direction: Vec3::from(settings.sun_direction).normalized(),
-            sun_color: Vec3::new(settings.sun_color[0].powf(2.2),
-                settings.sun_color[1].powf(2.2), settings.sun_color[2].powf(2.2)),
+            sun_color: Vec3::new(
+                settings.sun_color[0].powf(2.2),
+                settings.sun_color[1].powf(2.2),
+                settings.sun_color[2].powf(2.2),
+            ),
             sun_intensity: settings.sun_intensity,
             sun_enabled: settings.sun_enabled,
         }
     }
 }
 
-pub fn background_color(settings: &crate::render_settings::RenderSettings,
-    neutral: bool, canvas: Option<[u8; 4]>) -> [u8; 4] {
-    if neutral && let Some(canvas) = canvas { return canvas; }
-    let linear = if neutral { [0.018; 3] } else { settings.sky_color.map(|v| v.powf(2.2)) };
+pub fn background_color(
+    settings: &crate::render_settings::RenderSettings,
+    neutral: bool,
+    canvas: Option<[u8; 4]>,
+) -> [u8; 4] {
+    if neutral && let Some(canvas) = canvas {
+        return canvas;
+    }
+    let linear = if neutral {
+        [0.018; 3]
+    } else {
+        settings.sky_color.map(|v| v.powf(2.2))
+    };
     let encode = |value: f32| {
         let mapped = value.max(0.) / (value.max(0.) + 1.);
         (mapped.powf(1. / 2.2) * 255.).round().clamp(0., 255.) as u8
@@ -54,6 +67,9 @@ struct DecodedBakeTile {
 
 #[derive(Clone, Copy, Debug)]
 pub struct OrthographicBakeWork {
+    request: Uuid,
+    map: Uuid,
+    tile: (i32, i32),
     pub sample: u32,
     pub tile_size: u32,
     pub camera: Camera3D,
@@ -73,6 +89,7 @@ pub struct OrthographicBakeController {
     status: OrthographicBakeStatus,
     visible: bool,
     requested_region: Option<Uuid>,
+    request_revision: Uuid,
     requested_samples: u32,
     staging_camera: Option<Camera3D>,
     staging_asset: Option<OrthographicBakeAsset>,
@@ -84,7 +101,7 @@ pub struct OrthographicBakeController {
     committed: Option<OrthographicBakeAsset>,
     committed_tiles: HashMap<(i32, i32), DecodedBakeTile>,
     source_revision: Uuid,
-    pending_persisted_update: Option<Option<OrthographicBakeAsset>>,
+    pending_persisted_update: Option<(Uuid, Option<OrthographicBakeAsset>)>,
 }
 
 impl Default for OrthographicBakeController {
@@ -93,6 +110,7 @@ impl Default for OrthographicBakeController {
             status: OrthographicBakeStatus::Missing,
             visible: false,
             requested_region: None,
+            request_revision: Uuid::new_v4(),
             requested_samples: 32,
             staging_camera: None,
             staging_asset: None,
@@ -113,6 +131,8 @@ impl OrthographicBakeController {
     pub fn request_render(&mut self, region_id: Uuid, samples: u32) {
         self.source_revision = Uuid::new_v4();
         self.requested_region = Some(region_id);
+        self.request_revision = Uuid::new_v4();
+        self.pending_persisted_update = None;
         self.requested_samples = samples.clamp(1, 256);
         self.staging_camera = None;
         self.staging_asset = None;
@@ -130,6 +150,25 @@ impl OrthographicBakeController {
         persisted: Option<&OrthographicBakeAsset>,
     ) {
         if self.is_rendering() && self.requested_region == Some(region_id) {
+            return;
+        }
+        if self.is_rendering()
+            || self
+                .pending_persisted_update
+                .as_ref()
+                .is_some_and(|(map, _)| *map != region_id)
+        {
+            // A different displayed map revokes all uncommitted/pending work.
+            // Copied documents are additionally reset by the application owner.
+            *self = Self::default();
+        }
+        if self
+            .pending_persisted_update
+            .as_ref()
+            .is_some_and(|(map, _)| *map == region_id)
+        {
+            // Publication has not reached the document yet. Do not reload its
+            // older persisted asset over the newly completed tile set.
             return;
         }
         // Encoded length is not content identity: equal-length replacement tiles,
@@ -200,6 +239,9 @@ impl OrthographicBakeController {
         tile_camera.ortho_half_h = span * 0.5;
 
         Ok(Some(OrthographicBakeWork {
+            request: self.request_revision,
+            map: region_id,
+            tile: (tile_x, tile_y),
             sample: self.current_sample,
             tile_size: asset.tile_size,
             camera: tile_camera,
@@ -236,25 +278,34 @@ impl OrthographicBakeController {
             )
         };
 
-        let tile_columns = ((max_u - min_u).max(0.0001) / span).ceil().max(1.0) as i32;
-        let tile_rows = ((max_v - min_v).max(0.0001) / span).ceil().max(1.0) as i32;
-        let mut plan = Vec::new();
-        for y in 0..tile_rows {
-            for x in 0..tile_columns {
+        if ![min_u, max_u, min_v, max_v, span]
+            .iter()
+            .all(|value| value.is_finite())
+            || max_u < min_u
+            || max_v < min_v
+            || span <= 0.
+        {
+            return Err("The bake has invalid projected bounds.".into());
+        }
+        let tile_columns = ((max_u - min_u).max(0.0001) / span).ceil().max(1.0) as u64;
+        let tile_rows = ((max_v - min_v).max(0.0001) / span).ceil().max(1.0) as u64;
+        let count = tile_columns
+            .checked_mul(tile_rows)
+            .filter(|count| *count <= MAX_TILE_COUNT as u64)
+            .ok_or_else(|| {
+                format!("The bake exceeds the current safety limit of {MAX_TILE_COUNT} tiles.")
+            })?;
+        let mut plan = Vec::with_capacity(count as usize);
+        for y in 0..tile_rows as i32 {
+            for x in 0..tile_columns as i32 {
                 plan.push((x, y));
             }
-        }
-        if plan.len() > MAX_TILE_COUNT {
-            return Err(format!(
-                "The bake would require {} tiles; the current safety limit is {MAX_TILE_COUNT}.",
-                plan.len()
-            ));
         }
         let center_x = ((camera.pos.dot(right) - min_u) / span).floor() as i32;
         let center_y = ((camera.pos.dot(up) - min_v) / span).floor() as i32;
         plan.sort_by_key(|(x, y)| {
-            let dx = i64::from(*x - center_x);
-            let dy = i64::from(*y - center_y);
+            let dx = i128::from(*x) - i128::from(center_x);
+            let dy = i128::from(*y) - i128::from(center_y);
             dx * dx + dy * dy
         });
 
@@ -375,7 +426,7 @@ impl OrthographicBakeController {
             self.committed_region = self.requested_region;
             self.committed = Some(completed.clone());
             self.committed_tiles = std::mem::take(&mut self.staging_tiles);
-            self.pending_persisted_update = Some(Some(completed));
+            self.pending_persisted_update = Some((self.requested_region.unwrap(), Some(completed)));
             self.status = OrthographicBakeStatus::Ready;
             self.staging_camera = None;
             self.tile_plan.clear();
@@ -406,12 +457,35 @@ impl OrthographicBakeController {
     }
 
     pub fn clear(&mut self) {
+        let map = if self.is_rendering() {
+            self.requested_region
+        } else {
+            self.committed_region
+        }
+        .unwrap_or(Uuid::nil());
         *self = Self::default();
-        self.pending_persisted_update = Some(None);
+        self.pending_persisted_update = Some((map, None));
     }
 
+    /// Standalone compatibility consumers own their destination. Application
+    /// document owners must use the explicitly scoped publication below.
     pub fn take_persisted_update(&mut self) -> Option<Option<OrthographicBakeAsset>> {
-        self.pending_persisted_update.take()
+        self.pending_persisted_update.take().map(|(_, asset)| asset)
+    }
+
+    pub fn take_persisted_update_for(
+        &mut self,
+        map: Uuid,
+    ) -> Option<Option<OrthographicBakeAsset>> {
+        if self
+            .pending_persisted_update
+            .as_ref()
+            .is_some_and(|(owner, _)| *owner == map)
+        {
+            self.take_persisted_update()
+        } else {
+            None
+        }
     }
 
     pub fn status(&self) -> &OrthographicBakeStatus {

@@ -10667,3 +10667,75 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   retirement and remaining M0–M9 acceptance gates remain OPEN. Next coherent work:
   adopt explicit progressive asset scheduling/capture while keeping displayed
   viewport GPU-owned, including cancellation across map/document/device changes.
+
+## 2026-11-14 — Scoped progressive bake preparation (active)
+
+- Persisted adoption checkpoint c4775537. Full M0–M9 Goal still active.
+- Found real destination mismatch: generic action map selection can be a detail
+  child while the 3D world/bake source is its parent region. Introduced explicit
+  ActionMapScope with existing Selected default; only the three bake actions
+  choose RegionWorld. Sidebar action list/parameters, scripts, direct Apply and
+  accelerators resolve the same declared target. Clear's history targets the
+  parent region; undo restoration honors captured parent map identity even when
+  the detail profile remains selected. Other action targets retain their policy.
+- Controller work now carries private request/map/tile identity. Deferred preview,
+  sample advance and commit validate it; stale samples, replacement requests,
+  clear/project reset and map switches cannot publish. Pending persisted updates
+  carry their destination map; Creator consumes only its explicit map's update.
+  Same-map synchronization cannot overwrite a completed unpublished bake with
+  old authored data. Different-map synchronization retires transient/pending work.
+- Moved tile-count/finite-bounds validation ahead of plan allocation; the previous
+  nested loop allocated the whole plan before checking4096tilelimit. Huge and
+  nonfinite requests now fail before constructing any tile vector.
+- Added assembled action-script/detail-child/Clear/undo/redo fixture and request/
+  sample/copy/map/publication/bounds CPU checks. Build collecting; no acceptance
+  claimed until actual results. GPU scheduling/capture and progressive native
+  adoption remain pending; these are ownership prerequisites, not completion.
+
+- Scope build PASS46.99s. Initial focused action run PASS2/RED1: the full Sidebar/
+  undo integration initializes its compatibility scene and needs an injected GPU;
+  running it as a cold CPU-only test hit sandbox adapter-unavailable. Moved that
+  assembled workflow into the existing native application fixture, borrowing its
+  explicit device. No new hidden-device initialization accepted as evidence.
+- Initial controller run RED1/PASS14 (.19s): the existing clear/reload source
+  fixture reloaded authored data before consuming the new explicitly scoped clear
+  publication. It now checks/consumes that publication before restoring the asset,
+  retaining the source-identity assertion. Added clear-after-switch destination
+  coverage and widened planner distance arithmetic before subtraction. Final
+  CPU and assembled checks collecting; no scope lifecycle pass claimed yet.
+
+- Final controller checks PASS15/.19s (build19.78s). Native scope build PASS;
+  first wasm scope check PASS24.68s. Before broad assembly, audited the producer
+  boundary: 2D/missing-region/Play transitions previously bypassed the 3D sync,
+  leaving a Requested controller able to pin the whole viewport to its adapter.
+  Added a CPU-only reconciliation before producer selection. It cancels transient
+  work on those transitions, synchronizes the actual parent destination and clears
+  only outgoing bake progress. It leaves a cold bake/reference/job owner cold.
+  Added actual update-owner transition coverage; final rebuilt matrix collecting.
+
+- Reconciliation native build PASS46.54s. CPU owner transition fixture PASS1/
+  .11s; CPU action/controller-ownership checks PASS2/.34s; final Rusterix bake
+  matrix PASS15/.19s. Reconciled wasm library check PASS22.53s; default/reference
+  library check PASS20.68s. Assembled native run has passed actual Sidebar parent/
+  child action history and all5 persisted/all17 custom pixel phases exact0 so far;
+  surrounding Play/document/clipboard/recovery matrix still collecting.
+- Compatibility ledger for this batch: production unscoped persisted-update
+  consumption remains only in standalone Rusterix::take_orthographic_bake_
+  persisted_update (1 compatibility facade). Creator's production publication is
+  destination-checked; low-level sample/commit methods remain behind validated
+  work methods for the reference adapter and in controlled fixture construction.
+- Next progressive GPU job must retain an immutable source publication plus
+  document/authored revision/asset/device stamps and controller work key. Submit
+  bounded original-tile asset captures asynchronously; viewport composition must
+  stay GPU-owned. Map edits, scope changes, replacement requests and device loss
+  retire late results. Original tile/channel formats and current sampling/light
+  semantics remain required. Full paging/decode/cache budgets and acceptance
+  measurements remain open; this scope batch does not claim those deliverables.
+
+- Full reconciled native assembly PASS1/209.71s: actual parent/detail Sidebar
+  Render/Clear/undo/redo, all5 persisted/all17 custom phases exactRGB0, actual
+  retained static bake picks, fractional-DPI visibility/source/asset minimap<=1,
+  and surrounding document/Play/clipboard/presentation/device recovery checks.
+  Scope batch ready for checkpoint. Browser evidence for this scope batch is
+  compile-only; previous actual persisted browser/Swift proof belongs to c4775537.
+  Do not claim progressive asset scheduling/adoption or full M0–M9 completion.
