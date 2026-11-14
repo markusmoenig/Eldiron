@@ -20,8 +20,10 @@ pub mod creator_context;
 pub mod editor;
 #[cfg(feature = "native-render")]
 pub mod native_application;
-#[cfg(all(target_arch = "wasm32", feature = "browser-host"))]
+#[cfg(all(target_arch = "wasm32", any(feature = "browser-host", feature = "native-host")))]
 pub mod browser;
+#[cfg(all(not(target_arch = "wasm32"), feature = "native-host"))]
+pub mod desktop;
 mod editor_overlay;
 pub mod editor_display;
 pub mod editor_tools;

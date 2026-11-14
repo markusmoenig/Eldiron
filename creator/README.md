@@ -27,15 +27,23 @@ cargo install eldiron-creator
 
 Licensed under the MIT License.
 
-The native GPU migration host can be run with:
+The normal desktop launcher uses the shared native GPU host:
 
 ```bash
-cargo run -p eldiron-creator --no-default-features --features native-host --bin eldiron-creator-native -- [PROJECT.eldiron ...]
+cargo run -p eldiron-creator -- [PROJECT.eldiron ...]
 ```
 
-It assembles the existing Creator UI through the common GPU compositor and Swash
-text atlases, and uses injected GPU geometry previews with acknowledged picking.
-The normal `eldiron-creator` launcher remains the default while main world/tool/
-history ownership, other previews and full platform/workflow parity are completed.
-The migration host's `--smoke` requires three real surface presentations; it fails
-on a timeout. It does not certify physical input, all workflows or performance.
+`eldiron-creator-native` remains an alias for the same host. Both use ordered GPU
+composition and Swash text. `--smoke` requires three successful surface presents
+and fails on a timeout; it does not certify physical input or performance.
+
+The CPU presenter is an explicit reference executable:
+
+```bash
+cargo run -p eldiron-creator --no-default-features --features reference-cpu --bin eldiron-creator-reference -- [PROJECT.eldiron ...]
+```
+
+Reference screenshots use the same `reference-cpu` feature. Browser and Apple
+hosts keep their `browser-host` and `staticlib` build commands. Platform/workflow
+acceptance and remaining rewrite work are tracked in
+[the progress record](../concepts/native-wgpu-rewrite-progress.md).

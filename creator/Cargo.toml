@@ -14,11 +14,17 @@ default-run = "eldiron-creator"
 [[bin]]
 name = "eldiron-creator"
 path = "src/main.rs"
+required-features = ["native-host"]
 
 [[bin]]
 name = "eldiron-creator-native"
 path = "src/bin/native_creator.rs"
 required-features = ["native-host"]
+
+[[bin]]
+name = "eldiron-creator-reference"
+path = "src/bin/reference_creator.rs"
+required-features = ["reference-cpu"]
 
 [[bin]]
 name = "eldiron-creator-web"
@@ -28,7 +34,7 @@ required-features = ["browser-host"]
 [[example]]
 name = "reference_ui_capture"
 path = "examples/reference_ui_capture.rs"
-required-features = ["desktop"]
+required-features = ["reference-cpu"]
 
 [dependencies]
 parking_lot = { version = "0.12.5", features = ["arc_lock"] }
@@ -111,7 +117,8 @@ crate-type = ["lib", "staticlib"]
 
 [features]
 default = ["desktop"]
-desktop = ["theframework/winit_app"]
+desktop = ["native-host"]
+reference-cpu = ["theframework/winit_app"]
 browser-host = ["native-render", "theframework/platform-winit"]
 native-ui = ["theframework/ui-paint"]
 native-host = ["native-render", "theframework/platform-winit", "theframework/desktop-dialogs"]

@@ -29,7 +29,7 @@ Started: 2026-11-11 (Asia/Bangkok). Overall Goal: active; full M0–M9 scope rem
 - M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Immutable ordinary editor-view preparation, exact reference/native view outputs and retained CPU chunk publication are now available through SceneViews. Common HUD, paint/props panels, profile displays and ViewCube now have retained command frames, guarded input and actual GPU composition/reconstruction evidence. Six standard tools additionally emit ordered typed overlay aggregates with exact presented-frame and detail-profile source guards. Full-viewport profile editing is now connected to the actual native Creator root with document/widget binding, presentation-gated input and inline commit/cancel; ordinary stopped top-down, sprite-isometric and 3D region rendering and the six standard tool overlays now use the same native application owner and real tool dispatch. Orbit/orthographic/first-person views include depth-aware guides, retained ViewCube and explicit tool query snapshots; surface paint uses the view-owned GPU scene. The Terrain tool now also uses retained native controls and GPU brush guides with real sculpt/cancel integration. Rect now also uses presentation-gated composition/rotation controls, shared source sprite previews blitted on the GPU, terrain-conforming perimeters, and view-owned 3D queries; actual isometric placement and fractional-DPI sprite sampling pass in the assembled checkpoint. Isometric terrain Paint now also uses retained native controls, batched GPU brush feedback, update-phase editable source publication and the existing authoring/undo dispatch. Native 3D Paint now also consumes dedicated scene-owned paint-coordinate queries and explicit authoring surface captures, with camera-scoped drafts and GPU composition; full Paint workflow/platform parity remains unverified. The isolated Prefab viewport now also uses native top-down/isometric/3D outputs, live effects with hierarchy-aware owned drags, and actual 3D Paint authoring on its asset-owned layer. Paint now shares the normal tile picker; its settings live only in the viewport overlay. The canonical Creator Play toolbar now owns the same CPU clock/output pump as GameSession, and its live authoring viewport keeps its own native SceneView. The authored Game-tool viewport now also uses the common GameScreenController/SceneViews/Swash presentation; authoring GameInput now also shares runtime controls while retaining the native scene in supported contexts. Region geometry, ordinary scene and sprite-isometric minimaps now have owned GPU outputs and presentation-scoped navigation; palette and rig previews also have retained native sources and acknowledged palette input. Authored screen minimaps now also use a GPU-only ordered 2D overview producer with compatible source sampling and acknowledged screen-scoped navigation. Parent-region minimaps during Prefab/profile/detail editing also have independent native source production and presented-parent navigation without modifying the isolated editor map. Main native authoring static geometry/readiness/billboards now use an application-owned bounded CPU source, retained across GPU reconstruction and isolated from clipboard projections. Remaining uncommon contexts/tools retain explicit migration adapters. Application/global/document/Play ownership, main world/tool/HUD integration, remaining producers, full visual/workflow/performance acceptance and canonical retirement remain.
 - M5 ownership checkpoint (2026-11-14): CreatorContext now owns camera, configuration/table/sidebar mode, undo history, cooperative scene jobs and reference engine/assets/minimap/palette snapshots. Action/tool/dock controllers are application-owned (3ca4e97d); HUD themes and remembered geometry parameters are also per application, with final verification recorded below. Canonical scene/context injection keeps the compatibility GPU cold on startup; native 2D visibility and owned authoring speech use paint commands. Scepter worker/preview ownership is implemented with the verification below; bounded progressive bakes (including regional paint/stamps), persisted bake composition, custom cameras and 3D clipboard projections now have native ownership; whole-asset/generation-plan bake adapters are retired through bounded CPU/GPU paging (7a2b5844), while oversized individual tiles, over-budget paint inputs, linked prefab expansion, decode scheduling/resource audits and performance acceptance remain open.
 - M6: in progress. Independent GPU game views, common player/input/camera components, authored screen paint, private world descriptions, view-owned speech, acknowledged-frame world pointer gestures, relative first-person mouse look, default/world-intent cursors, world/UI item drag previews and acknowledged authored inventory/equipment pointer/keyboard gestures are implemented. Application-owned audio is integrated into the common player with cancellable CPU preparation jobs. The native container HUD now includes acknowledged paint/input, real server transfers, scrolling, GPU recovery and navigation lifetime. Floating inventory/equipment, action catalogue/spellbook and preferences now use typed native HUD owners, retained text/source resources and acknowledged input. Acknowledged UI-origin tooltips now use retained text and host deadlines. UI-origin Drop cursors and acknowledged drag/assignment highlighting now have GPU and authoritative transfer evidence. Native isometric source production, shared CPU source publication, game-view outputs and acknowledged input receipts now have GPU/CPU and shipped-source device-reconstruction evidence. Persistent region 3D paint now also crosses the CPU asset boundary into independent per-view GPU uploads; actual painted browser rendering/device recovery and native integration pass. Browser worker hosting, uncommon Prefab/stamp/live paint publication, remaining game-mode/HUD policy parity and performance acceptance remain. Canonical native desktop launchers now share the common application/host; see launcher verification below.
-- M7/M8/M9: Retirement and full platform acceptance remain pending. Canonical desktop clients share the common player; the Xcode client and versioned Creator host use Rust-created CAMetalLayer surfaces with retained compatibility exports. Addressed document load/save, owned CPU transfers and application lifetime checks have compiled/linked/runtime evidence. Browser player and Creator now use the shared WebGPU host, with actual source loading, Swash/fallback/IME, scene/pixel/material rendering, explicit asset bakes, OPFS save, addressed cancellation and idle device recovery evidence below. Physical native/monitor/clipboard/mobile workflows, remaining ownership/adapter retirement, resource budgets and measured release performance remain open. Compile checks and detached-layer tests do not establish complete platform parity.
+- M7/M8/M9: Remaining adapter retirement and full platform acceptance are pending. Canonical Creator now defaults to its shared native GPU host (TheApp/Pixels is explicit reference-only); canonical desktop clients share the common player; the Xcode client and versioned Creator host use Rust-created CAMetalLayer surfaces with retained compatibility exports. Addressed document load/save, owned CPU transfers and application lifetime checks have compiled/linked/runtime evidence. Browser player and Creator now use the shared WebGPU host, with actual source loading, Swash/fallback/IME, scene/pixel/material rendering, explicit asset bakes, OPFS save, addressed cancellation and idle device recovery evidence below. Physical native/monitor/clipboard/mobile workflows, remaining ownership/adapter retirement, resource budgets and measured release performance remain open. Compile checks and detached-layer tests do not establish complete platform parity.
 
 ## Native window validation correction (2026-11-12)
 
@@ -12236,3 +12236,60 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   Apple handle ABI and no-Winit staticlib build. Compile/CLI/smoke evidence and
   physical-console limitations must be recorded separately; implementing the
   canonical cutover does not itself certify full desktop parity.
+
+
+## 2026-11-14 — Canonical Creator launcher cutover (active)
+
+- Creator context ownership committedbd9b482f after verified native/reference/
+  browser/staticlib and actual GPU checks. Only unrelated networking document
+  untracked at preflight; full M0–M9 active.
+- Canonical eldiron-creator now delegates to the same desktop native GPU entry
+  point as eldiron-creator-native. The latter is a thin alias; no second window/
+  simulation/render loop. Desktop default enables native-host; TheApp/Pixels
+  main moved unchanged to explicit reference-cpu/eldiron-creator-reference.
+  Reference capture example also requires that explicit feature. Normal release
+  log/self-update flags retain their names; desktop helper preserves locale,
+  backtrace and optional logfile initialization. Apple staticlib remains an
+  independent no-Winit feature. Canonical/native-alias wasm entries delegate to
+  the existing browser host too; root browser module accepts native-host on wasm.
+- Extended dependency guard to reject Pixels/Softbuffer and SceneVM windowing in
+  the *default* Creator build, including default wasm exclusions. Updating build/
+  CLI/reference/alias checks now; no completed gate or visible platform claim yet.
+
+- New default Creator all-targets check PASS16.06s; canonical/native alias actual
+  debug builds PASS26.47s. Explicit reference-cpu all-targets PASS13.59s. Expanded
+  dependency guard PASS24independently resolved configurations, now including
+  default native/default wasm Creator and no-Winit staticlib. Only remaining
+  TheApp::new in Creator sources is the explicitly gated reference executable.
+- Actual canonical/alias CLI checks PASS6: matching help/version; unknown option
+  exits1before any window initialization. /private/tmp/eldiron-creator-canonical-
+  cli.json. No project data or external application touched by those CLI checks.
+- Release log,self-update check initially hit sandbox registry-write denial while
+  unpacking cached aws-lc-rs1.16.3 (not a Rust error). Requested configured build
+  escalation to unpack cached dependencies; no dependency versions/security flags
+  changed and builds remain locked/offline. Remaining wasm/staticlib commands
+  follow it; source remains frozen. Physical console remains locked.
+
+- Cached aws-lc unpack succeeded through approved escalation, then offline check
+  exposed absent chrono0.4.42. Authorized locked online release-feature check
+  downloaded six missing existing versions (chrono, log4rs, log-mdc, thread-id,
+  mock_instant, iana-time-zone). Release log,self-update all-targets PASS39.74s;
+  this is feature validation in dev profile, not an optimized release benchmark.
+  Cargo.lock unchanged; TLS/security settings and package versions unchanged.
+- Final canonical/default wasm binaries PASS25.50s (both canonical and native
+  alias); explicit browser-host creator-web PASS10.68s; no-Winit staticlib library
+  PASS11.94s. /private/tmp/eldiron-creator-canonical-{wasm-default,wasm-browser,
+  staticlib}.log. Every final build command completed; no compiler left running.
+- Actual canonical window --smoke exited1after reaching native startup/Scepter
+  localhost initialization, with0successful surface presents; log /private/tmp/
+  eldiron-creator-canonical-smoke.log. Current IOConsoleLocked=Yes already verified.
+  This is a failed/unresolved physical-window check, not passed native-surface
+  acceptance. No security/session settings changed, and no repeated locked-window
+  attempt is scheduled. Existing current-source detached GPU ownership/paint/
+  workflow evidence remains separate and passed. Continue other independent work.
+- Source retirement checkpoint: normal Creator uses one shared native launcher;
+  native alias shares that entry point; old TheApp launch exists only behind
+  reference-cpu. Desktop/reference/web/staticlib/release-feature compile and
+  CLI/dependency checks pass. Physical native/Windows/Linux/iOS workflow matrix,
+  remaining adapters/resource budgets and equal-hardware release performance
+  still prevent M0–M9 completion. Full Goal stays active.

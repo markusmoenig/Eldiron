@@ -1,21 +1,17 @@
 #![windows_subsystem = "windows"]
 
-use eldiron_creator::editor::Editor;
-use theframework::*;
-
+#[cfg(not(target_arch = "wasm32"))]
 fn main() {
-    let args: Vec<_> = std::env::args().collect();
-
-    unsafe {
-        std::env::set_var("RUST_BACKTRACE", "1");
+    if let Err(error) = eldiron_creator::desktop::run() {
+        eprintln!("{error}");
+        std::process::exit(1);
     }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    let _ = eldiron_creator::i18n::select_system_locales();
-
-    let editor = Editor::new();
-    let mut app = TheApp::new();
-    app.set_cmd_line_args(args);
-
-    let () = app.run(Box::new(editor));
 }
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen::prelude::wasm_bindgen(start)]
+pub fn browser_start() {
+    eldiron_creator::browser::start();
+}
+#[cfg(target_arch = "wasm32")]
+fn main() {}
