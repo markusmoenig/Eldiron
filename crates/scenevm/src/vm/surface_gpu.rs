@@ -152,6 +152,8 @@ impl VM {
                 + std::mem::size_of::<PaintSurfaceUniforms>() as u64,
         );
         Ok(SurfaceOutput {
+            world_texture: gpu.paint_surface_world_tex.as_ref().unwrap().clone(),
+            metadata_texture: gpu.paint_surface_meta_tex.as_ref().unwrap().clone(),
             world: gpu.paint_surface_world_view.as_ref().unwrap().clone(),
             metadata: gpu.paint_surface_meta_view.as_ref().unwrap().clone(),
             size,

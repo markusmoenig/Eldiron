@@ -436,6 +436,45 @@ fn dynamic_surfaces_occlude_actors_preserve_guides_and_clear_without_readback_st
         "legacy bake has no depth occlusion"
     );
     bake.depth_enabled = true;
+    // Asset requests copy only original channels and own their mapping storage.
+    // Hold depth across same-target reuse and resize to verify snapshot lifetime.
+    let before_asset = context.transfers();
+    let mut asset_color = ReadbackTicket::capture_asset(&context, bake.image.clone()).unwrap();
+    let mut asset_depth = surface.capture_asset_depth(&context).unwrap();
+    let after_asset = context.transfers();
+    let bytes = u64::from(size.0 * size.1) * (4 + 32);
+    assert_eq!(
+        after_asset.readback_bytes - before_asset.readback_bytes,
+        bytes
+    );
+    assert_eq!(
+        after_asset.asset_bake_readback_bytes - before_asset.asset_bake_readback_bytes,
+        bytes
+    );
+    assert_eq!(
+        after_asset.capture_requests - before_asset.capture_requests,
+        2
+    );
+    assert_eq!(
+        after_asset.asset_bake_readback_requests - before_asset.asset_bake_readback_requests,
+        2
+    );
+    assert!(
+        !scenes
+            .scene(view)
+            .unwrap()
+            .vm
+            .has_surface_readback_storage()
+    );
+    finish(&context);
+    let color = asset_color.try_finish(&context).unwrap().unwrap();
+    assert!(
+        color
+            .pixels()
+            .chunks_exact(4)
+            .all(|pixel| pixel == [20, 40, 60, 128])
+    );
+    assert!(asset_color.try_finish(&context).is_err());
     // The explicit compatibility capture still decodes the same surface IDs,
     // camera-linear depth and UVs after the GPU producer was factored out.
     let reference = scenes
@@ -500,7 +539,7 @@ fn dynamic_surfaces_occlude_actors_preserve_guides_and_clear_without_readback_st
             .render(&bake, &overlay_image, &static_surface, [40, 50, 60, 255])
             .is_err()
     );
-    scenes.resize(view, (80, 48), &mut images).unwrap();
+    scenes.resize(view, (83, 49), &mut images).unwrap();
     assert!(
         scenes
             .render_surface_output(newer, SurfaceSelection::Dynamic)
@@ -512,7 +551,7 @@ fn dynamic_surfaces_occlude_actors_preserve_guides_and_clear_without_readback_st
         .render_surface_output(resized, SurfaceSelection::Dynamic)
         .unwrap()
         .unwrap();
-    assert_eq!(resized_surface.size(), (80, 48));
+    assert_eq!(resized_surface.size(), (83, 49));
     assert!(
         compositor
             .render(&bake, &overlay_image, &resized_surface, [40, 50, 60, 255])
@@ -525,4 +564,61 @@ fn dynamic_surfaces_occlude_actors_preserve_guides_and_clear_without_readback_st
             .vm
             .has_surface_readback_storage()
     );
+    finish(&context);
+    let captured = asset_depth.try_finish(&context).unwrap().unwrap();
+    assert_eq!(captured.size, size);
+    assert_eq!(captured.revision, displayed.revision);
+    assert_eq!(captured.selection, SurfaceSelection::Dynamic);
+    assert!((captured.depth[(32 * size.0 + 32) as usize] - 4.).abs() < 0.00001);
+    assert!(captured.depth[0].is_infinite());
+    assert!(asset_depth.try_finish(&context).is_err());
+    let mut empty = resized_surface.capture_asset_depth(&context).unwrap();
+    finish(&context);
+    assert!(
+        empty
+            .try_finish(&context)
+            .unwrap()
+            .unwrap()
+            .depth
+            .iter()
+            .all(|depth| depth.is_infinite())
+    );
+    // A retired ticket can be dropped while its async map is pending. A new
+    // request still succeeds, and a replacement device cannot consume its data.
+    drop(resized_surface.capture_asset_depth(&context).unwrap());
+    let other = futures::executor::block_on(GpuContext::headless()).unwrap();
+    assert!(resized_surface.capture_asset_depth(&other).is_err());
+    let mut retired = resized_surface.capture_asset_depth(&context).unwrap();
+    assert!(retired.try_finish(&other).is_err());
+    drop(retired);
+    let mut next = resized_surface.capture_asset_depth(&context).unwrap();
+    finish(&context);
+    assert!(next.try_finish(&context).unwrap().is_some());
+    assert!(
+        !scenes
+            .scene(view)
+            .unwrap()
+            .vm
+            .has_surface_readback_storage()
+    );
+    // Unaligned rows must preserve real geometry, not merely empty pixels.
+    let padded_surface = scenes
+        .render_surface_output(resized, SurfaceSelection::Static)
+        .unwrap()
+        .unwrap();
+    let mut padded_capture = padded_surface.capture_asset_depth(&context).unwrap();
+    finish(&context);
+    let actual = padded_capture.try_finish(&context).unwrap().unwrap();
+    assert_eq!(actual.size, (83, 49));
+    assert!(actual.depth.iter().any(|depth| depth.is_finite()));
+    let scene = scenes.scene_mut(view).unwrap();
+    scene.vm.set_active_vm(0);
+    let expected = scene.vm.paint_surface_buffer_gpu(83, 49).unwrap();
+    for (depth, pixel) in actual.depth.iter().zip(expected.pixels.iter()) {
+        if pixel.valid {
+            assert!((depth - pixel.depth).abs() < 0.00001);
+        } else {
+            assert!(depth.is_infinite());
+        }
+    }
 }

@@ -10739,3 +10739,35 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   Scope batch ready for checkpoint. Browser evidence for this scope batch is
   compile-only; previous actual persisted browser/Swift proof belongs to c4775537.
   Do not claim progressive asset scheduling/adoption or full M0–M9 completion.
+
+## 2026-11-14 — Explicit progressive asset capture primitives (active)
+
+- Scope/cancellation checkpoint f30598dd. Full Goal remains active.
+- Added separately labeled asynchronous ReadbackTicket::capture_asset for original
+  RGBA channels, bounded to64MiB staging per request; default capture accounting
+  remains unchanged. Lost devices reject new requests before submission.
+- GPU SurfaceOutput now leases its world/metadata textures across target resize.
+  Explicit capture_asset_depth submits a bounded two-plane copy immediately,
+  then polls completion without blocking. It returns camera-linear depth and
+  source revision/selection/size. The ticket owns staging and cancellation;
+  no readback buffer appears in the displayed SceneVM. Generation/loss guards
+  reject retired-device consumption. Normal frames allocate no new capture.
+- Extended the existing actual geometry/overlay GPU fixture with channel/depth
+  asset accounting, color bytes, pending snapshot across reuse/resize, infinity
+  clearing, one-time consumption, cancellation and cross-device rejection.
+  Build/oracle collecting. This is a prerequisite capture service; progressive
+  scheduler and Creator adoption remain OPEN, as do aggregate queue/cache budgets.
+
+- Capture build PASS25.90s; actual combined GPU oracles PASS2/1.59s, with all
+  asset accounting/color/depth/snapshot/cancel/domain checks and prior composition
+  oracles intact. Initial wasm Creator library check PASS25.03s.
+- Strengthened that same fixture with83×49 padded rows containing real static
+  geometry, comparing every depth/invalid pixel to the existing explicit CPU
+  surface capture. Final build PASS24.36s/oracles PASS2/1.58s. Added distinct GPU
+  buffer/encoder labels for asset color requests after that build (label strings
+  only; capture logic unchanged); final wasm compile collecting. No extra broad
+  application run is warranted for this additive explicit service until adoption.
+- Final wasm Creator library compile PASS25.09s, including asset GPU labels.
+  Explicit capture primitive checkpoint ready. Next work is the actual progressive
+  producer/scheduler and Creator integration; the normal bake adapter is still
+  retained until those workflows pass. Concurrent networking concept untouched.

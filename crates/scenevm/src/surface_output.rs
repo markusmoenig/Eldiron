@@ -1,6 +1,8 @@
 //! Offscreen geometry queries whose channels stay on the injected device.
 use crate::{Camera3D, SceneVM};
 use renderkit::{GpuContext, RenderError, Result};
+mod depth_capture;
+pub use depth_capture::{CapturedSurfaceDepth, SurfaceDepthCapture};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SurfaceSelection {
@@ -15,6 +17,8 @@ pub enum SurfaceSelection {
 /// reuses the producer target, just like the ordinary scene-output contract.
 #[derive(Clone)]
 pub struct SurfaceOutput {
+    pub(crate) world_texture: wgpu::Texture,
+    pub(crate) metadata_texture: wgpu::Texture,
     pub(crate) world: wgpu::TextureView,
     pub(crate) metadata: wgpu::TextureView,
     pub(crate) size: (u32, u32),

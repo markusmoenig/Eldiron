@@ -12,6 +12,17 @@ pub struct ReadbackTicket {
 }
 impl ReadbackTicket {
     pub fn capture(context: &GpuContext, image: Arc<GpuImage>) -> Result<Self> {
+        Self::capture_for(context, image, false)
+    }
+    /// Explicit original-image asset production, separately labeled from
+    /// viewport/export requests. One ticket is bounded to 64 MiB of staging.
+    pub fn capture_asset(context: &GpuContext, image: Arc<GpuImage>) -> Result<Self> {
+        Self::capture_for(context, image, true)
+    }
+    fn capture_for(context: &GpuContext, image: Arc<GpuImage>, asset: bool) -> Result<Self> {
+        if context.is_lost() {
+            return Err(RenderError("capture device is lost".into()));
+        }
         if image.device_generation() != context.generation() {
             return Err(RenderError("capture belongs to another device".into()));
         }
@@ -24,11 +35,26 @@ impl ReadbackTicket {
         ) {
             return Err(RenderError("capture requires an RGBA8/BGRA8 output".into()));
         }
-        context.record_capture(image.descriptor.width as u64 * image.descriptor.height as u64 * 4);
         let padded = (image.descriptor.width * 4).div_ceil(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
             * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+        let bytes = u64::from(padded) * u64::from(image.descriptor.height);
+        if asset && bytes > 64 * 1024 * 1024 {
+            return Err(RenderError(
+                "asset capture exceeds 64 MiB staging budget".into(),
+            ));
+        }
+        let logical = u64::from(image.descriptor.width) * u64::from(image.descriptor.height) * 4;
+        if asset {
+            context.record_asset_bake(logical);
+        } else {
+            context.record_capture(logical);
+        }
         let buffer = context.device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("renderkit-requested-readback"),
+            label: Some(if asset {
+                "renderkit-requested-asset-readback"
+            } else {
+                "renderkit-requested-readback"
+            }),
             size: padded as u64 * image.descriptor.height as u64,
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
             mapped_at_creation: false,
@@ -36,7 +62,11 @@ impl ReadbackTicket {
         let mut encoder = context
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("renderkit-capture"),
+                label: Some(if asset {
+                    "renderkit-asset-capture"
+                } else {
+                    "renderkit-capture"
+                }),
             });
         encoder.copy_texture_to_buffer(
             wgpu::TexelCopyTextureInfo {
