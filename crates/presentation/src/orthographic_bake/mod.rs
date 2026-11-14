@@ -35,6 +35,7 @@ struct Params {
     forward: [f32; 4],
     sun: [f32; 4],
     sun_color: [f32; 4],
+    region: [u32; 4], // original pixel origin and resident extent
     bits: [u32; 4], // infinity, identity zero
 }
 #[repr(C)]
@@ -477,13 +478,15 @@ impl OrthographicBakeRenderer {
             sun_color: sun.map_or([0.; 4], |s| {
                 [s.sun_color.x, s.sun_color.y, s.sun_color.z, 0.]
             }),
+            region: [0, 0, asset.tile_size, asset.tile_size],
             bits: [f32::INFINITY.to_bits(), 0, 0, 0],
         };
         let mut visible = Vec::new();
-        let tile_bytes = u64::from(asset.tile_size)
-            .checked_mul(u64::from(asset.tile_size))
-            .and_then(|count| count.checked_mul(std::mem::size_of::<Pixel>() as u64))
-            .ok_or_else(|| RenderError("bake tile size overflow".into()))?;
+        let page_side = asset.tile_size.min(
+            rusterix::orthographic_bake::region_decode::OriginalRegion::MAX_SIDE,
+        );
+        let tile_bytes = u64::from(page_side) * u64::from(page_side)
+            * std::mem::size_of::<Pixel>() as u64;
         for at in source.positions() {
             let lo = [
                 origin[0] + at.0 as f32 * span,
@@ -508,12 +511,6 @@ impl OrthographicBakeRenderer {
             }
             visible.push((at, params.dispatch));
         }
-        if tile_bytes == 0
-            || tile_bytes > SOURCE_BUDGET / 2
-            || tile_bytes > u64::from(self.context.device.limits().max_storage_buffer_binding_size)
-        {
-            return Err(RenderError("bake tile exceeds source page limits".into()));
-        }
         self.visible_tiles = visible.len();
         params.dispatch = [0, 0, size.0, size.1];
         let key = FrameKey {
@@ -526,7 +523,10 @@ impl OrthographicBakeRenderer {
             self.waiting = false;
             return Ok(self.target.clone());
         }
-        if (visible.len() as u64).saturating_mul(tile_bytes) > PAGE_BYTES || visible.len() > 64 {
+        if asset.tile_size > rusterix::orthographic_bake::region_decode::OriginalRegion::MAX_SIDE
+            || (visible.len() as u64).saturating_mul(tile_bytes) > PAGE_BYTES
+            || visible.len() > 64
+        {
             self.tiles.clear();
             visible.sort_unstable_by_key(|(at, _)| *at);
             return self.advance_paged(source, key, visible, tile_bytes);

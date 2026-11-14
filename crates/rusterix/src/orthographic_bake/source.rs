@@ -53,7 +53,8 @@ impl<'a> OrthographicBakeSource<'a> {
     pub fn try_tile(&self, x: i32, y: i32) -> Result<Option<OrthographicBakeTileLease>, String> {
         self.tiles.get(self.asset, (x, y))
     }
-    /// Advance at most one cooperative channel, then poll lookups freely.
+    /// Advance one full-tile cooperative channel and one bounded region batch,
+    /// then poll lookups freely.
     /// Call exactly once per preparation step, before resolving visible tiles.
     pub fn advance_decode(&self) -> Result<(), String> {
         self.tiles.advance()
@@ -65,6 +66,23 @@ impl<'a> OrthographicBakeSource<'a> {
     /// decode. Native uses bounded workers; browsers advance one channel/step.
     pub fn poll_tile(&self, x: i32, y: i32) -> Result<OrthographicBakeTilePoll, String> {
         self.tiles.poll(self.asset, (x, y))
+    }
+    /// Resolve only an original pixel rectangle. The returned channels have
+    /// region dimensions, while the caller retains original tile coordinates.
+    pub fn poll_region(
+        &self,
+        x: i32,
+        y: i32,
+        region: region_decode::OriginalRegion,
+    ) -> Result<OrthographicBakeTilePoll, String> {
+        self.tiles.poll_region(self.asset, (x, y), region)
+    }
+    /// Shared encoded payloads retained by running region tasks, including
+    /// cancelled native workers which have not actually retired. This upper
+    /// bound may count the same immutable backing more than once; no clone of
+    /// those payload bytes is allocated by regional decoding.
+    pub fn region_retained_encoded_bytes(&self) -> u64 {
+        self.tiles.region_retained_encoded_bytes()
     }
     /// Identity of this original tile publication, independent of CPU decode
     /// residency and updates to other tiles. Never serialized into the asset.

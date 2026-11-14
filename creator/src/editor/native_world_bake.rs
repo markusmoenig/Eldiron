@@ -6,10 +6,7 @@ use renderkit::{GpuImage, ImageHandle, ImageRegistry};
 use rusterix::orthographic_bake::{OrthographicBakeLighting, OrthographicBakeSource};
 
 pub(super) fn supported(asset: &rusterix::map::OrthographicBakeAsset) -> bool {
-    u64::from(asset.tile_size)
-        .checked_mul(u64::from(asset.tile_size))
-        .and_then(|count| count.checked_mul(24))
-        .is_some_and(|bytes| bytes > 0 && bytes <= 32 * 1024 * 1024)
+    asset.tile_size > 0
 }
 
 #[derive(Default)]

@@ -2,6 +2,7 @@
 //! completed private target is published; projection/source changes cancel it.
 use super::*;
 use std::sync::atomic::{AtomicBool, Ordering};
+mod regions;
 
 #[derive(Clone, PartialEq)]
 pub(super) struct FrameKey {
@@ -36,9 +37,50 @@ pub(super) struct Paging {
     output: OrthographicBakeOutput,
     visible: Vec<((i32, i32), [u32; 4])>,
     next: usize,
+    region_origin: [u32; 2],
+    started: bool,
     pending: Option<Arc<AtomicBool>>,
     base: Option<OrthographicBakeOutput>,
     revisions: HashMap<(i32, i32), Uuid>,
+}
+impl Paging {
+    fn initialize(
+        &mut self,
+        renderer: &OrthographicBakeRenderer,
+        encoder: &mut wgpu::CommandEncoder,
+    ) -> Result<Vec<Arc<renderkit::GpuBuffer>>> {
+        let mut uniforms = Vec::new();
+        if !self.started {
+            if let Some(base) = self.base.take() {
+                encoder.copy_texture_to_texture(
+                    base.image.texture.as_image_copy(),
+                    self.output.image.texture.as_image_copy(),
+                    wgpu::Extent3d {
+                        width: base.size.0,
+                        height: base.size.1,
+                        depth_or_array_layers: 1,
+                    },
+                );
+                encoder.copy_buffer_to_buffer(
+                    base.depth(),
+                    0,
+                    self.output.depth(),
+                    0,
+                    u64::from(base.size.0) * u64::from(base.size.1) * 4,
+                );
+            } else {
+                uniforms.push(renderer.dispatch(
+                    encoder,
+                    &self.output,
+                    &self.key.params,
+                    &renderer.dummy,
+                    true,
+                )?);
+            }
+            self.started = true;
+        }
+        Ok(uniforms)
+    }
 }
 impl OrthographicBakeRenderer {
     pub(super) fn cancel_incompatible(&mut self, key: &FrameKey) {
@@ -125,6 +167,8 @@ impl OrthographicBakeRenderer {
                 output: output?,
                 visible,
                 next: 0,
+                region_origin: [0; 2],
+                started: false,
                 pending: None,
                 base,
                 revisions,
@@ -141,6 +185,29 @@ impl OrthographicBakeRenderer {
         }
         job.pending = None;
         if job.next == job.visible.len() {
+            if !job.started {
+                let Some(submission) = self.context.try_source_submission(0) else {
+                    self.paging = Some(job);
+                    return Ok(self.current(&key));
+                };
+                let mut encoder =
+                    self.context
+                        .device
+                        .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                            label: Some("empty bake projection"),
+                        });
+                let uniforms = job.initialize(self, &mut encoder)?;
+                let done = Arc::new(AtomicBool::new(false));
+                job.pending = Some(done.clone());
+                self.context.queue.submit(Some(encoder.finish()));
+                drop(uniforms);
+                self.context.queue.on_submitted_work_done(move || {
+                    drop(submission);
+                    done.store(true, Ordering::Release);
+                });
+                self.paging = Some(job);
+                return Ok(self.current(&key));
+            }
             self.waiting = job.key != key;
             self.complete = Some(job.key);
             self.complete_tiles = job.revisions;
@@ -152,6 +219,11 @@ impl OrthographicBakeRenderer {
         {
             self.paging = Some(job);
             return Ok(self.current(&key));
+        }
+        if source.asset().tile_size
+            > rusterix::orthographic_bake::region_decode::OriginalRegion::MAX_SIDE
+        {
+            return self.advance_region_page(source, key, job);
         }
         let capacity = PAGE_BYTES.max(tile_bytes);
         let buffer = self
@@ -215,36 +287,20 @@ impl OrthographicBakeRenderer {
                     label: Some("orthographic bake source page"),
                 });
         let mut params = job.key.params;
-        let mut uniforms = Vec::new();
-        if job.next == 0 {
-            if let Some(base) = job.base.take() {
-                encoder.copy_texture_to_texture(
-                    base.image.texture.as_image_copy(),
-                    job.output.image.texture.as_image_copy(),
-                    wgpu::Extent3d {
-                        width: base.size.0,
-                        height: base.size.1,
-                        depth_or_array_layers: 1,
-                    },
-                );
-                encoder.copy_buffer_to_buffer(
-                    base.depth(),
-                    0,
-                    job.output.depth(),
-                    0,
-                    u64::from(base.size.0) * u64::from(base.size.1) * 4,
-                );
-            } else {
-                uniforms.push(self.dispatch(&mut encoder, &job.output, &params, &self.dummy, true)?);
-            }
-        }
+        let mut uniforms = job.initialize(self, &mut encoder)?;
         for (at, dispatch, offset, missing) in draws {
             params.tile[0] = at.0;
             params.tile[1] = at.1;
             params.dispatch = dispatch;
             params.bits[2] = offset;
             params.bits[3] = u32::from(missing);
-            uniforms.push(self.dispatch(&mut encoder, &job.output, &params, buffer.buffer(), false)?);
+            uniforms.push(self.dispatch(
+                &mut encoder,
+                &job.output,
+                &params,
+                buffer.buffer(),
+                false,
+            )?);
         }
         job.next = end;
         let done = Arc::new(AtomicBool::new(false));

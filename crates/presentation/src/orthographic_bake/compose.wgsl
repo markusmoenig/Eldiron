@@ -1,6 +1,6 @@
 struct Params {
     size:vec4<u32>,tile:vec4<i32>,dispatch:vec4<u32>,plane:vec4<f32>,bounds:vec4<f32>,
-    source:vec4<f32>,forward:vec4<f32>,sun:vec4<f32>,sun_color:vec4<f32>,bits:vec4<u32>,
+    source:vec4<f32>,forward:vec4<f32>,sun:vec4<f32>,sun_color:vec4<f32>,region:vec4<u32>,bits:vec4<u32>,
 };
 struct Pixel { color:u32,depth:f32,albedo:u32,normal:u32,material:u32,surface_channels:u32 };
 @group(0) @binding(0) var<uniform> p:Params;
@@ -67,15 +67,18 @@ fn draw(@builtin(global_invocation_id) id:vec3<u32>) {
     var origin=vec2<f32>(0.);if p.tile.z!=0 {origin=vec2<f32>(p.bounds.x,p.bounds.z);}
     let tile=vec2<i32>(floor(vec2<f32>(divided(fp(u-origin.x),p.source.y),divided(fp(v-origin.y),p.source.y))));
     if any(tile!=p.tile.xy) {return;}
-    // A missing/replaced original clears only its exact tile, including the
-    // conservative dispatch rectangle's shared edges. No destination readback.
+    let local_x=u32(clamp(floor(fp(fp(u-fp(origin.x+fp(f32(tile.x)*p.source.y)))*p.source.x)),0.,f32(p.size.z-1u)));
+    let local_y=u32(clamp(floor(fp(fp(fp(origin.y+fp(f32(tile.y+1)*p.source.y))-v)*p.source.x)),0.,f32(p.size.z-1u)));
+    let local=vec2<u32>(local_x,local_y);
+    if any(local<p.region.xy) || any(local-p.region.xy>=p.region.zw) {return;}
+    // Clear only this exact resident region, including missing originals. A
+    // later missing page cannot erase previously composed sibling pages.
     if p.bits.w!=0u {
         textureStore(image,at,vec4<f32>(0.));
         depth[at.y*p.size.x+at.x]=bitcast<f32>(p.bits.x);return;
     }
-    let local_x=u32(clamp(floor(fp(fp(u-fp(origin.x+fp(f32(tile.x)*p.source.y)))*p.source.x)),0.,f32(p.size.z-1u)));
-    let local_y=u32(clamp(floor(fp(fp(fp(origin.y+fp(f32(tile.y+1)*p.source.y))-v)*p.source.x)),0.,f32(p.size.z-1u)));
-    let pixel=pixels[p.bits.z+local_y*p.size.z+local_x];
+    let resident=local-p.region.xy;
+    let pixel=pixels[p.bits.z+resident.y*p.region.z+resident.x];
     textureStore(image,at,shade(pixel));
     // Changed originals can remove a previous hit, even when their new depth
     // is invalid or absent. This is required when copying a completed target.

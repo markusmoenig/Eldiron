@@ -816,8 +816,7 @@ impl Editor {
             || custom::Description::current(map, &self.server_ctx).is_some()) { return false; }
         if self.server_ctx.shared.editor_view_mode != EditorViewMode::D2
             && map.orthographic_bake.as_ref().is_some_and(|asset| !bake::supported(asset)) {
-            // Individual oversized source tiles still need subdivision. Valid
-            // ordinary tiles page independently of the whole asset's extent.
+            // Invalid tile geometry cannot enter the original-region producer.
             return false;
         }
         let tools = self.server_ctx.tools.read();

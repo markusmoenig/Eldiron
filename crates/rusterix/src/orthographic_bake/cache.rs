@@ -10,6 +10,7 @@ use std::{
 };
 
 mod decode;
+mod regions;
 use decode::{DecodeTask, DecodeWork, WorkerSlot};
 #[cfg(target_arch = "wasm32")]
 pub(super) fn configure_browser_worker(url: &str) -> Result<(), String> {
@@ -27,7 +28,7 @@ pub(super) fn browser_worker_stats() -> BrowserCodecWorkerStats {
 pub(super) const DECODE_BUDGET: u64 = 32 * 1024 * 1024;
 
 #[derive(Debug, Default)]
-struct Budget(AtomicU64);
+struct Budget(AtomicU64, AtomicU64);
 #[derive(Debug)]
 struct ChargedTile {
     pixels: DecodedBakeTile,
@@ -99,6 +100,7 @@ struct State {
     failed: std::collections::HashSet<(i32, i32)>,
     usable: Option<bool>,
     pending: Option<DecodeWork>,
+    regions: regions::Regions,
 }
 #[derive(Debug, Default)]
 pub(super) struct TileCache {
@@ -111,6 +113,7 @@ impl TileCache {
     pub(super) fn clear(&mut self) {
         let state = self.state.get_mut().unwrap();
         state.pending = None;
+        state.regions = Default::default();
         state.entries.clear();
         state.failed.clear();
         state.usable = None;
@@ -156,6 +159,9 @@ impl TileCache {
             return Err("Bake tile exceeds decoded source budget.".into());
         }
         while self.usage().saturating_add(bytes) > DECODE_BUDGET {
+            if state.regions.evict() {
+                continue;
+            }
             let victim = state
                 .entries
                 .iter()
@@ -205,6 +211,7 @@ impl TileCache {
         pixels: DecodedBakeTile,
     ) -> Result<(), String> {
         let mut state = self.state.lock().unwrap();
+        state.regions.invalidate(at);
         if state.pending.as_ref().is_some_and(|work| work.at() == at) {
             // A newer producer sample supersedes an encoded decode in flight.
             state.pending = None;
@@ -254,6 +261,7 @@ impl TileCache {
     pub(super) fn advance(&self) -> Result<(), String> {
         use OrthographicBakeTilePoll::*;
         let mut state = self.state.lock().unwrap();
+        self.advance_region(&mut state)?;
         if let Some(mut work) = state.pending.take() {
             let work_at = work.at();
             match work.poll()? {

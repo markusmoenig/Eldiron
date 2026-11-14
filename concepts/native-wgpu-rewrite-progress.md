@@ -13678,3 +13678,68 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   cache/worker/GPU composition; retire genuine oversized stamp/scratch and other
   required canonical adapters. Then run consolidated workflow/platform/resource
   checks and matched release CPU/native performance acceptance. Goal active.
+
+## Original saved-tile region presentation integration (2026-11-15)
+
+- Previous goal turn is concrete progress: b2ed5532/270e5b61 saved explicit
+  web/Apple selectors, release tooling and retained static controls. Concurrent
+  networking-mmo-concept.md remains untouched. Continue implementation first;
+  broad tests/performance comparisons remain deferred by user instruction.
+- Added a bounded original-region cache alongside the full-tile reference API.
+  Both share the32MiB source reservation and global two-job admission. Region
+  tasks reserve all five output channels plus16MiB codec scratch; actual output
+  leases keep their charge after eviction/clear. Metadata admits128cached regions
+  plus at most one finishing job (129entries under concurrent pinned lookups).
+  Cache clear/replacement cancels native work without blocking or publishing a
+  detached result. Native workers own immutable SharedText backing, never cloned
+  full encoded payload bytes. A separate retained-encoded upper-bound counter
+  remains charged until the running/cancelled task actually drops its sources.
+- Browser/single-thread regional decoding explicitly uses cooperative32unit
+  row/Base64-chunk steps, with one batch per source preparation. Unlike ordinary
+  full-tile worker decoding, this regional policy performs no whole-source
+  cross-realm transfer or duplicate encoded allocation. It supports originals
+  beyond whole-tile budgets but is NOT a measured responsiveness/performance
+  acceptance result; sequential source rescanning remains a performance concern.
+- Presentation now pages originals larger than512px using origin/extent uniforms
+  and an8MiB reusable GPU source page. Existing original tile/world addressing,
+  alpha, auxiliary shading and depth rebase remain in the common shader; only
+  indexing of the currently resident rectangle changes. Missing pages clear
+  only their own rectangle. Output stays private until all regions and queued
+  GPU work complete, including empty projections. No normal color readback.
+- Region iteration retains a single cursor instead of flattening the original
+  into an unbounded page-metadata list. At most64nonvisible-page candidates are
+  visited per preparation. Projection/request/source incompatibility retires the
+  private target; queued source pages remain pinned through GPU completion.
+- Canonical Creator admission no longer applies the obsolete32MiB whole-tile
+  area restriction; nonzero tile geometry remains required. The existing large
+  saved-tile rebake fixture now expects that native admission. Current archive
+  formats, SharedText serialization and full-tile reference consumers unchanged.
+- All four canonical applications release compilation PASS25.40s after fixing
+  the new cache module's source-facing visibility. Log:
+  /private/tmp/eldiron-original-region-port-release.log. Browser Creator release
+  compilation PASS25.11s; CPU-only single_thread release compilation PASS16.81s;
+  optimized offline Naga29 shader parse/validation PASS. Logs respectively:
+  /private/tmp/eldiron-original-region-port-release-web.log,
+  /private/tmp/eldiron-original-region-port-release-cpu.log and
+  /private/tmp/eldiron-original-region-port-shader.log. Final arithmetic review
+  bounds even intermediate byte counts to a resident region and expands dispatch
+  bounds with world-coordinate precision error. Canonical release compile after
+  that review PASS25.59s; browser final compilation PASS24.33s. Final native log:
+  /private/tmp/eldiron-original-region-port-release-final.log; final browser:
+  /private/tmp/eldiron-original-region-port-release-web-final.log.
+  No runtime/GPU parity or full M0-M9 gate is passed
+  by compilation, and no functional/performance test batch was run.
+- Required later integrated checks: original2048/odd extents, negative tile
+  coordinates, alpha/depth/lighting and exact original sampling versus reference;
+  source/document/request/device retirement during decode and after a submitted
+  region; empty projection clearing, stale completed projection rejection;
+  browser responsiveness, encoded ownership, active/inflight/driver peak memory
+  and matched release performance. The former oversized display adapter is now
+  removed from admission in source; its acceptance remains explicitly unverified.
+
+- Next implementation dependency after this coherent display batch: replace
+  genuine organic-stamp raster scratch admission with bounded source generation
+  (crates/shared/src/iso_paint_render/stamp_billboards.rs) and page distinct
+  original billboard sources, preserving the shipped sprite/placement convention.
+  Full UI invalidation/deadline scheduling and remaining canonical ownership/
+  adapters remain separate implementation work, followed by consolidated tests.

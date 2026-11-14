@@ -251,7 +251,7 @@ mod tests {
             Some(color.as_str()),
         ];
         let bytes = input.iter().flatten().map(|s| s.len() as u64).sum::<u64>() + 20;
-        let budget = Arc::new(Budget(AtomicU64::new(bytes)));
+        let budget = Arc::new(Budget(AtomicU64::new(bytes), AtomicU64::new(0)));
         let end = std::time::Instant::now() + std::time::Duration::from_secs(10);
         let slot = loop {
             if let Some(slot) = WorkerSlot::acquire() {
