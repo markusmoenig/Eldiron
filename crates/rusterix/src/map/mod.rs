@@ -22,7 +22,7 @@ use crate::{
 };
 use indexmap::IndexMap;
 use std::collections::VecDeque;
-use theframework::prelude::{FxHashMap, FxHashSet};
+use theframework_core::prelude::{FxHashMap, FxHashSet};
 
 use linedef::*;
 use sector::*;

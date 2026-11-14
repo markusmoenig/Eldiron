@@ -1,6 +1,6 @@
 use crate::{Entity, EntityAction};
 use std::str::FromStr;
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 /// Messages to the Region
 #[derive(Debug)]

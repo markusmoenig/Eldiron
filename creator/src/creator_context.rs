@@ -50,6 +50,16 @@ impl CreatorContext {
             reference: CreatorReference::default(),
         }
     }
+    /// Checks if the PolyView has focus.
+    pub fn polyview_has_focus(&self, ctx: &theframework::prelude::TheContext) -> bool {
+        if let Some(focus) = &ctx.ui.focus {
+            if focus.name == "PolyView" || (self.pc.is_prefab() && focus.name == "PrefabView") {
+                return true;
+            }
+        }
+        false
+    }
+
     pub(crate) fn reset_bake_for_project_switch(&self) {
         if self.bake.initialized() {
             // Discard transient work without publishing a clear into the next

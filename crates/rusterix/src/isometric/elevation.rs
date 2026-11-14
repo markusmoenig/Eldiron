@@ -1,6 +1,6 @@
 //! Solid, walkable 2D iso terrain. Heights belong to placements, not sprite pixels.
 use crate::{BBox, Map};
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 pub const STEP_UP: f32 = 0.35;
 pub const STEP_DOWN: f32 = 0.5;

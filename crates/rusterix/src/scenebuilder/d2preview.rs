@@ -1,10 +1,11 @@
+use crate::WHITE;
 use crate::{
     Assets, Batch2D, Map, MapToolType, PixelSource, Rect, Scene, SceneHandler, Surface, Tile,
     Value, ValueContainer, avatar_builder::AvatarRuntimeBuilder,
 };
 use MapToolType::*;
 use scenevm::GeoId;
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 use toml::*;
 use vek::Vec2;
 

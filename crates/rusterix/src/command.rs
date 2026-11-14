@@ -1,5 +1,5 @@
 use crate::Entity;
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 /// Messages to the Region / server runtime.
 #[derive(Debug)]

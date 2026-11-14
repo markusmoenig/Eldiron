@@ -1,7 +1,7 @@
 use crate::{BBox, ParticleEmissionShape, ParticleEmitterDef, PixelSource, ValueContainer};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
-use theframework::prelude::FxHashMap;
+use theframework_core::prelude::FxHashMap;
 use uuid::Uuid;
 use vek::{Vec2, Vec3};
 

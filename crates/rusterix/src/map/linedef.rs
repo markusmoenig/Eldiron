@@ -1,5 +1,5 @@
 use crate::{BBox, Map, ValueContainer};
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Linedef {

@@ -16,7 +16,7 @@ use instant::Instant;
 use rust_embed::EmbeddedFile;
 use rustc_hash::{FxHashMap, FxHashSet};
 use scenevm::{Atom, Chunk, DynamicObject, GeoId, Light, SceneVM};
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 pub use crate::editor_colors::*;
 

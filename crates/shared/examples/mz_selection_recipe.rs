@@ -9,7 +9,7 @@ use rusterix::{
     BlockPropAsset, BlockPropGeometrySource, BlockPropPart, D3Camera, D3IsoCamera, GeometryObject,
     MapCamera, PixelSource, PlayerCamera, Rusterix, client::widget::game::GameWidget,
 };
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 fn painted_box(name: &str, center: Vec3<f32>, size: Vec3<f32>, palette: u16) -> GeometryObject {
     let mut object = GeometryObject::box_(name, center, size);

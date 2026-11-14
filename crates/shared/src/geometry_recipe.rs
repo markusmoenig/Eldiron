@@ -5,7 +5,7 @@ use denrim_materials::geometry::{Document, Mesh, Part, Vertex};
 use rusterix::{BlockPropGeometrySource, GeometryObject, Map, PixelSource, Value};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
-use theframework::prelude::{Uuid, Vec2, Vec3};
+use theframework_core::prelude::{Uuid, Vec2, Vec3};
 
 pub const BINDING: &str = "mz_geometry_recipe";
 const REVISION: &str = "mz_geometry_recipe_revision";

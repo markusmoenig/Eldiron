@@ -1,7 +1,7 @@
 //! CPU branch envelope codec. UI selection/cameras, authoring history and project
 //! persistence belong to callers; parsing never mutates the supplied source.
 use std::collections::{HashMap, HashSet};
-use theframework::thegraph::*;
+use theframework_core::graph::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NodeGraphKind {

@@ -1,7 +1,7 @@
 //! Adapt portable MZ effects to Eldiron's existing particle simulation.
 use crate::{ParticleEmissionShape, ParticleEmitter};
 use denrim_materials::geometry::effects::{ParticleEffect, ParticlePreset};
-use theframework::prelude::ThePalette;
+use theframework_core::prelude::ThePalette;
 use vek::Vec3;
 #[derive(Clone, Debug)]
 pub struct Source {
@@ -175,10 +175,10 @@ impl Player {
         two_d: bool,
         right: Vec3<f32>,
         up: Vec3<f32>,
-        uploaded: &mut rustc_hash::FxHashSet<theframework::prelude::Uuid>,
+        uploaded: &mut rustc_hash::FxHashSet<theframework_core::prelude::Uuid>,
     ) {
         use scenevm::{Atom, DynamicObject, GeoId, Light};
-        let tile = theframework::prelude::Uuid::from_u128(0x333e7ce7_f15b_425d_b16d_aa3f34c6ab71);
+        let tile = theframework_core::prelude::Uuid::from_u128(0x333e7ce7_f15b_425d_b16d_aa3f34c6ab71);
         if uploaded.insert(tile) {
             let mut pixels = vec![0; 8 * 8 * 4];
             for y in 0..8 {

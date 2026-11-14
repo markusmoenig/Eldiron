@@ -20,7 +20,7 @@ use crate::{
 };
 use rand::Rng;
 use scenevm::{GeoId, PaletteRemap2DMode};
-use theframework::prelude::TheValue;
+use theframework_core::prelude::TheValue;
 use vek::{Vec2, Vec3};
 
 struct RegionHost<'a> {
@@ -5447,8 +5447,8 @@ mod tests {
     #[test]
     fn node_ruleset_runs_robot_resource_action_without_rpg_modules() {
         use eldiron_ruleset::graph::{RulesGraph, definitions};
-        use theframework::prelude::Uuid;
-        use theframework::thegraph::*;
+        use theframework_core::prelude::Uuid;
+        use theframework_core::graph::*;
         fn node(kind: &str, path: &str, fields: &[(&str, &str, &str)]) -> GraphNode {
             let mut node = definitions().instantiate(kind, [0., 0.]).unwrap();
             if kind == "rules_definition" {

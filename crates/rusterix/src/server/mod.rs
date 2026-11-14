@@ -25,7 +25,7 @@ use crate::EntityAction;
 use crate::prelude::*;
 use crate::server::message::{AudioCommand, PaletteRemap2DState, RuntimeRenderState};
 use std::sync::{Arc, Mutex, RwLock};
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 // Routing and registration belong to one Server, including Creator Play.
 type RegionRegistry = Arc<RwLock<FxHashMap<u32, Sender<RegionMessage>>>>;

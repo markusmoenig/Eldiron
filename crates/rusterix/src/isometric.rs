@@ -10,7 +10,7 @@ pub use scene::{SceneCache, ScenePlan};
 use scene::Sprite as Draw;
 use crate::{Assets, EntityAction, Map, Texture, Tile, Value};
 use serde::{Deserialize, Serialize};
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 /// Texture frames are direction-major. Animated directions contain walk frames
 /// followed by an optional idle frame. Anchors are measured from the top left.
@@ -2030,7 +2030,7 @@ mod tests {
         let mut map=Map::default();
         for x in [0.,4.] {
             let mut item=crate::Item::default();
-            item.id=0;item.creator_id=theframework::prelude::Uuid::new_v4();
+            item.id=0;item.creator_id=theframework_core::prelude::Uuid::new_v4();
             item.position=Vec3::new(x,0.,0.);
             item.set_attribute("source",Value::Source(crate::PixelSource::TileId(id)));
             map.items.push(item);

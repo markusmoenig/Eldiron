@@ -2,7 +2,7 @@ use crate::prelude::*;
 use rusterix::Surface;
 pub use rusterix::{Value, VertexBlendPreset, map::*};
 use scenevm::GeoId;
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 /// Identifies which texture is currently being edited by editor tools.
 /// This abstraction allows the same draw/fill/pick tools to work on
@@ -876,17 +876,6 @@ impl ServerContext {
         }
     }
 
-    /// Checks if the PolyView has focus.
-    #[cfg(feature="graphics")]
-    pub fn polyview_has_focus(&self, ctx: &TheContext) -> bool {
-        if let Some(focus) = &ctx.ui.focus {
-            if focus.name == "PolyView" || (self.pc.is_prefab() && focus.name == "PrefabView") {
-                return true;
-            }
-        }
-        false
-    }
-
     /// Returns the current map context
     pub fn get_map_context(&self) -> MapContext {
         if self.pc.is_screen() {
@@ -1628,7 +1617,7 @@ impl ServerContext {
 #[cfg(test)]
 mod tests {
     use super::{ProjectContext, ServerContext};
-    use theframework::prelude::{Uuid, Vec2};
+    use theframework_core::prelude::{Uuid, Vec2};
 
     #[test]
     fn isometric_editor_paints_and_picks_the_shared_smooth_surface() {

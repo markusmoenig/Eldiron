@@ -7,7 +7,7 @@ use rusterix::{
     },
 };
 use std::{collections::HashMap, sync::Arc};
-use theframework::prelude::{Uuid, Vec2, Vec3};
+use theframework_core::prelude::{Uuid, Vec2, Vec3};
 
 fn tile() -> Tile {
     let mut tile = Tile::from_texture(Texture::new([180, 40, 20, 255].repeat(16), 4, 4));

@@ -1,5 +1,5 @@
 use rand::Rng;
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 use vek::Vec3;
 
 const MAX_ACTIVE_PARTICLES_PER_EMITTER: usize = 2048;

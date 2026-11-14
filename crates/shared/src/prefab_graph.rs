@@ -11,7 +11,7 @@ use rusterix::{
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use theframework::{prelude::Uuid, thegraph::*};
+use theframework_core::{Uuid, graph::*};
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct PrefabGraphs {

@@ -3,7 +3,7 @@ use eldiron_shared::{project::Project, project_io, rusterix_utils};
 use rusterix::EntityAction;
 use serde_json::Value as Json;
 use std::{path::Path, time::Duration};
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 const BED: &str = "792ef4e9-189e-4c1e-9b91-000000000011";
 const BENCH: &str = "792ef4e9-189e-4c1e-9b91-000000000012";
 const BED_ITEM: &str = "792ef4e9-189e-4c1e-9b91-000000000013";

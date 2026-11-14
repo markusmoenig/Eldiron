@@ -4,7 +4,7 @@ use crate::{
 };
 use indexmap::IndexMap;
 use scenevm::Chunk as VMChunk;
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 #[allow(clippy::large_enum_variant)]
 pub enum SceneManagerCmd {

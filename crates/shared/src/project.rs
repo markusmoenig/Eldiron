@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use indexmap::IndexMap;
 pub use rusterix::map::*;
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 /// The default target fps for the game.
 fn default_target_fps() -> u32 {

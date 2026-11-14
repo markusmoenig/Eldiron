@@ -1,6 +1,6 @@
 use crate::iso_paint_brush::{self, IsoPaintBrushSample};
 use crate::prelude::*;
-use theframework::prelude::{Uuid, Vec2, Vec3};
+use theframework_core::prelude::{Uuid, Vec2, Vec3};
 
 fn default_visible() -> bool {
     true

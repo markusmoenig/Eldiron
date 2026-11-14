@@ -3,7 +3,7 @@ use crate::project::{Project, TileCollectionAsset};
 use rusterix::isometric::SpriteLayout;
 use rusterix::{Texture, Tile, TileRole};
 use std::collections::BTreeMap;
-use theframework::prelude::Uuid;
+use theframework_core::prelude::Uuid;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Kind {
     #[default]
@@ -368,7 +368,7 @@ pub fn import(
         project.set_collection_tile_board_position(
             &id,
             source,
-            theframework::prelude::Vec2::new((i % 12) as i32, (i / 12) as i32),
+            theframework_core::prelude::Vec2::new((i % 12) as i32, (i / 12) as i32),
         );
     }
     Ok(ids)

@@ -2,7 +2,7 @@ use crate::IntoDataInput;
 use crate::material_library::{MaterialDefinition, SEMANTIC_MATERIAL_MARKER};
 use serde::Serializer;
 use std::io::Cursor;
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 const DEFAULT_MATERIAL_BYTES: [u8; 2] = [0x08, 0x0f];
 

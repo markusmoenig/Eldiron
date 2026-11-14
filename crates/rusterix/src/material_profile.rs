@@ -1,4 +1,4 @@
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 /// High-level PBR material profiles with a single adjustment knob `k`.
 #[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq)]

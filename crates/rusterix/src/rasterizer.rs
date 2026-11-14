@@ -703,7 +703,7 @@ impl Rasterizer {
                                         if !self.preserve_transparency {
                                             destination[3] = 255;
                                         }
-                                        let mut mixed = theframework::thergbabuffer::source_over(
+                                        let mut mixed = theframework_core::thergbabuffer::source_over(
                                             destination,
                                             texel,
                                             texel[3] as f32 / 255.,

@@ -25,7 +25,7 @@ Started: 2026-11-11 (Asia/Bangkok). Overall Goal: active; full M0–M9 scope rem
 - M1: in progress. Shared GPU context, scene output leases, explicit captures, native/foreign surface presentation and independent normal/isometric game-view lifecycle/recovery work; main Creator/auxiliary view adoption and full resource/platform acceptance remain.
 - M2: in progress. Paint/Swash/Parley pipeline and native/foreign hosts work; supplied browser CJK/Cyrillic/Arabic fallback, source-byte sharing and actual IME/GPU recovery now pass. Batching, resource lifetime budgets and full text/input parity remain.
 - M3: in progress. Every active built-in TheWidget implementation now has a command paint path, including procedural controls and the legacy node canvas. Complex Creator integration, full widget catalog parity and legacy adapter retirement remain.
-- M4: in progress. CPU schema/identity extraction, shared `GameSession`, CPU startup preparation, message/party/world-target policies and terminal adoption are implemented and tested. Per-session routing, local players, world values, runtime IDs and region context ownership now pass controlled overlapping-session and parallel assembled-player regressions. Graphical clients adopt GameSession; Creator shares its clock/output pump and runtime-owned PlayerInput. Text Play state is now Editor-owned and uses explicit CPU runtime borrows. Canonical Creator Play now owns a separate runtime Project projection; startup/warmup, entities/generated geometry and time no longer mutate authored Documents. The Console also consumes explicit addressed CPU inspections and rejects stale runtime actor links/history without reading the global server or authored entity fallbacks. Native Creator now owns its GameSession server/assets/current-map/clock/audio lifetime and advances from host elapsed time independently of rendering. Reference storage/start-menu/source bridges and remaining bitmap/value data extraction remain; this evidence does not establish full simultaneous Creator Play workflows.
+- M4: in progress. CPU schema/identity extraction, shared `GameSession`, CPU startup preparation, message/party/world-target policies and terminal adoption are implemented and tested. Per-session routing, local players, world values, runtime IDs and region context ownership now pass controlled overlapping-session and parallel assembled-player regressions. Graphical clients adopt GameSession; Creator shares its clock/output pump and runtime-owned PlayerInput. Text Play state is now Editor-owned and uses explicit CPU runtime borrows. Canonical Creator Play now owns a separate runtime Project projection; startup/warmup, entities/generated geometry and time no longer mutate authored Documents. The Console also consumes explicit addressed CPU inspections and rejects stale runtime actor links/history without reading the global server or authored entity fallbacks. Native Creator now owns its GameSession server/assets/current-map/clock/audio lifetime and advances from host elapsed time independently of rendering. Core now also owns RGB/RGBA/value/key/alignment/raster data with preserved serialization; isolated runtime/terminal dependency trees contain no Framework, fontdue, WGPU/Winit or dialogs. Reference storage/start-menu/source bridges and full simultaneous Creator Play workflows remain; broad CPU baseline failures are tracked in the latest dependency-isolation section.
 - M5: in progress. The common native Creator host composes controls, retained graphs, injected mesh/contour/baked geometry previews, injected 2D/3D appearance outputs and the direct material panel, with receipts filtered by actual root paint before acknowledgement. Immutable ordinary editor-view preparation, exact reference/native view outputs and retained CPU chunk publication are now available through SceneViews. Common HUD, paint/props panels, profile displays and ViewCube now have retained command frames, guarded input and actual GPU composition/reconstruction evidence. Six standard tools additionally emit ordered typed overlay aggregates with exact presented-frame and detail-profile source guards. Full-viewport profile editing is now connected to the actual native Creator root with document/widget binding, presentation-gated input and inline commit/cancel; ordinary stopped top-down, sprite-isometric and 3D region rendering and the six standard tool overlays now use the same native application owner and real tool dispatch. Orbit/orthographic/first-person views include depth-aware guides, retained ViewCube and explicit tool query snapshots; surface paint uses the view-owned GPU scene. The Terrain tool now also uses retained native controls and GPU brush guides with real sculpt/cancel integration. Rect now also uses presentation-gated composition/rotation controls, shared source sprite previews blitted on the GPU, terrain-conforming perimeters, and view-owned 3D queries; actual isometric placement and fractional-DPI sprite sampling pass in the assembled checkpoint. Isometric terrain Paint now also uses retained native controls, batched GPU brush feedback, update-phase editable source publication and the existing authoring/undo dispatch. Native 3D Paint now also consumes dedicated scene-owned paint-coordinate queries and explicit authoring surface captures, with camera-scoped drafts and GPU composition; full Paint workflow/platform parity remains unverified. The isolated Prefab viewport now also uses native top-down/isometric/3D outputs, live effects with hierarchy-aware owned drags, and actual 3D Paint authoring on its asset-owned layer. Paint now shares the normal tile picker; its settings live only in the viewport overlay. The canonical Creator Play toolbar now owns the same CPU clock/output pump as GameSession, and its live authoring viewport keeps its own native SceneView. The authored Game-tool viewport now also uses the common GameScreenController/SceneViews/Swash presentation; authoring GameInput now also shares runtime controls while retaining the native scene in supported contexts. Region geometry, ordinary scene and sprite-isometric minimaps now have owned GPU outputs and presentation-scoped navigation; palette and rig previews also have retained native sources and acknowledged palette input. Authored screen minimaps now also use a GPU-only ordered 2D overview producer with compatible source sampling and acknowledged screen-scoped navigation. Parent-region minimaps during Prefab/profile/detail editing also have independent native source production and presented-parent navigation without modifying the isolated editor map. Main native authoring static geometry/readiness/billboards now use an application-owned bounded CPU source, retained across GPU reconstruction and isolated from clipboard projections. Remaining uncommon contexts/tools retain explicit migration adapters. Application/global/document/Play ownership, main world/tool/HUD integration, remaining producers, full visual/workflow/performance acceptance and canonical retirement remain.
 - M5 ownership checkpoint (2026-11-14): CreatorContext now owns camera, configuration/table/sidebar mode, undo history, cooperative scene jobs and reference engine/assets/minimap/palette snapshots. Action/tool/dock controllers are application-owned (3ca4e97d); HUD themes and remembered geometry parameters are also per application, with final verification recorded below. Canonical scene/context injection keeps the compatibility GPU cold on startup; native 2D visibility and owned authoring speech use paint commands. Scepter worker/preview ownership is implemented with the verification below; bounded progressive bakes (including regional paint/stamps), persisted bake composition, custom cameras and 3D clipboard projections now have native ownership; whole-asset/generation-plan bake adapters are retired through bounded CPU/GPU paging (7a2b5844), while oversized individual tiles, over-budget paint inputs, linked prefab expansion, decode scheduling/resource audits and performance acceptance remain open.
 - M6: in progress. Independent GPU game views, common player/input/camera components, authored screen paint, private world descriptions, view-owned speech, acknowledged-frame world pointer gestures, relative first-person mouse look, default/world-intent cursors, world/UI item drag previews and acknowledged authored inventory/equipment pointer/keyboard gestures are implemented. Application-owned audio is integrated into the common player with cancellable CPU preparation jobs. The native container HUD now includes acknowledged paint/input, real server transfers, scrolling, GPU recovery and navigation lifetime. Floating inventory/equipment, action catalogue/spellbook and preferences now use typed native HUD owners, retained text/source resources and acknowledged input. Acknowledged UI-origin tooltips now use retained text and host deadlines. UI-origin Drop cursors and acknowledged drag/assignment highlighting now have GPU and authoritative transfer evidence. Native isometric source production, shared CPU source publication, game-view outputs and acknowledged input receipts now have GPU/CPU and shipped-source device-reconstruction evidence. Persistent region 3D paint now also crosses the CPU asset boundary into independent per-view GPU uploads; actual painted browser rendering/device recovery and native integration pass. Browser worker hosting, uncommon Prefab/stamp/live paint publication, remaining game-mode/HUD policy parity and performance acceptance remain. Canonical native desktop launchers now share the common application/host; see launcher verification below.
@@ -12056,3 +12056,105 @@ M3/M5/M8/M9 image clipboard batch (in progress, NOT yet accepted):
   preservation remains required. Next coherent batch: remove direct Framework
   imports/dependency from CPU Rusterix/shared consumers while keeping graphical
   adapters explicitly feature gated, then audit terminal/runtime dependency trees.
+
+
+## 2026-11-14 — CPU consumer dependency isolation (active)
+
+- Core data-definition extraction committed locally as0d49e871. Concurrent
+  networking concept remains untouched/untracked. Continuing full M0–M9.
+- Switched CPU Rusterix and shared project/model/graph/utility imports to Core's
+  plain data prelude. Concrete types/algorithms/schema stay identical. Fontdue
+  parsed fonts now exist only with Rusterix graphics; raw authored font bytes
+  remain visible through RuntimeView. Framework/fontdue are optional graphics
+  dependencies in Rusterix/shared. SceneVM's unused desktop dialog dependency
+  is now enabled only with its UI feature.
+- First isolated runtime check PASS14.10s. Dependency trees resolved individually
+  show runtime157, terminal249, shared project156, rules44packages; zero Framework,
+  fontdue, Winit, WGPU, Pixels, Parley, Swash or rfd packages. Extended the existing
+  tools/check_renderer_boundaries.py guard to require those CPU-only exclusions,
+  include no-default SceneVM/Rusterix/shared and use locked resolution. PASS17
+  separately resolved package/feature/target configurations, including native
+  hosts, static native player and wasm Creator/client packages.
+- First runtime full-test compile exposed an old test's direct parsed-font field
+  assertion after that field was correctly removed from CPU Assets. Kept its raw
+  authored-font bytes/clock/event assertions; dependency guard now proves parsed
+  font machinery absent. Full CPU suites and graphical consumers are collecting;
+  this is not yet final integration evidence.
+
+- Runtime suites PASS7unit/4local-session/1overlapping-session (33.48s/66.04s/
+  38.35s), /private/tmp/eldiron-core-isolation-runtime-final.log. These exercise
+  authored raw-font bytes, clock/event/output behavior, source publication,
+  real automatic/deferred player registration and independent concurrent worlds.
+- Removed shared's last direct Framework dependency entirely by moving its sole
+  widget-focus helper to CreatorContext (same logic, all7callers already Creator
+  contexts). Updated CPU integration fixtures and data-only shared examples to
+  Core imports. Runtime test executable was already built; this helper was
+  graphics-only and absent from that CPU binary. Subsequent consumers rebuild.
+- Standalone no-default Rusterix test build exposed a formerly implicit IndexMap
+  serde feature (16E0277errors): Framework had provided it through feature
+  unification. Declared serde on Rusterix's own IndexMap dependency; same version
+  and schema. This is why isolated engine checks accompany the runtime checks.
+
+- First broad CPU engine run finished545pass/7fail/1ignored in116.04s. Failures:
+  icon catalog count; unbound base color on icon/open; Hideout2D Nessa advice;
+  shipped fixture Torch source; door look message; grid player startup item
+  context; ruleset character defaults (4vs7). Focused comparison against the
+  pre-extraction cd994965a7aee91f executable and current executable is collecting;
+  no claim these have all passed. The catalog-count failure already reproduces
+  identically in the older executable (51actual vs42expected). Its assertion
+  wrongly excluded nine existing UI/command icons. Replaced that count with an
+  exact expected identity set and duplicate check; no production icons changed.
+- No full unchanged engine suite will be rerun solely for that test correction:
+  focused corrected test and the actual CPU integration tests run separately.
+  Continuing shared/native/client/wasm checks even when a baseline suite is red,
+  recording every outcome rather than dropping unrelated validation.
+
+- All seven broad-engine failures reproduce in the pre-extraction native test
+  executable cd994965a7aee91f and serially in current ae2cfede5567f764, with the
+  same assertions/messages; controlled runs3.81s/3.66s. Logs /private/tmp/eldiron-
+  core-isolation-engine-{baseline,current-serial}.log. Six existing failures
+  remain open; the updated catalog identity test passes1/0.09s. Production
+  ruleset/fixture data is unchanged. CPU geometry/isometric integration tests
+  PASS4/5/6 across all three test targets after the direct Core import updates.
+
+- Isolated CPU runtime wasm check also PASS53.25s, without a graphical host's
+  feature unification. Declared Performance explicitly on Rusterix's own wasm
+  web-sys dependency because its clocks call Window.performance. Expanded the
+  boundary matrix to resolve CPU SceneVM/Rusterix/shared/runtime for wasm too;
+  collecting the resulting21configuration guard and standalone wasm engine check.
+
+- Shared CPU library/integration suites PASS162/1/1 (189.54s/8.19s/0.11s).
+  Includes real Stonefall decode/save, material/equipment cache edits, project
+  serialization and exact authored source preservation. Standalone wasm CPU
+  Rusterix PASS27.54s. Expanded dependency boundary script PASS21configurations.
+- Graphical/native/client/wasm checks caught the same E0425 in d2preview: WHITE
+  had come from the old Framework UI prelude. Explicitly imported crate::WHITE;
+  both constants are exactly[255,255,255,255]. No algorithm or color changed.
+  CPU suite results are unaffected; rerunning only the affected graphical builds.
+
+- A mechanical diff review proves103Rust files differ only in direct CPU data
+  import/module paths; special files were reviewed separately for the explicit
+  graphics font field, focus-helper move, prelude, test assertions and WHITE
+  import. No model/scene/simulation algorithms changed. Current native Creator
+  PASS23.11s, graphical/terminal client all-targets PASS13.35s, standalone terminal
+  all-targets PASS27.31s, browser Creator library PASS40.36s. Logs /private/tmp/
+  eldiron-core-isolation-{graphical,clients,terminal,wasm}-final.log. Staticlib and
+  default/reference checks collecting; no new assembled/browser full workflow
+  rerun is warranted for import-only consumer changes after0d49e871integration.
+- Next coherent ownership slice after this checkpoint: remove CreatorContext's
+  implicit Deref/DerefMut CPU-context bridge. Keep Creator-owned camera/history/
+  tools/jobs/bake/presentation fields on CreatorContext; pass explicit shared CPU
+  borrows to project/runtime utilities. Use compiler-identified fields/methods
+  and reviewed function arguments; do not change project schema or algorithms.
+  Temporary helper /private/tmp/eldiron-explicit-creator-context.py only prepares
+  compiler-identified field/method edits and never guesses argument borrows.
+
+- Final default/reference Creator check PASS22.82s and staticlib/no-Winit library
+  PASS25.65s. Every build in the final consumer queue completed successfully;
+  no compiler remains running. git diff --check clean. This batch closes direct
+  UI/font/window/GPU/dialog dependencies in isolated CPU runtime/project/engine/
+  terminal paths, including wasm resolution and raw-font/data preservation.
+  M0–M9 remains active: six characterized baseline engine assertions, full
+  ownership/adapter retirement, resource/performance gates and physical/cross-
+  platform workflow acceptance remain unverified. No milestone/goal completion
+  is claimed and the unrelated networking document remains untouched.

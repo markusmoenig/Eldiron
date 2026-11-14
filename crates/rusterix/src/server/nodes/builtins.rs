@@ -826,7 +826,7 @@ impl Operation for ResumeRoutine {
 pub fn time_range_contains(
     start: &str,
     end: &str,
-    time: theframework::prelude::TheTime,
+    time: theframework_core::prelude::TheTime,
 ) -> Result<bool, String> {
     fn minutes(value: &str) -> Result<u16, String> {
         let (h, m) = value.trim().split_once(':').ok_or("Use HH:MM for time")?;
@@ -872,7 +872,7 @@ struct TimeRange {
     end: String,
 }
 impl Operation for TimeRange {
-    fn condition(&self, time: theframework::prelude::TheTime) -> Option<bool> {
+    fn condition(&self, time: theframework_core::prelude::TheTime) -> Option<bool> {
         time_range_contains(&self.start, &self.end, time).ok()
     }
     fn execute(

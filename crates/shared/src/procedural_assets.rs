@@ -7,7 +7,7 @@ use std::{
     ops::{Deref, DerefMut},
     sync::atomic::{AtomicU64, Ordering},
 };
-use theframework::prelude::Uuid;
+use theframework_core::prelude::Uuid;
 
 fn stamp() -> u64 {
     static NEXT: AtomicU64 = AtomicU64::new(1);

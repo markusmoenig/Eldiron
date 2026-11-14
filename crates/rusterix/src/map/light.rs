@@ -1,5 +1,5 @@
 use crate::{Value, ValueContainer};
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 use vek::{Vec2, Vec3};
 
 /// Parameters for flickering

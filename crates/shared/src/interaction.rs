@@ -1,4 +1,4 @@
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub enum InteractionType {

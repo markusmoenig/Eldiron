@@ -32,7 +32,8 @@ fn session_collects_each_message_once_and_keeps_clock_independent_of_polling() {
         let font = view.fonts().next().unwrap();
         assert_eq!(font.name, "Authored Font");
         assert_eq!(font.bytes, &[1, 2, 3]);
-        assert!(view.assets.fonts.is_empty());
+        // Only authored bytes are exposed here. CPU-only Assets has no parsed
+        // font storage; tools/check_renderer_boundaries.py checks that closure.
         let screen = view.screen("Main").unwrap();
         assert!(screen.responsive);
         assert_eq!(screen.map.name, "Main");

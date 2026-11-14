@@ -1,7 +1,7 @@
 //! Editable native paint generators embedded in portable MZ Image Source recipes.
 //! Pixels are a replaceable cache; the source reference holds the generator settings.
 use denrim_materials::{image_source::ImageSource, integration::EditableMaterialAsset};
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 pub const PREFIX: &str = "eldiron:paint:";
 pub const BRUSHES: [&str; 17] = [

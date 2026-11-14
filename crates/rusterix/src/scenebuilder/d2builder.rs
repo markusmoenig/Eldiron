@@ -3,7 +3,7 @@ use crate::avatar_builder::AvatarRuntimeBuilder;
 #[cfg(feature = "graphics")]
 use crate::client::widget::Widget;
 use crate::{Assets, Batch2D, Map, PixelSource, Scene, Value};
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 use uuid::Uuid;
 use vek::Vec2;
 

@@ -7,7 +7,7 @@ use eldiron_shared::{
 };
 use rusterix::{Rusterix, Tile, Value};
 use std::{collections::HashMap, io::Read, path::Path};
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = std::env::args().skip(1).collect::<Vec<_>>();

@@ -6,7 +6,7 @@ use scenevm::{Atom, Camera3D, CameraKind, PaintSurfaceBuffer, Raster3DPaintGpuSt
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 use vek::{Mat4, Vec3, Vec4};
 
 const ISO_PAINT_PAR_COMPOSITE_PIXELS: usize = 32_768;

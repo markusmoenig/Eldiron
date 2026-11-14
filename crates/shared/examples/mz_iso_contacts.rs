@@ -5,7 +5,7 @@ use rusterix::{
     Assets, Entity, PixelSource, Value,
     isometric::{self, Projection},
 };
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<_> = std::env::args().collect();
     let p = project_io::decode_project(&std::fs::read(

@@ -15,7 +15,7 @@ use std::{
     sync::{Arc, atomic::AtomicBool},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
-use theframework::prelude::Uuid;
+use theframework_core::prelude::Uuid;
 
 const ISSUER: &str = "https://auth.openai.com";
 const RESOURCE: &str = "https://api.openai.com/v1";

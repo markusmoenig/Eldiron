@@ -5,7 +5,7 @@ use rusterix::{
     isometric::paint::{TERRAIN_PAINT_GEO, TerrainPaint, TerrainPaintChunk},
 };
 use std::hash::{Hash, Hasher};
-use theframework::prelude::Uuid;
+use theframework_core::prelude::Uuid;
 
 pub fn sync(assets: &mut Assets, map_id: Uuid, layer: &mut IsoPaintLayer) {
     layer.refresh_sources(assets);
@@ -155,7 +155,7 @@ mod tests {
         Map, PixelSource, Texture, Tile, Value, Vertex,
         isometric::{self, GroundCache, Projection},
     };
-    use theframework::prelude::*;
+    use theframework_core::prelude::*;
 
     #[test]
     #[cfg(feature = "graphics")]

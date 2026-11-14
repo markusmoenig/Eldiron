@@ -3,7 +3,7 @@
 use super::PrefabGraphs;
 use crate::project::Project;
 use rusterix::BlockPropAsset;
-use theframework::prelude::Uuid;
+use theframework_core::prelude::Uuid;
 
 #[derive(Clone, Debug, PartialEq)]
 struct State {
@@ -102,7 +102,7 @@ pub fn sync_prefab_placements(project: &mut Project) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use theframework::thegraph::GraphControlValue;
+    use theframework_core::graph::GraphControlValue;
 
     fn fixture(existing_graph: bool) -> (Project, PrefabGraphChange) {
         let mut project = Project::default();
@@ -178,7 +178,7 @@ mod tests {
             BlockPropFaceRef, BlockPropOccupancyPolicy, BlockPropOccupant, BlockPropSemanticShape,
             BlockPropSupportSurface, BlockPropSurfacePlacement,
         };
-        use theframework::prelude::Vec3;
+        use theframework_core::prelude::Vec3;
         let mut project = Project::default();
         let object =
             rusterix::GeometryObject::box_("Top", Vec3::new(0., 0.5, 0.), Vec3::new(2., 1., 2.));

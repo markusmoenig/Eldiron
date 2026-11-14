@@ -215,7 +215,7 @@ mod material_tests {
         let mut assets = Assets::default();
         assets.set_tiles([(tile.id, tile)].into_iter().collect());
         let surface = TerrainSurface::from_map(&map).unwrap();
-        let mut image = TheRGBABuffer::new(theframework::prelude::TheDim::sized(96, 96));
+        let mut image = TheRGBABuffer::new(theframework_core::prelude::TheDim::sized(96, 96));
         let p = Projection {
             origin: Vec2::new(12., 60.),
             unit: 20.,

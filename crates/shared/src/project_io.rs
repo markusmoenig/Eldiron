@@ -364,7 +364,7 @@ fn externalize_item_icon_entries(
 
 fn externalize_item_icon_state(
     binaries: &mut ProjectBinaryWriter,
-    item_id: theframework::prelude::Uuid,
+    item_id: theframework_core::prelude::Uuid,
     state: &str,
     frames: &mut Vec<rusterix::Texture>,
 ) -> Result<Vec<String>, String> {
@@ -393,7 +393,7 @@ fn externalize_item_icon_state(
 }
 
 fn validate_icon_texture(
-    item_id: theframework::prelude::Uuid,
+    item_id: theframework_core::prelude::Uuid,
     state: &str,
     index: usize,
     texture: &rusterix::Texture,
@@ -447,7 +447,7 @@ fn hydrate_item_icon_entries(
 
 fn hydrate_item_icon_state(
     binaries: &mut ProjectBinaryReader<'_, '_>,
-    item_id: theframework::prelude::Uuid,
+    item_id: theframework_core::prelude::Uuid,
     state: &str,
     paths: &[String],
     frames: &mut Vec<rusterix::Texture>,
@@ -477,7 +477,7 @@ fn hydrate_item_icon_state(
 }
 
 fn validate_icon_png_dimensions(
-    item_id: theframework::prelude::Uuid,
+    item_id: theframework_core::prelude::Uuid,
     state: &str,
     index: usize,
     bytes: &[u8],

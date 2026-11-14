@@ -2,7 +2,7 @@
 use eldiron_shared::{entity_graph, project::Project, project_io, rusterix_utils};
 use rusterix::{EntityAction, Value};
 use std::{path::Path, time::Duration};
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 const DOOR: &str = "792ef4e9-189e-4c1e-9b91-000000000003";
 const BED: &str = "792ef4e9-189e-4c1e-9b91-000000000013";
 const BENCH: &str = "792ef4e9-189e-4c1e-9b91-000000000014";

@@ -1,6 +1,6 @@
 use num_traits::zero;
 use rusterix::Map;
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 /// The data for a character instance.
 #[derive(Serialize, Deserialize, Clone, Debug)]

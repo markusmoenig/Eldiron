@@ -2,7 +2,7 @@ use crate::{TileMaterialMeta, Value, prelude::*};
 use indexmap::IndexMap;
 use std::path::Path;
 use std::sync::{Arc, RwLock};
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 use toml::*;
 
 const DEFAULT_GEOMETRY_TILE_ID: &str = "27826750-a9e7-4346-994b-fb318b238452";
@@ -142,6 +142,8 @@ pub struct Assets {
     pub region_sources: FxHashMap<Uuid, String>,
     pub atlas: Texture,
 
+    /// Parsed fonts serve only the explicit graphical/reference presentation.
+    #[cfg(feature = "graphics")]
     pub fonts: FxHashMap<String, fontdue::Font>,
     /// Immutable source publication; CPU jobs retain bytes without copying a
     /// whole recording from input/update or cloning it into region workers.
@@ -423,6 +425,7 @@ impl Assets {
             authoring_src: String::new(),
             region_sources: FxHashMap::default(),
             atlas: Texture::default(),
+            #[cfg(feature = "graphics")]
             fonts: FxHashMap::default(),
             audio: FxHashMap::default(),
             palette: ThePalette::default(),

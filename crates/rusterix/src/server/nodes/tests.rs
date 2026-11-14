@@ -3,7 +3,7 @@ use serde_json::json;
 #[derive(Default)]
 struct Output(Vec<String>);
 impl WorldServices for Output {
-    fn time(&self, _: &Actor) -> theframework::prelude::TheTime {
+    fn time(&self, _: &Actor) -> theframework_core::prelude::TheTime {
         Default::default()
     }
     fn say(&mut self, _: &Actor, text: String) {
@@ -1225,7 +1225,7 @@ fn routine_entry_starts_random_walk_through_world_services() {
         started: bool,
     }
     impl WorldServices for Walking {
-        fn time(&self, _: &Actor) -> theframework::prelude::TheTime {
+        fn time(&self, _: &Actor) -> theframework_core::prelude::TheTime {
             Default::default()
         }
         fn say(&mut self, _: &Actor, _: String) {}
@@ -1400,7 +1400,7 @@ fn correcting_a_failed_node_retries_it_without_replaying_startup() {
 
 #[test]
 fn time_ranges_cover_boundaries_midnight_and_invalid_input() {
-    let time = |h, m| theframework::prelude::TheTime::new_time(h, m).unwrap();
+    let time = |h, m| theframework_core::prelude::TheTime::new_time(h, m).unwrap();
     assert!(!time_range_contains("14:00", "16:00", time(13, 59)).unwrap());
     assert!(time_range_contains("14:00", "16:00", time(14, 0)).unwrap());
     assert!(!time_range_contains("14:00", "16:00", time(16, 0)).unwrap());
@@ -1413,12 +1413,12 @@ fn time_ranges_cover_boundaries_midnight_and_invalid_input() {
 #[test]
 fn routine_rechecks_only_when_time_condition_changes() {
     struct Clock {
-        time: theframework::prelude::TheTime,
+        time: theframework_core::prelude::TheTime,
         output: Vec<String>,
         cancelled: usize,
     }
     impl WorldServices for Clock {
-        fn time(&self, _: &Actor) -> theframework::prelude::TheTime {
+        fn time(&self, _: &Actor) -> theframework_core::prelude::TheTime {
             self.time
         }
         fn say(&mut self, _: &Actor, text: String) {
@@ -1444,7 +1444,7 @@ fn routine_rechecks_only_when_time_condition_changes() {
         .push(json!({"id":Uuid::new_v4(),"from":output,"to":target}));
     doc["nodes"].as_array_mut().unwrap().push(range);
     let mut world = Clock {
-        time: theframework::prelude::TheTime::new_time(13, 59).unwrap(),
+        time: theframework_core::prelude::TheTime::new_time(13, 59).unwrap(),
         output: vec![],
         cancelled: 0,
     };
@@ -1478,7 +1478,7 @@ fn go_to_waits_for_completion_and_routes_failures() {
         output: Vec<String>,
     }
     impl WorldServices for Navigation {
-        fn time(&self, _: &Actor) -> theframework::prelude::TheTime {
+        fn time(&self, _: &Actor) -> theframework_core::prelude::TheTime {
             Default::default()
         }
         fn say(&mut self, _: &Actor, text: String) {
@@ -1543,7 +1543,7 @@ fn use_action_routes_event_subject_and_refusal_to_failed() {
     #[derive(Default)]
     struct Actions(Vec<(String, Option<u32>)>);
     impl WorldServices for Actions {
-        fn time(&self, _: &Actor) -> theframework::prelude::TheTime {
+        fn time(&self, _: &Actor) -> theframework_core::prelude::TheTime {
             Default::default()
         }
         fn say(&mut self, _: &Actor, _: String) {}
@@ -1599,7 +1599,7 @@ struct Probe {
     values: BTreeMap<String, String>,
 }
 impl WorldServices for Probe {
-    fn time(&self, _: &Actor) -> theframework::prelude::TheTime {
+    fn time(&self, _: &Actor) -> theframework_core::prelude::TheTime {
         Default::default()
     }
     fn say(&mut self, _: &Actor, text: String) {
@@ -2595,7 +2595,7 @@ fn party_nodes_route_subject_and_health_without_scripts() {
     }
     impl WorldServices for PartyProbe {
         fn say(&mut self, _: &Actor, _: String) {}
-        fn time(&self, _: &Actor) -> theframework::prelude::TheTime {
+        fn time(&self, _: &Actor) -> theframework_core::prelude::TheTime {
             Default::default()
         }
         fn join_party(&mut self, _: &Actor, leader: u32) -> Result<bool, String> {
@@ -2712,7 +2712,7 @@ fn set_tile_changes_self_or_current_target_and_rejects_empty_selection() {
         target: Option<u32>,
     }
     impl WorldServices for Tiles {
-        fn time(&self, _: &Actor) -> theframework::prelude::TheTime {
+        fn time(&self, _: &Actor) -> theframework_core::prelude::TheTime {
             Default::default()
         }
         fn say(&mut self, _: &Actor, _: String) {}

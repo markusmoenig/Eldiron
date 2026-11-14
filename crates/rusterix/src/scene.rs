@@ -1,6 +1,6 @@
 use crate::{Batch2D, Batch3D, Chunk, CompiledLight, HitInfo, MapMini, Ray, Tile};
 use rayon::prelude::*;
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 use vek::{Mat3, Mat4};
 
 /// A scene of 2D and 3D batches which are passed to the rasterizer for rasterization.

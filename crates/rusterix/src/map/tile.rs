@@ -2,7 +2,7 @@ use crate::{
     ParticleEmitter, Texture,
     material_library::{MaterialDefinition, MaterialFamily},
 };
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Copy, Debug, Default)]
 pub enum TileRole {

@@ -3,7 +3,7 @@ use eldiron_shared::{entity_graph, project::Project, project_io, rusterix_utils}
 use rusterix::{Entity, Item, Value};
 use serde_json::json;
 use std::{path::Path, sync::Arc};
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 const RECIPE: &str = "792ef4e9-189e-4c1e-9b91-000000000001";
 const DOOR: &str = "792ef4e9-189e-4c1e-9b91-000000000002";

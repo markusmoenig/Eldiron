@@ -1,5 +1,5 @@
 use crate::Texture;
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 /// Screen-relative direction for avatar perspectives.
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Clone, Copy, Debug)]

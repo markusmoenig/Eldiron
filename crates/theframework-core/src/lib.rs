@@ -31,3 +31,19 @@ pub use thevalue::{TheValue, TheValueAssignment, TheValueComparison};
 
 pub mod thergbbuffer;
 pub use thergbbuffer::TheRGBBuffer;
+
+/// Plain CPU data and math shared by project, rules, and session consumers.
+/// Presentation services belong to the Framework prelude instead.
+pub mod prelude {
+    pub use crate::{
+        AlphaMode, ColorSpace, ImageAsset, ImageColorFilter, ImageError, ImageHandle, TheColor,
+        TheDim, TheDimShrinker, TheHorizontalAlign, TheId, TheKeyCode, ThePalette, ThePixelRect,
+        TheRGBABuffer, TheRGBARegion, TheRGBARegionSequence, TheRGBATile, TheRGBBuffer,
+        TheRasterTarget, TheSurfaceError, TheSurfaceMut, TheTileMask, TheTime, TheValue,
+        TheValueAssignment, TheValueComparison, TheVerticalAlign,
+    };
+    pub use rustc_hash::{FxHashMap, FxHashSet};
+    pub use serde::{Deserialize, Serialize};
+    pub use uuid::Uuid;
+    pub use vek::*;
+}

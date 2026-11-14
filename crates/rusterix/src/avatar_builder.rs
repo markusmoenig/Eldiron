@@ -6,7 +6,7 @@ use eldiron_ruleset::{ResolvedEquipmentAvatarAnchor, ResolvedEquipmentPolicy};
 use rustc_hash::{FxHashMap, FxHashSet};
 use scenevm::{Atom, GeoId, SceneVM};
 use std::hash::{Hash, Hasher};
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct AvatarFrameStyle {

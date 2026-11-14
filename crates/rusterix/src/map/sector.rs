@@ -1,7 +1,7 @@
 use super::pixelsource::PixelSource;
 use crate::{BBox, Map, Value, ValueContainer};
 use earcutr::earcut;
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Sector {

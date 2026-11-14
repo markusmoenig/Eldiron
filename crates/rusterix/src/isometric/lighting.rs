@@ -407,7 +407,7 @@ fn encode(v: f32) -> u8 {
 }
 pub(super) fn ground(
     frame: &Frame<'_>,
-    buffer: &mut theframework::prelude::TheRGBABuffer,
+    buffer: &mut theframework_core::prelude::TheRGBABuffer,
     p: Projection,
     geometry: &[[f32; 8]],
     source_width: usize,
@@ -827,7 +827,7 @@ mod tests {
 pub(super) fn gpu_draw(
     scene: &mut scenevm::SceneVM,
     frame: &Frame<'_>,
-    buffer: &mut theframework::prelude::TheRGBABuffer,
+    buffer: &mut theframework_core::prelude::TheRGBABuffer,
     p: Projection,
     particles: &[scenevm::isometric::Particle],
 ) -> Result<(), String> {

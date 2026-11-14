@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::sync::{Arc, OnceLock};
-use theframework::prelude::Uuid;
+use theframework_core::prelude::Uuid;
 
 mod builtins;
 mod lifecycle;
@@ -64,7 +64,7 @@ pub struct Highlights {
 pub struct EventContext<'a> {
     pub actor: &'a Actor,
     pub event: &'a EventObservation,
-    pub time: theframework::prelude::TheTime,
+    pub time: theframework_core::prelude::TheTime,
 }
 /// Value written by the Set Attribute node.
 #[derive(Clone, Debug, PartialEq)]
@@ -193,7 +193,7 @@ pub trait WorldServices {
         Ok(())
     }
 
-    fn time(&self, actor: &Actor) -> theframework::prelude::TheTime;
+    fn time(&self, actor: &Actor) -> theframework_core::prelude::TheTime;
     fn say(&mut self, actor: &Actor, text: String);
     fn random_walk(
         &mut self,
@@ -343,7 +343,7 @@ pub trait Operation: Send + Sync {
         false
     }
 
-    fn condition(&self, _time: theframework::prelude::TheTime) -> Option<bool> {
+    fn condition(&self, _time: theframework_core::prelude::TheTime) -> Option<bool> {
         None
     }
     fn error_output(&self) -> Option<&'static str> {

@@ -784,7 +784,7 @@ mod source_tests {
     #[test]
     fn uncached_palette_and_noise_sources_still_produce_two_d_geometry() {
         let mut assets = Assets::default();
-        assets.palette.colors[0] = Some(theframework::prelude::TheColor::from_u8_array([
+        assets.palette.colors[0] = Some(theframework_core::prelude::TheColor::from_u8_array([
             120, 150, 80, 255,
         ]));
         for source in [

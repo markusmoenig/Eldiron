@@ -1,6 +1,6 @@
 use indexmap::IndexMap;
 use rand::Rng;
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 use vek::{Vec2, Vec3};
 
 use crate::{EntityAction, prelude::*};

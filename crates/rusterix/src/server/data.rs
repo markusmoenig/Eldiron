@@ -4,7 +4,7 @@ use crate::{
 };
 use indexmap::IndexMap;
 use std::sync::{LazyLock, RwLock};
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 use toml::Table;
 
 static TILE_ALIAS_LOOKUP: LazyLock<RwLock<FxHashMap<String, PixelSource>>> =

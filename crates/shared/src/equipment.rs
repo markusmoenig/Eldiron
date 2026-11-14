@@ -2,7 +2,7 @@
 use crate::{project::Project, rulesets::ResolvedEquipmentPolicy};
 use rusterix::{Assets, Entity};
 use std::collections::{BTreeMap, BTreeSet};
-use theframework::prelude::Uuid;
+use theframework_core::prelude::Uuid;
 
 #[derive(Clone, Debug)]
 pub struct EquipmentItem {
@@ -264,7 +264,7 @@ mod tests {
         let equipped = rusterix::server::data::character_for_display(&display, &catalog.resolver);
         assert_eq!(equipped.equipped["torso"].creator_id, item);
         let previous = p.characters[&character_id].data.clone();
-        let mut doc: theframework::thegraph::GraphDocument =
+        let mut doc: theframework_core::graph::GraphDocument =
             serde_json::from_value(p.node_graphs[&owner].clone()).unwrap();
         let node = doc
             .nodes
@@ -276,8 +276,8 @@ mod tests {
             .iter_mut()
             .find(|r| r.key.as_deref() == Some("start_equipped_items"))
             .unwrap();
-        if let theframework::thegraph::GraphControlValue::List { rows, .. } = &mut row.value {
-            rows[0][0] = theframework::thegraph::GraphControlValue::Text("missing item".into());
+        if let theframework_core::graph::GraphControlValue::List { rows, .. } = &mut row.value {
+            rows[0][0] = theframework_core::graph::GraphControlValue::Text("missing item".into());
         }
         assert!(
             crate::entity_graph::update_owner(&mut p, &owner, &doc)

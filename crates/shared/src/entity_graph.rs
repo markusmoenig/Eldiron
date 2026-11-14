@@ -3,8 +3,8 @@
 //! This compiler has no event scheduler or world mutation dependencies.
 use crate::project::Project;
 use std::collections::{BTreeMap, HashSet};
-use theframework::prelude::Uuid;
-use theframework::thegraph::*;
+use theframework_core::prelude::Uuid;
+use theframework_core::graph::*;
 use toml::{Table, Value};
 
 pub const PREFIX: &str = "entity/";

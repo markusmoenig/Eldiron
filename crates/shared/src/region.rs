@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use rusterix::GeometryObject;
 pub use rusterix::map::*;
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 fn default_editing_look_at_3d() -> Vec3<f32> {
     Vec3::new(2.0, 0.0, 0.0)

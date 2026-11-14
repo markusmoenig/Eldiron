@@ -8,7 +8,7 @@ use denrim_materials::{
 };
 use rayon::prelude::*;
 use std::collections::BTreeMap;
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 pub fn editable(
     def: &eldiron_ruleset::BundledMaterialAsset,
@@ -400,11 +400,24 @@ mod tests {
             eldiron_ruleset::latest_official_ruleset(),
         )
         .unwrap();
-        assert_eq!(
-            defs.len(),
-            templates.len() + 1,
-            "one icon per item plus the unlit torch"
-        );
+        // The catalog also contains the shipped game-screen tabs and command
+        // icons. Check the complete identity set rather than assuming every
+        // non-torch definition belongs to an item template.
+        let mut expected: std::collections::BTreeSet<String> = templates
+            .iter()
+            .map(|item| format!("icon/{}/on", item.id))
+            .collect();
+        expected.insert("icon/torch/off".into());
+        for name in [
+            "ui_preferences", "ui_equipment", "ui_inventory", "ui_spellbook",
+            "ui_actions", "look", "use", "open", "close",
+        ] {
+            expected.insert(format!("icon/{name}/on"));
+        }
+        let actual: std::collections::BTreeSet<String> =
+            defs.iter().map(|def| def.id.to_owned()).collect();
+        assert_eq!(actual, expected, "complete item and game-screen icon catalog");
+        assert_eq!(actual.len(), defs.len(), "duplicate icon identities");
         for item in templates {
             let table = item.data.parse::<toml::Table>().unwrap();
             let name = format!("icon/{}/on", item.id);

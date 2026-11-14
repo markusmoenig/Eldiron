@@ -9,7 +9,7 @@ pub fn sync_procedural_avatar_assets(
 ) {
     use rusterix::procedural_avatar::{Appearance, fingerprint};
     use std::sync::Arc;
-    use theframework::prelude::Uuid;
+    use theframework_core::prelude::Uuid;
     let trace_start = web_time::Instant::now();
     let trace = |label| {
         if std::env::var_os("ELDIRON_PROFILE_STARTUP").is_some() {
@@ -301,7 +301,7 @@ pub fn sync_procedural_avatar_assets(
 #[cfg(test)]
 mod procedural_appearance_tests {
     use super::*;
-    use theframework::prelude::Uuid;
+    use theframework_core::prelude::Uuid;
     use vek::Vec2;
     #[test]
     fn integration_pass_unchanged_geometry_reuses_appearances_and_invalid_edits_keep_last_good() {
@@ -764,7 +764,7 @@ mod procedural_appearance_tests {
             crate::rulesets::OFFICIAL_RULESET_VERSION,
         )
         .remove(0);
-        let id = theframework::prelude::Uuid::parse_str(asset.asset_id).unwrap();
+        let id = theframework_core::prelude::Uuid::parse_str(asset.asset_id).unwrap();
         assert!(project.procedural_appearances.contains_key(&id));
         let mut assets = rusterix::Assets::default();
         insert_bundled_ruleset_avatars(&mut assets, &project);
@@ -1272,7 +1272,7 @@ mod live_rules_tests {
 #[cfg(test)]
 mod unified_palette_tests {
     use super::*;
-    use theframework::prelude::{TheColor, ThePalette};
+    use theframework_core::prelude::{TheColor, ThePalette};
     #[test]
     fn bundled_icons_and_world_tiles_fit_palette_without_mutating_source_or_custom_art() {
         let mut project = Project::default();
@@ -1407,6 +1407,7 @@ mod audio_source_tests {
         assert_eq!(assets.audio["Song"].as_ref(), b"RIFF original bytes");
         assert_eq!(assets.audio["Ogg"].as_ref(), b"OggS original bytes");
         assert_eq!(assets.audio_fx_src, project.audio_fx);
+        #[cfg(feature = "graphics")]
         assert!(assets.fonts.is_empty());
         assert_eq!(serde_json::to_value(&project).unwrap(), before);
         let published = assets.audio["Song"].clone();

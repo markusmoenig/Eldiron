@@ -1,6 +1,6 @@
 use crate::{Assets, Map, Pixel, Texture, Tile, ValueContainer};
 use std::borrow::Cow;
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 /// Resolved source metadata. Authored tiles stay borrowed; synthetic sources
 /// carry small parameters until an actual pixel consumer materializes them.

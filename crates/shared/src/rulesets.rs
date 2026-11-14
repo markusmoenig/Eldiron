@@ -1,6 +1,6 @@
 pub use eldiron_ruleset::*;
 
-use theframework::prelude::Uuid;
+use theframework_core::prelude::Uuid;
 
 pub fn bundled_avatars_for_project(
     config_src: &str,

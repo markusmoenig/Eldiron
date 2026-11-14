@@ -9,7 +9,7 @@ use std::{
     hash::{Hash, Hasher},
     sync::{Arc, Mutex},
 };
-use theframework::prelude::{ThePalette, Uuid};
+use theframework_core::prelude::{ThePalette, Uuid};
 pub mod effects;
 #[cfg(feature = "graphics")]
 mod meshes;

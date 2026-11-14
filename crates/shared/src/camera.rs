@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use core::f32;
 use std::f32::consts::PI;
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 pub struct PrerenderedCamera {
     pub ratio: f32,

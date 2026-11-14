@@ -2,7 +2,7 @@
 use eldiron_shared::{isometric, project_io, rusterix_utils};
 use rusterix::Assets;
 use std::time::Instant;
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let path = std::env::args()

@@ -21,7 +21,7 @@ required-features = ["graphics"]
 [dependencies]
 web-time = "1.1.0"
 denrim-materials = { path = "../materialz", features = ["integration"] }
-theframework.workspace = true
+theframework-core = { path = "../theframework-core" }
 eldiron-ruleset = { path = "../ruleset", version = "0.96.0" }
 rusterix = { path = "../rusterix", version = "0.96.0", default-features = false }
 scenevm = { path = "../scenevm", version = "0.96.0", default-features = false }
@@ -33,7 +33,7 @@ toml = "0.9"
 vectorize = "0.2.0"
 rayon = "1"
 rand = "0.9"
-fontdue = "0.9.3"
+fontdue = { version = "0.9.3", optional = true }
 line_drawing = "1.0.0"
 indexmap = { version = "2", features = ["serde"], default-features = true }
 noiselib = "0.2.3"
@@ -62,4 +62,4 @@ web-sys = { version = "0.3", features = ['Window'] }
 [features]
 default = ["graphics"]
 text-ai = ["dep:ureq", "dep:url", "dep:ring", "dep:dirs", "dep:tempfile", "dep:open"]
-graphics = ["rusterix/graphics", "scenevm/gpu", "theframework/ui"]
+graphics = ["rusterix/graphics", "scenevm/gpu", "dep:fontdue"]

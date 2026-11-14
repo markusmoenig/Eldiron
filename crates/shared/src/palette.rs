@@ -2,7 +2,7 @@
 use crate::project::{PaletteMaterial, Project};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PaletteState {

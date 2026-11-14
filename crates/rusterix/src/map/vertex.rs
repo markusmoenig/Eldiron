@@ -1,5 +1,5 @@
 use crate::ValueContainer;
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug, Default)]
 pub struct Vertex {

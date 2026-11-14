@@ -6,7 +6,7 @@ use rusterix::chunkbuilder::{
 };
 use rusterix::{ChunkBuilder, Map, Value};
 use std::{path::Path, time::Instant};
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 fn area(map: &mut Map, name: &str, points: &[[f32; 2]], height: f32, hill: bool) {
     map.clear_temp();

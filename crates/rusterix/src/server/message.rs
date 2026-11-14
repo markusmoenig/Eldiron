@@ -1,7 +1,7 @@
 use crate::vm::EldrinDebugModule;
 use crate::{BlockPropInstance, Entity, Map, Value, ValueContainer};
 use scenevm::PaletteRemap2DMode;
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum AudioCommand {

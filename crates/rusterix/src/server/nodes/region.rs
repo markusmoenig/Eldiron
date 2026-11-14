@@ -592,7 +592,7 @@ impl WorldServices for RegionServices<'_> {
         player.set_attribute(&key, WorldValue::Str(state.into()));
         Ok(true)
     }
-    fn time(&self, _: &Actor) -> theframework::prelude::TheTime {
+    fn time(&self, _: &Actor) -> theframework_core::prelude::TheTime {
         self.ctx.time
     }
     fn say(&mut self, actor: &Actor, text: String) {

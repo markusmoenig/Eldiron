@@ -4,7 +4,7 @@ use indexmap::IndexMap;
 use rusterix::{Texture, Tile};
 use serde::Deserialize;
 use serde_json::{Value, json};
-use theframework::prelude::Uuid;
+use theframework_core::prelude::Uuid;
 
 #[derive(Deserialize)]
 struct LegacyMember {
@@ -284,7 +284,7 @@ mod tests {
     use super::*;
     use crate::project::{Project, TileCollectionAsset, TileCollectionEntry};
     use rusterix::{PixelSource, Value as MapValue};
-    use theframework::prelude::Vec2;
+    use theframework_core::prelude::Vec2;
 
     fn grouped_project() -> (Value, Uuid, Uuid, Uuid) {
         let mut project = Project::new();

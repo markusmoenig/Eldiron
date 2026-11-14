@@ -1,6 +1,6 @@
 use eldiron_shared::{project::Project, runtime_assets::publish_visual_tiles};
 use rusterix::{Assets, GeometryObject, PixelSource, Texture, Tile};
-use theframework::prelude::{TheColor, Uuid};
+use theframework_core::prelude::{TheColor, Uuid};
 use vek::Vec3;
 #[test]
 fn cpu_visual_sources_preserve_project_data_engine_entries_and_palette_geometry_indices() {

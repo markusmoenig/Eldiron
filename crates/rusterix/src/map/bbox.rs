@@ -1,4 +1,4 @@
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 use vek::Vec2;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]

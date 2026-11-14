@@ -1,7 +1,7 @@
 //! Resolve shared geometry dependencies without changing the saved authoring graph.
 use crate::project::Project;
 use denrim_materials::geometry::{Document, Operation};
-use theframework::prelude::Uuid;
+use theframework_core::prelude::Uuid;
 
 pub fn asset_id(source: &str) -> Result<Uuid, String> {
     if let Some(name) = source.strip_prefix("ruleset:geometry/") {

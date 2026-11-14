@@ -1,7 +1,7 @@
 //! Editable tile compositions. Material UUIDs reference shared picker assets;
 //! generated material bundles and baked pixels are derived caches.
 use serde::{Deserialize, Serialize};
-use theframework::prelude::Uuid;
+use theframework_core::prelude::Uuid;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct MaterialComposition {

@@ -14,7 +14,7 @@ use rusterix::{
     client::widget::game::GameWidget,
 };
 use std::{collections::BTreeMap, path::PathBuf};
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 fn polygon(map: &mut Map, points: &[[f32; 2]]) -> u32 {
     map.possible_polygon.clear();

@@ -12,7 +12,7 @@ use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
 };
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 const HALF_W: f32 = 32.;
 const HALF_H: f32 = 16.;

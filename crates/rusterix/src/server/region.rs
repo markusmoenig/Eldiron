@@ -25,7 +25,7 @@ use rand::*;
 
 use std::collections::BTreeSet;
 use std::sync::{Arc, Mutex};
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 use vek::{Vec2, Vec3};
 

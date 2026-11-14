@@ -6,7 +6,7 @@ use std::{
     collections::HashMap,
     sync::{Mutex, OnceLock},
 };
-use theframework::prelude::Uuid;
+use theframework_core::prelude::Uuid;
 
 pub fn definitions(config: &str) -> Vec<crate::rulesets::BundledMaterialAsset> {
     let s = crate::rulesets::selected_ruleset_config(config);
@@ -243,7 +243,7 @@ pub fn icon_state_tiles(project: &Project) -> Result<HashMap<Uuid, Vec<Texture>>
 /// or a GPU device into the runtime asset loader.
 pub fn bake_asset(
     asset: &rusterix::ruleset_material::EditableAsset,
-    palette: &theframework::prelude::ThePalette,
+    palette: &theframework_core::prelude::ThePalette,
     resolution: u32,
 ) -> Result<Texture, String> {
     bake_at_time(asset, palette, resolution, 0.)
@@ -278,7 +278,7 @@ pub fn frames_for_item(
 
 fn animation_frames(
     asset: &rusterix::ruleset_material::EditableAsset,
-    palette: &theframework::prelude::ThePalette,
+    palette: &theframework_core::prelude::ThePalette,
     resolution: u32,
 ) -> Result<Vec<Texture>, String> {
     let frames = asset
@@ -296,7 +296,7 @@ fn animation_frames(
 }
 pub(crate) fn bake_at_time(
     asset: &rusterix::ruleset_material::EditableAsset,
-    palette: &theframework::prelude::ThePalette,
+    palette: &theframework_core::prelude::ThePalette,
     resolution: u32,
     time: f32,
 ) -> Result<Texture, String> {
@@ -324,7 +324,7 @@ pub(crate) fn bake_at_time(
 }
 // Saved bakes survive process restarts. Content, palette and resolution own the
 // key; the application release does not change a material's pixels.
-fn saved_key(bundle: &str, palette: &theframework::prelude::ThePalette, resolution: u32) -> u64 {
+fn saved_key(bundle: &str, palette: &theframework_core::prelude::ThePalette, resolution: u32) -> u64 {
     let mut document: serde_json::Value =
         serde_json::from_str(bundle).unwrap_or_else(|_| serde_json::Value::String(bundle.into()));
     if let Some(version) = document.get_mut("source_library") {
@@ -530,7 +530,7 @@ mod tests {
             .collect();
         assert_eq!(definitions.len(), 2);
         // Use a custom palette, as an old project may not match the embedded cache.
-        project.palette.colors[0] = Some(theframework::prelude::TheColor::from_hex("#8b6254"));
+        project.palette.colors[0] = Some(theframework_core::prelude::TheColor::from_hex("#8b6254"));
         let expected: Vec<_> = definitions
             .iter()
             .map(|def| {

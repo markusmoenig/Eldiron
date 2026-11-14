@@ -1,6 +1,6 @@
 use crate::{BBox, CompiledLinedef};
 use pathfinding::prelude::astar;
-use theframework::prelude::FxHashSet;
+use theframework_core::prelude::FxHashSet;
 use vek::Vec2;
 
 /// A miniature version of the Map used for client side lighting calculations during the rasterization process and server side collision detection etc.
@@ -745,7 +745,7 @@ impl MapMini {
 mod startup_tests {
     use super::*;
     use crate::{Linedef, Map, PixelSource, Sector, Value, Vertex};
-    use theframework::prelude::Uuid;
+    use theframework_core::prelude::Uuid;
 
     fn adjacent_blocking_tiles() -> (Map, Uuid) {
         let tile = Uuid::new_v4();

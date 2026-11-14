@@ -2,7 +2,7 @@
 use super::regionctx::{RegionCtx, ScriptScope};
 use crate::vm::VMValue;
 use std::collections::{BTreeMap, VecDeque};
-use theframework::prelude::Uuid;
+use theframework_core::prelude::Uuid;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum EventOwner {

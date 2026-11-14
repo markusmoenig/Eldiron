@@ -62,7 +62,7 @@ pub mod prelude {
     };
 }
 
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 /// Messages to the clients. The first argument is always the client id.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]

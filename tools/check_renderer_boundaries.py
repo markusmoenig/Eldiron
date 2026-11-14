@@ -12,10 +12,11 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 GPU = {"wgpu", "wgpu-core", "wgpu-hal", "renderkit", "winit", "pixels", "softbuffer"}
 TEXT_UI = {"parley", "swash", "zeno"}
+CPU_ONLY = GPU | TEXT_UI | {"theframework", "fontdue", "rfd"}
 
 
 def tree(package, features=None, target=None):
-    args = ["cargo", "tree", "--offline", "-p", package, "--edges", "normal,features", "--prefix", "none"]
+    args = ["cargo", "tree", "--locked", "--offline", "-p", package, "--edges", "normal,features", "--prefix", "none"]
     if target is not None:
         args.extend(["--target", target])
     if features is not None:
@@ -36,10 +37,15 @@ def check(package, forbidden, features=None, no_widget_ui=False, forbidden_featu
 
 
 def main():
-    check("theframework-core", GPU | TEXT_UI | {"theframework", "fontdue"})
-    check("eldiron-ruleset", GPU | TEXT_UI | {"theframework", "fontdue"})
-    check("eldiron-runtime", GPU | TEXT_UI, no_widget_ui=True)
-    check("eldiron-client-terminal", GPU | TEXT_UI, no_widget_ui=True)
+    check("theframework-core", CPU_ONLY)
+    check("eldiron-ruleset", CPU_ONLY)
+    check("scenevm", CPU_ONLY, features="")
+    check("rusterix", CPU_ONLY, features="")
+    check("eldiron-shared", CPU_ONLY, features="")
+    check("eldiron-runtime", CPU_ONLY)
+    check("eldiron-client-terminal", CPU_ONLY)
+    for package in ("scenevm", "rusterix", "eldiron-shared", "eldiron-runtime"):
+        check(package, CPU_ONLY, features="", target="wasm32-unknown-unknown")
     check("theframework", GPU, features="ui-paint")
     check("theframework", {"winit", "pixels", "softbuffer"}, features="render-wgpu", no_widget_ui=True)
     check("theframework", {"pixels", "softbuffer"}, features="platform-winit", no_widget_ui=True)

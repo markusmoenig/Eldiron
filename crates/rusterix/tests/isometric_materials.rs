@@ -2,7 +2,7 @@ use rusterix::{
     Assets, Map, PixelSource, Texture, Tile, Value, Vertex, VertexBlendPreset,
     isometric::{SpriteLayout, materials::SurfaceMaterials},
 };
-use theframework::prelude::Uuid;
+use theframework_core::prelude::Uuid;
 fn tile(color: [u8; 4]) -> Tile {
     let mut tile = Tile::from_texture(Texture::from_color(color));
     tile.isometric = Some(SpriteLayout {

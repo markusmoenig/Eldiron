@@ -40,7 +40,7 @@ pub use self::{
 
 use rustc_hash::FxHashMap;
 use std::path::PathBuf;
-use theframework::thepalette::ThePalette;
+use theframework_core::thepalette::ThePalette;
 
 pub struct VM {
     path: PathBuf,

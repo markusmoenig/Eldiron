@@ -8,7 +8,7 @@ use eldiron_ruleset::{
 };
 use std::collections::BTreeMap;
 use std::sync::{Arc, OnceLock, RwLock};
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 use toml::Table;
 use uuid::Uuid;
 

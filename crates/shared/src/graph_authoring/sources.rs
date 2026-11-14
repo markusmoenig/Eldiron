@@ -5,7 +5,7 @@ use super::*;
 mod transactions;
 use crate::{entity_graph, project::Project, rulesets};
 use std::collections::HashMap;
-use theframework::thegraph::*;
+use theframework_core::graph::*;
 pub use transactions::*;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

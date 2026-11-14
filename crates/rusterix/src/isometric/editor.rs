@@ -3,7 +3,7 @@ use super::{Projection, line, terrain_rectangle_segments};
 use crate::editor_colors::{EDITOR_CURSOR_COLOR, EDITOR_GEOMETRY_COLOR, EDITOR_SELECTION_COLOR};
 use crate::{Map, MapToolType};
 use rustc_hash::{FxHashMap, FxHashSet};
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 #[derive(Clone, Copy)]
 pub struct EditorGuides {

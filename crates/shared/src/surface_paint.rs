@@ -15,7 +15,7 @@ use std::{
 /// Call from source preparation/update; consumers retain the Arc across GPU loss.
 pub fn sync(
     assets: &mut rusterix::Assets,
-    map: theframework::prelude::Uuid,
+    map: theframework_core::prelude::Uuid,
     layer: &mut IsoPaintLayer,
 ) -> Result<bool, String> {
     layer.refresh_sources(assets);

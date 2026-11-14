@@ -3,7 +3,7 @@ use indexmap::IndexMap;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use std::collections::HashMap;
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ProcCell {

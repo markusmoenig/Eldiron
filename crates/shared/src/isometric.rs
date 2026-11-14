@@ -9,7 +9,7 @@ use denrim_materials::{
 use rusterix::Texture;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 const HALF_W: f32 = 32.;
 const HALF_H: f32 = 16.;
 const VERTICAL: f32 = 39.1918359;

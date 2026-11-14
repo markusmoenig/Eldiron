@@ -2,7 +2,7 @@
 #[cfg(test)]
 use crate::graph_authoring::*;
 use rusterix::ParticleEmitterDef;
-use theframework::thegraph::*;
+use theframework_core::graph::*;
 pub trait ParticleNodeModule {
     fn definition(&self) -> GraphNode;
     fn apply(&self, node: &GraphNode, emitter: &mut ParticleEmitterDef) -> Result<(), String>;

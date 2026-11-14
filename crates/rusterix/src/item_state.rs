@@ -207,7 +207,7 @@ pub fn world_point(item: &Item, local: Vec3<f32>) -> Vec3<f32> {
 mod tests {
     use super::*;
     use std::sync::Arc;
-    use theframework::prelude::Uuid;
+    use theframework_core::prelude::Uuid;
     fn door() -> Item {
         let mut item = Item::new();
         item.set_attribute("openable", Value::Bool(true));

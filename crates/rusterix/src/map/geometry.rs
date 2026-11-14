@@ -1,5 +1,5 @@
 use crate::Map;
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 /// Returns a HashMap<u32, (Vec<[f32; 2]>, Vec<(u32, u32, u32)>)> mapping each linedef ID
 /// to a small mesh for that single linedef. Each mesh is a thick "quad" made by offsetting

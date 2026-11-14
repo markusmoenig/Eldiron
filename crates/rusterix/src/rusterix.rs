@@ -4,7 +4,7 @@ use crate::{
 };
 use indexmap::IndexMap;
 use scenevm::Atom;
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 use vek::Vec2;
 
 #[derive(PartialEq)]

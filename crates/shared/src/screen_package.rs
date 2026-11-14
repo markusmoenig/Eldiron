@@ -8,7 +8,7 @@ use denrim_materials::integration::EditableMaterialAsset;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, HashMap};
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ScreenPackage {

@@ -38,7 +38,7 @@ instant = { version = "0.1", features = ["wasm-bindgen"] }
 winit = { version = "0.30", optional = true }
 
 [target.'cfg(all(not(target_arch = "wasm32"), not(target_os = "ios")))'.dependencies]
-rfd = "0.17.1"
+rfd = { version = "0.17.1", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen-futures = "0.4"
@@ -58,7 +58,7 @@ getrandom = { version = "0.3", features = ["wasm_js"] }
 
 [features]
 gpu = ["dep:wgpu", "dep:pollster", "dep:renderkit"]
-ui = ["fontdue"]
+ui = ["fontdue", "dep:rfd"]
 windowing = ["winit"]
 
 default = ["gpu", "windowing"]

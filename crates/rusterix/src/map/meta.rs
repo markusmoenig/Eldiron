@@ -1,5 +1,5 @@
 use crate::{Map, Tile};
-use theframework::prelude::*;
+use theframework_core::prelude::*;
 
 /// Holds a map and all its associated meta data (tiles, audio etc).
 #[derive(Serialize, Deserialize, Clone, Debug)]
